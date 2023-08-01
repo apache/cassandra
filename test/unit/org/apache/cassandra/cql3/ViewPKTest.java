@@ -253,8 +253,8 @@ public class ViewPKTest extends ViewAbstractTest
             }
         }
 
-        updateView("INSERT INTO %s (k, asciival, bigintval) VALUES (?, ?, fromJson(?))", 0, "ascii text", "123123123123");
-        updateView("INSERT INTO %s (k, asciival) VALUES (?, fromJson(?))", 0, "\"ascii text\"");
+        updateView("INSERT INTO %s (k, asciival, bigintval) VALUES (?, ?, from_json(?))", 0, "ascii text", "123123123123");
+        updateView("INSERT INTO %s (k, asciival) VALUES (?, from_json(?))", 0, "\"ascii text\"");
         assertRows(execute("SELECT bigintval FROM %s WHERE k = ? and asciival = ?", 0, "ascii text"), row(123123123123L));
 
         //Check the MV
@@ -265,7 +265,7 @@ public class ViewPKTest extends ViewAbstractTest
 
 
         //UPDATE BASE
-        updateView("INSERT INTO %s (k, asciival, bigintval) VALUES (?, ?, fromJson(?))", 0, "ascii text", "1");
+        updateView("INSERT INTO %s (k, asciival, bigintval) VALUES (?, ?, from_json(?))", 0, "ascii text", "1");
         assertRows(execute("SELECT bigintval FROM %s WHERE k = ? and asciival = ?", 0, "ascii text"), row(1L));
 
         //Check the MV

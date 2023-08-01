@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
@@ -34,20 +35,25 @@ import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import net.openhft.chronicle.core.io.BackgroundResourceReleaser;
 import net.openhft.chronicle.queue.ChronicleQueue;
+import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
 import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
 import net.openhft.chronicle.queue.ExcerptAppender;
 import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.wire.WireOut;
 import net.openhft.chronicle.wire.WriteMarshallable;
+import net.openhft.posix.PosixAPI;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.io.FSError;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.apache.cassandra.utils.concurrent.WeightedQueue;
+
+import static java.lang.String.format;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CHRONICLE_ANNOUNCER_DISABLE;
 
 /**
  * Bin log is a is quick and dirty binary log that is kind of a NIH version of binary logging with a traditional logging
@@ -71,6 +77,13 @@ public class BinLog implements Runnable
 
     public static final String VERSION = "version";
     public static final String TYPE = "type";
+
+    static
+    {
+        // Avoid the chronicle announcement which is commercial advertisement, and debug info we already print at startup
+        // https://github.com/OpenHFT/Chronicle-Core/blob/chronicle-core-2.23.36/src/main/java/net/openhft/chronicle/core/announcer/Announcer.java#L32-L33
+        CHRONICLE_ANNOUNCER_DISABLE.setBoolean(true);
+    }
 
     private ChronicleQueue queue;
     private ExcerptAppender appender;
@@ -119,10 +132,11 @@ public class BinLog implements Runnable
 
     private BinLog(Path path, BinLogOptions options, BinLogArchiver archiver)
     {
+        Preconditions.checkNotNull(PosixAPI.posix(), "Cannot initialize OpenHFT Posix");
         Preconditions.checkNotNull(path, "path was null");
         Preconditions.checkNotNull(options.roll_cycle, "roll_cycle was null");
         Preconditions.checkArgument(options.max_queue_weight > 0, "max_queue_weight must be > 0");
-        SingleChronicleQueueBuilder builder = SingleChronicleQueueBuilder.single(path.toFile());
+        SingleChronicleQueueBuilder builder = SingleChronicleQueueBuilder.single(path.toFile()); // checkstyle: permit this invocation
         builder.rollCycle(RollCycles.valueOf(options.roll_cycle));
 
         sampleQueue = new WeightedQueue<>(options.max_queue_weight);
@@ -132,7 +146,6 @@ public class BinLog implements Runnable
         appender = queue.acquireAppender();
         this.blocking = options.block;
         this.path = path;
-
         this.options = options;
     }
 
@@ -167,6 +180,7 @@ public class BinLog implements Runnable
 
         shouldContinue = false;
         sampleQueue.put(NO_OP);
+        BackgroundResourceReleaser.stop();
         binLogThread.join();
         appender.close();
         appender = null;
@@ -425,12 +439,18 @@ public class BinLog implements Runnable
             }
             try
             {
+                Throwable sanitationThrowable = cleanEmptyLogFiles(new File(path), null);
+                if (sanitationThrowable != null)
+                    throw new RuntimeException(format("Unable to clean up %s directory from empty %s files.",
+                                                      path.toAbsolutePath(), SingleChronicleQueue.SUFFIX),
+                                               sanitationThrowable);
+
                 // create the archiver before cleaning directories - ExternalArchiver will try to archive any existing file.
                 BinLogArchiver archiver = Strings.isNullOrEmpty(archiveCommand) ? new DeletingArchiver(maxLogSize) : new ExternalArchiver(archiveCommand, path, maxArchiveRetries);
                 if (cleanDirectory)
                 {
                     logger.info("Cleaning directory: {} as requested", path);
-                    if (path.toFile().exists())
+                    if (new File(path).exists())
                     {
                         Throwable error = cleanDirectory(new File(path), null);
                         if (error != null)
@@ -461,24 +481,46 @@ public class BinLog implements Runnable
         }
     }
 
+    /**
+     * ChronicleQueue fails to start on cq4 files which are empty. Find such files in log dir and remove them.
+     */
+    private static Throwable cleanEmptyLogFiles(File directory, Throwable accumulate)
+    {
+        return cleanDirectory(directory, accumulate,
+                              (dir) -> dir.tryList(file -> {
+                                  boolean foundEmptyCq4File = !file.isDirectory()
+                                                              && file.length() == 0
+                                                              && file.name().endsWith(SingleChronicleQueue.SUFFIX);
+
+                                  if (foundEmptyCq4File)
+                                      logger.warn("Found empty ChronicleQueue file {}. This file wil be deleted as part of BinLog initialization.",
+                                                  file.absolutePath());
+
+                                  return foundEmptyCq4File;
+                              }));
+    }
+
     public static Throwable cleanDirectory(File directory, Throwable accumulate)
     {
-        if (!directory.exists())
-        {
-            return Throwables.merge(accumulate, new RuntimeException(String.format("%s does not exists", directory)));
-        }
-        if (!directory.isDirectory())
-        {
-            return Throwables.merge(accumulate, new RuntimeException(String.format("%s is not a directory", directory)));
-        }
-        for (File f : directory.tryList())
-        {
-            accumulate = deleteRecursively(f, accumulate);
-        }
+        return cleanDirectory(directory, accumulate, File::tryList);
+    }
+
+    private static Throwable cleanDirectory(File directory, Throwable accumulate, Function<File, File[]> lister)
+    {
+        accumulate = checkDirectory(directory, accumulate);
+
+        if (accumulate != null)
+            return accumulate;
+
+        File[] files = lister.apply(directory);
+
+        if (files != null)
+            for (File f : files)
+                accumulate = deleteRecursively(f, accumulate);
+
         if (accumulate instanceof FSError)
-        {
             JVMStabilityInspector.inspectThrowable(accumulate);
-        }
+
         return accumulate;
     }
 
@@ -488,11 +530,20 @@ public class BinLog implements Runnable
         {
             File[] files = fileOrDirectory.tryList();
             if (files != null)
-            {
                 for (File f : files)
-                    accumulate = FileUtils.deleteWithConfirm(f, accumulate);
-            }
+                    accumulate = f.delete(accumulate, null);
         }
-        return FileUtils.deleteWithConfirm(fileOrDirectory, accumulate);
+        return fileOrDirectory.delete(accumulate, null);
+    }
+
+    private static Throwable checkDirectory(File directory, Throwable accumulate)
+    {
+        if (!directory.exists())
+            accumulate = Throwables.merge(accumulate, new RuntimeException(format("%s does not exist", directory)));
+
+        if (!directory.isDirectory())
+            accumulate = Throwables.merge(accumulate, new RuntimeException(format("%s is not a directory", directory)));
+
+        return accumulate;
     }
 }

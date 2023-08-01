@@ -60,6 +60,7 @@ import org.junit.Assume;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.IPartitioner;
@@ -97,7 +98,6 @@ import org.apache.cassandra.utils.Shared.Recursive;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.reflections.Reflections;
 import org.reflections.scanners.Scanners;
-import org.reflections.scanners.TypeAnnotationsScanner;
 import org.reflections.util.ConfigurationBuilder;
 import org.reflections.util.NameHelper;
 
@@ -184,6 +184,14 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     {
         private INodeProvisionStrategy.Strategy nodeProvisionStrategy = INodeProvisionStrategy.Strategy.MultipleNetworkInterfaces;
         private ShutdownExecutor shutdownExecutor = DEFAULT_SHUTDOWN_EXECUTOR;
+
+        {
+            // Indicate that we are running in the in-jvm dtest environment
+            CassandraRelevantProperties.DTEST_IS_IN_JVM_DTEST.setBoolean(true);
+            // those properties may be set for unit-test optimizations; those should not be used when running dtests
+            CassandraRelevantProperties.TEST_FLUSH_LOCAL_SCHEMA_CHANGES.reset();
+            CassandraRelevantProperties.NON_GRACEFUL_SHUTDOWN.reset();
+        }
 
         public AbstractBuilder(Factory<I, C, B> factory)
         {
@@ -395,6 +403,8 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                 }
                 throw t;
             }
+            // This duplicates work done in Instance startup, but keeping as other Instance implementations
+            // do not, so to permit older releases to be tested, repeat the setup
             updateMessagingVersions();
 
             if (instanceInitializer != null)
@@ -640,6 +650,16 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     public Stream<ICoordinator> coordinators()
     {
         return stream().map(IInstance::coordinator);
+    }
+
+    public List<I> get(int... nodes)
+    {
+        if (nodes == null || nodes.length == 0)
+            throw new IllegalArgumentException("No nodes provided");
+        List<I> list = new ArrayList<>(nodes.length);
+        for (int i : nodes)
+            list.add(get(i));
+        return list;
     }
 
     /**
@@ -1025,6 +1045,8 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     @Override
     public void close()
     {
+        logger.info("Closing cluster {}", this.clusterId);
+        FBUtilities.closeQuietly(instanceInitializer);
         FBUtilities.waitOnFutures(instances.stream()
                                            .filter(i -> !i.isShutdown())
                                            .map(IInstance::shutdown)
@@ -1318,4 +1340,3 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         INSTANCE;
     }
 }
-

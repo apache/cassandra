@@ -21,7 +21,6 @@ package org.apache.cassandra.simulator.cluster;
 import java.net.InetSocketAddress;
 import java.util.function.BiFunction;
 
-import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.gms.Gossiper;

@@ -30,7 +30,7 @@ import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.memory.AbstractAllocator;
+import org.apache.cassandra.utils.memory.ByteBufferCloner;
 
 /**
  * Base abstract class for {@code Cell} implementations.
@@ -50,7 +50,7 @@ public abstract class AbstractCell<V> extends Cell<V>
         return !isTombstone() && column.isCounterColumn();
     }
 
-    public boolean isLive(int nowInSec)
+    public boolean isLive(long nowInSec)
     {
         return localDeletionTime() == NO_DELETION_TIME || (ttl() != NO_TTL && nowInSec < localDeletionTime());
     }
@@ -75,7 +75,7 @@ public abstract class AbstractCell<V> extends Cell<V>
         return marked == value ? this : new BufferCell(column, timestamp(), ttl(), localDeletionTime(), marked, path());
     }
 
-    public Cell<?> purge(DeletionPurger purger, int nowInSec)
+    public Cell<?> purge(DeletionPurger purger, long nowInSec)
     {
         if (!isLive(nowInSec))
         {
@@ -98,15 +98,17 @@ public abstract class AbstractCell<V> extends Cell<V>
         return this;
     }
 
+
     public Cell<?> purgeDataOlderThan(long timestamp)
     {
         return this.timestamp() < timestamp ? null : this;
     }
 
-    public Cell<?> copy(AbstractAllocator allocator)
+    @Override
+    public Cell<?> clone(ByteBufferCloner cloner)
     {
         CellPath path = path();
-        return new BufferCell(column, timestamp(), ttl(), localDeletionTime(), allocator.clone(buffer()), path == null ? null : path.copy(allocator));
+        return new BufferCell(column, timestamp(), ttl(), localDeletionTime(), cloner.clone(buffer()), path == null ? null : path.clone(cloner));
     }
 
     // note: while the cell returned may be different, the value is the same, so if the value is offheap it must be referenced inside a guarded context (or copied)
@@ -145,6 +147,8 @@ public abstract class AbstractCell<V> extends Cell<V>
             throw new MarshalException("A TTL should not be negative");
         if (localDeletionTime() < 0)
             throw new MarshalException("A local deletion time should not be negative");
+        if (localDeletionTime() == INVALID_DELETION_TIME)
+            throw new MarshalException("A local deletion time should not be a legacy overflowed value");
         if (isExpiring() && localDeletionTime() == NO_DELETION_TIME)
             throw new MarshalException("Shoud not have a TTL without an associated local deletion time");
 
@@ -157,7 +161,7 @@ public abstract class AbstractCell<V> extends Cell<V>
 
     public boolean hasInvalidDeletions()
     {
-        if (ttl() < 0 || localDeletionTime() < 0 || (isExpiring() && localDeletionTime() == NO_DELETION_TIME))
+        if (ttl() < 0 || localDeletionTime() == INVALID_DELETION_TIME || localDeletionTime() < 0 || (isExpiring() && localDeletionTime() == NO_DELETION_TIME))
             return true;
         return false;
     }
@@ -205,11 +209,11 @@ public abstract class AbstractCell<V> extends Cell<V>
         AbstractType<?> type = column().type;
         if (type instanceof CollectionType && type.isMultiCell())
         {
-            CollectionType ct = (CollectionType)type;
+            CollectionType<?> ct = (CollectionType<?>) type;
             return String.format("[%s[%s]=%s %s]",
                                  column().name,
                                  ct.nameComparator().getString(path().get(0)),
-                                 ct.valueComparator().getString(value(), accessor()),
+                                 isTombstone() ? "<tombstone>" : ct.valueComparator().getString(value(), accessor()),
                                  livenessInfoString());
         }
         if (isTombstone())

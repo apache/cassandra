@@ -19,10 +19,7 @@ package org.apache.cassandra.cql3.selection;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
-import java.util.function.BiFunction;
-import java.util.function.Function;
 
 import org.apache.cassandra.cql3.ResultSet;
 import org.apache.cassandra.cql3.ResultSet.ResultMetadata;
@@ -31,7 +28,9 @@ import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.aggregation.GroupMaker;
 import org.apache.cassandra.db.rows.Cell;
-import org.apache.cassandra.db.rows.ComplexColumnData;
+import org.apache.cassandra.db.rows.ColumnData;
+import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 public final class ResultSetBuilder
 {
@@ -48,6 +47,11 @@ public final class ResultSetBuilder
      */
     private final GroupMaker groupMaker;
 
+    /**
+     * Whether masked columns should be unmasked.
+     */
+    private final boolean unmask;
+
     /*
      * We'll build CQL3 row one by one.
      */
@@ -56,16 +60,17 @@ public final class ResultSetBuilder
     private long size = 0;
     private boolean sizeWarningEmitted = false;
 
-    public ResultSetBuilder(ResultMetadata metadata, Selectors selectors)
+    public ResultSetBuilder(ResultMetadata metadata, Selectors selectors, boolean unmask)
     {
-        this(metadata, selectors, null);
+        this(metadata, selectors, unmask, null);
     }
 
-    public ResultSetBuilder(ResultMetadata metadata, Selectors selectors, GroupMaker groupMaker)
+    public ResultSetBuilder(ResultMetadata metadata, Selectors selectors, boolean unmask, GroupMaker groupMaker)
     {
-        this.resultSet = new ResultSet(metadata.copy(), new ArrayList<List<ByteBuffer>>());
+        this.resultSet = new ResultSet(metadata.copy(), new ArrayList<>());
         this.selectors = selectors;
         this.groupMaker = groupMaker;
+        this.unmask = unmask;
     }
 
     private void addSize(List<ByteBuffer> row)
@@ -102,30 +107,14 @@ public final class ResultSetBuilder
         inputRow.add(v);
     }
 
-    public void add(ComplexColumnData complexColumnData, Function<Iterator<Cell<?>>, ByteBuffer> serializer)
-    {
-        if (complexColumnData == null)
-        {
-            inputRow.add(null);
-            return;
-        }
-
-        long timestamp = -1L;
-        if (selectors.collectMaxTimestamps())
-        {
-            Iterator<Cell<?>> cells = complexColumnData.iterator();
-            while (cells.hasNext())
-            {
-                timestamp = Math.max(timestamp, cells.next().timestamp());
-            }
-        }
-
-        inputRow.add(serializer.apply(complexColumnData.iterator()), timestamp, -1);
-    }
-
-    public void add(Cell<?> c, int nowInSec)
+    public void add(Cell<?> c, long nowInSec)
     {
         inputRow.add(c, nowInSec);
+    }
+
+    public void add(ColumnData columnData, long nowInSec)
+    {
+        inputRow.add(columnData, nowInSec);
     }
 
     /**
@@ -134,7 +123,7 @@ public final class ResultSetBuilder
      * @param partitionKey the partition key of the new row
      * @param clustering the clustering of the new row
      */
-    public void newRow(DecoratedKey partitionKey, Clustering<?> clustering)
+    public void newRow(ProtocolVersion protocolVersion, DecoratedKey partitionKey, Clustering<?> clustering, List<ColumnMetadata> columns)
     {
         // The groupMaker needs to be called for each row
         boolean isNewAggregate = groupMaker == null || groupMaker.isNewGroup(partitionKey, clustering);
@@ -154,7 +143,11 @@ public final class ResultSetBuilder
         }
         else
         {
-            inputRow = new Selector.InputRow(selectors.numberOfFetchedColumns(), selectors.collectTimestamps(), selectors.collectTTLs());
+            inputRow = new Selector.InputRow(protocolVersion,
+                                             columns,
+                                             unmask,
+                                             selectors.collectWritetimes(),
+                                             selectors.collectTTLs());
         }
     }
 

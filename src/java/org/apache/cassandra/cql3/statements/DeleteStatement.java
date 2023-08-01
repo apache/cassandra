@@ -31,6 +31,7 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.Pair;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
@@ -140,7 +141,8 @@ public class DeleteStatement extends ModificationStatement
 
 
         @Override
-        protected ModificationStatement prepareInternal(TableMetadata metadata,
+        protected ModificationStatement prepareInternal(ClientState state,
+                                                        TableMetadata metadata,
                                                         VariableSpecifications bindVariables,
                                                         Conditions conditions,
                                                         Attributes attrs)
@@ -160,7 +162,8 @@ public class DeleteStatement extends ModificationStatement
                 operations.add(op);
             }
 
-            StatementRestrictions restrictions = newRestrictions(metadata,
+            StatementRestrictions restrictions = newRestrictions(state,
+                                                                 metadata,
                                                                  bindVariables,
                                                                  operations,
                                                                  whereClause,

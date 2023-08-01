@@ -28,39 +28,71 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static java.lang.String.format;
+
 public class ToJsonFct extends NativeScalarFunction
 {
-    public static final FunctionName NAME = FunctionName.nativeFunction("tojson");
-
     private static final Map<AbstractType<?>, ToJsonFct> instances = new ConcurrentHashMap<>();
 
-    public static ToJsonFct getInstance(List<AbstractType<?>> argTypes) throws InvalidRequestException
+    public static ToJsonFct getInstance(String name, List<AbstractType<?>> argTypes) throws InvalidRequestException
     {
         if (argTypes.size() != 1)
-            throw new InvalidRequestException(String.format("toJson() only accepts one argument (got %d)", argTypes.size()));
+            throw new InvalidRequestException(format("%s() only accepts one argument (got %d)", name, argTypes.size()));
 
         AbstractType<?> fromType = argTypes.get(0);
         ToJsonFct func = instances.get(fromType);
         if (func == null)
         {
-            func = new ToJsonFct(fromType);
+            func = new ToJsonFct(name, fromType);
             instances.put(fromType, func);
         }
         return func;
     }
 
-    private ToJsonFct(AbstractType<?> argType)
+    private ToJsonFct(String name, AbstractType<?> argType)
     {
-        super("tojson", UTF8Type.instance, argType);
+        super(name, UTF8Type.instance, argType);
     }
 
-    public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters) throws InvalidRequestException
+    @Override
+    public Arguments newArguments(ProtocolVersion version)
     {
-        assert parameters.size() == 1 : "Expected 1 argument for toJson(), but got " + parameters.size();
-        ByteBuffer parameter = parameters.get(0);
-        if (parameter == null)
+        return new FunctionArguments(version, (protocolVersion, buffer) -> {
+            AbstractType<?> argType = argTypes.get(0);
+
+            if (buffer == null || (!buffer.hasRemaining() && argType.isEmptyValueMeaningless()))
+                return null;
+
+            return argTypes.get(0).toJSONString(buffer, protocolVersion);
+        });
+    }
+
+    @Override
+    public ByteBuffer execute(Arguments arguments) throws InvalidRequestException
+    {
+        if (arguments.containsNulls())
             return ByteBufferUtil.bytes("null");
 
-        return ByteBufferUtil.bytes(argTypes.get(0).toJSONString(parameter, protocolVersion));
+        return ByteBufferUtil.bytes(arguments.<String>get(0));
+    }
+
+    public static void addFunctionsTo(NativeFunctions functions)
+    {
+        functions.add(new Factory("to_json"));
+        functions.add(new Factory("tojson")); // deprecated pre-5.0 name
+    }
+
+    private static class Factory extends FunctionFactory
+    {
+        public Factory(String name)
+        {
+            super(name, FunctionParameter.anyType(false));
+        }
+
+        @Override
+        protected NativeFunction doGetOrCreateFunction(List<AbstractType<?>> argTypes, AbstractType<?> receiverType)
+        {
+            return ToJsonFct.getInstance(name.name, argTypes);
+        }
     }
 }

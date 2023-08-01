@@ -18,11 +18,13 @@
 package org.apache.cassandra.db.aggregation;
 
 import java.nio.ByteBuffer;
+import java.util.List;
 
 import org.apache.cassandra.cql3.selection.Selector;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
@@ -61,16 +63,18 @@ public abstract class GroupMaker
     public static GroupMaker newSelectorGroupMaker(ClusteringComparator comparator,
                                                    int clusteringPrefixSize,
                                                    Selector selector,
+                                                   List<ColumnMetadata> columns,
                                                    GroupingState state)
     {
-        return new SelectorGroupMaker(comparator, clusteringPrefixSize, selector, state);
+        return new SelectorGroupMaker(comparator, clusteringPrefixSize, selector, columns, state);
     }
 
     public static GroupMaker newSelectorGroupMaker(ClusteringComparator comparator,
                                                    int clusteringPrefixSize,
-                                                   Selector selector)
+                                                   Selector selector,
+                                                   List<ColumnMetadata> columns)
     {
-        return new SelectorGroupMaker(comparator, clusteringPrefixSize, selector);
+        return new SelectorGroupMaker(comparator, clusteringPrefixSize, selector, columns);
     }
 
     /**
@@ -158,25 +162,29 @@ public abstract class GroupMaker
          */
         private ByteBuffer lastOutput;
 
-        private final Selector.InputRow input = new Selector.InputRow(1, false, false);
+        private final Selector.InputRow input;
 
         public SelectorGroupMaker(ClusteringComparator comparator,
                                   int clusteringPrefixSize,
                                   Selector selector,
+                                  List<ColumnMetadata> columns,
                                   GroupingState state)
         {
             super(comparator, clusteringPrefixSize, state);
             this.selector = selector;
+            this.input = new Selector.InputRow(ProtocolVersion.CURRENT, columns, false);
             this.lastOutput = lastClustering == null ? null :
                                                        executeSelector(lastClustering.bufferAt(clusteringPrefixSize - 1));
         }
 
         public SelectorGroupMaker(ClusteringComparator comparator,
                                   int clusteringPrefixSize,
-                                  Selector selector)
+                                  Selector selector,
+                                  List<ColumnMetadata> columns)
         {
             super(comparator, clusteringPrefixSize);
             this.selector = selector;
+            this.input = new Selector.InputRow(ProtocolVersion.CURRENT, columns, false);
         }
 
         @Override
@@ -217,7 +225,7 @@ public abstract class GroupMaker
             input.add(argument);
 
             // For computing groups we do not need to use the client protocol version.
-            selector.addInput(ProtocolVersion.CURRENT, input);
+            selector.addInput(input);
             ByteBuffer output = selector.getOutput(ProtocolVersion.CURRENT);
             selector.reset();
             input.reset(false);

@@ -39,9 +39,9 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.exceptions.UnknownColumnException;
+import org.apache.cassandra.io.sstable.RangeAwareSSTableWriter;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.SSTableSimpleIterator;
-import org.apache.cassandra.io.sstable.format.RangeAwareSSTableWriter;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.Version;
@@ -73,7 +73,6 @@ public class CassandraStreamReader implements IStreamReader
     protected final Version inputVersion;
     protected final long repairedAt;
     protected final TimeUUID pendingRepair;
-    protected final SSTableFormat.Type format;
     protected final int sstableLevel;
     protected final SerializationHeader.Component header;
     protected final int fileSeqNum;
@@ -93,7 +92,6 @@ public class CassandraStreamReader implements IStreamReader
         this.inputVersion = streamHeader.version;
         this.repairedAt = header.repairedAt;
         this.pendingRepair = header.pendingRepair;
-        this.format = streamHeader.format;
         this.sstableLevel = streamHeader.sstableLevel;
         this.header = streamHeader.serializationHeader;
         this.fileSeqNum = header.sequenceNumber;
@@ -116,7 +114,7 @@ public class CassandraStreamReader implements IStreamReader
             throw new IllegalStateException("Table " + tableId + " was dropped during streaming");
 
         logger.debug("[Stream #{}] Start receiving file #{} from {}, repairedAt = {}, size = {}, ks = '{}', table = '{}', pendingRepair = '{}'.",
-                     session.planId(), fileSeqNum, session.peer, repairedAt, totalSize, cfs.keyspace.getName(),
+                     session.planId(), fileSeqNum, session.peer, repairedAt, totalSize, cfs.getKeyspaceName(),
                      cfs.getTableName(), pendingRepair);
 
         StreamDeserializer deserializer = null;
@@ -125,12 +123,17 @@ public class CassandraStreamReader implements IStreamReader
         {
             TrackedDataInputPlus in = new TrackedDataInputPlus(streamCompressionInputStream);
             deserializer = new StreamDeserializer(cfs.metadata(), in, inputVersion, getHeader(cfs.metadata()));
-            writer = createWriter(cfs, totalSize, repairedAt, pendingRepair, format);
+            writer = createWriter(cfs, totalSize, repairedAt, pendingRepair, inputVersion.format);
+            String sequenceName = writer.getFilename() + '-' + fileSeqNum;
+            long lastBytesRead = 0;
             while (in.getBytesRead() < totalSize)
             {
                 writePartition(deserializer, writer);
                 // TODO move this to BytesReadTracker
-                session.progress(writer.getFilename() + '-' + fileSeqNum, ProgressInfo.Direction.IN, in.getBytesRead(), totalSize);
+                long bytesRead = in.getBytesRead();
+                long bytesDelta = bytesRead - lastBytesRead;
+                lastBytesRead = bytesRead;
+                session.progress(sequenceName, ProgressInfo.Direction.IN, bytesRead, bytesDelta, totalSize);
             }
             logger.debug("[Stream #{}] Finished receiving file #{} from {} readBytes = {}, totalSize = {}",
                          session.planId(), fileSeqNum, session.peer, FBUtilities.prettyPrintMemory(in.getBytesRead()), FBUtilities.prettyPrintMemory(totalSize));
@@ -140,7 +143,7 @@ public class CassandraStreamReader implements IStreamReader
         {
             Object partitionKey = deserializer != null ? deserializer.partitionKey() : "";
             logger.warn("[Stream {}] Error while reading partition {} from stream on ks='{}' and table='{}'.",
-                        session.planId(), partitionKey, cfs.keyspace.getName(), cfs.getTableName(), e);
+                        session.planId(), partitionKey, cfs.getKeyspaceName(), cfs.getTableName(), e);
             if (writer != null)
                 e = writer.abort(e);
             throw e;
@@ -152,7 +155,7 @@ public class CassandraStreamReader implements IStreamReader
         return header != null? header.toHeader(metadata) : null; //pre-3.0 sstable have no SerializationHeader
     }
     @SuppressWarnings("resource")
-    protected SSTableMultiWriter createWriter(ColumnFamilyStore cfs, long totalSize, long repairedAt, TimeUUID pendingRepair, SSTableFormat.Type format) throws IOException
+    protected SSTableMultiWriter createWriter(ColumnFamilyStore cfs, long totalSize, long repairedAt, TimeUUID pendingRepair, SSTableFormat<?, ?> format) throws IOException
     {
         Directories.DataDirectory localDir = cfs.getDirectories().getWriteableLocation(totalSize);
         if (localDir == null)
@@ -192,6 +195,7 @@ public class CassandraStreamReader implements IStreamReader
         private SSTableSimpleIterator iterator;
         private Row staticRow;
         private IOException exception;
+        private Version version;
 
         public StreamDeserializer(TableMetadata metadata, DataInputPlus in, Version version, SerializationHeader header) throws IOException
         {
@@ -199,12 +203,13 @@ public class CassandraStreamReader implements IStreamReader
             this.in = in;
             this.helper = new DeserializationHelper(metadata, version.correspondingMessagingVersion(), DeserializationHelper.Flag.PRESERVE_SIZE);
             this.header = header;
+            this.version = version;
         }
 
         public StreamDeserializer newPartition() throws IOException
         {
             key = metadata.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(in));
-            partitionLevelDeletion = DeletionTime.serializer.deserialize(in);
+            partitionLevelDeletion = DeletionTime.getSerializer(version).deserialize(in);
             iterator = SSTableSimpleIterator.create(metadata, in, header, helper, partitionLevelDeletion);
             staticRow = iterator.readStaticRow();
             return this;

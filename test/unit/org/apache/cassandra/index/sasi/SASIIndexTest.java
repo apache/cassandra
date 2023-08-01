@@ -24,10 +24,21 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
@@ -36,35 +47,58 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Sets;
+import com.google.common.util.concurrent.Uninterruptibles;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.index.Index;
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Columns;
+import org.apache.cassandra.db.DataRange;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.PartitionRangeReadCommand;
+import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.rows.BTreeRow;
+import org.apache.cassandra.db.rows.BufferCell;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sasi.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sasi.analyzer.DelimiterAnalyzer;
 import org.apache.cassandra.index.sasi.analyzer.NoOpAnalyzer;
@@ -76,15 +110,20 @@ import org.apache.cassandra.index.sasi.disk.Token;
 import org.apache.cassandra.index.sasi.exceptions.TimeQuotaExceededException;
 import org.apache.cassandra.index.sasi.memory.IndexMemtable;
 import org.apache.cassandra.index.sasi.plan.QueryController;
-import org.apache.cassandra.index.sasi.plan.QueryPlan;
+import org.apache.cassandra.index.sasi.plan.SASIIndexSearcher;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.IndexSummaryManager;
 import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.indexsummary.IndexSummaryManager;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.service.snapshot.SnapshotManifest;
@@ -94,13 +133,8 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.assertj.core.api.Assertions;
 
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Sets;
-import com.google.common.util.concurrent.Uninterruptibles;
-
-import org.junit.*;
-
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
 import static org.apache.cassandra.db.ColumnFamilyStoreTest.getSnapshotManifestAndSchemaFileSizes;
 
 public class SASIIndexTest
@@ -108,7 +142,7 @@ public class SASIIndexTest
     private static final IPartitioner PARTITIONER;
 
     static {
-        System.setProperty("cassandra.config", "cassandra-murmur.yaml");
+        CASSANDRA_CONFIG.setString("cassandra-murmur.yaml");
         PARTITIONER = Murmur3Partitioner.instance;
     }
 
@@ -192,7 +226,7 @@ public class SASIIndexTest
                                                             sstable.getKeyspaceName(),
                                                             sstable.getColumnFamilyName(),
                                                             sstable.descriptor.id,
-                                                            sstable.descriptor.formatType);
+                                                            sstable.descriptor.version.format);
 
                 Set<Component> components = snapshotSSTables.get(snapshotSSTable);
 
@@ -201,8 +235,8 @@ public class SASIIndexTest
 
                 for (Component c : components)
                 {
-                    long componentSize = Files.size(Paths.get(snapshotSSTable.filenameFor(c)));
-                    if (Component.Type.fromRepresentation(c.name) == Component.Type.SECONDARY_INDEX)
+                    long componentSize = snapshotSSTable.fileFor(c).length();
+                    if (Component.Type.fromRepresentation(c.name, sstable.descriptor.version.format) == Components.Types.SECONDARY_INDEX)
                         indexSize += componentSize;
                     else
                         tableSize += componentSize;
@@ -1472,7 +1506,7 @@ public class SASIIndexTest
                                              DataRange.allData(store.metadata().partitioner));
         try
         {
-            new QueryPlan(store, command, 0).execute(ReadExecutionController.empty());
+            new SASIIndexSearcher(store, command, 0).search(ReadExecutionController.empty());
             Assert.fail();
         }
         catch (TimeQuotaExceededException e)
@@ -1489,7 +1523,7 @@ public class SASIIndexTest
 
         try (ReadExecutionController controller = command.executionController())
         {
-            Set<String> rows = getKeys(new QueryPlan(store, command, DatabaseDescriptor.getRangeRpcTimeout(MILLISECONDS)).execute(controller));
+            Set<String> rows = getKeys(new SASIIndexSearcher(store, command, DatabaseDescriptor.getRangeRpcTimeout(MILLISECONDS)).search(controller));
             assertRows(rows, "key1", "key2", "key3", "key4");
         }
     }
@@ -2432,7 +2466,7 @@ public class SASIIndexTest
             PartitionRangeReadCommand.create(store.metadata(),
                                              FBUtilities.nowInSeconds(),
                                              ColumnFilter.all(store.metadata()),
-                                             RowFilter.NONE,
+                                             RowFilter.none(),
                                              DataLimits.NONE,
                                              DataRange.allData(store.getPartitioner()));
 

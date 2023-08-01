@@ -17,7 +17,12 @@
  */
 package org.apache.cassandra.metrics;
 
+import java.util.function.ToLongFunction;
+import java.util.stream.StreamSupport;
+
 import com.codahale.metrics.Counter;
+import com.codahale.metrics.Gauge;
+import org.apache.cassandra.db.Keyspace;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
@@ -29,8 +34,23 @@ public class StorageMetrics
     private static final MetricNameFactory factory = new DefaultNameFactory("Storage");
 
     public static final Counter load = Metrics.counter(factory.createMetricName("Load"));
+    public static final Counter uncompressedLoad = Metrics.counter(factory.createMetricName("UncompressedLoad"));
+
+    public static final Gauge<Long> unreplicatedLoad =
+        createSummingGauge("UnreplicatedLoad", metric -> metric.unreplicatedLiveDiskSpaceUsed.getValue());
+    public static final Gauge<Long> unreplicatedUncompressedLoad =
+        createSummingGauge("UnreplicatedUncompressedLoad", metric -> metric.unreplicatedUncompressedLiveDiskSpaceUsed.getValue());
+
     public static final Counter uncaughtExceptions = Metrics.counter(factory.createMetricName("Exceptions"));
     public static final Counter totalHintsInProgress  = Metrics.counter(factory.createMetricName("TotalHintsInProgress"));
     public static final Counter totalHints = Metrics.counter(factory.createMetricName("TotalHints"));
     public static final Counter repairExceptions = Metrics.counter(factory.createMetricName("RepairExceptions"));
+
+    private static Gauge<Long> createSummingGauge(String name, ToLongFunction<KeyspaceMetrics> extractor)
+    {
+        return Metrics.register(factory.createMetricName(name),
+                                () -> StreamSupport.stream(Keyspace.all().spliterator(), false)
+                                                   .mapToLong(keyspace -> extractor.applyAsLong(keyspace.metric))
+                                                   .sum());
+    }
 }

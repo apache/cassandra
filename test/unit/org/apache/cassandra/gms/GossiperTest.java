@@ -22,12 +22,15 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Maps;
 import com.google.common.net.InetAddresses;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -46,20 +49,26 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.SeedProvider;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.CassandraGenerators;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.FBUtilities;
+import org.assertj.core.api.Assertions;
+import org.quicktheories.core.Gen;
+import org.quicktheories.impl.Constraint;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIP_DISABLE_THREAD_VALIDATION;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+import static org.quicktheories.QuickTheory.qt;
 
 public class GossiperTest
 {
     static
     {
-        System.setProperty(Gossiper.Props.DISABLE_THREAD_VALIDATION, "true");
+        GOSSIP_DISABLE_THREAD_VALIDATION.setBoolean(true);
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
     }
@@ -417,6 +426,89 @@ public class GossiperTest
             if (stateChangeListener != null)
                 Gossiper.instance.unregister(stateChangeListener);
         }
+    }
+
+    @Test
+    public void orderingComparator()
+    {
+        qt().forAll(epStateMapGen()).checkAssert(map -> {
+            Comparator<Map.Entry<InetAddressAndPort, EndpointState>> comp = Gossiper.stateOrderMap();
+            List<Map.Entry<InetAddressAndPort, EndpointState>> elements = new ArrayList<>(map.entrySet());
+            for (int i = 0; i < elements.size(); i++)
+            {
+                for (int j = 0; j < elements.size(); j++)
+                {
+                    Map.Entry<InetAddressAndPort, EndpointState> e1 = elements.get(i);
+                    boolean e1Bootstrapping = VersionedValue.BOOTSTRAPPING_STATUS.contains(Gossiper.getGossipStatus(e1.getValue()));
+                    Map.Entry<InetAddressAndPort, EndpointState> e2 = elements.get(j);
+                    boolean e2Bootstrapping = VersionedValue.BOOTSTRAPPING_STATUS.contains(Gossiper.getGossipStatus(e2.getValue()));
+                    Ordering ordering = Ordering.compare(comp, e1, e2);
+
+                    if (e1Bootstrapping == e2Bootstrapping)
+                    {
+                        // check generation
+                        Ordering sub = Ordering.compare(e1.getValue().getHeartBeatState().getGeneration(), e2.getValue().getHeartBeatState().getGeneration());
+                        if (sub == Ordering.EQ)
+                        {
+                            // check addressWPort
+                            sub = Ordering.compare(e1.getKey(), e2.getKey());
+                        }
+                        Assertions.assertThat(ordering)
+                                  .describedAs("Both elements bootstrap check were equal: %s == %s", e1Bootstrapping, e2Bootstrapping)
+                                  .isEqualTo(sub);
+                    }
+                    else if (e1Bootstrapping)
+                    {
+                        Assertions.assertThat(ordering).isEqualTo(Ordering.GT);
+                    }
+                    else
+                    {
+                        Assertions.assertThat(ordering).isEqualTo(Ordering.LT);
+                    }
+                }
+            }
+        });
+    }
+
+    enum Ordering
+    {
+        LT, EQ, GT;
+
+        static <T> Ordering compare(Comparator<T> comparator, T a, T b)
+        {
+            int rc = comparator.compare(a, b);
+            if (rc < 0) return LT;
+            if (rc == 0) return EQ;
+            return GT;
+        }
+
+        static <T extends Comparable<T>> Ordering compare(T a, T b)
+        {
+            return compare(Comparator.naturalOrder(), a, b);
+        }
+    }
+
+    private static Gen<Map<InetAddressAndPort, EndpointState>> epStateMapGen()
+    {
+        Gen<InetAddressAndPort> addressAndPorts = CassandraGenerators.INET_ADDRESS_AND_PORT_GEN;
+        Gen<EndpointState> states = CassandraGenerators.endpointStates();
+        Constraint sizeGen = Constraint.between(2, 10);
+        Gen<Map<InetAddressAndPort, EndpointState>> mapGen = rs -> {
+            int size = Math.toIntExact(rs.next(sizeGen));
+            Map<InetAddressAndPort, EndpointState> map = Maps.newHashMapWithExpectedSize(size);
+            for (int i = 0; i < size; i++)
+            {
+                while (true)
+                {
+                    InetAddressAndPort address = addressAndPorts.generate(rs);
+                    if (map.containsKey(address)) continue;
+                    map.put(address, states.generate(rs));
+                    break;
+                }
+            }
+            return map;
+        };
+        return mapGen;
     }
 
     static class SimpleStateChangeListener implements IEndpointStateChangeSubscriber

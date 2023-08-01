@@ -23,8 +23,10 @@ import java.nio.ByteOrder;
 
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.apache.cassandra.utils.memory.HeapCloner;
 import org.apache.cassandra.utils.memory.MemoryUtil;
 import org.apache.cassandra.utils.memory.NativeAllocator;
 
@@ -36,11 +38,6 @@ public class NativeClustering implements Clustering<ByteBuffer>
 
     private NativeClustering() { peer = 0; }
 
-    public ClusteringPrefix<ByteBuffer> minimize()
-    {
-        return this;
-    }
-
     public NativeClustering(NativeAllocator allocator, OpOrder.Group writeOp, Clustering<?> clustering)
     {
         int count = clustering.size();
@@ -49,7 +46,7 @@ public class NativeClustering implements Clustering<ByteBuffer>
         int bitmapSize = ((count + 7) >>> 3);
 
         assert count < 64 << 10;
-        assert dataSize < 64 << 10;
+        assert dataSize <= FBUtilities.MAX_UNSIGNED_SHORT : String.format("Data size %d >= %d", dataSize, FBUtilities.MAX_UNSIGNED_SHORT + 1);
 
         peer = allocator.allocate(metadataSize + dataSize + bitmapSize, writeOp);
         long bitmapStart = peer + metadataSize;
@@ -156,5 +153,21 @@ public class NativeClustering implements Clustering<ByteBuffer>
     public final boolean equals(Object o)
     {
         return ClusteringPrefix.equals(this, o);
+    }
+
+    @Override
+    public ClusteringPrefix<ByteBuffer> retainable()
+    {
+        assert kind() == Kind.CLUSTERING; // tombstones are never stored natively
+
+        // always extract
+        ByteBuffer[] values = new ByteBuffer[size()];
+        for (int i = 0; i < values.length; ++i)
+        {
+            ByteBuffer value = get(i);
+            values[i] = value != null ? HeapCloner.instance.clone(value) : null;
+        }
+
+        return accessor().factory().clustering(values);
     }
 }

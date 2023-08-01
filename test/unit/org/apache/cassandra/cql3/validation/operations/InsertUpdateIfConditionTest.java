@@ -28,6 +28,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.Duration;
@@ -36,6 +37,7 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspaceTables;
 import org.apache.cassandra.utils.CassandraVersion;
+import org.apache.cassandra.utils.Pair;
 
 import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
@@ -60,15 +62,20 @@ public class InsertUpdateIfConditionTest extends CQLTester
     @Parameterized.Parameters(name = "{index}: clusterMinVersion={0}")
     public static Collection<Object[]> data()
     {
+        ServerTestUtils.daemonInitialization();
         return Arrays.asList(new Object[]{ "3.0", (Runnable) () -> {
-                                 assertTrue(Gossiper.instance.isUpgradingFromVersionLowerThan(new CassandraVersion("3.11")));
+                                 Pair<Boolean, CassandraVersion> res = Gossiper.instance.isUpgradingFromVersionLowerThanC17653(new CassandraVersion("3.11"));
+                                 assertTrue(debugMsgCASSANDRA17653(res), res.left);
                              } },
                              new Object[]{ "3.11", (Runnable) () -> {
-                                 assertTrue(Gossiper.instance.isUpgradingFromVersionLowerThan(SystemKeyspace.CURRENT_VERSION));
-                                 assertFalse(Gossiper.instance.isUpgradingFromVersionLowerThan(new CassandraVersion("3.11")));
+                                 Pair<Boolean, CassandraVersion> res = Gossiper.instance.isUpgradingFromVersionLowerThanC17653(SystemKeyspace.CURRENT_VERSION);
+                                 assertTrue(debugMsgCASSANDRA17653(res), res.left);
+                                 res = Gossiper.instance.isUpgradingFromVersionLowerThanC17653(new CassandraVersion("3.11"));
+                                 assertFalse(debugMsgCASSANDRA17653(res), res.left);
                              } },
                              new Object[]{ SystemKeyspace.CURRENT_VERSION.toString(), (Runnable) () -> {
-                                 assertFalse(Gossiper.instance.isUpgradingFromVersionLowerThan(SystemKeyspace.CURRENT_VERSION));
+                                 Pair<Boolean, CassandraVersion> res = Gossiper.instance.isUpgradingFromVersionLowerThanC17653(SystemKeyspace.CURRENT_VERSION);
+                                 assertFalse(debugMsgCASSANDRA17653(res), res.left);
                              } });
     }
 
@@ -458,8 +465,6 @@ public class InsertUpdateIfConditionTest extends CQLTester
 
         // create and confirm
         createIndex("CREATE INDEX IF NOT EXISTS myindex ON %s (value1)");
-
-        assertTrue(waitForIndex(KEYSPACE, tableName, "myindex"));
 
         // unsuccessful create since it's already there
         execute("CREATE INDEX IF NOT EXISTS myindex ON %s (value1)");
@@ -958,5 +963,11 @@ public class InsertUpdateIfConditionTest extends CQLTester
         assertRows(execute("UPDATE %s SET d = 10s WHERE k = 1 IF d IN (1s, 2s)"), row(true));
 
         assertRows(execute("SELECT * FROM %s WHERE k = 1"), row(1, Duration.from("10s"), 6));
+    }
+
+    // Helper to debug on the next occurrence of CASSANDRA-17653
+    private static String debugMsgCASSANDRA17653(Pair<Boolean, CassandraVersion> res)
+    {
+        return("Failed on Cass Version: " + res.right == null ? "null" : res.right + " boolean:" + res.left);
     }
 }

@@ -23,10 +23,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import com.google.common.math.DoubleMath;
 import com.google.common.primitives.Ints;
 
 import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.BYTES_PER_SECOND;
-import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND;
 
 /**
  * Represents a data rate type used for cassandra configuration. It supports the opportunity for the users to be able to
@@ -39,7 +39,7 @@ public abstract class DataRateSpec
      */
     private static final Pattern UNITS_PATTERN = Pattern.compile("^(\\d+)(MiB/s|KiB/s|B/s)$");
 
-    private final double quantity;
+    private final long quantity;
 
     private final DataRateUnit unit;
 
@@ -52,7 +52,7 @@ public abstract class DataRateSpec
             throw new IllegalArgumentException("Invalid data rate: " + value + " Accepted units: MiB/s, KiB/s, B/s where " +
                                                 "case matters and " + "only non-negative values are valid");
 
-        quantity = (double) Long.parseLong(matcher.group(1));
+        quantity = Long.parseLong(matcher.group(1));
         unit = DataRateUnit.fromSymbol(matcher.group(2));
     }
 
@@ -63,7 +63,7 @@ public abstract class DataRateSpec
         validateQuantity(value, quantity(), unit(), minUnit, max);
     }
 
-    private DataRateSpec(double quantity, DataRateUnit unit, DataRateUnit minUnit, long max)
+    private DataRateSpec(long quantity, DataRateUnit unit, DataRateUnit minUnit, long max)
     {
         this.quantity = quantity;
         this.unit = unit;
@@ -212,7 +212,7 @@ public abstract class DataRateSpec
     @Override
     public String toString()
     {
-        return Math.round(quantity) + unit.symbol;
+        return (DoubleMath.isMathematicalInteger(quantity) ? (long) quantity : quantity) + unit.symbol;
     }
 
     /**
@@ -238,7 +238,7 @@ public abstract class DataRateSpec
          * @param quantity where quantity shouldn't be bigger than Long.MAX_VALUE - 1 in bytes per second
          * @param unit     in which the provided quantity is
          */
-        public LongBytesPerSecondBound(double quantity, DataRateUnit unit)
+        public LongBytesPerSecondBound(long quantity, DataRateUnit unit)
         {
             super(quantity, unit, BYTES_PER_SECOND, Long.MAX_VALUE);
         }
@@ -252,59 +252,21 @@ public abstract class DataRateSpec
         {
             this(bytesPerSecond, BYTES_PER_SECOND);
         }
-    }
-
-    /**
-     * Represents a data rate used for Cassandra configuration. The bound is [0, Integer.MAX_VALUE) in mebibytes per second.
-     * If the user sets a different unit - we still validate that converted to mebibytes per second the quantity will not exceed
-     * that upper bound. (CASSANDRA-17571)
-     */
-    public final static class IntMebibytesPerSecondBound extends DataRateSpec
-    {
-        /**
-         * Creates a {@code DataRateSpec.IntMebibytesPerSecondBound} of the specified amount with bound [0, Integer.MAX_VALUE) mebibytes per second.
-         *
-         * @param value the data rate
-         */
-        public IntMebibytesPerSecondBound(String value)
-        {
-            super(value, MEBIBYTES_PER_SECOND, Integer.MAX_VALUE);
-        }
-
-        /**
-         * Creates a {@code DataRateSpec.IntMebibytesPerSecondBound} of the specified amount in the specified unit.
-         *
-         * @param quantity where quantity shouldn't be bigger than Integer.MAX_VALUE - 1 in mebibytes per second
-         * @param unit     in which the provided quantity is
-         */
-        public IntMebibytesPerSecondBound(double quantity, DataRateUnit unit)
-        {
-            super(quantity, unit, MEBIBYTES_PER_SECOND, Integer.MAX_VALUE);
-        }
-
-        /**
-         * Creates a {@code DataRateSpec.IntMebibytesPerSecondBound} of the specified amount in mebibytes per second.
-         *
-         * @param mebibytesPerSecond where mebibytesPerSecond shouldn't be bigger than Long.MAX_VALUE-1
-         */
-        public IntMebibytesPerSecondBound(long mebibytesPerSecond)
-        {
-            this (mebibytesPerSecond, MEBIBYTES_PER_SECOND);
-        }
 
         // this one should be used only for backward compatibility for stream_throughput_outbound and inter_dc_stream_throughput_outbound
         // which were in megabits per second in 4.0. Do not start using it for any new properties
-        public static IntMebibytesPerSecondBound megabitsPerSecondInMebibytesPerSecond(long megabitsPerSecond)
+        @Deprecated
+        public static LongBytesPerSecondBound megabitsPerSecondInBytesPerSecond(long megabitsPerSecond)
         {
-            final double MEBIBYTES_PER_MEGABIT = 0.119209289550781;
-            double mebibytesPerSecond = (double) megabitsPerSecond * MEBIBYTES_PER_MEGABIT;
+            final long BYTES_PER_MEGABIT = 125_000;
+            long bytesPerSecond = megabitsPerSecond * BYTES_PER_MEGABIT;
 
             if (megabitsPerSecond >= Integer.MAX_VALUE)
                 throw new IllegalArgumentException("Invalid data rate: " + megabitsPerSecond + " megabits per second; " +
-                                                 "stream_throughput_outbound and inter_dc_stream_throughput_outbound" +
-                                                 " should be between 0 and " + Integer.MAX_VALUE + " in megabits per second");
+                                                   "stream_throughput_outbound and inter_dc_stream_throughput_outbound" +
+                                                   " should be between 0 and " + (Integer.MAX_VALUE - 1) + " in megabits per second");
 
-            return new IntMebibytesPerSecondBound(mebibytesPerSecond, MEBIBYTES_PER_SECOND);
+            return new LongBytesPerSecondBound(bytesPerSecond, BYTES_PER_SECOND);
         }
     }
 
@@ -385,7 +347,7 @@ public abstract class DataRateSpec
             {
                 if (d > MAX / (MEGABITS_PER_MEBIBYTE))
                     return MAX;
-                return Math.round(d * MEGABITS_PER_MEBIBYTE);
+                return d * MEGABITS_PER_MEBIBYTE;
             }
 
             public double convert(double source, DataRateUnit sourceUnit)

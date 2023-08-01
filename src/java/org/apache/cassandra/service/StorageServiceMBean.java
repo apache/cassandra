@@ -103,6 +103,12 @@ public interface StorageServiceMBean extends NotificationEmitter
     public String getReleaseVersion();
 
     /**
+     * Fetch a string representation of the Cassandra git SHA.
+     * @return A string representation of the Cassandra git SHA.
+     */
+    public String getGitSHA();
+
+    /**
      * Fetch a string representation of the current Schema version.
      * @return A string representation of the Schema version.
      */
@@ -209,6 +215,9 @@ public interface StorageServiceMBean extends NotificationEmitter
     /** Human-readable load value */
     public String getLoadString();
 
+    /** Human-readable uncompressed load value */
+    public String getUncompressedLoadString();
+
     /** Human-readable load value.  Keys are IP addresses. */
     @Deprecated public Map<String, String> getLoadMap();
     public Map<String, String> getLoadMapWithPort();
@@ -267,8 +276,22 @@ public interface StorageServiceMBean extends NotificationEmitter
     /**
      * Remove the snapshot with the given name from the given keyspaces.
      * If no tag is specified we will remove all snapshots.
+     *
+     * @param tag name of snapshot to clear, if null or empty string, all snapshots of given keyspace will be cleared
+     * @param keyspaceNames name of keyspaces to clear snapshots for
      */
+    @Deprecated
     public void clearSnapshot(String tag, String... keyspaceNames) throws IOException;
+
+    /**
+     * Remove the snapshot with the given name from the given keyspaces.
+     * If no tag is specified we will remove all snapshots.
+     *
+     * @param options map of options for cleanup operation, consult nodetool's ClearSnapshot
+     * @param tag name of snapshot to clear, if null or empty string, all snapshots of given keyspace will be cleared
+     * @param keyspaceNames name of keyspaces to clear snapshots for
+     */
+    public void clearSnapshot(Map<String, Object> options, String tag, String... keyspaceNames) throws IOException;
 
     /**
      * Get the details of all the snapshot
@@ -325,8 +348,14 @@ public interface StorageServiceMBean extends NotificationEmitter
     @Deprecated
     public int relocateSSTables(String keyspace, String ... cfnames) throws IOException, ExecutionException, InterruptedException;
     public int relocateSSTables(int jobs, String keyspace, String ... cfnames) throws IOException, ExecutionException, InterruptedException;
+
     /**
-     * Forces major compaction of specified token range in a single keyspace
+     * Forces major compaction of specified token range in a single keyspace.
+     *
+     * @param keyspaceName the name of the keyspace to be compacted
+     * @param startToken the token at which the compaction range starts (inclusive)
+     * @param endToken the token at which compaction range ends (inclusive)
+     * @param tableNames the names of the tables to be compacted
      */
     public void forceKeyspaceCompactionForTokenRange(String keyspaceName, String startToken, String endToken, String... tableNames) throws IOException, ExecutionException, InterruptedException;
 
@@ -334,6 +363,13 @@ public interface StorageServiceMBean extends NotificationEmitter
      * Forces major compactions for the range represented by the partition key
      */
     public void forceKeyspaceCompactionForPartitionKey(String keyspaceName, String partitionKey, String... tableNames) throws IOException, ExecutionException, InterruptedException;
+
+    /**
+     * Forces compaction for a list of partition keys on a table.
+     * The method will ignore the gc_grace_seconds for the partitionKeysIgnoreGcGrace during the comapction,
+     * in order to purge the tombstones and free up space quicker.
+     */
+    public void forceCompactionKeysIgnoringGcGrace(String keyspaceName, String tableName, String... partitionKeysIgnoreGcGrace) throws IOException, ExecutionException, InterruptedException;
 
     /**
      * Trigger a cleanup of keys on a single keyspace
@@ -349,11 +385,22 @@ public interface StorageServiceMBean extends NotificationEmitter
      * Scrubbed CFs will be snapshotted first, if disableSnapshot is false
      */
     @Deprecated
-    public int scrub(boolean disableSnapshot, boolean skipCorrupted, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException;
+    default int scrub(boolean disableSnapshot, boolean skipCorrupted, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
+    {
+        return scrub(disableSnapshot, skipCorrupted, true, keyspaceName, tableNames);
+    }
+
     @Deprecated
-    public int scrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException;
+    default int scrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
+    {
+        return scrub(disableSnapshot, skipCorrupted, checkData, 0, keyspaceName, tableNames);
+    }
+
     @Deprecated
-    public int scrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, int jobs, String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException;
+    default int scrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, int jobs, String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException
+    {
+        return scrub(disableSnapshot, skipCorrupted, checkData, false, jobs, keyspaceName, columnFamilies);
+    }
 
     public int scrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, boolean reinsertOverflowedTTL, int jobs, String keyspaceName, String... columnFamilies) throws IOException, ExecutionException, InterruptedException;
 
@@ -411,9 +458,21 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     public void forceTerminateAllRepairSessions();
 
+    /**
+     * @deprecated use setRepairSessionMaximumTreeDepth instead as it will not throw non-standard exceptions
+     */
+    @Deprecated
     public void setRepairSessionMaxTreeDepth(int depth);
 
+    /**
+     * @deprecated use getRepairSessionMaximumTreeDepth instead
+     */
+    @Deprecated
     public int getRepairSessionMaxTreeDepth();
+
+    public void setRepairSessionMaximumTreeDepth(int depth);
+
+    public int getRepairSessionMaximumTreeDepth();
 
     /**
      * Get the status of a given parent repair session.
@@ -429,6 +488,23 @@ public interface StorageServiceMBean extends NotificationEmitter
      * @param force Decommission even if this will reduce N to be less than RF.
      */
     public void decommission(boolean force) throws InterruptedException;
+
+    /**
+     * Returns whether a node has failed to decommission.
+     *
+     * The fact that this method returns false does not mean that there was an attempt to
+     * decommission this node which was successful.
+     *
+     * @return true if decommission of this node has failed, false otherwise
+     */
+    public boolean isDecommissionFailed();
+
+    /**
+     * Returns whether a node is being decommissioned or not.
+     *
+     * @return true if this node is decommissioning, false otherwise
+     */
+    public boolean isDecommissioning();
 
     /**
      * @param newToken token to move this node to.
@@ -625,26 +701,71 @@ public interface StorageServiceMBean extends NotificationEmitter
     public long getTruncateRpcTimeout();
 
     public void setStreamThroughputMbitPerSec(int value);
+    /**
+     * @return stream_throughput_outbound in megabits
+     * @deprecated Use getStreamThroughputMbitPerSecAsDouble instead as this one will provide a rounded value
+     */
+    @Deprecated
     public int getStreamThroughputMbitPerSec();
+    public double getStreamThroughputMbitPerSecAsDouble();
 
     @Deprecated
     public void setStreamThroughputMbPerSec(int value);
+
+    /**
+     * @return stream_throughput_outbound in MiB
+     * @deprecated Use getStreamThroughputMebibytesPerSecAsDouble instead as this one will provide a rounded value
+     */
     @Deprecated
     public int getStreamThroughputMbPerSec();
+    public void setStreamThroughputMebibytesPerSec(int value);
+    /**
+     * Below method returns stream_throughput_outbound rounded, for precise number, please, use getStreamThroughputMebibytesPerSecAsDouble
+     * @return stream_throughput_outbound in MiB
+     */
+    public int getStreamThroughputMebibytesPerSec();
+    public double getStreamThroughputMebibytesPerSecAsDouble();
 
     public void setInterDCStreamThroughputMbitPerSec(int value);
+
+    /**
+     * @return inter_dc_stream_throughput_outbound in megabits
+     * @deprecated Use getInterDCStreamThroughputMbitPerSecAsDouble instead as this one will provide a rounded value
+     */
+    @Deprecated
     public int getInterDCStreamThroughputMbitPerSec();
+    public double getInterDCStreamThroughputMbitPerSecAsDouble();
+
     @Deprecated
     public void setInterDCStreamThroughputMbPerSec(int value);
+
+    /**
+     * @return inter_dc_stream_throughput_outbound in MiB
+     * @deprecated Use getInterDCStreamThroughputMebibytesPerSecAsDouble instead as this one will provide a rounded value
+     */
     @Deprecated
     public int getInterDCStreamThroughputMbPerSec();
+    public void setInterDCStreamThroughputMebibytesPerSec(int value);
+    /**
+     * Below method returns Inter_dc_stream_throughput_outbound rounded, for precise number, please, use getInterDCStreamThroughputMebibytesPerSecAsDouble
+     * @return inter_dc_stream_throughput_outbound in MiB
+     */
+    public int getInterDCStreamThroughputMebibytesPerSec();
+    public double getInterDCStreamThroughputMebibytesPerSecAsDouble();
 
     public void setEntireSSTableStreamThroughputMebibytesPerSec(int value);
-    public int getEntireSSTableStreamThroughputMebibytesPerSec();
+    public double getEntireSSTableStreamThroughputMebibytesPerSecAsDouble();
 
     public void setEntireSSTableInterDCStreamThroughputMebibytesPerSec(int value);
-    public int getEntireSSTableInterDCStreamThroughputMebibytesPerSec();
+    public double getEntireSSTableInterDCStreamThroughputMebibytesPerSecAsDouble();
 
+    public double getCompactionThroughtputMibPerSecAsDouble();
+    public long getCompactionThroughtputBytesPerSec();
+    /**
+     * @return  compaction_throughgput in MiB
+     * @deprecated Use getCompactionThroughtputMibPerSecAsDouble instead as this one will provide a rounded value
+     */
+    @Deprecated
     public int getCompactionThroughputMbPerSec();
     public void setCompactionThroughputMbPerSec(int value);
 
@@ -689,8 +810,22 @@ public interface StorageServiceMBean extends NotificationEmitter
      * @param keyspace Name of the keyspace which to rebuild or null to rebuild all keyspaces.
      * @param tokens Range of tokens to rebuild or null to rebuild all token ranges. In the format of:
      *               "(start_token_1,end_token_1],(start_token_2,end_token_2],...(start_token_n,end_token_n]"
+     * @param specificSources list of sources that can be used for rebuilding. Must be other nodes in the cluster.
+     *                        The format of the string is comma separated values.
      */
     public void rebuild(String sourceDc, String keyspace, String tokens, String specificSources);
+
+    /**
+    * Same as {@link #rebuild(String)}, but only for specified keyspace and ranges. It excludes local data center nodes
+    *
+    * @param sourceDc Name of DC from which to select sources for streaming or null to pick any node
+    * @param keyspace Name of the keyspace which to rebuild or null to rebuild all keyspaces.
+    * @param tokens Range of tokens to rebuild or null to rebuild all token ranges. In the format of:
+    *               "(start_token_1,end_token_1],(start_token_2,end_token_2],...(start_token_n,end_token_n]"
+    * @param specificSources list of sources that can be used for rebuilding. Mostly other nodes in the cluster.
+    * @param excludeLocalDatacenterNodes Flag to indicate whether local data center nodes should be excluded as sources for streaming.
+    */
+    public void rebuild(String sourceDc, String keyspace, String tokens, String specificSources, boolean excludeLocalDatacenterNodes);
 
     /** Starts a bulk load and blocks until it completes. */
     public void bulkLoad(String directory);
@@ -744,6 +879,36 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     public Map<String, List<CompositeData>> samplePartitions(int duration, int capacity, int count, List<String> samplers) throws OpenDataException;
 
+    public Map<String, List<CompositeData>> samplePartitions(String keyspace, int duration, int capacity, int count, List<String> samplers) throws OpenDataException;
+
+    /**
+     * Start a scheduled sampling
+     * @param ks Keyspace. Nullable. If null, the scheduled sampling is on all keyspaces and tables
+     * @param table Nullable. If null, the scheduled sampling is on all tables of the specified keyspace
+     * @param duration Duration of each scheduled sampling job in milliseconds
+     * @param interval Interval of each scheduled sampling job in milliseconds
+     * @param capacity Capacity of the sampler, higher for more accuracy
+     * @param count Number of the top samples to list
+     * @param samplers a list of samplers to enable
+     * @return true if the scheduled sampling is started successfully. Otherwise return false
+     */
+    public boolean startSamplingPartitions(String ks, String table, int duration, int interval, int capacity, int count, List<String> samplers) throws OpenDataException;
+
+    /**
+     * Stop a scheduled sampling
+     * @param ks Keyspace. Nullable. If null, the scheduled sampling is on all keysapces and tables
+     * @param table Nullable. If null, the scheduled sampling is on all tables of the specified keyspace
+     * @return true if the scheduled sampling is stopped. False is returned if the sampling task is not found
+     */
+    public boolean stopSamplingPartitions(String ks, String table) throws OpenDataException;
+
+    /**
+     * @return a list of qualified table names that have active scheduled sampling tasks. The format of the name is `KEYSPACE.TABLE`
+     * The wild card symbol (*) indicates all keyspace/table. For example, "*.*" indicates all tables in all keyspaces. "foo.*" indicates
+     * all tables under keyspace 'foo'. "foo.bar" indicates the scheduled sampling is enabled for the table 'bar'
+     */
+    public List<String> getSampleTasks();
+
     /**
      * Returns the configured tracing probability.
      */
@@ -782,28 +947,73 @@ public interface StorageServiceMBean extends NotificationEmitter
     /** Sets the number of rows cached at the coordinator before filtering/index queries fail outright. */
     public void setCachedReplicaRowsFailThreshold(int threshold);
 
-    /** Returns the granularity of the collation index of rows within a partition **/
+    /**
+     * Returns the granularity of the collation index of rows within a partition.
+     * -1 stands for the SSTable format's default.
+     **/
     public int getColumnIndexSizeInKiB();
-    /** Sets the granularity of the collation index of rows within a partition **/
+
+    /**
+     * Sets the granularity of the collation index of rows within a partition.
+     * Use -1 to select the SSTable format's default.
+     **/
+    public void setColumnIndexSizeInKiB(int columnIndexSizeInKiB);
+
+    /**
+     * Sets the granularity of the collation index of rows within a partition
+     * @deprecated use setColumnIndexSizeInKiB instead as it will not throw non-standard exceptions
+     */
+    @Deprecated
     public void setColumnIndexSize(int columnIndexSizeInKB);
 
-    /** Returns the threshold for skipping the column index when caching partition info **/
+    /**
+     * Returns the threshold for skipping the column index when caching partition info
+     * @deprecated use getColumnIndexCacheSizeInKiB
+     */
+    @Deprecated
     public int getColumnIndexCacheSize();
-    /** Sets the threshold for skipping the column index when caching partition info **/
+
+    /**
+     * Sets the threshold for skipping the column index when caching partition info
+     * @deprecated use setColumnIndexCacheSizeInKiB instead as it will not throw non-standard exceptions
+     */
+    @Deprecated
     public void setColumnIndexCacheSize(int cacheSizeInKB);
+
+    /** Returns the threshold for skipping the column index when caching partition info **/
+    public int getColumnIndexCacheSizeInKiB();
+
+    /** Sets the threshold for skipping the column index when caching partition info **/
+    public void setColumnIndexCacheSizeInKiB(int cacheSizeInKiB);
 
     /** Returns the threshold for rejecting queries due to a large batch size */
     public int getBatchSizeFailureThreshold();
     /** Sets the threshold for rejecting queries due to a large batch size */
     public void setBatchSizeFailureThreshold(int batchSizeDebugThreshold);
 
-    /** Returns the threshold for warning queries due to a large batch size */
+    /**
+     * Returns the threshold for warning queries due to a large batch size
+     * @deprecated use getBatchSizeWarnThresholdInKiB instead
+     */
+    @Deprecated
     public int getBatchSizeWarnThreshold();
-    /** Sets the threshold for warning queries due to a large batch size */
+    /**
+     * Sets the threshold for warning queries due to a large batch size
+     * @deprecated use setBatchSizeWarnThresholdInKiB instead as it will not throw non-standard exceptions
+     */
+    @Deprecated
     public void setBatchSizeWarnThreshold(int batchSizeDebugThreshold);
+
+    /** Returns the threshold for warning queries due to a large batch size */
+    public int getBatchSizeWarnThresholdInKiB();
+    /** Sets the threshold for warning queries due to a large batch size **/
+    public void setBatchSizeWarnThresholdInKiB(int batchSizeDebugThreshold);
 
     /** Sets the hinted handoff throttle in KiB per second, per delivery thread. */
     public void setHintedHandoffThrottleInKB(int throttleInKB);
+
+    public boolean getTransferHintsOnDecommission();
+    public void setTransferHintsOnDecommission(boolean enabled);
 
     /**
      * Resume bootstrap streaming when there is failed data streaming.
@@ -812,6 +1022,8 @@ public interface StorageServiceMBean extends NotificationEmitter
      * @return true if the node successfully starts resuming. (this does not mean bootstrap streaming was success.)
      */
     public boolean resumeBootstrap();
+
+    public String getBootstrapState();
 
     /** Gets the concurrency settings for processing stages*/
     static class StageConcurrency implements Serializable
@@ -922,8 +1134,10 @@ public interface StorageServiceMBean extends NotificationEmitter
     @Deprecated
     void setKeyspaceCountWarnThreshold(int value);
 
-    public void setCompactionTombstoneWarningThreshold(int count);
-    public int getCompactionTombstoneWarningThreshold();
+    @Deprecated
+    void setCompactionTombstoneWarningThreshold(int count);
+    @Deprecated
+    int getCompactionTombstoneWarningThreshold();
 
     public boolean getReadThresholdsEnabled();
     public void setReadThresholdsEnabled(boolean value);
@@ -995,4 +1209,7 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void setMinTrackedPartitionSize(String value);
     public long getMinTrackedPartitionTombstoneCount();
     public void setMinTrackedPartitionTombstoneCount(long value);
+
+    public void setSkipStreamDiskSpaceCheck(boolean value);
+    public boolean getSkipStreamDiskSpaceCheck();
 }

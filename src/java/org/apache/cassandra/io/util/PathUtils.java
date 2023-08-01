@@ -17,13 +17,37 @@
  */
 package org.apache.cassandra.io.util;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.FileNotFoundException;
+import java.io.IOError;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.UncheckedIOException;
 import java.nio.channels.FileChannel;
-import java.nio.file.*;
-import java.nio.file.attribute.*;
-import java.util.*;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.FileStore;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.FileAttribute;
+import java.nio.file.attribute.FileTime;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFileAttributes;
+import java.nio.file.attribute.PosixFilePermission;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.function.*;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.IntFunction;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
@@ -31,20 +55,27 @@ import javax.annotation.Nullable;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.RateLimiter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import net.openhft.chronicle.core.util.ThrowingFunction;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.NoSpamLogger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import static java.nio.file.StandardOpenOption.*;
+import static java.nio.file.StandardOpenOption.APPEND;
+import static java.nio.file.StandardOpenOption.CREATE;
+import static java.nio.file.StandardOpenOption.READ;
+import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
+import static java.nio.file.StandardOpenOption.WRITE;
 import static java.util.Collections.unmodifiableSet;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.USE_NIX_RECURSIVE_DELETE;
 import static org.apache.cassandra.utils.Throwables.merge;
+
+import net.openhft.chronicle.core.util.ThrowingFunction;
 
 /**
  * Vernacular: tryX means return false or 0L on any failure; XIfNotY means propagate any exceptions besides those caused by Y
@@ -56,7 +87,7 @@ import static org.apache.cassandra.utils.Throwables.merge;
  */
 public final class PathUtils
 {
-    private static final boolean consistentDirectoryListings = CassandraRelevantProperties.DETERMINISM_CONSISTENT_DIRECTORY_LISTINGS.getBoolean();
+    private static final boolean consistentDirectoryListings = CassandraRelevantProperties.CONSISTENT_DIRECTORY_LISTINGS.getBoolean();
 
     private static final Set<StandardOpenOption> READ_OPTIONS = unmodifiableSet(EnumSet.of(READ));
     private static final Set<StandardOpenOption> WRITE_OPTIONS = unmodifiableSet(EnumSet.of(WRITE, CREATE, TRUNCATE_EXISTING));
@@ -71,7 +102,7 @@ public final class PathUtils
         if (StorageService.instance.isDaemonSetupCompleted())
             setDeletionListener(ignore -> {});
         else
-            logger.info("Deleting file during startup: {}", path);
+            logger.trace("Deleting file during startup: {}", path);
     };
 
     public static FileChannel newReadChannel(Path path) throws NoSuchFileException
@@ -311,16 +342,71 @@ public final class PathUtils
     }
 
     /**
+     * Uses unix `rm -r` to delete a directory recursively.
+     * Note that, it will trigger {@link #onDeletion} listener only for the provided path and will not call it for any
+     * nested path. This method can be much faster than deleting files and directories recursively by traversing them
+     * with Java. Though, we use it only for tests because it provides less information about the problem when something
+     * goes wrong.
+     *
+     * @param path    path to be deleted
+     * @param quietly if quietly, additional `-f` flag is added to the `rm` command so that it will not complain in case
+     *                the provided path is missing
+     */
+    private static void deleteRecursiveUsingNixCommand(Path path, boolean quietly)
+    {
+        String [] cmd = new String[]{ "rm", quietly ? "-rdf" : "-rd", path.toAbsolutePath().toString() };
+        try
+        {
+            if (!quietly && !Files.exists(path))
+                throw new NoSuchFileException(path.toString());
+
+            Process p = Runtime.getRuntime().exec(cmd);
+            int result = p.waitFor();
+
+            String out, err;
+            try (BufferedReader outReader = new BufferedReader(new InputStreamReader(p.getInputStream()));
+                 BufferedReader errReader = new BufferedReader(new InputStreamReader(p.getErrorStream())))
+            {
+                out = outReader.lines().collect(Collectors.joining("\n"));
+                err = errReader.lines().collect(Collectors.joining("\n"));
+            }
+
+            if (result != 0 && Files.exists(path))
+            {
+                logger.error("{} returned:\nstdout:\n{}\n\nstderr:\n{}", Arrays.toString(cmd), out, err);
+                throw new IOException(String.format("%s returned non-zero exit code: %d%nstdout:%n%s%n%nstderr:%n%s", Arrays.toString(cmd), result, out, err));
+            }
+
+            onDeletion.accept(path);
+        }
+        catch (IOException e)
+        {
+            throw propagateUnchecked(e, path, true);
+        }
+        catch (InterruptedException e)
+        {
+            Thread.currentThread().interrupt();
+            throw new FSWriteError(e, path);
+        }
+    }
+
+    /**
      * Deletes all files and subdirectories under "path".
      * @param path file to be deleted
      * @throws FSWriteError if any part of the tree cannot be deleted
      */
     public static void deleteRecursive(Path path)
     {
+        if (USE_NIX_RECURSIVE_DELETE.getBoolean() && path.getFileSystem() == java.nio.file.FileSystems.getDefault())
+        {
+            deleteRecursiveUsingNixCommand(path, false);
+            return;
+        }
+
         if (isDirectory(path))
             forEach(path, PathUtils::deleteRecursive);
 
-        // The directory is now empty so now it can be smoked
+        // The directory is now empty, so now it can be smoked
         delete(path);
     }
 
@@ -331,6 +417,12 @@ public final class PathUtils
      */
     public static void deleteRecursive(Path path, RateLimiter rateLimiter)
     {
+        if (USE_NIX_RECURSIVE_DELETE.getBoolean() && path.getFileSystem() == java.nio.file.FileSystems.getDefault())
+        {
+            deleteRecursiveUsingNixCommand(path, false);
+            return;
+        }
+
         deleteRecursive(path, rateLimiter, p -> deleteRecursive(p, rateLimiter));
     }
 

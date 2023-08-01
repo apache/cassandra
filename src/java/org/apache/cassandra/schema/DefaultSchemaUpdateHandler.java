@@ -20,11 +20,11 @@ package org.apache.cassandra.schema;
 
 import java.time.Duration;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -47,7 +47,8 @@ import org.apache.cassandra.schema.SchemaTransformation.SchemaTransformationResu
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.concurrent.ImmediateFuture;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
+import org.apache.cassandra.utils.concurrent.Awaitable;
 
 import static org.apache.cassandra.schema.MigrationCoordinator.MAX_OUTSTANDING_VERSION_REQUESTS;
 
@@ -62,6 +63,8 @@ public class DefaultSchemaUpdateHandler implements SchemaUpdateHandler, IEndpoin
     private final BiConsumer<SchemaTransformationResult, Boolean> updateCallback;
     private volatile DistributedSchema schema = DistributedSchema.EMPTY;
 
+    private volatile AsyncPromise<Void> requestedReset;
+
     private MigrationCoordinator createMigrationCoordinator(MessagingService messagingService)
     {
         return new MigrationCoordinator(messagingService,
@@ -69,8 +72,8 @@ public class DefaultSchemaUpdateHandler implements SchemaUpdateHandler, IEndpoin
                                         ScheduledExecutors.scheduledTasks,
                                         MAX_OUTSTANDING_VERSION_REQUESTS,
                                         Gossiper.instance,
-                                        () -> schema.getVersion(),
-                                        (from, mutations) -> applyMutations(mutations));
+                                        this::getSchemaVersionForCoordinator,
+                                        this::applyMutationsFromCoordinator);
     }
 
     public DefaultSchemaUpdateHandler(BiConsumer<SchemaTransformationResult, Boolean> updateCallback)
@@ -87,8 +90,23 @@ public class DefaultSchemaUpdateHandler implements SchemaUpdateHandler, IEndpoin
         this.updateCallback = updateCallback;
         this.migrationCoordinator = migrationCoordinator == null ? createMigrationCoordinator(messagingService) : migrationCoordinator;
         Gossiper.instance.register(this);
-        SchemaPushVerbHandler.instance.register(msg -> applyMutations(msg.payload));
-        SchemaPullVerbHandler.instance.register(msg -> messagingService.send(msg.responseWith(getSchemaMutations()), msg.from()));
+        SchemaPushVerbHandler.instance.register(msg -> {
+            synchronized (this)
+            {
+                if (requestedReset == null)
+                    applyMutations(msg.payload);
+            }
+        });
+        SchemaPullVerbHandler.instance.register(msg -> {
+            try
+            {
+                messagingService.send(msg.responseWith(getSchemaMutations()), msg.from());
+            }
+            catch (RuntimeException ex)
+            {
+                logger.error("Failed to send schema mutations to " + msg.from(), ex);
+            }
+        });
     }
 
     public synchronized void start()
@@ -111,7 +129,7 @@ public class DefaultSchemaUpdateHandler implements SchemaUpdateHandler, IEndpoin
             return true;
 
         logger.warn("There are nodes in the cluster with a different schema version than us, from which we did not merge schemas: " +
-                    "our version: ({}), outstanding versions -> endpoints: {}. Use -D{}}=true to ignore this, " +
+                    "our version: ({}), outstanding versions -> endpoints: {}. Use -D{}=true to ignore this, " +
                     "-D{}=<ep1[,epN]> to skip specific endpoints, or -D{}=<ver1[,verN]> to skip specific schema versions",
                     Schema.instance.getVersion(),
                     migrationCoordinator.outstandingVersions(),
@@ -200,6 +218,7 @@ public class DefaultSchemaUpdateHandler implements SchemaUpdateHandler, IEndpoin
         DistributedSchema after = new DistributedSchema(afterKeyspaces, version);
         SchemaTransformationResult update = new SchemaTransformationResult(before, after, diff);
 
+        logger.info("Applying schema change due to received mutations: {}", update);
         updateSchema(update, false);
         return update;
     }
@@ -234,16 +253,23 @@ public class DefaultSchemaUpdateHandler implements SchemaUpdateHandler, IEndpoin
 
     private void updateSchema(SchemaTransformationResult update, boolean local)
     {
-        this.schema = update.after;
-        logger.debug("Schema updated: {}", update);
-        updateCallback.accept(update, true);
-        if (!local)
+        if (!update.diff.isEmpty())
         {
-            migrationCoordinator.announce(update.after.getVersion());
+            this.schema = update.after;
+            logger.debug("Schema updated: {}", update);
+            updateCallback.accept(update, true);
+            if (!local)
+            {
+                migrationCoordinator.announce(update.after.getVersion());
+            }
+        }
+        else
+        {
+            logger.debug("Schema update is empty - skipping");
         }
     }
 
-    private synchronized SchemaTransformationResult reload()
+    private synchronized void reload()
     {
         DistributedSchema before = this.schema;
         DistributedSchema after = new DistributedSchema(SchemaKeyspace.fetchNonSystemKeyspaces(), SchemaKeyspace.calculateSchemaDigest());
@@ -251,30 +277,76 @@ public class DefaultSchemaUpdateHandler implements SchemaUpdateHandler, IEndpoin
         SchemaTransformationResult update = new SchemaTransformationResult(before, after, diff);
 
         updateSchema(update, false);
-        return update;
     }
 
     @Override
-    public SchemaTransformationResult reset(boolean local)
+    public void reset(boolean local)
     {
-        return local
-               ? reload()
-               : migrationCoordinator.pullSchemaFromAnyNode()
-                                     .flatMap(mutations -> ImmediateFuture.success(applyMutations(mutations)))
-                                     .awaitThrowUncheckedOnInterrupt()
-                                     .getNow();
+        if (local)
+        {
+            reload();
+        }
+        else
+        {
+            migrationCoordinator.reset();
+            if (!migrationCoordinator.awaitSchemaRequests(CassandraRelevantProperties.MIGRATION_DELAY.getLong()))
+            {
+                logger.error("Timeout exceeded when waiting for schema from other nodes");
+            }
+        }
     }
 
+    /**
+     * When clear is called the update handler will flag that the clear was requested. It means that migration
+     * coordinator will think that we have empty schema version and will apply whatever it receives from other nodes.
+     * When a first attempt to apply mutations from other node is called, it will first clear the schema and apply
+     * the mutations on a truncated table. The flag is then reset.
+     * <p>
+     * This way the clear is postponed until we really fetch any schema we can use as a replacement. Otherwise, nothing
+     * will happen. We will simply reset the flag after the timeout and throw exceptions to the caller.
+     *
+     * @return
+     */
     @Override
-    public synchronized void clear()
+    public Awaitable clear()
     {
-        SchemaKeyspace.truncate();
-        this.schema = DistributedSchema.EMPTY;
+        synchronized (this)
+        {
+            if (requestedReset == null)
+            {
+                requestedReset = new AsyncPromise<>();
+                migrationCoordinator.reset();
+            }
+            return requestedReset;
+        }
+    }
+
+    private UUID getSchemaVersionForCoordinator()
+    {
+        if (requestedReset != null)
+            return SchemaConstants.emptyVersion;
+        else
+            return schema.getVersion();
+    }
+
+    private synchronized void applyMutationsFromCoordinator(InetAddressAndPort from, Collection<Mutation> mutations)
+    {
+        if (requestedReset != null && !mutations.isEmpty())
+        {
+            schema = DistributedSchema.EMPTY;
+            SchemaKeyspace.truncate();
+            requestedReset.setSuccess(null);
+            requestedReset = null;
+        }
+        applyMutations(mutations);
     }
 
     private synchronized Collection<Mutation> getSchemaMutations()
     {
-        return SchemaKeyspace.convertSchemaToMutations();
+        if (requestedReset != null)
+            return Collections.emptyList();
+        else
+            return SchemaKeyspace.convertSchemaToMutations();
     }
 
     public Map<UUID, Set<InetAddressAndPort>> getOutstandingSchemaVersions()

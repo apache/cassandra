@@ -21,7 +21,7 @@ cluster_name: 'Test Cluster'
 # Specifying initial_token will override this setting on the node's initial start,
 # on subsequent starts, this setting will apply even if initial token is set.
 #
-# See https://cassandra.apache.org/doc/latest/getting_started/production.html#tokens for
+# See https://cassandra.apache.org/doc/latest/getting-started/production.html#tokens for
 # best practice information about num_tokens.
 #
 num_tokens: 16
@@ -44,8 +44,8 @@ num_tokens: 16
 allocate_tokens_for_local_replication_factor: 3
 
 # initial_token allows you to specify tokens manually.  While you can use it with
-# vnodes (num_tokens > 1, above) -- in which case you should provide a 
-# comma-separated list -- it's primarily used when adding nodes to legacy clusters 
+# vnodes (num_tokens > 1, above) -- in which case you should provide a
+# comma-separated list -- it's primarily used when adding nodes to legacy clusters
 # that do not have vnodes enabled.
 # initial_token:
 
@@ -64,7 +64,7 @@ hinted_handoff_enabled: true
 # Min unit: ms
 max_hint_window: 3h
 
-# Maximum throttle in KBs per second, per delivery thread.  This will be
+# Maximum throttle in KiBs per second, per delivery thread.  This will be
 # reduced proportionally to the number of nodes in the cluster.  (If there
 # are two nodes in the cluster, each delivery thread will use the maximum
 # rate; if there are three, each will throttle to half of the maximum,
@@ -86,7 +86,7 @@ max_hints_delivery_threads: 2
 # Min unit: ms
 hints_flush_period: 10000ms
 
-# Maximum size for a single hints file, in megabytes.
+# Maximum size for a single hints file, in mebibytes.
 # Min unit: MiB
 max_hints_file_size: 128MiB
 
@@ -99,6 +99,11 @@ max_hints_file_size: 128MiB
 # Disable the option in order to preserve those hints on the disk.
 auto_hints_cleanup_enabled: false
 
+# Enable/disable transfering hints to a peer during decommission. Even when enabled, this does not guarantee
+# consistency for logged batches, and it may delay decommission when coupled with a strict hinted_handoff_throttle. 
+# Default: true
+# transfer_hints_on_decommission: true
+
 # Compression to apply to the hint files. If omitted, hints files
 # will be written uncompressed. LZ4, Snappy, and Deflate compressors
 # are supported.
@@ -106,6 +111,16 @@ auto_hints_cleanup_enabled: false
 #   - class_name: LZ4Compressor
 #     parameters:
 #         -
+
+# Directory where Cassandra should store results of a One-Shot troubleshooting heapdump for uncaught exceptions.
+# Note: this value can be overridden by the -XX:HeapDumpPath JVM env param with a relative local path for testing if
+# so desired.
+# If not set, the default directory is $CASSANDRA_HOME/heapdump
+# heap_dump_path: /var/lib/cassandra/heapdump
+
+# Enable / disable automatic dump of heap on first uncaught exception
+# If not set, the default value is false
+# dump_heap_on_uncaught_exception: true
 
 # Enable / disable persistent hint windows.
 #
@@ -121,7 +136,7 @@ auto_hints_cleanup_enabled: false
 #
 # hint_window_persistent_enabled: true
 
-# Maximum throttle in KBs per second, total. This will be
+# Maximum throttle in KiBs per second, total. This will be
 # reduced proportionally to the number of nodes in the cluster.
 # Min unit: KiB
 batchlog_replay_throttle: 1024KiB
@@ -135,7 +150,14 @@ batchlog_replay_throttle: 1024KiB
 #   users. It keeps usernames and hashed passwords in system_auth.roles table.
 #   Please increase system_auth keyspace replication factor if you use this authenticator.
 #   If using PasswordAuthenticator, CassandraRoleManager must also be used (see below)
-authenticator: AllowAllAuthenticator
+authenticator:
+  class_name : org.apache.cassandra.auth.AllowAllAuthenticator
+# MutualTlsAuthenticator can be configured using the following configuration. One can add their own validator
+# which implements MutualTlsCertificateValidator class and provide logic for extracting identity out of certificates
+# and validating certificates.
+#  class_name : org.apache.cassandra.auth.MutualTlsAuthenticator
+#  parameters :
+#    validator_class_name: org.apache.cassandra.auth.SpiffeCertificateValidator
 
 # Authorization backend, implementing IAuthorizer; used to limit access/provide permissions
 # Out of the box, Cassandra provides org.apache.cassandra.auth.{AllowAllAuthorizer,
@@ -166,6 +188,37 @@ role_manager: CassandraRoleManager
 # - CassandraNetworkAuthorizer stores permissions in system_auth.network_permissions table. Please
 #   increase system_auth keyspace replication factor if you use this authorizer.
 network_authorizer: AllowAllNetworkAuthorizer
+
+# CIDR authorization backend, implementing ICIDRAuthorizer; used to restrict user
+# access from certain CIDRs
+# Out of the box, Cassandra provides org.apache.cassandra.auth.{AllowAllCIDRAuthorizer,
+# CassandraCIDRAuthorizer}.
+# - AllowAllCIDRAuthorizer allows access from any CIDR to any user - set it to disable CIDR authorization.
+# - CassandraCIDRAuthorizer stores user's CIDR permissions in system_auth.cidr_permissions table. Please
+#   increase system_auth keyspace replication factor if you use this authorizer, otherwise any changes to
+#   system_auth tables being used by this feature may be lost when a host goes down.
+cidr_authorizer:
+  class_name: AllowAllCIDRAuthorizer
+  # Below parameters are used only when CIDR authorizer is enabled
+  # parameters:
+    # CIDR authorizer when enabled, i.e, CassandraCIDRAuthorizer, is applicable for non-superusers only by default.
+    # Set this setting to true, to enable CIDR authorization for superusers as well.
+    # Note: CIDR checks cannot be performed for JMX calls
+    # cidr_checks_for_superusers: true
+
+    # CIDR authorizer when enabled, supports MONITOR and ENFORCE modes. Default mode is MONITOR
+    # In MONITOR mode, CIDR checks are NOT enforced. Instead, CIDR groups of users accesses are logged using
+    # nospamlogger. A warning message would be logged if a user accesses from unauthorized CIDR group (but access won't
+    # be rejected). An info message would be logged otherwise.
+    # In ENFORCE mode, CIDR checks are enforced, i.e, users accesses would be rejected if attempted from unauthorized
+    # CIDR groups.
+    # cidr_authorizer_mode: MONITOR
+
+    # Refresh interval for CIDR groups cache, this value is considered in minutes
+    # cidr_groups_cache_refresh_interval: 5
+
+    # Maximum number of entries an IP to CIDR groups cache can accommodate
+    # ip_cache_max_size: 100
 
 # Depending on the auth strategy of the cluster, it can be beneficial to iterate
 # from root to table (root -> ks -> table) instead of table to root (table -> ks -> root).
@@ -275,7 +328,7 @@ credentials_validity: 2000ms
 partitioner: org.apache.cassandra.dht.Murmur3Partitioner
 
 # Directories where Cassandra should store data on disk. If multiple
-# directories are specified, Cassandra will spread data evenly across 
+# directories are specified, Cassandra will spread data evenly across
 # them by partitioning the token ranges.
 # If not set, the default directory is $CASSANDRA_HOME/data/data.
 # data_file_directories:
@@ -297,6 +350,18 @@ partitioner: org.apache.cassandra.dht.Murmur3Partitioner
 # for write path allocation rejection (standard: never reject. cdc: reject Mutation
 # containing a CDC-enabled table if at space limit in cdc_raw_directory).
 cdc_enabled: false
+
+# Specify whether writes to the CDC-enabled tables should be blocked when CDC data on disk has reached to the limit.
+# When setting to false, the writes will not be blocked and the oldest CDC data on disk will be deleted to
+# ensure the size constraint. The default is true.
+# cdc_block_writes: true
+
+# Specify whether CDC mutations are replayed through the write path on streaming, e.g. repair.
+# When enabled, CDC data streamed to the destination node will be written into commit log first. When setting to false,
+# the streamed CDC data is written into SSTables just the same as normal streaming. The default is true.
+# If this is set to false, streaming will be considerably faster however it's possible that, in extreme situations
+# (losing > quorum # nodes in a replica set), you may have data in your SSTables that never makes it to the CDC log.
+# cdc_on_repair_enabled: true
 
 # CommitLogSegments are moved to this directory on flush if cdc_enabled: true and the
 # segment contains mutations for a CDC-enabled table. This should be placed on a
@@ -362,7 +427,7 @@ commit_failure_policy: stop
 #
 # Default value ("auto") is 1/256th of the heap or 10MiB, whichever is greater
 # Min unit: MiB
-# prepared_statements_cache_size:
+prepared_statements_cache_size:
 
 # Maximum size of the key cache in memory.
 #
@@ -376,8 +441,10 @@ commit_failure_policy: stop
 # NOTE: if you reduce the size, you may not get you hottest keys loaded on startup.
 #
 # Default value is empty to make it "auto" (min(5% of Heap (in MiB), 100MiB)). Set to 0 to disable key cache.
+#
+# This is only relevant to SSTable formats that use key cache, e.g. BIG.
 # Min unit: MiB
-# key_cache_size:
+key_cache_size:
 
 # Duration in seconds after which Cassandra should
 # save the key cache. Caches are saved to saved_caches_directory as
@@ -387,12 +454,14 @@ commit_failure_policy: stop
 # terms of I/O for the key cache. Row cache saving is much more expensive and
 # has limited use.
 #
+# This is only relevant to SSTable formats that use key cache, e.g. BIG.
 # Default is 14400 or 4 hours.
 # Min unit: s
 key_cache_save_period: 4h
 
 # Number of keys from the key cache to save
 # Disabled by default, meaning all keys are going to be saved
+# This is only relevant to SSTable formats that use key cache, e.g. BIG.
 # key_cache_keys_to_save: 100
 
 # Row cache implementation class name. Available implementations:
@@ -401,7 +470,7 @@ key_cache_save_period: 4h
 #   Fully off-heap row cache implementation (default).
 #
 # org.apache.cassandra.cache.SerializingCacheProvider
-#   This is the row cache implementation availabile
+#   This is the row cache implementation available
 #   in previous releases of Cassandra.
 # row_cache_class_name: org.apache.cassandra.cache.OHCProvider
 
@@ -445,7 +514,7 @@ row_cache_save_period: 0s
 # Default value is empty to make it "auto" (min(2.5% of Heap (in MiB), 50MiB)). Set to 0 to disable counter cache.
 # NOTE: if you perform counter deletes and rely on low gcgs, you should disable the counter cache.
 # Min unit: MiB
-# counter_cache_size:
+counter_cache_size:
 
 # Duration in seconds after which Cassandra should
 # save the counter cache (keys only). Caches are saved to saved_caches_directory as
@@ -469,8 +538,8 @@ counter_cache_save_period: 7200s
 # Min unit: s
 # cache_load_timeout: 30s
 
-# commitlog_sync may be either "periodic", "group", or "batch." 
-# 
+# commitlog_sync may be either "periodic", "group", or "batch."
+#
 # When in batch mode, Cassandra won't ack writes until the commit log
 # has been flushed to disk.  Each incoming write will trigger the flush task.
 # commitlog_sync_batch_window_in_ms is a deprecated value. Previously it had
@@ -551,6 +620,9 @@ seed_provider:
       # seeds is actually a comma-delimited list of addresses.
       # Ex: "<ip1>,<ip2>,<ip3>"
       - seeds: "127.0.0.1:7000"
+      # If set to "true", SimpleSeedProvider will return all IP addresses for a DNS name,
+      # based on the configured name service on the system. Defaults to "false".
+      #  resolve_multiple_ip_addresses_per_dns_record: "false"
 
 # For workloads with more data than can fit in memory, Cassandra's
 # bottleneck will be reads that need to fetch data from
@@ -647,7 +719,7 @@ memtable_allocation_type: heap_buffers
 # is 1/16th of the available heap. The main tradeoff is that smaller trees
 # have less resolution, which can lead to over-streaming data. If you see heap
 # pressure during repairs, consider lowering this, but you cannot go below
-# one megabyte. If you see lots of over-streaming, consider raising
+# one mebibyte. If you see lots of over-streaming, consider raising
 # this or using subrange repair.
 #
 # For more details see https://issues.apache.org/jira/browse/CASSANDRA-14096.
@@ -719,11 +791,11 @@ memtable_allocation_type: heap_buffers
 # is a best-effort process. In extreme conditions Cassandra may need to use
 # more than this amount of memory.
 # Min unit: KiB
-# index_summary_capacity:
+index_summary_capacity:
 
 # How frequently index summaries should be resampled.  This is done
 # periodically to redistribute memory from the fixed-size pool to sstables
-# proportional their recent read rates.  Setting to -1 will disable this
+# proportional their recent read rates.  Setting to null value will disable this
 # process, leaving existing index summaries at their current sampling level.
 # Min unit: m
 index_summary_resize_interval: 60m
@@ -786,8 +858,17 @@ listen_address: localhost
 
 # Internode authentication backend, implementing IInternodeAuthenticator;
 # used to allow/disallow connections from peer nodes.
-# internode_authenticator: org.apache.cassandra.auth.AllowAllInternodeAuthenticator
-
+#internode_authenticator:
+#  class_name : org.apache.cassandra.auth.AllowAllInternodeAuthenticator
+#  parameters :
+# MutualTlsInternodeAuthenticator can be configured using the following configuration.One can add their own validator
+# which implements MutualTlsCertificateValidator class and provide logic for extracting identity out of certificates
+# and validating certificates.
+#  class_name : org.apache.cassandra.auth.MutualTlsInternodeAuthenticator
+#  parameters :
+#    validator_class_name: org.apache.cassandra.auth.SpiffeCertificateValidator
+#    trusted_peer_identities: "spiffe1,spiffe2"
+#    node_identity: "spiffe1"
 # Whether to start the native transport server.
 # The address on which the native transport is bound is defined by rpc_address.
 start_native_transport: true
@@ -896,9 +977,11 @@ rpc_keepalive: true
 # internode_socket_receive_buffer_size:
 
 # Set to true to have Cassandra create a hard link to each sstable
-# flushed or streamed locally in a backups/ subdirectory of the
-# keyspace data.  Removing these links is the operator's
-# responsibility.
+# flushed or streamed locally in a backups/ subdirectory of all the
+# keyspace data in this node.  Removing these links is the operator's
+# responsibility. The operator can also turn off incremental backups 
+# for specified table by setting table parameter incremental_backups to 
+# false, which is set to true by default. See CASSANDRA-15402
 incremental_backups: false
 
 # Whether or not to take a snapshot before each compaction.  Be
@@ -908,7 +991,7 @@ incremental_backups: false
 snapshot_before_compaction: false
 
 # Whether or not a snapshot is taken of the data before keyspace truncation
-# or dropping of column families. The STRONGLY advised default of true 
+# or dropping of column families. The STRONGLY advised default of true
 # should be used to provide data safety. If you set this flag to false, you will
 # lose data on truncation or drop.
 auto_snapshot: true
@@ -928,18 +1011,31 @@ auto_snapshot: true
 # taking and clearing snapshots
 snapshot_links_per_second: 0
 
+# The sstable formats configuration. SSTable formats implementations are
+# loaded using the service loader mechanism. In this section, one can select
+# the format for created sstables and pass additional parameters for the formats
+# available on the classpath.
+# The default format is "big", the legacy SSTable format in use since Cassandra 3.0.
+# Cassandra versions 5.0 and later also support the trie-indexed "bti" format,
+# which offers better performance.
+#sstable:
+#  selected_format: big
+
 # Granularity of the collation index of rows within a partition.
-# Increase if your rows are large, or if you have a very large
-# number of rows per partition.  The competing goals are these:
+# Applies to both BIG and BTI SSTable formats. In both formats,
+# a smaller granularity results in faster lookup of rows within
+# a partition, but a bigger index file size.
+# Using smaller granularities with the BIG format is not recommended
+# because bigger collation indexes cannot be cached efficiently
+# or at all if they become sufficiently large. Further, if
+# large rows, or a very large number of rows per partition are
+# present, it is recommended to increase the index granularity
+# or switch to the BTI SSTable format.
 #
-# - a smaller granularity means more index entries are generated
-#   and looking up rows withing the partition by collation column
-#   is faster
-# - but, Cassandra will keep the collation index in memory for hot
-#   rows (as part of the key cache), so a larger granularity means
-#   you can cache more hot rows
+# Leave undefined to use a default suitable for the SSTable format
+# in use (64 KiB for BIG, 16KiB for BTI).
 # Min unit: KiB
-column_index_size: 64KiB
+# column_index_size: 4KiB
 
 # Per sstable indexed key cache entries (the collation index in memory
 # mentioned above) exceeding this size will not be held on heap.
@@ -948,8 +1044,24 @@ column_index_size: 64KiB
 #
 # Note that this size refers to the size of the
 # serialized index information and not the size of the partition.
+#
+# This is only relevant to SSTable formats that use key cache, e.g. BIG.
 # Min unit: KiB
 column_index_cache_size: 2KiB
+
+# Default compaction strategy, applied when a table's parameters do not
+# specify compaction.
+# The selected compaction strategy will also apply to system tables.
+#
+# The default is to use SizeTieredCompactionStrategy, with its default
+# compaction parameters.
+#
+# default_compaction:
+#   class_name: UnifiedCompactionStrategy
+#   parameters:
+#     scaling_parameters: T4
+#     target_sstable_size: 1GiB
+
 
 # Number of simultaneous compactions to allow, NOT including
 # validation "compactions" for anti-entropy repair.  Simultaneous
@@ -962,7 +1074,7 @@ column_index_cache_size: 2KiB
 #
 # concurrent_compactors defaults to the smaller of (number of disks,
 # number of cores), with a minimum of 2 and a maximum of 8.
-# 
+#
 # If your data directories are backed by SSD, you should increase this
 # to the number of cores.
 # concurrent_compactors: 1
@@ -990,8 +1102,10 @@ compaction_throughput: 64MiB/s
 
 # When compacting, the replacement sstable(s) can be opened before they
 # are completely written, and used in place of the prior sstables for
-# any range that has been written. This helps to smoothly transfer reads 
+# any range that has been written. This helps to smoothly transfer reads
 # between the sstables, reducing page cache churn and keeping hot rows hot
+# Set sstable_preemptive_open_interval to null for disabled which is equivalent to
+# sstable_preemptive_open_interval_in_mb being negative
 # Min unit: MiB
 sstable_preemptive_open_interval: 50MiB
 
@@ -1000,7 +1114,7 @@ sstable_preemptive_open_interval: 50MiB
 # set to true, each newly created sstable will have a UUID based generation identifier and such files are
 # not readable by previous Cassandra versions. At some point, this option will become true by default
 # and eventually get removed from the configuration.
-enable_uuid_sstable_identifiers: false
+uuid_sstable_identifiers_enabled: false
 
 # When enabled, permits Cassandra to zero-copy stream entire eligible
 # SSTables between nodes, including every component.
@@ -1136,19 +1250,21 @@ slow_query_log_timeout: 500ms
 # Enable operation timeout information exchange between nodes to accurately
 # measure request timeouts.  If disabled, replicas will assume that requests
 # were forwarded to them instantly by the coordinator, which means that
-# under overload conditions we will waste that much extra time processing 
+# under overload conditions we will waste that much extra time processing
 # already-timed-out requests.
 #
-# Warning: It is generally assumed that users have setup NTP on their clusters, and that clocks are modestly in sync, 
+# Warning: It is generally assumed that users have setup NTP on their clusters, and that clocks are modestly in sync,
 # since this is a requirement for general correctness of last write wins.
 # internode_timeout: true
 
-# Set keep-alive period for streaming
-# This node will send a keep-alive message periodically with this period.
-# If the node does not receive a keep-alive message from the peer for
-# 2 keep-alive cycles the stream session times out and fail
-# Default value is 300s (5 minutes), which means stalled stream
-# times out in 10 minutes by default
+# Set period for idle state control messages for earlier detection of failed streams
+# This node will send a keep-alive message periodically on the streaming's control channel.
+# This ensures that any eventual SocketTimeoutException will occur within 2 keep-alive cycles
+# If the node cannot send, or timeouts sending, the keep-alive message on the netty control channel
+# the stream session is closed.
+# Default value is 300s (5 minutes), which means stalled streams
+# are detected within 10 minutes
+# Specify 0 to disable.
 # Min unit: s
 # streaming_keep_alive_period: 300s
 
@@ -1156,6 +1272,16 @@ slow_query_log_timeout: 500ms
 # Increase this when you notice that joins are CPU-bound rather that network
 # bound (for example a few nodes with big files).
 # streaming_connections_per_host: 1
+
+# Settings for stream stats tracking; used by system_views.streaming table
+# How long before a stream is evicted from tracking; this impacts both historic and currently running
+# streams.
+# streaming_state_expires: 3d
+# How much memory may be used for tracking before evicting session from tracking; once crossed
+# historic and currently running streams maybe impacted.
+# streaming_state_size: 40MiB
+# Enable/Disable tracking of streaming stats
+# streaming_stats_enabled: true
 
 # Allows denying configurable access (rw/rr) to operations on configured ks, table, and partitions, intended for use by
 # operators to manage cluster health vs application access. See CASSANDRA-12106 and CEP-13 for more details.
@@ -1233,6 +1359,22 @@ slow_query_log_timeout: 500ms
 #    Proximity is determined by rack and data center, which are
 #    explicitly configured in cassandra-topology.properties.
 #
+# AlibabaCloudSnitch:
+#    Snitch for getting dc and rack of a node from metadata service of Alibaba cloud.
+#    This snitch that assumes an ECS region is a DC and an ECS availability_zone is a rack.
+#
+# AzureSnitch:
+#    Gets datacenter from 'location' and rack from 'zone' fields of 'compute' object
+#    from instance metadata service. If the availability zone is not enabled, it will use the fault
+#    domain and get its respective value.
+#
+# CloudstackSnitch:
+#    A snitch that assumes a Cloudstack Zone follows the typical convention 
+#    country-location-az and uses a country/location tuple as a datacenter
+#    and the availability zone as a rack.
+#    WARNING: This snitch is deprecated and it is scheduled to be removed 
+#    in the next major version of Cassandra.
+#
 # Ec2Snitch:
 #    Appropriate for EC2 deployments in a single Region. Loads Region
 #    and Availability Zone information from the EC2 API. The Region is
@@ -1247,6 +1389,10 @@ slow_query_log_timeout: 500ms
 #    ssl_storage_port on the public IP firewall.  (For intra-Region
 #    traffic, Cassandra will switch to the private IP after
 #    establishing a connection.)
+#
+# GoogleCloudSnitch:
+#    Snitch for getting dc and rack of a node from metadata service of Google cloud.
+#    This snitch that assumes an GCE region is a DC and an GCE availability_zone is a rack.
 #
 # RackInferringSnitch:
 #    Proximity is determined by rack and data center, which are
@@ -1275,6 +1421,21 @@ dynamic_snitch_reset_interval: 600000ms
 # 0.2 means Cassandra would continue to prefer the static snitch values
 # until the pinned host was 20% worse than the fastest.
 dynamic_snitch_badness_threshold: 1.0
+
+# Configures Java crypto provider. By default, it will use DefaultCryptoProvider
+# which will install Amazon Correto Crypto Provider.
+#
+# Amazon Correto Crypto Provider works currently for x86_64 and aarch_64 platforms.
+# If this provider fails it will fall back to the default crypto provider in the JRE.
+#
+# To force failure when the provider was not installed properly, set the property "fail_on_missing_provider" to "true".
+#
+# To bypass the installation of a crypto provider use class 'org.apache.cassandra.security.JREProvider'
+#
+crypto_provider:
+  - class_name: org.apache.cassandra.security.DefaultCryptoProvider
+    parameters:
+      - fail_on_missing_provider: "false"
 
 # Configure server-to-server internode encryption
 #
@@ -1315,7 +1476,12 @@ server_encryption_options:
   legacy_ssl_storage_port_enabled: false
   # Set to a valid keystore if internode_encryption is dc, rack or all
   keystore: conf/.keystore
-  keystore_password: cassandra
+  #keystore_password: cassandra
+  # Configure the way Cassandra creates SSL contexts.
+  # To use PEM-based key material, see org.apache.cassandra.security.PEMBasedSslContextFactory
+  # ssl_context_factory:
+  #     # Must be an instance of org.apache.cassandra.security.ISslContextFactory
+  #     class_name: org.apache.cassandra.security.DefaultSslContextFactory
   # During internode mTLS authentication, inbound connections (acting as servers) use keystore, keystore_password
   # containing server certificate to create SSLContext and
   # outbound connections (acting as clients) use outbound_keystore & outbound_keystore_password with client certificates
@@ -1326,7 +1492,7 @@ server_encryption_options:
   require_client_auth: false
   # Set to a valid trustore if require_client_auth is true
   truststore: conf/.truststore
-  truststore_password: cassandra
+  #truststore_password: cassandra
   # Verify that the host name in the certificate matches the connected host
   require_endpoint_verification: false
   # More advanced defaults:
@@ -1360,9 +1526,15 @@ client_encryption_options:
   # optional: true
   # Set keystore and keystore_password to valid keystores if enabled is true
   keystore: conf/.keystore
-  keystore_password: cassandra
+  #keystore_password: cassandra
+  # Configure the way Cassandra creates SSL contexts.
+  # To use PEM-based key material, see org.apache.cassandra.security.PEMBasedSslContextFactory
+  # ssl_context_factory:
+  #     # Must be an instance of org.apache.cassandra.security.ISslContextFactory
+  #     class_name: org.apache.cassandra.security.DefaultSslContextFactory
   # Verify client certificates
   require_client_auth: false
+  # require_endpoint_verification: false
   # Set trustore and truststore_password if require_client_auth is true
   # truststore: conf/.truststore
   # truststore_password: cassandra
@@ -1408,12 +1580,6 @@ trace_type_repair_ttl: 7d
 # As of Cassandra 3.0 there is a sandbox in place that should prevent execution of evil code.
 user_defined_functions_enabled: false
 
-# Enables scripted UDFs (JavaScript UDFs).
-# Java UDFs are always enabled, if user_defined_functions_enabled is true.
-# Enable this option to be able to use UDFs with "language javascript" or any custom JSR-223 provider.
-# This option has no effect, if user_defined_functions_enabled is false.
-scripted_user_defined_functions_enabled: false
-
 # Enables encrypting data at-rest (on disk). Different key providers can be plugged in, but the default reads from
 # a JCE-style keystore. A single keystore can hold multiple keys, but the one referenced by
 # the "key_alias" is the only key that will be used for encrypt opertaions; previously used keys
@@ -1441,6 +1607,12 @@ transparent_data_encryption_options:
           store_type: JCEKS
           key_password: cassandra
 
+# Storage Attached Indexing options.
+# sai_options:
+  ## Total permitted memory allowed for writing SAI index segments. This memory
+  ## is split between all SAI indexes being built so more indexes will mean smaller
+  ## segment sizes.
+  # segment_write_buffer_size: 1024MiB
 
 #####################
 # SAFETY THRESHOLDS #
@@ -1490,12 +1662,6 @@ batch_size_fail_threshold: 50KiB
 # Log WARN on any batches not of type LOGGED than span across more partitions than this limit
 unlogged_batch_across_partitions_warn_threshold: 10
 
-# Log a warning when compacting partitions larger than this value
-compaction_large_partition_warning_threshold: 100MiB
-
-# Log a warning when writing more tombstones than this value to a partition
-compaction_tombstone_warning_threshold: 100000
-
 # GC Pauses greater than 200 ms will be logged at INFO level
 # This threshold can be adjusted to minimize logging if necessary
 # Min unit: ms
@@ -1539,7 +1705,7 @@ compaction_tombstone_warning_threshold: 100000
 # max_concurrent_automatic_sstable_upgrades: 1
 
 # Audit logging - Logs every incoming CQL command request, authentication to a node. See the docs
-# on audit_logging for full details about the various configuration options.
+# on audit_logging for full details about the various configuration options and production tips.
 audit_logging_options:
   enabled: false
   logger:
@@ -1555,10 +1721,12 @@ audit_logging_options:
   # block: true
   # max_queue_weight: 268435456 # 256 MiB
   # max_log_size: 17179869184 # 16 GiB
-  ## archive command is "/path/to/script.sh %path" where %path is replaced with the file being rolled:
+  #
+  ## If archive_command is empty or unset, Cassandra uses a built-in DeletingArchiver that deletes the oldest files if ``max_log_size`` is reached.
+  ## If archive_command is set, Cassandra does not use DeletingArchiver, so it is the responsibility of the script to make any required cleanup.
+  ## Example: "/path/to/script.sh %path" where %path is replaced with the file being rolled.
   # archive_command:
   # max_archive_retries: 10
-
 
 # default options for full query logging - these can be overridden from command line when executing
 # nodetool enablefullquerylog
@@ -1570,6 +1738,8 @@ audit_logging_options:
   # max_log_size: 17179869184 # 16 GiB
   ## archive command is "/path/to/script.sh %path" where %path is replaced with the file being rolled:
   # archive_command:
+  ## note that enabling this allows anyone with JMX/nodetool access to run local shell commands as the user running cassandra
+  # allow_nodetool_archive_command: false
   # max_archive_retries: 10
 
 # validate tombstones on reads and compaction
@@ -1602,13 +1772,6 @@ repaired_data_tracking_for_partition_reads_enabled: false
 # mismatches are less actionable than confirmed ones.
 report_unconfirmed_repaired_data_mismatches: false
 
-# Having many tables and/or keyspaces negatively affects performance of many operations in the
-# cluster. When the number of tables/keyspaces in the cluster exceeds the following thresholds
-# a client warning will be sent back to the user when creating a table or keyspace.
-# As of cassandra 4.1, these properties are deprecated in favor of keyspaces_warn_threshold and tables_warn_threshold
-# table_count_warn_threshold: 150
-# keyspace_count_warn_threshold: 40
-
 # configure the read and write consistency levels for modifications to auth tables
 # auth_read_consistency_level: LOCAL_QUORUM
 # auth_write_consistency_level: EACH_QUORUM
@@ -1616,6 +1779,14 @@ report_unconfirmed_repaired_data_mismatches: false
 # Delays on auth resolution can lead to a thundering herd problem on reconnects; this option will enable
 # warming of auth caches prior to node completing startup. See CASSANDRA-16958
 # auth_cache_warming_enabled: false
+
+# If enabled, dynamic data masking allows to attach CQL masking functions to the columns of a table.
+# Users without the UNMASK permission will see an obscured version of the values of the columns with an attached mask.
+# If dynamic data masking is disabled it won't be allowed to create new column masks, although it will still be possible
+# to drop any previously existing masks. Also, any existing mask will be ignored at query time, so all users will see
+# the clear values of the masked columns.
+# Defaults to false to disable dynamic data masking.
+# dynamic_data_masking_enabled: false
 
 #########################
 # EXPERIMENTAL FEATURES #
@@ -1706,11 +1877,21 @@ drop_compact_storage_enabled: false
 # Guardrail to allow/disallow user-provided timestamps. Defaults to true.
 # user_timestamps_enabled: true
 #
+# Guardrail to bound user-provided timestamps within a given range. Default is infinite (denoted by null).
+# Accepted values are durations of the form 12h, 24h, etc.
+# maximum_timestamp_warn_threshold:
+# maximum_timestamp_fail_threshold:
+# minimum_timestamp_warn_threshold:
+# minimum_timestamp_fail_threshold:
+#
 # Guardrail to allow/disallow GROUP BY functionality.
 # group_by_enabled: true
 #
 # Guardrail to allow/disallow TRUNCATE and DROP TABLE statements
 # drop_truncate_table_enabled: true
+#
+# Guardrail to allow/disallow DROP KEYSPACE statements
+# drop_keyspace_enabled: true
 #
 # Guardrail to warn or fail when using a page size greater than threshold.
 # The two thresholds default to -1 to disable.
@@ -1740,6 +1921,42 @@ drop_compact_storage_enabled: false
 # write_consistency_levels_warned: []
 # write_consistency_levels_disallowed: []
 #
+# Guardrail to warn or fail when writing partitions larger than threshold, expressed as 100MiB, 1GiB, etc.
+# The guardrail is only checked when writing sstables (flush and compaction), and exceeding the fail threshold on that
+# moment will only log an error message, without interrupting the operation.
+# This operates on a per-sstable basis, so it won't detect a large partition if it is spread across multiple sstables.
+# The warning threshold replaces the deprecated config property compaction_large_partition_warning_threshold.
+# The two thresholds default to null to disable.
+# partition_size_warn_threshold:
+# partition_size_fail_threshold:
+#
+# Guardrail to warn or fail when writing partitions with more tombstones than threshold.
+# The guardrail is only checked when writing sstables (flush and compaction), and exceeding the fail threshold on that
+# moment will only log an error message, without interrupting the operation.
+# This operates on a per-sstable basis, so it won't detect a large partition if it is spread across multiple sstables.
+# The warning threshold replaces the deprecated config property compaction_tombstone_warning_threshold.
+# The two thresholds default to -1 to disable.
+# partition_tombstones_warn_threshold: -1
+# partition_tombstones_fail_threshold: -1
+#
+# Guardrail to warn or fail when writing column values larger than threshold.
+# This guardrail is only applied to the values of regular columns because both the serialized partitions keys and the
+# values of the components of the clustering key already have a fixed, relatively small size limit of 65535 bytes, which
+# is probably lesser than the thresholds defined here.
+# Deleting individual elements of non-frozen sets and maps involves creating tombstones that contain the value of the
+# deleted element, independently on whether the element existed or not. That tombstone value is also guarded by this
+# guardrail, to prevent the insertion of tombstones over the threshold. The downside is that enabling or raising this
+# threshold can prevent users from deleting set/map elements that were written when the guardrail was disabled or with a
+# lower value. Deleting the entire column, row or partition is always allowed, since the tombstones created for those
+# operations don't contain the CQL column values.
+# This guardrail is different to max_value_size. max_value_size is checked when deserializing any value to detect
+# sstable corruption, whereas this guardrail is checked on the CQL layer at write time to reject regular user queries
+# inserting too large columns.
+# The two thresholds default to null to disable.
+# Min unit: B
+# column_value_size_warn_threshold:
+# column_value_size_fail_threshold:
+#
 # Guardrail to warn or fail when encountering larger size of collection data than threshold.
 # At query time this guardrail is applied only to the collection fragment that is being writen, even though in the case
 # of non-frozen collections there could be unaccounted parts of the collection on the sstables. This is done this way to
@@ -1761,6 +1978,7 @@ drop_compact_storage_enabled: false
 # items_per_collection_fail_threshold: -1
 #
 # Guardrail to allow/disallow querying with ALLOW FILTERING. Defaults to true.
+# ALLOW FILTERING can potentially visit all the data in the table and have unpredictable performance.
 # allow_filtering_enabled: true
 #
 # Guardrail to allow/disallow setting SimpleStrategy via keyspace creation or alteration. Defaults to true.
@@ -1800,6 +2018,33 @@ drop_compact_storage_enabled: false
 # Suggested value for use in production: 2 or higher
 # minimum_replication_factor_warn_threshold: -1
 # minimum_replication_factor_fail_threshold: -1
+#
+# Guardrail to warn or fail when the maximum replication factor is greater than threshold.
+# This would also apply to system keyspaces.
+# maximum_replication_factor_warn_threshold: -1
+# maximum_replication_factor_fail_threshold: -1
+
+# Guardrail to enable a CREATE or ALTER TABLE statement when default_time_to_live is set to 0
+# and the table is using TimeWindowCompactionStrategy compaction or a subclass of it.
+# It is suspicious to use default_time_to_live set to 0 with such compaction strategy.
+# Please keep in mind that data will not start to automatically expire after they are older than
+# a respective compaction window unit of a certain size. Please set TTL for your INSERT or UPDATE
+# statements if you expect data to be expired as table settings will not do it.
+# Defaults to true. If set to false, such statements fail and zero_ttl_on_twcs_warned flag is irrelevant.
+#zero_ttl_on_twcs_enabled: true
+# Guardrail to warn a user upon executing CREATE or ALTER TABLE statement when default_time_to_live is set to 0
+# and the table is using TimeWindowCompactionStrategy compaction or a subclass of it. Defaults to true.
+# if zero_ttl_on_twcs_enabled is set to false, this property is irrelevant as such statements will fail.
+#zero_ttl_on_twcs_warned: true
+
+# The default secondary index implementation when CREATE INDEX does not specify one via USING.
+# ex. "legacy_local_table" - (default) legacy secondary index, implemented as a hidden table
+# ex. "sai" - "storage-attched" index, implemented via optimized SSTable/Memtable-attached indexes
+#default_secondary_index: legacy_local_table
+
+# Whether a default secondary index implementation is allowed. If this is "false", CREATE INDEX must
+# specify an index implementation via USING.
+#default_secondary_index_enabled: true
 
 # Startup Checks are executed as part of Cassandra startup process, not all of them
 # are configurable (so you can disable them) but these which are enumerated bellow.
@@ -1826,3 +2071,30 @@ drop_compact_storage_enabled: false
 #    heartbeat_file: /var/lib/cassandra/data/cassandra-heartbeat
 #    excluded_keyspaces: # comma separated list of keyspaces to exclude from the check
 #    excluded_tables: # comma separated list of keyspace.table pairs to exclude from the check
+
+# This property indicates with what Cassandra major version the storage format will be compatible with.
+#
+# The chosen storage compatiblity mode will determine the versions of the written sstables, commitlogs, hints,
+# etc. Those storage elements will use the higher minor versions of the major version that corresponds to the
+# Cassandra version we want to stay compatible with. For example, if we want to stay compatible with Cassandra 4.0
+# or 4.1, the value of this property should be 4, and that will make us use 'nc' sstables.
+#
+# This will also determine if certain features depending on newer formats are available. For example, extended TTLs
+# up to 2106 depend on the sstable, commitlog, hints and messaging versions that were introduced by Cassandra 5.0,
+# so that feature won't be available if this property is set to CASSANDRA_4. See upgrade guides for details. Currently 
+# the only supported major is CASSANDRA_4.
+#
+# Possible values are in the StorageCompatibilityMode.java file accessible online. At the time of writing these are:
+# - CASSANDRA_4: Stays compatible with the 4.x line in features, formats and component versions.
+# - UPGRADING:   The cluster monitors nodes versions during this interim stage. _This has a cost_ but ensures any new features, 
+#                formats, versions, etc are enabled safely.
+# - NONE:        Start with all the new features and formats enabled.
+#
+# A typical upgrade would be:
+# - Do a rolling upgrade starting all nodes in CASSANDRA_Y compatibility mode.
+# - Once the new binary is rendered stable do a rolling restart with UPGRADING. The cluster will enable new features in a safe way 
+#   until all nodes are started in UPGRADING, then all new features are enabled.
+# - Do a rolling restart with all nodes starting with NONE. This sheds the extra cost of checking nodes versions and ensures 
+#   a stable cluster. If a node from a previous version was started by accident we won't any longer toggle behaviors as when UPGRADING.
+#
+storage_compatibility_mode: CASSANDRA_4

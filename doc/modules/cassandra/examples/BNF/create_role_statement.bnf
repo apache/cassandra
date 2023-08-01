@@ -8,3 +8,5 @@ role_option ::= PASSWORD '=' string
                 | OPTIONS '=' map_literal
                 | ACCESS TO DATACENTERS set_literal
                 | ACCESS TO ALL DATACENTERS
+                | ACCESS FROM CIDRS set_literal
+                | ACCESS FROM ALL CIDRS

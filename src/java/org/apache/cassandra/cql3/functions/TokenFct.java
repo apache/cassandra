@@ -18,9 +18,12 @@
 package org.apache.cassandra.cql3.functions;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.List;
 
+import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.CBuilder;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -37,25 +40,66 @@ public class TokenFct extends NativeScalarFunction
         this.metadata = metadata;
     }
 
-    private static AbstractType[] getKeyTypes(TableMetadata metadata)
+    @Override
+    public Arguments newArguments(ProtocolVersion version)
     {
-        AbstractType[] types = new AbstractType[metadata.partitionKeyColumns().size()];
+        ArgumentDeserializer[] deserializers = new ArgumentDeserializer[argTypes.size()];
+        Arrays.fill(deserializers, ArgumentDeserializer.NOOP_DESERIALIZER);
+        return new FunctionArguments(version, deserializers);
+    }
+
+    private static AbstractType<?>[] getKeyTypes(TableMetadata metadata)
+    {
+        AbstractType<?>[] types = new AbstractType[metadata.partitionKeyColumns().size()];
         int i = 0;
         for (ColumnMetadata def : metadata.partitionKeyColumns())
             types[i++] = def.type;
         return types;
     }
 
-    public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters) throws InvalidRequestException
+    public ByteBuffer execute(Arguments arguments) throws InvalidRequestException
     {
         CBuilder builder = CBuilder.create(metadata.partitionKeyAsClusteringComparator());
-        for (int i = 0; i < parameters.size(); i++)
+        for (int i = 0; i < arguments.size(); i++)
         {
-            ByteBuffer bb = parameters.get(i);
+            ByteBuffer bb = arguments.get(i);
             if (bb == null)
                 return null;
             builder.add(bb);
         }
         return metadata.partitioner.getTokenFactory().toByteArray(metadata.partitioner.getToken(builder.build().serializeAsPartitionKey()));
+    }
+
+    public static void addFunctionsTo(NativeFunctions functions)
+    {
+        functions.add(new FunctionFactory("token")
+        {
+            @Override
+            public NativeFunction getOrCreateFunction(List<? extends AssignmentTestable> args,
+                                                      AbstractType<?> receiverType,
+                                                      String receiverKeyspace,
+                                                      String receiverTable)
+            {
+                if (receiverKeyspace == null)
+                    throw new InvalidRequestException("No receiver keyspace has been specified for function " + name);
+
+                if (receiverTable == null)
+                    throw new InvalidRequestException("No receiver table has been specified for function " + name);
+
+                TableMetadata metadata = Schema.instance.getTableMetadata(receiverKeyspace, receiverTable);
+                if (metadata == null)
+                    throw new InvalidRequestException(String.format("The receiver table %s.%s specified by call to " +
+                                                                    "function %s hasn't been found",
+                                                                    receiverKeyspace, receiverTable, name));
+
+                return new TokenFct(metadata);
+            }
+
+            @Override
+            protected NativeFunction doGetOrCreateFunction(List<AbstractType<?>> argTypes, AbstractType<?> receiverType)
+            {
+                throw new AssertionError("Should be unreachable");
+            }
+        });
     }
 }

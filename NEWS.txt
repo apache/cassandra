@@ -1,12 +1,26 @@
-PLEASE READ: MAXIMUM TTL EXPIRATION DATE NOTICE (CASSANDRA-14092)
-------------------------------------------------------------------
+PLEASE READ: MAXIMUM TTL EXPIRATION DATE NOTICE (CASSANDRA-14092 & CASSANDRA-14227)
+-----------------------------------------------------------------------------------
 (General upgrading instructions are available in the next section)
 
-The maximum expiration timestamp that can be represented by the storage engine is
-2038-01-19T03:14:06+00:00, which means that inserts with TTL thatl expire after
+The maximum expiration timestamp that can be represented by the storage engine has been
+raised to 2106-02-07T06:28:13+00:00 (2038-01-19T03:14:06+00:00 if in compatibility mode 
+with Cassandra <5.0, sstable version <=nc), which means that inserts with TTL that expire after
 this date are not currently supported. By default, INSERTS with TTL exceeding the
-maximum supported date are rejected, but it's possible to choose a different
- expiration overflow policy. See CASSANDRA-14092.txt for more details.
+maximum supported date are rejected, but it's possible to choose a different 
+expiration overflow policy. See CASSANDRA-14092.txt for more details.
+ 
+There is a new yaml property storage_compatibility_mode that determines the
+Cassandra major version we want to stay compatible with. Its default is CASSANDRA_4, which means that
+the node sstables, commitlog, hints and messaging version will stay compatible with Cassandra 4.x,
+2038 will still be the limit, and it will be possible to rollback to the previous version. To upgrade:
+ - Do a rolling upgrade to 5.0 where 2038 will still be the limit. At this point, the node won't write
+ anything incompatible with Cassandra 4.x, and you would still be able to rollback to that version.
+ - Do a rolling restart setting storage_compatibility_mode=UPGRADING. Once all nodes
+ are in storage version 5, 2106 will become the new limit.
+ - Do a rolling restart setting storage_compatibility_mode=NONE. Now mixed
+ 2038 and 2106 nodes are no longer possible.
+Notice the yaml property needs to be set all the time for all executables and tools. It
+will be removed in future versions when 2038 nodes are no longer possible.
 
 Prior to 3.0.16 (3.0.X) and 3.11.2 (3.11.x) there was no protection against INSERTS
 with TTL expiring after the maximum supported date, causing the expiration time
@@ -52,24 +66,187 @@ restore snapshots created with the previous major version using the
 using the provided 'sstableupgrade' tool.
 
 
-4.2
+5.0
 ===
 
 New features
 ------------
+    - Added a new authorizer, CIDR authorizer, to restrict user access based on CIDR groups.
+    - Pluggable crypto providers were made possible via `crypto_provider` section in cassandra.yaml. The default provider is 
+      Amazon Corretto Crypto Provider and it is installed automatically upon node's start. Only x86_64 and aarch64 architectures are supported now.
+      Please consult upgrade section to know more details when upgrading from older Cassandra versions.
+    - Added a new secondary index implementation, Storage-Attached Indexes (SAI). Overview documentation and a basic
+      tutorial can be found at src/java/org/apache/cassandra/index/sai/README.md.
+    - *Experimental* support for Java 17 has been added. JVM options that differ between or are
+      specific for Java 17 have been added into jvm17.options.
+      IMPORTANT: Running C* on Java 17 is *experimental* and do it at your own risk.
+    - Added a new "unified" compaction strategy that supports the use cases of the legacy compaction strategies, with
+      low space overhead, high parallelism and flexible configuration. Implemented by the UnifiedCompactionStrategy
+      class. Further details and documentation can be found in
+      src/java/org/apache/cassandra/db/compaction/UnifiedCompactionStrategy.md
+    - New `VectorType` (cql `vector<element_type, dimension>`) which adds new fixed-length element arrays. See CASSANDRA-18504
+    - Added new vector similarity functions `similarity_cosine`, `similarity_euclidean` and `similarity_dot_product`.
+    - Removed UDT type migration logic for 3.6+ clusters upgrading to 4.0.  If migration has been disabled, it must be
+      enabled before upgrading to 5.0 if the cluster used UDTs. See CASSANDRA-18504
+    - Entended max expiration time from 2038-01-19T03:14:06+00:00 to 2106-02-07T06:28:13+00:00
+    - Added new Mathematical CQL functions: abs, exp, log, log10 and round.
+    - Added a trie-based memtable implementation, which improves memory use, garbage collection efficiency and lookup
+      performance. The new memtable is implemented by the TrieMemtable class and can be selected using the memtable
+      API, see src/java/org/apache/cassandra/db/memtable/Memtable_API.md.
+    - Added a new trie-indexed SSTable format with better lookup efficiency and size. The new format removes the index
+      summary component and does not require key caching. Additionally, it is able to efficiently search in partitions
+      spanning thousands or millions of rows.
+      The format is applied by setting "bti" as the selected sstable format in cassandra.yaml's sstables option.
+    - Added a new configuration cdc_on_repair_enabled to toggle whether CDC mutations are replayed through the
+      write path on streaming, e.g. repair. When enabled, CDC data streamed to the destination node will be written into
+      commit log first. When disabled, the streamed CDC data is written into SSTables just the same as normal streaming.
+      If this is set to false, streaming will be considerably faster however it's possible that, in extreme situations
+      (losing > quorum # nodes in a replica set), you may have data in your SSTables that never makes it to the CDC log.
+      The default is true/enabled. The configuration can be altered via JMX.
+    - Added support for reading the write times and TTLs of the elements of collections and UDTs, regardless of being
+      frozen or not. The CQL functions writetime, maxwritetime and ttl can now be applied to entire collections/UDTs,
+      single collection/UDT elements and slices of collection/UDT elements.
     - Added a new CQL function, maxwritetime. It shows the largest unix timestamp that the data was written, similar to
-      its sibling CQL function, writetime. Unlike writetime, maxwritetime can be applied to multi-cell data types, e.g.
-      non-frozen collections and UDT, and returns the largest timestamp. One should not to use it when upgrading to 4.2.
+      its sibling CQL function, writetime.
     - New Guardrails added:
       - Whether ALTER TABLE commands are allowed to mutate columns
       - Whether SimpleStrategy is allowed on keyspace creation or alteration
+      - Maximum replication factor
+      - Whether DROP KEYSPACE commands are allowed.
+      - Column value size
+      - Partition size
+      - Partition tombstones
+    - It is possible to list ephemeral snapshots by nodetool listsnaphots command when flag "-e" is specified.
+    - Added a new flag to `nodetool profileload` and JMX endpoint to set up recurring profile load generation on specified
+      intervals (see CASSANDRA-17821)
+    - Added a new property, gossiper.loose_empty_enabled, to allow for a looser definition of "empty" when
+      considering the heartbeat state of another node in Gossip. This should only be used by knowledgeable
+      operators in the following scenarios:
+
+      Currently "empty" w/regards to heartbeat state in Gossip is very specific to a single edge case (i.e. in
+      isEmptyWithoutStatus() our usage of hbState() + applicationState), however there are other failure cases which
+      block host replacements and require intrusive workarounds and human intervention to recover from when you
+      have something in hbState() you don't expect. See CASSANDRA-17842 for further details.
+    - Added new CQL table property 'allow_auto_snapshot' which is by default true. When set to false and 'auto_snapshot: true'
+      in cassandra.yaml, there will be no snapshot taken when a table is truncated or dropped. When auto_snapshot in
+      casandra.yaml is set to false, the newly added table property does not have any effect.
+    - Changed default on resumable bootstrap to be disabled. Resumable bootstrap has edge cases with potential correctness
+      violations or data loss scenarios if nodes go down during bootstrap, tombstones are written, and operations race with
+      repair. As streaming is considerably faster in the 4.0+ era (as well as with zero copy streaming), the risks of
+      having these edge cases during a failed and resumed bootstrap are no longer deemed acceptable.
+      To re-enable this feature, use the -Dcassandra.reset_bootstrap_progress=false environment flag.
+    - Added --older-than and --older-than-timestamp options to nodetool clearsnapshot command. It is possible to
+      clear snapshots which are older than some period for example, "--older-than 5h" to remove
+      snapshots older than 5 hours and it is possible to clear all snapshots older than some timestamp, for example
+      --older-than-timestamp 2022-12-03T10:15:30Z.
+    - Cassandra logs can be viewed in the virtual table system_views.system_logs.
+      Please uncomment the respective appender in logback.xml file to make logs flow into this table. This feature is turned off by default.
+    - Added new CQL table property 'incremental_backups' which is by default true. When 'incremental_backups' property in cassandra.yaml
+      is set to true and table property is set to false, incremental backups for that specific table will not be done.
+      When 'incremental_backups' in casandra.yaml is set to false, the newly added table property does not have any effect.
+      Both properties have to be set to true (cassandra.yaml and table property) in order to make incremental backups.
+    - Added new CQL native scalar functions for collections. The new functions are mostly analogous to the existing
+      aggregation functions, but they operate on the elements of collection columns. The new functions are `map_keys`,
+      `map_values`, `collection_count`, `collection_min`, `collection_max`, `collection_sum` and `collection_avg`.
+    - Added compaction_properties column to system.compaction_history table and nodetool compactionhistory command
+    - SimpleSeedProvider can resolve multiple IP addresses per DNS record. SimpleSeedProvider reacts on
+      the paramater called `resolve_multiple_ip_addresses_per_dns_record` which value is meant to be boolean and by
+      default it is set to false. When set to true, SimpleSeedProvider will resolve all IP addresses per DNS record,
+      based on the configured name service on the system.
+    - Added new native CQL functions for data masking, allowing to replace or obscure sensitive data. The functions are:
+      - `mask_null` replaces the column value by null.
+      - `mask_default` replaces the data by a fixed default value of the same type.
+      - `mask_replace` replaces the data by a custom value.
+      - `mask_inner` replaces every character but the first and last ones by a fixed character.
+      - `mask_outer` replaces the first and last characters by a fixed character.
+      - `mask_hash` replaces the data by its hash, according to the specified algorithm.
+    - On virtual tables, it is not strictly necessary to specify `ALLOW FILTERING` for select statements which would
+      normally require it, except `system_views.system_logs`.
+    - More accurate skipping of sstables in read path due to better handling of min/max clustering and lower bound;
+      SSTable format has been bumped to 'nc' because there are new fields in stats metadata\
+    - Added MaxSSTableSize and MaxSSTableDuration metrics to TableMetrics. The former returns the size of the biggest 
+      SSTable of a table or 0 when there is not any SSTable. The latter returns the maximum duration, computed as 
+      `maxTimestamp - minTimestamp`, effectively non-zero for SSTables produced by TimeWindowCompactionStrategy.
+    - Added local read/write ratio to tablestats.
+    - Added system_views.max_sstable_size and system_views.max_sstable_duration tables.
+    - Added virtual table system_views.snapshots to see all snapshots from CQL shell.
+    - Added support for attaching CQL dynamic data masking functions to table columns on the schema. These masking
+      functions can be attached to or dettached from columns with CREATE/ALTER TABLE statements. The functions obscure
+      the masked data during queries, but they don't change the stored data.
+    - Added new UNMASK permission. It allows to see the clear data of columns with an attached mask. Superusers have it
+      by default, whereas regular users don't have it by default.
+    - Added new SELECT_MASKED permission. It allows to run SELECT queries selecting the clear values of masked columns.
+      Superusers have it by default, whereas regular users don't have it by default.
+    - Added support for using UDFs as masking functions attached to table columns on the schema.
+    - Added `sstablepartitions` offline tool to find large partitions in sstables.
+    - `cassandra-stress` has a new option called '-jmx' which enables a user to pass username and password to JMX (CASSANDRA-18544)
+    - It is possible to read all credentials for `cassandra-stress` from a file via option `-credentials-file` (CASSANDRA-18544)
+    - nodetool info displays bootstrap state a node is in as well as if it was decommissioned or if it failed to decommission (CASSANDRA-18555)
+    - Added snitch for Microsoft Azure of name AzureSnitch (CASSANDRA-18646)
 
 Upgrading
 ---------
+    - Java 8 has been removed. Lowest supported version is Java 11.
+    - Ephemeral marker files for snapshots done by repairs are not created anymore,
+      there is a dedicated flag in snapshot manifest instead. On upgrade of a node to this version, on node's start, in case there
+      are such ephemeral snapshots on disk, they will be deleted (same behaviour as before) and any new ephemeral snapshots
+      will stop to create ephemeral marker files as flag in a snapshot manifest was introduced instead.
+    - There were new table properties introduced called 'allow_auto_snapshot' and 'incremental_backups' (see section 'New features'). Hence, upgraded
+      node will be on a new schema version. Please do a rolling upgrade of nodes of a cluster to converge to one schema version.
+    - All previous versions of 4.x contained a mistake on the implementation of the old CQL native protocol v3. That
+     mistake produced issues when paging over tables with compact storage and a single clustering column during rolling
+     upgrades involving 3.x and 4.x nodes. The fix for that issue makes it can now appear during rolling upgrades from
+     4.1.0 or 4.0.0-4.0.7. If that is your case, please use protocol v4 or higher in your driver. See CASSANDRA-17507
+     for further details.
+   - Added API for alternative sstable implementations. For details, see src/java/org/apache/cassandra/io/sstable/SSTable_API.md
+   - DateTieredCompactionStrategy was removed. Please change the compaction strategy for the tables using this strategy
+     to TimeWindowCompactionStrategy before upgrading to this version.
+   - The deprecated functions `dateOf` and `unixTimestampOf` have been removed. They were deprecated and replaced by
+     `toTimestamp` and `toUnixTimestamp` in Cassandra 2.2.
+   - Hadoop integration is no longer available (CASSANDRA-18323). If you want to process Cassandra data by big data frameworks, 
+     please upgrade your infrastructure to use Cassandra Spark connector.
+   - Keystore/truststore password configurations are nullable now and the code defaults of those passwords to 'cassandra' are
+     removed. Any deployments that depend upon the code default to this password value without explicitly specifying
+     it in cassandra.yaml will fail on upgrade. Please specify your keystore_password and truststore_password elements in cassandra.yaml with appropriate
+     values to prevent this failure.
+   - Please beware that if you use Ec2Snitch or Ec2MultiRegionSnitch, by default it will 
+     communicate with AWS IMDS of version 2. This change is transparent, there does not need 
+     to be done anything upon upgrade. Furthermore, IMDS of version 2 can be configured to be required in AWS EC2 console.
+     Consult cassandra-rackdc.properties for more details. (CASSANDRA-16555)
+    - JMX MBean `org.apache.cassandra.metrics:type=BufferPool` without scope has been removed.
+      Use instead `org.apache.cassandra.metrics:type=BufferPool,scope=chunk-cache`.  (CASSANDRA-17668)
+    - Upon upgrade, when cassandra.yaml does not contain `crypto_provider` configuration section, crypto providers from JRE installation will be used
+      and no installation of DefaultCryptoProvider installing Amazon Corretto Crypto Provider will be conducted. 
+      You need to explicitly add this section to the old yaml if it does not contain it yet to enable Amazon Corretto Crypto Provider for such node. 
+      New deployments have `crypto_provider` uncommented with DefaultCryptoProvider hence Corretto provider will be installed automatically for corresponding architecture.
+
 
 Deprecation
 -----------
-
+    - In the JMX MBean `org.apache.cassandra.db:type=RepairService` (CASSANDRA-17668):
+        - deprecate the getter/setter methods `getRepairSessionSpaceInMebibytes` and `setRepairSessionSpaceInMebibytes`
+          in favor of `getRepairSessionSpaceInMiB` and `setRepairSessionSpaceInMiB` respectively
+    - In the JMX MBean `org.apache.cassandra.db:type=StorageService` (CASSANDRA-17668):
+        - deprecate the getter/setter methods `getRepairSessionMaxTreeDepth` and `setRepairSessionMaxTreeDepth`
+          in favor of `getRepairSessionMaximumTreeDepth` and `setRepairSessionMaximumTreeDepth`
+        - deprecate the setter method `setColumnIndexSize` in favor of `setColumnIndexSizeInKiB`
+        - deprecate the getter/setter methods `getColumnIndexCacheSize` and `setColumnIndexCacheSize` in favor of
+          `getColumnIndexCacheSizeInKiB` and `setColumnIndexCacheSizeInKiB` respectively
+        - deprecate the getter/setter methods `getBatchSizeWarnThreshold` and `setBatchSizeWarnThreshold` in favor of
+          `getBatchSizeWarnThresholdInKiB` and `setBatchSizeWarnThresholdInKiB` respectively
+    - All native CQL functions names that don't use the snake case names are deprecated in favour of equivalent names
+      using snake casing. Thus, `totimestamp` is deprecated in favour of `to_timestamp`, `intasblob` in favour
+      of `int_as_blob`, `castAsInt` in favour of `cast_as_int`, etc.
+    - The config property `compaction_large_partition_warning_threshold` has been deprecated in favour of the new
+      guardrail for partition size. That guardrail is based on the properties `partition_size_warn_threshold` and
+      `partition_size_fail_threshold`. The warn threshold has a very similar behaviour to the old config property.
+      The old property is still supported for backward compatibility, but now it is disabled by default.
+    - The config property `compaction_tombstone_warning_threshold` has been deprecated in favour of the new guardrail
+      for partition tombstones. That guardrail is based on the properties `partition_tombstones_warn_threshold` and
+      `partition_tombstones_fail_threshold`. The warn threshold has a very similar behaviour to the old config property.
+      The old property is still supported for backward compatibility, but now it is disabled by default.
+    - CloudstackSnitch is marked as deprecated and it is not actively maintained anymore. It is scheduled to be removed 
+      in the next major version of Cassandra.
 
 4.1
 ===
@@ -114,7 +291,8 @@ New features
     - Support for native transport rate limiting via native_transport_rate_limiting_enabled and
       native_transport_max_requests_per_second in cassandra.yaml.
     - Support for pre hashing passwords on CQL DCL commands
-    - Expose all client options via system_views.clients and nodetool clientstats.
+    - Expose all client options via system_views.clients and nodetool clientstats --client-options.
+    - Add new nodetool compactionstats --vtable option to match the sstable_tasks vtable.
     - Support for String concatenation has been added through the + operator.
     - New configuration max_hints_size_per_host to limit the size of local hints files per host in mebibytes. Setting to
       non-positive value disables the limit, which is the default behavior. Setting to a positive value to ensure
@@ -181,9 +359,21 @@ New features
       When the node is restarted with UUID based generation identifiers enabled, each newly created sstable will have
       a UUID based generation identifier and such files are not readable by previous Cassandra versions. In the future
       those new identifiers will become enabled by default.
+    - Resetting schema behavior has changed in 4.1 so that: 1) resetting schema is prohibited when there is no live node
+      where the schema could be fetched from, and 2) truncating local schema keyspace is postponed to the moment when
+      the node receives schema from some other node.
 
 Upgrading
 ---------
+    - `cache_load_timeout_seconds` being negative for disabled is equivalent to `cache_load_timeout` = 0 for disabled.
+    - `sstable_preemptive_open_interval_in_mb` being negative for disabled is equivalent to `sstable_preemptive_open_interval`
+      being null again. In the JMX MBean `org.apache.cassandra.db:type=StorageService`, the setter method
+      `setSSTablePreemptiveOpenIntervalInMB`still takes `intervalInMB` negative numbers for disabled.
+    - `enable_uuid_sstable_identifiers` parameter from 4.1 alpha1 was renamed to `uuid_sstable_identifiers_enabled`.
+    - `index_summary_resize_interval_in_minutes = -1` is equivalent to index_summary_resize_interval being set to `null` or
+      disabled. In the JMX MBean `org.apache.cassandra.db:type=IndexSummaryManager`, the setter method `setResizeIntervalInMinutes` still takes
+      `resizeIntervalInMinutes = -1` for disabled.
+    - min_tracked_partition_size_bytes parameter from 4.1 alpha1 was renamed to min_tracked_partition_size.
     - Parameters of type data storage, duration and data rate cannot be set to Long.MAX_VALUE (former parameters of long type)
       and Integer.MAX_VALUE (former parameters of int type). Those numbers are used during conversion between units to prevent
       an overflow from happening. (CASSANDRA-17571)
@@ -196,8 +386,8 @@ Upgrading
       `setRepairSessionSpaceInMebibytes(int sizeInMebibytes)` and `getRepairSessionSpaceInMebibytes`. They replace the now
       deprecated methods `setRepairSessionSpaceInMegabytes(int sizeInMegabytes)` and `getRepairSessionSpaceInMegabytes`, which
       will be removed in a future major release.
-    - There is a new cassandra.yaml version 2. Units suffixes should be provided for all rates(B/s|MiB/s|KiB/s|MiB/s),
-      memory (KiB|MiB|GiB|B) and duration(d|h|s|ms|us|µs|ns|m)
+    - There is a new cassandra.yaml version 2. Units suffixes should be provided for all rates(B/s|KiB/s|MiB/s),
+      memory (B|KiB|MiB|GiB) and duration(d|h|m|s|ms|us|µs|ns)
       parameters. List of changed parameters and details to consider during configuration setup can be
       found at https://cassandra.apache.org/doc/latest/cassandra/new/configuration.html. (CASSANDRA-15234)
       Backward compatibility with the old cassandra.yaml file will be in place until at least the next major version.
@@ -244,11 +434,34 @@ Upgrading
 
 Deprecation
 -----------
-    - `withBufferSizeInMB(int size)` in CQLSSTableWriter.Builder class is deprecated in favor of withBufferSizeInMiB(int size)
+    - In the command line options for `org.apache.cassandra.tools.LoaderOptions`: deprecate the `-t`, `--throttle`,
+      `-idct`, and `--inter-dc-throttle` options for setting the throttle and inter-datacenter throttle options in
+      Mbps. Instead, users are instructed to use the `--throttle-mib`, and `--inter-dc-throttle-mib` for setting the
+      throttling options in MiB/s. Additionally, in the loader options builder
+      `org.apache.cassandra.tools.LoaderOptions$Builder`: deprecate the `throttle(int)`, `interDcThrottle(int)`,
+      `entireSSTableThrottle(int)`, and the `entireSSTableInterDcThrottle(int)` methods.
+    - In the JMX MBean `org.apache.cassandra.db:type=StorageService`: deprecate getter method `getStreamThroughputMbitPerSec`
+      in favor of getter method `getStreamThroughputMbitPerSecAsDouble`; deprecate getter method `getStreamThroughputMbPerSec`
+      in favor of getter methods `getStreamThroughputMebibytesPerSec` and `getStreamThroughputMebibytesPerSecAsDouble`;
+      deprecate getter method `getInterDCStreamThroughputMbitPerSec` in favor of getter method `getInterDCStreamThroughputMbitPerSecAsDouble`;
+      deprecate getter method `getInterDCStreamThroughputMbPerSec` in favor of getter methods `getInterDCStreamThroughputMebibytesPerSecAsDouble`;
+      deprecate getter method `getCompactionThroughputMbPerSec` in favor of getter methods `getCompactionThroughtputMibPerSecAsDouble`
+      and `getCompactionThroughtputBytesPerSec`; deprecate setter methods `setStreamThroughputMbPerSec` and `setStreamThroughputMbitPerSec`
+      in favor of `setStreamThroughputMebibytesPerSec`; deprecate setter methods `setInterDCStreamThroughputMbitPerSec` and
+      `setInterDCStreamThroughputMbPerSec` in favor of `setInterDCStreamThroughputMebibytesPerSec`. The deprecated JMX methods
+      may return a rounded value so if precision is important, you want to use the new getters. While those deprecated JMX getters
+      will return a rounded number, the nodetool commands `getstreamthroughput` and `getinterdcstreamthroughput`
+      will throw Runtime Exceptions advising to use the new -d flag in case an integer cannot be returned. See CASSANDRA-17725 for further details.
+    - Deprecate public method `setRate(final double throughputMbPerSec)` in `Compaction Manager` in favor of
+      `setRateInBytes(final double throughputBytesPerSec)`
+    - `withBufferSizeInMB(int size)` in `StressCQLSSTableWriter.Builder` class is deprecated in favor of `withBufferSizeInMiB(int size)`
+      No change of functionality in the new one, only name change for clarity in regards to units and to follow naming
+      standartization.
+    - `withBufferSizeInMB(int size)` in `CQLSSTableWriter.Builder` class is deprecated in favor of `withBufferSizeInMiB(int size)`
       No change of functionality in the new one, only name change for clarity in regards to units and to follow naming
       standartization.
     - The properties `keyspace_count_warn_threshold` and `table_count_warn_threshold` in cassandra.yaml have been
-      deprecated in favour of the new `guardrails.keyspaces` and `guardrails.tables` properties and will be removed
+      deprecated in favour of the new `keyspaces_warn_threshold` and `tables_warn_threshold` properties and will be removed
       in a subsequent major version. This also affects the setters and getters for those properties in the JMX MBean
       `org.apache.cassandra.db:type=StorageService`, which are equally deprecated in favour of the analogous methods
       in the JMX MBean `org.apache.cassandra.db:type=Guardrails`. See CASSANDRA-17195 for further details.
@@ -351,6 +564,10 @@ New features
 
 Upgrading
 ---------
+    - If you were on 4.0.1 - 4.0.5 and if you haven't set the compaction_thoroughput_mb_per_sec in your 4.0 cassandra.yaml
+      file but you relied on the internal default value,then compaction_throughput_mb_per_sec was equal to an old default
+      value of 16MiB/s in Cassandra 4.0. After CASSANDRA-17790 this is changed to 64MiB/s to match the default value in
+      cassandra.yaml. If you prefer the old one of 16MiB/s, you need to set it explicitly in your cassandra.yaml file.
     - otc_coalescing_strategy, otc_coalescing_window_us, otc_coalescing_enough_coalesced_messages,
       otc_backlog_expiration_interval_ms are deprecated and will be removed at earliest with next major release.
       otc_coalescing_strategy is disabled since 3.11.
@@ -372,7 +589,7 @@ Upgrading
     - Native protocol v5 is promoted from beta in this release. The wire format has changed
       significantly and users should take care to ensure client drivers are upgraded to a version
       with support for the final v5 format, if currently connecting over v5-beta. (CASSANDRA-15299, CASSANDRA-14973)
-    - Cassandra removed support for the OldNetworkTopologyStrategy. Before upgrading you will need to change the 
+    - Cassandra removed support for the OldNetworkTopologyStrategy. Before upgrading you will need to change the
       replication strategy for the keyspaces using this strategy to the NetworkTopologyStrategy. (CASSANDRA-13990)
     - Sstables for tables using with a frozen UDT written by C* 3.0 appear as corrupted.
 
@@ -515,7 +732,7 @@ Upgrading
       the node will not start. See CASSANDRA-14477 for details.
     - CASSANDRA-13701 To give a better out of the box experience, the default 'num_tokens'
       value has been changed from 256 to 16 for reasons described in
-      https://cassandra.apache.org/doc/latest/getting_started/production.html#tokens
+      https://cassandra.apache.org/doc/latest/getting-started/production.html#tokens
       'allocate_tokens_for_local_replication_factor' is also uncommented and set to 3.
       Please note when upgrading that if the 'num_tokens' value is different than what you have
       configured, the upgraded node will refuse to start. Also note that if a new node joining
@@ -570,7 +787,7 @@ Upgrading
       reason, a opt-in system property has been added to disable the fix:
         -Dcassandra.unsafe.disable-serial-reads-linearizability=true
       Use this flag at your own risk as it revert SERIAL reads to the incorrect behavior of
-      previous versions. See CASSANDRA-12126 for details. 
+      previous versions. See CASSANDRA-12126 for details.
     - SASI's `max_compaction_flush_memory_in_mb` setting was previously getting interpreted in bytes. From 3.11.8
       it is correctly interpreted in megabytes, but prior to 3.11.10 previous configurations of this setting will
       lead to nodes OOM during compaction. From 3.11.10 previous configurations will be detected as incorrect,
@@ -667,7 +884,7 @@ Compact Storage (only when upgrading from 3.X or any version lower than 3.0.15)
       Starting version 5.0, COMPACT STORAGE will no longer be supported.
       'ALTER ... DROP COMPACT STORAGE' statement makes Compact Tables CQL-compatible,
       exposing internal structure of Thrift/Compact Tables. You can find more details
-      on exposed internal structure under: 
+      on exposed internal structure under:
       http://cassandra.apache.org/doc/latest/cql/appendices.html#appendix-c-dropping-compact-storage
 
       For uninterrupted cluster upgrades, drivers now support 'NO_COMPACT' startup option.

@@ -27,6 +27,8 @@ import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
 
@@ -42,6 +44,7 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.DistributedTestBase;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SCHEMA_DELAY_MS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JOIN_RING;
 import static org.apache.cassandra.distributed.action.GossipHelper.withProperty;
 
 public class TestBaseImpl extends DistributedTestBase
@@ -104,13 +107,23 @@ public class TestBaseImpl extends DistributedTestBase
         return TupleType.buildValue(bbs);
     }
 
+    public static String batch(String... queries)
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.append("BEGIN UNLOGGED BATCH\n");
+        for (String q : queries)
+            sb.append(q).append(";\n");
+        sb.append("APPLY BATCH;");
+        return sb.toString();
+    }
+
     protected void bootstrapAndJoinNode(Cluster cluster)
     {
         IInstanceConfig config = cluster.newInstanceConfig();
         config.set("auto_bootstrap", true);
         IInvokableInstance newInstance = cluster.bootstrap(config);
-        withProperty(BOOTSTRAP_SCHEMA_DELAY_MS.getKey(), Integer.toString(90 * 1000),
-                     () -> withProperty("cassandra.join_ring", false, () -> newInstance.startup(cluster)));
+        withProperty(BOOTSTRAP_SCHEMA_DELAY_MS, Integer.toString(90 * 1000),
+                     () -> withProperty(JOIN_RING, false, () -> newInstance.startup(cluster)));
         newInstance.nodetoolResult("join").asserts().success();
     }
 
@@ -180,9 +193,20 @@ public class TestBaseImpl extends DistributedTestBase
     {
         // These keyspaces are under replicated by default, so must be updated when doing a multi-node cluster;
         // else bootstrap will fail with 'Unable to find sufficient sources for streaming range <range> in keyspace <name>'
+        Map<String, Long> dcCounts = cluster.stream()
+                                            .map(i -> i.config().localDatacenter())
+                                            .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+        String replica = "{'class': 'NetworkTopologyStrategy'";
+        for (Map.Entry<String, Long> e : dcCounts.entrySet())
+        {
+            String dc = e.getKey();
+            int rf = Math.min(e.getValue().intValue(), 3);
+            replica += ", '" + dc + "': " + rf;
+        }
+        replica += "}";
         for (String ks : Arrays.asList("system_auth", "system_traces"))
         {
-            cluster.schemaChange("ALTER KEYSPACE " + ks + " WITH REPLICATION = {'class': 'SimpleStrategy', 'replication_factor': " + Math.min(cluster.size(), 3) + "}");
+            cluster.schemaChange("ALTER KEYSPACE " + ks + " WITH REPLICATION = " + replica);
         }
 
         // in real live repair is needed in this case, but in the test case it doesn't matter if the tables loose

@@ -162,12 +162,9 @@ public class ReadResponseTest
     }
 
     private void verifySerDe(ReadResponse response) {
-        // check that roundtripping through ReadResponse.serializer behaves as expected.
-        // ReadResponses from pre-4.0 nodes will never contain repaired data digest
-        // or pending session info, but we run all messages through both pre/post 4.0
-        // serde to check that the defaults are correctly applied
-        roundTripSerialization(response, MessagingService.current_version);
-        roundTripSerialization(response, MessagingService.VERSION_30);
+        // check that roundtripping through ReadResponse.serializer behaves as expected
+        for (MessagingService.Version version : MessagingService.Version.supportedVersions())
+            roundTripSerialization(response, version.value);
 
     }
 
@@ -180,19 +177,10 @@ public class ReadResponseTest
 
             DataInputBuffer in = new DataInputBuffer(out.buffer(), false);
             ReadResponse deser = ReadResponse.serializer.deserialize(in, version);
-            if (version < MessagingService.VERSION_40)
-            {
-                assertFalse(deser.mayIncludeRepairedDigest());
-                // even though that means they should never be used, verify that the default values are present
-                assertEquals(ByteBufferUtil.EMPTY_BYTE_BUFFER, deser.repairedDataDigest());
-                assertTrue(deser.isRepairedDigestConclusive());
-            }
-            else
-            {
-                assertTrue(deser.mayIncludeRepairedDigest());
-                assertEquals(response.repairedDataDigest(), deser.repairedDataDigest());
-                assertEquals(response.isRepairedDigestConclusive(), deser.isRepairedDigestConclusive());
-            }
+            assertTrue(version >= MessagingService.VERSION_40);
+            assertTrue(deser.mayIncludeRepairedDigest());
+            assertEquals(response.repairedDataDigest(), deser.repairedDataDigest());
+            assertEquals(response.isRepairedDigestConclusive(), deser.isRepairedDigestConclusive());
         }
         catch (IOException e)
         {
@@ -258,7 +246,7 @@ public class ReadResponseTest
                   metadata,
                   FBUtilities.nowInSeconds(),
                   ColumnFilter.all(metadata),
-                  RowFilter.NONE,
+                  RowFilter.none(),
                   DataLimits.NONE,
                   metadata.partitioner.decorateKey(ByteBufferUtil.bytes(key)),
                   null,

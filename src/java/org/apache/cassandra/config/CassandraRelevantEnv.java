@@ -18,13 +18,19 @@
 
 package org.apache.cassandra.config;
 
+// checkstyle: suppress below 'blockSystemPropertyUsage'
+
 public enum CassandraRelevantEnv
 {
     /**
      * Searching in the JAVA_HOME is safer than searching into System.getProperty("java.home") as the Oracle
      * JVM might use the JRE which do not contains jmap.
      */
-    JAVA_HOME ("JAVA_HOME");
+    JAVA_HOME ("JAVA_HOME"),
+    CIRCLECI("CIRCLECI"),
+    CASSANDRA_SKIP_SYNC("CASSANDRA_SKIP_SYNC")
+
+    ;
 
     CassandraRelevantEnv(String key)
     {
@@ -36,6 +42,15 @@ public enum CassandraRelevantEnv
     public String getString()
     {
         return System.getenv(key);
+    }
+
+    /**
+     * Gets the value of a system env as a boolean.
+     * @return System env boolean value if it exists, false otherwise.
+     */
+    public boolean getBoolean()
+    {
+        return Boolean.parseBoolean(System.getenv(key));
     }
 
     public String getKey() {

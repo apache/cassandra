@@ -32,6 +32,7 @@ import org.apache.cassandra.service.ClientState;
  */
 public class EnableFlag extends Guardrail
 {
+    private final Predicate<ClientState> warned;
     private final Predicate<ClientState> enabled;
     private final String featureName;
 
@@ -39,16 +40,53 @@ public class EnableFlag extends Guardrail
      * Creates a new {@link EnableFlag} guardrail.
      *
      * @param name        the identifying name of the guardrail
+     * @param reason      the optional description of the reason for guarding the operation
      * @param enabled     a {@link ClientState}-based supplier of boolean indicating whether the feature guarded by this
      *                    guardrail is enabled.
      * @param featureName The feature that is guarded by this guardrail (for reporting in error messages), {@link
      *                    EnableFlag#ensureEnabled(String, ClientState)} can specify a different {@code featureName}.
      */
-    public EnableFlag(String name, Predicate<ClientState> enabled, String featureName)
+    public EnableFlag(String name, @Nullable String reason, Predicate<ClientState> enabled, String featureName)
     {
-        super(name);
+        this(name, reason, (state) -> false, enabled, featureName);
+    }
+
+    /**
+     * Creates a new {@link EnableFlag} guardrail.
+     *
+     * @param name        the identifying name of the guardrail
+     * @param reason      the optional description of the reason for guarding the operation
+     * @param warned      a {@link ClientState}-based supplier of boolean indicating whether warning should be
+     *                    emitted even guardrail as such has passed. If guardrail fails, the warning will not be
+     *                    emitted. This might be used for cases when we want to warn a user regardless of successful
+     *                    guardrail execution.
+     * @param enabled     a {@link ClientState}-based supplier of boolean indicating whether the feature guarded by this
+     *                    guardrail is enabled.
+     * @param featureName The feature that is guarded by this guardrail (for reporting in error messages), {@link
+     *                    EnableFlag#ensureEnabled(String, ClientState)} can specify a different {@code featureName}.
+     */
+    public EnableFlag(String name,
+                      @Nullable String reason,
+                      Predicate<ClientState> warned,
+                      Predicate<ClientState> enabled,
+                      String featureName)
+    {
+        super(name, reason);
+        this.warned = warned;
         this.enabled = enabled;
         this.featureName = featureName;
+    }
+
+    /**
+     * Returns whether the guarded feature is enabled or not.
+     *
+     * @param state The client state, used to skip the check if the query is internal or is done by a superuser.
+     *              A {@code null} value means that the check should be done regardless of the query.
+     * @return {@code true} is the feature is enabled, {@code false} otherwise.
+     */
+    public boolean isEnabled(@Nullable ClientState state)
+    {
+        return !enabled(state) || enabled.test(state);
     }
 
     /**
@@ -80,7 +118,16 @@ public class EnableFlag extends Guardrail
      */
     public void ensureEnabled(String featureName, @Nullable ClientState state)
     {
-        if (enabled(state) && !enabled.test(state))
+        if (!enabled(state))
+            return;
+
+        if (!enabled.test(state))
+        {
             fail(featureName + " is not allowed", state);
+            return;
+        }
+
+        if (warned.test(state))
+            warn(featureName + " is not recommended");
     }
 }

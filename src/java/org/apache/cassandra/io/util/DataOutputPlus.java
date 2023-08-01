@@ -17,12 +17,14 @@
  */
 package org.apache.cassandra.io.util;
 
+import org.apache.cassandra.utils.Shared;
+import org.apache.cassandra.utils.vint.VIntCoding;
+
 import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.utils.Shared;
-import org.apache.cassandra.utils.vint.VIntCoding;
+import com.google.common.primitives.Ints;
 
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
@@ -47,6 +49,17 @@ public interface DataOutputPlus extends DataOutput
         VIntCoding.writeVInt(i, this);
     }
 
+    @Deprecated
+    default void writeVInt(int i)
+    {
+        throw new UnsupportedOperationException("Use writeVInt32/readVInt32");
+    }
+
+    default void writeVInt32(int i) throws IOException
+    {
+        VIntCoding.writeVInt32(i, this);
+    }
+
     /**
      * This is more efficient for storing unsigned values, both in storage and CPU burden.
      *
@@ -59,6 +72,17 @@ public interface DataOutputPlus extends DataOutput
         VIntCoding.writeUnsignedVInt(i, this);
     }
 
+    @Deprecated
+    default void writeUnsignedVInt(int i)
+    {
+        throw new UnsupportedOperationException("Use writeUnsignedVInt32/readUnsignedVInt32");
+    }
+
+    default void writeUnsignedVInt32(int i) throws IOException
+    {
+        VIntCoding.writeUnsignedVInt32(i, this);
+    }
+
     /**
      * An efficient way to write the type {@code bytes} of a long
      *
@@ -66,7 +90,7 @@ public interface DataOutputPlus extends DataOutput
      * @param bytes - the number of bytes the register occupies. Valid values are between 1 and 8 inclusive.
      * @throws IOException
      */
-    default void writeBytes(long register, int bytes) throws IOException
+    default void writeMostSignificantBytes(long register, int bytes) throws IOException
     {
         switch (bytes)
         {
@@ -128,5 +152,44 @@ public interface DataOutputPlus extends DataOutput
     default boolean hasPosition()
     {
         return false;
+    }
+
+    // The methods below support page-aware layout for writing. These would only be implemented if position() is
+    // also supported.
+
+    /**
+     * Returns the number of bytes that a page can take at maximum.
+     */
+    default int maxBytesInPage()
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Pad this with zeroes until the next page boundary. If the destination position
+     * is already at a page boundary, do not do anything.
+     */
+    default void padToPageBoundary() throws IOException
+    {
+        long position = position();
+        long bytesLeft = PageAware.padded(position) - position;
+        write(PageAware.EmptyPage.EMPTY_PAGE, 0, Ints.checkedCast(bytesLeft));
+    }
+
+    /**
+     * Returns how many bytes are left in the page.
+     */
+    default int bytesLeftInPage()
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Returns the next padded position. This is either the current position (if already padded), or the start of next
+     * page.
+     */
+    default long paddedPosition()
+    {
+        throw new UnsupportedOperationException();
     }
 }

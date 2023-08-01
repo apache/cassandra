@@ -35,6 +35,7 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.ViewMetadata;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -146,7 +147,7 @@ public class View
      * @param nowInSec the current time in seconds (to decide what is live and what isn't).
      * @return {@code true} if {@code baseRow} matches the view filters, {@code false} otherwise.
      */
-    public boolean matchesViewFilter(DecoratedKey partitionKey, Row baseRow, int nowInSec)
+    public boolean matchesViewFilter(DecoratedKey partitionKey, Row baseRow, long nowInSec)
     {
         return getReadQuery().selectsClustering(partitionKey, baseRow.clustering())
             && getSelectStatement().rowFilterForInternalCalls().isSatisfiedBy(baseCfs.metadata(), partitionKey, baseRow, nowInSec);
@@ -168,7 +169,7 @@ public class View
                                                false);
 
             SelectStatement.RawStatement rawSelect =
-                new SelectStatement.RawStatement(new QualifiedName(baseCfs.keyspace.getName(), baseCfs.name),
+                new SelectStatement.RawStatement(new QualifiedName(baseCfs.getKeyspaceName(), baseCfs.name),
                                                  parameters,
                                                  selectClause(),
                                                  definition.whereClause,
@@ -177,7 +178,7 @@ public class View
 
             rawSelect.setBindVariables(Collections.emptyList());
 
-            select = rawSelect.prepare(true);
+            select = rawSelect.prepare(ClientState.forInternalCalls(), true);
         }
 
         return select;

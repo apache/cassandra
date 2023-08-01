@@ -23,7 +23,10 @@ import java.net.InetAddress;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -31,12 +34,15 @@ import java.util.stream.Stream;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.impl.IsolatedExecutor;
 import org.apache.cassandra.distributed.impl.TracingUtil;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.WAIT_FOR_TRACING_EVENTS_TIMEOUT_SECS;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public class MessageForwardingTest extends TestBaseImpl
@@ -44,15 +50,16 @@ public class MessageForwardingTest extends TestBaseImpl
     @Test
     public void mutationsForwardedToAllReplicasTest()
     {
-        String originalTraceTimeout = TracingUtil.setWaitForTracingEventTimeoutSecs("1");
         final int numInserts = 100;
         Map<InetAddress, Integer> forwardFromCounts = new HashMap<>();
         Map<InetAddress, Integer> commitCounts = new HashMap<>();
 
-        try (Cluster cluster = (Cluster) init(builder()
+        try (WithProperties properties = new WithProperties().set(WAIT_FOR_TRACING_EVENTS_TIMEOUT_SECS, 1);
+             Cluster cluster = (Cluster) init(builder()
                                               .withDC("dc0", 1)
                                               .withDC("dc1", 3)
-                                              .start()))
+                                              .start());
+             )
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v text, PRIMARY KEY (pk, ck))");
 
@@ -68,6 +75,21 @@ public class MessageForwardingTest extends TestBaseImpl
             // about the result so
             //noinspection ResultOfMethodCallIgnored
             inserts.map(IsolatedExecutor::waitOn).collect(Collectors.toList());
+
+            // Tracing is async with respect to queries, just because the query has completed it does not mean
+            // all tracing updates have completed. The tracing executor serializes work, so run a task through
+            // and everthing submitted before must have completed.
+            cluster.forEach(instance -> instance.runOnInstance(() -> {
+                Future<?> result = Stage.TRACING.submit(() -> null);
+                try
+                {
+                    result.get(30, TimeUnit.SECONDS);
+                }
+                catch (ExecutionException | InterruptedException | TimeoutException ex)
+                {
+                    throw new RuntimeException(ex);
+                }
+            }));
 
             cluster.stream("dc1").forEach(instance -> forwardFromCounts.put(instance.broadcastAddress().getAddress(), 0));
             cluster.forEach(instance -> commitCounts.put(instance.broadcastAddress().getAddress(), 0));
@@ -95,10 +117,6 @@ public class MessageForwardingTest extends TestBaseImpl
         catch (IOException e)
         {
             Assert.fail("Threw exception: " + e);
-        }
-        finally
-        {
-            TracingUtil.setWaitForTracingEventTimeoutSecs(originalTraceTimeout);
         }
     }
 }

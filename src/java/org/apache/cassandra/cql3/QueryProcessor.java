@@ -79,11 +79,9 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class QueryProcessor implements QueryHandler
 {
-    public static final CassandraVersion CQL_VERSION = new CassandraVersion("3.4.5");
+    public static final CassandraVersion CQL_VERSION = new CassandraVersion("3.4.7");
 
     // See comments on QueryProcessor #prepare
-    public static final CassandraVersion NEW_PREPARED_STATEMENT_BEHAVIOUR_SINCE_30 = new CassandraVersion("3.0.26");
-    public static final CassandraVersion NEW_PREPARED_STATEMENT_BEHAVIOUR_SINCE_3X = new CassandraVersion("3.11.12");
     public static final CassandraVersion NEW_PREPARED_STATEMENT_BEHAVIOUR_SINCE_40 = new CassandraVersion("4.0.2");
 
     public static final QueryProcessor instance = new QueryProcessor();
@@ -237,7 +235,7 @@ public class QueryProcessor implements QueryHandler
         if (key == ByteBufferUtil.UNSET_BYTE_BUFFER)
             throw new InvalidRequestException("Key may not be unset");
 
-        // check that key can be handled by FBUtilities.writeShortByteArray
+        // check that key can be handled by ByteArrayUtil.writeWithShortLength and ByteBufferUtil.writeWithShortLength
         if (key.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
         {
             throw new InvalidRequestException("Key length of " + key.remaining() +
@@ -384,12 +382,12 @@ public class QueryProcessor implements QueryHandler
         return makeInternalOptionsWithNowInSec(prepared, FBUtilities.nowInSeconds(), values, cl);
     }
 
-    public static QueryOptions makeInternalOptionsWithNowInSec(CQLStatement prepared, int nowInSec, Object[] values)
+    public static QueryOptions makeInternalOptionsWithNowInSec(CQLStatement prepared, long nowInSec, Object[] values)
     {
         return makeInternalOptionsWithNowInSec(prepared, nowInSec, values, ConsistencyLevel.ONE);
     }
 
-    private static QueryOptions makeInternalOptionsWithNowInSec(CQLStatement prepared, int nowInSec, Object[] values, ConsistencyLevel cl)
+    private static QueryOptions makeInternalOptionsWithNowInSec(CQLStatement prepared, long nowInSec, Object[] values, ConsistencyLevel cl)
     {
         if (prepared.getBindVariables().size() != values.length)
             throw new IllegalArgumentException(String.format("Invalid number of values. Expecting %d but got %d", prepared.getBindVariables().size(), values.length));
@@ -454,11 +452,11 @@ public class QueryProcessor implements QueryHandler
     public static Future<UntypedResultSet> executeAsync(InetAddressAndPort address, String query, Object... values)
     {
         Prepared prepared = prepareInternal(query);
-        QueryOptions options = makeInternalOptions(prepared.statement, values);
+        long nowInSec = FBUtilities.nowInSeconds();
+        QueryOptions options = makeInternalOptionsWithNowInSec(prepared.statement, nowInSec, values);
         if (prepared.statement instanceof SelectStatement)
         {
             SelectStatement select = (SelectStatement) prepared.statement;
-            int nowInSec = FBUtilities.nowInSeconds();
             ReadQuery readQuery = select.getQuery(options, nowInSec);
             List<ReadCommand> commands;
             if (readQuery instanceof ReadCommand)
@@ -483,7 +481,7 @@ public class QueryProcessor implements QueryHandler
                                                                                       .map(m -> MessagingService.instance().<ReadResponse>sendWithResult(m, address))
                                                                                       .collect(Collectors.toList()));
 
-            ResultSetBuilder result = new ResultSetBuilder(select.getResultMetadata(), select.getSelection().newSelectors(options), null);
+            ResultSetBuilder result = new ResultSetBuilder(select.getResultMetadata(), select.getSelection().newSelectors(options), false);
             return future.map(list -> {
                 int i = 0;
                 for (Message<ReadResponse> m : list)
@@ -512,7 +510,7 @@ public class QueryProcessor implements QueryHandler
         return execute(query, cl, internalQueryState(), values);
     }
 
-    public static UntypedResultSet executeInternalWithNowInSec(String query, int nowInSec, Object... values)
+    public static UntypedResultSet executeInternalWithNowInSec(String query, long nowInSec, Object... values)
     {
         Prepared prepared = prepareInternal(query);
         ResultMessage result = prepared.statement.executeLocally(internalQueryState(), makeInternalOptionsWithNowInSec(prepared.statement, nowInSec, values));
@@ -528,7 +526,7 @@ public class QueryProcessor implements QueryHandler
         try
         {
             Prepared prepared = prepareInternal(query);
-            ResultMessage result = prepared.statement.execute(state, makeInternalOptions(prepared.statement, values, cl), nanoTime());
+            ResultMessage result = prepared.statement.execute(state, makeInternalOptionsWithNowInSec(prepared.statement, state.getNowInSeconds(), values, cl), nanoTime());
             if (result instanceof ResultMessage.Rows)
                 return UntypedResultSet.create(((ResultMessage.Rows)result).result);
             else
@@ -547,7 +545,8 @@ public class QueryProcessor implements QueryHandler
             throw new IllegalArgumentException("Only SELECTs can be paged");
 
         SelectStatement select = (SelectStatement)prepared.statement;
-        QueryPager pager = select.getQuery(makeInternalOptions(prepared.statement, values), FBUtilities.nowInSeconds()).getPager(null, ProtocolVersion.CURRENT);
+        long nowInSec = FBUtilities.nowInSeconds();
+        QueryPager pager = select.getQuery(makeInternalOptionsWithNowInSec(prepared.statement, nowInSec, values), nowInSec).getPager(null, ProtocolVersion.CURRENT);
         return UntypedResultSet.create(select, pager, pageSize);
     }
 
@@ -565,7 +564,7 @@ public class QueryProcessor implements QueryHandler
      * <p>This method ensure that the statement will not be cached in the prepared statement cache.</p>
      */
     @VisibleForTesting
-    public static UntypedResultSet executeOnceInternalWithNowAndTimestamp(int nowInSec, long timestamp, String query, Object... values)
+    public static UntypedResultSet executeOnceInternalWithNowAndTimestamp(long nowInSec, long timestamp, String query, Object... values)
     {
         QueryState queryState = new QueryState(InternalStateInstance.INSTANCE.clientState, timestamp, nowInSec);
         return executeOnceInternal(queryState, query, values);
@@ -575,7 +574,7 @@ public class QueryProcessor implements QueryHandler
     {
         CQLStatement statement = parseStatement(query, queryState.getClientState());
         statement.validate(queryState.getClientState());
-        ResultMessage result = statement.executeLocally(queryState, makeInternalOptions(statement, values));
+        ResultMessage result = statement.executeLocally(queryState, makeInternalOptionsWithNowInSec(statement, queryState.getNowInSeconds(), values));
         if (result instanceof ResultMessage.Rows)
             return UntypedResultSet.create(((ResultMessage.Rows)result).result);
         else
@@ -587,12 +586,12 @@ public class QueryProcessor implements QueryHandler
      * Note that this only make sense for Selects so this only accept SELECT statements and is only useful in rare
      * cases.
      */
-    public static UntypedResultSet executeInternalWithNow(int nowInSec, long queryStartNanoTime, String query, Object... values)
+    public static UntypedResultSet executeInternalWithNow(long nowInSec, long queryStartNanoTime, String query, Object... values)
     {
         Prepared prepared = prepareInternal(query);
         assert prepared.statement instanceof SelectStatement;
         SelectStatement select = (SelectStatement)prepared.statement;
-        ResultMessage result = select.executeInternal(internalQueryState(), makeInternalOptions(prepared.statement, values), nowInSec, queryStartNanoTime);
+        ResultMessage result = select.executeInternal(internalQueryState(), makeInternalOptionsWithNowInSec(prepared.statement, nowInSec, values), nowInSec, queryStartNanoTime);
         assert result instanceof ResultMessage.Rows;
         return UntypedResultSet.create(((ResultMessage.Rows)result).result);
     }
@@ -602,25 +601,27 @@ public class QueryProcessor implements QueryHandler
      * Note that this only make sense for Selects so this only accept SELECT statements and is only useful in rare
      * cases.
      */
-    public static Map<DecoratedKey, List<Row>> executeInternalRawWithNow(int nowInSec, String query, Object... values)
+    public static Map<DecoratedKey, List<Row>> executeInternalRawWithNow(long nowInSec, String query, Object... values)
     {
         Prepared prepared = prepareInternal(query);
         assert prepared.statement instanceof SelectStatement;
-        SelectStatement select = (SelectStatement)prepared.statement;
-        return select.executeRawInternal(makeInternalOptions(prepared.statement, values), internalQueryState().getClientState(), nowInSec);
+        SelectStatement select = (SelectStatement) prepared.statement;
+        return select.executeRawInternal(makeInternalOptionsWithNowInSec(prepared.statement, nowInSec, values), internalQueryState().getClientState(), nowInSec);
     }
 
+    @VisibleForTesting
     public static UntypedResultSet resultify(String query, RowIterator partition)
     {
         return resultify(query, PartitionIterators.singletonIterator(partition));
     }
 
+    @VisibleForTesting
     public static UntypedResultSet resultify(String query, PartitionIterator partitions)
     {
         try (PartitionIterator iter = partitions)
         {
             SelectStatement ss = (SelectStatement) getStatement(query, null);
-            ResultSet cqlRows = ss.process(iter, FBUtilities.nowInSeconds());
+            ResultSet cqlRows = ss.process(iter, FBUtilities.nowInSeconds(), true);
             return UntypedResultSet.create(cqlRows);
         }
     }
@@ -641,10 +642,7 @@ public class QueryProcessor implements QueryHandler
         synchronized (this)
         {
             CassandraVersion minVersion = Gossiper.instance.getMinVersion(DatabaseDescriptor.getWriteRpcTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
-            if (minVersion != null &&
-                ((minVersion.major == 3 && minVersion.minor == 0 && minVersion.compareTo(NEW_PREPARED_STATEMENT_BEHAVIOUR_SINCE_30) >= 0) ||
-                 (minVersion.major == 3 && minVersion.minor > 0 && minVersion.compareTo(NEW_PREPARED_STATEMENT_BEHAVIOUR_SINCE_3X) >= 0) ||
-                 (minVersion.compareTo(NEW_PREPARED_STATEMENT_BEHAVIOUR_SINCE_40, true) >= 0)))
+            if (minVersion != null && minVersion.compareTo(NEW_PREPARED_STATEMENT_BEHAVIOUR_SINCE_40, true) >= 0)
             {
                 logger.info("Fully upgraded to at least {}", minVersion);
                 newPreparedStatementBehaviour = true;
@@ -658,17 +656,17 @@ public class QueryProcessor implements QueryHandler
      * This method got slightly out of hand, but this is with best intentions: to allow users to be upgraded from any
      * prior version, and help implementers avoid previous mistakes by clearly separating fully qualified and non-fully
      * qualified statement behaviour.
-     *
+     * <p>
      * Basically we need to handle 4 different hashes here;
      * 1. fully qualified query with keyspace
      * 2. fully qualified query without keyspace
      * 3. unqualified query with keyspace
      * 4. unqualified query without keyspace
-     *
-     * The correct combination to return is 2/3 - the problem is during upgrades (assuming upgrading from < 3.0.26)
+     * <p>
+     * The correct combination to return is 2/3 - the problem is during upgrades (assuming upgrading from < 4.0.2)
      * - Existing clients have hash 1 or 3
-     * - Query prepared on a 3.0.26/3.11.12/4.0.2 instance needs to return hash 1/3 to be able to execute it on a 3.0.25 instance
-     * - This is handled by the useNewPreparedStatementBehaviour flag - while there still are 3.0.25 instances in
+     * - Query prepared on a post-4.0.2 instance needs to return hash 1/3 to be able to execute it on a pre-4.0.2 instance
+     * - This is handled by the useNewPreparedStatementBehaviour flag - while there still are pre-4.0.2 instances in
      *   the cluster we always return hash 1/3
      * - Once fully upgraded we start returning hash 2/3, this will cause a prepared statement id mismatch for existing
      *   clients, but they will be able to continue using the old prepared statement id after that exception since we
@@ -755,7 +753,8 @@ public class QueryProcessor implements QueryHandler
             return null;
 
         checkTrue(queryString.equals(existing.rawCQLStatement),
-                String.format("MD5 hash collision: query with the same MD5 hash was already prepared. \n Existing: '%s'", existing.rawCQLStatement));
+                  "MD5 hash collision: query with the same MD5 hash was already prepared. \n Existing: '%s'",
+                  existing.rawCQLStatement);
 
         return createResultMessage(statementId, existing);
     }
@@ -787,7 +786,6 @@ public class QueryProcessor implements QueryHandler
         if (previous == prepared)
             SystemKeyspace.writePreparedStatement(keyspace, statementId, queryString);
 
-        SystemKeyspace.writePreparedStatement(keyspace, statementId, queryString);
         ResultSet.PreparedMetadata preparedMetadata = ResultSet.PreparedMetadata.fromPrepared(prepared.statement);
         ResultSet.ResultMetadata resultMetadata = ResultSet.ResultMetadata.fromPrepared(prepared.statement);
         return new ResultMessage.Prepared(statementId, resultMetadata.getResultMetadataId(), preparedMetadata, resultMetadata);
@@ -1021,7 +1019,7 @@ public class QueryProcessor implements QueryHandler
         {
             // in case there are other overloads, we have to remove all overloads since argument type
             // matching may change (due to type casting)
-            if (Schema.instance.getKeyspaceMetadata(ksName).functions.get(new FunctionName(ksName, functionName)).size() > 1)
+            if (Schema.instance.getKeyspaceMetadata(ksName).userFunctions.get(new FunctionName(ksName, functionName)).size() > 1)
                 removeInvalidPreparedStatementsForFunction(ksName, functionName);
         }
 

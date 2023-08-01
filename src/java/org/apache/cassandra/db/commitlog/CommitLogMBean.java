@@ -88,4 +88,10 @@ public interface CommitLogMBean
     public boolean getCDCBlockWrites();
 
     public void setCDCBlockWrites(boolean val);
+
+    /** Returns true if internodes streaming of CDC data should go through write path */
+    boolean isCDCOnRepairEnabled();
+
+    /** Set whether enable write path for CDC data during internodes streaming, e.g. repair */
+    void setCDCOnRepairEnabled(boolean value);
 }

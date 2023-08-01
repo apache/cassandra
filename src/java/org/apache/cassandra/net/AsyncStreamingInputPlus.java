@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.net;
 
-import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;

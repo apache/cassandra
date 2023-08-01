@@ -27,6 +27,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -39,9 +40,8 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Component;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -108,7 +108,7 @@ public class CassandraStreamHeaderTest
         // verify all component on-disk length is used for ZCS
         CassandraStreamHeader header = header(true, true);
         long transferedSize = header.size();
-        assertEquals(ComponentManifest.create(sstable.descriptor).totalSize(), transferedSize);
+        assertEquals(ComponentManifest.create(sstable).totalSize(), transferedSize);
         assertEquals(transferedSize, header.calculateSize());
 
         // verify that computing file chunks doesn't change transferred size for ZCS
@@ -133,7 +133,7 @@ public class CassandraStreamHeaderTest
 
     private CassandraStreamHeader header(boolean entireSSTable, boolean compressed)
     {
-        List<Range<Token>> requestedRanges = Collections.singletonList(new Range<>(store.getPartitioner().getMinimumToken(), sstable.last.getToken()));
+        List<Range<Token>> requestedRanges = Collections.singletonList(new Range<>(store.getPartitioner().getMinimumToken(), sstable.getLast().getToken()));
         requestedRanges = Range.normalize(requestedRanges);
 
         List<SSTableReader.PartitionPositionBounds> sections = sstable.getPositionsForRanges(requestedRanges);
@@ -142,11 +142,11 @@ public class CassandraStreamHeaderTest
 
         TableMetadata metadata = store.metadata();
         SerializationHeader.Component serializationHeader = SerializationHeader.makeWithoutStats(metadata).toComponent();
-        ComponentManifest componentManifest = entireSSTable ? ComponentManifest.create(sstable.descriptor) : null;
-        DecoratedKey firstKey = entireSSTable ? sstable.first : null;
+        ComponentManifest componentManifest = entireSSTable ? ComponentManifest.create(sstable) : null;
+        DecoratedKey firstKey = entireSSTable ? sstable.getFirst() : null;
+
         return CassandraStreamHeader.builder()
-                                    .withSSTableFormat(SSTableFormat.Type.BIG)
-                                    .withSSTableVersion(BigFormat.latestVersion)
+                                    .withSSTableVersion(sstable.descriptor.version)
                                     .withSSTableLevel(0)
                                     .withEstimatedKeys(10)
                                     .withCompressionInfo(compressionInfo)
@@ -166,8 +166,7 @@ public class CassandraStreamHeaderTest
         TableMetadata metadata = CreateTableStatement.parse(ddl, "ks").build();
         CassandraStreamHeader header =
             CassandraStreamHeader.builder()
-                                 .withSSTableFormat(SSTableFormat.Type.BIG)
-                                 .withSSTableVersion(BigFormat.latestVersion)
+                                 .withSSTableVersion(DatabaseDescriptor.getSelectedSSTableFormat().getLatestVersion())
                                  .withSSTableLevel(0)
                                  .withEstimatedKeys(0)
                                  .withSections(Collections.emptyList())
@@ -184,12 +183,11 @@ public class CassandraStreamHeaderTest
         String ddl = "CREATE TABLE tbl (k INT PRIMARY KEY, v INT)";
         TableMetadata metadata = CreateTableStatement.parse(ddl, "ks").build();
 
-        ComponentManifest manifest = new ComponentManifest(new LinkedHashMap<Component, Long>() {{ put(Component.DATA, 100L); }});
+        ComponentManifest manifest = new ComponentManifest(new LinkedHashMap<Component, Long>() {{ put(Components.DATA, 100L); }});
 
         CassandraStreamHeader header =
             CassandraStreamHeader.builder()
-                                 .withSSTableFormat(SSTableFormat.Type.BIG)
-                                 .withSSTableVersion(BigFormat.latestVersion)
+                                 .withSSTableVersion(DatabaseDescriptor.getSelectedSSTableFormat().getLatestVersion())
                                  .withSSTableLevel(0)
                                  .withEstimatedKeys(0)
                                  .withSections(Collections.emptyList())

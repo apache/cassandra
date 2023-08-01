@@ -27,7 +27,6 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -49,10 +48,8 @@ import org.apache.cassandra.concurrent.Interruptible;
 import org.apache.cassandra.concurrent.SyncFutureTask;
 import org.apache.cassandra.concurrent.TaskFactory;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
-import org.apache.cassandra.distributed.api.IIsolatedExecutor.QuadFunction;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableBiFunction;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableCallable;
-import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableFunction;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableQuadFunction;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableRunnable;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableSupplier;
@@ -68,10 +65,8 @@ import org.apache.cassandra.simulator.systems.InterceptingExecutor.InterceptingS
 import org.apache.cassandra.simulator.systems.InterceptorOfExecution.InterceptExecution;
 import org.apache.cassandra.simulator.systems.SimulatedTime.LocalTime;
 import org.apache.cassandra.utils.Closeable;
-import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.WithResources;
 import org.apache.cassandra.utils.concurrent.RunnableFuture;
-import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.INFINITE_LOOP;
 

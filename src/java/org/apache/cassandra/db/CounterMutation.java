@@ -48,9 +48,8 @@ import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
 import static java.util.concurrent.TimeUnit.*;
-import static org.apache.cassandra.net.MessagingService.VERSION_30;
-import static org.apache.cassandra.net.MessagingService.VERSION_3014;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
+import static org.apache.cassandra.net.MessagingService.VERSION_50;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class CounterMutation implements IMutation
@@ -271,7 +270,7 @@ public class CounterMutation implements IMutation
                 builder.select(mark.column(), mark.path());
         }
 
-        int nowInSec = FBUtilities.nowInSeconds();
+        long nowInSec = FBUtilities.nowInSeconds();
         ClusteringIndexNamesFilter filter = new ClusteringIndexNamesFilter(names.build(), false);
         SinglePartitionReadCommand cmd = SinglePartitionReadCommand.create(cfs.metadata(), nowInSec, key(), builder.build(), filter);
         PeekingIterator<PartitionUpdate.CounterMark> markIter = Iterators.peekingIterator(marks.iterator());
@@ -331,26 +330,21 @@ public class CounterMutation implements IMutation
         return DatabaseDescriptor.getCounterWriteRpcTimeout(unit);
     }
 
-    private int serializedSize30;
-    private int serializedSize3014;
     private int serializedSize40;
+    private int serializedSize50;
 
     public int serializedSize(int version)
     {
         switch (version)
         {
-            case VERSION_30:
-                if (serializedSize30 == 0)
-                    serializedSize30 = (int) serializer.serializedSize(this, VERSION_30);
-                return serializedSize30;
-            case VERSION_3014:
-                if (serializedSize3014 == 0)
-                    serializedSize3014 = (int) serializer.serializedSize(this, VERSION_3014);
-                return serializedSize3014;
             case VERSION_40:
                 if (serializedSize40 == 0)
                     serializedSize40 = (int) serializer.serializedSize(this, VERSION_40);
                 return serializedSize40;
+            case VERSION_50:
+                if (serializedSize50 == 0)
+                    serializedSize50 = (int) serializer.serializedSize(this, VERSION_50);
+                return serializedSize50;
             default:
                 throw new IllegalStateException("Unknown serialization version: " + version);
         }

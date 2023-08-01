@@ -39,16 +39,22 @@ public class Megamorphism
 
     private static final UpdateFunction UNSIMPLE_KEEP_OLD = new UpdateFunction()
     {
-        public Object apply(Object replacing, Object update) { return replacing; }
+        @Override
+        public Object merge(Object replacing, Object update) { return replacing; }
+        @Override
         public void onAllocatedOnHeap(long heapSize) { }
-        public Object apply(Object v) { return v; }
+        @Override
+        public Object insert(Object v) { return v; }
     };
 
     private static final UpdateFunction UNSIMPLE_KEEP_NEW = new UpdateFunction()
     {
-        public Object apply(Object replacing, Object update) { return update; }
+        @Override
+        public Object merge(Object replacing, Object update) { return update; }
+        @Override
         public void onAllocatedOnHeap(long heapSize) { }
-        public Object apply(Object v) { return v; }
+        @Override
+        public Object insert(Object v) { return v; }
     };
 
     static <V> IntFunction<UpdateFunction<V, V>> updateFGetter(boolean keepOld, BTreeBench.UpdateF updateF)

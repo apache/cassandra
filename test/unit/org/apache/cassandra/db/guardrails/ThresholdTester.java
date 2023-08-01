@@ -28,11 +28,9 @@ import java.util.function.ToLongFunction;
 import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.cassandra.config.DataStorageSpec;
 import org.assertj.core.api.Assertions;
 
 import static java.lang.String.format;
-import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.BYTES;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.fail;
@@ -89,14 +87,18 @@ public abstract class ThresholdTester extends GuardrailTester
                               Threshold threshold,
                               TriConsumer<Guardrails, String, String> setter,
                               Function<Guardrails, String> warnGetter,
-                              Function<Guardrails, String> failGetter)
+                              Function<Guardrails, String> failGetter,
+                              Function<Long, String> stringFormatter,
+                              ToLongFunction<String> stringParser)
     {
         super(threshold);
-        this.warnThreshold = new DataStorageSpec.LongBytesBound(warnThreshold).toBytes();
-        this.failThreshold = new DataStorageSpec.LongBytesBound(failThreshold).toBytes();
-        this.setter = (g, w, a) -> setter.accept(g, w == null ? null : new DataStorageSpec.LongBytesBound(w, BYTES).toString(), a == null ? null : new DataStorageSpec.LongBytesBound(a, BYTES).toString());
-        this.warnGetter = g -> new DataStorageSpec.LongBytesBound(warnGetter.apply(g)).toBytes();
-        this.failGetter = g -> new DataStorageSpec.LongBytesBound(failGetter.apply(g)).toBytes();
+        this.warnThreshold = stringParser.applyAsLong(warnThreshold);
+        this.failThreshold = stringParser.applyAsLong(failThreshold);
+        this.setter = (g, w, f) -> setter.accept(g,
+                                                 w == null ? null : stringFormatter.apply(w),
+                                                 f == null ? null : stringFormatter.apply(f));
+        this.warnGetter = g -> stringParser.applyAsLong(warnGetter.apply(g));
+        this.failGetter = g -> stringParser.applyAsLong(failGetter.apply(g));
         maxValue = Long.MAX_VALUE - 1;
         disabledValue = null;
     }
@@ -247,10 +249,9 @@ public abstract class ThresholdTester extends GuardrailTester
                                          value, name, disabledValue);
 
             if (expectedMessage == null && value < 0)
-                expectedMessage = format("Invalid data storage: value must be non-negative");
+                expectedMessage = "value must be non-negative";
 
-            assertEquals(format("Exception message '%s' does not contain '%s'", e.getMessage(), expectedMessage),
-                         expectedMessage, e.getMessage());
+            Assertions.assertThat(e).hasMessageContaining(expectedMessage);
         }
     }
 

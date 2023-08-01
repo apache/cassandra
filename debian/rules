@@ -7,16 +7,12 @@ include /usr/share/quilt/quilt.make
 
 ANT = /usr/bin/ant
 VERSION = $(shell dpkg-parsechangelog | sed -ne 's/^Version: \([^-|~|+]*\).*/\1/p')
-
-test:
-	dh_testdir
-	$(ANT) test
+BUILD_DIR ?= "build"
 
 clean: unpatch
 	dh_clean build-stamp
 	dh_testdir
 	dh_testroot
-	$(ANT) realclean
 	rm -f build-stamp build.properties
 	rm -rf bin/java
 	find -name "*.pyc" -exec rm '{}' ';'
@@ -30,7 +26,7 @@ build-stamp: $(QUILT_STAMPFN)
 	printf "version=%s" $(VERSION) > build.properties
 
 	$(ANT) generate-cql-html
-	$(ANT) jar
+	$(ANT) jar -Dno-checkstyle=true -Drat.skip=true -Dant.gen-doc.skip=true
 	cd pylib && python3 setup.py install --no-compile --install-layout deb \
 		--root $(CURDIR)/debian/cassandra
 
@@ -41,18 +37,17 @@ install: build
 	dh_testroot
 	dh_installdirs
 	dh_install
-	dh_python3
 
 	# Copy in the jar and symlink to something stable
-	dh_install build/apache-cassandra-$(VERSION).jar \
+	dh_install $(BUILD_DIR)/apache-cassandra-$(VERSION).jar \
 		usr/share/cassandra
 
 	# Copy stress jars
-	dh_install build/tools/lib/stress.jar \
+	dh_install $(BUILD_DIR)/tools/lib/stress.jar \
 		usr/share/cassandra
 
 	# Copy fqltool jars
-	dh_install build/tools/lib/fqltool.jar \
+	dh_install $(BUILD_DIR)/tools/lib/fqltool.jar \
 		usr/share/cassandra
 
 	dh_link usr/share/cassandra/apache-cassandra-$(VERSION).jar \

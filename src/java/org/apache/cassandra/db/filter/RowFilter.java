@@ -23,6 +23,8 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import com.google.common.base.Objects;
 import org.slf4j.Logger;
@@ -63,7 +65,6 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
     private static final Logger logger = LoggerFactory.getLogger(RowFilter.class);
 
     public static final Serializer serializer = new Serializer();
-    public static final RowFilter NONE = new CQLFilter(Collections.emptyList());
 
     protected final List<Expression> expressions;
 
@@ -80,6 +81,11 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
     public static RowFilter create(int capacity)
     {
         return new CQLFilter(new ArrayList<>(capacity));
+    }
+
+    public static RowFilter none()
+    {
+        return CQLFilter.NONE;
     }
 
     public SimpleExpression add(ColumnMetadata def, Operator op, ByteBuffer value)
@@ -130,7 +136,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         return false;
     }
 
-    protected abstract Transformation<BaseRowIterator<?>> filter(TableMetadata metadata, int nowInSec);
+    protected abstract Transformation<BaseRowIterator<?>> filter(TableMetadata metadata, long nowInSec);
 
     /**
      * Filters the provided iterator so that only the row satisfying the expression of this filter
@@ -140,7 +146,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
      * @param nowInSec the time of query in seconds.
      * @return the filtered iterator.
      */
-    public UnfilteredPartitionIterator filter(UnfilteredPartitionIterator iter, int nowInSec)
+    public UnfilteredPartitionIterator filter(UnfilteredPartitionIterator iter, long nowInSec)
     {
         return expressions.isEmpty() ? iter : Transformation.apply(iter, filter(iter.metadata(), nowInSec));
     }
@@ -153,7 +159,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
      * @param nowInSec the time of query in seconds.
      * @return the filtered iterator.
      */
-    public PartitionIterator filter(PartitionIterator iter, TableMetadata metadata, int nowInSec)
+    public PartitionIterator filter(PartitionIterator iter, TableMetadata metadata, long nowInSec)
     {
         return expressions.isEmpty() ? iter : Transformation.apply(iter, filter(metadata, nowInSec));
     }
@@ -167,7 +173,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
      * @param nowInSec the current time in seconds (to know what is live and what isn't).
      * @return {@code true} if {@code row} in partition {@code partitionKey} satisfies this row filter.
      */
-    public boolean isSatisfiedBy(TableMetadata metadata, DecoratedKey partitionKey, Row row, int nowInSec)
+    public boolean isSatisfiedBy(TableMetadata metadata, DecoratedKey partitionKey, Row row, long nowInSec)
     {
         // We purge all tombstones as the expressions isSatisfiedBy methods expects it
         Row purged = row.purge(DeletionPurger.PURGE_ALL, nowInSec, metadata.enforceStrictLiveness());
@@ -229,7 +235,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
     {
         assert expressions.contains(expression);
         if (expressions.size() == 1)
-            return RowFilter.NONE;
+            return RowFilter.none();
 
         List<Expression> newExpressions = new ArrayList<>(expressions.size() - 1);
         for (Expression e : expressions)
@@ -259,6 +265,11 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
     public RowFilter withoutExpressions()
     {
         return withNewExpressions(Collections.emptyList());
+    }
+
+    public RowFilter restrict(Predicate<Expression> filter)
+    {
+        return withNewExpressions(expressions.stream().filter(filter).collect(Collectors.toList()));
     }
 
     protected abstract RowFilter withNewExpressions(List<Expression> expressions);
@@ -303,12 +314,14 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
 
     private static class CQLFilter extends RowFilter
     {
+        static CQLFilter NONE = new CQLFilter(Collections.emptyList());
+
         private CQLFilter(List<Expression> expressions)
         {
             super(expressions);
         }
 
-        protected Transformation<BaseRowIterator<?>> filter(TableMetadata metadata, int nowInSec)
+        protected Transformation<BaseRowIterator<?>> filter(TableMetadata metadata, long nowInSec)
         {
             List<Expression> partitionLevelExpressions = new ArrayList<>();
             List<Expression> rowLevelExpressions = new ArrayList<>();
@@ -1038,7 +1051,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         public void serialize(RowFilter filter, DataOutputPlus out, int version) throws IOException
         {
             out.writeBoolean(false); // Old "is for thrift" boolean
-            out.writeUnsignedVInt(filter.expressions.size());
+            out.writeUnsignedVInt32(filter.expressions.size());
             for (Expression expr : filter.expressions)
                 Expression.serializer.serialize(expr, out, version);
 
@@ -1047,7 +1060,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         public RowFilter deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
         {
             in.readBoolean(); // Unused
-            int size = (int)in.readUnsignedVInt();
+            int size = in.readUnsignedVInt32();
             List<Expression> expressions = new ArrayList<>(size);
             for (int i = 0; i < size; i++)
                 expressions.add(Expression.serializer.deserialize(in, version, metadata));

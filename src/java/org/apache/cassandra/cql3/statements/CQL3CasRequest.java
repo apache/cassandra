@@ -80,12 +80,12 @@ public class CQL3CasRequest implements CASRequest
         this.updatesStaticRow = updatesStaticRow;
     }
 
-    void addRowUpdate(Clustering<?> clustering, ModificationStatement stmt, QueryOptions options, long timestamp, int nowInSeconds)
+    void addRowUpdate(Clustering<?> clustering, ModificationStatement stmt, QueryOptions options, long timestamp, long nowInSeconds)
     {
         updates.add(new RowUpdate(clustering, stmt, options, timestamp, nowInSeconds));
     }
 
-    void addRangeDeletion(Slice slice, ModificationStatement stmt, QueryOptions options, long timestamp, int nowInSeconds)
+    void addRangeDeletion(Slice slice, ModificationStatement stmt, QueryOptions options, long timestamp, long nowInSeconds)
     {
         rangeDeletions.add(new RangeDeletion(slice, stmt, options, timestamp, nowInSeconds));
     }
@@ -181,7 +181,7 @@ public class CQL3CasRequest implements CASRequest
         return new RegularAndStaticColumns(statics, regulars);
     }
 
-    public SinglePartitionReadCommand readCommand(int nowInSec)
+    public SinglePartitionReadCommand readCommand(long nowInSec)
     {
         assert staticConditions != null || !conditions.isEmpty();
 
@@ -194,7 +194,7 @@ public class CQL3CasRequest implements CASRequest
             return SinglePartitionReadCommand.create(metadata,
                                                    nowInSec,
                                                    columnFilter,
-                                                   RowFilter.NONE,
+                                                   RowFilter.none(),
                                                    DataLimits.cqlLimits(1),
                                                    key,
                                                    new ClusteringIndexSliceFilter(Slices.ALL, false));
@@ -253,7 +253,7 @@ public class CQL3CasRequest implements CASRequest
         final long timeUuidMsb;
         long timeUuidNanos;
 
-        public CASUpdateParameters(TableMetadata metadata, RegularAndStaticColumns updatedColumns, ClientState state, QueryOptions options, long timestamp, int nowInSec, int ttl, Map<DecoratedKey, Partition> prefetchedRows, long timeUuidMsb, long timeUuidNanos) throws InvalidRequestException
+        public CASUpdateParameters(TableMetadata metadata, RegularAndStaticColumns updatedColumns, ClientState state, QueryOptions options, long timestamp, long nowInSec, int ttl, Map<DecoratedKey, Partition> prefetchedRows, long timeUuidMsb, long timeUuidNanos) throws InvalidRequestException
         {
             super(metadata, updatedColumns, state, options, timestamp, nowInSec, ttl, prefetchedRows);
             this.timeUuidMsb = timeUuidMsb;
@@ -278,9 +278,9 @@ public class CQL3CasRequest implements CASRequest
         private final ModificationStatement stmt;
         private final QueryOptions options;
         private final long timestamp;
-        private final int nowInSeconds;
+        private final long nowInSeconds;
 
-        private RowUpdate(Clustering<?> clustering, ModificationStatement stmt, QueryOptions options, long timestamp, int nowInSeconds)
+        private RowUpdate(Clustering<?> clustering, ModificationStatement stmt, QueryOptions options, long timestamp, long nowInSeconds)
         {
             this.clustering = clustering;
             this.stmt = stmt;
@@ -306,9 +306,9 @@ public class CQL3CasRequest implements CASRequest
         private final ModificationStatement stmt;
         private final QueryOptions options;
         private final long timestamp;
-        private final int nowInSeconds;
+        private final long nowInSeconds;
 
-        private RangeDeletion(Slice slice, ModificationStatement stmt, QueryOptions options, long timestamp, int nowInSeconds)
+        private RangeDeletion(Slice slice, ModificationStatement stmt, QueryOptions options, long timestamp, long nowInSeconds)
         {
             this.slice = slice;
             this.stmt = stmt;

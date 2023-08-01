@@ -42,17 +42,17 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
+import org.apache.cassandra.io.sstable.SSTableReadsListener;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.simulator.systems.NonInterceptible;
-import org.apache.cassandra.simulator.systems.NonInterceptible.Permit;
-import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.service.paxos.PaxosState;
+import org.apache.cassandra.simulator.systems.NonInterceptible;
+import org.apache.cassandra.simulator.systems.NonInterceptible.Permit;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Shared;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static java.lang.Long.max;
 import static java.util.Arrays.stream;
@@ -72,14 +72,16 @@ public class Ballots
     public static class LatestBallots
     {
         public final long promise;
-        public final long accept;
+        public final long accept; // the ballot actually accepted
+        public final long acceptOf; // the original ballot (i.e. if a reproposal accept != acceptOf)
         public final long commit;
         public final long persisted;
 
-        public LatestBallots(long promise, long accept, long commit, long persisted)
+        public LatestBallots(long promise, long accept, long acceptOf, long commit, long persisted)
         {
             this.promise = promise;
             this.accept = accept;
+            this.acceptOf = acceptOf;
             this.commit = commit;
             this.persisted = persisted;
         }
@@ -100,7 +102,7 @@ public class Ballots
         }
     }
 
-    public static LatestBallots read(Permit permit, DecoratedKey key, TableMetadata metadata, int nowInSec, boolean includeEmptyProposals)
+    public static LatestBallots read(Permit permit, DecoratedKey key, TableMetadata metadata, long nowInSec, boolean includeEmptyProposals)
     {
         return NonInterceptible.apply(permit, () -> {
             PaxosState.Snapshot state = unsafeGetIfPresent(key, metadata);
@@ -111,7 +113,8 @@ public class Ballots
             long baseTable = latestBallotFromBaseTable(key, metadata);
             return new LatestBallots(
                 promised.unixMicros(),
-                accepted == null || accepted.update.isEmpty() ? 0L : latestBallot(accepted.update.iterator()),
+                accepted == null || accepted.update.isEmpty() ? 0L : accepted.ballot.unixMicros(),
+                accepted == null || accepted.update.isEmpty() ? 0L : accepted.update.stats().minTimestamp,
                 latestBallot(committed.update.iterator()),
                 baseTable
             );
@@ -138,7 +141,7 @@ public class Ballots
         });
     }
 
-    public static String paxosDebugInfo(DecoratedKey key, TableMetadata metadata, int nowInSec)
+    public static String paxosDebugInfo(DecoratedKey key, TableMetadata metadata, long nowInSec)
     {
         return NonInterceptible.apply(OPTIONAL, () -> {
             PaxosState.Snapshot state = unsafeGetIfPresent(key, metadata);

@@ -32,7 +32,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -111,12 +110,12 @@ public class PaxosStateTest
         // not expired if read in the past
         assertPaxosState(key, accepted, state -> state.current(accepted.ballot).accepted);
         // not expired if read with paxos state purging enabled
-        assertPaxosState(key, accepted, state -> state.current(Integer.MAX_VALUE).accepted);
+        assertPaxosState(key, accepted, state -> state.current(Long.MAX_VALUE).accepted);
         DatabaseDescriptor.setPaxosStatePurging(gc_grace);
         // not expired if read in the past
         assertPaxosState(key, accepted, state -> state.current(accepted.ballot).accepted);
         // expired if read with paxos state purging disabled
-        assertPaxosState(key, null, state -> state.current(Integer.MAX_VALUE).accepted);
+        assertPaxosState(key, null, state -> state.current(Long.MAX_VALUE).accepted);
         // clear cache to read from disk
         PaxosState.RECENT.clear();
 
@@ -127,12 +126,12 @@ public class PaxosStateTest
         // not expired if read in the past
         assertPaxosState(key, committed, state -> state.current(committed.ballot).committed);
         // not expired if read with paxos state purging enabled
-        assertPaxosState(key, committed, state -> state.current(Integer.MAX_VALUE).committed);
+        assertPaxosState(key, committed, state -> state.current(Long.MAX_VALUE).committed);
         DatabaseDescriptor.setPaxosStatePurging(gc_grace);
         // not expired if read in the past
         assertPaxosState(key, committed, state -> state.current(committed.ballot).committed);
         // expired if read with paxos state purging disabled
-        assertPaxosState(key, empty, state -> state.current(Integer.MAX_VALUE).committed);
+        assertPaxosState(key, empty, state -> state.current(Long.MAX_VALUE).committed);
         DatabaseDescriptor.setPaxosStatePurging(repaired);
     }
 
@@ -149,21 +148,21 @@ public class PaxosStateTest
         // not expired if read in the past
         assertPaxosState(key, accepted, state -> state.current(0).accepted);
         // TTL, so still expired if read with paxos state purging enabled
-        assertPaxosState(key, null, state -> state.current(Integer.MAX_VALUE).accepted);
+        assertPaxosState(key, null, state -> state.current(Long.MAX_VALUE).accepted);
         DatabaseDescriptor.setPaxosStatePurging(gc_grace);
         // not expired if read in the past
         assertPaxosState(key, accepted, state -> state.current(0).accepted);
         // expired if read with paxos state purging disabled
-        assertPaxosState(key, null, state -> state.current(Integer.MAX_VALUE).accepted);
+        assertPaxosState(key, null, state -> state.current(Long.MAX_VALUE).accepted);
         DatabaseDescriptor.setPaxosStatePurging(legacy);
         // not expired if read in the past
         assertPaxosState(key, accepted, state -> state.current(0).accepted);
         // expired if read with paxos state purging disabled
-        assertPaxosState(key, null, state -> state.current(Integer.MAX_VALUE).accepted);
+        assertPaxosState(key, null, state -> state.current(Long.MAX_VALUE).accepted);
         // clear cache to read from disk
         PaxosState.RECENT.clear();
 
-        Committed committed = new CommittedWithTTL(accepted, 1);
+        Committed committed = new CommittedWithTTL(accepted, accepted.update.metadata().params.gcGraceSeconds + 1);
         Committed empty = emptyProposal(key).accepted().committed();
         PaxosState.commitDirect(committed);
 
@@ -171,17 +170,17 @@ public class PaxosStateTest
         // not expired if read in the past
         assertPaxosState(key, committed, state -> state.current(0).committed);
         // not expired if read with paxos state purging enabled
-        assertPaxosState(key, empty, state -> state.current(Integer.MAX_VALUE).committed);
+        assertPaxosState(key, empty, state -> state.current(Long.MAX_VALUE).committed);
         DatabaseDescriptor.setPaxosStatePurging(gc_grace);
         // not expired if read in the past
         assertPaxosState(key, committed, state -> state.current(0).committed);
         // expired if read with paxos state purging disabled
-        assertPaxosState(key, empty, state -> state.current(Integer.MAX_VALUE).committed);
+        assertPaxosState(key, empty, state -> state.current(Long.MAX_VALUE).committed);
         DatabaseDescriptor.setPaxosStatePurging(legacy);
         // not expired if read in the past
         assertPaxosState(key, committed, state -> state.current(0).committed);
         // expired if read with paxos state purging disabled
-        assertPaxosState(key, empty, state -> state.current(Integer.MAX_VALUE).committed);
+        assertPaxosState(key, empty, state -> state.current(Long.MAX_VALUE).committed);
     }
 
     @Test
@@ -198,43 +197,43 @@ public class PaxosStateTest
         // not expired if read in the past (or now)
         assertPaxosState(key, accepted, state -> state.current(0).accepted);
         // TTL, so still expired if read with paxos state purging enabled
-        assertPaxosState(key, null, state -> state.current(Integer.MAX_VALUE).accepted);
+        assertPaxosState(key, null, state -> state.current(Long.MAX_VALUE).accepted);
 
         DatabaseDescriptor.setPaxosStatePurging(gc_grace);
         // not expired if read in the past (or now)
         assertPaxosState(key, accepted, state -> state.current(0).accepted);
         // expired if read with paxos state purging disabled
-        assertPaxosState(key, null, state -> state.current(Integer.MAX_VALUE).accepted);
+        assertPaxosState(key, null, state -> state.current(Long.MAX_VALUE).accepted);
 
         DatabaseDescriptor.setPaxosStatePurging(legacy);
         // not expired if read in the past (or now)
         assertPaxosState(key, accepted, state -> state.current(0).accepted);
         // TTL, so expired in the future
-        assertPaxosState(key, null, state -> state.current(Integer.MAX_VALUE).accepted);
+        assertPaxosState(key, null, state -> state.current(Long.MAX_VALUE).accepted);
 
         PaxosState.RECENT.clear();
 
         Committed committed = new Committed(accepted);
         Committed empty = emptyProposal(key).accepted().committed();
         DatabaseDescriptor.setPaxosStatePurging(legacy); // write with TTLs
-        committed = new CommittedWithTTL(committed, -1); // for equality test
+        committed = new CommittedWithTTL(committed, committed.update.metadata().params.gcGraceSeconds + 1); // for equality test
         PaxosState.commitDirect(committed);
 
         DatabaseDescriptor.setPaxosStatePurging(repaired);
         // not expired if read in the past
         assertPaxosState(key, committed, state -> state.current(0).committed);
         // not expired if read with paxos state purging enabled
-        assertPaxosState(key, empty, state -> state.current(Integer.MAX_VALUE).committed);
+        assertPaxosState(key, empty, state -> state.current(Long.MAX_VALUE).committed);
         DatabaseDescriptor.setPaxosStatePurging(gc_grace);
         // not expired if read in the past
         assertPaxosState(key, committed, state -> state.current(0).committed);
         // expired if read with paxos state purging disabled
-        assertPaxosState(key, empty, state -> state.current(Integer.MAX_VALUE).committed);
+        assertPaxosState(key, empty, state -> state.current(Long.MAX_VALUE).committed);
         DatabaseDescriptor.setPaxosStatePurging(legacy);
         // not expired if read in the past
         assertPaxosState(key, committed, state -> state.current(0).committed);
         // expired if read with paxos state purging disabled
-        assertPaxosState(key, empty, state -> state.current(Integer.MAX_VALUE).committed);
+        assertPaxosState(key, empty, state -> state.current(Long.MAX_VALUE).committed);
     }
 
     private static void assertPaxosState(String key, Commit expect, Function<PaxosState, Object> test)

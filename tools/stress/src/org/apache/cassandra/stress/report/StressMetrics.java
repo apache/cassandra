@@ -83,11 +83,14 @@ public class StressMetrics implements MeasurementSink
     private final Queue<OpMeasurement> leftovers = new ArrayDeque<>();
     private final TimingInterval totalCurrentInterval;
     private final TimingInterval totalSummaryInterval;
+    private final int outputFrequencyInSeconds;
+    private final int headerFrequencyInSeconds;
+    private int outputLines = 0;
 
     public StressMetrics(ResultLogger output, final long logIntervalMillis, StressSettings settings)
     {
         this.output = output;
-        if(settings.log.hdrFile != null)
+        if (settings.log.hdrFile != null)
         {
             try
             {
@@ -114,7 +117,8 @@ public class StressMetrics implements MeasurementSink
         try
         {
             gcStatsCollector = new JmxCollector(toJmxNodes(settings.node.resolveAllPermitted(settings)),
-                                                settings.port.jmxPort);
+                                                settings.port.jmxPort,
+                                                settings.jmx);
         }
         catch (Throwable t)
         {
@@ -133,6 +137,8 @@ public class StressMetrics implements MeasurementSink
             reportingLoop(logIntervalMillis);
         });
         thread.setName("StressMetrics");
+        headerFrequencyInSeconds = settings.reporting.headerFrequency;
+        outputFrequencyInSeconds = settings.reporting.outputFrequency;
     }
     public void start()
     {
@@ -262,7 +268,12 @@ public class StressMetrics implements MeasurementSink
                 opInterval.reset();
             }
 
-            printRow("", "total", totalCurrentInterval, totalSummaryInterval, gcStats, rowRateUncertainty, output);
+            ++outputLines;
+            if (outputFrequencyInSeconds == 0 || outputLines % outputFrequencyInSeconds == 0)
+                printRow("", "total", totalCurrentInterval, totalSummaryInterval, gcStats, rowRateUncertainty, output);
+            if (headerFrequencyInSeconds != 0 && outputLines % headerFrequencyInSeconds == 0)
+                printHeader("\n", output);
+
             totalCurrentInterval.reset();
         }
     }
@@ -409,7 +420,7 @@ public class StressMetrics implements MeasurementSink
         output.println(String.format("Total partitions          : %,10d %s",   history.partitionCount, opHistory.partitionCounts()));
         output.println(String.format("Total errors              : %,10d %s",   history.errorCount, opHistory.errorCounts()));
         output.println(String.format("Total GC count            : %,1.0f", totalGcStats.count));
-        output.println(String.format("Total GC memory           : %s", FBUtilities.prettyPrintMemory((long)totalGcStats.bytes, true)));
+        output.println(String.format("Total GC memory           : %s", FBUtilities.prettyPrintMemory((long)totalGcStats.bytes, " ")));
         output.println(String.format("Total GC time             : %,6.1f seconds", totalGcStats.summs / 1000));
         output.println(String.format("Avg GC time               : %,6.1f ms", totalGcStats.summs / totalGcStats.count));
         output.println(String.format("StdDev GC time            : %,6.1f ms", totalGcStats.sdvms));

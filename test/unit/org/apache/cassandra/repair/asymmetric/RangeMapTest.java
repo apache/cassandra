@@ -33,6 +33,7 @@ import org.apache.cassandra.dht.Token;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class RangeMapTest
 {
@@ -51,8 +52,8 @@ public class RangeMapTest
             for (Range<Token> range : randomRanges)
                 rangeMap.put(range, i++);
 
-            long a = r.nextLong() % 100000;
-            long b = r.nextLong() % 100000;
+            long a = r.nextLong() % 1000000;
+            long b = r.nextLong() % 1000000;
             if (a == b) b++;
 
             Range<Token> intersectionRange = r(a, b);
@@ -102,5 +103,14 @@ public class RangeMapTest
     {
         RangeMap<Integer> rmap = new RangeMap<>();
         assertFalse(rmap.intersectingEntryIterator(r(1, 10)).hasNext());
+    }
+
+    @Test
+    public void testWrap()
+    {
+        RangeMap<Integer> rangeMap = new RangeMap<>();
+        rangeMap.put(r(5, 10), 1);
+        rangeMap.removeIntersecting(r(100, 50));
+        assertTrue(rangeMap.isEmpty());
     }
 }

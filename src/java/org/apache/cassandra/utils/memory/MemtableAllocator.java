@@ -24,8 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Timer;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.rows.*;
+
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
@@ -63,9 +62,9 @@ public abstract class MemtableAllocator
         this.offHeap = offHeap;
     }
 
-    public abstract Row.Builder rowBuilder(OpOrder.Group opGroup);
-    public abstract DecoratedKey clone(DecoratedKey key, OpOrder.Group opGroup);
     public abstract EnsureOnHeap ensureOnHeap();
+
+    public abstract Cloner cloner(OpOrder.Group opGroup);
 
     public SubAllocator onHeap()
     {

@@ -79,11 +79,17 @@ if [ -f "$CASSANDRA_HOME"/lib/jsr223/scala/scala-compiler.jar ] ; then
 fi
 
 # set JVM javaagent opts to avoid warnings/errors
-JAVA_AGENT="$JAVA_AGENT -javaagent:$CASSANDRA_HOME/lib/jamm-0.3.2.jar"
+JAVA_AGENT="$JAVA_AGENT -javaagent:$CASSANDRA_HOME/lib/jamm-0.4.0.jar"
 
 # Added sigar-bin to the java.library.path CASSANDRA-7838
 JAVA_OPTS="$JAVA_OPTS:-Djava.library.path=$CASSANDRA_HOME/lib/sigar-bin"
 
+platform=$(uname -m)
+if [ -d "$CASSANDRA_HOME"/lib/"$platform" ]; then
+    for jar in "$CASSANDRA_HOME"/lib/"$platform"/*.jar ; do
+        CLASSPATH="$CLASSPATH:${jar}"
+    done
+fi
 
 #
 # Java executable and per-Java version JVM settings
@@ -114,21 +120,13 @@ fi
 java_ver_output=`"${JAVA:-java}" -version 2>&1`
 jvmver=`echo "$java_ver_output" | grep '[openjdk|java] version' | awk -F'"' 'NR==1 {print $2}' | cut -d\- -f1`
 JVM_VERSION=${jvmver%_*}
+short=$(echo "${jvmver}" | cut -c1-2)
 
-JAVA_VERSION=11
-if [ "$JVM_VERSION" = "1.8.0" ]  ; then
-    JVM_PATCH_VERSION=${jvmver#*_}
-    if [ "$JVM_VERSION" \< "1.8" ] || [ "$JVM_VERSION" \> "1.8.2" ] ; then
-        echo "Cassandra 4.0 requires either Java 8 (update 151 or newer) or Java 11 (or newer). Java $JVM_VERSION is not supported."
-        exit 1;
-    fi
-    if [ "$JVM_PATCH_VERSION" -lt 151 ] ; then
-        echo "Cassandra 4.0 requires either Java 8 (update 151 or newer) or Java 11 (or newer). Java 8 update $JVM_PATCH_VERSION is not supported."
-        exit 1;
-    fi
-    JAVA_VERSION=8
-elif [ "$JVM_VERSION" \< "11" ] ; then
-    echo "Cassandra 4.0 requires either Java 8 (update 151 or newer) or Java 11 (or newer)."
+JAVA_VERSION=17
+if [ "$short" = "11" ]  ; then
+     JAVA_VERSION=11
+elif [ "$JVM_VERSION" \< "17" ] ; then
+    echo "Cassandra 5.0 requires Java 11 or Java 17."
     exit 1;
 fi
 
@@ -153,10 +151,10 @@ esac
 
 # Read user-defined JVM options from jvm-server.options file
 JVM_OPTS_FILE=$CASSANDRA_CONF/jvm${jvmoptions_variant:--clients}.options
-if [ $JAVA_VERSION -ge 11 ] ; then
+if [ $JAVA_VERSION -ge 17 ] ; then
+    JVM_DEP_OPTS_FILE=$CASSANDRA_CONF/jvm17${jvmoptions_variant:--clients}.options
+elif [ $JAVA_VERSION -ge 11 ] ; then
     JVM_DEP_OPTS_FILE=$CASSANDRA_CONF/jvm11${jvmoptions_variant:--clients}.options
-else
-    JVM_DEP_OPTS_FILE=$CASSANDRA_CONF/jvm8${jvmoptions_variant:--clients}.options
 fi
 
 for opt in `grep "^-" $JVM_OPTS_FILE` `grep "^-" $JVM_DEP_OPTS_FILE`

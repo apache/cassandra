@@ -37,6 +37,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
+import org.apache.cassandra.utils.JsonUtils;
 
 public class SnapshotManifestTest
 {
@@ -70,7 +71,7 @@ public class SnapshotManifestTest
         map.put("expires_at", expiresAt);
         map.put("files", Arrays.asList("db1", "db2", "db3"));
 
-        ObjectMapper mapper = new ObjectMapper();
+        ObjectMapper mapper = JsonUtils.JSON_OBJECT_MAPPER;
         File manifestFile = new File(tempFolder.newFile("manifest.json"));
         mapper.writeValue((OutputStream) new FileOutputStreamPlus(manifestFile), map);
         SnapshotManifest manifest = SnapshotManifest.deserializeFromJsonFile(manifestFile);
@@ -84,7 +85,7 @@ public class SnapshotManifestTest
     public void testOptionalFields() throws IOException {
         Map<String, Object> map = new HashMap<>();
         map.put("files", Arrays.asList("db1", "db2", "db3"));
-        ObjectMapper mapper = new ObjectMapper();
+        ObjectMapper mapper = JsonUtils.JSON_OBJECT_MAPPER;
         File manifestFile = new File(tempFolder.newFile("manifest.json"));
         mapper.writeValue((OutputStream) new FileOutputStreamPlus(manifestFile), map);
         SnapshotManifest manifest = SnapshotManifest.deserializeFromJsonFile(manifestFile);
@@ -99,7 +100,7 @@ public class SnapshotManifestTest
         Map<String, Object> map = new HashMap<>();
         map.put("files", Arrays.asList("db1", "db2", "db3"));
         map.put("dummy", "dummy");
-        ObjectMapper mapper = new ObjectMapper();
+        ObjectMapper mapper = JsonUtils.JSON_OBJECT_MAPPER;
         File manifestFile = new File(tempFolder.newFile("manifest.json"));
         mapper.writeValue((OutputStream) new FileOutputStreamPlus(manifestFile), map);
         SnapshotManifest manifest = SnapshotManifest.deserializeFromJsonFile(manifestFile);
@@ -108,7 +109,7 @@ public class SnapshotManifestTest
 
     @Test
     public void testSerializeAndDeserialize() throws Exception {
-        SnapshotManifest manifest = new SnapshotManifest(Arrays.asList("db1", "db2", "db3"), new DurationSpec.IntSecondsBound("2m"), Instant.ofEpochMilli(currentTimeMillis()));
+        SnapshotManifest manifest = new SnapshotManifest(Arrays.asList("db1", "db2", "db3"), new DurationSpec.IntSecondsBound("2m"), Instant.ofEpochMilli(currentTimeMillis()), false);
         File manifestFile = new File(tempFolder.newFile("manifest.json"));
 
         manifest.serializeToJsonFile(manifestFile);

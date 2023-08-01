@@ -39,6 +39,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -147,7 +148,7 @@ public class TableViews extends AbstractCollection<View>
             return;
 
         // Read modified rows
-        int nowInSec = FBUtilities.nowInSeconds();
+        long nowInSec = FBUtilities.nowInSeconds();
         long queryStartNanoTime = nanoTime();
         SinglePartitionReadCommand command = readExistingRowsCommand(update, views, nowInSec);
         if (command == null)
@@ -187,7 +188,7 @@ public class TableViews extends AbstractCollection<View>
     public Iterator<Collection<Mutation>> generateViewUpdates(Collection<View> views,
                                                               UnfilteredRowIterator updates,
                                                               UnfilteredRowIterator existings,
-                                                              int nowInSec,
+                                                              long nowInSec,
                                                               boolean separateUpdates)
     {
         assert updates.metadata().id.equals(baseTableMetadata.id);
@@ -385,7 +386,7 @@ public class TableViews extends AbstractCollection<View>
      * @param nowInSec the current time in seconds.
      * @return the command to use to read the base table rows required to generate view updates for {@code updates}.
      */
-    private SinglePartitionReadCommand readExistingRowsCommand(PartitionUpdate updates, Collection<View> views, int nowInSec)
+    private SinglePartitionReadCommand readExistingRowsCommand(PartitionUpdate updates, Collection<View> views, long nowInSec)
     {
         Slices.Builder sliceBuilder = null;
         DeletionInfo deletionInfo = updates.deletionInfo();
@@ -423,20 +424,23 @@ public class TableViews extends AbstractCollection<View>
 
         // If we had some slices from the deletions above, we'll continue using that. Otherwise, it's more efficient to build
         // a names query.
-        BTreeSet.Builder<Clustering<?>> namesBuilder = sliceBuilder == null ? BTreeSet.builder(metadata.comparator) : null;
-        for (Row row : updates)
+        NavigableSet<Clustering<?>> names;
+        try (BTree.FastBuilder<Clustering<?>> namesBuilder = sliceBuilder == null ? BTree.fastBuilder() : null)
         {
-            // Don't read the existing state if we can prove the update won't affect any views
-            if (!affectsAnyViews(key, row, views))
-                continue;
+            for (Row row : updates)
+            {
+                // Don't read the existing state if we can prove the update won't affect any views
+                if (!affectsAnyViews(key, row, views))
+                    continue;
 
-            if (namesBuilder == null)
-                sliceBuilder.add(Slice.make(row.clustering()));
-            else
-                namesBuilder.add(row.clustering());
+                if (namesBuilder == null)
+                    sliceBuilder.add(Slice.make(row.clustering()));
+                else
+                    namesBuilder.add(row.clustering());
+            }
+            names = namesBuilder == null ? null : BTreeSet.wrap(namesBuilder.build(), metadata.comparator);
         }
 
-        NavigableSet<Clustering<?>> names = namesBuilder == null ? null : namesBuilder.build();
         // If we have a slice builder, it means we had some deletions and we have to read. But if we had
         // only row updates, it's possible none of them affected the views, in which case we have nothing
         // to do.
@@ -458,7 +462,7 @@ public class TableViews extends AbstractCollection<View>
         // TODO: we could still make sense to special case for when there is a single view and a small number of updates (and
         // no deletions). Indeed, in that case we could check whether any of the update modify any of the restricted regular
         // column, and if that's not the case we could use view filter. We keep it simple for now though.
-        RowFilter rowFilter = RowFilter.NONE;
+        RowFilter rowFilter = RowFilter.none();
         return SinglePartitionReadCommand.create(metadata, nowInSec, queriedColumns, rowFilter, DataLimits.NONE, key, clusteringFilter);
     }
 

@@ -33,11 +33,18 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
+import org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector.DefaultCloudMetadataServiceConnector;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.ServerTestUtils.cleanup;
 import static org.apache.cassandra.ServerTestUtils.mkdirs;
+import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIP_DISABLE_THREAD_VALIDATION;
+import static org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector.METADATA_URL_PROPERTY;
 import static org.junit.Assert.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
 
 public class CloudstackSnitchTest
 {
@@ -46,7 +53,7 @@ public class CloudstackSnitchTest
     @BeforeClass
     public static void setup() throws Exception
     {
-        System.setProperty(Gossiper.Props.DISABLE_THREAD_VALIDATION, "true");
+        GOSSIP_DISABLE_THREAD_VALIDATION.setBoolean(true);
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
         CommitLog.instance.segmentManager.awaitManagementTasksCompletion();
@@ -56,31 +63,17 @@ public class CloudstackSnitchTest
         StorageService.instance.initServer(0);
     }
 
-    private class TestCloudstackSnitch extends CloudstackSnitch
-    {
-        public TestCloudstackSnitch() throws IOException, ConfigurationException
-        {
-            super();
-        }
-
-        @Override
-        String csMetadataEndpoint() throws ConfigurationException
-        {
-            return "";
-        }
-
-        @Override
-        String csQueryMetadata(String endpoint) throws IOException, ConfigurationException
-        {
-            return az;
-        }
-    }
-
     @Test
     public void testRacks() throws IOException, ConfigurationException
     {
         az = "ch-gva-1";
-        CloudstackSnitch snitch = new TestCloudstackSnitch();
+
+        DefaultCloudMetadataServiceConnector spiedConnector = spy(new DefaultCloudMetadataServiceConnector(
+        new SnitchProperties(Pair.create(METADATA_URL_PROPERTY, "http://127.0.0.1"))));
+
+        doReturn(az).when(spiedConnector).apiCall(any());
+
+        CloudstackSnitch snitch = new CloudstackSnitch(spiedConnector);
         InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
         InetAddressAndPort nonlocal = InetAddressAndPort.getByName("127.0.0.7");
 
@@ -95,18 +88,24 @@ public class CloudstackSnitchTest
 
         assertEquals("ch-gva", snitch.getDatacenter(local));
         assertEquals("1", snitch.getRack(local));
-
     }
 
     @Test
     public void testNewRegions() throws IOException, ConfigurationException
     {
-        az = "ch-gva-1";
-        CloudstackSnitch snitch = new TestCloudstackSnitch();
+        az = "us-east-1a";
+
+        DefaultCloudMetadataServiceConnector spiedConnector = spy(new DefaultCloudMetadataServiceConnector(
+        new SnitchProperties(Pair.create(METADATA_URL_PROPERTY, "http://127.0.0.1"))));
+
+        doReturn(az).when(spiedConnector).apiCall(any());
+
+        CloudstackSnitch snitch = new CloudstackSnitch(spiedConnector);
+
         InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
 
-        assertEquals("ch-gva", snitch.getDatacenter(local));
-        assertEquals("1", snitch.getRack(local));
+        assertEquals("us-east", snitch.getDatacenter(local));
+        assertEquals("1a", snitch.getRack(local));
     }
 
     @AfterClass

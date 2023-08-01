@@ -23,5 +23,5 @@ package org.apache.cassandra.utils.streamhist;
  */
 public interface HistogramDataConsumer<T extends Exception>
 {
-    void consume(int point, int value) throws T;
+    void consume(long point, int value) throws T;
 }

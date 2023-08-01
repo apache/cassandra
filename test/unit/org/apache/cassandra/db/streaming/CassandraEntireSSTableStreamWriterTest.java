@@ -24,8 +24,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Queue;
 
-import org.apache.cassandra.Util;
-import org.apache.cassandra.io.sstable.Descriptor;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -37,19 +35,20 @@ import io.netty.channel.ChannelPromise;
 import io.netty.channel.DefaultFileRegion;
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.SharedDefaultFileRegion;
 import org.apache.cassandra.net.AsyncStreamingOutputPlus;
+import org.apache.cassandra.net.SharedDefaultFileRegion;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.streaming.async.NettyStreamingConnectionFactory;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.SessionInfo;
 import org.apache.cassandra.streaming.StreamCoordinator;
@@ -58,6 +57,7 @@ import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamSummary;
+import org.apache.cassandra.streaming.async.NettyStreamingConnectionFactory;
 import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -117,7 +117,7 @@ public class CassandraEntireSSTableStreamWriterTest
 
         EmbeddedChannel channel = new EmbeddedChannel();
         try (AsyncStreamingOutputPlus out = new AsyncStreamingOutputPlus(channel);
-             ComponentContext context = ComponentContext.create(descriptor))
+             ComponentContext context = ComponentContext.create(sstable))
         {
             CassandraEntireSSTableStreamWriter writer = new CassandraEntireSSTableStreamWriter(sstable, session, context);
 
@@ -140,7 +140,7 @@ public class CassandraEntireSSTableStreamWriterTest
         ByteBuf serializedFile = Unpooled.buffer(8192);
         EmbeddedChannel channel = createMockNettyChannel(serializedFile);
         try (AsyncStreamingOutputPlus out = new AsyncStreamingOutputPlus(channel);
-             ComponentContext context = ComponentContext.create(descriptor))
+             ComponentContext context = ComponentContext.create(sstable))
         {
             CassandraEntireSSTableStreamWriter writer = new CassandraEntireSSTableStreamWriter(sstable, session, context);
             writer.write(out);
@@ -149,7 +149,6 @@ public class CassandraEntireSSTableStreamWriterTest
 
             CassandraStreamHeader header =
             CassandraStreamHeader.builder()
-                                 .withSSTableFormat(sstable.descriptor.formatType)
                                  .withSSTableVersion(sstable.descriptor.version)
                                  .withSSTableLevel(0)
                                  .withEstimatedKeys(sstable.estimatedKeys())
@@ -157,7 +156,7 @@ public class CassandraEntireSSTableStreamWriterTest
                                  .withSerializationHeader(sstable.header.toComponent())
                                  .withComponentManifest(context.manifest())
                                  .isEntireSSTable(true)
-                                 .withFirstKey(sstable.first)
+                                 .withFirstKey(sstable.getFirst())
                                  .withTableId(sstable.metadata().id)
                                  .build();
 
@@ -209,7 +208,7 @@ public class CassandraEntireSSTableStreamWriterTest
         StreamResultFuture future = StreamResultFuture.createInitiator(nextTimeUUID(), StreamOperation.BOOTSTRAP, Collections.<StreamEventHandler>emptyList(), streamCoordinator);
 
         InetAddressAndPort peer = FBUtilities.getBroadcastAddressAndPort();
-        streamCoordinator.addSessionInfo(new SessionInfo(peer, 0, peer, Collections.emptyList(), Collections.emptyList(), StreamSession.State.INITIALIZED));
+        streamCoordinator.addSessionInfo(new SessionInfo(peer, 0, peer, Collections.emptyList(), Collections.emptyList(), StreamSession.State.INITIALIZED, null));
 
         StreamSession session = streamCoordinator.getOrCreateOutboundSession(peer);
         session.init(future);

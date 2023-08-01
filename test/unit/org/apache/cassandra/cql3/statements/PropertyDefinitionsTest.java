@@ -20,62 +20,46 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import org.junit.After;
 import org.junit.Test;
-import org.junit.Before;
 
-import static org.junit.Assert.assertEquals;
+import org.apache.cassandra.exceptions.SyntaxException;
 
-public class PropertyDefinitionsTest {
-    
-    PropertyDefinitions pd;
-    
-    @Before
-    public void setUp()
+import static org.apache.cassandra.cql3.statements.PropertyDefinitions.parseBoolean;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+
+public class PropertyDefinitionsTest
+{
+    @Test
+    public void testPostiveBooleanParsing()
     {
-        pd = new PropertyDefinitions();
+        assertTrue(parseBoolean("prop1", "1"));
+        assertTrue(parseBoolean("prop2", "true"));
+        assertTrue(parseBoolean("prop3", "True"));
+        assertTrue(parseBoolean("prop4", "TrUe"));
+        assertTrue(parseBoolean("prop5", "yes"));
+        assertTrue(parseBoolean("prop6", "Yes"));
     }
-    
-    @After
-    public void clear()
-    {
-        pd = null;
-    }
-    
 
     @Test
-    public void testGetBooleanExistant()
+    public void testNegativeBooleanParsing()
     {
-        String key = "one";
-        pd.addProperty(key, "1");
-        assertEquals(Boolean.TRUE, pd.getBoolean(key, null));
-        
-        key = "TRUE";
-        pd.addProperty(key, "TrUe");
-        assertEquals(Boolean.TRUE, pd.getBoolean(key, null));
-        
-        key = "YES";
-        pd.addProperty(key, "YeS");
-        assertEquals(Boolean.TRUE, pd.getBoolean(key, null));
-   
-        key = "BAD_ONE";
-        pd.addProperty(key, " 1");
-        assertEquals(Boolean.FALSE, pd.getBoolean(key, null));
-        
-        key = "BAD_TRUE";
-        pd.addProperty(key, "true ");
-        assertEquals(Boolean.FALSE, pd.getBoolean(key, null));
-        
-        key = "BAD_YES";
-        pd.addProperty(key, "ye s");
-        assertEquals(Boolean.FALSE, pd.getBoolean(key, null));
+        assertFalse(parseBoolean("prop1", "0"));
+        assertFalse(parseBoolean("prop2", "false"));
+        assertFalse(parseBoolean("prop3", "False"));
+        assertFalse(parseBoolean("prop4", "FaLse"));
+        assertFalse(parseBoolean("prop6", "No"));
     }
-    
-    @Test
-    public void testGetBooleanNonexistant()
+
+    @Test(expected = SyntaxException.class)
+    public void testInvalidPositiveBooleanParsing()
     {
-        assertEquals(Boolean.FALSE, pd.getBoolean("nonexistant", Boolean.FALSE));
-        assertEquals(Boolean.TRUE, pd.getBoolean("nonexistant", Boolean.TRUE));
+        parseBoolean("cdc", "tru");
     }
-    
+
+    @Test(expected = SyntaxException.class)
+    public void testInvalidNegativeBooleanParsing()
+    {
+        parseBoolean("cdc", "fals");
+    }
 }

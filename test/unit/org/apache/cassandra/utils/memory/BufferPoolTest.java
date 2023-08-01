@@ -64,6 +64,26 @@ public class BufferPoolTest
         assertEquals(0, bufferPool.usedSizeInBytes());
     }
 
+    @Test
+    public void testTryGet()
+    {
+        final int size = RandomAccessReader.DEFAULT_BUFFER_SIZE;
+
+        ByteBuffer buffer = bufferPool.tryGet(size);
+        assertNotNull(buffer);
+        assertEquals(size, buffer.capacity());
+        assertEquals(true, buffer.isDirect());
+        assertEquals(size, bufferPool.usedSizeInBytes());
+
+        BufferPool.Chunk chunk = bufferPool.unsafeCurrentChunk();
+        assertNotNull(chunk);
+        assertEquals(BufferPool.GlobalPool.MACRO_CHUNK_SIZE, bufferPool.sizeInBytes());
+
+        bufferPool.put(buffer);
+        assertEquals(null, bufferPool.unsafeCurrentChunk());
+        assertEquals(BufferPool.GlobalPool.MACRO_CHUNK_SIZE, bufferPool.sizeInBytes());
+        assertEquals(0, bufferPool.usedSizeInBytes());
+    }
 
     @Test
     public void testPageAligned()
@@ -99,10 +119,12 @@ public class BufferPoolTest
         ByteBuffer buffer1 = bufferPool.get(size1, BufferType.OFF_HEAP);
         assertNotNull(buffer1);
         assertEquals(size1, buffer1.capacity());
+        assertEquals(size1, bufferPool.usedSizeInBytes());
 
         ByteBuffer buffer2 = bufferPool.get(size2, BufferType.OFF_HEAP);
         assertNotNull(buffer2);
         assertEquals(size2, buffer2.capacity());
+        assertEquals(size1 + size2, bufferPool.usedSizeInBytes());
 
         BufferPool.Chunk chunk = bufferPool.unsafeCurrentChunk();
         assertNotNull(chunk);
@@ -113,6 +135,7 @@ public class BufferPoolTest
 
         assertEquals(null, bufferPool.unsafeCurrentChunk());
         assertEquals(BufferPool.GlobalPool.MACRO_CHUNK_SIZE, bufferPool.sizeInBytes());
+        assertEquals(0, bufferPool.usedSizeInBytes());
     }
 
     @Test
@@ -962,6 +985,69 @@ public class BufferPoolTest
         // cleanup allocated buffers
         for (ByteBuffer buffer : Iterables.concat(buffers0, buffers1, buffers3))
             bufferPool.put(buffer);
+    }
+
+    @Test
+    public void testReleaseLocal()
+    {
+        final int size = BufferPool.TINY_ALLOCATION_UNIT;
+        final int allocationPerChunk = 64;
+
+        // occupy 3 tiny chunks
+        List<ByteBuffer> buffers0 = new ArrayList<>();
+        BufferPool.Chunk chunk0 = allocate(allocationPerChunk, size, buffers0);
+        List<ByteBuffer> buffers1 = new ArrayList<>();
+        BufferPool.Chunk chunk1 = allocate(allocationPerChunk, size, buffers1);
+        List<ByteBuffer> buffers2 = new ArrayList<>();
+        BufferPool.Chunk chunk2 = allocate(allocationPerChunk, size, buffers2);
+
+        // release them from the pool
+        bufferPool.releaseLocal();
+
+        assertNull(chunk0.owner());
+        assertNull(chunk1.owner());
+        assertNull(chunk2.owner());
+        assertEquals(BufferPool.Chunk.Status.EVICTED, chunk0.status());
+        assertEquals(BufferPool.Chunk.Status.EVICTED, chunk1.status());
+        assertEquals(BufferPool.Chunk.Status.EVICTED, chunk2.status());
+
+        // cleanup allocated buffers, that should still work fine even though we released them from the localPool
+        for (ByteBuffer buffer : Iterables.concat(buffers0, buffers1, buffers2))
+            bufferPool.put(buffer);
+
+        assertEquals(0, bufferPool.usedSizeInBytes());
+    }
+
+    @Test
+    public void testPuttingUnusedPortion()
+    {
+        final int expectedCapacity = BufferPool.TINY_ALLOCATION_UNIT * 4;
+        final int quarterUnit = BufferPool.TINY_ALLOCATION_UNIT / 4;
+        final int requestedCapacity = expectedCapacity - 3 * quarterUnit;
+
+        ByteBuffer buffer = bufferPool.getAtLeast(requestedCapacity, BufferType.OFF_HEAP);
+        assertNotNull(buffer);
+        assertEquals(expectedCapacity, buffer.capacity());
+        assertEquals(expectedCapacity, bufferPool.usedSizeInBytes());
+
+        buffer.limit(requestedCapacity); // 3.25 x unit
+        bufferPool.putUnusedPortion(buffer);
+
+        // the unused portion was too small to be returned, the buffer remains unchanged
+        assertEquals(expectedCapacity, buffer.capacity());
+        // used size is didn't change either
+        assertEquals(expectedCapacity, bufferPool.usedSizeInBytes());
+
+        buffer.limit(expectedCapacity - BufferPool.TINY_ALLOCATION_UNIT); // 3.0 x unit
+        bufferPool.putUnusedPortion(buffer);
+
+        // now we should notice a change
+        assertEquals(BufferPool.TINY_ALLOCATION_UNIT * 3, buffer.capacity());
+        assertEquals(BufferPool.TINY_ALLOCATION_UNIT * 3, bufferPool.usedSizeInBytes());
+
+        bufferPool.put(buffer);
+
+        assertEquals(0, bufferPool.usedSizeInBytes());
     }
 
     private BufferPool.Chunk allocate(int num, int bufferSize, List<ByteBuffer> buffers)

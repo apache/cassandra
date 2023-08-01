@@ -19,10 +19,12 @@
 package org.apache.cassandra.metrics;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -31,33 +33,34 @@ import com.datastax.driver.core.BatchStatement;
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.Session;
-import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.EmbeddedCassandraService;
+import org.apache.cassandra.service.StorageService;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class TableMetricsTest extends SchemaLoader
+public class TableMetricsTest
 {
     private static Session session;
 
     private static final String KEYSPACE = "junit";
     private static final String TABLE = "tablemetricstest";
     private static final String COUNTER_TABLE = "tablemetricscountertest";
+    private static final String TWCS_TABLE = "tablemetricstesttwcs";
+
+    private static EmbeddedCassandraService cassandra;
+    private static Cluster cluster;
 
     @BeforeClass
     public static void setup() throws ConfigurationException, IOException
     {
-        Schema.instance.clear();
+        cassandra = ServerTestUtils.startEmbeddedCassandraService();
 
-        EmbeddedCassandraService cassandra = new EmbeddedCassandraService();
-        cassandra.start();
-
-        Cluster cluster = Cluster.builder().addContactPoint("127.0.0.1").withPort(DatabaseDescriptor.getNativeTransportPort()).build();
+        cluster = Cluster.builder().addContactPoint("127.0.0.1").withPort(DatabaseDescriptor.getNativeTransportPort()).build();
         session = cluster.connect();
 
         session.execute(String.format("CREATE KEYSPACE IF NOT EXISTS %s WITH replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 };", KEYSPACE));
@@ -67,6 +70,15 @@ public class TableMetricsTest extends SchemaLoader
     private ColumnFamilyStore recreateTable()
     {
         return recreateTable(TABLE);
+    }
+
+    private ColumnFamilyStore recreateTWCSTable()
+    {
+        session.execute(String.format("DROP TABLE IF EXISTS %s.%s", KEYSPACE, TWCS_TABLE));
+        session.execute(String.format("CREATE TABLE IF NOT EXISTS %s.%s (id int, val1 text, val2 text, PRIMARY KEY(id, val1)) " +
+                                      " WITH compaction = {'class': 'TimeWindowCompactionStrategy', 'compaction_window_unit': 'MINUTES', 'compaction_window_size': 1};",
+                                      KEYSPACE, TWCS_TABLE));
+        return ColumnFamilyStore.getIfExists(KEYSPACE, TWCS_TABLE);
     }
 
     private ColumnFamilyStore recreateTable(String table)
@@ -128,6 +140,37 @@ public class TableMetricsTest extends SchemaLoader
 
         assertEquals(10, cfs.metric.coordinatorWriteLatency.getCount());
         assertGreaterThan(cfs.metric.coordinatorWriteLatency.getMeanRate(), 0);
+    }
+
+    @Test
+    public void testMaxSSTableSize() throws Exception
+    {
+        ColumnFamilyStore cfs = recreateTable();
+        assertEquals(0, cfs.metric.maxSSTableSize.getValue().longValue());
+
+        for (int i = 0; i < 1000; i++)
+        {
+            session.execute(String.format("INSERT INTO %s.%s (id, val1, val2) VALUES (%d, '%s', '%s')", KEYSPACE, TABLE, i, "val" + i, "val" + i));
+        }
+
+        StorageService.instance.forceKeyspaceFlush(KEYSPACE);
+
+        assertGreaterThan(cfs.metric.maxSSTableSize.getValue().doubleValue(), 0);
+    }
+
+    @Test
+    public void testMaxSSTableDuration() throws Exception
+    {
+        ColumnFamilyStore cfs = recreateTWCSTable();
+        assertEquals(0, cfs.metric.maxSSTableDuration.getValue().longValue());
+
+        session.execute(String.format("INSERT INTO %s.%s (id, val1, val2) VALUES (%d, '%s', '%s')", KEYSPACE, TWCS_TABLE, 1, "val1", "val1"));
+        Uninterruptibles.sleepUninterruptibly(10, TimeUnit.SECONDS);
+        session.execute(String.format("INSERT INTO %s.%s (id, val1, val2) VALUES (%d, '%s', '%s')", KEYSPACE, TWCS_TABLE, 2, "val2", "val2"));
+
+        StorageService.instance.forceKeyspaceFlush(KEYSPACE);
+
+        assertGreaterThan(cfs.metric.maxSSTableDuration.getValue().doubleValue(), 0);
     }
 
     @Test
@@ -276,9 +319,13 @@ public class TableMetricsTest extends SchemaLoader
         assertEquals(metrics.get().collect(Collectors.joining(",")), 0, metrics.get().count());
     }
 
+
     @AfterClass
-    public static void teardown()
+    public static void tearDown()
     {
-        session.close();
+        if (cluster != null)
+            cluster.close();
+        if (cassandra != null)
+            cassandra.stop();
     }
 }

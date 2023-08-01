@@ -18,7 +18,7 @@
 #
 -->
 
-h1. Cassandra Query Language (CQL) v3.4.3
+h1. Cassandra Query Language (CQL) v3.4.7
 
 
 
@@ -131,7 +131,9 @@ bc(syntax)..
          <set-literal> ::= '{' ( <term> ( ',' <term> )* )? '}'
         <list-literal> ::= '[' ( <term> ( ',' <term> )* )? ']'
 
-    <function> ::= <ident>
+  <vector-literal> ::= '[' ( <term> ( ',' <term> )* )? ']'
+
+  <function> ::= <identifier>
 
   <properties> ::= <property> (AND <property>)*
     <property> ::= <identifier> '=' ( <identifier> | <constant> | <map-literal> )
@@ -215,7 +217,7 @@ h3(#alterKeyspaceStmt). ALTER KEYSPACE
 __Syntax:__
 
 bc(syntax).. 
-<create-keyspace-stmt> ::= ALTER KEYSPACE <identifier> WITH <properties>
+<create-keyspace-stmt> ::= ALTER KEYSPACE (IF EXISTS)? <identifier> WITH <properties>
 p. 
 __Sample:__
 
@@ -225,6 +227,7 @@ ALTER KEYSPACE Excelsior
 
 p. 
 The @ALTER KEYSPACE@ statement alters the properties of an existing keyspace. The supported @<properties>@ are the same as for the "@CREATE KEYSPACE@":#createKeyspaceStmt statement.
+If the keyspace does not exist, the statement will return an error, unless @IF EXISTS@ is used in which case the operation is a no-op.
 
 
 h3(#dropKeyspaceStmt). DROP KEYSPACE
@@ -251,8 +254,10 @@ bc(syntax)..
                           '(' <column-definition> ( ',' <column-definition> )* ')'
                           ( WITH <option> ( AND <option>)* )?
 
-<column-definition> ::= <identifier> <type> ( STATIC )? ( PRIMARY KEY )?
+<column-definition> ::= <identifier> <type> ( STATIC )? ( <column_mask> )? ( PRIMARY KEY )?
                       | PRIMARY KEY '(' <partition-key> ( ',' <identifier> )* ')'
+
+<column-mask> ::= MASKED WITH ( DEFAULT | <function> '(' ( <term> (',' <term>)* )?  ')' )
 
 <partition-key> ::= <identifier>
                   | '(' <identifier> (',' <identifier> )* ')'
@@ -361,7 +366,7 @@ Table creation supports the following other @<property>@:
 
 h4(#compactionOptions). Compaction options
 
-The @compaction@ property must at least define the @'class'@ sub-option, that defines the compaction strategy class to use. The default supported class are @'SizeTieredCompactionStrategy'@, @'LeveledCompactionStrategy'@, @'DateTieredCompactionStrategy'@ and @'TimeWindowCompactionStrategy'@. Custom strategy can be provided by specifying the full class name as a "string constant":#constants. The rest of the sub-options depends on the chosen class. The sub-options supported by the default classes are:
+The @compaction@ property must at least define the @'class'@ sub-option, that defines the compaction strategy class to use. The default supported class are @'SizeTieredCompactionStrategy'@, @'LeveledCompactionStrategy'@ and @'TimeWindowCompactionStrategy'@. Custom strategy can be provided by specifying the full class name as a "string constant":#constants. The rest of the sub-options depends on the chosen class. The sub-options supported by the default classes are:
 
 |_. option                               |_. supported compaction strategy |_. default    |_. description |
 | @enabled@                              | _all_                           | true         | A boolean denoting whether compaction should be enabled or not.|
@@ -374,9 +379,6 @@ The @compaction@ property must at least define the @'class'@ sub-option, that de
 | @bucket_low@                           | SizeTieredCompactionStrategy    | 0.5          | Size tiered consider sstables to be within the same bucket if their size is within [average_size * @bucket_low@, average_size * @bucket_high@ ] (i.e the default groups sstable whose sizes diverges by at most 50%)|
 | @bucket_high@                          | SizeTieredCompactionStrategy    | 1.5          | Size tiered consider sstables to be within the same bucket if their size is within [average_size * @bucket_low@, average_size * @bucket_high@ ] (i.e the default groups sstable whose sizes diverges by at most 50%).|
 | @sstable_size_in_mb@                   | LeveledCompactionStrategy       | 5MB          | The target size (in MB) for sstables in the leveled strategy. Note that while sstable sizes should stay less or equal to @sstable_size_in_mb@, it is possible to exceptionally have a larger sstable as during compaction, data for a given partition key are never split into 2 sstables|
-| @timestamp_resolution@                 | DateTieredCompactionStrategy    | MICROSECONDS | The timestamp resolution used when inserting data, could be MILLISECONDS, MICROSECONDS etc (should be understandable by Java TimeUnit) - don't change this unless you do mutations with USING TIMESTAMP <non_microsecond_timestamps> (or equivalent directly in the client)|
-| @base_time_seconds@                    | DateTieredCompactionStrategy    | 60           | The base size of the time windows. |
-| @max_sstable_age_days@                 | DateTieredCompactionStrategy    | 365          | SSTables only containing data that is older than this will never be compacted. |
 | @timestamp_resolution@                 | TimeWindowCompactionStrategy    | MICROSECONDS | The timestamp resolution used when inserting data, could be MILLISECONDS, MICROSECONDS etc (should be understandable by Java TimeUnit) - don't change this unless you do mutations with USING TIMESTAMP <non_microsecond_timestamps> (or equivalent directly in the client)|
 | @compaction_window_unit@               | TimeWindowCompactionStrategy    | DAYS         | The Java TimeUnit used for the window size, set in conjunction with @compaction_window_size@. Must be one of DAYS, HOURS, MINUTES |
 | @compaction_window_size@               | TimeWindowCompactionStrategy    | 1            | The number of @compaction_window_unit@ units that make up a time window. |
@@ -410,14 +412,17 @@ h3(#alterTableStmt). ALTER TABLE
 __Syntax:__
 
 bc(syntax).. 
-<alter-table-stmt> ::= ALTER (TABLE | COLUMNFAMILY) <tablename> <instruction>
+<alter-table-stmt> ::= ALTER (TABLE | COLUMNFAMILY) (IF NOT EXISTS)? <tablename> <instruction>
 
-<instruction> ::= ADD   <identifier> <type>
-                | ADD   ( <identifier> <type> ( , <identifier> <type> )* )
-                | DROP  <identifier>
-                | DROP  ( <identifier> ( , <identifier> )* )
+<instruction> ::= ADD (IF NOT EXISTS)? ( <identifier> <type> ( <column-mask> )?
+                                       ( , <identifier> <type> ( <column-mask> )? )* )
+                | DROP  (IF EXISTS)? ( <identifier> ( , <identifier> )* )
+                | ALTER <identifier> ( <column-mask> | DROP MASKED )
+                | RENAME (IF EXISTS)? <identifier> to <identifier> (AND <identifier> to <identifier>)*
                 | DROP COMPACT STORAGE
                 | WITH  <option> ( AND <option> )*
+
+<column-mask> ::= MASKED WITH ( DEFAULT | <function> '(' ( <term> (',' <term>)* )?  ')' )
 p. 
 __Sample:__
 
@@ -432,9 +437,13 @@ WITH comment = 'A most excellent and useful column family';
 p. 
 The @ALTER@ statement is used to manipulate table definitions. It allows for adding new columns, dropping existing ones, or updating the table options. As with table creation, @ALTER COLUMNFAMILY@ is allowed as an alias for @ALTER TABLE@.
 
+If the table does not exist, the statement will return an error, unless @IF EXISTS@ is used in which case the operation is a no-op.
+
 The @<tablename>@ is the table name optionally preceded by the keyspace name.  The @<instruction>@ defines the alteration to perform:
-* @ADD@: Adds a new column to the table. The @<identifier>@ for the new column must not conflict with an existing column. Moreover, columns cannot be added to tables defined with the @COMPACT STORAGE@ option.
-* @DROP@: Removes a column from the table. Dropped columns will immediately become unavailable in the queries and will not be included in compacted sstables in the future. If a column is readded, queries won't return values written before the column was last dropped. It is assumed that timestamps represent actual time, so if this is not your case, you should NOT readd previously dropped columns. Columns can't be dropped from tables defined with the @COMPACT STORAGE@ option.
+* @ADD@: Adds a new column to the table. The @<identifier>@ for the new column must not conflict with an existing column. Moreover, columns cannot be added to tables defined with the @COMPACT STORAGE@ option. If the new column already exists, the statement will return an error, unless @IF NOT EXISTS@ is used in which case the operation is a no-op.
+* @DROP@: Removes a column from the table. Dropped columns will immediately become unavailable in the queries and will not be included in compacted sstables in the future. If a column is readded, queries won't return values written before the column was last dropped. It is assumed that timestamps represent actual time, so if this is not your case, you should NOT readd previously dropped columns. Columns can't be dropped from tables defined with the @COMPACT STORAGE@ option. If the dropped column does not already exist, the statement will return an error, unless @IF EXISTS@ is used in which case the operation is a no-op.
+* @ALTER@: Alters an existing column. It can be used to set its data mask, or to set it as unmasked. The data mask is any function meant to obscure the real values of the column.
+* @RENAME@ a primary key column of a table. Non primary key columns cannot be renamed. Furthermore, renaming a column to another name which already exists isn't allowed. It's important to keep in mind that renamed columns shouldn't have dependent secondary indexes. If the renamed column does not already exist, the statement will return an error, unless @IF EXISTS@ is used in which case the operation is a no-op.
 * @DROP COMPACT STORAGE@: Removes Thrift compatibility mode from the table.
 * @WITH@: Allows to update the options of the table. The "supported @<option>@":#createTableOptions (and syntax) are the same as for the @CREATE TABLE@ statement except that @COMPACT STORAGE@ is not supported. Note that setting any @compaction@ sub-options has the effect of erasing all previous @compaction@ options, so you  need to re-specify all the sub-options if you want to keep them. The same note applies to the set of @compression@ sub-options.
 
@@ -504,13 +513,23 @@ __Sample:__
 bc(sample). 
 CREATE INDEX userIndex ON NerdMovies (user);
 CREATE INDEX ON Mutants (abilityId);
-CREATE INDEX ON users (keys(favs));
+CREATE INDEX ON users (KEYS(favs));
+CREATE INDEX ON users (age) USING 'sai';
 CREATE CUSTOM INDEX ON users (email) USING 'path.to.the.IndexClass';
 CREATE CUSTOM INDEX ON users (email) USING 'path.to.the.IndexClass' WITH OPTIONS = {'storage': '/mnt/ssd/indexes/'};
 
 The @CREATE INDEX@ statement is used to create a new (automatic) secondary index for a given (existing) column in a given table. A name for the index itself can be specified before the @ON@ keyword, if desired. If data already exists for the column, it will be indexed asynchronously. After the index is created, new data for the column is indexed automatically at insertion time.
 
 Attempting to create an already existing index will return an error unless the @IF NOT EXISTS@ option is used. If it is used, the statement will be a no-op if the index already exists.
+
+h4(#usingIndex). Index Types
+
+The @USING@ keyword optionally specifies an index type. There are two built-in types:
+
+* legacy_local_table - (default) legacy secondary index, implemented as a hidden local table
+* sai - "storage-attched" index, implemented via optimized SSTable/Memtable-attached indexes
+
+To create a custom index, a fully qualified class name must be specified.
 
 h4(#keysIndex). Indexes on Map Keys
 
@@ -568,12 +587,12 @@ h3(#alterMVStmt). ALTER MATERIALIZED VIEW
 
 __Syntax:__
 
-bc(syntax). <alter-materialized-view-stmt> ::= ALTER MATERIALIZED VIEW <viewname>
+bc(syntax). <alter-materialized-view-stmt> ::= ALTER MATERIALIZED VIEW (IF EXISTS)? <viewname>
                                                  WITH <option> ( AND <option> )*
 
-p.
+p. 
 The @ALTER MATERIALIZED VIEW@ statement allows options to be update; these options are the same as <a href="#createTableOptions">@CREATE TABLE@'s options</a>.
-
+If the view does not exist, the statement will return an error, unless @IF EXISTS@ is used in which case the operation is a no-op.
 
 h3(#dropMVStmt). DROP MATERIALIZED VIEW
 
@@ -633,10 +652,10 @@ h3(#alterTypeStmt). ALTER TYPE
 __Syntax:__
 
 bc(syntax).. 
-<alter-type-stmt> ::= ALTER TYPE <typename> <instruction>
+<alter-type-stmt> ::= ALTER TYPE (IF EXISTS)? <typename> <instruction>
 
-<instruction> ::= ADD <field-name> <type>
-                | RENAME <field-name> TO <field-name> ( AND <field-name> TO <field-name> )*
+<instruction> ::= ADD (IF NOT EXISTS)? <field-name> <type>
+                | RENAME (IF EXISTS)? <field-name> TO <field-name> ( AND <field-name> TO <field-name> )*
 p. 
 __Sample:__
 
@@ -646,6 +665,7 @@ ALTER TYPE address ADD country text
 ALTER TYPE address RENAME zip TO zipcode AND street_name TO street
 p. 
 The @ALTER TYPE@ statement is used to manipulate type definitions. It allows for adding new fields, renaming existing fields, or changing the type of existing fields.
+If the type does not exist, the statement will return an error, unless @IF EXISTS@ is used in which case the operation is a no-op.
 
 h3(#dropTypeStmt). DROP TYPE
 
@@ -855,7 +875,7 @@ __Syntax:__
 bc(syntax).. 
 <insertStatement> ::= INSERT INTO <tablename>
                       ( ( <name-list> VALUES <value-list> )
-                      | ( JSON <string> ))
+                      | ( JSON <string> (DEFAULT ( NULL | UNSET ))?))
                       ( IF NOT EXISTS )?
                       ( USING <option> ( AND <option> )* )?
 
@@ -909,7 +929,7 @@ bc(syntax)..
               | <identifier> '.' <field> <op> <term>
               | <identifier> '.' <field> IN <in-values>
 
-<op> ::= '<' | '<=' | '=' | '!=' | '>=' | '>'
+<op> ::= '<' | '<=' | '=' | '!=' | '>=' | '>' | CONTAINS ( KEY )?
 <in-values> ::= (<variable> | '(' ( <term> ( ',' <term> )* )? ')')
 
 <where-clause> ::= <relation> ( AND <relation> )*
@@ -953,7 +973,7 @@ h4(#updateOptions). @<options>@
 
 The @UPDATE@ and @INSERT@ statements support the following options:
 * @TIMESTAMP@: sets the timestamp for the operation. If not specified, the coordinator will use the current time (in microseconds) at the start of statement execution as the timestamp. This is usually a suitable default.
-* @TTL@: specifies an optional Time To Live (in seconds) for the inserted values. If set, the inserted values are automatically removed from the database after the specified time. Note that the TTL concerns the inserted values, not the columns themselves. This means that any subsequent update of the column will also reset the TTL (to whatever TTL is specified in that update). By default, values never expire. A TTL of 0 is equivalent to no TTL. If the table has a default_time_to_live, a TTL of 0 will remove the TTL for the inserted or updated values.
+* @TTL@: specifies an optional Time To Live (in seconds) for the inserted values. If set, the inserted values are automatically removed from the database after the specified time. Note that the TTL concerns the inserted values, not the columns themselves. This means that any subsequent update of the column will also reset the TTL (to whatever TTL is specified in that update). By default, values never expire. A TTL of 0 is equivalent to no TTL. If the table has a default_time_to_live, a TTL of 0 will remove the TTL for the inserted or updated values. A TTL of @null@ is equivalent to inserting with a TTL of 0.
 
 
 h3(#deleteStmt). DELETE
@@ -980,7 +1000,7 @@ bc(syntax)..
              | '(' <identifier> (',' <identifier>)* ')' IN '(' ( <term-tuple> ( ',' <term-tuple>)* )? ')'
              | '(' <identifier> (',' <identifier>)* ')' IN <variable>
 
-<op> ::= '=' | '<' | '>' | '<=' | '>='
+<op> ::= '=' | '<' | '>' | '<=' | '>=' | CONTAINS ( KEY )?
 <in-values> ::= (<variable> | '(' ( <term> ( ',' <term> )* )? ')')
 
 <condition> ::= <identifier> (<op> | '!=') <term>
@@ -1082,10 +1102,10 @@ bc(syntax)..
 
 <selector> ::= <identifier>
              | <term>
-             | WRITETIME '(' <identifier> ')'
-             | MAXWRITETIME '(' <identifier> ')'
+             | WRITETIME '(' <selector> ')'
+             | MAXWRITETIME '(' <selector> ')'
              | COUNT '(' '*' ')'
-             | TTL '(' <identifier> ')'
+             | TTL '(' <selector> ')'
              | CAST '(' <selector> AS <type> ')'
              | <function> '(' (<selector> (',' <selector>)*)? ')'
              | <selector> '.' <identifier>
@@ -1259,10 +1279,14 @@ __Syntax:__
 bc(syntax).. 
 <create-role-stmt> ::= CREATE ROLE ( IF NOT EXISTS )? <identifier> ( WITH <option> ( AND <option> )* )?
 
-<option> ::= PASSWORD = <string>
+<option> ::= ("HASHED")? PASSWORD = <string>
            | LOGIN = <boolean>
            | SUPERUSER = <boolean>
            | OPTIONS = <map_literal>
+           | ACCESS TO DATACENTERS { dcPermission (, dcPermission)* }
+           | ACCESS TO ALL DATACENTERS
+           | ACCESS FROM CIDRS { cidrPermission (, cidrPermission)* }
+           | ACCESS FROM ALL CIDRS
 p. 
 
 __Sample:__
@@ -1272,6 +1296,9 @@ CREATE ROLE new_role;
 CREATE ROLE alice WITH PASSWORD = 'password_a' AND LOGIN = true;
 CREATE ROLE bob WITH PASSWORD = 'password_b' AND LOGIN = true AND SUPERUSER = true;
 CREATE ROLE carlos WITH OPTIONS = { 'custom_option1' : 'option1_value', 'custom_option2' : 99 };
+CREATE ROLE rob WITH LOGIN = true and PASSWORD = 'password_c' AND ACCESS FROM ALL CIDRS;
+CREATE ROLE hob WITH LOGIN = true and PASSWORD = 'password_d' AND ACCESS FROM CIDRS { 'region1' };
+
 
 By default roles do not possess @LOGIN@ privileges or @SUPERUSER@ status.
 
@@ -1279,7 +1306,7 @@ By default roles do not possess @LOGIN@ privileges or @SUPERUSER@ status.
 
 If a role has the @LOGIN@ privilege, clients may identify as that role when connecting. For the duration of that connection, the client will acquire any roles and privileges granted to that role.
 
-Only a client with with the @CREATE@ permission on the database roles resource may issue @CREATE ROLE@ requests (see the "relevant section":#permissions below), unless the client is a @SUPERUSER@. Role management in Cassandra is pluggable and custom implementations may support only a subset of the listed options.
+Only a client with the @CREATE@ permission on the database roles resource may issue @CREATE ROLE@ requests (see the "relevant section":#permissions below), unless the client is a @SUPERUSER@. Role management in Cassandra is pluggable and custom implementations may support only a subset of the listed options.
 
 Role names should be quoted if they contain non-alphanumeric characters. 
 
@@ -1301,18 +1328,24 @@ h3(#alterRoleStmt). ALTER ROLE
 __Syntax:__
 
 bc(syntax).. 
-<alter-role-stmt> ::= ALTER ROLE <identifier> ( WITH <option> ( AND <option> )* )?
+<alter-role-stmt> ::= ALTER ROLE (IF EXISTS)? <identifier> ( WITH <option> ( AND <option> )* )?
 
 <option> ::= PASSWORD = <string>
            | LOGIN = <boolean>
            | SUPERUSER = <boolean>
            | OPTIONS = <map_literal>
+           | ACCESS TO DATACENTERS { dcPermission (, dcPermission)* }
+           | ACCESS TO ALL DATACENTERS
+           | ACCESS FROM CIDRS { cidrPermission (, cidrPermission)* }
+           | ACCESS FROM ALL CIDRS
 p. 
 
 __Sample:__
 
 bc(sample). 
 ALTER ROLE bob WITH PASSWORD = 'PASSWORD_B' AND SUPERUSER = false;
+ALTER ROLE rob WITH LOGIN = true and PASSWORD = 'password_c' AND ACCESS FROM ALL CIDRS;
+ALTER ROLE hob WITH LOGIN = true and PASSWORD = 'password_d' AND ACCESS FROM CIDRS { 'region1' };
 
 Conditions on executing @ALTER ROLE@ statements:
 
@@ -1320,7 +1353,7 @@ Conditions on executing @ALTER ROLE@ statements:
 * A client cannot alter the @SUPERUSER@ status of any role it currently holds
 * A client can only modify certain properties of the role with which it identified at login (e.g. @PASSWORD@)
 * To modify properties of a role, the client must be granted @ALTER@ "permission":#permissions on that role
-
+If the role does not exist, the statement will return an error, unless @IF EXISTS@ is used in which case the operation is a no-op.
 
 h3(#dropRoleStmt). DROP ROLE
 
@@ -1412,7 +1445,7 @@ Prior to the introduction of roles in Cassandra 2.2, authentication and authoriz
 __Syntax:__ 
 
 bc(syntax).. 
-<create-user-statement> ::= CREATE USER ( IF NOT EXISTS )? <identifier> ( WITH PASSWORD <string> )? (<option>)?
+<create-user-statement> ::= CREATE USER ( IF NOT EXISTS )? <identifier> ( WITH ("HASHED")? PASSWORD <string> )? (<option>)?
 
 <option> ::= SUPERUSER
            | NOSUPERUSER
@@ -1448,11 +1481,12 @@ h3(#alterUserStmt). ALTER USER
 __Syntax:__ 
 
 bc(syntax).. 
-<alter-user-statement> ::= ALTER USER <identifier> ( WITH PASSWORD <string> )? ( <option> )?
+<alter-user-statement> ::= ALTER USER (IF EXISTS)? <identifier> ( WITH PASSWORD <string> )? ( <option> )?
 
 <option> ::= SUPERUSER
            | NOSUPERUSER
 p. 
+If the user does not exist, the statement will return an error, unless @IF EXISTS@ is used in which case the operation is a no-op.
 
 bc(sample). 
 ALTER USER alice WITH PASSWORD 'PASSWORD_A';
@@ -1516,6 +1550,8 @@ The full set of available permissions is:
 * @AUTHORIZE@
 * @DESCRIBE@
 * @EXECUTE@
+* @UNMASK@
+* @SELECT_MASKED@
 
 Not all permissions are applicable to every type of resource. For instance, @EXECUTE@ is only relevant in the context of functions or mbeans; granting @EXECUTE@ on a resource representing a table is nonsensical. Attempting to @GRANT@ a permission on resource to which it cannot be applied results in an error response. The following illustrates which permissions can be granted on which types of resource, and which statements are enabled by that permission.
 
@@ -1575,6 +1611,12 @@ Not all permissions are applicable to every type of resource. For instance, @EXE
 | @EXECUTE@    | @ALL MBEANS@                 |Execute operations on any mbean|
 | @EXECUTE@    | @MBEANS@                     |Execute operations on any mbean matching a wildcard pattern|
 | @EXECUTE@    | @MBEAN@                      |Execute operations on named mbean|
+| @UNMASK@     | @ALL KEYSPACES@              |See the clear contents of masked columns on any table|
+| @UNMASK@     | @KEYSPACE@                   |See the clear contents of masked columns on any table in keyspace|
+| @UNMASK@     | @TABLE@                      |See the clear contents of masked columns on the specified table|
+| @SELECT_MASKED@ | @ALL KEYSPACES@           |Select restricting masked columns on any table|
+| @SELECT_MASKED@ | @KEYSPACE@                |Select restricting masked columns on any table in keyspace|
+| @SELECT_MASKED@ | @TABLE@                   |Select restricting masked columns on the specified table|
 
 
 h3(#grantPermissionsStmt). GRANT PERMISSION
@@ -1582,12 +1624,13 @@ h3(#grantPermissionsStmt). GRANT PERMISSION
 __Syntax:__ 
 
 bc(syntax).. 
-<grant-permission-stmt> ::= GRANT ( ALL ( PERMISSIONS )? | <permission> ( PERMISSION )? ) ON <resource> TO <identifier>
+<grant-permission-stmt> ::= GRANT ( ALL ( PERMISSIONS )? | <permission> ( PERMISSION )? (, PERMISSION)* ) ON <resource> TO <identifier>
 
-<permission> ::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESRIBE | EXECUTE
+<permission> ::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESRIBE | EXECUTE | UNMASK | SELECT_MASKED
 
 <resource> ::= ALL KEYSPACES
              | KEYSPACE <identifier>
+             | ALL TABLES IN KEYSPACE <identifier>
              | ( TABLE )? <tablename>
              | ALL ROLES
              | ROLE <identifier>
@@ -1638,12 +1681,13 @@ h3(#revokePermissionsStmt). REVOKE PERMISSION
 __Syntax:__ 
 
 bc(syntax).. 
-<revoke-permission-stmt> ::= REVOKE ( ALL ( PERMISSIONS )? | <permission> ( PERMISSION )? ) ON <resource> FROM <identifier>
+<revoke-permission-stmt> ::= REVOKE ( ALL ( PERMISSIONS )? | <permission> ( PERMISSION )? (, PERMISSION)* ) ON <resource> FROM <identifier>
 
-<permission> ::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESRIBE | EXECUTE
+<permission> ::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESRIBE | EXECUTE | UNMASK | SELECT_MASKED
 
 <resource> ::= ALL KEYSPACES
              | KEYSPACE <identifier>
+             | ALL TABLES IN KEYSPACE <identifier>
              | ( TABLE )? <tablename>
              | ALL ROLES
              | ROLE <identifier>
@@ -1651,7 +1695,7 @@ bc(syntax)..
              | FUNCTION <functionname>
              | ALL MBEANS
              | ( MBEAN | MBEANS ) <objectName>
-p.
+p. 
 
 __Sample:__ 
 
@@ -1674,6 +1718,7 @@ bc(syntax)..
 
 <resource> ::= ALL KEYSPACES
              | KEYSPACE <identifier>
+             | ALL TABLES IN KEYSPACE <identifier>
              | ( TABLE )? <tablename>
              | ALL ROLES
              | ROLE <identifier>
@@ -1681,7 +1726,7 @@ bc(syntax)..
              | FUNCTION <functionname>
              | ALL MBEANS
              | ( MBEAN | MBEANS ) <objectName>
-p.
+p. 
 
 __Sample:__
 
@@ -1710,6 +1755,7 @@ bc(syntax)..
 <type> ::= <native-type>
          | <collection-type>
          | <tuple-type>
+         | <vector-type>
          | <string>       // Used for custom types. The fully-qualified name of a JAVA class
 
 <native-type> ::= ascii
@@ -1720,6 +1766,7 @@ bc(syntax)..
                 | date
                 | decimal
                 | double
+                | duration
                 | float
                 | inet
                 | int
@@ -1736,7 +1783,11 @@ bc(syntax)..
 <collection-type> ::= list '<' <native-type> '>'
                     | set  '<' <native-type> '>'
                     | map  '<' <native-type> ',' <native-type> '>'
+
 <tuple-type> ::= tuple '<' <type> (',' <type>)* '>'
+
+<vector-type> ::= vector '<' <native-type> ',' <number> '>'
+
 p. Note that the native types are keywords and as such are case-insensitive. They are however not reserved ones.
 
 p. The following table gives additional informations on the native data types, and on which kind of "constants":#constants each type supports:
@@ -1750,6 +1801,7 @@ p. The following table gives additional informations on the native data types, a
 |@date@     |   integers, strings  |A date (with no corresponding time value).  See "Working with dates":#usingdates below for more information.|
 |@decimal@  |   integers, floats   |Variable-precision decimal|
 |@double@   |   integers           |64-bit IEEE-754 floating point|
+|@duration@ |   duration           |A duration with nanosecond precision. See "Working with durations":#usingdurations below for details.|
 |@float@    |   integers, floats   |32-bit IEEE-754 floating point|
 |@inet@     |   strings            |An IP address. It can be either 4 bytes long (IPv4) or 16 bytes long (IPv6). There is no @inet@ constant, IP address should be inputed as strings|
 |@int@      |   integers           |32-bit signed int|
@@ -1764,6 +1816,8 @@ p. The following table gives additional informations on the native data types, a
 |@varint@   |   integers           |Arbitrary-precision integer|
 
 For more information on how to use the collection types, see the "Working with collections":#collections section below.
+
+For more information on how to use the vector type, see the "Working with vectors":#vectors section below.
 
 h3(#usingtimestamps). Working with timestamps
 
@@ -1822,6 +1876,44 @@ They can also be input as string literals in any of the following formats:
 * @08:12:54.123@
 * @08:12:54.123456@
 * @08:12:54.123456789@
+
+h3(#usingdurations). Working with durations
+
+Values of the @duration@ type are encoded as 3 signed integers of variable lengths. The first integer represents the
+number of months, the second the number of days and the third the number of nanoseconds. This is due to the fact that
+the number of days in a month can change, and a day can have 23 or 25 hours depending on the daylight saving.
+
+A duration can be input as:
+
+* (quantity unit)+ like @12h30m@ where the unit can be:
+** @y@: years (12 months)
+** @mo@: months (1 month)
+** @w@: weeks (7 days)
+** @d@: days (1 day)
+** @h@: hours (3,600,000,000,000 nanoseconds)
+** @m@: minutes (60,000,000,000 nanoseconds)
+** @s@: seconds (1,000,000,000 nanoseconds)
+** @ms@: milliseconds (1,000,000 nanoseconds)
+** @us@ or @µs@ : microseconds (1000 nanoseconds)
+** @ns@: nanoseconds (1 nanosecond)
+* ISO 8601 format:  @P[n]Y[n]M[n]DT[n]H[n]M[n]S@ or @P[n]W@
+* ISO 8601 alternative format: @P[YYYY]-[MM]-[DD]T[hh]:[mm]:[ss]@
+
+For example:
+
+bc(sample). 
+    INSERT INTO RiderResults (rider, race, result) VALUES ('Christopher Froome', 'Tour de France', 89h4m48s);
+    INSERT INTO RiderResults (rider, race, result) VALUES ('BARDET Romain', 'Tour de France', PT89H8M53S);
+    INSERT INTO RiderResults (rider, race, result) VALUES ('QUINTANA Nairo', 'Tour de France', P0000-00-00T89:09:09);
+
+h4. duration-limitation:
+
+Duration columns cannot be used in a table's @PRIMARY KEY@. This limitation is due to the fact that
+durations cannot be ordered. It is effectively not possible to know if @1mo@ is greater than @29d@ without a date
+context.
+
+A @1d@ duration is not equals to a @24h@ one as the duration type has been created to be able to support daylight
+saving.
 
 
 h3(#counters). Counters
@@ -1946,6 +2038,75 @@ UPDATE plays SET scores = scores - [ 12, 21 ] WHERE id = '123-afde'; // removes 
 
 As with "maps":#map, TTLs if used only apply to the newly inserted/updated _values_.
 
+h3(#vectors). Working with vectors
+
+Vectors are fixed-size sequences of non-null values of a certain data type. They use the same literals as lists and it isn't possible to select individual elements of a vector.
+
+To create a column of type @vector@, use the @vector@ keyword suffixed with the value type and the number of dimensions enclosed in angle brackets.  For example:
+
+bc(sample).
+CREATE TABLE plays (
+    id text PRIMARY KEY,
+    game text,
+    players int,
+    scores vector<int, 3>
+)
+
+That would create a @vector@ of 3 @int@ values.
+
+To write a record using @INSERT@, specify the entire vector as a JSON array:
+
+bc(sample).
+INSERT INTO plays (id, game, players, scores) VALUES ('123-afde', 'quake', 3, [17, 4, 2]);
+
+To update a vector using @UPDATE@, specify the entire vector as a JSON array:
+
+bc(sample).
+UPDATE plays SET players = 5, scores = [ 14, 4, 3 ] WHERE id = '123-afde';
+
+It isn't possible to change the individual values of a vector.
+
+h2(#arithmeticOperators). Arithmetic Operators
+
+h3(#numberArithmetic). Number Arithmetic
+
+CQL supports the following operators:
+
+|_. Operator   |_. Description                        |
+| @-@ (unary)  | Negates operand                      |
+| @+@          | Addition                             |
+| @-@          | Substraction                         |
+| @*@          | Multiplication                       |
+| @/@          | Division                             |
+| @%@          | Returns the remainder of a division  |
+
+Arithmetic operations are only supported on numeric types or counters.
+
+The return type of the operation will be based on the operand types:
+
+
+|_. left/right       |_. @tinyint@    |_. @smallint@    |_. @int@      |_. @bigint@    |_. @counter@    |_. @float@     |_. @double@    |_. @varint@    |_. @decimal@    |
+| **@tinyint@**      | @tinyint@      | @smallint@      | @int@        | @bigint@      | @bigint@       | @float@       | @double@      | @varint@      | @decimal@      |
+| **@smallint@**     | @smallint@     | @smallint@      | @int@        | @bigint@      | @bigint@       | @float@       | @double@      | @varint@      | @decimal@      |
+| **@int@**          | @int@          | @int@           | @int@        | @bigint@      | @bigint@       | @float@       | @double@      | @varint@      | @decimal@      |
+| **@bigint@**       | @bigint@       | @bigint@        | @bigint@     | @bigint@      | @bigint@       | @double@      | @double@      | @varint@      | @decimal@      |
+| **@counter@**      | @bigint@       | @bigint@        | @bigint@     | @bigint@      | @bigint@       | @double@      | @double@      | @varint@      | @decimal@      |
+| **@float@**        | @float@        | @float@         | @float@      | @double@      | @double@       | @float@       | @double@      | @decimal@     | @decimal@      |
+| **@double@**       | @double@       | @double@        | @double@     | @double@      | @double@       | @double@      | @double@      | @decimal@     | @decimal@      |
+| **@varint@**       | @varint@       | @varint@        | @varint@     | @decimal@     | @decimal@      | @decimal@     | @decimal@     | @decimal@     | @decimal@      |
+| **@decimal@**      | @decimal@      | @decimal@       | @decimal@    | @decimal@     | @decimal@      | @decimal@     | @decimal@     | @decimal@     | @decimal@      |
+
+
+@*@, @/@ and @%@ operators have a higher precedence level than @+@ and @-@ operator. By consequence, they will be evaluated before. If two operator in an expression have the same precedence level, they will be evaluated left to right based on their position in the expression.
+
+h3(#datetimeArithmetic). Datetime Arithmetic
+
+A @duration@ can be added (+) or substracted (-) from a @timestamp@ or a @date@ to create a new @timestamp@ or @date@. So for instance:
+
+bc(sample). 
+SELECT * FROM myTable WHERE t = '2017-01-01' - 2d
+
+will select all the records with a value of @t@ which is in the last 2 days of 2016.
 
 h2(#functions). Functions
 
@@ -1958,22 +2119,22 @@ The @cast@ function can be used to convert one native datatype to another.
 The following table describes the conversions supported by the @cast@ function. Cassandra will silently ignore any cast converting a datatype into its own datatype.
 
 |_. from    |_. to   |
-|@ascii@   |@text@, @varchar@                                                                                    |
+|@ascii@    |@text@, @varchar@                                                                                    |
 |@bigint@   |@tinyint@, @smallint@, @int@, @float@, @double@, @decimal@, @varint@, @text@, @varchar@             |
 |@boolean@  |@text@, @varchar@                                                                                   |
 |@counter@  |@tinyint@, @smallint@, @int@, @bigint@, @float@, @double@, @decimal@, @varint@, @text@, @varchar@   |
-|@date@      |@timestamp@                                                                                        |
+|@date@     |@timestamp@                                                                                        |
 |@decimal@  |@tinyint@, @smallint@, @int@, @bigint@, @float@, @double@, @varint@, @text@, @varchar@              |
 |@double@   |@tinyint@, @smallint@, @int@, @bigint@, @float@, @decimal@, @varint@, @text@, @varchar@             |
-|@float@     |@tinyint@, @smallint@, @int@, @bigint@, @double@, @decimal@, @varint@, @text@, @varchar@           |
-|@inet@      |@text@, @varchar@                                                                                  |
-|@int@       |@tinyint@, @smallint@, @bigint@, @float@, @double@, @decimal@, @varint@, @text@, @varchar@         |
+|@float@    |@tinyint@, @smallint@, @int@, @bigint@, @double@, @decimal@, @varint@, @text@, @varchar@           |
+|@inet@     |@text@, @varchar@                                                                                  |
+|@int@      |@tinyint@, @smallint@, @bigint@, @float@, @double@, @decimal@, @varint@, @text@, @varchar@         |
 |@smallint@ |@tinyint@, @int@, @bigint@, @float@, @double@, @decimal@, @varint@, @text@, @varchar@               |
-|@time@      |@text@, @varchar@                                                                                  |
+|@time@     |@text@, @varchar@                                                                                  |
 |@timestamp@|@date@, @text@, @varchar@                                                                           |
 |@timeuuid@ |@timestamp@, @date@, @text@, @varchar@                                                              |
 |@tinyint@  |@tinyint@, @smallint@, @int@, @bigint@, @float@, @double@, @decimal@, @varint@, @text@, @varchar@   |
-|@uuid@      |@text@, @varchar@                                                                                  |
+|@uuid@     |@text@, @varchar@                                                                                  |
 |@varint@   |@tinyint@, @smallint@, @int@, @bigint@, @float@, @double@, @decimal@, @text@, @varchar@             |
 
 
@@ -2017,38 +2178,66 @@ SELECT * FROM myTable WHERE t = now()
 
 
 will never return any result by design, since the value returned by @now()@ is guaranteed to be unique.
-
-h4. @minTimeuuid@ and @maxTimeuuid@
-
-The @minTimeuuid@ (resp. @maxTimeuuid@) function takes a @timestamp@ value @t@ (which can be "either a timestamp or a date string":#usingtimestamps ) and return a _fake_ @timeuuid@ corresponding to the _smallest_ (resp. _biggest_) possible @timeuuid@ having for timestamp @t@. So for instance:
+@current_timeuuid@ is an alias of @now@.
 
 
-bc(sample). 
-SELECT * FROM myTable WHERE t > maxTimeuuid('2013-01-01 00:05+0000') AND t < minTimeuuid('2013-02-02 10:00+0000')
+h4. @min_timeuuid@ and @max_timeuuid@
+
+The @min_timeuuid@ (resp. @max_timeuuid@) function takes a @timestamp@ value @t@ (which can be "either a timestamp or a date string":#usingtimestamps ) and return a _fake_ @timeuuid@ corresponding to the _smallest_ (resp. _biggest_) possible @timeuuid@ having for timestamp @t@. So for instance:
 
 
-will select all rows where the @timeuuid@ column @t@ is strictly older than '2013-01-01 00:05+0000' but strictly younger than '2013-02-02 10:00+0000'.  Please note that @t >= maxTimeuuid('2013-01-01 00:05+0000')@ would still _not_ select a @timeuuid@ generated exactly at '2013-01-01 00:05+0000' and is essentially equivalent to @t > maxTimeuuid('2013-01-01 00:05+0000')@.
+bc(sample).
+SELECT * FROM myTable WHERE t > max_timeuuid('2013-01-01 00:05+0000') AND t < min_timeuuid('2013-02-02 10:00+0000')
 
-_Warning_: We called the values generated by @minTimeuuid@ and @maxTimeuuid@ _fake_ UUID because they do no respect the Time-Based UUID generation process specified by the "RFC 4122":http://www.ietf.org/rfc/rfc4122.txt. In particular, the value returned by these 2 methods will not be unique. This means you should only use those methods for querying (as in the example above). Inserting the result of those methods is almost certainly _a bad idea_.
 
-h3(#timeFun). Time conversion functions
+will select all rows where the @timeuuid@ column @t@ is strictly older than '2013-01-01 00:05+0000' but strictly younger than '2013-02-02 10:00+0000'.  Please note that @t >= max_timeuuid('2013-01-01 00:05+0000')@ would still _not_ select a @timeuuid@ generated exactly at '2013-01-01 00:05+0000' and is essentially equivalent to @t > maxTimeuuid('2013-01-01 00:05+0000')@.
+
+_Warning_: We called the values generated by @min_timeuuid@ and @max_timeuuid@ _fake_ UUID because they do no respect the Time-Based UUID generation process specified by the "RFC 4122":http://www.ietf.org/rfc/rfc4122.txt. In particular, the value returned by these 2 methods will not be unique. This means you should only use those methods for querying (as in the example above). Inserting the result of those methods is almost certainly _a bad idea_.
+
+
+h3(#datetimeFun). Datetime functions
+
+h4(#curentDateTime). Retrieving the current date/time
+
+The following functions can be used to retrieve the date/time at the time where the function is invoked:
+
+|_. function name         |_.    output type       |
+| @current_timestamp@     |  @timestamp@           |
+| @current_date@          |  @date@                |
+| @current_time@          |  @time@                |
+| @current_timeuuid@      |  @timeUUID@            |
+
+For example the last 2 days of data can be retrieved using:
+
+bc(sample).
+SELECT * FROM myTable WHERE date >= current_date() - 2d
+
+h4(#timeFun). Time conversion functions
 
 A number of functions are provided to "convert" a @timeuuid@, a @timestamp@ or a @date@ into another @native@ type.
 
 |_. function name    |_. input type   |_. description|
-|@toDate@            |@timeuuid@      |Converts the @timeuuid@ argument into a @date@ type|
-|@toDate@            |@timestamp@     |Converts the @timestamp@ argument into a @date@ type|
-|@toTimestamp@       |@timeuuid@      |Converts the @timeuuid@ argument into a @timestamp@ type|
-|@toTimestamp@       |@date@          |Converts the @date@ argument into a @timestamp@ type|
-|@toUnixTimestamp@   |@timeuuid@      |Converts the @timeuuid@ argument into a @bigInt@ raw value|
-|@toUnixTimestamp@   |@timestamp@     |Converts the @timestamp@ argument into a @bigInt@ raw value|
-|@toUnixTimestamp@   |@date@          |Converts the @date@ argument into a @bigInt@ raw value|
-|@dateOf@            |@timeuuid@      |Similar to @toTimestamp(timeuuid)@ (DEPRECATED)|
-|@unixTimestampOf@   |@timeuuid@      |Similar to @toUnixTimestamp(timeuuid)@ (DEPRECATED)|
+|@to_date@           |@timeuuid@      |Converts the @timeuuid@ argument into a @date@ type|
+|@to_date@           |@timestamp@     |Converts the @timestamp@ argument into a @date@ type|
+|@to_timestamp@      |@timeuuid@      |Converts the @timeuuid@ argument into a @timestamp@ type|
+|@to_timestamp@      |@date@          |Converts the @date@ argument into a @timestamp@ type|
+|@to_unix_timestamp@ |@timeuuid@      |Converts the @timeuuid@ argument into a @bigInt@ raw value|
+|@to_unix_timestamp@ |@timestamp@     |Converts the @timestamp@ argument into a @bigInt@ raw value|
+|@to_unix_timestamp@ |@date@          |Converts the @date@ argument into a @bigInt@ raw value|
+
+h4(#floorFun). Floor function
+
+Rounds date and time to the nearest value.
+
+|_. type      |_. function                                     |_. |
+|@timestamp@  | floor(timestamp, duration [, start_timestamp]) | If the start_timestamp is not used, then the start timestamp is January 1, 1970 00:00:00.000 GMT |
+|@timeuuid@   | floor(timeuuid, duration [, start_timestamp])  | If the start_timestamp is not used, then the start timestamp is January 1, 1970 00:00:00.000 GMT |
+|@date@       | floor(date, duration [, start_date])           | If the start_date is not used, then the start date is January 1, 1970 GMT |
+|@time@       | floor(time, duration [, start_time])           | ==If the start_time is not used, then the start time is 00:00:00[000000000]== |
 
 h3(#blobFun). Blob conversion functions
 
-A number of functions are provided to "convert" the native types into binary data (@blob@). For every @<native-type>@ @type@ supported by CQL3 (a notable exceptions is @blob@, for obvious reasons), the function @typeAsBlob@ takes a argument of type @type@ and return it as a @blob@.  Conversely, the function @blobAsType@ takes a 64-bit @blob@ argument and convert it to a @bigint@ value.  And so for instance, @bigintAsBlob(3)@ is @0x0000000000000003@ and @blobAsBigint(0x0000000000000003)@ is @3@.
+A number of functions are provided to "convert" the native types into binary data (@blob@). For every @<native-type>@ @type@ supported by CQL3 (a notable exceptions is @blob@, for obvious reasons), the function @type_as_blob@ takes a argument of type @type@ and return it as a @blob@.  Conversely, the function @blob_as_type@ takes a 64-bit @blob@ argument and convert it to a @bigint@ value.  And so for instance, @bigint_as_blob(3)@ is @0x0000000000000003@ and @blob_as_bigint(0x0000000000000003)@ is @3@.
 
 h2(#aggregates). Aggregates
 
@@ -2251,13 +2440,13 @@ With @INSERT@ statements, the new @JSON@ keyword can be used to enable inserting
 bc(sample). 
 INSERT INTO mytable JSON '{"\"myKey\"": 0, "value": 0}'
 
-Any columns which are ommitted from the @JSON@ map will be defaulted to a @NULL@ value (which will result in a tombstone being created).
+By default (or if @DEFAULT NULL@ is explicitly used), a column omitted from the @JSON@ map will be set to @NULL@, meaning that any pre-existing value for that column will be removed (resulting in a tombstone being created). Alternatively, if the @DEFAULT UNSET@ directive is used after the value, omitted column values will be left unset, meaning that pre-existing values for those column will be preserved.
 
 h3(#jsonEncoding). JSON Encoding of Cassandra Data Types
 
 Where possible, Cassandra will represent and accept data types in their native @JSON@ representation.  Cassandra will also accept string representations matching the CQL literal format for all single-field types.  For example, floats, ints, UUIDs, and dates can be represented by CQL literal strings.  However, compound types, such as collections, tuples, and user-defined types must be represented by native @JSON@ collections (maps and lists) or a JSON-encoded string representation of the collection.
 
-The following table describes the encodings that Cassandra will accept in @INSERT JSON@ values (and @fromJson()@ arguments) as well as the format Cassandra will use when returning data for @SELECT JSON@ statements (and @fromJson()@):
+The following table describes the encodings that Cassandra will accept in @INSERT JSON@ values (and @from_json()@ arguments) as well as the format Cassandra will use when returning data for @SELECT JSON@ statements (and @from_json()@):
 
 |_. type    |_. formats accepted   |_. return format |_. notes|
 |@ascii@    |string                |string           |Uses JSON's @\u@ character escape|
@@ -2285,13 +2474,13 @@ The following table describes the encodings that Cassandra will accept in @INSER
 |@varchar@  |string                |string           |Uses JSON's @\u@ character escape|
 |@varint@   |integer, string       |integer          |Variable length; may overflow 32 or 64 bit integers in client-side decoder|
 
-h3(#fromJson). The fromJson() Function
+h3(#from_json). The from_json() Function
 
-The @fromJson()@ function may be used similarly to @INSERT JSON@, but for a single column value.  It may only be used in the @VALUES@ clause of an @INSERT@ statement or as one of the column values in an @UPDATE@, @DELETE@, or @SELECT@ statement.  For example, it cannot be used in the selection clause of a @SELECT@ statement.
+The @from_json()@ function may be used similarly to @INSERT JSON@, but for a single column value.  It may only be used in the @VALUES@ clause of an @INSERT@ statement or as one of the column values in an @UPDATE@, @DELETE@, or @SELECT@ statement.  For example, it cannot be used in the selection clause of a @SELECT@ statement.
 
-h3(#toJson). The toJson() Function
+h3(#to_json). The to_json() Function
 
-The @toJson()@ function may be used similarly to @SELECT JSON@, but for a single column value.  It may only be used in the selection clause of a @SELECT@ statement.
+The @to_json()@ function may be used similarly to @SELECT JSON@, but for a single column value.  It may only be used in the selection clause of a @SELECT@ statement.
 
 h2(#appendixA). Appendix A: CQL Keywords
 
@@ -2317,6 +2506,7 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @BY@           | yes |
 | @CALLED@       | no  |
 | @CAST@         | no  |
+| @CIDRS@        | no  |
 | @CLUSTERING@   | no  |
 | @COLUMNFAMILY@ | yes |
 | @COMPACT@      | no  |
@@ -2370,6 +2560,7 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @LIST@         | no  |
 | @LOGIN@        | no  |
 | @MAP@          | no  |
+| @MASKED@       | no  |
 | @MATERIALIZED@ | yes |
 | @MBEAN@        | yes |
 | @MBEANS@       | yes |
@@ -2399,6 +2590,7 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @ROLES@        | no  |
 | @SCHEMA@       | yes |
 | @SELECT@       | yes |
+| @SELECT_MASKED@| no  |
 | @SET@          | yes |
 | @SFUNC@        | no  |
 | @SMALLINT@     | no  |
@@ -2420,6 +2612,7 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @TUPLE@        | no  |
 | @TYPE@         | no  |
 | @UNLOGGED@     | yes |
+| @UNMASK@       | no  |
 | @UNSET@        | yes |
 | @UPDATE@       | yes |
 | @USE@          | yes |
@@ -2434,7 +2627,7 @@ CQL distinguishes between _reserved_ and _non-reserved_ keywords. Reserved keywo
 | @WHERE@        | yes |
 | @WITH@         | yes |
 | @WRITETIME@    | no  |
-| @MAXWRITETIME@    | no  |
+| @MAXWRITETIME@ | no  |
 
 h2(#appendixB). Appendix B: CQL Reserved Types
 
@@ -2453,9 +2646,40 @@ h2(#changes). Changes
 
 The following describes the changes in each version of CQL.
 
+h3. 3.4.7
+
+* Remove deprecated functions @dateOf@ and @unixTimestampOf@, replaced by @to_timestamp@ and @to_unixtimestamp@ (see "CASSANDRA-18328":https://issues.apache.org/jira/browse/CASSANDRA-18328).
+* Adopt snake_case function names, deprecating all previous camelCase or alltogetherwithoutspaces function names (see "CASSANDRA-18037":https://issues.apache.org/jira/browse/CASSANDRA-18037).
+
+h3. 3.4.6
+
+* Add support for @IF EXISTS@ and @IF NOT EXISTS@ in @ALTER@ statements (see "CASSANDRA-16916":https://issues.apache.org/jira/browse/CASSANDRA-16916).
+* Allow @GRANT/REVOKE@ multiple permissions in a single statement (see "CASSANDRA-17030":https://issues.apache.org/jira/browse/CASSANDRA-17030).
+* Pre hashed passwords in CQL (see "CASSANDRA-17334":https://issues.apache.org/jira/browse/CASSANDRA-17334).
+* Add support for type casting in @WHERE@ clause components and in the values of @INSERT/UPDATE@ statements (see "CASSANDRA-14337":https://issues.apache.org/jira/browse/CASSANDRA-14337).
+* Add support for @CONTAINS@ and @CONTAINS KEY@ in conditional @UPDATE@ and @DELETE@ statement (see "CASSANDRA-10537":https://issues.apache.org/jira/browse/CASSANDRA-10537).
+* Allow to grant permission for all tables in a keyspace (see "CASSANDRA-17027":https://issues.apache.org/jira/browse/CASSANDRA-17027).
+* Allow to use pure monotonic functions on the last attribute of the @GROUP BY@ clause (see "CASSANDRA-11871":https://issues.apache.org/jira/browse/CASSANDRA-11871).
+* Add floor function to allow grouping by time range (see "CASSANDRA-11871":https://issues.apache.org/jira/browse/CASSANDRA-11871).
+* Add support for adding and updating CIDR permissions using @CREATE ROLE@ and @ALTER ROLE@ statements
+
+h3. 3.4.5
+
+* Adds support for arithmetic operators. See "Number Arithmetic":#numberArithmetic (see "CASSANDRA-11935":https://issues.apache.org/jira/browse/CASSANDRA-11935).
+* Adds support for + and - operations on dates. See "Datetime Arithmetic":#datetimeArithmetic (see "CASSANDRA-11936":https://issues.apache.org/jira/browse/CASSANDRA-11936).
+* Adds @currentTimestamp@, @currentDate@, @currentTime@ and @currentTimeUUID@ functions (see "CASSANDRA-13132":https://issues.apache.org/jira/browse/CASSANDRA-13132).
+
+h3. 3.4.4
+
+* @ALTER TABLE ALTER@ has been removed; a column’s type may not be changed after creation (see "CASSANDRA-12443":https://issues.apache.org/jira/browse/CASSANDRA-12443).
+* @ALTER TYPE ALTER@ has been removed; a field’s type may not be changed after creation (see "CASSANDRA-12443":https://issues.apache.org/jira/browse/CASSANDRA-12443).
+
 h3. 3.4.3
 
+* Adds a new @duration@ data type See "Data Types":#types (see "CASSANDRA-11873":https://issues.apache.org/jira/browse/CASSANDRA-11873).
 * Support for @GROUP BY@. See "@<group-by>@":#selectGroupBy (see "CASSANDRA-10707":https://issues.apache.org/jira/browse/CASSANDRA-10707).
+* Adds a @DEFAULT UNSET@ option for @INSERT JSON@ to ignore omitted columns (see "CASSANDRA-11424":https://issues.apache.org/jira/browse/CASSANDRA-11424).
+* Allows @null@ as a legal value for TTL on insert and update. It will be treated as equivalent to inserting a 0 (see "CASSANDRA-12216":https://issues.apache.org/jira/browse/CASSANDRA-12216).
 
 h3. 3.4.2
 

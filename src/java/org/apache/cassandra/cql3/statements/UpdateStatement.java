@@ -32,6 +32,7 @@ import org.apache.cassandra.db.Slice;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.commons.lang3.builder.ToStringBuilder;
@@ -135,7 +136,8 @@ public class UpdateStatement extends ModificationStatement
         }
 
         @Override
-        protected ModificationStatement prepareInternal(TableMetadata metadata,
+        protected ModificationStatement prepareInternal(ClientState state,
+                                                        TableMetadata metadata,
                                                         VariableSpecifications bindVariables,
                                                         Conditions conditions,
                                                         Attributes attrs)
@@ -176,7 +178,8 @@ public class UpdateStatement extends ModificationStatement
 
             boolean applyOnlyToStaticColumns = !hasClusteringColumnsSet && appliesOnlyToStaticColumns(operations, conditions);
 
-            StatementRestrictions restrictions = new StatementRestrictions(type,
+            StatementRestrictions restrictions = new StatementRestrictions(state,
+                                                                           type,
                                                                            metadata,
                                                                            whereClause.build(),
                                                                            bindVariables,
@@ -210,7 +213,8 @@ public class UpdateStatement extends ModificationStatement
         }
 
         @Override
-        protected ModificationStatement prepareInternal(TableMetadata metadata,
+        protected ModificationStatement prepareInternal(ClientState state,
+                                                        TableMetadata metadata,
                                                         VariableSpecifications bindVariables,
                                                         Conditions conditions,
                                                         Attributes attrs)
@@ -244,7 +248,8 @@ public class UpdateStatement extends ModificationStatement
 
             boolean applyOnlyToStaticColumns = !hasClusteringColumnsSet && appliesOnlyToStaticColumns(operations, conditions);
 
-            StatementRestrictions restrictions = new StatementRestrictions(type,
+            StatementRestrictions restrictions = new StatementRestrictions(state,
+                                                                           type,
                                                                            metadata,
                                                                            whereClause.build(),
                                                                            bindVariables,
@@ -291,7 +296,8 @@ public class UpdateStatement extends ModificationStatement
         }
 
         @Override
-        protected ModificationStatement prepareInternal(TableMetadata metadata,
+        protected ModificationStatement prepareInternal(ClientState state,
+                                                        TableMetadata metadata,
                                                         VariableSpecifications bindVariables,
                                                         Conditions conditions,
                                                         Attributes attrs)
@@ -309,7 +315,8 @@ public class UpdateStatement extends ModificationStatement
                 operations.add(operation);
             }
 
-            StatementRestrictions restrictions = newRestrictions(metadata,
+            StatementRestrictions restrictions = newRestrictions(state,
+                                                                 metadata,
                                                                  bindVariables,
                                                                  operations,
                                                                  whereClause,

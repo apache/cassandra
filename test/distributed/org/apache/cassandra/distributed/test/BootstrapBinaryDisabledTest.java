@@ -24,7 +24,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
 
+import org.junit.AfterClass;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
@@ -36,13 +38,33 @@ import org.apache.cassandra.distributed.api.SimpleQueryResult;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.Byteman;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.utils.Shared;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.RESET_BOOTSTRAP_PROGRESS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.RING_DELAY;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_WRITE_SURVEY;
 
 /**
  * Replaces python dtest bootstrap_test.py::TestBootstrap::test_bootstrap_binary_disabled
  */
 public class BootstrapBinaryDisabledTest extends TestBaseImpl
 {
+    static WithProperties properties;
+
+    @BeforeClass
+    public static void beforeClass() throws Throwable
+    {
+        TestBaseImpl.beforeClass();
+        properties = new WithProperties().set(RESET_BOOTSTRAP_PROGRESS, false);
+    }
+
+    @AfterClass
+    public static void afterClass()
+    {
+        properties.close();
+    }
+
     @Test
     public void test() throws IOException, TimeoutException
     {
@@ -92,9 +114,9 @@ public class BootstrapBinaryDisabledTest extends TestBaseImpl
         config.forEach(nodeConfig::set);
 
         //TODO can we make this more isolated?
-        System.setProperty("cassandra.ring_delay_ms", "5000");
+        RING_DELAY.setLong(5000);
         if (isWriteSurvey)
-            System.setProperty("cassandra.write_survey", "true");
+            TEST_WRITE_SURVEY.setBoolean(true);
 
         RewriteEnabled.enable();
         cluster.bootstrap(nodeConfig).startup();
@@ -108,6 +130,7 @@ public class BootstrapBinaryDisabledTest extends TestBaseImpl
             .failure()
             .errorContains("Cannot join the ring until bootstrap completes");
 
+        node.nodetoolResult("bootstrap", "resume").asserts().failure();
         RewriteEnabled.disable();
         node.nodetoolResult("bootstrap", "resume").asserts().success();
         if (isWriteSurvey)

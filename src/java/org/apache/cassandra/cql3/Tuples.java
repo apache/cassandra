@@ -24,11 +24,12 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.cql3.functions.Function;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.ReversedType;
+import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -41,8 +42,6 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.invalidReq
  */
 public class Tuples
 {
-    private static final Logger logger = LoggerFactory.getLogger(Tuples.class);
-
     private Tuples() {}
 
     public static ColumnSpecification componentSpecOf(ColumnSpecification column, int component)
@@ -154,17 +153,17 @@ public class Tuples
 
         public static Value fromSerialized(ByteBuffer bytes, TupleType type)
         {
-            ByteBuffer[] values = type.split(bytes);
+            ByteBuffer[] values = type.split(ByteBufferAccessor.instance, bytes);
             if (values.length > type.size())
             {
                 throw new InvalidRequestException(String.format(
                         "Tuple value contained too many fields (expected %s, got %s)", type.size(), values.length));
             }
 
-            return new Value(type.split(bytes));
+            return new Value(type.split(ByteBufferAccessor.instance, bytes));
         }
 
-        public ByteBuffer get(ProtocolVersion protocolVersion)
+        public ByteBuffer get(ProtocolVersion version)
         {
             return TupleType.buildValue(elements);
         }
@@ -258,21 +257,21 @@ public class Tuples
             this.elements = items;
         }
 
-        public static InValue fromSerialized(ByteBuffer value, ListType type, QueryOptions options) throws InvalidRequestException
+        public static <T> InValue fromSerialized(ByteBuffer value, ListType<T> type) throws InvalidRequestException
         {
             try
             {
                 // Collections have this small hack that validate cannot be called on a serialized object,
                 // but the deserialization does the validation (so we're fine).
-                List<?> l = type.getSerializer().deserializeForNativeProtocol(value, ByteBufferAccessor.instance, options.getProtocolVersion());
+                List<T> l = type.getSerializer().deserialize(value, ByteBufferAccessor.instance);
 
                 assert type.getElementsType() instanceof TupleType;
                 TupleType tupleType = Tuples.getTupleType(type.getElementsType());
 
                 // type.split(bytes)
                 List<List<ByteBuffer>> elements = new ArrayList<>(l.size());
-                for (Object element : l)
-                    elements.add(Arrays.asList(tupleType.split(type.getElementsType().decompose(element))));
+                for (T element : l)
+                    elements.add(Arrays.asList(tupleType.split(ByteBufferAccessor.instance, type.getElementsType().decompose(element))));
                 return new InValue(elements);
             }
             catch (MarshalException e)
@@ -281,7 +280,7 @@ public class Tuples
             }
         }
 
-        public ByteBuffer get(ProtocolVersion protocolVersion)
+        public ByteBuffer get(ProtocolVersion version)
         {
             throw new UnsupportedOperationException();
         }
@@ -416,7 +415,7 @@ public class Tuples
             ByteBuffer value = options.getValues().get(bindIndex);
             if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
                 throw new InvalidRequestException(String.format("Invalid unset value for %s", receiver.name));
-            return value == null ? null : InValue.fromSerialized(value, (ListType)receiver.type, options);
+            return value == null ? null : InValue.fromSerialized(value, (ListType<?>) receiver.type);
         }
     }
 
@@ -442,7 +441,7 @@ public class Tuples
     public static <T> String tupleToString(Iterable<T> items, java.util.function.Function<T, String> mapper)
     {
         return StreamSupport.stream(items.spliterator(), false)
-                            .map(e -> mapper.apply(e))
+                            .map(mapper)
                             .collect(Collectors.joining(", ", "(", ")"));
     }
 
@@ -453,8 +452,8 @@ public class Tuples
      * @param mapper the mapper used to retrieve the element types from the  items
      * @return the exact TupleType from the items if it can be known or <code>null</code>
      */
-    public static <T> AbstractType<?> getExactTupleTypeIfKnown(List<T> items,
-                                                               java.util.function.Function<T, AbstractType<?>> mapper)
+    public static <T> TupleType getExactTupleTypeIfKnown(List<T> items,
+                                                         java.util.function.Function<T, AbstractType<?>> mapper)
     {
         List<AbstractType<?>> types = new ArrayList<>(items.size());
         for (T item : items)
@@ -520,12 +519,12 @@ public class Tuples
     public static boolean checkIfTupleType(AbstractType<?> tuple)
     {
         return (tuple instanceof TupleType) ||
-               (tuple instanceof ReversedType && ((ReversedType) tuple).baseType instanceof TupleType);
+               (tuple instanceof ReversedType && ((ReversedType<?>) tuple).baseType instanceof TupleType);
 
     }
 
     public static TupleType getTupleType(AbstractType<?> tuple)
     {
-        return (tuple instanceof ReversedType ? ((TupleType) ((ReversedType) tuple).baseType) : (TupleType)tuple);
+        return (tuple instanceof ReversedType ? ((TupleType) ((ReversedType<?>) tuple).baseType) : (TupleType)tuple);
     }
 }

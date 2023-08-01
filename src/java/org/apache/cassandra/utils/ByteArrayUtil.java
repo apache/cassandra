@@ -26,6 +26,8 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
 
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 
 // mostly copied from java.io.Bits
 public class ByteArrayUtil
@@ -230,6 +232,17 @@ public class ByteArrayUtil
         out.write(buffer);
     }
 
+    public static void writeWithVIntLength(byte[] bytes, DataOutputPlus out) throws IOException
+    {
+        out.writeUnsignedVInt32(bytes.length);
+        out.write(bytes);
+    }
+
+    public static int serializedSizeWithVIntLength(byte[] bytes)
+    {
+        return TypeSizes.sizeofUnsignedVInt(bytes.length) + bytes.length;
+    }
+
     public static byte[] readWithLength(DataInput in) throws IOException
     {
         byte[] b = new byte[in.readInt()];
@@ -242,6 +255,17 @@ public class ByteArrayUtil
         byte[] b = new byte[in.readUnsignedShort()];
         in.readFully(b);
         return b;
+    }
+
+    public static byte[] readWithVIntLength(DataInputPlus in) throws IOException
+    {
+        int length = in.readUnsignedVInt32();
+        if (length < 0)
+            throw new IOException("Corrupt (negative) value length encountered");
+
+        byte[] bytes = new byte[length];
+        in.readFully(bytes);
+        return bytes;
     }
 
     public static void copyBytes(byte[] src, int srcPos, byte[] dst, int dstPos, int length)

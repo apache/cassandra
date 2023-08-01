@@ -25,21 +25,24 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 import com.google.common.annotations.VisibleForTesting;
-
-import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.compaction.Verifier;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.IVerifier;
 import org.apache.cassandra.io.sstable.KeyIterator;
+import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.SSTableWriter;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Refs;
 
@@ -69,8 +72,8 @@ public class SSTableImporter
     @VisibleForTesting
     synchronized List<String> importNewSSTables(Options options)
     {
-        logger.info("Loading new SSTables for {}/{}: {}",
-                    cfs.keyspace.getName(), cfs.getTableName(), options);
+        UUID importID = UUID.randomUUID();
+        logger.info("[{}] Loading new SSTables for {}/{}: {}", importID, cfs.getKeyspaceName(), cfs.getTableName(), options);
 
         List<Pair<Directories.SSTableLister, String>> listers = getSSTableListers(options.srcPaths);
 
@@ -93,19 +96,20 @@ public class SSTableImporter
                     {
                         try
                         {
+                            abortIfDraining();
                             verifySSTableForImport(descriptor, entry.getValue(), options.verifyTokens, options.verifySSTables, options.extendedVerify);
                         }
                         catch (Throwable t)
                         {
                             if (dir != null)
                             {
-                                logger.error("Failed verifying sstable {} in directory {}", descriptor, dir, t);
+                                logger.error("[{}] Failed verifying SSTable {} in directory {}", importID, descriptor, dir, t);
                                 failedDirectories.add(dir);
                             }
                             else
                             {
-                                logger.error("Failed verifying sstable {}", descriptor, t);
-                                throw new RuntimeException("Failed verifying sstable "+descriptor, t);
+                                logger.error("[{}] Failed verifying SSTable {}", importID, descriptor, t);
+                                throw new RuntimeException("Failed verifying SSTable " + descriptor, t);
                             }
                             break;
                         }
@@ -128,6 +132,7 @@ public class SSTableImporter
             {
                 try
                 {
+                    abortIfDraining();
                     Descriptor oldDescriptor = entry.getKey();
                     if (currentDescriptors.contains(oldDescriptor))
                         continue;
@@ -144,7 +149,7 @@ public class SSTableImporter
                     newSSTablesPerDirectory.forEach(s -> s.selfRef().release());
                     if (dir != null)
                     {
-                        logger.error("Failed importing sstables in directory {}", dir, t);
+                        logger.error("[{}] Failed importing sstables in directory {}", importID, dir, t);
                         failedDirectories.add(dir);
                         if (options.copyData)
                         {
@@ -160,8 +165,8 @@ public class SSTableImporter
                     }
                     else
                     {
-                        logger.error("Failed importing sstables from data directory - renamed sstables are: {}", movedSSTables);
-                        throw new RuntimeException("Failed importing sstables", t);
+                        logger.error("[{}] Failed importing sstables from data directory - renamed SSTables are: {}", importID, movedSSTables, t);
+                        throw new RuntimeException("Failed importing SSTables", t);
                     }
                 }
             }
@@ -170,25 +175,70 @@ public class SSTableImporter
 
         if (newSSTables.isEmpty())
         {
-            logger.info("No new SSTables were found for {}/{}", cfs.keyspace.getName(), cfs.getTableName());
+            logger.info("[{}] No new SSTables were found for {}/{}", importID, cfs.getKeyspaceName(), cfs.getTableName());
             return failedDirectories;
         }
 
-        logger.info("Loading new SSTables and building secondary indexes for {}/{}: {}", cfs.keyspace.getName(), cfs.getTableName(), newSSTables);
+        logger.info("[{}] Loading new SSTables and building secondary indexes for {}/{}: {}", importID, cfs.getKeyspaceName(), cfs.getTableName(), newSSTables);
+        if (logger.isTraceEnabled())
+            logLeveling(importID, newSSTables);
 
         try (Refs<SSTableReader> refs = Refs.ref(newSSTables))
         {
+            abortIfDraining();
+
+            // Validate existing SSTable-attached indexes, and then build any that are missing:
+            if (!cfs.indexManager.validateSSTableAttachedIndexes(newSSTables, false))
+                cfs.indexManager.buildSSTableAttachedIndexesBlocking(newSSTables);
+
             cfs.getTracker().addSSTables(newSSTables);
             for (SSTableReader reader : newSSTables)
             {
                 if (options.invalidateCaches && cfs.isRowCacheEnabled())
-                    invalidateCachesForSSTable(reader.descriptor);
+                    invalidateCachesForSSTable(reader);
             }
-
+        }
+        catch (Throwable t)
+        {
+            logger.error("[{}] Failed adding SSTables", importID, t);
+            throw new RuntimeException("Failed adding SSTables", t);
         }
 
-        logger.info("Done loading load new SSTables for {}/{}", cfs.keyspace.getName(), cfs.getTableName());
+        logger.info("[{}] Done loading load new SSTables for {}/{}", importID, cfs.getKeyspaceName(), cfs.getTableName());
         return failedDirectories;
+    }
+
+    /**
+     * Check the state of this node and throws an {@link InterruptedException} if it is currently draining
+     *
+     * @throws InterruptedException if the node is draining
+     */
+    private static void abortIfDraining() throws InterruptedException
+    {
+        if (StorageService.instance.isDraining())
+            throw new InterruptedException("SSTables import has been aborted");
+    }
+
+    private void logLeveling(UUID importID, Set<SSTableReader> newSSTables)
+    {
+        StringBuilder sb = new StringBuilder();
+        for (SSTableReader sstable : cfs.getSSTables(SSTableSet.CANONICAL))
+            sb.append(formatMetadata(sstable));
+        logger.debug("[{}] Current sstables: {}", importID, sb);
+        sb = new StringBuilder();
+        for (SSTableReader sstable : newSSTables)
+            sb.append(formatMetadata(sstable));
+        logger.debug("[{}] New sstables: {}", importID, sb);
+    }
+
+    private static String formatMetadata(SSTableReader sstable)
+    {
+        return String.format("{[%s, %s], %d, %s, %d}",
+                             sstable.getFirst().getToken(),
+                             sstable.getLast().getToken(),
+                             sstable.getSSTableLevel(),
+                             sstable.isRepaired(),
+                             sstable.onDiskLength());
     }
 
     /**
@@ -208,7 +258,7 @@ public class SSTableImporter
         SSTableReader sstable = null;
         try
         {
-            sstable = SSTableReader.open(descriptor, components, cfs.metadata);
+            sstable = SSTableReader.open(cfs, descriptor, components, cfs.metadata);
             targetDirectory = cfs.getDirectories().getLocationForDisk(cfs.diskBoundaryManager.getDiskBoundaries(cfs).getCorrectDiskForSSTable(sstable));
         }
         finally
@@ -216,7 +266,7 @@ public class SSTableImporter
             if (sstable != null)
                 sstable.selfRef().release();
         }
-        return targetDirectory == null ? cfs.getDirectories().getWriteableLocationToLoadFile(new File(descriptor.baseFilename())) : targetDirectory;
+        return targetDirectory == null ? cfs.getDirectories().getWriteableLocationToLoadFile(descriptor.baseFile()) : targetDirectory;
     }
 
     /**
@@ -279,11 +329,11 @@ public class SSTableImporter
     {
         for (MovedSSTable movedSSTable : movedSSTables)
         {
-            if (new File(movedSSTable.newDescriptor.filenameFor(Component.DATA)).exists())
+            if (movedSSTable.newDescriptor.fileFor(Components.DATA).exists())
             {
-                logger.debug("Moving sstable {} back to {}", movedSSTable.newDescriptor.filenameFor(Component.DATA)
-                                                          , movedSSTable.oldDescriptor.filenameFor(Component.DATA));
-                SSTableWriter.rename(movedSSTable.newDescriptor, movedSSTable.oldDescriptor, movedSSTable.components);
+                logger.debug("Moving sstable {} back to {}", movedSSTable.newDescriptor.fileFor(Components.DATA)
+                                                          , movedSSTable.oldDescriptor.fileFor(Components.DATA));
+                SSTable.rename(movedSSTable.newDescriptor, movedSSTable.oldDescriptor, movedSSTable.components);
             }
         }
     }
@@ -299,11 +349,8 @@ public class SSTableImporter
         logger.debug("Removing copied SSTables which were left in data directories after failed SSTable import.");
         for (MovedSSTable movedSSTable : movedSSTables)
         {
-            if (new File(movedSSTable.newDescriptor.filenameFor(Component.DATA)).exists())
-            {
-                // no logging here as for moveSSTablesBack case above as logging is done in delete method
-                SSTableWriter.delete(movedSSTable.newDescriptor, movedSSTable.components);
-            }
+            // no logging here as for moveSSTablesBack case above as logging is done in delete method
+            movedSSTable.newDescriptor.getFormat().delete(movedSSTable.newDescriptor);
         }
     }
 
@@ -311,15 +358,19 @@ public class SSTableImporter
      * Iterates over all keys in the sstable index and invalidates the row cache
      */
     @VisibleForTesting
-    void invalidateCachesForSSTable(Descriptor desc)
+    void invalidateCachesForSSTable(SSTableReader reader)
     {
-        try (KeyIterator iter = new KeyIterator(desc, cfs.metadata()))
+        try (KeyIterator iter = reader.keyIterator())
         {
             while (iter.hasNext())
             {
                 DecoratedKey decoratedKey = iter.next();
                 cfs.invalidateCachedPartition(decoratedKey);
             }
+        }
+        catch (IOException ex)
+        {
+            throw new RuntimeException("Failed to import sstable " + reader.getFilename(), ex);
         }
     }
 
@@ -335,14 +386,15 @@ public class SSTableImporter
         SSTableReader reader = null;
         try
         {
-            reader = SSTableReader.open(descriptor, components, cfs.metadata);
-            Verifier.Options verifierOptions = Verifier.options()
-                                                       .extendedVerification(extendedVerify)
-                                                       .checkOwnsTokens(verifyTokens)
-                                                       .quick(!verifySSTables)
-                                                       .invokeDiskFailurePolicy(false)
-                                                       .mutateRepairStatus(false).build();
-            try (Verifier verifier = new Verifier(cfs, reader, false, verifierOptions))
+            reader = SSTableReader.open(cfs, descriptor, components, cfs.metadata);
+            IVerifier.Options verifierOptions = IVerifier.options()
+                                                         .extendedVerification(extendedVerify)
+                                                         .checkOwnsTokens(verifyTokens)
+                                                         .quick(!verifySSTables)
+                                                         .invokeDiskFailurePolicy(false)
+                                                         .mutateRepairStatus(false).build();
+
+            try (IVerifier verifier = reader.getVerifier(cfs, new OutputHandler.LogOutput(), false, verifierOptions))
             {
                 verifier.verify();
             }
@@ -364,7 +416,7 @@ public class SSTableImporter
      */
     private void maybeMutateMetadata(Descriptor descriptor, Options options) throws IOException
     {
-        if (new File(descriptor.filenameFor(Component.STATS)).exists())
+        if (descriptor.fileFor(Components.STATS).exists())
         {
             if (options.resetLevel)
             {

@@ -27,6 +27,7 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 import com.google.monitoring.runtime.instrumentation.common.util.concurrent.Uninterruptibles;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileReader;
 import org.junit.Assert;
@@ -51,8 +52,10 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
     @BeforeClass
     public static void setUpClass()
     {
+        ServerTestUtils.daemonInitialization();
+
         DatabaseDescriptor.setCDCEnabled(true);
-        DatabaseDescriptor.setCDCSpaceInMiB(1024);
+        DatabaseDescriptor.setCDCTotalSpaceInMiB(1024);
         CQLTester.setUpClass();
     }
 
@@ -423,15 +426,15 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
 
     private void testWithCDCSpaceInMb(int size, Testable test) throws Throwable
     {
-        int origSize = DatabaseDescriptor.getCDCSpaceInMiB();
-        DatabaseDescriptor.setCDCSpaceInMiB(size);
+        int origSize = (int) DatabaseDescriptor.getCDCTotalSpace() / 1024 / 1024;
+        DatabaseDescriptor.setCDCTotalSpaceInMiB(size);
         try
         {
             test.run();
         }
         finally
         {
-            DatabaseDescriptor.setCDCSpaceInMiB(origSize);
+            DatabaseDescriptor.setCDCTotalSpaceInMiB(origSize);
         }
     }
 

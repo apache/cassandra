@@ -45,12 +45,31 @@ memtable:
           class_name: SkipListMemtable
         sharded:
           class_name: ShardedSkipListMemtable
+        trie:
+          class_name: TrieMemtable
         default:
-          inherits: sharded
+          inherits: trie
 ```
 
 Note that the database will only validate the memtable class and its parameters when a configuration needs to be
 instantiated for a table.
+
+## Implementations provided
+
+Cassandra currently comes with three memtable implementations:
+
+- `SkipListMemtable` is the default and matches the memtable format of Cassandra versions up to 4.1. It organizes
+  partitions into a single concurrent skip list.
+- `ShardedSkipListMemtable` splits the partition skip-list into several independent skip-lists each covering a roughly
+  equal part of the token space served by this node. This reduces congestion of the skip-list from concurrent writes and
+  can lead to improved write throughput. Its configuration takes two parameters:
+  - `shards`: the number of shards to split into, defaulting to the number of CPU cores on the machine.
+  - `serialize_writes`: if false (default), each shard may serve multiple writes in parallel; if true, writes to each
+    shard are synchronized.
+- `TrieMemtable` is a novel solution that organizes partitions into an in-memory trie which places the partition
+  indexing structure in a buffer, off-heap if desired, which significantly improves garbage collection efficiency. It
+  also improves the memtable's space efficiency and lookup performance. Its configuration can take a single parameter
+  `shards` as above.
 
 ## Memtable selection
 
@@ -72,9 +91,10 @@ ALTER TABLE ... WITH memtable = 'default';
 ```
 
 The memtable configuration selection is per table, i.e. it will be propagated to all nodes in the cluster. If some nodes
-do not have a definition for that configuration, cannot instantiate the class, or are still on a version of Cassandra
-before 4.1, they will reject the schema change. We therefore recommend using a separate `ALTER` statement to change a
-table's memtable implementation; upgrading all nodes to 4.1 or later is required to use the API.
+do not have a definition for that configuration or cannot instantiate the class, they will log an error and fall 
+back to the default memtable configuration to avoid schema disagreements. However, if some nodes are still on a version 
+of Cassandra before 4.1, they will reject the schema change. We therefore recommend using a separate `ALTER` statement 
+to change a table's memtable implementation; upgrading all nodes to 4.1 or later is required to use the API.
 
 As additional safety when first deploying an alternative implementation to a production cluster, one may consider
 first deploying a remapped `default` configuration to all nodes in the cluster, switching the schema to reference

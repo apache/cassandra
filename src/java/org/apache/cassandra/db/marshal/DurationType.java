@@ -23,6 +23,7 @@ import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.Constants;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.functions.ArgumentDeserializer;
 import org.apache.cassandra.serializers.DurationSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
@@ -36,10 +37,20 @@ public class DurationType extends AbstractType<Duration>
 {
     public static final DurationType instance = new DurationType();
 
+    private static final ArgumentDeserializer ARGUMENT_DESERIALIZER = new DefaultArgumentDeserializer(instance);
+
+    private static final ByteBuffer MASKED_VALUE = instance.decompose(Duration.newInstance(0, 0, 0));
+
     DurationType()
     {
         super(ComparisonType.BYTE_ORDER);
     } // singleton
+
+    @Override
+    public boolean allowsEmpty()
+    {
+        return false;
+    }
 
     public ByteBuffer fromString(String source) throws MarshalException
     {
@@ -76,6 +87,12 @@ public class DurationType extends AbstractType<Duration>
     }
 
     @Override
+    public ArgumentDeserializer getArgumentDeserializer()
+    {
+        return ARGUMENT_DESERIALIZER;
+    }
+
+    @Override
     public CQL3Type asCQL3Type()
     {
         return CQL3Type.Native.DURATION;
@@ -85,5 +102,11 @@ public class DurationType extends AbstractType<Duration>
     public boolean referencesDuration()
     {
         return true;
+    }
+
+    @Override
+    public ByteBuffer getMaskedValue()
+    {
+        return MASKED_VALUE;
     }
 }

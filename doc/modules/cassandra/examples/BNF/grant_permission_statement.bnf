@@ -1,6 +1,6 @@
 grant_permission_statement ::= GRANT permissions ON resource TO role_name
 permissions ::= ALL [ PERMISSIONS ] | permission [ PERMISSION ]
-permission ::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESCRIBE | EXECUTE
+permission ::= CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESCRIBE | EXECUTE | UNMASK | SELECT_MASKED
 resource ::=    ALL KEYSPACES
                 | KEYSPACE keyspace_name
                 | [ TABLE ] table_name

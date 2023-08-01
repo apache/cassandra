@@ -37,6 +37,7 @@ import org.apache.cassandra.utils.caching.TinyThreadLocalPool;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
+import static org.apache.cassandra.config.CassandraRelevantProperties.BTREE_BRANCH_SHIFT;
 
 public class BTree
 {
@@ -62,7 +63,7 @@ public class BTree
      * subtrees when modifying the tree, since the modified tree would need new parent references).
      * Instead, we store these references in a Path as needed when navigating the tree.
      */
-    public static final int BRANCH_SHIFT = Integer.getInteger("cassandra.btree.branchshift", 5);
+    public static final int BRANCH_SHIFT = BTREE_BRANCH_SHIFT.getInt();
 
     private static final int BRANCH_FACTOR = 1 << BRANCH_SHIFT;
     public static final int MIN_KEYS = BRANCH_FACTOR / 2 - 1;
@@ -149,7 +150,7 @@ public class BTree
         {
             updateF.onAllocatedOnHeap(ObjectSizes.sizeOfReferenceArray(values.length));
             for (int i = 0; i < size; i++)
-                values[i] = updateF.apply((I) values[i]);
+                values[i] = updateF.insert((I) values[i]);
         }
         return values;
     }
@@ -166,7 +167,7 @@ public class BTree
         if (!isSimple(updateF))
         {
             for (int i = 0; i < size; i++)
-                values[i] = updateF.apply((I) values[i]);
+                values[i] = updateF.insert((I) values[i]);
         }
         return values;
     }
@@ -220,7 +221,7 @@ public class BTree
             while (remaining >= threshold)
             {
                 branch[keyCount + i] = buildLeaf(source, MAX_KEYS, updateF);
-                branch[i] = isSimple(updateF) ? source.next() : updateF.apply(source.next());
+                branch[i] = isSimple(updateF) ? source.next() : updateF.insert(source.next());
                 remaining -= MAX_KEYS + 1;
                 sizeMap[i++] = size - remaining - 1;
             }
@@ -228,7 +229,7 @@ public class BTree
             {
                 int childSize = remaining / 2;
                 branch[keyCount + i] = buildLeaf(source, childSize, updateF);
-                branch[i] = isSimple(updateF) ? source.next() : updateF.apply(source.next());
+                branch[i] = isSimple(updateF) ? source.next() : updateF.insert(source.next());
                 remaining -= childSize + 1;
                 sizeMap[i++] = size - remaining - 1;
             }
@@ -250,7 +251,7 @@ public class BTree
             while (remaining >= threshold)
             {
                 branch[keyCount + i] = buildPerfectDense(source, height, updateF);
-                branch[i] = isSimple(updateF) ? source.next() : updateF.apply(source.next());
+                branch[i] = isSimple(updateF) ? source.next() : updateF.insert(source.next());
                 remaining -= denseChildSize + 1;
                 sizeMap[i++] = size - remaining - 1;
             }
@@ -263,7 +264,7 @@ public class BTree
                 assert grandChildCount >= MIN_KEYS + 1;
                 int childSize = grandChildCount * (denseGrandChildSize + 1) - 1;
                 branch[keyCount + i] = buildMaximallyDense(source, grandChildCount, childSize, height, updateF);
-                branch[i] = isSimple(updateF) ? source.next() : updateF.apply(source.next());
+                branch[i] = isSimple(updateF) ? source.next() : updateF.insert(source.next());
                 remaining -= childSize + 1;
                 sizeMap[i++] = size - remaining - 1;
             }
@@ -304,7 +305,7 @@ public class BTree
             for (int i = 0; i < keyCount; i++)
             {
                 node[keyCount + i] = buildLeafWithoutSizeTracking(source, childSize, updateF);
-                node[i] = isSimple(updateF) ? source.next() : updateF.apply(source.next());
+                node[i] = isSimple(updateF) ? source.next() : updateF.insert(source.next());
             }
             node[2 * keyCount] = buildLeafWithoutSizeTracking(source, childSize, updateF);
         }
@@ -314,7 +315,7 @@ public class BTree
             {
                 Object[] child = buildPerfectDenseWithoutSizeTracking(source, height - 1, updateF);
                 node[keyCount + i] = child;
-                node[i] = isSimple(updateF) ? source.next() : updateF.apply(source.next());
+                node[i] = isSimple(updateF) ? source.next() : updateF.insert(source.next());
             }
             node[2 * keyCount] = buildPerfectDenseWithoutSizeTracking(source, height - 1, updateF);
         }
@@ -334,40 +335,46 @@ public class BTree
      * <p>
      * Note that {@code UpdateFunction.noOp} is assumed to indicate a lack of interest in which value survives.
      */
-    public static <Compare, Existing extends Compare, Insert extends Compare> Object[] update(Object[] update, Object[] insert, Comparator<? super Compare> comparator, UpdateFunction<Insert, Existing> updateF)
+    public static <Compare, Existing extends Compare, Insert extends Compare> Object[] update(Object[] toUpdate,
+                                                                                              Object[] insert,
+                                                                                              Comparator<? super Compare> comparator,
+                                                                                              UpdateFunction<Insert, Existing> updateF)
     {
         // perform some initial obvious optimisations
         if (isEmpty(insert))
-            return update; // do nothing if update is empty
+            return toUpdate; // do nothing if update is empty
 
-        if (isEmpty(update))
+
+        if (isEmpty(toUpdate))
         {
             if (isSimple(updateF))
                 return insert; // if update is empty and updateF is trivial, return our new input
 
             // if update is empty and updateF is non-trivial, perform a simple fast transformation of the input tree
-            insert = BTree.transform(insert, updateF);
+            insert = BTree.transform(insert, updateF::insert);
             updateF.onAllocatedOnHeap(sizeOnHeapOf(insert));
             return insert;
         }
 
-        if (isLeaf(update) && isLeaf(insert))
+        if (isLeaf(toUpdate) && isLeaf(insert))
         {
             // if both are leaves, perform a tight-loop leaf variant of update
             // possibly flipping the input order if sizes suggest and updateF permits
-            if (updateF == (UpdateFunction) UpdateFunction.noOp && update.length < insert.length)
+            if (updateF == (UpdateFunction) UpdateFunction.noOp && toUpdate.length < insert.length)
             {
-                Object[] tmp = update;
-                update = insert;
+                Object[] tmp = toUpdate;
+                toUpdate = insert;
                 insert = tmp;
             }
-            return updateLeaves(update, insert, comparator, updateF);
+            Object[] merged = updateLeaves(toUpdate, insert, comparator, updateF);
+            updateF.onAllocatedOnHeap(sizeOnHeapOf(merged) - sizeOnHeapOf(toUpdate));
+            return merged;
         }
 
         if (!isLeaf(insert) && isSimple(updateF))
         {
             // consider flipping the order of application, if update is much larger than insert and applying unary no-op
-            int updateSize = size(update);
+            int updateSize = size(toUpdate);
             int insertSize = size(insert);
             int scale = Integer.numberOfLeadingZeros(updateSize) - Integer.numberOfLeadingZeros(insertSize);
             if (scale >= 4)
@@ -375,8 +382,8 @@ public class BTree
                 // i.e. at roughly 16x the size, or one tier deeper - very arbitrary, should pick more carefully
                 // experimentally, at least at 64x the size the difference in performance is ~10x
                 Object[] tmp = insert;
-                insert = update;
-                update = tmp;
+                insert = toUpdate;
+                toUpdate = tmp;
                 if (updateF != (UpdateFunction) UpdateFunction.noOp)
                     updateF = ((UpdateFunction.Simple) updateF).flip();
             }
@@ -384,14 +391,17 @@ public class BTree
 
         try (Updater<Compare, Existing, Insert> updater = Updater.get())
         {
-            return updater.update(update, insert, comparator, updateF);
+            return updater.update(toUpdate, insert, comparator, updateF);
         }
     }
 
     /**
      * A fast tight-loop variant of updating one btree with another, when both are leaves.
      */
-    public static <Compare, Existing extends Compare, Insert extends Compare> Object[] updateLeaves(Object[] unode, Object[] inode, Comparator<? super Compare> comparator, UpdateFunction<Insert, Existing> updateF)
+    public static <Compare, Existing extends Compare, Insert extends Compare> Object[] updateLeaves(Object[] unode,
+                                                                                                    Object[] inode,
+                                                                                                    Comparator<? super Compare> comparator,
+                                                                                                    UpdateFunction<Insert, Existing> updateF)
     {
         int upos = -1, usz = sizeOfLeaf(unode);
         Existing uk = (Existing) unode[0];
@@ -414,7 +424,7 @@ public class BTree
             }
             else // c == 0
             {
-                merged = updateF.apply(uk, ik);
+                merged = updateF.merge(uk, ik);
                 if (merged != uk)
                     break;
                 if (++ipos == isz)
@@ -434,8 +444,7 @@ public class BTree
             if (upos > 0)
             {
                 // copy any initial section that is unmodified
-                System.arraycopy(unode, 0, builder.leaf().buffer, 0, upos);
-                builder.leaf().count = upos;
+                builder.leaf().copy(unode, 0, upos);
             }
 
             // handle prior loop's exit condition
@@ -450,7 +459,7 @@ public class BTree
                 }
                 else // c > 0
                 {
-                    builder.add(updateF.apply(ik));
+                    builder.add(updateF.insert(ik));
                 }
                 if (++ipos < isz)
                     ik = (Insert) inode[ipos];
@@ -463,7 +472,7 @@ public class BTree
                     {
                         if (c == 0)
                         {
-                            builder.leaf().addKey(updateF.apply(uk, ik));
+                            builder.leaf().addKey(updateF.merge(uk, ik));
                             ++upos;
                             ++ipos;
                             if (upos == usz || ipos == isz)
@@ -941,6 +950,9 @@ public class BTree
 
     public static long sizeOfStructureOnHeap(Object[] tree)
     {
+        if (tree == EMPTY_LEAF)
+            return 0;
+
         long size = ObjectSizes.sizeOfArray(tree);
         if (isLeaf(tree))
             return size;
@@ -2189,6 +2201,9 @@ public class BTree
 
     public static long sizeOnHeapOf(Object[] tree)
     {
+        if (isEmpty(tree))
+            return 0;
+
         long size = ObjectSizes.sizeOfArray(tree);
         if (isLeaf(tree))
             return size;
@@ -2196,6 +2211,14 @@ public class BTree
             size += sizeOnHeapOf((Object[]) tree[i]);
         size += ObjectSizes.sizeOfArray(sizeMap(tree)); // may overcount, since we share size maps
         return size;
+    }
+
+    private static long sizeOnHeapOfLeaf(Object[] tree)
+    {
+        if (isEmpty(tree))
+            return 0;
+
+        return ObjectSizes.sizeOfArray(tree);
     }
 
     // Arbitrary boundaries
@@ -2569,12 +2592,11 @@ public class BTree
         }
 
         /**
-         * Copy the contents of {@code source[from..to)} to {@code buffer}, overflowing as necessary.
-         * Applies {@code updateF} to the contents before insertion.
+         * Copy the contents of the data to {@code buffer}, overflowing as necessary.
          */
-        <Insert, Existing> void copy(Object[] source, int offset, int length, UpdateFunction<Insert, Existing> updateF)
+        <Insert, Existing> void copy(Object[] source, int offset, int length, UpdateFunction<Insert, Existing> apply)
         {
-            if (isSimple(updateF))
+            if (isSimple(apply))
             {
                 copy(source, offset, length);
                 return;
@@ -2584,15 +2606,17 @@ public class BTree
             {
                 int copy = MAX_KEYS - count;
                 for (int i = 0; i < copy; ++i)
-                    buffer[count + i] = updateF.apply((Insert) source[offset + i]);
+                    buffer[count + i] = apply.insert((Insert) source[offset + i]);
                 offset += copy;
 //              implicitly:  leaf().count = MAX_KEYS;
-                overflow(updateF.apply((Insert) source[offset++]));
+                overflow(apply.insert((Insert) source[offset++]));
                 length -= 1 + copy;
             }
+
             for (int i = 0; i < length; ++i)
-                buffer[count + i] = updateF.apply((Insert) source[offset + i]);
+                buffer[count + i] = apply.insert((Insert) source[offset + i]);
             count += length;
+
         }
 
         /**
@@ -2744,7 +2768,7 @@ public class BTree
                 sizeOfLeaf = count;
                 leaf = drain();
                 if (allocated >= 0 && sizeOfLeaf > 0)
-                    allocated += ObjectSizes.sizeOfReferenceArray(sizeOfLeaf | 1) - (unode == null ? 0 : ObjectSizes.sizeOfArray(unode));
+                    allocated += ObjectSizes.sizeOfReferenceArray(sizeOfLeaf | 1) - (unode == null ? 0 : sizeOnHeapOfLeaf(unode));
             }
 
             count = 0;
@@ -3487,7 +3511,7 @@ public class BTree
                 if (c == 0)
                 {
                     // ik matches next key
-                    builder.addKey(updateF.apply(nextUKey, ik));
+                    builder.addKey(updateF.merge(nextUKey, ik));
                     ik = insert.next();
                 }
                 else
@@ -3516,7 +3540,7 @@ public class BTree
             {
                 if (c == 0)
                 {
-                    leaf().addKey(updateF.apply(uk, ik));
+                    leaf().addKey(updateF.merge(uk, ik));
                     if (++upos < usz)
                         uk = (Existing) unode[upos];
                     ik = insert.next();
@@ -3542,7 +3566,7 @@ public class BTree
                 }
                 else
                 {
-                    builder.addKey(isSimple(updateF) ? ik : updateF.apply(ik));
+                    builder.addKey(isSimple(updateF) ? ik : updateF.insert(ik));
                     c = insert.copyKeysSmallerThan(uk, comparator, builder, updateF); // 0 on match, -1 otherwise
                     ik = insert.next();
                     if (ik == null)
@@ -3554,7 +3578,7 @@ public class BTree
             }
             if (uub == null || comparator.compare(ik, uub) < 0)
             {
-                builder.addKey(isSimple(updateF) ? ik : updateF.apply(ik));
+                builder.addKey(isSimple(updateF) ? ik : updateF.insert(ik));
                 insert.copyKeysSmallerThan(uub, comparator, builder, updateF); // 0 on match, -1 otherwise
                 ik = insert.next();
             }
@@ -4162,7 +4186,7 @@ public class BTree
                 int cmp = compareWithMaybeInfinity(comparator, branchKey, bound);
                 if (cmp >= 0)
                     return -cmp;
-                builder.addKey(isSimple(transformer) ? branchKey : transformer.apply(branchKey));
+                builder.addKey(isSimple(transformer) ? branchKey : transformer.insert(branchKey));
                 advanceBranch(node, position + 1);
             }
         }

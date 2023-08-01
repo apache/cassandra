@@ -18,33 +18,35 @@
 
 package org.apache.cassandra.tools;
 
-import java.util.Arrays;
 import java.util.List;
 
-import com.google.common.collect.Lists;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import com.datastax.driver.core.SimpleStatement;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.io.sstable.format.bti.BtiFormat;
 import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.service.GCInspector;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.assertj.core.api.Assertions;
 
+import static com.google.common.collect.Lists.newArrayList;
+
 /**
  * This class is to monitor the JMX compatability cross different versions, and relies on a gold set of metrics which
  * were generated following the instructions below.  These tests only check for breaking changes, so will ignore any
  * new metrics added in a release.  If the latest release is not finalized yet then the latest version might fail
  * if a unrelesed metric gets renamed, if this happens then the gold set should be updated for the latest version.
- *
+ * <p>
  * If a test fails for a previous version, then this means we have a JMX compatability regression, if the metric has
  * gone through proper deprecation then the metric can be excluded using the patterns used in other tests, if the metric
  * has not gone through proper deprecation then the change should be looked at more carfuly to avoid breaking users.
- *
+ * <p>
  * In order to generate the dump for another version, launch a cluster then run the following
  * {@code
  * create keyspace cql_test_keyspace WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'};
@@ -64,6 +66,9 @@ public class JMXCompatabilityTest extends CQLTester
     @BeforeClass
     public static void setup() throws Exception
     {
+        DatabaseDescriptor.daemonInitialization();
+        DatabaseDescriptor.setColumnIndexSizeInKiB(0); // make sure the column index is created
+
         startJMXServer();
     }
 
@@ -90,30 +95,36 @@ public class JMXCompatabilityTest extends CQLTester
     @Test
     public void diff30() throws Throwable
     {
-        List<String> excludeObjects = Arrays.asList("org.apache.cassandra.metrics:type=ThreadPools.*",
-                                                    "org.apache.cassandra.internal:.*",
-                                                    "org.apache.cassandra.metrics:type=DroppedMessage.*",
-                                                    "org.apache.cassandra.metrics:type=ClientRequest,scope=CASRead,name=ConditionNotMet",
-                                                    "org.apache.cassandra.metrics:type=Client,name=connectedThriftClients", // removed in CASSANDRA-11115
-                                                    "org.apache.cassandra.request:type=ReadRepairStage", // removed in CASSANDRA-13910
-                                                    "org.apache.cassandra.db:type=HintedHandoffManager", // removed in CASSANDRA-15939
+        List<String> excludeObjects = newArrayList("org.apache.cassandra.metrics:type=ThreadPools.*",
+                                                   "org.apache.cassandra.internal:.*",
+                                                   "org.apache.cassandra.metrics:type=BufferPool,name=(Misses|Size)", // removed in CASSANDRA-18313
+                                                   "org.apache.cassandra.metrics:type=DroppedMessage.*",
+                                                   "org.apache.cassandra.metrics:type=ClientRequest,scope=CASRead,name=ConditionNotMet",
+                                                   "org.apache.cassandra.metrics:type=Client,name=connectedThriftClients", // removed in CASSANDRA-11115
+                                                   "org.apache.cassandra.request:type=ReadRepairStage", // removed in CASSANDRA-13910
+                                                   "org.apache.cassandra.db:type=HintedHandoffManager", // removed in CASSANDRA-15939
 
-                                                    // dropped tables
-                                                    "org.apache.cassandra.metrics:type=Table,keyspace=system,scope=(schema_aggregates|schema_columnfamilies|schema_columns|schema_functions|schema_keyspaces|schema_triggers|schema_usertypes),name=.*",
-                                                    ".*keyspace=system,(scope|table|columnfamily)=views_builds_in_progress.*",
-                                                    ".*keyspace=system,(scope|table|columnfamily)=range_xfers.*",
-                                                    ".*keyspace=system,(scope|table|columnfamily)=hints.*",
-                                                    ".*keyspace=system,(scope|table|columnfamily)=batchlog.*");
-        List<String> excludeAttributes = Arrays.asList("RPCServerRunning", // removed in CASSANDRA-11115
-                                                       "MaxNativeProtocolVersion");
-        List<String> excludeOperations = Arrays.asList("startRPCServer", "stopRPCServer", // removed in CASSANDRA-11115
-                                                       // nodetool apis that were changed,
-                                                       "decommission", // -> decommission(boolean)
-                                                       "forceRepairAsync", // -> repairAsync
-                                                       "forceRepairRangeAsync", // -> repairAsync
-                                                       "beginLocalSampling", // -> beginLocalSampling(p1: java.lang.String, p2: int, p3: int): void
-                                                       "finishLocalSampling" // -> finishLocalSampling(p1: java.lang.String, p2: int): java.util.List
+                                                   // dropped tables
+                                                   "org.apache.cassandra.metrics:type=Table,keyspace=system,scope=(schema_aggregates|schema_columnfamilies|schema_columns|schema_functions|schema_keyspaces|schema_triggers|schema_usertypes),name=.*",
+                                                   ".*keyspace=system,(scope|table|columnfamily)=views_builds_in_progress.*",
+                                                   ".*keyspace=system,(scope|table|columnfamily)=range_xfers.*",
+                                                   ".*keyspace=system,(scope|table|columnfamily)=hints.*",
+                                                   ".*keyspace=system,(scope|table|columnfamily)=batchlog.*");
+        List<String> excludeAttributes = newArrayList("RPCServerRunning", // removed in CASSANDRA-11115
+                                                      "MaxNativeProtocolVersion");
+        List<String> excludeOperations = newArrayList("startRPCServer", "stopRPCServer", // removed in CASSANDRA-11115
+                                                      // nodetool apis that were changed,
+                                                      "decommission", // -> decommission(boolean)
+                                                      "forceRepairAsync", // -> repairAsync
+                                                      "forceRepairRangeAsync", // -> repairAsync
+                                                      "beginLocalSampling", // -> beginLocalSampling(p1: java.lang.String, p2: int, p3: int): void
+                                                      "finishLocalSampling" // -> finishLocalSampling(p1: java.lang.String, p2: int): java.util.List
         );
+
+        if (BtiFormat.isSelected())
+        {
+            excludeObjects.add("org.apache.cassandra.metrics:type=(ColumnFamily|Keyspace|Table).*,name=IndexSummary.*"); // -> when BTI format is used, index summary is not used (CASSANDRA-17056)
+        }
 
         diff(excludeObjects, excludeAttributes, excludeOperations, "test/data/jmxdump/cassandra-3.0-jmx.yaml");
     }
@@ -121,31 +132,38 @@ public class JMXCompatabilityTest extends CQLTester
     @Test
     public void diff311() throws Throwable
     {
-        List<String> excludeObjects = Arrays.asList("org.apache.cassandra.metrics:type=ThreadPools.*", //lazy initialization in 4.0
-                                                    "org.apache.cassandra.internal:.*",
-                                                    "org.apache.cassandra.metrics:type=DroppedMessage,scope=PAGED_RANGE.*", //it was deprecated in the previous major version
-                                                    "org.apache.cassandra.metrics:type=Client,name=connectedThriftClients", // removed in CASSANDRA-11115
-                                                    "org.apache.cassandra.request:type=ReadRepairStage", // removed in CASSANDRA-13910
-                                                    "org.apache.cassandra.db:type=HintedHandoffManager", // removed in CASSANDRA-15939
+        List<String> excludeObjects = newArrayList("org.apache.cassandra.metrics:type=ThreadPools.*", //lazy initialization in 4.0
+                                                   "org.apache.cassandra.internal:.*",
+                                                   "org.apache.cassandra.metrics:type=BufferPool,name=(Misses|Size)", // removed in CASSANDRA-18313
+                                                   "org.apache.cassandra.metrics:type=DroppedMessage,scope=PAGED_RANGE.*", //it was deprecated in the previous major version
+                                                   "org.apache.cassandra.metrics:type=Client,name=connectedThriftClients", // removed in CASSANDRA-11115
+                                                   "org.apache.cassandra.request:type=ReadRepairStage", // removed in CASSANDRA-13910
+                                                   "org.apache.cassandra.db:type=HintedHandoffManager", // removed in CASSANDRA-15939
 
-                                                    // dropped tables
-                                                    "org.apache.cassandra.metrics:type=Table,keyspace=system,scope=(schema_aggregates|schema_columnfamilies|schema_columns|schema_functions|schema_keyspaces|schema_triggers|schema_usertypes),name=.*",
-                                                    ".*keyspace=system,(scope|table|columnfamily)=views_builds_in_progress.*",
-                                                    ".*keyspace=system,(scope|table|columnfamily)=range_xfers.*",
-                                                    ".*keyspace=system,(scope|table|columnfamily)=hints.*",
-                                                    ".*keyspace=system,(scope|table|columnfamily)=batchlog.*"
+                                                   // dropped tables
+                                                   "org.apache.cassandra.metrics:type=Table,keyspace=system,scope=(schema_aggregates|schema_columnfamilies|schema_columns|schema_functions|schema_keyspaces|schema_triggers|schema_usertypes),name=.*",
+                                                   ".*keyspace=system,(scope|table|columnfamily)=views_builds_in_progress.*",
+                                                   ".*keyspace=system,(scope|table|columnfamily)=range_xfers.*",
+                                                   ".*keyspace=system,(scope|table|columnfamily)=hints.*",
+                                                   ".*keyspace=system,(scope|table|columnfamily)=batchlog.*"
         );
-        List<String> excludeAttributes = Arrays.asList("RPCServerRunning", // removed in CASSANDRA-11115
-                                                       "MaxNativeProtocolVersion",
-                                                       "StreamingSocketTimeout");
-        List<String> excludeOperations = Arrays.asList("startRPCServer", "stopRPCServer", // removed in CASSANDRA-11115
-                                                       // nodetool apis that were changed,
-                                                       "decommission", // -> decommission(boolean)
-                                                       "forceRepairAsync", // -> repairAsync
-                                                       "forceRepairRangeAsync", // -> repairAsync
-                                                       "beginLocalSampling", // -> beginLocalSampling(p1: java.lang.String, p2: int, p3: int): void
-                                                       "finishLocalSampling" // -> finishLocalSampling(p1: java.lang.String, p2: int): java.util.List
+        List<String> excludeAttributes = newArrayList("RPCServerRunning", // removed in CASSANDRA-11115
+                                                      "MaxNativeProtocolVersion",
+                                                      "StreamingSocketTimeout");
+        List<String> excludeOperations = newArrayList("startRPCServer", "stopRPCServer", // removed in CASSANDRA-11115
+                                                      // nodetool apis that were changed,
+                                                      "decommission", // -> decommission(boolean)
+                                                      "forceRepairAsync", // -> repairAsync
+                                                      "forceRepairRangeAsync", // -> repairAsync
+                                                      "beginLocalSampling", // -> beginLocalSampling(p1: java.lang.String, p2: int, p3: int): void
+                                                      "finishLocalSampling" // -> finishLocalSampling(p1: java.lang.String, p2: int): java.util.List
         );
+
+        if (BtiFormat.isSelected())
+        {
+            excludeObjects.add("org.apache.cassandra.metrics:type=(ColumnFamily|Keyspace|Table).*,name=IndexSummary.*"); // -> when BTI format is used, index summary is not used (CASSANDRA-17056)
+            excludeObjects.add("org.apache.cassandra.metrics:type=Index,scope=RowIndexEntry.*");
+        }
 
         diff(excludeObjects, excludeAttributes, excludeOperations, "test/data/jmxdump/cassandra-3.11-jmx.yaml");
     }
@@ -153,9 +171,16 @@ public class JMXCompatabilityTest extends CQLTester
     @Test
     public void diff40() throws Throwable
     {
-        List<String> excludeObjects = Arrays.asList();
-        List<String> excludeAttributes = Arrays.asList();
-        List<String> excludeOperations = Arrays.asList();
+        List<String> excludeObjects = newArrayList("org.apache.cassandra.metrics:type=BufferPool,name=(Misses|Size)" // removed in CASSANDRA-18313
+                );
+        List<String> excludeAttributes = newArrayList();
+        List<String> excludeOperations = newArrayList();
+
+        if (BtiFormat.isSelected())
+        {
+            excludeObjects.add("org.apache.cassandra.metrics:type=(ColumnFamily|Keyspace|Table).*,name=IndexSummary.*"); // -> when BTI format is used, index summary is not used (CASSANDRA-17056)
+            excludeObjects.add("org.apache.cassandra.metrics:type=Index,scope=RowIndexEntry.*");
+        }
 
         diff(excludeObjects, excludeAttributes, excludeOperations, "test/data/jmxdump/cassandra-4.0-jmx.yaml");
     }
@@ -163,9 +188,16 @@ public class JMXCompatabilityTest extends CQLTester
     @Test
     public void diff41() throws Throwable
     {
-        List<String> excludeObjects = Arrays.asList();
-        List<String> excludeAttributes = Arrays.asList();
-        List<String> excludeOperations = Arrays.asList();
+        List<String> excludeObjects = newArrayList("org.apache.cassandra.metrics:type=BufferPool,name=(Misses|Size)" // removed in CASSANDRA-18313
+        );
+        List<String> excludeAttributes = newArrayList();
+        List<String> excludeOperations = newArrayList();
+
+        if (BtiFormat.isSelected())
+        {
+            excludeObjects.add("org.apache.cassandra.metrics:type=(ColumnFamily|Keyspace|Table).*,name=IndexSummary.*"); // -> when BTI format is used, index summary is not used (CASSANDRA-17056)
+            excludeObjects.add("org.apache.cassandra.metrics:type=Index,scope=RowIndexEntry.*");
+        }
 
         diff(excludeObjects, excludeAttributes, excludeOperations, "test/data/jmxdump/cassandra-4.1-jmx.yaml");
     }
@@ -174,10 +206,10 @@ public class JMXCompatabilityTest extends CQLTester
     {
         setupStandardTables();
 
-        List<String> args = Lists.newArrayList("tools/bin/jmxtool", "diff",
-                                               "-f", "yaml",
-                                               "--ignore-missing-on-left",
-                                               original, TMP.getRoot().getAbsolutePath() + "/out.yaml");
+        List<String> args = newArrayList("tools/bin/jmxtool", "diff",
+                                         "-f", "yaml",
+                                         "--ignore-missing-on-left",
+                                         original, TMP.getRoot().getAbsolutePath() + "/out.yaml");
         excludeObjects.forEach(a -> {
             args.add("--exclude-object");
             args.add(a);

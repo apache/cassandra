@@ -22,10 +22,10 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.UUID;
-import javax.annotation.Nullable;
 
 import com.google.common.primitives.Ints;
 
+import javax.annotation.Nullable;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.UnknownTableException;
 import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
@@ -135,7 +135,7 @@ public final class HintMessage implements SerializableHintMessage
                     throw new IllegalArgumentException("serialize() called with non-matching version " + version);
 
                 UUIDSerializer.serializer.serialize(message.hostId, out, version);
-                out.writeUnsignedVInt(message.hint.remaining());
+                out.writeUnsignedVInt32(message.hint.remaining());
                 out.write(message.hint);
             }
             else

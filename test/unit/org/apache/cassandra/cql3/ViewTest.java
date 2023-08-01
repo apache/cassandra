@@ -232,12 +232,12 @@ public class ViewTest extends ViewAbstractTest
 
         createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s WHERE k IS NOT NULL AND intval IS NOT NULL PRIMARY KEY (intval, k)");
 
-        updateView("INSERT INTO %s (k, intval, listval) VALUES (?, ?, fromJson(?))", 0, 0, "[1, 2, 3]");
+        updateView("INSERT INTO %s (k, intval, listval) VALUES (?, ?, from_json(?))", 0, 0, "[1, 2, 3]");
         assertRows(execute("SELECT k, listval FROM %s WHERE k = ?", 0), row(0, list(1, 2, 3)));
         assertRows(executeView("SELECT k, listval from %s WHERE intval = ?", 0), row(0, list(1, 2, 3)));
 
         updateView("INSERT INTO %s (k, intval) VALUES (?, ?)", 1, 1);
-        updateView("INSERT INTO %s (k, listval) VALUES (?, fromJson(?))", 1, "[1, 2, 3]");
+        updateView("INSERT INTO %s (k, listval) VALUES (?, from_json(?))", 1, "[1, 2, 3]");
         assertRows(execute("SELECT k, listval FROM %s WHERE k = ?", 1), row(1, list(1, 2, 3)));
         assertRows(executeView("SELECT k, listval from %s WHERE intval = ?", 1), row(1, list(1, 2, 3)));
     }
@@ -249,7 +249,7 @@ public class ViewTest extends ViewAbstractTest
 
         createView("CREATE MATERIALIZED VIEW %s AS SELECT * FROM %s WHERE k IS NOT NULL AND listval IS NOT NULL PRIMARY KEY (k, listval)");
 
-        updateView("INSERT INTO %s (k, intval, listval) VALUES (?, ?, fromJson(?))",
+        updateView("INSERT INTO %s (k, intval, listval) VALUES (?, ?, from_json(?))",
                    0,
                    0,
                    "[[\"a\",\"1\"], [\"b\",\"2\"], [\"c\",\"3\"]]");
@@ -261,7 +261,7 @@ public class ViewTest extends ViewAbstractTest
                    row(0, list(tuple("a", "1"), tuple("b", "2"), tuple("c", "3"))));
 
         // update listval with the same value and it will be compared in view generator
-        updateView("INSERT INTO %s (k, listval) VALUES (?, fromJson(?))",
+        updateView("INSERT INTO %s (k, listval) VALUES (?, from_json(?))",
                    0,
                    "[[\"a\",\"1\"], [\"b\",\"2\"], [\"c\",\"3\"]]");
         // verify result

@@ -21,8 +21,6 @@ import java.util.HashMap;
 import java.util.Map;
 import javax.management.openmbean.*;
 
-import com.google.common.base.Throwables;
-
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.StreamSummary;
 
@@ -53,7 +51,7 @@ public class StreamSummaryCompositeData
         }
         catch (OpenDataException e)
         {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -69,7 +67,7 @@ public class StreamSummaryCompositeData
         }
         catch (OpenDataException e)
         {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e);
         }
     }
 

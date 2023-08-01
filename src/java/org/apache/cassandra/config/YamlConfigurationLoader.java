@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
@@ -44,8 +45,8 @@ import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.composer.Composer;
-import org.yaml.snakeyaml.constructor.Constructor;
 import org.yaml.snakeyaml.constructor.CustomClassLoaderConstructor;
+import org.yaml.snakeyaml.constructor.SafeConstructor;
 import org.yaml.snakeyaml.error.YAMLException;
 import org.yaml.snakeyaml.introspector.MissingProperty;
 import org.yaml.snakeyaml.introspector.Property;
@@ -54,13 +55,13 @@ import org.yaml.snakeyaml.nodes.Node;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_DUPLICATE_CONFIG_KEYS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_NEW_OLD_CONFIG_KEYS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
 import static org.apache.cassandra.config.Replacements.getNameReplacements;
 
 public class YamlConfigurationLoader implements ConfigurationLoader
 {
     private static final Logger logger = LoggerFactory.getLogger(YamlConfigurationLoader.class);
 
-    private final static String DEFAULT_CONFIGURATION = "cassandra.yaml";
     /**
      * This is related to {@link Config#PROPERTY_PREFIX} but is different to make sure Config properties updated via
      * system properties do not conflict with other system properties; the name "settings" matches system_views.settings.
@@ -72,9 +73,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
      */
     private static URL getStorageConfigURL() throws ConfigurationException
     {
-        String configUrl = System.getProperty("cassandra.config");
-        if (configUrl == null)
-            configUrl = DEFAULT_CONFIGURATION;
+        String configUrl = CASSANDRA_CONFIG.getString();
 
         URL url;
         try
@@ -131,7 +130,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                 throw new AssertionError(e);
             }
 
-            Constructor constructor = new CustomConstructor(Config.class, Yaml.class.getClassLoader());
+            SafeConstructor constructor = new CustomConstructor(Config.class, Yaml.class.getClassLoader());
             Map<Class<?>, Map<String, Replacement>> replacements = getNameReplacements(Config.class);
             verifyReplacements(replacements, configBytes);
             PropertiesChecker propertiesChecker = new PropertiesChecker(replacements);
@@ -201,6 +200,8 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         Yaml rawYaml = new Yaml(loaderOptions);
 
         Map<String, Object> rawConfig = rawYaml.load(new ByteArrayInputStream(configBytes));
+        if (rawConfig == null)
+            rawConfig = new HashMap<>();
         verifyReplacements(replacements, rawConfig);
 
     }
@@ -214,7 +215,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
     @SuppressWarnings("unchecked") //getSingleData returns Object, not T
     public static <T> T fromMap(Map<String,Object> map, boolean shouldCheck, Class<T> klass)
     {
-        Constructor constructor = new YamlConfigurationLoader.CustomConstructor(klass, klass.getClassLoader());
+        SafeConstructor constructor = new YamlConfigurationLoader.CustomConstructor(klass, klass.getClassLoader());
         Map<Class<?>, Map<String, Replacement>> replacements = getNameReplacements(Config.class);
         verifyReplacements(replacements, map);
         YamlConfigurationLoader.PropertiesChecker propertiesChecker = new YamlConfigurationLoader.PropertiesChecker(replacements);
@@ -239,7 +240,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
     public static <T> T updateFromMap(Map<String, ?> map, boolean shouldCheck, T obj)
     {
         Class<T> klass = (Class<T>) obj.getClass();
-        Constructor constructor = new YamlConfigurationLoader.CustomConstructor(klass, klass.getClassLoader())
+        SafeConstructor constructor = new YamlConfigurationLoader.CustomConstructor(klass, klass.getClassLoader())
         {
             @Override
             protected Object newInstance(Node node)
@@ -363,10 +364,13 @@ public class YamlConfigurationLoader implements ConfigurationLoader
 
             return new ForwardingProperty(result.getName(), result)
             {
+                boolean allowsNull = result.getAnnotation(Nullable.class) != null;
+
                 @Override
                 public void set(Object object, Object value) throws Exception
                 {
-                    if (value == null && get(object) != null)
+                    // TODO: CASSANDRA-17785, add @Nullable to all nullable Config properties and remove value == null
+                    if (value == null && get(object) != null && !allowsNull)
                         nullProperties.add(getName());
 
                     result.set(object, value);

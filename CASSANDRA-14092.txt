@@ -1,9 +1,23 @@
 CASSANDRA-14092: MAXIMUM TTL EXPIRATION DATE
 ---------------------------------------------
 
-The maximum expiration timestamp that can be represented by the storage engine is
-2038-01-19T03:14:06+00:00, which means that INSERTS using TTL that would expire
-after this date are not currently supported.
+The maximum expiration timestamp that can be represented by the storage engine has been raised to
+2106-02-07T06:28:13+00:00 from the previous 2038-01-19T03:14:06+00:00, which means that INSERTS using 
+TTL that would expire after this date are not currently supported. Notice that on previous versions <5.0 
+or when 5.0 is ran in compatibility mode (<="nc" sstable formats) the limit stays at at 2038-01-19T03:14:06+00:00.
+
+There is a new yaml property storage_compatibility_mode that determines the
+Cassandra major version we want to stay compatible with. Its default is CASSANDRA_4, which means that
+the node sstables, commitlog, hints and messaging version will stay compatible with Cassandra 4.x,
+2038 will still be the limit, and it will be possible to rollback to the previous version. To upgrade:
+ - Do a rolling upgrade to 5.0 where 2038 will still be the limit. At this point, the node won't write
+ anything incompatible with Cassandra 4.x, and you would still be able to rollback to that version.
+ - Do a rolling restart setting storage_compatibility_mode=UPGRADING. Once all nodes
+ are in storage version 5, 2106 will become the new limit.
+ - Do a rolling restart setting storage_compatibility_mode=NONE. Now mixed
+ 2038 and 2106 nodes are no longer possible.
+Notice the yaml property needs to be set all the time for all executables and tools. It
+will be removed in future versions when 2038 nodes are no longer possible.
 
 # Expiration Date Overflow Policy
 
@@ -11,9 +25,9 @@ We plan to lift this limitation in newer versions, but while the fix is not avai
 operators can decide which policy to apply when dealing with inserts with TTL exceeding
 the maximum supported expiration date:
   -     REJECT: this is the default policy and will reject any requests with expiration
-                date timestamp after 2038-01-19T03:14:06+00:00.
-  -        CAP: any insert with TTL expiring after 2038-01-19T03:14:06+00:00 will expire on
-                2038-01-19T03:14:06+00:00 and the client will receive a warning.
+                date timestamp after 2106-02-07T06:28:13+00:00 or 2038-01-19T03:14:06+00:00.
+  -        CAP: any insert with TTL expiring after 2106-02-07T06:28:13+00:00 will expire on
+                2106-02-07T06:28:13+00:00 or 2038-01-19T03:14:06+00:00 and the client will receive a warning.
   - CAP_NOWARN: same as previous, except that the client warning will not be emitted.
 
 These policies may be specified via the -Dcassandra.expiration_date_overflow_policy=POLICY
@@ -32,12 +46,15 @@ on these versions. When assertions are disabled then it is possible to INSERT en
 with overflowed local expiration time and even the earlier versions are subject to data
 loss due to this bug.
 
-This issue only affected INSERTs with very large TTLs, close to the maximum allowed value
+On versions < 5.0 the overflow limit was at 2038-01-19T03:14:06+00:00 so this issue 
+only affected INSERTs with very large TTLs, close to the maximum allowed value
 of 630720000 seconds (20 years), starting from 2018-01-19T03:14:06+00:00. As time progresses,
 the maximum supported TTL will be gradually reduced as the maximum expiration date approaches.
 For instance, a user on an affected version on 2028-01-19T03:14:06 with a TTL of 10 years
 will be affected by this bug, so we urge users of very large TTLs to upgrade to a version
 where this issue is addressed as soon as possible.
+
+On versions >= 5.0 this limit has been raised to 2106-02-07T06:28:13+00:00.
 
 # Data Recovery
 
@@ -78,4 +95,4 @@ for recovery of SSTables via scrub:
    - run "nodetool scrub --reinsert-overflowed-ttl <keyspace> <table>".
    - Re-enable compactions after verifying that scrub recovered the missing entries.
 
-See https://issues.apache.org/jira/browse/CASSANDRA-14092 for more details about this issue.
+See https://issues.apache.org/jira/browse/CASSANDRA-14092 and https://issues.apache.org/jira/browse/CASSANDRA-14227 for more details about this issue.

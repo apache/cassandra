@@ -27,7 +27,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.cassandra.utils.memory.AbstractAllocator;
+import org.apache.cassandra.utils.memory.ByteBufferCloner;
 
 /**
  * A path for a cell belonging to a complex column type (non-frozen collection or UDT).
@@ -61,7 +61,7 @@ public abstract class CellPath implements IMeasurableMemory
             digest.update(get(i));
     }
 
-    public abstract CellPath copy(AbstractAllocator allocator);
+    public abstract CellPath clone(ByteBufferCloner cloner);
 
     public abstract long unsharedHeapSizeExcludingData();
 
@@ -123,9 +123,10 @@ public abstract class CellPath implements IMeasurableMemory
             return value;
         }
 
-        public CellPath copy(AbstractAllocator allocator)
+        @Override
+        public CellPath clone(ByteBufferCloner cloner)
         {
-            return new SingleItemCellPath(allocator.clone(value));
+            return new SingleItemCellPath(cloner.clone(value));
         }
 
         @Override
@@ -137,7 +138,7 @@ public abstract class CellPath implements IMeasurableMemory
         @Override
         public long unsharedHeapSizeExcludingData()
         {
-            return EMPTY_SIZE + ObjectSizes.sizeOnHeapExcludingData(value);
+            return EMPTY_SIZE + ObjectSizes.sizeOnHeapExcludingDataOf(value);
         }
     }
 
@@ -153,7 +154,8 @@ public abstract class CellPath implements IMeasurableMemory
             throw new UnsupportedOperationException();
         }
 
-        public CellPath copy(AbstractAllocator allocator)
+        @Override
+        public CellPath clone(ByteBufferCloner cloner)
         {
             return this;
         }

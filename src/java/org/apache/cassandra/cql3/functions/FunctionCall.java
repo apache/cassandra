@@ -29,7 +29,6 @@ import org.apache.cassandra.cql3.statements.RequestValidations;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
@@ -57,31 +56,35 @@ public class FunctionCall extends Term.NonTerminal
             t.collectMarkerSpecification(boundNames);
     }
 
+    @Override
     public Term.Terminal bind(QueryOptions options) throws InvalidRequestException
     {
-        return makeTerminal(fun, bindAndGet(options), options.getProtocolVersion());
+        return makeTerminal(fun, bindAndGet(options));
     }
 
+    @Override
     public ByteBuffer bindAndGet(QueryOptions options) throws InvalidRequestException
     {
-        List<ByteBuffer> buffers = new ArrayList<>(terms.size());
-        for (Term t : terms)
+        Arguments arguments = fun.newArguments(options.getProtocolVersion());
+        for (int i = 0, m = terms.size(); i < m; i++)
         {
-            ByteBuffer functionArg = t.bindAndGet(options);
-            RequestValidations.checkBindValueSet(functionArg, "Invalid unset value for argument in call to function %s", fun.name().name);
-            buffers.add(functionArg);
+            Term t = terms.get(i);
+            ByteBuffer argument = t.bindAndGet(options);
+            RequestValidations.checkBindValueSet(argument, "Invalid unset value for argument in call to function %s", fun.name().name);
+            arguments.set(i, argument);
         }
-        return executeInternal(options.getProtocolVersion(), fun, buffers);
+        return executeInternal(fun, arguments);
     }
 
-    private static ByteBuffer executeInternal(ProtocolVersion protocolVersion, ScalarFunction fun, List<ByteBuffer> params) throws InvalidRequestException
+    private static ByteBuffer executeInternal(ScalarFunction fun, Arguments arguments) throws InvalidRequestException
     {
-        ByteBuffer result = fun.execute(protocolVersion, params);
+        ByteBuffer result = fun.execute(arguments);
         try
         {
-            // Check the method didn't lied on it's declared return type
+            // Check the method didn't lie on it's declared return type
             if (result != null)
                 fun.returnType().validate(result);
+
             return result;
         }
         catch (MarshalException e)
@@ -101,20 +104,20 @@ public class FunctionCall extends Term.NonTerminal
         return false;
     }
 
-    private static Term.Terminal makeTerminal(Function fun, ByteBuffer result, ProtocolVersion version) throws InvalidRequestException
+    private static Term.Terminal makeTerminal(Function fun, ByteBuffer result) throws InvalidRequestException
     {
         if (result == null)
             return null;
         if (fun.returnType().isCollection())
         {
-            switch (((CollectionType) fun.returnType()).kind)
+            switch (((CollectionType<?>) fun.returnType()).kind)
             {
                 case LIST:
-                    return Lists.Value.fromSerialized(result, (ListType) fun.returnType(), version);
+                    return Lists.Value.fromSerialized(result, (ListType<?>) fun.returnType());
                 case SET:
-                    return Sets.Value.fromSerialized(result, (SetType) fun.returnType(), version);
+                    return Sets.Value.fromSerialized(result, (SetType<?>) fun.returnType());
                 case MAP:
-                    return Maps.Value.fromSerialized(result, (MapType) fun.returnType(), version);
+                    return Maps.Value.fromSerialized(result, (MapType<?, ?>) fun.returnType());
             }
         }
         else if (fun.returnType().isUDT())
@@ -127,7 +130,7 @@ public class FunctionCall extends Term.NonTerminal
 
     public static class Raw extends Term.Raw
     {
-        private FunctionName name;
+        private final FunctionName name;
         private final List<Term.Raw> terms;
 
         public Raw(FunctionName name, List<Term.Raw> terms)
@@ -202,10 +205,11 @@ public class FunctionCall extends Term.NonTerminal
             {
                 Function fun = FunctionResolver.get(keyspace, name, terms, receiver.ksName, receiver.cfName, receiver.type);
 
-                // Because fromJson() can return whatever type the receiver is, we'll always get EXACT_MATCH.  To
-                // handle potentially ambiguous function calls with fromJson() as an argument, always return
-                // WEAKLY_ASSIGNABLE to force the user to typecast if necessary
-                if (fun != null && fun.name().equals(FromJsonFct.NAME))
+                // Because the return type of functions built by factories is not fixed but depending on the types of
+                // their arguments, we'll always get EXACT_MATCH.  To handle potentially ambiguous function calls with
+                // dynamically built functions as an argument, always return WEAKLY_ASSIGNABLE to force the user to
+                // typecast if necessary
+                if (fun != null && NativeFunctions.instance.hasFactory(fun.name()))
                     return TestResult.WEAKLY_ASSIGNABLE;
 
                 if (fun != null && receiver.type.udfType().equals(fun.returnType()))
@@ -221,14 +225,18 @@ public class FunctionCall extends Term.NonTerminal
             }
         }
 
+        @Override
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
         {
-            // We could implement this, but the method is only used in selection clause, where FunctionCall is not used 
-            // we use a Selectable.WithFunction instead). And if that method is later used in other places, better to
-            // let that future patch make sure this can be implemented properly (note in particular we don't have access
-            // to the receiver type, which FunctionResolver.get() takes) rather than provide an implementation that may
-            // not work in all cases.
-            throw new UnsupportedOperationException();
+            try
+            {
+                Function fun = FunctionResolver.get(keyspace, name, terms, null, null, null);
+                return fun == null ? null : fun.returnType();
+            }
+            catch (InvalidRequestException e)
+            {
+                return null;
+            }
         }
 
         public String getText()

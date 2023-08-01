@@ -21,10 +21,10 @@ import java.util.*;
 
 import com.google.common.collect.AbstractIterator;
 
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Function;
-import org.apache.cassandra.cql3.restrictions.SingleColumnRestriction.ContainsRestriction;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.IndexRegistry;
@@ -56,7 +56,7 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
     /**
      * The restrictions per column.
      */
-    protected final TreeMap<ColumnMetadata, SingleRestriction> restrictions;
+    private final TreeMap<ColumnMetadata, SingleRestriction> restrictions;
 
     /**
      * {@code true} if it contains multi-column restrictions, {@code false} otherwise.
@@ -93,16 +93,36 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
     }
 
     @Override
-    public void addRowFilterTo(RowFilter filter, IndexRegistry indexRegistry, QueryOptions options) throws InvalidRequestException
+    public void addToRowFilter(RowFilter filter, IndexRegistry indexRegistry, QueryOptions options) throws InvalidRequestException
     {
         for (Restriction restriction : restrictions.values())
-            restriction.addRowFilterTo(filter, indexRegistry, options);
+            restriction.addToRowFilter(filter, indexRegistry, options);
+    }
+
+    @Override
+    public boolean needsFiltering(Index.Group indexGroup)
+    {
+        for (SingleRestriction restriction : restrictions.values())
+        {
+            if (restriction.needsFiltering(indexGroup))
+                return true;
+        }
+        return false;
     }
 
     @Override
     public List<ColumnMetadata> getColumnDefs()
     {
         return new ArrayList<>(restrictions.keySet());
+    }
+
+    /**
+     * @return a direct reference to the key set from {@link #restrictions} with no defenseive copying
+     */
+    @Override
+    public Collection<ColumnMetadata> getColumnDefinitions()
+    {
+        return restrictions.keySet();
     }
 
     @Override
@@ -214,7 +234,7 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
     }
 
     @Override
-    public final boolean hasSupportingIndex(IndexRegistry indexRegistry)
+    public boolean hasSupportingIndex(IndexRegistry indexRegistry)
     {
         for (Restriction restriction : restrictions.values())
         {
@@ -272,26 +292,6 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
                                    : restriction.mergeWith(otherRestriction);
     }
 
-    /**
-     * Checks if the restrictions contains multiple contains, contains key, or map[key] = value.
-     *
-     * @return <code>true</code> if the restrictions contains multiple contains, contains key, or ,
-     * map[key] = value; <code>false</code> otherwise
-     */
-    public final boolean hasMultipleContains()
-    {
-        int numberOfContains = 0;
-        for (SingleRestriction restriction : restrictions.values())
-        {
-            if (restriction.isContains())
-            {
-                ContainsRestriction contains = (ContainsRestriction) restriction;
-                numberOfContains += (contains.numberOfValues() + contains.numberOfKeys() + contains.numberOfEntries());
-            }
-        }
-        return numberOfContains > 1;
-    }
-
     @Override
     public Iterator<SingleRestriction> iterator()
     {
@@ -332,7 +332,6 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
     /**
      * {@code Iterator} decorator that removes duplicates in an ordered one.
      *
-     * @param iterator the decorated iterator
      * @param <E> the iterator element type.
      */
     private static final class DistinctIterator<E> extends AbstractIterator<E>

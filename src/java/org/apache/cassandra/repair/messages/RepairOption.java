@@ -395,22 +395,20 @@ public class RepairOption
 
     public boolean optimiseStreams()
     {
-        if(optimiseStreams)
-            return true;
-
-        if (isPullRepair() || isForcedRepair())
+        if (isPullRepair())
             return false;
 
-        if (isIncremental() && DatabaseDescriptor.autoOptimiseIncRepairStreams())
+        if (isPreview())
+        {
+            if (DatabaseDescriptor.autoOptimisePreviewRepairStreams())
+                return true;
+        }
+        else if (isIncremental() && DatabaseDescriptor.autoOptimiseIncRepairStreams())
+            return true;
+        else if (!isIncremental() && DatabaseDescriptor.autoOptimiseFullRepairStreams())
             return true;
 
-        if (isPreview() && DatabaseDescriptor.autoOptimisePreviewRepairStreams())
-            return true;
-
-        if (!isIncremental() && DatabaseDescriptor.autoOptimiseFullRepairStreams())
-            return true;
-
-        return false;
+        return optimiseStreams;
     }
 
     public boolean ignoreUnreplicatedKeyspaces()

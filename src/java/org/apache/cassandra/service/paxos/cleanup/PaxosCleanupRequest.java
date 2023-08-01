@@ -43,7 +43,6 @@ import org.apache.cassandra.utils.UUIDSerializer;
 
 import static org.apache.cassandra.net.MessagingService.instance;
 import static org.apache.cassandra.net.NoPayload.noPayload;
-import static org.apache.cassandra.net.Verb.PAXOS2_CLEANUP_RSP;
 import static org.apache.cassandra.net.Verb.PAXOS2_CLEANUP_RSP2;
 
 // TODO: send the high bound as a minimum commit point, so later repairs can terminate early if a later commit has been witnessed

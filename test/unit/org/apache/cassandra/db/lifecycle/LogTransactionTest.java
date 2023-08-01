@@ -41,15 +41,22 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.big.BigFormat;
+import org.apache.cassandra.io.sstable.format.big.BigFormat.Components;
+import org.apache.cassandra.io.sstable.format.big.BigTableReader;
+import org.apache.cassandra.io.sstable.format.bti.BtiFormat;
+import org.apache.cassandra.io.sstable.format.bti.BtiTableReader;
+import org.apache.cassandra.io.sstable.format.bti.PartitionIndex;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
@@ -57,7 +64,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.MockSchema;
-import org.apache.cassandra.utils.AlwaysPresentFilter;
+import org.apache.cassandra.utils.FilterFactory;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.AbstractTransactionalTest;
 import org.apache.cassandra.utils.concurrent.Transactional;
@@ -839,22 +846,17 @@ public class LogTransactionTest extends AbstractTransactionalTest
             assertNotNull(tmpFiles);
             assertEquals(numNewFiles - 1, tmpFiles.size());
 
-            File ssTable2DataFile = new File(sstable2.descriptor.filenameFor(Component.DATA));
-            File ssTable2IndexFile = new File(sstable2.descriptor.filenameFor(Component.PRIMARY_INDEX));
+            List<File> sstableFiles = sstable2.descriptor.getFormat().primaryComponents().stream().map(sstable2.descriptor::fileFor).collect(Collectors.toList());
 
-            assertTrue(tmpFiles.contains(ssTable2DataFile));
-            assertTrue(tmpFiles.contains(ssTable2IndexFile));
+            for (File f : tmpFiles) assertTrue(tmpFiles.contains(f));
 
             List<File> files = directories.sstableLister(Directories.OnTxnErr.THROW).listFiles();
             List<File> filesNoTmp = directories.sstableLister(Directories.OnTxnErr.THROW).skipTemporary(true).listFiles();
             assertNotNull(files);
             assertNotNull(filesNoTmp);
 
-            assertTrue(files.contains(ssTable2DataFile));
-            assertTrue(files.contains(ssTable2IndexFile));
-
-            assertFalse(filesNoTmp.contains(ssTable2DataFile));
-            assertFalse(filesNoTmp.contains(ssTable2IndexFile));
+            for (File f : tmpFiles) assertTrue(files.contains(f));
+            for (File f : tmpFiles) assertFalse(filesNoTmp.contains(f));
 
             log.finish();
 
@@ -865,8 +867,8 @@ public class LogTransactionTest extends AbstractTransactionalTest
 
             filesNoTmp = directories.sstableLister(Directories.OnTxnErr.THROW).skipTemporary(true).listFiles();
             assertNotNull(filesNoTmp);
-            assertTrue(filesNoTmp.contains(ssTable2DataFile));
-            assertTrue(filesNoTmp.contains(ssTable2IndexFile));
+
+            for (File f : tmpFiles) assertTrue(filesNoTmp.contains(f));
 
             sstable1.selfRef().release();
             sstable2.selfRef().release();
@@ -1261,37 +1263,82 @@ public class LogTransactionTest extends AbstractTransactionalTest
 
     private static SSTableReader sstable(File dataFolder, ColumnFamilyStore cfs, int generation, int size) throws IOException
     {
-        Descriptor descriptor = new Descriptor(dataFolder, cfs.keyspace.getName(), cfs.getTableName(), new SequenceBasedSSTableId(generation), SSTableFormat.Type.BIG);
-        Set<Component> components = ImmutableSet.of(Component.DATA, Component.PRIMARY_INDEX, Component.FILTER, Component.TOC);
-        for (Component component : components)
+        Descriptor descriptor = new Descriptor(dataFolder, cfs.getKeyspaceName(), cfs.getTableName(), new SequenceBasedSSTableId(generation), DatabaseDescriptor.getSelectedSSTableFormat());
+        if (BigFormat.isSelected())
         {
-            File file = new File(descriptor.filenameFor(component));
-            if (!file.exists())
-                assertTrue(file.createFileIfNotExists());
+            Set<Component> components = ImmutableSet.of(Components.DATA, Components.PRIMARY_INDEX, Components.FILTER, Components.TOC);
+            for (Component component : components)
+            {
+                File file = descriptor.fileFor(component);
+                if (!file.exists())
+                    assertTrue(file.createFileIfNotExists());
 
-            Util.setFileLength(file, size);
+                Util.setFileLength(file, size);
+            }
+
+            FileHandle dFile = new FileHandle.Builder(descriptor.fileFor(Components.DATA)).complete();
+            FileHandle iFile = new FileHandle.Builder(descriptor.fileFor(Components.PRIMARY_INDEX)).complete();
+
+            DecoratedKey key = MockSchema.readerBounds(generation);
+            SerializationHeader header = SerializationHeader.make(cfs.metadata(), Collections.emptyList());
+            StatsMetadata metadata = (StatsMetadata) new MetadataCollector(cfs.metadata().comparator)
+                                                     .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(), 0.01f, -1, null, false, header, key.getKey().slice(), key.getKey().slice())
+                                                     .get(MetadataType.STATS);
+            SSTableReader reader = new BigTableReader.Builder(descriptor).setComponents(components)
+                                                                         .setTableMetadataRef(cfs.metadata)
+                                                                         .setDataFile(dFile)
+                                                                         .setIndexFile(iFile)
+                                                                         .setIndexSummary(MockSchema.indexSummary.sharedCopy())
+                                                                         .setFilter(FilterFactory.AlwaysPresent)
+                                                                         .setMaxDataAge(1L)
+                                                                         .setStatsMetadata(metadata)
+                                                                         .setOpenReason(SSTableReader.OpenReason.NORMAL)
+                                                                         .setSerializationHeader(header)
+                                                                         .setFirst(key)
+                                                                         .setLast(key)
+                                                                         .build(cfs, false, false);
+            return reader;
         }
+        else if (BtiFormat.isSelected())
+        {
+            Set<Component> components = ImmutableSet.of(Components.DATA, BtiFormat.Components.PARTITION_INDEX, BtiFormat.Components.ROW_INDEX, Components.FILTER, Components.TOC);
+            for (Component component : components)
+            {
+                File file = descriptor.fileFor(component);
+                if (!file.exists())
+                    assertTrue(file.createFileIfNotExists());
 
-        FileHandle dFile = new FileHandle.Builder(descriptor.filenameFor(Component.DATA)).complete();
-        FileHandle iFile = new FileHandle.Builder(descriptor.filenameFor(Component.PRIMARY_INDEX)).complete();
+                Util.setFileLength(file, size);
+            }
 
-        SerializationHeader header = SerializationHeader.make(cfs.metadata(), Collections.emptyList());
-        StatsMetadata metadata = (StatsMetadata) new MetadataCollector(cfs.metadata().comparator)
-                                                 .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(), 0.01f, -1, null, false, header)
-                                                 .get(MetadataType.STATS);
-        SSTableReader reader = SSTableReader.internalOpen(descriptor,
-                                                          components,
-                                                          cfs.metadata,
-                                                          iFile,
-                                                          dFile,
-                                                          MockSchema.indexSummary.sharedCopy(),
-                                                          new AlwaysPresentFilter(),
-                                                          1L,
-                                                          metadata,
-                                                          SSTableReader.OpenReason.NORMAL,
-                                                          header);
-        reader.first = reader.last = MockSchema.readerBounds(generation);
-        return reader;
+            FileHandle dFile = new FileHandle.Builder(descriptor.fileFor(Components.DATA)).complete();
+            FileHandle iFile = new FileHandle.Builder(descriptor.fileFor(BtiFormat.Components.PARTITION_INDEX)).complete();
+            FileHandle rFile = new FileHandle.Builder(descriptor.fileFor(BtiFormat.Components.ROW_INDEX)).complete();
+
+            DecoratedKey key = MockSchema.readerBounds(generation);
+            SerializationHeader header = SerializationHeader.make(cfs.metadata(), Collections.emptyList());
+            StatsMetadata metadata = (StatsMetadata) new MetadataCollector(cfs.metadata().comparator)
+                                                     .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(), 0.01f, -1, null, false, header, key.getKey().slice(), key.getKey().slice())
+                                                     .get(MetadataType.STATS);
+            SSTableReader reader = new BtiTableReader.Builder(descriptor).setComponents(components)
+                                                                         .setTableMetadataRef(cfs.metadata)
+                                                                         .setDataFile(dFile)
+                                                                         .setPartitionIndex(new PartitionIndex(iFile, 0, 0, MockSchema.readerBounds(generation), MockSchema.readerBounds(generation)))
+                                                                         .setRowIndexFile(rFile)
+                                                                         .setFilter(FilterFactory.AlwaysPresent)
+                                                                         .setMaxDataAge(1L)
+                                                                         .setStatsMetadata(metadata)
+                                                                         .setOpenReason(SSTableReader.OpenReason.NORMAL)
+                                                                         .setSerializationHeader(header)
+                                                                         .setFirst(key)
+                                                                         .setLast(key)
+                                                                         .build(cfs, false, false);
+            return reader;
+        }
+        else
+        {
+            throw Util.testMustBeImplementedForSSTableFormat();
+        }
     }
 
     private static void assertFiles(String dirPath, Set<String> expectedFiles) throws IOException

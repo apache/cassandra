@@ -48,6 +48,9 @@ import org.apache.cassandra.security.ISslContextFactory;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.transport.messages.StartupMessage;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UNSAFE_VERBOSE_DEBUG_CLIENT_PROTOCOL;
+import static org.apache.cassandra.net.SocketFactory.newSslHandler;
+
 /**
  * Takes care of intializing a Netty Channel and Pipeline for client protocol connections.
  * The pipeline is first set up with some common handlers for connection limiting, dropping
@@ -61,7 +64,7 @@ public class PipelineConfigurator
 
     // Not to be used in production, this causes a Netty logging handler to be added to the pipeline,
     // which will throttle a system under any normal load.
-    private static final boolean DEBUG = Boolean.getBoolean("cassandra.unsafe_verbose_debug_client_protocol");
+    private static final boolean DEBUG = TEST_UNSAFE_VERBOSE_DEBUG_CLIENT_PROTOCOL.getBoolean();
 
     // Stateless handlers
     private static final ConnectionLimitHandler connectionLimitHandler = new ConnectionLimitHandler();
@@ -181,7 +184,8 @@ public class PipelineConfigurator
                             {
                                 // Connection uses SSL/TLS, replace the detection handler with a SslHandler and so use
                                 // encryption.
-                                SslHandler sslHandler = sslContext.newHandler(channel.alloc());
+                                InetSocketAddress peer = encryptionOptions.require_endpoint_verification ? (InetSocketAddress) channel.remoteAddress() : null;
+                                SslHandler sslHandler = newSslHandler(channel, sslContext, peer);
                                 channelHandlerContext.pipeline().replace(SSL_HANDLER, SSL_HANDLER, sslHandler);
                             }
                             else
@@ -199,7 +203,8 @@ public class PipelineConfigurator
                     SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions,
                                                                              encryptionOptions.require_client_auth,
                                                                              ISslContextFactory.SocketType.SERVER);
-                    channel.pipeline().addFirst(SSL_HANDLER, sslContext.newHandler(channel.alloc()));
+                    InetSocketAddress peer = encryptionOptions.require_endpoint_verification ? (InetSocketAddress) channel.remoteAddress() : null;
+                    channel.pipeline().addFirst(SSL_HANDLER, newSslHandler(channel, sslContext, peer));
                 };
             default:
                 throw new IllegalStateException("Unrecognized TLS encryption policy: " + this.tlsEncryptionPolicy);

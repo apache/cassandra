@@ -24,7 +24,6 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.MerkleTrees;
-import org.apache.cassandra.utils.TimeUUID;
 
 import org.junit.Test;
 

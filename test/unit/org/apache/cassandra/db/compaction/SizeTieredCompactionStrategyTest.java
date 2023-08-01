@@ -29,6 +29,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
@@ -55,7 +56,7 @@ public class SizeTieredCompactionStrategyTest
     public static void defineSchema() throws ConfigurationException
     {
         // Disable tombstone histogram rounding for tests
-        System.setProperty("cassandra.streaminghistogram.roundseconds", "1");
+        CassandraRelevantProperties.STREAMING_HISTOGRAM_ROUND_SECONDS.setInt(1);
 
         SchemaLoader.prepareServer();
 
@@ -93,11 +94,11 @@ public class SizeTieredCompactionStrategyTest
     @Test
     public void testGetBuckets()
     {
-        List<Pair<String, Long>> pairs = new ArrayList<Pair<String, Long>>();
+        List<Pair<String, Long>> pairs = new ArrayList<>();
         String[] strings = { "a", "bbbb", "cccccccc", "cccccccc", "bbbb", "a" };
         for (String st : strings)
         {
-            Pair<String, Long> pair = Pair.create(st, new Long(st.length()));
+            Pair<String, Long> pair = Pair.create(st, (long) st.length());
             pairs.add(pair);
         }
 
@@ -117,7 +118,7 @@ public class SizeTieredCompactionStrategyTest
         String[] strings2 = { "aaa", "bbbbbbbb", "aaa", "bbbbbbbb", "bbbbbbbb", "aaa" };
         for (String st : strings2)
         {
-            Pair<String, Long> pair = Pair.create(st, new Long(st.length()));
+            Pair<String, Long> pair = Pair.create(st, (long) st.length());
             pairs.add(pair);
         }
 
@@ -138,7 +139,7 @@ public class SizeTieredCompactionStrategyTest
         String[] strings3 = { "aaa", "bbbbbbbb", "aaa", "bbbbbbbb", "bbbbbbbb", "aaa" };
         for (String st : strings3)
         {
-            Pair<String, Long> pair = Pair.create(st, new Long(st.length()));
+            Pair<String, Long> pair = Pair.create(st, (long) st.length());
             pairs.add(pair);
         }
 
@@ -146,8 +147,9 @@ public class SizeTieredCompactionStrategyTest
         assertEquals(1, buckets.size());
     }
 
+    @SuppressWarnings("UnnecessaryLocalVariable")
     @Test
-    public void testPrepBucket() throws Exception
+    public void testPrepBucket()
     {
         String ksname = KEYSPACE1;
         String cfname = "Standard1";

@@ -45,6 +45,7 @@ public class CassandraMetricsRegistry extends MetricRegistry
     private final Map<String, ThreadPoolMetrics> threadPoolMetrics = new ConcurrentHashMap<>();
 
     private final MBeanWrapper mBeanServer = MBeanWrapper.instance;
+    public final static TimeUnit DEFAULT_TIMER_UNIT = TimeUnit.MICROSECONDS;
 
     private CassandraMetricsRegistry()
     {
@@ -98,12 +99,12 @@ public class CassandraMetricsRegistry extends MetricRegistry
 
     public Timer timer(MetricName name)
     {
-        return timer(name, TimeUnit.MICROSECONDS);
+        return timer(name, DEFAULT_TIMER_UNIT);
     }
 
     public SnapshottingTimer timer(MetricName name, MetricName alias)
     {
-        return timer(name, alias, TimeUnit.MICROSECONDS);
+        return timer(name, alias, DEFAULT_TIMER_UNIT);
     }
 
     public SnapshottingTimer timer(MetricName name, TimeUnit durationUnit)
@@ -226,7 +227,7 @@ public class CassandraMetricsRegistry extends MetricRegistry
         else if (metric instanceof Histogram)
             mbean = new JmxHistogram((Histogram) metric, name);
         else if (metric instanceof Timer)
-            mbean = new JmxTimer((Timer) metric, name, TimeUnit.SECONDS, TimeUnit.MICROSECONDS);
+            mbean = new JmxTimer((Timer) metric, name, TimeUnit.SECONDS, DEFAULT_TIMER_UNIT);
         else if (metric instanceof Metered)
             mbean = new JmxMeter((Metered) metric, name, TimeUnit.SECONDS);
         else

@@ -48,7 +48,7 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static com.google.common.collect.Iterables.all;
-import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static java.util.concurrent.TimeUnit.MICROSECONDS;
 
 /**
  * Sends a read request to the replicas needed to satisfy a given ConsistencyLevel.
@@ -181,13 +181,19 @@ public abstract class AbstractReadExecutor
     /**
      * @return an executor appropriate for the configured speculative read policy
      */
-    public static AbstractReadExecutor getReadExecutor(SinglePartitionReadCommand command, ConsistencyLevel consistencyLevel, long queryStartNanoTime) throws UnavailableException
+    public static AbstractReadExecutor getReadExecutor(SinglePartitionReadCommand command,
+                                                       ConsistencyLevel consistencyLevel,
+                                                       long queryStartNanoTime) throws UnavailableException
     {
         Keyspace keyspace = Keyspace.open(command.metadata().keyspace);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(command.metadata().id);
         SpeculativeRetryPolicy retry = cfs.metadata().params.speculativeRetry;
 
-        ReplicaPlan.ForTokenRead replicaPlan = ReplicaPlans.forRead(keyspace, command.partitionKey().getToken(), consistencyLevel, retry);
+        ReplicaPlan.ForTokenRead replicaPlan = ReplicaPlans.forRead(keyspace,
+                                                                    command.partitionKey().getToken(),
+                                                                    command.indexQueryPlan(),
+                                                                    consistencyLevel,
+                                                                    retry);
 
         // Speculative retry is disabled *OR*
         // 11980: Disable speculative retry if using EACH_QUORUM in order to prevent miscounting DC responses
@@ -220,10 +226,16 @@ public abstract class AbstractReadExecutor
     boolean shouldSpeculateAndMaybeWait()
     {
         // no latency information, or we're overloaded
-        if (cfs.sampleReadLatencyNanos > command.getTimeout(NANOSECONDS))
+        if (cfs.sampleReadLatencyMicros > command.getTimeout(MICROSECONDS))
+        {
+            if (logger.isTraceEnabled())
+                logger.trace("Decided not to speculate as {} > {}", cfs.sampleReadLatencyMicros, command.getTimeout(MICROSECONDS));
             return false;
+        }
 
-        return !handler.await(cfs.sampleReadLatencyNanos, NANOSECONDS);
+        if (logger.isTraceEnabled())
+            logger.trace("Awaiting {} microseconds before speculating", cfs.sampleReadLatencyMicros);
+        return !handler.await(cfs.sampleReadLatencyMicros, MICROSECONDS);
     }
 
     ReplicaPlan.ForTokenRead replicaPlan()

@@ -20,7 +20,6 @@ package org.apache.cassandra.streaming;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import javax.management.ListenerNotFoundException;
 import javax.management.MBeanNotificationInfo;
@@ -32,6 +31,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.Weigher;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.RateLimiter;
@@ -71,8 +71,8 @@ public class StreamManager implements StreamManagerMBean
         return new StreamRateLimiter(peer,
                                      StreamRateLimiter.LIMITER,
                                      StreamRateLimiter.INTER_DC_LIMITER,
-                                     DatabaseDescriptor.getStreamThroughputOutboundMebibytesPerSec(),
-                                     DatabaseDescriptor.getInterDCStreamThroughputOutboundMebibytesPerSec());
+                                     DatabaseDescriptor.getStreamThroughputOutboundBytesPerSec(),
+                                     DatabaseDescriptor.getInterDCStreamThroughputOutboundBytesPerSec());
     }
 
     /**
@@ -90,8 +90,8 @@ public class StreamManager implements StreamManagerMBean
         return new StreamRateLimiter(peer,
                                      StreamRateLimiter.ENTIRE_SSTABLE_LIMITER,
                                      StreamRateLimiter.ENTIRE_SSTABLE_INTER_DC_LIMITER,
-                                     DatabaseDescriptor.getEntireSSTableStreamThroughputOutboundMebibytesPerSec(),
-                                     DatabaseDescriptor.getEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSec());
+                                     DatabaseDescriptor.getEntireSSTableStreamThroughputOutboundBytesPerSec(),
+                                     DatabaseDescriptor.getEntireSSTableInterDCStreamThroughputOutboundBytesPerSec());
     }
 
     public static class StreamRateLimiter implements StreamingDataOutputPlus.RateLimiter
@@ -159,25 +159,25 @@ public class StreamManager implements StreamManagerMBean
 
         private static double calculateRateInBytes()
         {
-            double throughput = DatabaseDescriptor.getStreamThroughputOutboundMebibytesPerSec();
+            double throughput = DatabaseDescriptor.getStreamThroughputOutboundBytesPerSec();
             return calculateEffectiveRateInBytes(throughput);
         }
 
         private static double calculateInterDCRateInBytes()
         {
-            double throughput = DatabaseDescriptor.getInterDCStreamThroughputOutboundMebibytesPerSec();
+            double throughput = DatabaseDescriptor.getInterDCStreamThroughputOutboundBytesPerSec();
             return calculateEffectiveRateInBytes(throughput);
         }
 
         private static double calculateEntireSSTableRateInBytes()
         {
-            double throughput = DatabaseDescriptor.getEntireSSTableStreamThroughputOutboundMebibytesPerSec();
+            double throughput = DatabaseDescriptor.getEntireSSTableStreamThroughputOutboundBytesPerSec();
             return calculateEffectiveRateInBytes(throughput);
         }
 
         private static double calculateEntireSSTableInterDCRateInBytes()
         {
-            double throughput = DatabaseDescriptor.getEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSec();
+            double throughput = DatabaseDescriptor.getEntireSSTableInterDCStreamThroughputOutboundBytesPerSec();
             return calculateEffectiveRateInBytes(throughput);
         }
 
@@ -209,7 +209,7 @@ public class StreamManager implements StreamManagerMBean
         {
             // if throughput is set to 0, throttling is disabled
             return throughput > 0
-                   ? throughput * BYTES_PER_MEBIBYTE
+                   ? throughput
                    : Double.MAX_VALUE;
         }
     }
@@ -231,6 +231,8 @@ public class StreamManager implements StreamManagerMBean
         @Override
         public void onRegister(StreamResultFuture result)
         {
+            if (!DatabaseDescriptor.getStreamingStatsEnabled())
+                return;
             // reason for synchronized rather than states.get is to detect duplicates
             // streaming shouldn't be producing duplicates as that would imply a planId collision
             synchronized (states)
@@ -251,16 +253,33 @@ public class StreamManager implements StreamManagerMBean
         }
     };
 
+    protected void addStreamingStateAgain(StreamingState state)
+    {
+        if (!DatabaseDescriptor.getStreamingStatsEnabled())
+            return;
+        states.put(state.id(), state);
+    }
+
     public StreamManager()
     {
         DurationSpec.LongNanosecondsBound duration = DatabaseDescriptor.getStreamingStateExpires();
         long sizeBytes = DatabaseDescriptor.getStreamingStateSize().toBytes();
-        long numElements = sizeBytes / StreamingState.ELEMENT_SIZE;
-        logger.info("Storing streaming state for {} or for {} elements", duration, numElements);
+        logger.info("Storing streaming state for {} or for size {}", duration, sizeBytes);
         states = CacheBuilder.newBuilder()
                              .expireAfterWrite(duration.quantity(), duration.unit())
-                             .maximumSize(numElements)
+                             .maximumWeight(sizeBytes)
+                             .weigher(new StreamingStateWeigher())
                              .build();
+    }
+
+    private static class StreamingStateWeigher implements Weigher<TimeUUID,StreamingState>
+    {
+        @Override
+        public int weigh(TimeUUID key, StreamingState val)
+        {
+            long costOfStreamingState = val.unsharedHeapSize() + TimeUUID.TIMEUUID_SIZE;
+            return Math.toIntExact(costOfStreamingState);
+        }
     }
 
     public void start()
@@ -311,6 +330,30 @@ public class StreamManager implements StreamManagerMBean
                 return StreamStateCompositeData.toCompositeData(input.getCurrentState());
             }
         }));
+    }
+
+    @Override
+    public boolean getStreamingStatsEnabled()
+    {
+        return DatabaseDescriptor.getStreamingStatsEnabled();
+    }
+
+    @Override
+    public void setStreamingStatsEnabled(boolean streamingStatsEnabled)
+    {
+        DatabaseDescriptor.setStreamingStatsEnabled(streamingStatsEnabled);
+    }
+
+    @Override
+    public String getStreamingSlowEventsLogTimeout()
+    {
+        return DatabaseDescriptor.getStreamingSlowEventsLogTimeout().toString();
+    }
+
+    @Override
+    public void setStreamingSlowEventsLogTimeout(String value)
+    {
+        DatabaseDescriptor.setStreamingSlowEventsLogTimeout(value);
     }
 
     public void registerInitiator(final StreamResultFuture result)
@@ -420,6 +463,17 @@ public class StreamManager implements StreamManagerMBean
             return null;
 
         return streamResultFuture.getSession(peer, sessionIndex);
+    }
+
+    public long getTotalRemainingOngoingBytes()
+    {
+        long total = 0;
+        for (StreamResultFuture fut : Iterables.concat(initiatorStreams.values(), followerStreams.values()))
+        {
+            for (SessionInfo sessionInfo : fut.getCurrentState().sessions)
+                total += sessionInfo.getTotalSizeToReceive() - sessionInfo.getTotalSizeReceived();
+        }
+        return total;
     }
 
     public interface StreamListener

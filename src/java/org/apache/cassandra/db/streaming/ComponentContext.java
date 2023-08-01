@@ -18,31 +18,23 @@
 
 package org.apache.cassandra.db.streaming;
 
-import com.google.common.collect.ImmutableSet;
+import java.io.IOException;
+import java.nio.channels.FileChannel;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.util.FileUtils;
-
-import java.io.IOException;
-import java.nio.channels.FileChannel;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
-
-/**
- * Mutable SSTable components and their hardlinks to avoid concurrent sstable component modification
- * during entire-sstable-streaming.
- */
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileUtils;
 
 public class ComponentContext implements AutoCloseable
 {
     private static final Logger logger = LoggerFactory.getLogger(ComponentContext.class);
-
-    private static final Set<Component> MUTABLE_COMPONENTS = ImmutableSet.of(Component.STATS, Component.SUMMARY);
 
     private final Map<Component, File> hardLinks;
     private final ComponentManifest manifest;
@@ -53,22 +45,23 @@ public class ComponentContext implements AutoCloseable
         this.manifest = manifest;
     }
 
-    public static ComponentContext create(Descriptor descriptor)
+    public static ComponentContext create(SSTable sstable)
     {
+        Descriptor descriptor = sstable.descriptor;
         Map<Component, File> hardLinks = new HashMap<>(1);
 
-        for (Component component : MUTABLE_COMPONENTS)
+        for (Component component : descriptor.getFormat().mutableComponents())
         {
-            File file = new File(descriptor.filenameFor(component));
+            File file = descriptor.fileFor(component);
             if (!file.exists())
                 continue;
 
-            File hardlink = new File(descriptor.tmpFilenameForStreaming(component));
+            File hardlink = descriptor.tmpFileForStreaming(component);
             FileUtils.createHardLink(file, hardlink);
             hardLinks.put(component, hardlink);
         }
 
-        return new ComponentContext(hardLinks, ComponentManifest.create(descriptor));
+        return new ComponentContext(hardLinks, ComponentManifest.create(sstable));
     }
 
     public ComponentManifest manifest()
@@ -81,9 +74,9 @@ public class ComponentContext implements AutoCloseable
      */
     public FileChannel channel(Descriptor descriptor, Component component, long size) throws IOException
     {
-        String toTransfer = hardLinks.containsKey(component) ? hardLinks.get(component).path() : descriptor.filenameFor(component);
+        File toTransfer = hardLinks.containsKey(component) ? hardLinks.get(component) : descriptor.fileFor(component);
         @SuppressWarnings("resource") // file channel will be closed by Caller
-        FileChannel channel = new File(toTransfer).newReadChannel();
+        FileChannel channel = toTransfer.newReadChannel();
 
         assert size == channel.size() : String.format("Entire sstable streaming expects %s file size to be %s but got %s.",
                                                       component, size, channel.size());

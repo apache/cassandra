@@ -28,13 +28,12 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.index.sasi.analyzer.AbstractAnalyzer;
@@ -47,7 +46,9 @@ import org.apache.cassandra.index.sasi.plan.Expression.Op;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
 import org.apache.cassandra.index.sasi.utils.RangeUnionIterator;
 import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -78,7 +79,7 @@ public class ColumnIndex
         this.mode = IndexMode.getMode(column, config);
         this.memtable = new AtomicReference<>(new IndexMemtable(this));
         this.tracker = new DataTracker(keyValidator, this);
-        this.component = new Component(Component.Type.SECONDARY_INDEX, String.format(FILE_NAME_FORMAT, getIndexName()));
+        this.component = Components.Types.SECONDARY_INDEX.createComponent(String.format(FILE_NAME_FORMAT, getIndexName()));
         this.isTokenized = getAnalyzer().isTokenizing();
     }
 
@@ -229,7 +230,7 @@ public class ColumnIndex
                && mode.supports(operator); // for all other cases let's refer to index itself
     }
 
-    public static ByteBuffer getValueOf(ColumnMetadata column, Row row, int nowInSecs)
+    public static ByteBuffer getValueOf(ColumnMetadata column, Row row, long nowInSecs)
     {
         if (row == null)
             return null;

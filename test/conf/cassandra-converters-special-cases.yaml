@@ -1,0 +1,10 @@
+#
+# This test config is used to test the Converters added for configuration backward compatibility in 4.1 post
+# CASSANDRA-15234. It tests setting new Config names (CASSANDRA-17737)
+#
+sstable_preemptive_open_interval:
+index_summary_resize_interval:
+cache_load_timeout: 0s
+commitlog_sync_group_window: 0ms
+credentials_update_interval:
+

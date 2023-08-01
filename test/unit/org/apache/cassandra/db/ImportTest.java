@@ -40,7 +40,7 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.BootStrapper;
-import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -236,7 +236,7 @@ public class ImportTest extends CQLTester
             sstable.selfRef().release();
             for (File f : sstable.descriptor.directory.tryList())
             {
-                if (f.toString().contains(sstable.descriptor.baseFilename()))
+                if (f.toString().contains(sstable.descriptor.baseFile().toString()))
                 {
                     System.out.println("move " + f.toPath() + " to " + backupdir);
                     File moveFileTo = new File(backupdir, f.name());
@@ -314,8 +314,8 @@ public class ImportTest extends CQLTester
 
         getCurrentColumnFamilyStore().clearUnsafe();
 
-        String filenameToCorrupt = sstableToCorrupt.descriptor.filenameFor(Component.STATS);
-        try (FileChannel fileChannel = new File(filenameToCorrupt).newReadWriteChannel())
+        File fileToCorrupt = sstableToCorrupt.descriptor.fileFor(Components.STATS);
+        try (FileChannel fileChannel = fileToCorrupt.newReadWriteChannel())
         {
             fileChannel.position(0);
             fileChannel.write(ByteBufferUtil.bytes(StringUtils.repeat('z', 2)));
@@ -574,8 +574,8 @@ public class ImportTest extends CQLTester
         sstables.forEach(s -> s.selfRef().release());
         // corrupt the sstable which is still in the data directory
         SSTableReader sstableToCorrupt = sstables.iterator().next();
-        String filenameToCorrupt = sstableToCorrupt.descriptor.filenameFor(Component.STATS);
-        try (FileChannel fileChannel = new File(filenameToCorrupt).newReadWriteChannel())
+        File fileToCorrupt = sstableToCorrupt.descriptor.fileFor(Components.STATS);
+        try (FileChannel fileChannel = fileToCorrupt.newReadWriteChannel())
         {
             fileChannel.position(0);
             fileChannel.write(ByteBufferUtil.bytes(StringUtils.repeat('z', 2)));
@@ -615,7 +615,7 @@ public class ImportTest extends CQLTester
         assertEquals(20, rowCount);
         assertEquals(expectedFiles, getCurrentColumnFamilyStore().getLiveSSTables());
         for (SSTableReader sstable : expectedFiles)
-            assertTrue(new File(sstable.descriptor.filenameFor(Component.DATA)).exists());
+            assertTrue(sstable.descriptor.fileFor(Components.DATA).exists());
         getCurrentColumnFamilyStore().truncateBlocking();
         LifecycleTransaction.waitForDeletions();
         for (File f : sstableToCorrupt.descriptor.directory.tryList()) // clean up the corrupt files which truncate does not handle
@@ -661,6 +661,48 @@ public class ImportTest extends CQLTester
         assertTrue(gotException);
         assertEquals(0, execute("select * from %s").size());
         assertEquals(0, getCurrentColumnFamilyStore().getLiveSSTables().size());
+    }
+
+    @Test
+    public void importExoticTableNamesTest() throws Throwable
+    {
+        for (String table : new String[] { "snapshot", "snapshots", "backup", "backups",
+                                           "\"Snapshot\"", "\"Snapshots\"", "\"Backups\"", "\"Backup\""})
+        {
+            try
+            {
+                String unquotedTableName = table.replaceAll("\"", "");
+                schemaChange(String.format("CREATE TABLE %s.%s (id int primary key, d int)", KEYSPACE, table));
+                for (int i = 0; i < 10; i++)
+                    execute(String.format("INSERT INTO %s.%s (id, d) values (?, ?)", KEYSPACE, table), i, i);
+
+                ColumnFamilyStore cfs = getColumnFamilyStore(KEYSPACE, unquotedTableName);
+
+                Util.flush(cfs);
+
+                Set<SSTableReader> sstables = cfs.getLiveSSTables();
+                cfs.clearUnsafe();
+
+                File backupDir = moveToBackupDir(sstables);
+
+                assertEquals(0, execute(String.format("SELECT * FROM %s.%s", KEYSPACE, table)).size());
+
+                // copy is true - so importing will be done by copying
+
+                SSTableImporter importer = new SSTableImporter(cfs);
+                SSTableImporter.Options options = SSTableImporter.Options.options(backupDir.toString()).copyData(true).build();
+                List<String> failedDirectories = importer.importNewSSTables(options);
+                assertTrue(failedDirectories.isEmpty());
+                assertEquals(10, execute(String.format("select * from %s.%s", KEYSPACE, table)).size());
+
+                // files are left there as they were just copied
+                Assert.assertNotEquals(0, countFiles(backupDir));
+            }
+            finally
+            {
+                execute(String.format("DROP TABLE IF EXISTS %s.%s", KEYSPACE, table));
+            }
+        }
     }
 
     private static class MockCFS extends ColumnFamilyStore

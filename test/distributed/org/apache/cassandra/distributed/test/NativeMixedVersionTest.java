@@ -30,7 +30,10 @@ import com.datastax.driver.core.Session;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.assertj.core.api.Assertions;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.IO_NETTY_EVENTLOOP_THREADS;
 
 public class NativeMixedVersionTest extends TestBaseImpl
 {
@@ -39,15 +42,17 @@ public class NativeMixedVersionTest extends TestBaseImpl
     {
         // make sure to limit the netty thread pool to size 1, this will make the test determanistic as all work
         // will happen on the single thread.
-        System.setProperty("io.netty.eventLoopThreads", "1");
-        try (Cluster cluster = Cluster.build(1)
+        try (WithProperties properties = new WithProperties().set(IO_NETTY_EVENTLOOP_THREADS, 1);
+             Cluster cluster = Cluster.build(1)
                                       .withConfig(c ->
                                                   c.with(Feature.values())
                                                    .set("read_thresholds_enabled", true)
                                                    .set("local_read_size_warn_threshold", "1KiB")
                                       )
-                                      .start())
+                                      .start();
+             )
         {
+
             init(cluster);
             cluster.schemaChange(withKeyspace("CREATE TABLE %s.tbl (pk int, ck1 int, value blob, PRIMARY KEY (pk, ck1))"));
             IInvokableInstance node = cluster.get(1);
@@ -77,10 +82,6 @@ public class NativeMixedVersionTest extends TestBaseImpl
             // this should not happen; so make sure no logs are found
             List<String> result = node.logs().grep("Warnings present in message with version less than").getResult();
             Assertions.assertThat(result).isEmpty();
-        }
-        finally
-        {
-            System.clearProperty("io.netty.eventLoopThreads");
         }
     }
 }

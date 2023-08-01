@@ -20,6 +20,7 @@ package org.apache.cassandra.dht;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
@@ -27,8 +28,11 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.utils.Pair;
+import org.assertj.core.api.Assertions;
 
 import static com.google.common.collect.Sets.newHashSet;
 import static org.junit.Assert.assertEquals;
@@ -37,6 +41,7 @@ import static org.junit.Assert.fail;
 
 public class SplitterTest
 {
+    private static final Logger logger = LoggerFactory.getLogger(SplitterTest.class);
 
     @Test
     public void randomSplitTestNoVNodesRandomPartitioner()
@@ -62,22 +67,46 @@ public class SplitterTest
         randomSplitTestVNodes(new Murmur3Partitioner());
     }
 
+    // CASSANDRA-18013
+    @Test
+    public void testSplitOwnedRanges() {
+        Splitter splitter = getSplitter(Murmur3Partitioner.instance);
+        long lt = 0;
+        long rt = 31;
+        Range<Token> range = new Range<>(getWrappedToken(Murmur3Partitioner.instance, BigInteger.valueOf(lt)),
+                                         getWrappedToken(Murmur3Partitioner.instance, BigInteger.valueOf(rt)));
+
+        for (int i = 1; i <= (rt - lt); i++)
+        {
+            List<Token> splits = splitter.splitOwnedRanges(i, Arrays.asList(new Splitter.WeightedRange(1.0d, range)), false);
+            logger.info("{} splits of {} are: {}", i, range, splits);
+            Assertions.assertThat(splits).hasSize(i);
+        }
+    }
+
     @Test
     public void testWithWeight()
     {
         List<Splitter.WeightedRange> ranges = new ArrayList<>();
         ranges.add(new Splitter.WeightedRange(1.0, t(0, 10)));
         ranges.add(new Splitter.WeightedRange(1.0, t(20, 30)));
-        ranges.add(new Splitter.WeightedRange(0.5, t(40, 60)));
+        ranges.add(new Splitter.WeightedRange(1.0, t(40, 50)));
 
-        List<Splitter.WeightedRange> ranges2 = new ArrayList<>();
+        List<Splitter.WeightedRange> ranges2 = new ArrayList<>(); // same total coverage, split point inside weight-1 range
         ranges2.add(new Splitter.WeightedRange(1.0, t(0, 10)));
         ranges2.add(new Splitter.WeightedRange(1.0, t(20, 30)));
-        ranges2.add(new Splitter.WeightedRange(1.0, t(40, 50)));
+        ranges2.add(new Splitter.WeightedRange(0.5, t(40, 60)));
+
+        List<Splitter.WeightedRange> ranges3 = new ArrayList<>(); // same total coverage, split point inside weight-0.5 range
+        ranges3.add(new Splitter.WeightedRange(1.0, t(0, 10)));
+        ranges3.add(new Splitter.WeightedRange(0.5, t(15, 35)));
+        ranges3.add(new Splitter.WeightedRange(1.0, t(40, 50)));
+
         IPartitioner partitioner = Murmur3Partitioner.instance;
         Splitter splitter = partitioner.splitter().get();
 
         assertEquals(splitter.splitOwnedRanges(2, ranges, false), splitter.splitOwnedRanges(2, ranges2, false));
+        assertEquals(splitter.splitOwnedRanges(2, ranges, false), splitter.splitOwnedRanges(2, ranges3, false));
     }
 
     @Test

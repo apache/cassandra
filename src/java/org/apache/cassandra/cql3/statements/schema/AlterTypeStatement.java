@@ -179,7 +179,7 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
         UserType apply(KeyspaceMetadata keyspace, UserType userType)
         {
             List<String> dependentAggregates =
-                keyspace.functions
+                keyspace.userFunctions
                         .udas()
                         .filter(uda -> null != uda.initialCondition() && uda.stateType().referencesUserType(userType.name))
                         .map(uda -> uda.name().toString())

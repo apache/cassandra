@@ -33,7 +33,7 @@ import org.apache.cassandra.io.util.File;
  * A new implementation must adhere to the following invariants:
  * - Must be locally sortable - that is, the comparison must reflect the comparison of generation times of identifiers
  * generated on the same node
- * - String representation must *not* include the {@link Descriptor#FILENAME_SEPARATOR} character, see {@link Descriptor#fromFilenameWithComponent(File)}
+ * - String representation must *not* include the {@link Descriptor#FILENAME_SEPARATOR} character, see {@link Descriptor#fromFileWithComponent(File)}
  * - must be case-insensitive because the sstables can be stored on case-insensitive file system
  * <p>
  */
@@ -50,7 +50,7 @@ public interface SSTableId
      * {@link Builder#fromString(String)}
      * <p>
      * Must not contain any {@link Descriptor#FILENAME_SEPARATOR} character as it is used in the Descriptor
-     * see {@link Descriptor#fromFilenameWithComponent(File)}
+     * see {@link Descriptor#fromFileWithComponent(File)}
      */
     @Override
     String toString();

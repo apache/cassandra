@@ -57,6 +57,7 @@ public class PercentileSpeculativeRetryPolicy implements SpeculativeRetryPolicy
     {
         if (snapshot.size() <= 0)
             return existingValue;
+        // latency snapshot uses a default timer so is in microseconds, so just return percentile
         return (long) snapshot.getValue(percentile / 100);
     }
 

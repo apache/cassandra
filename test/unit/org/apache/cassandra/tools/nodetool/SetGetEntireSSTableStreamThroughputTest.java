@@ -34,9 +34,12 @@ import static org.assertj.core.api.Assertions.withPrecision;
  */
 public class SetGetEntireSSTableStreamThroughputTest extends CQLTester
 {
+    private static final int MAX_INT_CONFIG_VALUE_MIB = Integer.MAX_VALUE - 1;
+
     @BeforeClass
     public static void setup() throws Exception
     {
+        requireNetwork();
         startJMXServer();
     }
 
@@ -55,7 +58,13 @@ public class SetGetEntireSSTableStreamThroughputTest extends CQLTester
     @Test
     public void testMaxValue()
     {
-        assertSetGetValidThroughput(Integer.MAX_VALUE - 1, (Integer.MAX_VALUE - 1) * StreamRateLimiter.BYTES_PER_MEBIBYTE);
+        assertSetGetValidThroughput(MAX_INT_CONFIG_VALUE_MIB, MAX_INT_CONFIG_VALUE_MIB * StreamRateLimiter.BYTES_PER_MEBIBYTE);
+    }
+
+    @Test
+    public void testUpperBound()
+    {
+        assertSetInvalidEntireSStableThroughputMib(String.valueOf(Integer.MAX_VALUE));
     }
 
     @Test
@@ -87,6 +96,14 @@ public class SetGetEntireSSTableStreamThroughputTest extends CQLTester
         assertThat(StreamRateLimiter.getEntireSSTableRateLimiterRateInBytes()).isEqualTo(rateInBytes, withPrecision(0.01));
     }
 
+    private static void assertSetInvalidEntireSStableThroughputMib(String throughput)
+    {
+        ToolResult tool = invokeNodetool("setstreamthroughput", "-e", throughput);
+        assertThat(tool.getExitCode()).isEqualTo(1);
+        assertThat(tool.getStdout()).contains("entire_sstable_stream_throughput_outbound: 2147483647 is too large; it " +
+                                              "should be less than 2147483647 in MiB/s");
+    }
+
     private static void assertSetInvalidThroughput(String throughput, String expectedErrorMessage)
     {
         ToolResult tool = throughput == null ? invokeNodetool("setstreamthroughput", "-e")
@@ -95,7 +112,7 @@ public class SetGetEntireSSTableStreamThroughputTest extends CQLTester
         assertThat(tool.getStdout()).contains(expectedErrorMessage);
     }
 
-    private static void assertGetThroughput(int expected)
+    private static void assertGetThroughput(double expected)
     {
         ToolResult tool = invokeNodetool("getstreamthroughput", "-e");
         tool.assertOnCleanExit();

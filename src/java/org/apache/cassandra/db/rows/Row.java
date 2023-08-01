@@ -20,6 +20,7 @@ package org.apache.cassandra.db.rows;
 import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.db.*;
@@ -33,7 +34,7 @@ import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.btree.BTree;
-import org.apache.cassandra.utils.btree.UpdateFunction;
+import org.apache.cassandra.utils.memory.Cloner;
 
 /**
  * Storage engine representation of a row.
@@ -119,7 +120,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
      *                              normally retrieved from {@link TableMetadata#enforceStrictLiveness()}
      * @return true if there is some live information
      */
-    public boolean hasLiveData(int nowInSec, boolean enforceStrictLiveness);
+    public boolean hasLiveData(long nowInSec, boolean enforceStrictLiveness);
 
     /**
      * Returns a cell for a simple column.
@@ -147,6 +148,14 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
      * @return the data for {@code c} or {@code null} if the row has no data for this column.
      */
     public ComplexColumnData getComplexColumnData(ColumnMetadata c);
+
+    /**
+     * Returns the {@link ColumnData} for the specified column.
+     *
+     * @param c the column for which to fetch the data.
+     * @return the data for the column or {@code null} if the row has no data for this column.
+     */
+    public ColumnData getColumnData(ColumnMetadata c);
 
     /**
      * An iterable over the cells of this row.
@@ -194,7 +203,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
      *
      * @param nowInSec the current time in seconds to decid if a cell is expired.
      */
-    public boolean hasDeletion(int nowInSec);
+    public boolean hasDeletion(long nowInSec);
 
     /**
      * An iterator to efficiently search data for a given column.
@@ -220,6 +229,27 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
     public Row filter(ColumnFilter filter, DeletionTime activeDeletion, boolean setActiveDeletionToRow, TableMetadata metadata);
 
     /**
+     * Requires that {@code function} returns either {@code null} or {@code ColumnData} for the same column.
+     *
+     * Returns a copy of this row that:
+     *   1) {@code function} has been applied to the members of
+     *   2) doesn't include any {@code null} results of {@code function}
+     *   3) has precisely the provided {@code LivenessInfo} and {@code Deletion}
+     */
+    public Row transformAndFilter(LivenessInfo info, Deletion deletion, Function<ColumnData, ColumnData> function);
+
+    /**
+     * Requires that {@code function} returns either {@code null} or {@code ColumnData} for the same column.
+     *
+     * Returns a copy of this row that:
+     *   1) {@code function} has been applied to the members of
+     *   2) doesn't include any {@code null} results of {@code function}
+     */
+    public Row transformAndFilter(Function<ColumnData, ColumnData> function);
+
+    public Row clone(Cloner cloner);
+
+    /**
      * Returns a copy of this row without any deletion info that should be purged according to {@code purger}.
      *
      * @param purger the {@code DeletionPurger} to use to decide what can be purged.
@@ -237,7 +267,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
      * @return this row but without any deletion info purged by {@code purger}. If the purged row is empty, returns
      *         {@code null}.
      */
-    public Row purge(DeletionPurger purger, int nowInSec, boolean enforceStrictLiveness);
+    public Row purge(DeletionPurger purger, long nowInSec, boolean enforceStrictLiveness);
 
     /**
      * Returns a copy of this row which only include the data queried by {@code filter}, excluding anything _fetched_ for
@@ -331,7 +361,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
     public static class Deletion
     {
         public static final Deletion LIVE = new Deletion(DeletionTime.LIVE, false);
-        private static final long EMPTY_SIZE = ObjectSizes.measure(new DeletionTime(0, 0));
+        private static final long EMPTY_SIZE = ObjectSizes.measure(DeletionTime.build(0, 0));
 
         private final DeletionTime time;
         private final boolean isShadowable;

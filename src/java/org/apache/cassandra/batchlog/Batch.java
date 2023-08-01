@@ -126,10 +126,10 @@ public final class Batch
             batch.id.serialize(out);
             out.writeLong(batch.creationTime);
 
-            out.writeUnsignedVInt(batch.decodedMutations.size());
+            out.writeUnsignedVInt32(batch.decodedMutations.size());
             for (Mutation mutation : batch.decodedMutations)
             {
-                out.writeUnsignedVInt(mutation.serializedSize(version));
+                out.writeUnsignedVInt32(mutation.serializedSize(version));
                 Mutation.serializer.serialize(mutation, out, version);
             }
         }
@@ -150,7 +150,7 @@ public final class Batch
 
         private static Collection<ByteBuffer> readEncodedMutations(DataInputPlus in) throws IOException
         {
-            int count = (int) in.readUnsignedVInt();
+            int count = in.readUnsignedVInt32();
 
             ArrayList<ByteBuffer> mutations = new ArrayList<>(count);
             for (int i = 0; i < count; i++)
@@ -161,12 +161,12 @@ public final class Batch
 
         private static Collection<Mutation> decodeMutations(DataInputPlus in, int version) throws IOException
         {
-            int count = (int) in.readUnsignedVInt();
+            int count = in.readUnsignedVInt32();
 
             ArrayList<Mutation> mutations = new ArrayList<>(count);
             for (int i = 0; i < count; i++)
             {
-                in.readUnsignedVInt(); // skip mutation size
+                in.readUnsignedVInt32(); // skip mutation size
                 mutations.add(Mutation.serializer.deserialize(in, version));
             }
 

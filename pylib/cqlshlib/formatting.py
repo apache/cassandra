@@ -20,17 +20,17 @@ import math
 import os
 import re
 import sys
+import wcwidth
 
 from collections import defaultdict
 
 from cassandra.cqltypes import EMPTY
 from cassandra.util import datetime_from_timestamp
-from . import wcwidth
 from .displaying import colorme, get_str, FormattedValue, DEFAULT_VALUE_COLORS, NO_COLOR_MAP
 from .util import UTC
 
-unicode_controlchars_re = re.compile(r'[\x00-\x31\x7f-\xa0]')
-controlchars_re = re.compile(r'[\x00-\x31\x7f-\xff]')
+unicode_controlchars_re = re.compile(r'[\x00-\x1f\x7f-\xa0]')
+controlchars_re = re.compile(r'[\x00-\x1f\x7f-\xff]')
 
 
 def _show_control_chars(match):
@@ -326,19 +326,9 @@ def format_integer_type(val, colormap, thousands_sep=None, **_):
     return colorme(bval, colormap, 'int')
 
 
-# We can get rid of this in cassandra-2.2
-if sys.version_info >= (2, 7):
-    def format_integer_with_thousands_sep(val, thousands_sep=','):
-        return "{:,.0f}".format(val).replace(',', thousands_sep)
-else:
-    def format_integer_with_thousands_sep(val, thousands_sep=','):
-        if val < 0:
-            return '-' + format_integer_with_thousands_sep(-val, thousands_sep)
-        result = ''
-        while val >= 1000:
-            val, r = divmod(val, 1000)
-            result = "%s%03d%s" % (thousands_sep, r, result)
-        return "%d%s" % (val, result)
+def format_integer_with_thousands_sep(val, thousands_sep=','):
+    return "{:,.0f}".format(val).replace(',', thousands_sep)
+
 
 formatter_for('long')(format_integer_type)
 formatter_for('int')(format_integer_type)
@@ -440,7 +430,7 @@ def append(builder, dividend, divisor, unit):
     if dividend == 0 or dividend < divisor:
         return dividend
 
-    builder.append(str(dividend / divisor))
+    builder.append(str(dividend // divisor))
     builder.append(unit)
     return dividend % divisor
 

@@ -36,12 +36,14 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import javax.management.openmbean.OpenDataException;
 import javax.management.openmbean.TabularData;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -56,15 +58,11 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.cql3.functions.AggregateFcts;
-import org.apache.cassandra.cql3.functions.BytesConversionFcts;
-import org.apache.cassandra.cql3.functions.CastFcts;
-import org.apache.cassandra.cql3.functions.OperationFcts;
-import org.apache.cassandra.cql3.functions.TimeFcts;
-import org.apache.cassandra.cql3.functions.UuidFcts;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.compaction.CompactionHistoryTabularData;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
@@ -91,7 +89,6 @@ import org.apache.cassandra.metrics.RestorableMeter;
 import org.apache.cassandra.metrics.TopPartitionTracker;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.CompactionParams;
-import org.apache.cassandra.schema.Functions;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
@@ -100,6 +97,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.schema.Types;
+import org.apache.cassandra.schema.UserFunctions;
 import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.paxos.Ballot;
@@ -134,7 +132,6 @@ import static org.apache.cassandra.utils.CassandraVersion.NULL_VERSION;
 import static org.apache.cassandra.utils.CassandraVersion.UNREADABLE_VERSION;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.FBUtilities.now;
-import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
 public final class SystemKeyspace
 {
@@ -149,6 +146,7 @@ public final class SystemKeyspace
     public static final String BATCHES = "batches";
     public static final String PAXOS = "paxos";
     public static final String PAXOS_REPAIR_HISTORY = "paxos_repair_history";
+    public static final String PAXOS_REPAIR_STATE = "_paxos_repair_state";
     public static final String BUILT_INDEXES = "IndexInfo";
     public static final String LOCAL = "local";
     public static final String PEERS_V2 = "peers_v2";
@@ -184,6 +182,20 @@ public final class SystemKeyspace
     @Deprecated public static final String LEGACY_SIZE_ESTIMATES = "size_estimates";
     @Deprecated public static final String LEGACY_SSTABLE_ACTIVITY = "sstable_activity";
 
+    // Names of all tables that could have been a part of a system keyspace. Useful for pre-flight checks.
+    // For details, see CASSANDRA-17777
+    public static final Set<String> ALL_TABLE_NAMES = ImmutableSet.of(
+        BATCHES, PAXOS, PAXOS_REPAIR_HISTORY, PAXOS_REPAIR_STATE, BUILT_INDEXES, LOCAL, PEERS_V2, PEER_EVENTS_V2,
+        COMPACTION_HISTORY, SSTABLE_ACTIVITY_V2, TABLE_ESTIMATES, TABLE_ESTIMATES_TYPE_PRIMARY,
+        TABLE_ESTIMATES_TYPE_LOCAL_PRIMARY, AVAILABLE_RANGES_V2, TRANSFERRED_RANGES_V2, VIEW_BUILDS_IN_PROGRESS,
+        BUILT_VIEWS, PREPARED_STATEMENTS, REPAIRS, TOP_PARTITIONS, LEGACY_PEERS, LEGACY_PEER_EVENTS,
+        LEGACY_TRANSFERRED_RANGES, LEGACY_AVAILABLE_RANGES, LEGACY_SIZE_ESTIMATES, LEGACY_SSTABLE_ACTIVITY);
+
+    public static final Set<String> TABLE_NAMES = ImmutableSet.of(
+        BATCHES, PAXOS, PAXOS_REPAIR_HISTORY, BUILT_INDEXES, LOCAL, PEERS_V2, PEER_EVENTS_V2, 
+        COMPACTION_HISTORY, SSTABLE_ACTIVITY_V2, TABLE_ESTIMATES, AVAILABLE_RANGES_V2, TRANSFERRED_RANGES_V2, VIEW_BUILDS_IN_PROGRESS, 
+        BUILT_VIEWS, PREPARED_STATEMENTS, REPAIRS, TOP_PARTITIONS, LEGACY_PEERS, LEGACY_PEER_EVENTS, 
+        LEGACY_TRANSFERRED_RANGES, LEGACY_AVAILABLE_RANGES, LEGACY_SIZE_ESTIMATES, LEGACY_SSTABLE_ACTIVITY);
 
     public static final TableMetadata Batches =
         parse(BATCHES,
@@ -305,6 +317,7 @@ public final class SystemKeyspace
                 + "compacted_at timestamp,"
                 + "keyspace_name text,"
                 + "rows_merged map<int, bigint>,"
+                + "compaction_properties frozen<map<text, text>>,"
                 + "PRIMARY KEY ((id)))")
                 .defaultTimeToLive((int) TimeUnit.DAYS.toSeconds(7))
                 .build();
@@ -506,7 +519,7 @@ public final class SystemKeyspace
 
     public static KeyspaceMetadata metadata()
     {
-        return KeyspaceMetadata.create(SchemaConstants.SYSTEM_KEYSPACE_NAME, KeyspaceParams.local(), tables(), Views.none(), Types.none(), functions());
+        return KeyspaceMetadata.create(SchemaConstants.SYSTEM_KEYSPACE_NAME, KeyspaceParams.local(), tables(), Views.none(), Types.none(), UserFunctions.none());
     }
 
     private static Tables tables()
@@ -536,18 +549,6 @@ public final class SystemKeyspace
                          TopPartitions);
     }
 
-    private static Functions functions()
-    {
-        return Functions.builder()
-                        .add(UuidFcts.all())
-                        .add(TimeFcts.all())
-                        .add(BytesConversionFcts.all())
-                        .add(AggregateFcts.all())
-                        .add(CastFcts.all())
-                        .add(OperationFcts.all())
-                        .build();
-    }
-
     private static volatile Map<TableId, Pair<CommitLogPosition, Long>> truncationRecords;
 
     public enum BootstrapState
@@ -559,6 +560,12 @@ public final class SystemKeyspace
     }
 
     public static void persistLocalMetadata()
+    {
+        persistLocalMetadata(UUID::randomUUID);
+    }
+
+    @VisibleForTesting
+    public static void persistLocalMetadata(Supplier<UUID> nodeIdSupplier)
     {
         String req = "INSERT INTO system.%s (" +
                      "key," +
@@ -592,27 +599,37 @@ public final class SystemKeyspace
                             DatabaseDescriptor.getStoragePort(),
                             FBUtilities.getJustLocalAddress(),
                             DatabaseDescriptor.getStoragePort());
+
+        // We should store host ID as soon as possible in the system.local table and flush that table to disk so that
+        // we can be sure that those changes are stored in sstable and not in the commit log (see CASSANDRA-18153).
+        // It is very unlikely that when upgrading the host id is not flushed to disk, but if that's the case, we limit
+        // this change only to the new installations or the user should just flush system.local table.
+        if (!CommitLog.instance.hasFilesToReplay())
+            SystemKeyspace.getOrInitializeLocalHostId(nodeIdSupplier);
     }
 
-    public static void updateCompactionHistory(String ksname,
+    public static void updateCompactionHistory(TimeUUID taskId,
+                                               String ksname,
                                                String cfname,
                                                long compactedAt,
                                                long bytesIn,
                                                long bytesOut,
-                                               Map<Integer, Long> rowsMerged)
+                                               Map<Integer, Long> rowsMerged,
+                                               Map<String, String> compactionProperties)
     {
         // don't write anything when the history table itself is compacted, since that would in turn cause new compactions
         if (ksname.equals("system") && cfname.equals(COMPACTION_HISTORY))
             return;
-        String req = "INSERT INTO system.%s (id, keyspace_name, columnfamily_name, compacted_at, bytes_in, bytes_out, rows_merged) VALUES (?, ?, ?, ?, ?, ?, ?)";
+        String req = "INSERT INTO system.%s (id, keyspace_name, columnfamily_name, compacted_at, bytes_in, bytes_out, rows_merged, compaction_properties) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         executeInternal(format(req, COMPACTION_HISTORY),
-                        nextTimeUUID(),
+                        taskId,
                         ksname,
                         cfname,
                         ByteBufferUtil.bytes(compactedAt),
                         bytesIn,
                         bytesOut,
-                        rowsMerged);
+                        rowsMerged,
+                        compactionProperties);
     }
 
     public static TabularData getCompactionHistory() throws OpenDataException
@@ -978,6 +995,8 @@ public final class SystemKeyspace
      */
     public static InetAddressAndPort getPreferredIP(InetAddressAndPort ep)
     {
+        Preconditions.checkState(DatabaseDescriptor.isDaemonInitialized()); // Make sure being used as a daemon, not a tool
+
         String req = "SELECT preferred_ip, preferred_port FROM system.%s WHERE peer=? AND peer_port = ?";
         UntypedResultSet result = executeInternal(String.format(req, PEERS_V2), ep.getAddress(), ep.getPort());
         if (!result.isEmpty() && result.one().has("preferred_ip"))
@@ -1216,12 +1235,17 @@ public final class SystemKeyspace
      */
     public static synchronized UUID getOrInitializeLocalHostId()
     {
+        return getOrInitializeLocalHostId(UUID::randomUUID);
+    }
+
+    private static synchronized UUID getOrInitializeLocalHostId(Supplier<UUID> nodeIdSupplier)
+    {
         UUID hostId = getLocalHostId();
         if (hostId != null)
             return hostId;
 
         // ID not found, generate a new one, persist, and then return it.
-        hostId = UUID.randomUUID();
+        hostId = nodeIdSupplier.get();
         logger.warn("No host ID found, created {} (Note: This should happen exactly once per node).", hostId);
         return setLocalHostId(hostId);
     }
@@ -1233,6 +1257,7 @@ public final class SystemKeyspace
     {
         String req = "INSERT INTO system.%s (key, host_id) VALUES ('%s', ?)";
         executeInternal(format(req, LOCAL, LOCAL), hostId);
+        forceBlockingFlush(LOCAL);
         return hostId;
     }
 
@@ -1283,7 +1308,7 @@ public final class SystemKeyspace
     /**
      * Load the current paxos state for the table and key
      */
-    public static PaxosState.Snapshot loadPaxosState(DecoratedKey partitionKey, TableMetadata metadata, int nowInSec)
+    public static PaxosState.Snapshot loadPaxosState(DecoratedKey partitionKey, TableMetadata metadata, long nowInSec)
     {
         String cql = "SELECT * FROM system." + PAXOS + " WHERE row_key = ? AND cf_id = ?";
         List<Row> results = QueryProcessor.executeInternalRawWithNow(nowInSec, cql, partitionKey.getKey(), metadata.id.asUUID()).get(partitionKey);
@@ -1364,9 +1389,9 @@ public final class SystemKeyspace
     {
         if (proposal instanceof AcceptedWithTTL)
         {
-            int localDeletionTime = ((Commit.AcceptedWithTTL) proposal).localDeletionTime;
+            long localDeletionTime = ((Commit.AcceptedWithTTL) proposal).localDeletionTime;
             int ttlInSec = legacyPaxosTtlSec(proposal.update.metadata());
-            int nowInSec = localDeletionTime - ttlInSec;
+            long nowInSec = localDeletionTime - ttlInSec;
             String cql = "UPDATE system." + PAXOS + " USING TIMESTAMP ? AND TTL ? SET proposal_ballot = ?, proposal = ?, proposal_version = ? WHERE row_key = ? AND cf_id = ?";
             executeInternalWithNowInSec(cql,
                                         nowInSec,
@@ -1397,9 +1422,9 @@ public final class SystemKeyspace
         // even though that's really just an optimization  since SP.beginAndRepairPaxos will exclude accepted proposal older than the mrc.
         if (commit instanceof Commit.CommittedWithTTL)
         {
-            int localDeletionTime = ((Commit.CommittedWithTTL) commit).localDeletionTime;
+            long localDeletionTime = ((Commit.CommittedWithTTL) commit).localDeletionTime;
             int ttlInSec = legacyPaxosTtlSec(commit.update.metadata());
-            int nowInSec = localDeletionTime - ttlInSec;
+            long nowInSec = localDeletionTime - ttlInSec;
             String cql = "UPDATE system." + PAXOS + " USING TIMESTAMP ? AND TTL ? SET proposal_ballot = null, proposal = null, proposal_version = null, most_recent_commit_at = ?, most_recent_commit = ?, most_recent_commit_version = ? WHERE row_key = ? AND cf_id = ?";
             executeInternalWithNowInSec(cql,
                             nowInSec,
@@ -1463,8 +1488,7 @@ public final class SystemKeyspace
      */
     public static RestorableMeter getSSTableReadMeter(String keyspace, String table, SSTableId id)
     {
-        String cql = "SELECT * FROM system.%s WHERE keyspace_name=? and table_name=? and id=?";
-        UntypedResultSet results = executeInternal(format(cql, SSTABLE_ACTIVITY_V2), keyspace, table, id.toString());
+        UntypedResultSet results = readSSTableActivity(keyspace, table, id);
 
         if (results.isEmpty())
             return new RestorableMeter();
@@ -1473,6 +1497,13 @@ public final class SystemKeyspace
         double m15rate = row.getDouble("rate_15m");
         double m120rate = row.getDouble("rate_120m");
         return new RestorableMeter(m15rate, m120rate);
+    }
+
+    @VisibleForTesting
+    public static UntypedResultSet readSSTableActivity(String keyspace, String table, SSTableId id)
+    {
+        String cql = "SELECT * FROM system.%s WHERE keyspace_name=? and table_name=? and id=?";
+        return executeInternal(format(cql, SSTABLE_ACTIVITY_V2), keyspace, table, id.toString());
     }
 
     /**
@@ -1525,10 +1556,10 @@ public final class SystemKeyspace
     public static void updateSizeEstimates(String keyspace, String table, Map<Range<Token>, Pair<Long, Long>> estimates)
     {
         long timestamp = FBUtilities.timestampMicros();
-        int nowInSec = FBUtilities.nowInSeconds();
+        long nowInSec = FBUtilities.nowInSeconds();
         PartitionUpdate.Builder update = new PartitionUpdate.Builder(LegacySizeEstimates, UTF8Type.instance.decompose(keyspace), LegacySizeEstimates.regularAndStaticColumns(), estimates.size());
         // delete all previous values with a single range tombstone.
-        update.add(new RangeTombstone(Slice.make(LegacySizeEstimates.comparator, table), new DeletionTime(timestamp - 1, nowInSec)));
+        update.add(new RangeTombstone(Slice.make(LegacySizeEstimates.comparator, table), DeletionTime.build(timestamp - 1, nowInSec)));
 
         // add a CQL row for each primary token range.
         for (Map.Entry<Range<Token>, Pair<Long, Long>> entry : estimates.entrySet())
@@ -1550,11 +1581,11 @@ public final class SystemKeyspace
     public static void updateTableEstimates(String keyspace, String table, String type, Map<Range<Token>, Pair<Long, Long>> estimates)
     {
         long timestamp = FBUtilities.timestampMicros();
-        int nowInSec = FBUtilities.nowInSeconds();
+        long nowInSec = FBUtilities.nowInSeconds();
         PartitionUpdate.Builder update = new PartitionUpdate.Builder(TableEstimates, UTF8Type.instance.decompose(keyspace), TableEstimates.regularAndStaticColumns(), estimates.size());
 
         // delete all previous values with a single range tombstone.
-        update.add(new RangeTombstone(Slice.make(TableEstimates.comparator, table, type), new DeletionTime(timestamp - 1, nowInSec)));
+        update.add(new RangeTombstone(Slice.make(TableEstimates.comparator, table, type), DeletionTime.build(timestamp - 1, nowInSec)));
 
         // add a CQL row for each primary token range.
         for (Map.Entry<Range<Token>, Pair<Long, Long>> entry : estimates.entrySet())
@@ -1641,10 +1672,16 @@ public final class SystemKeyspace
         }
     }
 
-    public static void resetAvailableRanges()
+    public static void resetAvailableStreamedRanges()
     {
         ColumnFamilyStore availableRanges = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(AVAILABLE_RANGES_V2);
         availableRanges.truncateBlockingWithoutSnapshot();
+    }
+
+    public static void resetAvailableStreamedRangesForKeyspace(String keyspace)
+    {
+        String cql = "DELETE FROM %s.%s WHERE keyspace_name = ?";
+        executeInternal(format(cql, SchemaConstants.SYSTEM_KEYSPACE_NAME, AVAILABLE_RANGES_V2), keyspace);
     }
 
     public static synchronized void updateTransferredRanges(StreamOperation streamOperation,
@@ -1756,7 +1793,8 @@ public final class SystemKeyspace
         return rawRanges.stream().map(buf -> byteBufferToRange(buf, partitioner)).collect(Collectors.toSet());
     }
 
-    static ByteBuffer rangeToBytes(Range<Token> range)
+    @VisibleForTesting
+    public static ByteBuffer rangeToBytes(Range<Token> range)
     {
         try (DataOutputBuffer out = new DataOutputBuffer())
         {
@@ -1875,7 +1913,7 @@ public final class SystemKeyspace
             TupleType tupleType = new TupleType(Lists.newArrayList(UTF8Type.instance, LongType.instance));
             for (ByteBuffer bb : top)
             {
-                ByteBuffer[] components = tupleType.split(bb);
+                ByteBuffer[] components = tupleType.split(ByteBufferAccessor.instance, bb);
                 String keyStr = UTF8Type.instance.compose(components[0]);
                 long value = LongType.instance.compose(components[1]);
                 topPartitions.add(new TopPartitionTracker.TopPartition(metadata.partitioner.decorateKey(metadata.partitionKeyType.fromString(keyStr)), value));

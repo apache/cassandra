@@ -152,9 +152,9 @@ public class SlabAllocator extends MemtableBufferAllocator
         }
     }
 
-    protected AbstractAllocator allocator(OpOrder.Group writeOp)
+    public Cloner cloner(OpOrder.Group writeOp)
     {
-        return new ContextAllocator(writeOp, this);
+        return allocator(writeOp);
     }
 
     /**

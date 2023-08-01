@@ -96,6 +96,7 @@ import org.apache.cassandra.service.paxos.PrepareResponse;
 import org.apache.cassandra.service.paxos.v1.PrepareVerbHandler;
 import org.apache.cassandra.service.paxos.v1.ProposeVerbHandler;
 import org.apache.cassandra.streaming.ReplicationDoneVerbHandler;
+import org.apache.cassandra.utils.ReflectionUtils;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.UUIDSerializer;
 
@@ -159,7 +160,7 @@ public enum Verb
 
     // repair; mostly doesn't use callbacks and sends responses as their own request messages, with matching sessions by uuid; should eventually harmonize and make idiomatic
     REPAIR_RSP             (100, P1, repairTimeout,   REQUEST_RESPONSE,  () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             ),
-    VALIDATION_RSP         (102, P1, repairTimeout,   ANTI_ENTROPY,      () -> ValidationResponse.serializer,        () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
+    VALIDATION_RSP         (102, P1, longTimeout,     ANTI_ENTROPY,      () -> ValidationResponse.serializer,        () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
     VALIDATION_REQ         (101, P1, repairTimeout,   ANTI_ENTROPY,      () -> ValidationRequest.serializer,         () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
     SYNC_RSP               (104, P1, repairTimeout,   ANTI_ENTROPY,      () -> SyncResponse.serializer,              () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
     SYNC_REQ               (103, P1, repairTimeout,   ANTI_ENTROPY,      () -> SyncRequest.serializer,               () -> RepairMessageVerbHandler.instance,   REPAIR_RSP          ),
@@ -336,22 +337,13 @@ public enum Verb
         return handler.get() == ResponseVerbHandler.instance;
     }
 
-    Verb toPre40Verb()
-    {
-        if (!isResponse())
-            return this;
-        if (priority == P0)
-            return INTERNAL_RSP;
-        return REQUEST_RSP;
-    }
-
     @VisibleForTesting
     Supplier<? extends IVerbHandler<?>> unsafeSetHandler(Supplier<? extends IVerbHandler<?>> handler) throws NoSuchFieldException, IllegalAccessException
     {
         Supplier<? extends IVerbHandler<?>> original = this.handler;
         Field field = Verb.class.getDeclaredField("handler");
         field.setAccessible(true);
-        Field modifiers = Field.class.getDeclaredField("modifiers");
+        Field modifiers = ReflectionUtils.getModifiersField();
         modifiers.setAccessible(true);
         modifiers.setInt(field, field.getModifiers() & ~Modifier.FINAL);
         field.set(this, handler);
@@ -364,7 +356,7 @@ public enum Verb
         Supplier<? extends IVersionedAsymmetricSerializer<?, ?>> original = this.serializer;
         Field field = Verb.class.getDeclaredField("serializer");
         field.setAccessible(true);
-        Field modifiers = Field.class.getDeclaredField("modifiers");
+        Field modifiers = ReflectionUtils.getModifiersField();
         modifiers.setAccessible(true);
         modifiers.setInt(field, field.getModifiers() & ~Modifier.FINAL);
         field.set(this, serializer);
@@ -377,7 +369,7 @@ public enum Verb
         ToLongFunction<TimeUnit> original = this.expiration;
         Field field = Verb.class.getDeclaredField("expiration");
         field.setAccessible(true);
-        Field modifiers = Field.class.getDeclaredField("modifiers");
+        Field modifiers = ReflectionUtils.getModifiersField();
         modifiers.setAccessible(true);
         modifiers.setInt(field, field.getModifiers() & ~Modifier.FINAL);
         field.set(this, expiration);

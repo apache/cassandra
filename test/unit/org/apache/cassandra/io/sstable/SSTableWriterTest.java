@@ -20,27 +20,29 @@ package org.apache.cassandra.io.sstable;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.io.util.File;
 import org.junit.Test;
 
-import org.apache.cassandra.*;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.UpdateBuilder;
+import org.apache.cassandra.Util;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.compaction.OperationType;
-import org.apache.cassandra.db.filter.*;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.TimeUUID;
-
-import static org.junit.Assert.fail;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class SSTableWriterTest extends SSTableWriterTestBase
 {
@@ -63,34 +65,38 @@ public class SSTableWriterTest extends SSTableWriterTestBase
                 writer.append(builder.build().unfilteredIterator());
             }
 
-            SSTableReader s = writer.setMaxDataAge(1000).openEarly();
-            assert s != null;
-            assertFileCounts(dir.tryListNames());
-            for (int i = 10000; i < 20000; i++)
-            {
-                UpdateBuilder builder = UpdateBuilder.create(cfs.metadata(), random(i, 10)).withTimestamp(1);
-                for (int j = 0; j < 100; j++)
-                    builder.newRow("" + j).add("val", ByteBuffer.allocate(1000));
-                writer.append(builder.build().unfilteredIterator());
-            }
-            SSTableReader s2 = writer.setMaxDataAge(1000).openEarly();
-            assertTrue(s.last.compareTo(s2.last) < 0);
-            assertFileCounts(dir.tryListNames());
-            s.selfRef().release();
-            s2.selfRef().release();
+            writer.setMaxDataAge(1000);
+            writer.openEarly(s -> {
+                assert s != null;
+                assertFileCounts(dir.tryListNames());
+                for (int i = 10000; i < 20000; i++)
+                {
+                    UpdateBuilder builder = UpdateBuilder.create(cfs.metadata(), random(i, 10)).withTimestamp(1);
+                    for (int j = 0; j < 100; j++)
+                        builder.newRow("" + j).add("val", ByteBuffer.allocate(1000));
+                    writer.append(builder.build().unfilteredIterator());
+                }
+                writer.setMaxDataAge(1000);
+                writer.openEarly(s2 -> {
+                    assertTrue(s.getLast().compareTo(s2.getLast()) < 0);
+                    assertFileCounts(dir.tryListNames());
+                    s.selfRef().release();
+                    s2.selfRef().release();
 
-            int datafiles = assertFileCounts(dir.tryListNames());
-            assertEquals(datafiles, 1);
+                    int datafiles = assertFileCounts(dir.tryListNames());
+                    assertEquals(datafiles, 1);
 
-            LifecycleTransaction.waitForDeletions();
-            assertFileCounts(dir.tryListNames());
+                    LifecycleTransaction.waitForDeletions();
+                    assertFileCounts(dir.tryListNames());
 
-            writer.abort();
-            txn.abort();
-            LifecycleTransaction.waitForDeletions();
-            datafiles = assertFileCounts(dir.tryListNames());
-            assertEquals(datafiles, 0);
-            validateCFS(cfs);
+                    writer.abort();
+                    txn.abort();
+                    LifecycleTransaction.waitForDeletions();
+                    datafiles = assertFileCounts(dir.tryListNames());
+                    assertEquals(datafiles, 0);
+                    validateCFS(cfs);
+                });
+            });
         }
     }
 

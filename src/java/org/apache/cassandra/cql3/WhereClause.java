@@ -24,7 +24,6 @@ import com.google.common.collect.ImmutableList;
 
 import org.antlr.runtime.RecognitionException;
 import org.apache.cassandra.cql3.restrictions.CustomIndexExpression;
-import org.apache.cassandra.exceptions.InvalidRequestException;
 
 import static java.lang.String.join;
 

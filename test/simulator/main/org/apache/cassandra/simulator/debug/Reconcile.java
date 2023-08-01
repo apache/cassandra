@@ -35,12 +35,13 @@ import java.util.zip.GZIPInputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.simulator.ClusterSimulation;
 import org.apache.cassandra.simulator.RandomSource;
 import org.apache.cassandra.simulator.SimulationRunner.RecordOption;
-import org.apache.cassandra.simulator.systems.InterceptedWait;
 import org.apache.cassandra.simulator.systems.InterceptedWait.CaptureSites.Capture;
 import org.apache.cassandra.simulator.systems.SimulatedTime;
 import org.apache.cassandra.utils.Closeable;
@@ -81,7 +82,7 @@ public class Reconcile
 
         String readInterned() throws IOException
         {
-            int id = (int) in.readVInt();
+            int id = in.readVInt32();
             if (id == strings.size()) strings.add(in.readUTF());
             else if (id > strings.size()) throw failWithOOM();
             return strings.get(id);
@@ -211,7 +212,7 @@ public class Reconcile
             try
             {
                 byte type = in.readByte();
-                int c = (int) in.readVInt();
+                int c = in.readVInt32();
                 long v = in.readLong();
                 threads.checkThread();
                 if (type != 7 || c != count || value != v)
@@ -241,11 +242,11 @@ public class Reconcile
             try
             {
                 byte type = in.readByte();
-                int c = (int) in.readVInt();
+                int c = in.readVInt32();
                 threads.checkThread();
-                int min1 = (int) in.readVInt();
-                int max1 = (int) in.readVInt() + min1;
-                int v1 = (int) in.readVInt() + min1;
+                int min1 = in.readVInt32();
+                int max1 = in.readVInt32() + min1;
+                int v1 = in.readVInt32() + min1;
                 if (type != 1 || min != min1 || max != max1 || v != v1 || c != count)
                 {
                     logger.error(String.format("(%d,%d,%d[%d,%d]) != (%d,%d,%d[%d,%d])", 1, count, v, min, max, type, c, v1, min1, max1));
@@ -274,7 +275,7 @@ public class Reconcile
             try
             {
                 byte type = in.readByte();
-                int c = (int) in.readVInt();
+                int c = in.readVInt32();
                 threads.checkThread();
                 long min1 = in.readVInt();
                 long max1 = in.readVInt() + min1;
@@ -307,7 +308,7 @@ public class Reconcile
             try
             {
                 byte type = in.readByte();
-                int c = (int) in.readVInt();
+                int c = in.readVInt32();
                 threads.checkThread();
                 float v1 = in.readFloat();
                 if (type != 3 || v != v1 || c != count)
@@ -339,7 +340,7 @@ public class Reconcile
             try
             {
                 byte type = in.readByte();
-                int c = (int) in.readVInt();
+                int c = in.readVInt32();
                 threads.checkThread();
                 double v1 = in.readDouble();
                 if (type != 6 || v != v1 || c != count)
@@ -370,7 +371,7 @@ public class Reconcile
             try
             {
                 byte type = in.readByte();
-                int c = (int) in.readVInt();
+                int c = in.readVInt32();
                 long v1 = in.readVInt();
                 if (type != 4 || seed != v1 || c != count)
                     throw failWithOOM();
@@ -396,7 +397,7 @@ public class Reconcile
             try
             {
                 byte type = in.readByte();
-                int c = (int) in.readVInt();
+                int c = in.readVInt32();
                 long v1 = in.readVInt();
                 if (type != 5 || v != v1 || c != count)
                     throw failWithOOM();
@@ -434,8 +435,8 @@ public class Reconcile
         File timeFile = new File(new File(loadFromDir), Long.toHexString(seed) + ".time.gz");
 
         try (BufferedReader eventIn = new BufferedReader(new InputStreamReader(new GZIPInputStream(eventFile.newInputStream())));
-             DataInputPlus.DataInputStreamPlus rngIn = new DataInputPlus.DataInputStreamPlus(rngFile.exists() && withRng != NONE ? new GZIPInputStream(rngFile.newInputStream()) : new ByteArrayInputStream(new byte[0]));
-             DataInputPlus.DataInputStreamPlus timeIn = new DataInputPlus.DataInputStreamPlus(timeFile.exists() && withTime != NONE ? new GZIPInputStream(timeFile.newInputStream()) : new ByteArrayInputStream(new byte[0])))
+             DataInputStreamPlus rngIn = Util.DataInputStreamPlusImpl.wrap(rngFile.exists() && withRng != NONE ? new GZIPInputStream(rngFile.newInputStream()) : new ByteArrayInputStream(new byte[0]));
+             DataInputStreamPlus timeIn = Util.DataInputStreamPlusImpl.wrap(timeFile.exists() && withTime != NONE ? new GZIPInputStream(timeFile.newInputStream()) : new ByteArrayInputStream(new byte[0])))
         {
             boolean inputHasWaitSites, inputHasWakeSites, inputHasRngCallSites, inputHasTimeCallSites;
             {

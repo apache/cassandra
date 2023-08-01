@@ -49,6 +49,9 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.paxos.cleanup.PaxosTableRepairs;
 import org.apache.cassandra.utils.CloseableIterator;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.AUTO_REPAIR_FREQUENCY_SECONDS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_PAXOS_AUTO_REPAIRS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_PAXOS_STATE_FLUSH;
 import static org.apache.cassandra.config.DatabaseDescriptor.paxosRepairEnabled;
 import static org.apache.cassandra.service.paxos.uncommitted.PaxosKeyState.mergeUncommitted;
 
@@ -67,8 +70,10 @@ public class PaxosUncommittedTracker
     private static final Range<Token> FULL_RANGE = new Range<>(DatabaseDescriptor.getPartitioner().getMinimumToken(),
                                                                DatabaseDescriptor.getPartitioner().getMinimumToken());
 
-    private volatile boolean autoRepairsEnabled = !Boolean.getBoolean("cassandra.disable_paxos_auto_repairs");
-    private volatile boolean stateFlushEnabled = !Boolean.getBoolean("cassandra.disable_paxos_state_flush");
+    private static volatile UpdateSupplier updateSupplier;
+
+    private volatile boolean autoRepairsEnabled = !DISABLE_PAXOS_AUTO_REPAIRS.getBoolean();
+    private volatile boolean stateFlushEnabled = !DISABLE_PAXOS_STATE_FLUSH.getBoolean();
 
     private boolean started = false;
     private boolean autoRepairStarted = false;
@@ -83,7 +88,6 @@ public class PaxosUncommittedTracker
 
     private final File dataDirectory;
     private volatile ImmutableMap<TableId, UncommittedTableData> tableStates;
-    private volatile UpdateSupplier updateSupplier;
 
     public PaxosUncommittedTracker(File dataDirectory, ImmutableMap<TableId, UncommittedTableData> tableStates)
     {
@@ -326,7 +330,7 @@ public class PaxosUncommittedTracker
     {
         if (autoRepairStarted)
             return;
-        int seconds = Integer.getInteger("cassandra.auto_repair_frequency_seconds", (int) TimeUnit.MINUTES.toSeconds(5));
+        int seconds = AUTO_REPAIR_FREQUENCY_SECONDS.getInt();
         ScheduledExecutors.scheduledTasks.scheduleAtFixedRate(this::maintenance, seconds, seconds, TimeUnit.SECONDS);
         autoRepairStarted = true;
     }
@@ -362,15 +366,15 @@ public class PaxosUncommittedTracker
         return tableStates.keySet();
     }
 
-    public UpdateSupplier unsafGetUpdateSupplier()
+    public static UpdateSupplier unsafGetUpdateSupplier()
     {
         return updateSupplier;
     }
 
-    public void unsafSetUpdateSupplier(UpdateSupplier updateSupplier)
+    public static void unsafSetUpdateSupplier(UpdateSupplier updateSupplier)
     {
         Preconditions.checkArgument(updateSupplier != null);
-        this.updateSupplier = updateSupplier;
+        PaxosUncommittedTracker.updateSupplier = updateSupplier;
     }
 
 }

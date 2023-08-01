@@ -77,7 +77,9 @@ public class TableMetricTables
             new HistogramTableMetric(name, "tombstones_per_read", t -> t.tombstoneScannedHistogram.cf),
             new HistogramTableMetric(name, "rows_per_read", t -> t.liveScannedHistogram.cf),
             new StorageTableMetric(name, "disk_usage", (TableMetrics t) -> t.totalDiskSpaceUsed),
-            new StorageTableMetric(name, "max_partition_size", (TableMetrics t) -> t.maxPartitionSize));
+            new StorageTableMetric(name, "max_partition_size", (TableMetrics t) -> t.maxPartitionSize),
+            new StorageTableMetric(name, "max_sstable_size", (TableMetrics t) -> t.maxSSTableSize),
+            new TableMetricTable(name, "max_sstable_duration", t -> t.maxSSTableDuration, "max_sstable_duration", LongType.instance, ""));
     }
 
     /**
@@ -193,7 +195,7 @@ public class TableMetricTables
                 Metric metric = func.apply(cfs.metric);
 
                 // set new partition for this table
-                result.row(cfs.keyspace.getName(), cfs.name);
+                result.row(cfs.getKeyspaceName(), cfs.name);
 
                 // extract information by metric type and put it in row based on implementation of `add`
                 if (metric instanceof Counting)

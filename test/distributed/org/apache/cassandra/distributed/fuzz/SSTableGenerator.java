@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.distributed.fuzz;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -307,7 +306,8 @@ public class SSTableGenerator
                                                  new AbstractMarker.Raw(values.size() - 1)));
         }
 
-        StatementRestrictions restrictions = new StatementRestrictions(StatementType.DELETE,
+        StatementRestrictions restrictions = new StatementRestrictions(null,
+                                                                       StatementType.DELETE,
                                                                        metadata,
                                                                        builder.build(),
                                                                        new VariableSpecifications(variableNames),
@@ -322,7 +322,7 @@ public class SSTableGenerator
 
         Slices slices = DeleteStatement.toSlices(metadata, startBounds, endBounds);
         assert slices.size() == 1;
-        int deletionTime = FBUtilities.nowInSeconds();
+        long deletionTime = FBUtilities.nowInSeconds();
         long rts = clock.rts(lts);
 
         return new RowUpdateBuilder(metadata,
@@ -331,7 +331,7 @@ public class SSTableGenerator
                                     metadata.params.defaultTimeToLive,
                                     serializePartitionKey(store, partitionKey))
                .noRowMarker()
-               .addRangeTombstone(new RangeTombstone(slices.get(0), new DeletionTime(rts, deletionTime)))
+               .addRangeTombstone(new RangeTombstone(slices.get(0), DeletionTime.build(rts, deletionTime)))
                .build();
     }
 

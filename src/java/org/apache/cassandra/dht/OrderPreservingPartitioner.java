@@ -33,6 +33,9 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
+import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
@@ -128,6 +131,11 @@ public class OrderPreservingPartitioner implements IPartitioner
 
     private final Token.TokenFactory tokenFactory = new Token.TokenFactory()
     {
+        public Token fromComparableBytes(ByteSource.Peekable comparableBytes, ByteComparable.Version version)
+        {
+            return new StringToken(ByteSourceInverse.getString(comparableBytes));
+        }
+
         public ByteBuffer toByteArray(Token token)
         {
             StringToken stringToken = (StringToken) token;
@@ -194,6 +202,12 @@ public class OrderPreservingPartitioner implements IPartitioner
         {
             return EMPTY_SIZE + ObjectSizes.sizeOf(token);
         }
+
+        @Override
+        public ByteSource asComparableBytes(ByteComparable.Version version)
+        {
+            return ByteSource.of(token, version);
+        }
     }
 
     public StringToken getToken(ByteBuffer key)
@@ -220,7 +234,7 @@ public class OrderPreservingPartitioner implements IPartitioner
         Token lastToken = sortedTokens.get(sortedTokens.size() - 1);
         for (Token node : sortedTokens)
         {
-            allTokens.put(node, new Float(0.0));
+            allTokens.put(node, 0.0F);
             sortedRanges.add(new Range<Token>(lastToken, node));
             lastToken = node;
         }
@@ -238,7 +252,7 @@ public class OrderPreservingPartitioner implements IPartitioner
         }
 
         // Sum every count up and divide count/total for the fractional ownership.
-        Float total = new Float(0.0);
+        Float total = 0.0F;
         for (Float f : allTokens.values())
             total += f;
         for (Map.Entry<Token, Float> row : allTokens.entrySet())

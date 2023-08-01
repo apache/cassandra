@@ -17,43 +17,60 @@
  */
 package org.apache.cassandra.db;
 
-import java.time.Instant;
-import java.util.*;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.function.BiPredicate;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
-
-import com.google.common.annotations.VisibleForTesting;
-
 import java.io.IOError;
 import java.io.IOException;
 import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.Spliterator;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.BiPredicate;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.RateLimiter;
-
-import org.apache.cassandra.io.util.File;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.*;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.FSDiskFullWriteError;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.FSNoDiskAvailableForWriteError;
+import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.SSTableId;
+import org.apache.cassandra.io.sstable.SSTableIdFactory;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileStoreUtils;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.io.sstable.*;
-import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.io.util.PathUtils;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.snapshot.SnapshotManifest;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
@@ -272,7 +289,7 @@ public class Directories
                     if (file.isDirectory())
                         return false;
 
-                    Descriptor desc = SSTable.tryDescriptorFromFilename(file);
+                    Descriptor desc = SSTable.tryDescriptorFromFile(file);
                     return desc != null && desc.ksname.equals(metadata.keyspace) && desc.cfname.equals(metadata.name);
                 });
                 for (File indexFile : indexFiles)
@@ -319,7 +336,7 @@ public class Directories
         {
             File file = new File(dir, filename);
             if (file.exists())
-                return Descriptor.fromFilename(file);
+                return Descriptor.fromFileWithComponent(file, false).left;
         }
         return null;
     }
@@ -488,27 +505,106 @@ public class Directories
         Collections.sort(candidates);
     }
 
-    public boolean hasAvailableDiskSpace(long estimatedSSTables, long expectedTotalWriteSize)
+    /**
+     * Sums up the space required for ongoing streams + compactions + expected new write size per FileStore and checks
+     * if there is enough space available.
+     *
+     * @param expectedNewWriteSizes where we expect to write the new compactions
+     * @param totalCompactionWriteRemaining approximate amount of data current compactions are writing - keyed by
+     *                                      the file store they are writing to (or, reading from actually, but since
+     *                                      CASSANDRA-6696 we expect compactions to read and written from the same dir)
+     * @return true if we expect to be able to write expectedNewWriteSizes to the available file stores
+     */
+    public boolean hasDiskSpaceForCompactionsAndStreams(Map<File, Long> expectedNewWriteSizes,
+                                                        Map<File, Long> totalCompactionWriteRemaining)
     {
-        long writeSize = expectedTotalWriteSize / estimatedSSTables;
-        long totalAvailable = 0L;
+        return hasDiskSpaceForCompactionsAndStreams(expectedNewWriteSizes, totalCompactionWriteRemaining, Directories::getFileStore);
+    }
 
-        for (DataDirectory dataDir : paths)
+    @VisibleForTesting
+    public static boolean hasDiskSpaceForCompactionsAndStreams(Map<File, Long> expectedNewWriteSizes,
+                                                               Map<File, Long> totalCompactionWriteRemaining,
+                                                               Function<File, FileStore> filestoreMapper)
+    {
+        Map<FileStore, Long> newWriteSizesPerFileStore = perFileStore(expectedNewWriteSizes, filestoreMapper);
+        Map<FileStore, Long> compactionsRemainingPerFileStore = perFileStore(totalCompactionWriteRemaining, filestoreMapper);
+
+        Map<FileStore, Long> totalPerFileStore = new HashMap<>();
+        for (Map.Entry<FileStore, Long> entry : newWriteSizesPerFileStore.entrySet())
         {
-            if (DisallowedDirectories.isUnwritable(getLocationForDisk(dataDir)))
-                  continue;
-            DataDirectoryCandidate candidate = new DataDirectoryCandidate(dataDir);
-            // exclude directory if its total writeSize does not fit to data directory
-            if (candidate.availableSpace < writeSize)
-                continue;
-            totalAvailable += candidate.availableSpace;
+            long addedForFilestore = entry.getValue() + compactionsRemainingPerFileStore.getOrDefault(entry.getKey(), 0L);
+            totalPerFileStore.merge(entry.getKey(), addedForFilestore, Long::sum);
         }
-        return totalAvailable > expectedTotalWriteSize;
+        return hasDiskSpaceForCompactionsAndStreams(totalPerFileStore);
+    }
+
+    /**
+     * Checks if there is enough space on all file stores to write the given amount of data.
+     * The data to write should be the total amount, ongoing writes + new writes.
+     */
+    public static boolean hasDiskSpaceForCompactionsAndStreams(Map<FileStore, Long> totalToWrite)
+    {
+        boolean hasSpace = true;
+        for (Map.Entry<FileStore, Long> toWrite : totalToWrite.entrySet())
+        {
+            long availableForCompaction = getAvailableSpaceForCompactions(toWrite.getKey());
+            logger.debug("FileStore {} has {} bytes available, checking if we can write {} bytes", toWrite.getKey(), availableForCompaction, toWrite.getValue());
+            if (availableForCompaction < toWrite.getValue())
+            {
+                logger.warn("FileStore {} has only {} available, but {} is needed",
+                            toWrite.getKey(),
+                            FileUtils.stringifyFileSize(availableForCompaction),
+                            FileUtils.stringifyFileSize((long) toWrite.getValue()));
+                hasSpace = false;
+            }
+        }
+        return hasSpace;
+    }
+
+    public static long getAvailableSpaceForCompactions(FileStore fileStore)
+    {
+        long availableSpace = 0;
+        availableSpace = FileStoreUtils.tryGetSpace(fileStore, FileStore::getUsableSpace, e -> { throw new FSReadError(e, fileStore.name()); })
+                         - DatabaseDescriptor.getMinFreeSpacePerDriveInBytes();
+        return Math.max(0L, Math.round(availableSpace * DatabaseDescriptor.getMaxSpaceForCompactionsPerDrive()));
+    }
+
+    public static Map<FileStore, Long> perFileStore(Map<File, Long> perDirectory, Function<File, FileStore> filestoreMapper)
+    {
+        return perDirectory.entrySet()
+                           .stream()
+                           .collect(Collectors.toMap(entry -> filestoreMapper.apply(entry.getKey()),
+                                                     Map.Entry::getValue,
+                                                     Long::sum));
+    }
+
+    public Set<FileStore> allFileStores(Function<File, FileStore> filestoreMapper)
+    {
+        return Arrays.stream(getWriteableLocations())
+                     .map(this::getLocationForDisk)
+                     .map(filestoreMapper)
+                     .collect(Collectors.toSet());
+    }
+
+    /**
+     * Gets the filestore for the actual directory where the sstables are stored.
+     * Handles the fact that an operator can symlink a table directory to a different filestore.
+     */
+    public static FileStore getFileStore(File directory)
+    {
+        try
+        {
+            return Files.getFileStore(directory.toPath());
+        }
+        catch (IOException e)
+        {
+            throw new FSReadError(e, directory);
+        }
     }
 
     public DataDirectory[] getWriteableLocations()
     {
-        List<DataDirectory> allowedDirs = new ArrayList<>();
+        List<DataDirectory> allowedDirs = new ArrayList<>(paths.length);
         for (DataDirectory dir : paths)
         {
             if (!DisallowedDirectories.isUnwritable(dir.location))
@@ -570,17 +666,6 @@ public class Directories
     public static File getSnapshotSchemaFile(File snapshotDir)
     {
         return new File(snapshotDir, "schema.cql");
-    }
-
-    public File getNewEphemeralSnapshotMarkerFile(String snapshotName)
-    {
-        File snapshotDir = new File(getWriteableLocationAsFile(1L), join(SNAPSHOT_SUBDIR, snapshotName));
-        return getEphemeralSnapshotMarkerFile(snapshotDir);
-    }
-
-    private static File getEphemeralSnapshotMarkerFile(File snapshotDirectory)
-    {
-        return new File(snapshotDirectory, "ephemeral.snapshot");
     }
 
     public static File getBackupsDirectory(Descriptor desc)
@@ -789,6 +874,16 @@ public class Directories
             // last resort
             return System.identityHashCode(this) - System.identityHashCode(o);
         }
+
+        @Override
+        public String toString()
+        {
+            return "DataDirectoryCandidate{" +
+                   "dataDirectory=" + dataDirectory +
+                   ", availableSpace=" + availableSpace +
+                   ", perc=" + perc +
+                   '}';
+        }
     }
 
     /** The type of files that can be listed by SSTableLister, we never return txn logs,
@@ -887,6 +982,18 @@ public class Directories
             return ImmutableMap.copyOf(components);
         }
 
+        /**
+         * Returns a sorted version of the {@code list} method.
+         * Descriptors are sorted by generation.
+         * @return a List of descriptors to their components.
+         */
+        public List<Map.Entry<Descriptor, Set<Component>>> sortedList()
+        {
+            List<Map.Entry<Descriptor, Set<Component>>> sortedEntries = new ArrayList<>(list().entrySet());
+            sortedEntries.sort((o1, o2) -> SSTableIdFactory.COMPARATOR.compare(o1.getKey().id, o2.getKey().id));
+            return sortedEntries;
+        }
+
         public List<File> listFiles()
         {
             filter();
@@ -895,7 +1002,7 @@ public class Directories
             {
                 for (Component c : entry.getValue())
                 {
-                    l.add(new File(entry.getKey().filenameFor(c)));
+                    l.add(entry.getKey().fileFor(c));
                 }
             }
             return l;
@@ -983,18 +1090,25 @@ public class Directories
         return snapshots;
     }
 
-    protected TableSnapshot buildSnapshot(String tag, SnapshotManifest manifest, Set<File> snapshotDirs) {
+    private TableSnapshot buildSnapshot(String tag, SnapshotManifest manifest, Set<File> snapshotDirs)
+    {
+        boolean ephemeral = manifest != null ? manifest.isEphemeral() : isLegacyEphemeralSnapshot(snapshotDirs);
         Instant createdAt = manifest == null ? null : manifest.createdAt;
         Instant expiresAt = manifest == null ? null : manifest.expiresAt;
         return new TableSnapshot(metadata.keyspace, metadata.name, metadata.id.asUUID(), tag, createdAt, expiresAt,
-                                 snapshotDirs);
+                                 snapshotDirs, ephemeral);
+    }
+
+    private static boolean isLegacyEphemeralSnapshot(Set<File> snapshotDirs)
+    {
+        return snapshotDirs.stream().map(d -> new File(d, "ephemeral.snapshot")).anyMatch(File::exists);
     }
 
     @VisibleForTesting
     protected static SnapshotManifest maybeLoadManifest(String keyspace, String table, String tag, Set<File> snapshotDirs)
     {
         List<File> manifests = snapshotDirs.stream().map(d -> new File(d, "manifest.json"))
-                                           .filter(d -> d.exists()).collect(Collectors.toList());
+                                           .filter(File::exists).collect(Collectors.toList());
 
         if (manifests.isEmpty())
         {
@@ -1016,42 +1130,6 @@ public class Directories
         }
 
         return null;
-    }
-
-    public List<String> listEphemeralSnapshots()
-    {
-        final List<String> ephemeralSnapshots = new LinkedList<>();
-        for (File snapshot : listAllSnapshots())
-        {
-            if (getEphemeralSnapshotMarkerFile(snapshot).exists())
-                ephemeralSnapshots.add(snapshot.name());
-        }
-        return ephemeralSnapshots;
-    }
-
-    private List<File> listAllSnapshots()
-    {
-        final List<File> snapshots = new LinkedList<>();
-        for (final File dir : dataPaths)
-        {
-            File snapshotDir = isSecondaryIndexFolder(dir)
-                               ? new File(dir.parentPath(), SNAPSHOT_SUBDIR)
-                               : new File(dir, SNAPSHOT_SUBDIR);
-            if (snapshotDir.exists() && snapshotDir.isDirectory())
-            {
-                final File[] snapshotDirs  = snapshotDir.tryList();
-                if (snapshotDirs != null)
-                {
-                    for (final File snapshot : snapshotDirs)
-                    {
-                        if (snapshot.isDirectory())
-                            snapshots.add(snapshot);
-                    }
-                }
-            }
-        }
-
-        return snapshots;
     }
 
     @VisibleForTesting
@@ -1119,9 +1197,11 @@ public class Directories
             {
                 FileUtils.deleteRecursiveWithThrottle(snapshotDir, snapshotRateLimiter);
             }
-            catch (FSWriteError e)
+            catch (RuntimeException ex)
             {
-                throw e;
+                if (!snapshotDir.exists())
+                    return; // ignore
+                throw ex;
             }
         }
     }
@@ -1197,6 +1277,11 @@ public class Directories
         return dir.name().startsWith(SECONDARY_INDEX_NAME_SEPARATOR);
     }
 
+    public static boolean isSecondaryIndexFolder(Path dir)
+    {
+        return PathUtils.filename(dir).startsWith(SECONDARY_INDEX_NAME_SEPARATOR);
+    }
+
     public List<File> getCFDirectories()
     {
         List<File> result = new ArrayList<>();
@@ -1258,7 +1343,7 @@ public class Directories
         public boolean isAcceptable(Path path)
         {
             File file = new File(path);
-            Descriptor desc = SSTable.tryDescriptorFromFilename(file);
+            Descriptor desc = SSTable.tryDescriptorFromFile(file);
             return desc != null
                 && desc.ksname.equals(metadata.keyspace)
                 && desc.cfname.equals(metadata.name)

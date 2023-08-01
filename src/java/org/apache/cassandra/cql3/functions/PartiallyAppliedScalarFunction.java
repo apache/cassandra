@@ -18,7 +18,6 @@
 package org.apache.cassandra.cql3.functions;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.cql3.CqlBuilder;
@@ -64,7 +63,13 @@ final class PartiallyAppliedScalarFunction extends NativeScalarFunction implemen
     }
 
     @Override
-    public List<ByteBuffer> getPartialParameters()
+    public Arguments newArguments(ProtocolVersion version)
+    {
+        return new PartialFunctionArguments(version, function, partialParameters, argTypes.size());
+    }
+
+    @Override
+    public List<ByteBuffer> getPartialArguments()
     {
         return partialParameters;
     }
@@ -81,16 +86,10 @@ final class PartiallyAppliedScalarFunction extends NativeScalarFunction implemen
         return argTypes;
     }
 
-    public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters) throws InvalidRequestException
+    @Override
+    public ByteBuffer execute(Arguments arguments) throws InvalidRequestException
     {
-        List<ByteBuffer> fullParameters = new ArrayList<>(partialParameters);
-        int arg = 0;
-        for (int i = 0; i < fullParameters.size(); i++)
-        {
-            if (fullParameters.get(i) == UNRESOLVED)
-                fullParameters.set(i, parameters.get(arg++));
-        }
-        return function.execute(protocolVersion, fullParameters);
+        return function.execute(arguments);
     }
 
     @Override
@@ -109,5 +108,71 @@ final class PartiallyAppliedScalarFunction extends NativeScalarFunction implemen
         }
         b.append(") -> ").append(returnType);
         return b.toString();
+    }
+
+    /**
+     * The arguments for a {@code PartiallyAppliedScalarFunction}.
+     *
+     */
+    private static final class PartialFunctionArguments implements Arguments
+    {
+        /**
+         * The decorated arguments.
+         */
+        private final Arguments arguments;
+
+        /**
+         * The position of the unresolved arguments.
+         */
+        private final int[] mapping;
+
+        public PartialFunctionArguments(ProtocolVersion version, ScalarFunction function, List<ByteBuffer> partialArguments, int unresolvedCount)
+        {
+            arguments = function.newArguments(version);
+            mapping = new int[unresolvedCount];
+            int mappingIndex = 0;
+            for (int i = 0, m = partialArguments.size(); i < m; i++)
+            {
+                ByteBuffer argument = partialArguments.get(i);
+                if (argument != Function.UNRESOLVED)
+                {
+                    arguments.set(i, argument);
+                }
+                else
+                {
+                    mapping[mappingIndex++] = i;
+                }
+            }
+        }
+
+        @Override
+        public ProtocolVersion getProtocolVersion()
+        {
+            return arguments.getProtocolVersion();
+        }
+
+        @Override
+        public void set(int i, ByteBuffer buffer)
+        {
+            arguments.set(mapping[i], buffer);
+        }
+
+        @Override
+        public boolean containsNulls()
+        {
+            return arguments.containsNulls();
+        }
+
+        @Override
+        public <T> T get(int i)
+        {
+            return arguments.get(i);
+        }
+
+        @Override
+        public int size()
+        {
+            return arguments.size();
+        }
     }
 }

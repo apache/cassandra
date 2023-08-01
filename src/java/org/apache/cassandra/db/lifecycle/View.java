@@ -17,17 +17,22 @@
  */
 package org.apache.cassandra.db.lifecycle;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.base.Functions;
 import com.google.common.base.Predicate;
-import com.google.common.collect.*;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.Interval;
@@ -136,13 +141,30 @@ public class View
             case NONCOMPACTING:
                 return filter(sstables, (s) -> !compacting.contains(s));
             case CANONICAL:
+                // When early open is not in play, the LIVE and CANONICAL sets are the same.
+                // However, when we do have early-open sstables, we will have some unfinished sources in the live set.
+                // For these sources we need to extract the originals, in their non-moved-start versions, from the
+                // compacting set.
+                // This creates a problem when the compaction completes, as then both:
+                // - the source is in the compacting set
+                // - the result is in the live set
+                // This currently causes the CANONICAL set to return both source and result when early-open is disabled,
+                // and is otherwise worked around by opening early the last sstable in the result set (which pushes it
+                // in the compacting set with EARLY openReason) and the !compacting.contains(sstable) check in the
+                // second loop below.
+                // Unfortunately there does not appear to be a way to avoid this workaround. Filtering the compacting
+                // set through having an early-open version in live does not work because sources are fully removed from
+                // the live set when they are completely exhausted.
+
+                // Add the compacting versions first because they will be the canonical versions of compaction sources.
                 Set<SSTableReader> canonicalSSTables = new HashSet<>(sstables.size() + compacting.size());
                 for (SSTableReader sstable : compacting)
                     if (sstable.openReason != SSTableReader.OpenReason.EARLY)
                         canonicalSSTables.add(sstable);
-                // reason for checking if compacting contains the sstable is that if compacting has an EARLY version
-                // of a NORMAL sstable, we still have the canonical version of that sstable in sstables.
-                // note that the EARLY version is equal, but not == since it is a different instance of the same sstable.
+                // Add anything that is not compacting, removing any compaction result where we still have the
+                // compaction sources.
+                // note that the EARLY version is equal to the original, i.e. the set itself can guarantee early-open
+                // versions of sstables in compacting won't be added, but we also want to remove the results.
                 for (SSTableReader sstable : sstables)
                     if (!compacting.contains(sstable) && sstable.openReason != SSTableReader.OpenReason.EARLY)
                         canonicalSSTables.add(sstable);
@@ -241,7 +263,7 @@ public class View
     // METHODS TO CONSTRUCT FUNCTIONS FOR MODIFYING A VIEW:
 
     // return a function to un/mark the provided readers compacting in a view
-    static Function<View, View> updateCompacting(final Set<SSTableReader> unmark, final Iterable<SSTableReader> mark)
+    static Function<View, View> updateCompacting(final Set<? extends SSTableReader> unmark, final Iterable<? extends SSTableReader> mark)
     {
         if (unmark.isEmpty() && Iterables.isEmpty(mark))
             return Functions.identity();
@@ -259,7 +281,7 @@ public class View
 
     // construct a predicate to reject views that do not permit us to mark these readers compacting;
     // i.e. one of them is either already compacting, has been compacted, or has been replaced
-    static Predicate<View> permitCompacting(final Iterable<SSTableReader> readers)
+    static Predicate<View> permitCompacting(final Iterable<? extends SSTableReader> readers)
     {
         return new Predicate<View>()
         {

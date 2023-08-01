@@ -17,8 +17,8 @@
  */
 package org.apache.cassandra.cql3.validation.entities;
 
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.Json;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -28,6 +28,7 @@ import org.apache.cassandra.serializers.SimpleDateSerializer;
 import org.apache.cassandra.serializers.TimeSerializer;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.JsonUtils;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -46,10 +47,11 @@ import static org.junit.Assert.fail;
 
 public class JsonTest extends CQLTester
 {
-    // This method will be ran instead of the CQLTester#setUpClass
+    // This method will be run instead of the CQLTester#setUpClass
     @BeforeClass
     public static void setUpClass()
     {
+        ServerTestUtils.daemonInitialization();
         if (ROW_CACHE_SIZE_IN_MIB > 0)
             DatabaseDescriptor.setRowCacheSizeInMiB(ROW_CACHE_SIZE_IN_MIB);
 
@@ -80,8 +82,8 @@ public class JsonTest extends CQLTester
                            row("{\"k1\": [\"" + uuid + "\", 2], \"c1\": [\"" + uuid + "\", 3], \"value\": 3}"),
                            row("{\"k1\": [\"" + uuid + "\", 2], \"c1\": [\"" + uuid + "\", 4], \"value\": 4}"));
 
-            // SELECT toJson(column)
-            assertRowsNet(executeNetWithPaging("SELECT toJson(k1), toJson(c1), toJson(value) FROM %s", pageSize),
+            // SELECT to_json(column)
+            assertRowsNet(executeNetWithPaging("SELECT to_json(k1), to_json(c1), to_json(value) FROM %s", pageSize),
                           row("[\"" + uuid + "\", 2]", "[\"" + uuid + "\", 1]", "1"),
                           row("[\"" + uuid + "\", 2]", "[\"" + uuid + "\", 2]", "2"),
                           row("[\"" + uuid + "\", 2]", "[\"" + uuid + "\", 3]", "3"),
@@ -110,8 +112,8 @@ public class JsonTest extends CQLTester
                           row("{\"k1\": {\"1\": [\"" + uuid + "\", 1], \"2\": [\"" + uuid + "\", 2]}, \"c1\": [\"" + uuid + "\", 3], \"value\": 3}"),
                           row("{\"k1\": {\"1\": [\"" + uuid + "\", 1], \"2\": [\"" + uuid + "\", 2]}, \"c1\": [\"" + uuid + "\", 4], \"value\": 4}"));
 
-            // SELECT toJson(column)
-            assertRowsNet(executeNetWithPaging("SELECT toJson(k1), toJson(c1), toJson(value) FROM %s", pageSize),
+            // SELECT to_json(column)
+            assertRowsNet(executeNetWithPaging("SELECT to_json(k1), to_json(c1), to_json(value) FROM %s", pageSize),
                           row("{\"1\": [\"" + uuid + "\", 1], \"2\": [\"" + uuid + "\", 2]}", "[\"" + uuid + "\", 1]", "1"),
                           row("{\"1\": [\"" + uuid + "\", 1], \"2\": [\"" + uuid + "\", 2]}", "[\"" + uuid + "\", 2]", "2"),
                           row("{\"1\": [\"" + uuid + "\", 1], \"2\": [\"" + uuid + "\", 2]}", "[\"" + uuid + "\", 3]", "3"),
@@ -140,8 +142,8 @@ public class JsonTest extends CQLTester
                           row("{\"k1\": [[[1, 2], 1], [[2, 3], 2]], \"c1\": [\"" + uuid + "\", 3], \"value\": 3}"),
                           row("{\"k1\": [[[1, 2], 1], [[2, 3], 2]], \"c1\": [\"" + uuid + "\", 4], \"value\": 4}"));
 
-            // SELECT toJson(column)
-            assertRowsNet(executeNetWithPaging("SELECT toJson(k1), toJson(c1), toJson(value) FROM %s", pageSize),
+            // SELECT to_json(column)
+            assertRowsNet(executeNetWithPaging("SELECT to_json(k1), to_json(c1), to_json(value) FROM %s", pageSize),
                           row("[[[1, 2], 1], [[2, 3], 2]]", "[\"" + uuid + "\", 1]", "1"),
                           row("[[[1, 2], 1], [[2, 3], 2]]", "[\"" + uuid + "\", 2]", "2"),
                           row("[[[1, 2], 1], [[2, 3], 2]]", "[\"" + uuid + "\", 3]", "3"),
@@ -170,8 +172,8 @@ public class JsonTest extends CQLTester
                       row("{\"k1\": [[\"" + uuid + "\", 2], [\"" + uuid + "\", 3]], \"c1\": [\"" + uuid + "\", 3], \"value\": 3}"),
                       row("{\"k1\": [[\"" + uuid + "\", 2], [\"" + uuid + "\", 3]], \"c1\": [\"" + uuid + "\", 4], \"value\": 4}"));
 
-        // SELECT toJson(column)
-        assertRowsNet(executeNetWithPaging("SELECT toJson(k1), toJson(c1), toJson(value) FROM %s", pageSize),
+        // SELECT to_json(column)
+        assertRowsNet(executeNetWithPaging("SELECT to_json(k1), to_json(c1), to_json(value) FROM %s", pageSize),
                       row("[[\"" + uuid + "\", 2], [\"" + uuid + "\", 3]]", "[\"" + uuid + "\", 1]", "1"),
                       row("[[\"" + uuid + "\", 2], [\"" + uuid + "\", 3]]", "[\"" + uuid + "\", 2]", "2"),
                       row("[[\"" + uuid + "\", 2], [\"" + uuid + "\", 3]]", "[\"" + uuid + "\", 3]", "3"),
@@ -202,8 +204,8 @@ public class JsonTest extends CQLTester
                           row("{\"k1\": {\"a\": 1, \"b\": 2, \"c\": [\"1\", \"2\"]}, \"c1\": [\"" + uuid + "\", 3], \"value\": 3}"),
                           row("{\"k1\": {\"a\": 1, \"b\": 2, \"c\": [\"1\", \"2\"]}, \"c1\": [\"" + uuid + "\", 4], \"value\": 4}"));
 
-            // SELECT toJson(column)
-            assertRowsNet(executeNetWithPaging("SELECT toJson(k1), toJson(c1), toJson(value) FROM %s", pageSize),
+            // SELECT to_json(column)
+            assertRowsNet(executeNetWithPaging("SELECT to_json(k1), to_json(c1), to_json(value) FROM %s", pageSize),
                           row("{\"a\": 1, \"b\": 2, \"c\": [\"1\", \"2\"]}", "[\"" + uuid + "\", 1]", "1"),
                           row("{\"a\": 1, \"b\": 2, \"c\": [\"1\", \"2\"]}", "[\"" + uuid + "\", 2]", "2"),
                           row("{\"a\": 1, \"b\": 2, \"c\": [\"1\", \"2\"]}", "[\"" + uuid + "\", 3]", "3"),
@@ -246,468 +248,468 @@ public class JsonTest extends CQLTester
                 "udtval frozen<" + typeName + ">," +
                 "durationval duration)");
 
-        // fromJson() can only be used when the receiver type is known
-        assertInvalidMessage("fromJson() cannot be used in the selection clause", "SELECT fromJson(asciival) FROM %s", 0, 0);
+        // from_json() can only be used when the receiver type is known
+        assertInvalidMessage("from_json() cannot be used in the selection clause", "SELECT from_json(textval) FROM %s", 0, 0);
 
         String func1 = createFunction(KEYSPACE, "int", "CREATE FUNCTION %s (a int) CALLED ON NULL INPUT RETURNS text LANGUAGE java AS $$ return a.toString(); $$");
         createFunctionOverload(func1, "int", "CREATE FUNCTION %s (a text) CALLED ON NULL INPUT RETURNS text LANGUAGE java AS $$ return new String(a); $$");
 
         assertInvalidMessage("Ambiguous call to function",
-                "INSERT INTO %s (k, textval) VALUES (?, " + func1 + "(fromJson(?)))", 0, "123");
+                "INSERT INTO %s (k, textval) VALUES (?, " + func1 + "(from_json(?)))", 0, "123");
 
         // fails JSON parsing
         assertInvalidMessage("Could not decode JSON string '\u038E\u0394\u03B4\u03E0'",
-                "INSERT INTO %s (k, asciival) VALUES (?, fromJson(?))", 0, "\u038E\u0394\u03B4\u03E0");
+                "INSERT INTO %s (k, asciival) VALUES (?, from_json(?))", 0, "\u038E\u0394\u03B4\u03E0");
 
         // handle nulls
-        execute("INSERT INTO %s (k, asciival) VALUES (?, fromJson(?))", 0, null);
+        execute("INSERT INTO %s (k, asciival) VALUES (?, from_json(?))", 0, null);
         assertRows(execute("SELECT k, asciival FROM %s WHERE k = ?", 0), row(0, null));
 
-        execute("INSERT INTO %s (k, frozenmapval) VALUES (?, fromJson(?))", 0, null);
+        execute("INSERT INTO %s (k, frozenmapval) VALUES (?, from_json(?))", 0, null);
         assertRows(execute("SELECT k, frozenmapval FROM %s WHERE k = ?", 0), row(0, null));
 
-        execute("INSERT INTO %s (k, udtval) VALUES (?, fromJson(?))", 0, null);
+        execute("INSERT INTO %s (k, udtval) VALUES (?, from_json(?))", 0, null);
         assertRows(execute("SELECT k, udtval FROM %s WHERE k = ?", 0), row(0, null));
 
         // ================ ascii ================
-        execute("INSERT INTO %s (k, asciival) VALUES (?, fromJson(?))", 0, "\"ascii text\"");
+        execute("INSERT INTO %s (k, asciival) VALUES (?, from_json(?))", 0, "\"ascii text\"");
         assertRows(execute("SELECT k, asciival FROM %s WHERE k = ?", 0), row(0, "ascii text"));
 
-        execute("INSERT INTO %s (k, asciival) VALUES (?, fromJson(?))", 0, "\"ascii \\\" text\"");
+        execute("INSERT INTO %s (k, asciival) VALUES (?, from_json(?))", 0, "\"ascii \\\" text\"");
         assertRows(execute("SELECT k, asciival FROM %s WHERE k = ?", 0), row(0, "ascii \" text"));
 
         assertInvalidMessage("Invalid ASCII character in string literal",
-                "INSERT INTO %s (k, asciival) VALUES (?, fromJson(?))", 0, "\"\\u1fff\\u2013\\u33B4\\u2014\"");
+                "INSERT INTO %s (k, asciival) VALUES (?, from_json(?))", 0, "\"\\u1fff\\u2013\\u33B4\\u2014\"");
 
         assertInvalidMessage("Expected an ascii string, but got a Integer",
-                "INSERT INTO %s (k, asciival) VALUES (?, fromJson(?))", 0, "123");
+                "INSERT INTO %s (k, asciival) VALUES (?, from_json(?))", 0, "123");
 
-        // test that we can use fromJson() in other valid places in queries
-        assertRows(execute("SELECT asciival FROM %s WHERE k = fromJson(?)", "0"), row("ascii \" text"));
-        execute("UPDATE %s SET asciival = fromJson(?) WHERE k = fromJson(?)", "\"ascii \\\" text\"", "0");
-        execute("DELETE FROM %s WHERE k = fromJson(?)", "0");
+        // test that we can use from_json() in other valid places in queries
+        assertRows(execute("SELECT asciival FROM %s WHERE k = from_json(?)", "0"), row("ascii \" text"));
+        execute("UPDATE %s SET asciival = from_json(?) WHERE k = from_json(?)", "\"ascii \\\" text\"", "0");
+        execute("DELETE FROM %s WHERE k = from_json(?)", "0");
 
         // ================ bigint ================
-        execute("INSERT INTO %s (k, bigintval) VALUES (?, fromJson(?))", 0, "123123123123");
+        execute("INSERT INTO %s (k, bigintval) VALUES (?, from_json(?))", 0, "123123123123");
         assertRows(execute("SELECT k, bigintval FROM %s WHERE k = ?", 0), row(0, 123123123123L));
 
         // strings are also accepted
-        execute("INSERT INTO %s (k, bigintval) VALUES (?, fromJson(?))", 0, "\"123123123123\"");
+        execute("INSERT INTO %s (k, bigintval) VALUES (?, from_json(?))", 0, "\"123123123123\"");
         assertRows(execute("SELECT k, bigintval FROM %s WHERE k = ?", 0), row(0, 123123123123L));
 
         // overflow (Long.MAX_VALUE + 1)
         assertInvalidMessage("Expected a bigint value, but got a",
-                "INSERT INTO %s (k, bigintval) VALUES (?, fromJson(?))", 0, "9223372036854775808");
+                "INSERT INTO %s (k, bigintval) VALUES (?, from_json(?))", 0, "9223372036854775808");
 
         assertInvalidMessage("Expected a bigint value, but got a",
-                "INSERT INTO %s (k, bigintval) VALUES (?, fromJson(?))", 0, "123.456");
+                "INSERT INTO %s (k, bigintval) VALUES (?, from_json(?))", 0, "123.456");
 
         assertInvalidMessage("Unable to make long from",
-                "INSERT INTO %s (k, bigintval) VALUES (?, fromJson(?))", 0, "\"abc\"");
+                "INSERT INTO %s (k, bigintval) VALUES (?, from_json(?))", 0, "\"abc\"");
 
         assertInvalidMessage("Expected a bigint value, but got a",
-                "INSERT INTO %s (k, bigintval) VALUES (?, fromJson(?))", 0, "[\"abc\"]");
+                "INSERT INTO %s (k, bigintval) VALUES (?, from_json(?))", 0, "[\"abc\"]");
 
         // ================ blob ================
-        execute("INSERT INTO %s (k, blobval) VALUES (?, fromJson(?))", 0, "\"0x00000001\"");
+        execute("INSERT INTO %s (k, blobval) VALUES (?, from_json(?))", 0, "\"0x00000001\"");
         assertRows(execute("SELECT k, blobval FROM %s WHERE k = ?", 0), row(0, ByteBufferUtil.bytes(1)));
 
         assertInvalidMessage("Value 'xyzz' is not a valid blob representation",
-            "INSERT INTO %s (k, blobval) VALUES (?, fromJson(?))", 0, "\"xyzz\"");
+            "INSERT INTO %s (k, blobval) VALUES (?, from_json(?))", 0, "\"xyzz\"");
 
         assertInvalidMessage("String representation of blob is missing 0x prefix: 123",
-                "INSERT INTO %s (k, blobval) VALUES (?, fromJson(?))", 0, "\"123\"");
+                "INSERT INTO %s (k, blobval) VALUES (?, from_json(?))", 0, "\"123\"");
 
         assertInvalidMessage("Value '0x123' is not a valid blob representation",
-                "INSERT INTO %s (k, blobval) VALUES (?, fromJson(?))", 0, "\"0x123\"");
+                "INSERT INTO %s (k, blobval) VALUES (?, from_json(?))", 0, "\"0x123\"");
 
         assertInvalidMessage("Value '123' is not a valid blob representation",
-                "INSERT INTO %s (k, blobval) VALUES (?, fromJson(?))", 0, "123");
+                "INSERT INTO %s (k, blobval) VALUES (?, from_json(?))", 0, "123");
 
         // ================ boolean ================
-        execute("INSERT INTO %s (k, booleanval) VALUES (?, fromJson(?))", 0, "true");
+        execute("INSERT INTO %s (k, booleanval) VALUES (?, from_json(?))", 0, "true");
         assertRows(execute("SELECT k, booleanval FROM %s WHERE k = ?", 0), row(0, true));
 
-        execute("INSERT INTO %s (k, booleanval) VALUES (?, fromJson(?))", 0, "false");
+        execute("INSERT INTO %s (k, booleanval) VALUES (?, from_json(?))", 0, "false");
         assertRows(execute("SELECT k, booleanval FROM %s WHERE k = ?", 0), row(0, false));
 
         // strings are also accepted
-        execute("INSERT INTO %s (k, booleanval) VALUES (?, fromJson(?))", 0, "\"false\"");
+        execute("INSERT INTO %s (k, booleanval) VALUES (?, from_json(?))", 0, "\"false\"");
         assertRows(execute("SELECT k, booleanval FROM %s WHERE k = ?", 0), row(0, false));
 
         assertInvalidMessage("Unable to make boolean from",
-                "INSERT INTO %s (k, booleanval) VALUES (?, fromJson(?))", 0, "\"abc\"");
+                "INSERT INTO %s (k, booleanval) VALUES (?, from_json(?))", 0, "\"abc\"");
 
         assertInvalidMessage("Expected a boolean value, but got a Integer",
-                "INSERT INTO %s (k, booleanval) VALUES (?, fromJson(?))", 0, "123");
+                "INSERT INTO %s (k, booleanval) VALUES (?, from_json(?))", 0, "123");
 
         // ================ date ================
-        execute("INSERT INTO %s (k, dateval) VALUES (?, fromJson(?))", 0, "\"1987-03-23\"");
+        execute("INSERT INTO %s (k, dateval) VALUES (?, from_json(?))", 0, "\"1987-03-23\"");
         assertRows(execute("SELECT k, dateval FROM %s WHERE k = ?", 0), row(0, SimpleDateSerializer.dateStringToDays("1987-03-23")));
 
         assertInvalidMessage("Expected a string representation of a date",
-                "INSERT INTO %s (k, dateval) VALUES (?, fromJson(?))", 0, "123");
+                "INSERT INTO %s (k, dateval) VALUES (?, from_json(?))", 0, "123");
 
         assertInvalidMessage("Unable to coerce 'xyz' to a formatted date",
-                "INSERT INTO %s (k, dateval) VALUES (?, fromJson(?))", 0, "\"xyz\"");
+                "INSERT INTO %s (k, dateval) VALUES (?, from_json(?))", 0, "\"xyz\"");
 
         // ================ decimal ================
-        execute("INSERT INTO %s (k, decimalval) VALUES (?, fromJson(?))", 0, "123123.123123");
+        execute("INSERT INTO %s (k, decimalval) VALUES (?, from_json(?))", 0, "123123.123123");
         assertRows(execute("SELECT k, decimalval FROM %s WHERE k = ?", 0), row(0, new BigDecimal("123123.123123")));
 
-        execute("INSERT INTO %s (k, decimalval) VALUES (?, fromJson(?))", 0, "123123");
+        execute("INSERT INTO %s (k, decimalval) VALUES (?, from_json(?))", 0, "123123");
         assertRows(execute("SELECT k, decimalval FROM %s WHERE k = ?", 0), row(0, new BigDecimal("123123")));
 
         // accept strings for numbers that cannot be represented as doubles
-        execute("INSERT INTO %s (k, decimalval) VALUES (?, fromJson(?))", 0, "\"123123.123123\"");
+        execute("INSERT INTO %s (k, decimalval) VALUES (?, from_json(?))", 0, "\"123123.123123\"");
         assertRows(execute("SELECT k, decimalval FROM %s WHERE k = ?", 0), row(0, new BigDecimal("123123.123123")));
 
-        execute("INSERT INTO %s (k, decimalval) VALUES (?, fromJson(?))", 0, "\"-1.23E-12\"");
+        execute("INSERT INTO %s (k, decimalval) VALUES (?, from_json(?))", 0, "\"-1.23E-12\"");
         assertRows(execute("SELECT k, decimalval FROM %s WHERE k = ?", 0), row(0, new BigDecimal("-1.23E-12")));
 
         assertInvalidMessage("Value 'xyzz' is not a valid representation of a decimal value",
-                "INSERT INTO %s (k, decimalval) VALUES (?, fromJson(?))", 0, "\"xyzz\"");
+                "INSERT INTO %s (k, decimalval) VALUES (?, from_json(?))", 0, "\"xyzz\"");
 
         assertInvalidMessage("Value 'true' is not a valid representation of a decimal value",
-                "INSERT INTO %s (k, decimalval) VALUES (?, fromJson(?))", 0, "true");
+                "INSERT INTO %s (k, decimalval) VALUES (?, from_json(?))", 0, "true");
 
         // ================ double ================
-        execute("INSERT INTO %s (k, doubleval) VALUES (?, fromJson(?))", 0, "123123.123123");
+        execute("INSERT INTO %s (k, doubleval) VALUES (?, from_json(?))", 0, "123123.123123");
         assertRows(execute("SELECT k, doubleval FROM %s WHERE k = ?", 0), row(0, 123123.123123d));
 
-        execute("INSERT INTO %s (k, doubleval) VALUES (?, fromJson(?))", 0, "123123");
+        execute("INSERT INTO %s (k, doubleval) VALUES (?, from_json(?))", 0, "123123");
         assertRows(execute("SELECT k, doubleval FROM %s WHERE k = ?", 0), row(0, 123123.0d));
 
         // strings are also accepted
-        execute("INSERT INTO %s (k, doubleval) VALUES (?, fromJson(?))", 0, "\"123123\"");
+        execute("INSERT INTO %s (k, doubleval) VALUES (?, from_json(?))", 0, "\"123123\"");
         assertRows(execute("SELECT k, doubleval FROM %s WHERE k = ?", 0), row(0, 123123.0d));
 
         assertInvalidMessage("Unable to make double from",
-                "INSERT INTO %s (k, doubleval) VALUES (?, fromJson(?))", 0, "\"xyzz\"");
+                "INSERT INTO %s (k, doubleval) VALUES (?, from_json(?))", 0, "\"xyzz\"");
 
         assertInvalidMessage("Expected a double value, but got",
-                "INSERT INTO %s (k, doubleval) VALUES (?, fromJson(?))", 0, "true");
+                "INSERT INTO %s (k, doubleval) VALUES (?, from_json(?))", 0, "true");
 
         // ================ float ================
-        execute("INSERT INTO %s (k, floatval) VALUES (?, fromJson(?))", 0, "123123.123123");
+        execute("INSERT INTO %s (k, floatval) VALUES (?, from_json(?))", 0, "123123.123123");
         assertRows(execute("SELECT k, floatval FROM %s WHERE k = ?", 0), row(0, 123123.123123f));
 
-        execute("INSERT INTO %s (k, floatval) VALUES (?, fromJson(?))", 0, "123123");
+        execute("INSERT INTO %s (k, floatval) VALUES (?, from_json(?))", 0, "123123");
         assertRows(execute("SELECT k, floatval FROM %s WHERE k = ?", 0), row(0, 123123.0f));
 
         // strings are also accepted
-        execute("INSERT INTO %s (k, floatval) VALUES (?, fromJson(?))", 0, "\"123123.0\"");
+        execute("INSERT INTO %s (k, floatval) VALUES (?, from_json(?))", 0, "\"123123.0\"");
         assertRows(execute("SELECT k, floatval FROM %s WHERE k = ?", 0), row(0, 123123.0f));
 
         assertInvalidMessage("Unable to make float from",
-                "INSERT INTO %s (k, floatval) VALUES (?, fromJson(?))", 0, "\"xyzz\"");
+                "INSERT INTO %s (k, floatval) VALUES (?, from_json(?))", 0, "\"xyzz\"");
 
         assertInvalidMessage("Expected a float value, but got a",
-                "INSERT INTO %s (k, floatval) VALUES (?, fromJson(?))", 0, "true");
+                "INSERT INTO %s (k, floatval) VALUES (?, from_json(?))", 0, "true");
 
         // ================ inet ================
-        execute("INSERT INTO %s (k, inetval) VALUES (?, fromJson(?))", 0, "\"127.0.0.1\"");
+        execute("INSERT INTO %s (k, inetval) VALUES (?, from_json(?))", 0, "\"127.0.0.1\"");
         assertRows(execute("SELECT k, inetval FROM %s WHERE k = ?", 0), row(0, InetAddress.getByName("127.0.0.1")));
 
-        execute("INSERT INTO %s (k, inetval) VALUES (?, fromJson(?))", 0, "\"::1\"");
+        execute("INSERT INTO %s (k, inetval) VALUES (?, from_json(?))", 0, "\"::1\"");
         assertRows(execute("SELECT k, inetval FROM %s WHERE k = ?", 0), row(0, InetAddress.getByName("::1")));
 
         assertInvalidMessage("Unable to make inet address from 'xyzz'",
-                "INSERT INTO %s (k, inetval) VALUES (?, fromJson(?))", 0, "\"xyzz\"");
+                "INSERT INTO %s (k, inetval) VALUES (?, from_json(?))", 0, "\"xyzz\"");
 
         assertInvalidMessage("Expected a string representation of an inet value, but got a Integer",
-                "INSERT INTO %s (k, inetval) VALUES (?, fromJson(?))", 0, "123");
+                "INSERT INTO %s (k, inetval) VALUES (?, from_json(?))", 0, "123");
 
         // ================ int ================
-        execute("INSERT INTO %s (k, intval) VALUES (?, fromJson(?))", 0, "123123");
+        execute("INSERT INTO %s (k, intval) VALUES (?, from_json(?))", 0, "123123");
         assertRows(execute("SELECT k, intval FROM %s WHERE k = ?", 0), row(0, 123123));
 
         // strings are also accepted
-        execute("INSERT INTO %s (k, intval) VALUES (?, fromJson(?))", 0, "\"123123\"");
+        execute("INSERT INTO %s (k, intval) VALUES (?, from_json(?))", 0, "\"123123\"");
         assertRows(execute("SELECT k, intval FROM %s WHERE k = ?", 0), row(0, 123123));
 
         // int overflow (2 ^ 32, or Integer.MAX_INT + 1)
         assertInvalidMessage("Expected an int value, but got a",
-                "INSERT INTO %s (k, intval) VALUES (?, fromJson(?))", 0, "2147483648");
+                "INSERT INTO %s (k, intval) VALUES (?, from_json(?))", 0, "2147483648");
 
         assertInvalidMessage("Expected an int value, but got a",
-                "INSERT INTO %s (k, intval) VALUES (?, fromJson(?))", 0, "123.456");
+                "INSERT INTO %s (k, intval) VALUES (?, from_json(?))", 0, "123.456");
 
         assertInvalidMessage("Unable to make int from",
-                "INSERT INTO %s (k, intval) VALUES (?, fromJson(?))", 0, "\"xyzz\"");
+                "INSERT INTO %s (k, intval) VALUES (?, from_json(?))", 0, "\"xyzz\"");
 
         assertInvalidMessage("Expected an int value, but got a",
-                "INSERT INTO %s (k, intval) VALUES (?, fromJson(?))", 0, "true");
+                "INSERT INTO %s (k, intval) VALUES (?, from_json(?))", 0, "true");
 
         // ================ smallint ================
-        execute("INSERT INTO %s (k, smallintval) VALUES (?, fromJson(?))", 0, "32767");
+        execute("INSERT INTO %s (k, smallintval) VALUES (?, from_json(?))", 0, "32767");
         assertRows(execute("SELECT k, smallintval FROM %s WHERE k = ?", 0), row(0, (short) 32767));
 
         // strings are also accepted
-        execute("INSERT INTO %s (k, smallintval) VALUES (?, fromJson(?))", 0, "\"32767\"");
+        execute("INSERT INTO %s (k, smallintval) VALUES (?, from_json(?))", 0, "\"32767\"");
         assertRows(execute("SELECT k, smallintval FROM %s WHERE k = ?", 0), row(0, (short) 32767));
 
         // smallint overflow (Short.MAX_VALUE + 1)
         assertInvalidMessage("Unable to make short from",
-                "INSERT INTO %s (k, smallintval) VALUES (?, fromJson(?))", 0, "32768");
+                "INSERT INTO %s (k, smallintval) VALUES (?, from_json(?))", 0, "32768");
 
         assertInvalidMessage("Unable to make short from",
-                "INSERT INTO %s (k, smallintval) VALUES (?, fromJson(?))", 0, "123.456");
+                "INSERT INTO %s (k, smallintval) VALUES (?, from_json(?))", 0, "123.456");
 
         assertInvalidMessage("Unable to make short from",
-                "INSERT INTO %s (k, smallintval) VALUES (?, fromJson(?))", 0, "\"xyzz\"");
+                "INSERT INTO %s (k, smallintval) VALUES (?, from_json(?))", 0, "\"xyzz\"");
 
         assertInvalidMessage("Expected a short value, but got a Boolean",
-                "INSERT INTO %s (k, smallintval) VALUES (?, fromJson(?))", 0, "true");
+                "INSERT INTO %s (k, smallintval) VALUES (?, from_json(?))", 0, "true");
 
         // ================ tinyint ================
-        execute("INSERT INTO %s (k, tinyintval) VALUES (?, fromJson(?))", 0, "127");
+        execute("INSERT INTO %s (k, tinyintval) VALUES (?, from_json(?))", 0, "127");
         assertRows(execute("SELECT k, tinyintval FROM %s WHERE k = ?", 0), row(0, (byte) 127));
 
         // strings are also accepted
-        execute("INSERT INTO %s (k, tinyintval) VALUES (?, fromJson(?))", 0, "\"127\"");
+        execute("INSERT INTO %s (k, tinyintval) VALUES (?, from_json(?))", 0, "\"127\"");
         assertRows(execute("SELECT k, tinyintval FROM %s WHERE k = ?", 0), row(0, (byte) 127));
 
         // tinyint overflow (Byte.MAX_VALUE + 1)
         assertInvalidMessage("Unable to make byte from",
-                "INSERT INTO %s (k, tinyintval) VALUES (?, fromJson(?))", 0, "128");
+                "INSERT INTO %s (k, tinyintval) VALUES (?, from_json(?))", 0, "128");
 
         assertInvalidMessage("Unable to make byte from",
-                "INSERT INTO %s (k, tinyintval) VALUES (?, fromJson(?))", 0, "123.456");
+                "INSERT INTO %s (k, tinyintval) VALUES (?, from_json(?))", 0, "123.456");
 
         assertInvalidMessage("Unable to make byte from",
-                "INSERT INTO %s (k, tinyintval) VALUES (?, fromJson(?))", 0, "\"xyzz\"");
+                "INSERT INTO %s (k, tinyintval) VALUES (?, from_json(?))", 0, "\"xyzz\"");
 
         assertInvalidMessage("Expected a byte value, but got a Boolean",
-                "INSERT INTO %s (k, tinyintval) VALUES (?, fromJson(?))", 0, "true");
+                "INSERT INTO %s (k, tinyintval) VALUES (?, from_json(?))", 0, "true");
 
         // ================ text (varchar) ================
-        execute("INSERT INTO %s (k, textval) VALUES (?, fromJson(?))", 0, "\"\"");
+        execute("INSERT INTO %s (k, textval) VALUES (?, from_json(?))", 0, "\"\"");
         assertRows(execute("SELECT k, textval FROM %s WHERE k = ?", 0), row(0, ""));
 
-        execute("INSERT INTO %s (k, textval) VALUES (?, fromJson(?))", 0, "\"abcd\"");
+        execute("INSERT INTO %s (k, textval) VALUES (?, from_json(?))", 0, "\"abcd\"");
         assertRows(execute("SELECT k, textval FROM %s WHERE k = ?", 0), row(0, "abcd"));
 
-        execute("INSERT INTO %s (k, textval) VALUES (?, fromJson(?))", 0, "\"some \\\" text\"");
+        execute("INSERT INTO %s (k, textval) VALUES (?, from_json(?))", 0, "\"some \\\" text\"");
         assertRows(execute("SELECT k, textval FROM %s WHERE k = ?", 0), row(0, "some \" text"));
 
-        execute("INSERT INTO %s (k, textval) VALUES (?, fromJson(?))", 0, "\"\\u2013\"");
+        execute("INSERT INTO %s (k, textval) VALUES (?, from_json(?))", 0, "\"\\u2013\"");
         assertRows(execute("SELECT k, textval FROM %s WHERE k = ?", 0), row(0, "\u2013"));
 
         assertInvalidMessage("Expected a UTF-8 string, but got a Integer",
-                "INSERT INTO %s (k, textval) VALUES (?, fromJson(?))", 0, "123");
+                "INSERT INTO %s (k, textval) VALUES (?, from_json(?))", 0, "123");
 
         // ================ time ================
-        execute("INSERT INTO %s (k, timeval) VALUES (?, fromJson(?))", 0, "\"07:35:07.000111222\"");
+        execute("INSERT INTO %s (k, timeval) VALUES (?, from_json(?))", 0, "\"07:35:07.000111222\"");
         assertRows(execute("SELECT k, timeval FROM %s WHERE k = ?", 0), row(0, TimeSerializer.timeStringToLong("07:35:07.000111222")));
 
         assertInvalidMessage("Expected a string representation of a time value",
-                "INSERT INTO %s (k, timeval) VALUES (?, fromJson(?))", 0, "123456");
+                "INSERT INTO %s (k, timeval) VALUES (?, from_json(?))", 0, "123456");
 
         assertInvalidMessage("Unable to coerce 'xyz' to a formatted time",
-                "INSERT INTO %s (k, timeval) VALUES (?, fromJson(?))", 0, "\"xyz\"");
+                "INSERT INTO %s (k, timeval) VALUES (?, from_json(?))", 0, "\"xyz\"");
 
         // ================ timestamp ================
-        execute("INSERT INTO %s (k, timestampval) VALUES (?, fromJson(?))", 0, "123123123123");
+        execute("INSERT INTO %s (k, timestampval) VALUES (?, from_json(?))", 0, "123123123123");
         assertRows(execute("SELECT k, timestampval FROM %s WHERE k = ?", 0), row(0, new Date(123123123123L)));
 
-        execute("INSERT INTO %s (k, timestampval) VALUES (?, fromJson(?))", 0, "\"2014-01-01\"");
+        execute("INSERT INTO %s (k, timestampval) VALUES (?, from_json(?))", 0, "\"2014-01-01\"");
         assertRows(execute("SELECT k, timestampval FROM %s WHERE k = ?", 0), row(0, new SimpleDateFormat("y-M-d").parse("2014-01-01")));
 
         assertInvalidMessage("Expected a long or a datestring representation of a timestamp value, but got a Double",
-                "INSERT INTO %s (k, timestampval) VALUES (?, fromJson(?))", 0, "123.456");
+                "INSERT INTO %s (k, timestampval) VALUES (?, from_json(?))", 0, "123.456");
 
         assertInvalidMessage("Unable to parse a date/time from 'abcd'",
-                "INSERT INTO %s (k, timestampval) VALUES (?, fromJson(?))", 0, "\"abcd\"");
+                "INSERT INTO %s (k, timestampval) VALUES (?, from_json(?))", 0, "\"abcd\"");
 
         // ================ timeuuid ================
-        execute("INSERT INTO %s (k, timeuuidval) VALUES (?, fromJson(?))", 0, "\"6bddc89a-5644-11e4-97fc-56847afe9799\"");
+        execute("INSERT INTO %s (k, timeuuidval) VALUES (?, from_json(?))", 0, "\"6bddc89a-5644-11e4-97fc-56847afe9799\"");
         assertRows(execute("SELECT k, timeuuidval FROM %s WHERE k = ?", 0), row(0, UUID.fromString("6bddc89a-5644-11e4-97fc-56847afe9799")));
 
-        execute("INSERT INTO %s (k, timeuuidval) VALUES (?, fromJson(?))", 0, "\"6BDDC89A-5644-11E4-97FC-56847AFE9799\"");
+        execute("INSERT INTO %s (k, timeuuidval) VALUES (?, from_json(?))", 0, "\"6BDDC89A-5644-11E4-97FC-56847AFE9799\"");
         assertRows(execute("SELECT k, timeuuidval FROM %s WHERE k = ?", 0), row(0, UUID.fromString("6bddc89a-5644-11e4-97fc-56847afe9799")));
 
         assertInvalidMessage("TimeUUID supports only version 1 UUIDs",
-                "INSERT INTO %s (k, timeuuidval) VALUES (?, fromJson(?))", 0, "\"00000000-0000-0000-0000-000000000000\"");
+                "INSERT INTO %s (k, timeuuidval) VALUES (?, from_json(?))", 0, "\"00000000-0000-0000-0000-000000000000\"");
 
         assertInvalidMessage("Expected a string representation of a timeuuid, but got a Integer",
-                "INSERT INTO %s (k, timeuuidval) VALUES (?, fromJson(?))", 0, "123");
+                "INSERT INTO %s (k, timeuuidval) VALUES (?, from_json(?))", 0, "123");
 
          // ================ uuidval ================
-        execute("INSERT INTO %s (k, uuidval) VALUES (?, fromJson(?))", 0, "\"6bddc89a-5644-11e4-97fc-56847afe9799\"");
+        execute("INSERT INTO %s (k, uuidval) VALUES (?, from_json(?))", 0, "\"6bddc89a-5644-11e4-97fc-56847afe9799\"");
         assertRows(execute("SELECT k, uuidval FROM %s WHERE k = ?", 0), row(0, UUID.fromString("6bddc89a-5644-11e4-97fc-56847afe9799")));
 
-        execute("INSERT INTO %s (k, uuidval) VALUES (?, fromJson(?))", 0, "\"6BDDC89A-5644-11E4-97FC-56847AFE9799\"");
+        execute("INSERT INTO %s (k, uuidval) VALUES (?, from_json(?))", 0, "\"6BDDC89A-5644-11E4-97FC-56847AFE9799\"");
         assertRows(execute("SELECT k, uuidval FROM %s WHERE k = ?", 0), row(0, UUID.fromString("6bddc89a-5644-11e4-97fc-56847afe9799")));
 
         assertInvalidMessage("Unable to make UUID from",
-                "INSERT INTO %s (k, uuidval) VALUES (?, fromJson(?))", 0, "\"00000000-0000-0000-zzzz-000000000000\"");
+                "INSERT INTO %s (k, uuidval) VALUES (?, from_json(?))", 0, "\"00000000-0000-0000-zzzz-000000000000\"");
 
         assertInvalidMessage("Expected a string representation of a uuid, but got a Integer",
-                "INSERT INTO %s (k, uuidval) VALUES (?, fromJson(?))", 0, "123");
+                "INSERT INTO %s (k, uuidval) VALUES (?, from_json(?))", 0, "123");
 
         // ================ varint ================
-        execute("INSERT INTO %s (k, varintval) VALUES (?, fromJson(?))", 0, "123123123123");
+        execute("INSERT INTO %s (k, varintval) VALUES (?, from_json(?))", 0, "123123123123");
         assertRows(execute("SELECT k, varintval FROM %s WHERE k = ?", 0), row(0, new BigInteger("123123123123")));
 
         // accept strings for numbers that cannot be represented as longs
-        execute("INSERT INTO %s (k, varintval) VALUES (?, fromJson(?))", 0, "\"1234567890123456789012345678901234567890\"");
+        execute("INSERT INTO %s (k, varintval) VALUES (?, from_json(?))", 0, "\"1234567890123456789012345678901234567890\"");
         assertRows(execute("SELECT k, varintval FROM %s WHERE k = ?", 0), row(0, new BigInteger("1234567890123456789012345678901234567890")));
 
         assertInvalidMessage("Value '123123.123' is not a valid representation of a varint value",
-                "INSERT INTO %s (k, varintval) VALUES (?, fromJson(?))", 0, "123123.123");
+                "INSERT INTO %s (k, varintval) VALUES (?, from_json(?))", 0, "123123.123");
 
         assertInvalidMessage("Value 'xyzz' is not a valid representation of a varint value",
-                "INSERT INTO %s (k, varintval) VALUES (?, fromJson(?))", 0, "\"xyzz\"");
+                "INSERT INTO %s (k, varintval) VALUES (?, from_json(?))", 0, "\"xyzz\"");
 
         assertInvalidMessage("Value '' is not a valid representation of a varint value",
-                "INSERT INTO %s (k, varintval) VALUES (?, fromJson(?))", 0, "\"\"");
+                "INSERT INTO %s (k, varintval) VALUES (?, from_json(?))", 0, "\"\"");
 
         assertInvalidMessage("Value 'true' is not a valid representation of a varint value",
-                "INSERT INTO %s (k, varintval) VALUES (?, fromJson(?))", 0, "true");
+                "INSERT INTO %s (k, varintval) VALUES (?, from_json(?))", 0, "true");
 
         // ================ lists ================
-        execute("INSERT INTO %s (k, listval) VALUES (?, fromJson(?))", 0, "[1, 2, 3]");
+        execute("INSERT INTO %s (k, listval) VALUES (?, from_json(?))", 0, "[1, 2, 3]");
         assertRows(execute("SELECT k, listval FROM %s WHERE k = ?", 0), row(0, list(1, 2, 3)));
 
-        execute("INSERT INTO %s (k, listval) VALUES (?, fromJson(?))", 0, "[]");
+        execute("INSERT INTO %s (k, listval) VALUES (?, from_json(?))", 0, "[]");
         assertRows(execute("SELECT k, listval FROM %s WHERE k = ?", 0), row(0, null));
 
         assertInvalidMessage("Expected a list, but got a Integer",
-                "INSERT INTO %s (k, listval) VALUES (?, fromJson(?))", 0, "123");
+                "INSERT INTO %s (k, listval) VALUES (?, from_json(?))", 0, "123");
 
         assertInvalidMessage("Unable to make int from",
-                "INSERT INTO %s (k, listval) VALUES (?, fromJson(?))", 0, "[\"abc\"]");
+                "INSERT INTO %s (k, listval) VALUES (?, from_json(?))", 0, "[\"abc\"]");
 
         assertInvalidMessage("Invalid null element in list",
-                "INSERT INTO %s (k, listval) VALUES (?, fromJson(?))", 0, "[null]");
+                "INSERT INTO %s (k, listval) VALUES (?, from_json(?))", 0, "[null]");
 
         // frozen
-        execute("INSERT INTO %s (k, frozenlistval) VALUES (?, fromJson(?))", 0, "[1, 2, 3]");
+        execute("INSERT INTO %s (k, frozenlistval) VALUES (?, from_json(?))", 0, "[1, 2, 3]");
         assertRows(execute("SELECT k, frozenlistval FROM %s WHERE k = ?", 0), row(0, list(1, 2, 3)));
 
         // ================ sets ================
-        execute("INSERT INTO %s (k, setval) VALUES (?, fromJson(?))",
+        execute("INSERT INTO %s (k, setval) VALUES (?, from_json(?))",
                 0, "[\"6bddc89a-5644-11e4-97fc-56847afe9798\", \"6bddc89a-5644-11e4-97fc-56847afe9799\"]");
         assertRows(execute("SELECT k, setval FROM %s WHERE k = ?", 0),
                 row(0, set(UUID.fromString("6bddc89a-5644-11e4-97fc-56847afe9798"), (UUID.fromString("6bddc89a-5644-11e4-97fc-56847afe9799"))))
         );
 
         // duplicates are okay, just like in CQL
-        execute("INSERT INTO %s (k, setval) VALUES (?, fromJson(?))",
+        execute("INSERT INTO %s (k, setval) VALUES (?, from_json(?))",
                 0, "[\"6bddc89a-5644-11e4-97fc-56847afe9798\", \"6bddc89a-5644-11e4-97fc-56847afe9798\", \"6bddc89a-5644-11e4-97fc-56847afe9799\"]");
         assertRows(execute("SELECT k, setval FROM %s WHERE k = ?", 0),
                 row(0, set(UUID.fromString("6bddc89a-5644-11e4-97fc-56847afe9798"), (UUID.fromString("6bddc89a-5644-11e4-97fc-56847afe9799"))))
         );
 
-        execute("INSERT INTO %s (k, setval) VALUES (?, fromJson(?))", 0, "[]");
+        execute("INSERT INTO %s (k, setval) VALUES (?, from_json(?))", 0, "[]");
         assertRows(execute("SELECT k, setval FROM %s WHERE k = ?", 0), row(0, null));
 
         assertInvalidMessage("Expected a list (representing a set), but got a Integer",
-                "INSERT INTO %s (k, setval) VALUES (?, fromJson(?))", 0, "123");
+                "INSERT INTO %s (k, setval) VALUES (?, from_json(?))", 0, "123");
 
         assertInvalidMessage("Unable to make UUID from",
-                "INSERT INTO %s (k, setval) VALUES (?, fromJson(?))", 0, "[\"abc\"]");
+                "INSERT INTO %s (k, setval) VALUES (?, from_json(?))", 0, "[\"abc\"]");
 
         assertInvalidMessage("Invalid null element in set",
-                "INSERT INTO %s (k, setval) VALUES (?, fromJson(?))", 0, "[null]");
+                "INSERT INTO %s (k, setval) VALUES (?, from_json(?))", 0, "[null]");
 
         // frozen
-        execute("INSERT INTO %s (k, frozensetval) VALUES (?, fromJson(?))",
+        execute("INSERT INTO %s (k, frozensetval) VALUES (?, from_json(?))",
                 0, "[\"6bddc89a-5644-11e4-97fc-56847afe9798\", \"6bddc89a-5644-11e4-97fc-56847afe9799\"]");
         assertRows(execute("SELECT k, frozensetval FROM %s WHERE k = ?", 0),
                 row(0, set(UUID.fromString("6bddc89a-5644-11e4-97fc-56847afe9798"), (UUID.fromString("6bddc89a-5644-11e4-97fc-56847afe9799"))))
         );
 
-        execute("INSERT INTO %s (k, frozensetval) VALUES (?, fromJson(?))",
+        execute("INSERT INTO %s (k, frozensetval) VALUES (?, from_json(?))",
                 0, "[\"6bddc89a-5644-11e4-97fc-56847afe9799\", \"6bddc89a-5644-11e4-97fc-56847afe9798\"]");
         assertRows(execute("SELECT k, frozensetval FROM %s WHERE k = ?", 0),
                 row(0, set(UUID.fromString("6bddc89a-5644-11e4-97fc-56847afe9798"), (UUID.fromString("6bddc89a-5644-11e4-97fc-56847afe9799"))))
         );
 
         // ================ maps ================
-        execute("INSERT INTO %s (k, mapval) VALUES (?, fromJson(?))", 0, "{\"a\": 1, \"b\": 2}");
+        execute("INSERT INTO %s (k, mapval) VALUES (?, from_json(?))", 0, "{\"a\": 1, \"b\": 2}");
         assertRows(execute("SELECT k, mapval FROM %s WHERE k = ?", 0), row(0, map("a", 1, "b", 2)));
 
-        execute("INSERT INTO %s (k, mapval) VALUES (?, fromJson(?))", 0, "{}");
+        execute("INSERT INTO %s (k, mapval) VALUES (?, from_json(?))", 0, "{}");
         assertRows(execute("SELECT k, mapval FROM %s WHERE k = ?", 0), row(0, null));
 
         assertInvalidMessage("Expected a map, but got a Integer",
-                "INSERT INTO %s (k, mapval) VALUES (?, fromJson(?))", 0, "123");
+                "INSERT INTO %s (k, mapval) VALUES (?, from_json(?))", 0, "123");
 
         assertInvalidMessage("Invalid ASCII character in string literal",
-                "INSERT INTO %s (k, mapval) VALUES (?, fromJson(?))", 0, "{\"\\u1fff\\u2013\\u33B4\\u2014\": 1}");
+                "INSERT INTO %s (k, mapval) VALUES (?, from_json(?))", 0, "{\"\\u1fff\\u2013\\u33B4\\u2014\": 1}");
 
         assertInvalidMessage("Invalid null value in map",
-                "INSERT INTO %s (k, mapval) VALUES (?, fromJson(?))", 0, "{\"a\": null}");
+                "INSERT INTO %s (k, mapval) VALUES (?, from_json(?))", 0, "{\"a\": null}");
 
         // frozen
-        execute("INSERT INTO %s (k, frozenmapval) VALUES (?, fromJson(?))", 0, "{\"a\": 1, \"b\": 2}");
+        execute("INSERT INTO %s (k, frozenmapval) VALUES (?, from_json(?))", 0, "{\"a\": 1, \"b\": 2}");
         assertRows(execute("SELECT k, frozenmapval FROM %s WHERE k = ?", 0), row(0, map("a", 1, "b", 2)));
 
-        execute("INSERT INTO %s (k, frozenmapval) VALUES (?, fromJson(?))", 0, "{\"b\": 2, \"a\": 1}");
+        execute("INSERT INTO %s (k, frozenmapval) VALUES (?, from_json(?))", 0, "{\"b\": 2, \"a\": 1}");
         assertRows(execute("SELECT k, frozenmapval FROM %s WHERE k = ?", 0), row(0, map("a", 1, "b", 2)));
 
         // ================ tuples ================
-        execute("INSERT INTO %s (k, tupleval) VALUES (?, fromJson(?))", 0, "[1, \"foobar\", \"6bddc89a-5644-11e4-97fc-56847afe9799\"]");
+        execute("INSERT INTO %s (k, tupleval) VALUES (?, from_json(?))", 0, "[1, \"foobar\", \"6bddc89a-5644-11e4-97fc-56847afe9799\"]");
         assertRows(execute("SELECT k, tupleval FROM %s WHERE k = ?", 0),
             row(0, tuple(1, "foobar", UUID.fromString("6bddc89a-5644-11e4-97fc-56847afe9799")))
         );
 
-        execute("INSERT INTO %s (k, tupleval) VALUES (?, fromJson(?))", 0, "[1, null, \"6bddc89a-5644-11e4-97fc-56847afe9799\"]");
+        execute("INSERT INTO %s (k, tupleval) VALUES (?, from_json(?))", 0, "[1, null, \"6bddc89a-5644-11e4-97fc-56847afe9799\"]");
         assertRows(execute("SELECT k, tupleval FROM %s WHERE k = ?", 0),
                 row(0, tuple(1, null, UUID.fromString("6bddc89a-5644-11e4-97fc-56847afe9799")))
         );
 
         assertInvalidMessage("Tuple contains extra items",
-                "INSERT INTO %s (k, tupleval) VALUES (?, fromJson(?))",
+                "INSERT INTO %s (k, tupleval) VALUES (?, from_json(?))",
                 0, "[1, \"foobar\", \"6bddc89a-5644-11e4-97fc-56847afe9799\", 1, 2, 3]");
 
         assertInvalidMessage("Tuple is missing items",
-                "INSERT INTO %s (k, tupleval) VALUES (?, fromJson(?))",
+                "INSERT INTO %s (k, tupleval) VALUES (?, from_json(?))",
                 0, "[1, \"foobar\"]");
 
         assertInvalidMessage("Unable to make int from",
-                "INSERT INTO %s (k, tupleval) VALUES (?, fromJson(?))",
+                "INSERT INTO %s (k, tupleval) VALUES (?, from_json(?))",
                 0, "[\"not an int\", \"foobar\", \"6bddc89a-5644-11e4-97fc-56847afe9799\"]");
 
         // ================ UDTs ================
-        execute("INSERT INTO %s (k, udtval) VALUES (?, fromJson(?))", 0, "{\"a\": 1, \"b\": \"6bddc89a-5644-11e4-97fc-56847afe9799\", \"c\": [\"foo\", \"bar\"]}");
+        execute("INSERT INTO %s (k, udtval) VALUES (?, from_json(?))", 0, "{\"a\": 1, \"b\": \"6bddc89a-5644-11e4-97fc-56847afe9799\", \"c\": [\"foo\", \"bar\"]}");
         assertRows(execute("SELECT k, udtval.a, udtval.b, udtval.c FROM %s WHERE k = ?", 0),
                 row(0, 1, UUID.fromString("6bddc89a-5644-11e4-97fc-56847afe9799"), set("bar", "foo"))
         );
 
         // ================ duration ================
-        execute("INSERT INTO %s (k, durationval) VALUES (?, fromJson(?))", 0, "\"53us\"");
+        execute("INSERT INTO %s (k, durationval) VALUES (?, from_json(?))", 0, "\"53us\"");
         assertRows(execute("SELECT k, durationval FROM %s WHERE k = ?", 0), row(0, Duration.newInstance(0, 0, 53000L)));
 
-        execute("INSERT INTO %s (k, durationval) VALUES (?, fromJson(?))", 0, "\"P2W\"");
+        execute("INSERT INTO %s (k, durationval) VALUES (?, from_json(?))", 0, "\"P2W\"");
         assertRows(execute("SELECT k, durationval FROM %s WHERE k = ?", 0), row(0, Duration.newInstance(0, 14, 0)));
 
         assertInvalidMessage("Unable to convert 'xyz' to a duration",
-                             "INSERT INTO %s (k, durationval) VALUES (?, fromJson(?))", 0, "\"xyz\"");
+                             "INSERT INTO %s (k, durationval) VALUES (?, from_json(?))", 0, "\"xyz\"");
 
         // order of fields shouldn't matter
-        execute("INSERT INTO %s (k, udtval) VALUES (?, fromJson(?))", 0, "{\"b\": \"6bddc89a-5644-11e4-97fc-56847afe9799\", \"a\": 1, \"c\": [\"foo\", \"bar\"]}");
+        execute("INSERT INTO %s (k, udtval) VALUES (?, from_json(?))", 0, "{\"b\": \"6bddc89a-5644-11e4-97fc-56847afe9799\", \"a\": 1, \"c\": [\"foo\", \"bar\"]}");
         assertRows(execute("SELECT k, udtval.a, udtval.b, udtval.c FROM %s WHERE k = ?", 0),
                 row(0, 1, UUID.fromString("6bddc89a-5644-11e4-97fc-56847afe9799"), set("bar", "foo"))
         );
 
         // test nulls
-        execute("INSERT INTO %s (k, udtval) VALUES (?, fromJson(?))", 0, "{\"a\": null, \"b\": \"6bddc89a-5644-11e4-97fc-56847afe9799\", \"c\": [\"foo\", \"bar\"]}");
+        execute("INSERT INTO %s (k, udtval) VALUES (?, from_json(?))", 0, "{\"a\": null, \"b\": \"6bddc89a-5644-11e4-97fc-56847afe9799\", \"c\": [\"foo\", \"bar\"]}");
         assertRows(execute("SELECT k, udtval.a, udtval.b, udtval.c FROM %s WHERE k = ?", 0),
                 row(0, null, UUID.fromString("6bddc89a-5644-11e4-97fc-56847afe9799"), set("bar", "foo"))
         );
 
         // test missing fields
-        execute("INSERT INTO %s (k, udtval) VALUES (?, fromJson(?))", 0, "{\"a\": 1, \"b\": \"6bddc89a-5644-11e4-97fc-56847afe9799\"}");
+        execute("INSERT INTO %s (k, udtval) VALUES (?, from_json(?))", 0, "{\"a\": 1, \"b\": \"6bddc89a-5644-11e4-97fc-56847afe9799\"}");
         assertRows(execute("SELECT k, udtval.a, udtval.b, udtval.c FROM %s WHERE k = ?", 0),
                 row(0, 1, UUID.fromString("6bddc89a-5644-11e4-97fc-56847afe9799"), null)
         );
 
-        assertInvalidMessage("Unknown field", "INSERT INTO %s (k, udtval) VALUES (?, fromJson(?))", 0, "{\"xxx\": 1}");
+        assertInvalidMessage("Unknown field", "INSERT INTO %s (k, udtval) VALUES (?, from_json(?))", 0, "{\"xxx\": 1}");
         assertInvalidMessage("Unable to make int from",
-                "INSERT INTO %s (k, udtval) VALUES (?, fromJson(?))", 0, "{\"a\": \"foobar\"}");
+                "INSERT INTO %s (k, udtval) VALUES (?, from_json(?))", 0, "{\"a\": \"foobar\"}");
     }
 
     @Test
@@ -745,212 +747,224 @@ public class JsonTest extends CQLTester
                 "udtval frozen<" + typeName + ">," +
                 "durationval duration)");
 
-        // toJson() can only be used in selections
-        assertInvalidMessage("toJson() may only be used within the selection clause",
-                "INSERT INTO %s (k, asciival) VALUES (?, toJson(?))", 0, 0);
-        assertInvalidMessage("toJson() may only be used within the selection clause",
-                "UPDATE %s SET asciival = toJson(?) WHERE k = ?", 0, 0);
-        assertInvalidMessage("toJson() may only be used within the selection clause",
-                "DELETE FROM %s WHERE k = fromJson(toJson(?))", 0);
+        // to_json() can be used out of the selection clause (with literals)
+        execute("INSERT INTO %s (k, textval) VALUES (?, to_json(1234))", 0);
+        assertRows(execute("SELECT textval FROM %s WHERE k = ?", 0), row("1234"));
+        assertRows(execute("SELECT textval FROM %s WHERE textval = to_json(1234) ALLOW FILTERING"), row("1234"));
+        execute("UPDATE %s SET textval = to_json(-1234) WHERE k = ?", 0);
+        assertRows(execute("SELECT textval FROM %s WHERE k = ?", 0), row("-1234"));
+        assertRows(execute("SELECT textval FROM %s WHERE textval = to_json(-1234) ALLOW FILTERING"), row("-1234"));
+        execute("DELETE FROM %s WHERE k = from_json(to_json(0))");
+        assertEmpty(execute("SELECT textval FROM %s WHERE k = ?", 0));
+
+        // to_json() can be used out of the selection clause (with markers)
+        execute("INSERT INTO %s (k, textval) VALUES (?, to_json((int) ?))", 0, 123123);
+        assertRows(execute("SELECT textval FROM %s WHERE k = ?", 0), row("123123"));
+        assertRows(execute("SELECT textval FROM %s WHERE textval = to_json((int) ?) ALLOW FILTERING", 123123), row("123123"));
+        execute("UPDATE %s SET textval = to_json((int) ?) WHERE k = ?", -123123, 0);
+        assertRows(execute("SELECT textval FROM %s WHERE k = ?", 0), row("-123123"));
+        assertRows(execute("SELECT textval FROM %s WHERE textval = to_json((int) ?) ALLOW FILTERING", -123123), row("-123123"));
+        execute("DELETE FROM %s WHERE k = from_json(to_json((int) ?))", 0);
+        assertEmpty(execute("SELECT textval FROM %s WHERE k = ?", 0));
 
         // ================ ascii ================
         execute("INSERT INTO %s (k, asciival) VALUES (?, ?)", 0, "ascii text");
-        assertRows(execute("SELECT k, toJson(asciival) FROM %s WHERE k = ?", 0), row(0, "\"ascii text\""));
+        assertRows(execute("SELECT k, to_json(asciival) FROM %s WHERE k = ?", 0), row(0, "\"ascii text\""));
 
         execute("INSERT INTO %s (k, asciival) VALUES (?, ?)", 0, "");
-        assertRows(execute("SELECT k, toJson(asciival) FROM %s WHERE k = ?", 0), row(0, "\"\""));
+        assertRows(execute("SELECT k, to_json(asciival) FROM %s WHERE k = ?", 0), row(0, "\"\""));
 
         // ================ bigint ================
         execute("INSERT INTO %s (k, bigintval) VALUES (?, ?)", 0, 123123123123L);
-        assertRows(execute("SELECT k, toJson(bigintval) FROM %s WHERE k = ?", 0), row(0, "123123123123"));
+        assertRows(execute("SELECT k, to_json(bigintval) FROM %s WHERE k = ?", 0), row(0, "123123123123"));
 
         execute("INSERT INTO %s (k, bigintval) VALUES (?, ?)", 0, 0L);
-        assertRows(execute("SELECT k, toJson(bigintval) FROM %s WHERE k = ?", 0), row(0, "0"));
+        assertRows(execute("SELECT k, to_json(bigintval) FROM %s WHERE k = ?", 0), row(0, "0"));
 
         execute("INSERT INTO %s (k, bigintval) VALUES (?, ?)", 0, -123123123123L);
-        assertRows(execute("SELECT k, toJson(bigintval) FROM %s WHERE k = ?", 0), row(0, "-123123123123"));
+        assertRows(execute("SELECT k, to_json(bigintval) FROM %s WHERE k = ?", 0), row(0, "-123123123123"));
 
         // ================ blob ================
         execute("INSERT INTO %s (k, blobval) VALUES (?, ?)", 0, ByteBufferUtil.bytes(1));
-        assertRows(execute("SELECT k, toJson(blobval) FROM %s WHERE k = ?", 0), row(0, "\"0x00000001\""));
+        assertRows(execute("SELECT k, to_json(blobval) FROM %s WHERE k = ?", 0), row(0, "\"0x00000001\""));
 
         execute("INSERT INTO %s (k, blobval) VALUES (?, ?)", 0, ByteBufferUtil.EMPTY_BYTE_BUFFER);
-        assertRows(execute("SELECT k, toJson(blobval) FROM %s WHERE k = ?", 0), row(0, "\"0x\""));
+        assertRows(execute("SELECT k, to_json(blobval) FROM %s WHERE k = ?", 0), row(0, "\"0x\""));
 
         // ================ boolean ================
         execute("INSERT INTO %s (k, booleanval) VALUES (?, ?)", 0, true);
-        assertRows(execute("SELECT k, toJson(booleanval) FROM %s WHERE k = ?", 0), row(0, "true"));
+        assertRows(execute("SELECT k, to_json(booleanval) FROM %s WHERE k = ?", 0), row(0, "true"));
 
         execute("INSERT INTO %s (k, booleanval) VALUES (?, ?)", 0, false);
-        assertRows(execute("SELECT k, toJson(booleanval) FROM %s WHERE k = ?", 0), row(0, "false"));
+        assertRows(execute("SELECT k, to_json(booleanval) FROM %s WHERE k = ?", 0), row(0, "false"));
 
         // ================ date ================
         execute("INSERT INTO %s (k, dateval) VALUES (?, ?)", 0, SimpleDateSerializer.dateStringToDays("1987-03-23"));
-        assertRows(execute("SELECT k, toJson(dateval) FROM %s WHERE k = ?", 0), row(0, "\"1987-03-23\""));
+        assertRows(execute("SELECT k, to_json(dateval) FROM %s WHERE k = ?", 0), row(0, "\"1987-03-23\""));
 
         // ================ decimal ================
         execute("INSERT INTO %s (k, decimalval) VALUES (?, ?)", 0, new BigDecimal("123123.123123"));
-        assertRows(execute("SELECT k, toJson(decimalval) FROM %s WHERE k = ?", 0), row(0, "123123.123123"));
+        assertRows(execute("SELECT k, to_json(decimalval) FROM %s WHERE k = ?", 0), row(0, "123123.123123"));
 
         execute("INSERT INTO %s (k, decimalval) VALUES (?, ?)", 0, new BigDecimal("-1.23E-12"));
-        assertRows(execute("SELECT k, toJson(decimalval) FROM %s WHERE k = ?", 0), row(0, "-1.23E-12"));
+        assertRows(execute("SELECT k, to_json(decimalval) FROM %s WHERE k = ?", 0), row(0, "-1.23E-12"));
 
         // ================ double ================
         execute("INSERT INTO %s (k, doubleval) VALUES (?, ?)", 0, 123123.123123d);
-        assertRows(execute("SELECT k, toJson(doubleval) FROM %s WHERE k = ?", 0), row(0, "123123.123123"));
+        assertRows(execute("SELECT k, to_json(doubleval) FROM %s WHERE k = ?", 0), row(0, "123123.123123"));
 
         execute("INSERT INTO %s (k, doubleval) VALUES (?, ?)", 0, 123123d);
-        assertRows(execute("SELECT k, toJson(doubleval) FROM %s WHERE k = ?", 0), row(0, "123123.0"));
+        assertRows(execute("SELECT k, to_json(doubleval) FROM %s WHERE k = ?", 0), row(0, "123123.0"));
 
         // ================ float ================
         execute("INSERT INTO %s (k, floatval) VALUES (?, ?)", 0, 123.123f);
-        assertRows(execute("SELECT k, toJson(floatval) FROM %s WHERE k = ?", 0), row(0, "123.123"));
+        assertRows(execute("SELECT k, to_json(floatval) FROM %s WHERE k = ?", 0), row(0, "123.123"));
 
         execute("INSERT INTO %s (k, floatval) VALUES (?, ?)", 0, 123123f);
-        assertRows(execute("SELECT k, toJson(floatval) FROM %s WHERE k = ?", 0), row(0, "123123.0"));
+        assertRows(execute("SELECT k, to_json(floatval) FROM %s WHERE k = ?", 0), row(0, "123123.0"));
 
         // ================ inet ================
         execute("INSERT INTO %s (k, inetval) VALUES (?, ?)", 0, InetAddress.getByName("127.0.0.1"));
-        assertRows(execute("SELECT k, toJson(inetval) FROM %s WHERE k = ?", 0), row(0, "\"127.0.0.1\""));
+        assertRows(execute("SELECT k, to_json(inetval) FROM %s WHERE k = ?", 0), row(0, "\"127.0.0.1\""));
 
         execute("INSERT INTO %s (k, inetval) VALUES (?, ?)", 0, InetAddress.getByName("::1"));
-        assertRows(execute("SELECT k, toJson(inetval) FROM %s WHERE k = ?", 0), row(0, "\"0:0:0:0:0:0:0:1\""));
+        assertRows(execute("SELECT k, to_json(inetval) FROM %s WHERE k = ?", 0), row(0, "\"0:0:0:0:0:0:0:1\""));
 
         // ================ int ================
         execute("INSERT INTO %s (k, intval) VALUES (?, ?)", 0, 123123);
-        assertRows(execute("SELECT k, toJson(intval) FROM %s WHERE k = ?", 0), row(0, "123123"));
+        assertRows(execute("SELECT k, to_json(intval) FROM %s WHERE k = ?", 0), row(0, "123123"));
 
         execute("INSERT INTO %s (k, intval) VALUES (?, ?)", 0, 0);
-        assertRows(execute("SELECT k, toJson(intval) FROM %s WHERE k = ?", 0), row(0, "0"));
+        assertRows(execute("SELECT k, to_json(intval) FROM %s WHERE k = ?", 0), row(0, "0"));
 
         execute("INSERT INTO %s (k, intval) VALUES (?, ?)", 0, -123123);
-        assertRows(execute("SELECT k, toJson(intval) FROM %s WHERE k = ?", 0), row(0, "-123123"));
+        assertRows(execute("SELECT k, to_json(intval) FROM %s WHERE k = ?", 0), row(0, "-123123"));
 
         // ================ smallint ================
         execute("INSERT INTO %s (k, smallintval) VALUES (?, ?)", 0, (short) 32767);
-        assertRows(execute("SELECT k, toJson(smallintval) FROM %s WHERE k = ?", 0), row(0, "32767"));
+        assertRows(execute("SELECT k, to_json(smallintval) FROM %s WHERE k = ?", 0), row(0, "32767"));
 
         execute("INSERT INTO %s (k, smallintval) VALUES (?, ?)", 0, (short) 0);
-        assertRows(execute("SELECT k, toJson(smallintval) FROM %s WHERE k = ?", 0), row(0, "0"));
+        assertRows(execute("SELECT k, to_json(smallintval) FROM %s WHERE k = ?", 0), row(0, "0"));
 
         execute("INSERT INTO %s (k, smallintval) VALUES (?, ?)", 0, (short) -32768);
-        assertRows(execute("SELECT k, toJson(smallintval) FROM %s WHERE k = ?", 0), row(0, "-32768"));
+        assertRows(execute("SELECT k, to_json(smallintval) FROM %s WHERE k = ?", 0), row(0, "-32768"));
 
         // ================ tinyint ================
         execute("INSERT INTO %s (k, tinyintval) VALUES (?, ?)", 0, (byte) 127);
-        assertRows(execute("SELECT k, toJson(tinyintval) FROM %s WHERE k = ?", 0), row(0, "127"));
+        assertRows(execute("SELECT k, to_json(tinyintval) FROM %s WHERE k = ?", 0), row(0, "127"));
 
         execute("INSERT INTO %s (k, tinyintval) VALUES (?, ?)", 0, (byte) 0);
-        assertRows(execute("SELECT k, toJson(tinyintval) FROM %s WHERE k = ?", 0), row(0, "0"));
+        assertRows(execute("SELECT k, to_json(tinyintval) FROM %s WHERE k = ?", 0), row(0, "0"));
 
         execute("INSERT INTO %s (k, tinyintval) VALUES (?, ?)", 0, (byte) -128);
-        assertRows(execute("SELECT k, toJson(tinyintval) FROM %s WHERE k = ?", 0), row(0, "-128"));
+        assertRows(execute("SELECT k, to_json(tinyintval) FROM %s WHERE k = ?", 0), row(0, "-128"));
 
         // ================ text (varchar) ================
         execute("INSERT INTO %s (k, textval) VALUES (?, ?)", 0, "");
-        assertRows(execute("SELECT k, toJson(textval) FROM %s WHERE k = ?", 0), row(0, "\"\""));
+        assertRows(execute("SELECT k, to_json(textval) FROM %s WHERE k = ?", 0), row(0, "\"\""));
 
         execute("INSERT INTO %s (k, textval) VALUES (?, ?)", 0, "abcd");
-        assertRows(execute("SELECT k, toJson(textval) FROM %s WHERE k = ?", 0), row(0, "\"abcd\""));
+        assertRows(execute("SELECT k, to_json(textval) FROM %s WHERE k = ?", 0), row(0, "\"abcd\""));
 
         execute("INSERT INTO %s (k, textval) VALUES (?, ?)", 0, "\u8422");
-        assertRows(execute("SELECT k, toJson(textval) FROM %s WHERE k = ?", 0), row(0, "\"\u8422\""));
+        assertRows(execute("SELECT k, to_json(textval) FROM %s WHERE k = ?", 0), row(0, "\"\u8422\""));
 
         execute("INSERT INTO %s (k, textval) VALUES (?, ?)", 0, "\u0000");
-        assertRows(execute("SELECT k, toJson(textval) FROM %s WHERE k = ?", 0), row(0, "\"\\u0000\""));
+        assertRows(execute("SELECT k, to_json(textval) FROM %s WHERE k = ?", 0), row(0, "\"\\u0000\""));
 
         // ================ time ================
         execute("INSERT INTO %s (k, timeval) VALUES (?, ?)", 0, 123L);
-        assertRows(execute("SELECT k, toJson(timeval) FROM %s WHERE k = ?", 0), row(0, "\"00:00:00.000000123\""));
+        assertRows(execute("SELECT k, to_json(timeval) FROM %s WHERE k = ?", 0), row(0, "\"00:00:00.000000123\""));
 
-        execute("INSERT INTO %s (k, timeval) VALUES (?, fromJson(?))", 0, "\"07:35:07.000111222\"");
-        assertRows(execute("SELECT k, toJson(timeval) FROM %s WHERE k = ?", 0), row(0, "\"07:35:07.000111222\""));
+        execute("INSERT INTO %s (k, timeval) VALUES (?, from_json(?))", 0, "\"07:35:07.000111222\"");
+        assertRows(execute("SELECT k, to_json(timeval) FROM %s WHERE k = ?", 0), row(0, "\"07:35:07.000111222\""));
 
         // ================ timestamp ================
         SimpleDateFormat sdf = new SimpleDateFormat("y-M-d");
         sdf.setTimeZone(TimeZone.getTimeZone("UDT"));
         execute("INSERT INTO %s (k, timestampval) VALUES (?, ?)", 0, sdf.parse("2014-01-01"));
-        assertRows(execute("SELECT k, toJson(timestampval) FROM %s WHERE k = ?", 0), row(0, "\"2014-01-01 00:00:00.000Z\""));
+        assertRows(execute("SELECT k, to_json(timestampval) FROM %s WHERE k = ?", 0), row(0, "\"2014-01-01 00:00:00.000Z\""));
 
         // ================ timeuuid ================
         execute("INSERT INTO %s (k, timeuuidval) VALUES (?, ?)", 0, UUID.fromString("6bddc89a-5644-11e4-97fc-56847afe9799"));
-        assertRows(execute("SELECT k, toJson(timeuuidval) FROM %s WHERE k = ?", 0), row(0, "\"6bddc89a-5644-11e4-97fc-56847afe9799\""));
+        assertRows(execute("SELECT k, to_json(timeuuidval) FROM %s WHERE k = ?", 0), row(0, "\"6bddc89a-5644-11e4-97fc-56847afe9799\""));
 
          // ================ uuidval ================
         execute("INSERT INTO %s (k, uuidval) VALUES (?, ?)", 0, UUID.fromString("6bddc89a-5644-11e4-97fc-56847afe9799"));
-        assertRows(execute("SELECT k, toJson(uuidval) FROM %s WHERE k = ?", 0), row(0, "\"6bddc89a-5644-11e4-97fc-56847afe9799\""));
+        assertRows(execute("SELECT k, to_json(uuidval) FROM %s WHERE k = ?", 0), row(0, "\"6bddc89a-5644-11e4-97fc-56847afe9799\""));
 
         // ================ varint ================
         execute("INSERT INTO %s (k, varintval) VALUES (?, ?)", 0, new BigInteger("123123123123123123123"));
-        assertRows(execute("SELECT k, toJson(varintval) FROM %s WHERE k = ?", 0), row(0, "123123123123123123123"));
+        assertRows(execute("SELECT k, to_json(varintval) FROM %s WHERE k = ?", 0), row(0, "123123123123123123123"));
 
         // ================ lists ================
         execute("INSERT INTO %s (k, listval) VALUES (?, ?)", 0, list(1, 2, 3));
-        assertRows(execute("SELECT k, toJson(listval) FROM %s WHERE k = ?", 0), row(0, "[1, 2, 3]"));
+        assertRows(execute("SELECT k, to_json(listval) FROM %s WHERE k = ?", 0), row(0, "[1, 2, 3]"));
 
         execute("INSERT INTO %s (k, listval) VALUES (?, ?)", 0, list());
-        assertRows(execute("SELECT k, toJson(listval) FROM %s WHERE k = ?", 0), row(0, "null"));
+        assertRows(execute("SELECT k, to_json(listval) FROM %s WHERE k = ?", 0), row(0, "null"));
 
         // frozen
         execute("INSERT INTO %s (k, frozenlistval) VALUES (?, ?)", 0, list(1, 2, 3));
-        assertRows(execute("SELECT k, toJson(frozenlistval) FROM %s WHERE k = ?", 0), row(0, "[1, 2, 3]"));
+        assertRows(execute("SELECT k, to_json(frozenlistval) FROM %s WHERE k = ?", 0), row(0, "[1, 2, 3]"));
 
         // ================ sets ================
         execute("INSERT INTO %s (k, setval) VALUES (?, ?)",
                 0, set(UUID.fromString("6bddc89a-5644-11e4-97fc-56847afe9798"), (UUID.fromString("6bddc89a-5644-11e4-97fc-56847afe9799"))));
-        assertRows(execute("SELECT k, toJson(setval) FROM %s WHERE k = ?", 0),
+        assertRows(execute("SELECT k, to_json(setval) FROM %s WHERE k = ?", 0),
                 row(0, "[\"6bddc89a-5644-11e4-97fc-56847afe9798\", \"6bddc89a-5644-11e4-97fc-56847afe9799\"]")
         );
 
         execute("INSERT INTO %s (k, setval) VALUES (?, ?)", 0, set());
-        assertRows(execute("SELECT k, toJson(setval) FROM %s WHERE k = ?", 0), row(0, "null"));
+        assertRows(execute("SELECT k, to_json(setval) FROM %s WHERE k = ?", 0), row(0, "null"));
 
         // frozen
         execute("INSERT INTO %s (k, frozensetval) VALUES (?, ?)",
                 0, set(UUID.fromString("6bddc89a-5644-11e4-97fc-56847afe9798"), (UUID.fromString("6bddc89a-5644-11e4-97fc-56847afe9799"))));
-        assertRows(execute("SELECT k, toJson(frozensetval) FROM %s WHERE k = ?", 0),
+        assertRows(execute("SELECT k, to_json(frozensetval) FROM %s WHERE k = ?", 0),
                 row(0, "[\"6bddc89a-5644-11e4-97fc-56847afe9798\", \"6bddc89a-5644-11e4-97fc-56847afe9799\"]")
         );
 
         // ================ maps ================
         execute("INSERT INTO %s (k, mapval) VALUES (?, ?)", 0, map("a", 1, "b", 2));
-        assertRows(execute("SELECT k, toJson(mapval) FROM %s WHERE k = ?", 0), row(0, "{\"a\": 1, \"b\": 2}"));
+        assertRows(execute("SELECT k, to_json(mapval) FROM %s WHERE k = ?", 0), row(0, "{\"a\": 1, \"b\": 2}"));
 
         execute("INSERT INTO %s (k, mapval) VALUES (?, ?)", 0, map());
-        assertRows(execute("SELECT k, toJson(mapval) FROM %s WHERE k = ?", 0), row(0, "null"));
+        assertRows(execute("SELECT k, to_json(mapval) FROM %s WHERE k = ?", 0), row(0, "null"));
 
         // frozen
         execute("INSERT INTO %s (k, frozenmapval) VALUES (?, ?)", 0, map("a", 1, "b", 2));
-        assertRows(execute("SELECT k, toJson(frozenmapval) FROM %s WHERE k = ?", 0), row(0, "{\"a\": 1, \"b\": 2}"));
+        assertRows(execute("SELECT k, to_json(frozenmapval) FROM %s WHERE k = ?", 0), row(0, "{\"a\": 1, \"b\": 2}"));
 
         // ================ tuples ================
         execute("INSERT INTO %s (k, tupleval) VALUES (?, ?)", 0, tuple(1, "foobar", UUID.fromString("6bddc89a-5644-11e4-97fc-56847afe9799")));
-        assertRows(execute("SELECT k, toJson(tupleval) FROM %s WHERE k = ?", 0),
+        assertRows(execute("SELECT k, to_json(tupleval) FROM %s WHERE k = ?", 0),
             row(0, "[1, \"foobar\", \"6bddc89a-5644-11e4-97fc-56847afe9799\"]")
         );
 
         execute("INSERT INTO %s (k, tupleval) VALUES (?, ?)", 0, tuple(1, "foobar", null));
-        assertRows(execute("SELECT k, toJson(tupleval) FROM %s WHERE k = ?", 0),
+        assertRows(execute("SELECT k, to_json(tupleval) FROM %s WHERE k = ?", 0),
                 row(0, "[1, \"foobar\", null]")
         );
 
         // ================ UDTs ================
         execute("INSERT INTO %s (k, udtval) VALUES (?, {a: ?, b: ?, c: ?})", 0, 1, UUID.fromString("6bddc89a-5644-11e4-97fc-56847afe9799"), set("foo", "bar"));
-        assertRows(execute("SELECT k, toJson(udtval) FROM %s WHERE k = ?", 0),
+        assertRows(execute("SELECT k, to_json(udtval) FROM %s WHERE k = ?", 0),
                 row(0, "{\"a\": 1, \"b\": \"6bddc89a-5644-11e4-97fc-56847afe9799\", \"c\": [\"bar\", \"foo\"]}")
         );
 
         execute("INSERT INTO %s (k, udtval) VALUES (?, {a: ?, b: ?})", 0, 1, UUID.fromString("6bddc89a-5644-11e4-97fc-56847afe9799"));
-        assertRows(execute("SELECT k, toJson(udtval) FROM %s WHERE k = ?", 0),
+        assertRows(execute("SELECT k, to_json(udtval) FROM %s WHERE k = ?", 0),
                 row(0, "{\"a\": 1, \"b\": \"6bddc89a-5644-11e4-97fc-56847afe9799\", \"c\": null}")
         );
 
         // ================ duration ================
         execute("INSERT INTO %s (k, durationval) VALUES (?, 12µs)", 0);
-        assertRows(execute("SELECT k, toJson(durationval) FROM %s WHERE k = ?", 0), row(0, "\"12us\""));
+        assertRows(execute("SELECT k, to_json(durationval) FROM %s WHERE k = ?", 0), row(0, "\"12us\""));
 
         execute("INSERT INTO %s (k, durationval) VALUES (?, P1Y1M2DT10H5M)", 0);
-        assertRows(execute("SELECT k, toJson(durationval) FROM %s WHERE k = ?", 0), row(0, "\"1y1mo2d10h5m\""));
+        assertRows(execute("SELECT k, to_json(durationval) FROM %s WHERE k = ?", 0), row(0, "\"1y1mo2d10h5m\""));
     }
 
     @Test
@@ -1024,8 +1038,8 @@ public class JsonTest extends CQLTester
                 row("{\"foo\": 2}")
         );
 
-        assertRows(execute("SELECT JSON toJson(blobAsInt(intAsBlob(v))) FROM %s LIMIT 1"),
-                row("{\"system.tojson(system.blobasint(system.intasblob(v)))\": \"0\"}")
+        assertRows(execute("SELECT JSON to_json(blob_as_int(int_as_blob(v))) FROM %s LIMIT 1"),
+                row("{\"system.to_json(system.blob_as_int(system.int_as_blob(v)))\": \"0\"}")
         );
     }
 
@@ -1268,11 +1282,11 @@ public class JsonTest extends CQLTester
 
         // map<set<text>, text> keys
         String innerKey1 = "[\"0\", \"1\"]";
-        String fullKey1 = String.format("{\"%s\": \"%s\"}", Json.quoteAsJsonString(innerKey1), "a");
-        String stringKey1 = Json.quoteAsJsonString(fullKey1);
+        String fullKey1 = String.format("{\"%s\": \"%s\"}", JsonUtils.quoteAsJsonString(innerKey1), "a");
+        String stringKey1 = JsonUtils.quoteAsJsonString(fullKey1);
         String innerKey2 = "[\"3\", \"4\"]";
-        String fullKey2 = String.format("{\"%s\": \"%s\"}", Json.quoteAsJsonString(innerKey2), "b");
-        String stringKey2 = Json.quoteAsJsonString(fullKey2);
+        String fullKey2 = String.format("{\"%s\": \"%s\"}", JsonUtils.quoteAsJsonString(innerKey2), "b");
+        String stringKey2 = JsonUtils.quoteAsJsonString(fullKey2);
         execute("INSERT INTO %s JSON ?", "{\"k\": 0, \"nestedsetmap\": {\"" + stringKey1 + "\": true, \"" + stringKey2 + "\": false}}");
         assertRows(execute("SELECT JSON k, nestedsetmap FROM %s"), row("{\"k\": 0, \"nestedsetmap\": {\"" + stringKey1 + "\": true, \"" + stringKey2 + "\": false}}"));
 
@@ -1357,11 +1371,11 @@ public class JsonTest extends CQLTester
         };
 
         ExecutorService executor = Executors.newFixedThreadPool(numThreads);
-        List<Future> futures = new ArrayList<>();
+        List<Future<?>> futures = new ArrayList<>();
         for (int i = 0; i < numThreads; i++)
             futures.add(executor.submit(worker));
 
-        for (Future future : futures)
+        for (Future<?> future : futures)
             future.get(30, TimeUnit.SECONDS);
 
         executor.shutdown();

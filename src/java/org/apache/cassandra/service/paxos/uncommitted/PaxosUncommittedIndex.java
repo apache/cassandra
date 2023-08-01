@@ -18,9 +18,13 @@
 
 package org.apache.cassandra.service.paxos.uncommitted;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Callable;
-import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 import com.google.common.base.Preconditions;
@@ -29,13 +33,23 @@ import com.google.common.util.concurrent.Callables;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Operator;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DataRange;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.RangeTombstone;
+import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.RegularAndStaticColumns;
+import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.WriteContext;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.memtable.Memtable;
-import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -43,14 +57,14 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.index.transactions.IndexTransaction;
-import org.apache.cassandra.io.sstable.format.SSTableReadsListener;
+import org.apache.cassandra.io.sstable.SSTableReadsListener;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Indexes;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.utils.CloseableIterator;
 
-import static java.util.Collections.*;
+import static java.util.Collections.singletonList;
 import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
 import static org.apache.cassandra.service.paxos.PaxosState.ballotTracker;
 import static org.apache.cassandra.service.paxos.PaxosState.uncommittedTracker;
@@ -83,7 +97,7 @@ public class PaxosUncommittedIndex implements Index, PaxosUncommittedTracker.Upd
         this.metadata = metadata;
 
         this.memtableColumnFilter = ColumnFilter.all(baseTable.metadata.get());
-        uncommittedTracker().unsafSetUpdateSupplier(this);
+        PaxosUncommittedTracker.unsafSetUpdateSupplier(this);
     }
 
     public static IndexMetadata indexMetadata()
@@ -229,14 +243,9 @@ public class PaxosUncommittedIndex implements Index, PaxosUncommittedTracker.Upd
 
     }
 
-    public Indexer indexerFor(DecoratedKey key, RegularAndStaticColumns columns, int nowInSec, WriteContext ctx, IndexTransaction.Type transactionType)
+    public Indexer indexerFor(DecoratedKey key, RegularAndStaticColumns columns, long nowInSec, WriteContext ctx, IndexTransaction.Type transactionType, Memtable memtable)
     {
         return indexer;
-    }
-
-    public BiFunction<PartitionIterator, ReadCommand, PartitionIterator> postProcessorFor(ReadCommand command)
-    {
-        return null;
     }
 
     public Searcher searcherFor(ReadCommand command)

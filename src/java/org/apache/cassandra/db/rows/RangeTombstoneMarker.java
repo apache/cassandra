@@ -21,7 +21,7 @@ import java.util.*;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.utils.memory.AbstractAllocator;
+import org.apache.cassandra.utils.memory.ByteBufferCloner;
 
 /**
  * A marker for a range tombstone bound.
@@ -46,7 +46,7 @@ public interface RangeTombstoneMarker extends Unfiltered, IMeasurableMemory
     public ClusteringBound<?> openBound(boolean reversed);
     public ClusteringBound<?> closeBound(boolean reversed);
 
-    public RangeTombstoneMarker copy(AbstractAllocator allocator);
+    public RangeTombstoneMarker clone(ByteBufferCloner cloner);
 
     default public boolean isEmpty()
     {

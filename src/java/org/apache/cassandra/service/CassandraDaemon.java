@@ -25,7 +25,6 @@ import java.net.URL;
 import java.net.UnknownHostException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -67,7 +66,6 @@ import org.apache.cassandra.db.virtual.VirtualSchemaKeyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.io.sstable.SSTableHeaderFix;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -88,15 +86,22 @@ import org.apache.cassandra.utils.Mx4jTool;
 import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
+import org.apache.cassandra.utils.logging.LoggingSupportFactory;
+import org.apache.cassandra.utils.logging.VirtualTableAppender;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_FOREGROUND;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_LOCAL_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_REMOTE_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_PID_FILE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_CLASS_PATH;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_RMI_SERVER_RANDOM_ID;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VERSION;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VM_NAME;
+import static org.apache.cassandra.config.CassandraRelevantProperties.METRICS_REPORTER_CONFIG_FILE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SIZE_RECORDER_INTERVAL;
+import static org.apache.cassandra.config.CassandraRelevantProperties.START_NATIVE_TRANSPORT;
 
 /**
  * The <code>CassandraDaemon</code> is an abstraction for a Cassandra daemon
@@ -150,7 +155,7 @@ public class CassandraDaemon
             return;
         }
 
-        System.setProperty("java.rmi.server.randomIDs", "true");
+        JAVA_RMI_SERVER_RANDOM_ID.setBoolean(true);
 
         // If a remote port has been specified then use that to set up a JMX
         // connector server which can be accessed remotely. Otherwise, look
@@ -166,7 +171,7 @@ public class CassandraDaemon
         if (jmxPort == null)
         {
             localOnly = true;
-            jmxPort = System.getProperty("cassandra.jmx.local.port");
+            jmxPort = CASSANDRA_JMX_LOCAL_PORT.getString();
         }
 
         if (jmxPort == null)
@@ -248,7 +253,7 @@ public class CassandraDaemon
 
         ThreadAwareSecurityManager.install();
 
-        logSystemInfo();
+        logSystemInfo(logger);
 
         NativeLibrary.tryMlockall();
 
@@ -289,26 +294,13 @@ public class CassandraDaemon
 
         setupVirtualKeyspaces();
 
-        SSTableHeaderFix.fixNonFrozenUDTIfUpgradeFrom30();
-
-        // clean up debris in the rest of the keyspaces
-        for (String keyspaceName : Schema.instance.getKeyspaces())
+        try
         {
-            // Skip system as we've already cleaned it
-            if (keyspaceName.equals(SchemaConstants.SYSTEM_KEYSPACE_NAME))
-                continue;
-
-            for (TableMetadata cfm : Schema.instance.getTablesAndViews(keyspaceName))
-            {
-                try
-                {
-                    ColumnFamilyStore.scrubDataDirectories(cfm);
-                }
-                catch (StartupException e)
-                {
-                    exitOrFail(e.returnCode, e.getMessage(), e.getCause());
-                }
-            }
+            scrubDataDirectories();
+        }
+        catch (StartupException e)
+        {
+            exitOrFail(e.returnCode, e.getMessage(), e.getCause());
         }
 
         Keyspace.setInitialized();
@@ -378,7 +370,7 @@ public class CassandraDaemon
 
         // schedule periodic dumps of table size estimates into SystemKeyspace.SIZE_ESTIMATES_CF
         // set cassandra.size_recorder_interval to 0 to disable
-        int sizeRecorderInterval = Integer.getInteger("cassandra.size_recorder_interval", 5 * 60);
+        int sizeRecorderInterval = SIZE_RECORDER_INTERVAL.getInt();
         if (sizeRecorderInterval > 0)
             ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(SizeEstimatesRecorder.instance, 30, sizeRecorderInterval, TimeUnit.SECONDS);
 
@@ -389,7 +381,7 @@ public class CassandraDaemon
         QueryProcessor.instance.preloadPreparedStatements();
 
         // Metrics
-        String metricsReporterConfigFile = System.getProperty("cassandra.metricsReporterConfigFile");
+        String metricsReporterConfigFile = METRICS_REPORTER_CONFIG_FILE.getString();
         if (metricsReporterConfigFile != null)
         {
             logger.info("Trying to load metrics-reporter-config from file: {}", metricsReporterConfigFile);
@@ -463,7 +455,7 @@ public class CassandraDaemon
                         }
                         else
                         {
-                            logger.info("Not enabling compaction for {}.{}; autocompaction_on_startup_enabled is set to false", store.keyspace.getName(), store.name);
+                            logger.info("Not enabling compaction for {}.{}; autocompaction_on_startup_enabled is set to false", store.getKeyspaceName(), store.name);
                         }
                     }
                 }
@@ -490,6 +482,8 @@ public class CassandraDaemon
             AuthCacheService.instance.warmCaches();
         else
             logger.info("Prewarming of auth caches is disabled");
+
+        PaxosState.startAutoRepairs();
 
         completeSetup();
     }
@@ -527,7 +521,7 @@ public class CassandraDaemon
         //     the system keyspace location configured by the user (upgrade to 4.0)
         //  3) The system data are stored in the first data location and need to be moved to
         //     the system keyspace location configured by the user (system_data_file_directory has been configured)
-        Path target = Paths.get(DatabaseDescriptor.getLocalSystemKeyspacesDataFileLocations()[0]);
+        Path target = File.getPath(DatabaseDescriptor.getLocalSystemKeyspacesDataFileLocations()[0]);
 
         String[] nonLocalSystemKeyspacesFileLocations = DatabaseDescriptor.getNonLocalSystemKeyspacesDataFileLocations();
         String[] sources = DatabaseDescriptor.useSpecificLocationForLocalSystemData() ? nonLocalSystemKeyspacesFileLocations
@@ -537,7 +531,7 @@ public class CassandraDaemon
 
         for (String source : sources)
         {
-            Path dataFileLocation = Paths.get(source);
+            Path dataFileLocation = File.getPath(source);
 
             if (!Files.exists(dataFileLocation))
                 continue;
@@ -577,6 +571,28 @@ public class CassandraDaemon
     {
         VirtualKeyspaceRegistry.instance.register(VirtualSchemaKeyspace.instance);
         VirtualKeyspaceRegistry.instance.register(SystemViewsKeyspace.instance);
+
+        // flush log messages to system_views.system_logs virtual table as there were messages already logged
+        // before that virtual table was instantiated
+        LoggingSupportFactory.getLoggingSupport()
+                             .getAppender(VirtualTableAppender.class, VirtualTableAppender.APPENDER_NAME)
+                             .ifPresent(appender -> ((VirtualTableAppender) appender).flushBuffer());
+    }
+
+    public void scrubDataDirectories() throws StartupException
+    {
+        // clean up debris in the rest of the keyspaces
+        for (String keyspaceName : Schema.instance.getKeyspaces())
+        {
+            // Skip system as we've already cleaned it
+            if (keyspaceName.equals(SchemaConstants.SYSTEM_KEYSPACE_NAME))
+                continue;
+
+            for (TableMetadata cfm : Schema.instance.getTablesAndViews(keyspaceName))
+            {
+                ColumnFamilyStore.scrubDataDirectories(cfm);
+            }
+        }
     }
 
     public synchronized void initializeClientTransports()
@@ -613,7 +629,7 @@ public class CassandraDaemon
         return setupCompleted;
     }
 
-    private void logSystemInfo()
+    public static void logSystemInfo(Logger logger)
     {
     	if (logger.isInfoEnabled())
     	{
@@ -684,8 +700,8 @@ public class CassandraDaemon
 
     private void startClientTransports()
     {
-        String nativeFlag = System.getProperty("cassandra.start_native_transport");
-        if ((nativeFlag != null && Boolean.parseBoolean(nativeFlag)) || (nativeFlag == null && DatabaseDescriptor.startNativeTransport()))
+        String nativeFlag = START_NATIVE_TRANSPORT.getString();
+        if (START_NATIVE_TRANSPORT.getBoolean() || (nativeFlag == null && DatabaseDescriptor.startNativeTransport()))
         {
             startNativeTransport();
             StorageService.instance.setRpcReady(true);

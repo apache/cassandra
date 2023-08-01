@@ -56,7 +56,7 @@ public class QueryPagerTest
     public static final String KEYSPACE_CQL = "cql_keyspace";
     public static final String CF_CQL = "table2";
     public static final String CF_CQL_WITH_STATIC = "with_static";
-    public static final int nowInSec = FBUtilities.nowInSeconds();
+    public static final long nowInSec = FBUtilities.nowInSeconds();
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
@@ -173,7 +173,7 @@ public class QueryPagerTest
         Slice slice = Slice.make(cmp.make(start), cmp.make(end));
         ClusteringIndexSliceFilter filter = new ClusteringIndexSliceFilter(Slices.with(cmp, slice), reversed);
 
-        return SinglePartitionReadCommand.create(metadata, nowInSec, ColumnFilter.all(metadata), RowFilter.NONE, DataLimits.NONE, Util.dk(key), filter);
+        return SinglePartitionReadCommand.create(metadata, nowInSec, ColumnFilter.all(metadata), RowFilter.none(), DataLimits.NONE, Util.dk(key), filter);
     }
 
     private static ReadCommand rangeNamesQuery(String keyStart, String keyEnd, int count, String... names)

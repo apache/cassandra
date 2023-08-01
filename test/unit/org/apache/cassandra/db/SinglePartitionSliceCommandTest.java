@@ -186,7 +186,7 @@ public class SinglePartitionSliceCommandTest
         ReadCommand cmd = SinglePartitionReadCommand.create(CFM_SLICES,
                                                             FBUtilities.nowInSeconds(),
                                                             ColumnFilter.all(CFM_SLICES),
-                                                            RowFilter.NONE,
+                                                            RowFilter.none(),
                                                             DataLimits.NONE,
                                                             key,
                                                             clusteringFilter);
@@ -247,7 +247,7 @@ public class SinglePartitionSliceCommandTest
         ReadCommand cmd = SinglePartitionReadCommand.create(metadata,
                                                             FBUtilities.nowInSeconds(),
                                                             columnFilter,
-                                                            RowFilter.NONE,
+                                                            RowFilter.none(),
                                                             DataLimits.NONE,
                                                             key,
                                                             sliceFilter);
@@ -269,10 +269,10 @@ public class SinglePartitionSliceCommandTest
             response = ReadResponse.createDataResponse(pi, cmd, executionController.getRepairedDataInfo());
         }
 
-        out = new DataOutputBuffer((int) ReadResponse.serializer.serializedSize(response, MessagingService.VERSION_30));
-        ReadResponse.serializer.serialize(response, out, MessagingService.VERSION_30);
+        out = new DataOutputBuffer((int) ReadResponse.serializer.serializedSize(response, MessagingService.VERSION_40));
+        ReadResponse.serializer.serialize(response, out, MessagingService.VERSION_40);
         in = new DataInputBuffer(out.buffer(), true);
-        dst = ReadResponse.serializer.deserialize(in, MessagingService.VERSION_30);
+        dst = ReadResponse.serializer.deserialize(in, MessagingService.VERSION_40);
         try (UnfilteredPartitionIterator pi = dst.makeIterator(cmd))
         {
             checkForS(pi);
@@ -284,10 +284,10 @@ public class SinglePartitionSliceCommandTest
         {
             response = ReadResponse.createDataResponse(pi, cmd, executionController.getRepairedDataInfo());
         }
-        out = new DataOutputBuffer((int) ReadResponse.serializer.serializedSize(response, MessagingService.VERSION_30));
-        ReadResponse.serializer.serialize(response, out, MessagingService.VERSION_30);
+        out = new DataOutputBuffer((int) ReadResponse.serializer.serializedSize(response, MessagingService.VERSION_40));
+        ReadResponse.serializer.serialize(response, out, MessagingService.VERSION_40);
         in = new DataInputBuffer(out.buffer(), true);
-        dst = ReadResponse.serializer.deserialize(in, MessagingService.VERSION_30);
+        dst = ReadResponse.serializer.deserialize(in, MessagingService.VERSION_40);
         try (UnfilteredPartitionIterator pi = dst.makeIterator(cmd))
         {
             checkForS(pi);
@@ -350,7 +350,7 @@ public class SinglePartitionSliceCommandTest
             // ignored but nowInSeconds is retrieved from it and used for the DeletionTime.  It shows the difference between the
             // time at which the record was marked for deletion and the time at which it truly happened.
             final long timestamp = FBUtilities.timestampMicros();
-            final int nowInSec = FBUtilities.nowInSeconds();
+            final long nowInSec = FBUtilities.nowInSeconds();
 
             QueryProcessor.executeOnceInternalWithNowAndTimestamp(nowInSec,
                                                                   timestamp,
@@ -418,7 +418,7 @@ public class SinglePartitionSliceCommandTest
             // time at which the record was marked for deletion and the time at which it truly happened.
 
             final long timestamp = FBUtilities.timestampMicros();
-            final int nowInSec = FBUtilities.nowInSeconds();
+            final long nowInSec = FBUtilities.nowInSeconds();
 
             QueryProcessor.executeOnceInternalWithNowAndTimestamp(nowInSec,
                                                                   timestamp,
@@ -475,7 +475,7 @@ public class SinglePartitionSliceCommandTest
         ReadCommand cmd = SinglePartitionReadCommand.create(metadata,
                                                             FBUtilities.nowInSeconds(),
                                                             columnFilter,
-                                                            RowFilter.NONE,
+                                                            RowFilter.none(),
                                                             DataLimits.NONE,
                                                             key,
                                                             sliceFilter);
@@ -552,7 +552,7 @@ public class SinglePartitionSliceCommandTest
 
         long nowMillis = System.currentTimeMillis();
         Slice slice = Slice.make(Clustering.make(bb(2), bb(3)), Clustering.make(bb(10), bb(10)));
-        RangeTombstone rt = new RangeTombstone(slice, new DeletionTime(TimeUnit.MILLISECONDS.toMicros(nowMillis),
+        RangeTombstone rt = new RangeTombstone(slice, DeletionTime.build(TimeUnit.MILLISECONDS.toMicros(nowMillis),
                                                                        Ints.checkedCast(TimeUnit.MILLISECONDS.toSeconds(nowMillis))));
 
         PartitionUpdate.Builder builder = new PartitionUpdate.Builder(metadata, bb(100), metadata.regularAndStaticColumns(), 1);

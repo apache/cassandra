@@ -46,8 +46,10 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexBuilder;
-import org.apache.cassandra.io.sstable.IndexSummaryRedistribution;
+import org.apache.cassandra.io.sstable.IScrubber;
+import org.apache.cassandra.io.sstable.IVerifier;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.indexsummary.IndexSummaryRedistribution;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -80,7 +82,7 @@ public class ActiveCompactionsTest extends CQLTester
         for (int ii = 0; ii < loopCount; ii++)
         {
             CountDownLatch trigger = new CountDownLatch(1);
-            SecondaryIndexBuilder builder = idx.getBuildTaskSupport().getIndexBuildTask(getCurrentColumnFamilyStore(), Collections.singleton(idx), sstables);
+            SecondaryIndexBuilder builder = idx.getBuildTaskSupport().getIndexBuildTask(getCurrentColumnFamilyStore(), Collections.singleton(idx), sstables, true);
             Future<?> f1 = es.submit(() -> {
                 Uninterruptibles.awaitUninterruptibly(trigger);
                 try
@@ -117,7 +119,7 @@ public class ActiveCompactionsTest extends CQLTester
 
         Index idx = getCurrentColumnFamilyStore().indexManager.getIndexByName(idxName);
         Set<SSTableReader> sstables = getCurrentColumnFamilyStore().getLiveSSTables();
-        SecondaryIndexBuilder builder = idx.getBuildTaskSupport().getIndexBuildTask(getCurrentColumnFamilyStore(), Collections.singleton(idx), sstables);
+        SecondaryIndexBuilder builder = idx.getBuildTaskSupport().getIndexBuildTask(getCurrentColumnFamilyStore(), Collections.singleton(idx), sstables, false);
 
         MockActiveCompactions mockActiveCompactions = new MockActiveCompactions();
         CompactionManager.instance.submitIndexBuild(builder, mockActiveCompactions).get();
@@ -143,7 +145,15 @@ public class ActiveCompactionsTest extends CQLTester
             Map<TableId, LifecycleTransaction> transactions = ImmutableMap.<TableId, LifecycleTransaction>builder().put(getCurrentColumnFamilyStore().metadata().id, txn).build();
             IndexSummaryRedistribution isr = new IndexSummaryRedistribution(transactions, 0, 1000);
             MockActiveCompactions mockActiveCompactions = new MockActiveCompactions();
-            CompactionManager.instance.runIndexSummaryRedistribution(isr, mockActiveCompactions);
+            mockActiveCompactions.beginCompaction(isr);
+            try
+            {
+                isr.redistributeSummaries();
+            }
+            finally
+            {
+                mockActiveCompactions.finishCompaction(isr);
+            }
             assertTrue(mockActiveCompactions.finished);
             assertNotNull(mockActiveCompactions.holder);
             // index redistribution operates over all keyspaces/tables, we always cancel them
@@ -191,7 +201,7 @@ public class ActiveCompactionsTest extends CQLTester
         try (LifecycleTransaction txn = getCurrentColumnFamilyStore().getTracker().tryModify(sstable, OperationType.SCRUB))
         {
             MockActiveCompactions mockActiveCompactions = new MockActiveCompactions();
-            CompactionManager.instance.scrubOne(getCurrentColumnFamilyStore(), txn, true, false, false, mockActiveCompactions);
+            CompactionManager.instance.scrubOne(getCurrentColumnFamilyStore(), txn, IScrubber.options().skipCorrupted().build(), mockActiveCompactions);
 
             assertTrue(mockActiveCompactions.finished);
             assertEquals(mockActiveCompactions.holder.getCompactionInfo().getSSTables(), Sets.newHashSet(sstable));
@@ -214,7 +224,7 @@ public class ActiveCompactionsTest extends CQLTester
 
         SSTableReader sstable = Iterables.getFirst(getCurrentColumnFamilyStore().getLiveSSTables(), null);
         MockActiveCompactions mockActiveCompactions = new MockActiveCompactions();
-        CompactionManager.instance.verifyOne(getCurrentColumnFamilyStore(), sstable, new Verifier.Options.Builder().build(), mockActiveCompactions);
+        CompactionManager.instance.verifyOne(getCurrentColumnFamilyStore(), sstable, IVerifier.options().build(), mockActiveCompactions);
         assertTrue(mockActiveCompactions.finished);
         assertEquals(mockActiveCompactions.holder.getCompactionInfo().getSSTables(), Sets.newHashSet(sstable));
         assertFalse(mockActiveCompactions.holder.getCompactionInfo().shouldStop((s) -> false));

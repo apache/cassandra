@@ -50,55 +50,6 @@ public abstract class Cells
     }
 
     /**
-     * Reconciles/merges two cells, one being an update to an existing cell,
-     * yielding index updates if appropriate.
-     * <p>
-     * Note that this method assumes that the provided cells can meaningfully
-     * be reconciled together, that is that those cells are for the same row and same
-     * column (and same cell path if the column is complex).
-     * <p>
-     * Also note that which cell is provided as {@code existing} and which is
-     * provided as {@code update} matters for index updates.
-     *
-     * @param existing the pre-existing cell, the one that is updated. This can be
-     * {@code null} if this reconciliation correspond to an insertion.
-     * @param update the newly added cell, the update. This can be {@code null} out
-     * of convenience, in which case this function simply copy {@code existing} to
-     * {@code writer}.
-     * @param deletion the deletion time that applies to the cells being considered.
-     * This deletion time may delete both {@code existing} or {@code update}.
-     * @param builder the row builder to which the result of the reconciliation is written.
-     *
-     * @return the timestamp delta between existing and update, or {@code Long.MAX_VALUE} if one
-     * of them is {@code null} or deleted by {@code deletion}).
-     */
-    public static long reconcile(Cell<?> existing,
-                                 Cell<?> update,
-                                 DeletionTime deletion,
-                                 Row.Builder builder)
-    {
-        existing = existing == null || deletion.deletes(existing) ? null : existing;
-        update = update == null || deletion.deletes(update) ? null : update;
-        if (existing == null || update == null)
-        {
-            if (update != null)
-            {
-                builder.addCell(update);
-            }
-            else if (existing != null)
-            {
-                builder.addCell(existing);
-            }
-            return Long.MAX_VALUE;
-        }
-
-        Cell<?> reconciled = reconcile(existing, update);
-        builder.addCell(reconciled);
-
-        return Math.abs(existing.timestamp() - update.timestamp());
-    }
-
-    /**
      * Reconciles/merge two cells.
      * <p>
      * Note that this method assumes that the provided cells can meaningfully
@@ -132,8 +83,8 @@ public abstract class Cells
         if (leftTimestamp != rightTimestamp)
             return leftTimestamp > rightTimestamp ? left : right;
 
-        int leftLocalDeletionTime = left.localDeletionTime();
-        int rightLocalDeletionTime = right.localDeletionTime();
+        long leftLocalDeletionTime = left.localDeletionTime();
+        long rightLocalDeletionTime = right.localDeletionTime();
 
         boolean leftIsExpiringOrTombstone = leftLocalDeletionTime != Cell.NO_DELETION_TIME;
         boolean rightIsExpiringOrTombstone = rightLocalDeletionTime != Cell.NO_DELETION_TIME;
@@ -208,69 +159,6 @@ public abstract class Cells
             return right;
         else // merge clocks and timestamps.
             return new BufferCell(left.column(), timestamp, Cell.NO_TTL, Cell.NO_DELETION_TIME, merged, left.path());
-    }
-
-    /**
-     * Computes the reconciliation of a complex column given its pre-existing
-     * cells and the ones it is updated with, and generating index update if
-     * appropriate.
-     * <p>
-     * Note that this method assumes that the provided cells can meaningfully
-     * be reconciled together, that is that the cells are for the same row and same
-     * complex column.
-     * <p>
-     * Also note that which cells is provided as {@code existing} and which are
-     * provided as {@code update} matters for index updates.
-     *
-     * @param column the complex column the cells are for.
-     * @param existing the pre-existing cells, the ones that are updated. This can be
-     * {@code null} if this reconciliation correspond to an insertion.
-     * @param update the newly added cells, the update. This can be {@code null} out
-     * of convenience, in which case this function simply copy the cells from
-     * {@code existing} to {@code writer}.
-     * @param deletion the deletion time that applies to the cells being considered.
-     * This deletion time may delete cells in both {@code existing} and {@code update}.
-     * @param builder the row build to which the result of the reconciliation is written.
-     *
-     * @return the smallest timestamp delta between corresponding cells from existing and update. A
-     * timestamp delta being computed as the difference between a cell from {@code update} and the
-     * cell in {@code existing} having the same cell path (if such cell exists). If the intersection
-     * of cells from {@code existing} and {@code update} having the same cell path is empty, this
-     * returns {@code Long.MAX_VALUE}.
-     */
-    public static long reconcileComplex(ColumnMetadata column,
-                                        Iterator<Cell<?>> existing,
-                                        Iterator<Cell<?>> update,
-                                        DeletionTime deletion,
-                                        Row.Builder builder)
-    {
-        Comparator<CellPath> comparator = column.cellPathComparator();
-        Cell<?> nextExisting = getNext(existing);
-        Cell<?> nextUpdate = getNext(update);
-        long timeDelta = Long.MAX_VALUE;
-        while (nextExisting != null || nextUpdate != null)
-        {
-            int cmp = nextExisting == null ? 1
-                     : (nextUpdate == null ? -1
-                     : comparator.compare(nextExisting.path(), nextUpdate.path()));
-            if (cmp < 0)
-            {
-                reconcile(nextExisting, null, deletion, builder);
-                nextExisting = getNext(existing);
-            }
-            else if (cmp > 0)
-            {
-                reconcile(null, nextUpdate, deletion, builder);
-                nextUpdate = getNext(update);
-            }
-            else
-            {
-                timeDelta = Math.min(timeDelta, reconcile(nextExisting, nextUpdate, deletion, builder));
-                nextExisting = getNext(existing);
-                nextUpdate = getNext(update);
-            }
-        }
-        return timeDelta;
     }
 
     /**

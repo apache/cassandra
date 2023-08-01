@@ -112,7 +112,7 @@ public final class CounterCacheKey extends CacheKey
 
         CellPath path = column.isComplex() ? CellPath.create(buffers.get(buffers.size() - 1)) : null;
 
-        int nowInSec = FBUtilities.nowInSeconds();
+        long nowInSec = FBUtilities.nowInSeconds();
         ColumnFilter.Builder builder = ColumnFilter.selectionBuilder();
         if (path == null)
             builder.add(column);

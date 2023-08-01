@@ -496,7 +496,7 @@ public class ColumnsTest
 
     private static ColumnMetadata def(String name, AbstractType<?> type, ColumnMetadata.Kind kind)
     {
-        return new ColumnMetadata(TABLE_METADATA, bytes(name), type, ColumnMetadata.NO_POSITION, kind);
+        return new ColumnMetadata(TABLE_METADATA, bytes(name), type, ColumnMetadata.NO_POSITION, kind, null);
     }
 
     private static TableMetadata mock(Columns columns)

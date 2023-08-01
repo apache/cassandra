@@ -25,8 +25,14 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.schema.TableMetadata;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.Option;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
+import org.apache.commons.cli.PosixParser;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
@@ -39,15 +45,12 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.KeyIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
-import org.apache.commons.cli.PosixParser;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.FBUtilities;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
 
 /**
  * Export SSTables to JSON format.
@@ -71,7 +74,7 @@ public class SSTableExport
 
     static
     {
-        DatabaseDescriptor.clientInitialization();
+        DatabaseDescriptor.toolInitialization(!TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST.getBoolean());
 
         Option optKey = new Option(KEY_OPTION, true, "List of included partition keys");
         // Number of times -k <key> can be passed on the command line.
@@ -135,20 +138,21 @@ public class SSTableExport
             printUsage();
             System.exit(1);
         }
-        String ssTableFileName = new File(cmd.getArgs()[0]).absolutePath();
+        File ssTableFile = new File(cmd.getArgs()[0]);
 
-        if (!new File(ssTableFileName).exists())
+        if (!ssTableFile.exists())
         {
-            System.err.println("Cannot find file " + ssTableFileName);
+            System.err.println("Cannot find file " + ssTableFile.absolutePath());
             System.exit(1);
         }
-        Descriptor desc = Descriptor.fromFilename(ssTableFileName);
+        Descriptor desc = Descriptor.fromFileWithComponent(ssTableFile, false).left;
         try
         {
             TableMetadata metadata = Util.metadataFromSSTable(desc);
+            SSTableReader sstable = SSTableReader.openNoValidation(null, desc, TableMetadataRef.forOfflineTools(metadata));
             if (cmd.hasOption(ENUMERATE_KEYS_OPTION))
             {
-                try (KeyIterator iter = new KeyIterator(desc, metadata))
+                try (KeyIterator iter = sstable.keyIterator())
                 {
                     JsonTransformer.keysToJson(null, Util.iterToStream(iter),
                                                cmd.hasOption(RAW_TIMESTAMPS),
@@ -158,7 +162,6 @@ public class SSTableExport
             }
             else
             {
-                SSTableReader sstable = SSTableReader.openNoValidation(desc, TableMetadataRef.forOfflineTools(metadata));
                 IPartitioner partitioner = sstable.getPartitioner();
                 final ISSTableScanner currentScanner;
                 if ((keys != null) && (keys.length > 0))

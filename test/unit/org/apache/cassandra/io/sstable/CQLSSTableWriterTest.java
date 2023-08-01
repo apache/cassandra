@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
@@ -42,7 +43,6 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.cql3.functions.UDHelper;
 import org.apache.cassandra.cql3.functions.types.*;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -55,6 +55,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.*;
 
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -619,8 +620,8 @@ public class CQLSSTableWriterTest
         loadSSTables(dataDir, keyspace);
 
         UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + keyspace + "." + table);
-        TypeCodec collectionCodec = UDHelper.codecFor(DataType.CollectionType.list(tuple2Type));
-        TypeCodec tuple3Codec = UDHelper.codecFor(tuple3Type);
+        TypeCodec collectionCodec = JavaDriverUtils.codecFor(DataType.CollectionType.list(tuple2Type));
+        TypeCodec tuple3Codec = JavaDriverUtils.codecFor(tuple3Type);
 
         assertEquals(resultSet.size(), 100);
         int cnt = 0;
@@ -664,8 +665,8 @@ public class CQLSSTableWriterTest
 
         UserType tuple2Type = writer.getUDType("tuple2");
         UserType nestedTuple = writer.getUDType("nested_tuple");
-        TypeCodec tuple2Codec = UDHelper.codecFor(tuple2Type);
-        TypeCodec nestedTupleCodec = UDHelper.codecFor(nestedTuple);
+        TypeCodec tuple2Codec = JavaDriverUtils.codecFor(tuple2Type);
+        TypeCodec nestedTupleCodec = JavaDriverUtils.codecFor(nestedTuple);
 
         for (int i = 0; i < 100; i++)
         {
@@ -852,7 +853,7 @@ public class CQLSSTableWriterTest
         CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
-                                                  .using("INSERT INTO " + qualifiedTable + " (k, c1, c2, v) VALUES (?, ?, ?, textAsBlob(?))")
+                                                  .using("INSERT INTO " + qualifiedTable + " (k, c1, c2, v) VALUES (?, ?, ?, text_as_blob(?))")
                                                   .build();
 
         writer.addRow(1, 2, 3, "abc");
@@ -1114,6 +1115,122 @@ public class CQLSSTableWriterTest
         assertEquals(0, filtered.size());
         filtered = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable + " where k='2' and c={" + other + ", " + uuid1 + "};");
         assertEquals(0, filtered.size());
+    }
+
+    @Test
+    public void testWriteWithTimestamps() throws Exception
+    {
+        long now = currentTimeMillis();
+        long then = now - 1000;
+        final String schema = "CREATE TABLE " + qualifiedTable + " ("
+                              + "  k int,"
+                              + "  v1 int,"
+                              + "  v2 int,"
+                              + "  v3 text,"
+                              + "  PRIMARY KEY (k)"
+                              + ")";
+
+        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                  .inDirectory(dataDir)
+                                                  .forTable(schema)
+                                                  .using("INSERT INTO " + qualifiedTable +
+                                                         " (k, v1, v2, v3) VALUES (?,?,?,?) using timestamp ?" )
+                                                  .build();
+
+        // Note that, all other things being equal, Cassandra will sort these rows lexicographically, so we use "higher" values in the
+        // row we expect to "win" so that we're sure that it isn't just accidentally picked due to the row sorting.
+        writer.addRow( 1, 4, 5, "b", now); // This write should be the one found at the end because it has a higher timestamp
+        writer.addRow( 1, 2, 3, "a", then);
+        writer.close();
+        loadSSTables(dataDir, keyspace);
+
+        UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable);
+        assertEquals(1, resultSet.size());
+
+        Iterator<UntypedResultSet.Row> iter = resultSet.iterator();
+        UntypedResultSet.Row r1 = iter.next();
+        assertEquals(1, r1.getInt("k"));
+        assertEquals(4, r1.getInt("v1"));
+        assertEquals(5, r1.getInt("v2"));
+        assertEquals("b", r1.getString("v3"));
+        assertFalse(iter.hasNext());
+    }
+    @Test
+    public void testWriteWithTtl() throws Exception
+    {
+        final String schema = "CREATE TABLE " + qualifiedTable + " ("
+                              + "  k int,"
+                              + "  v1 int,"
+                              + "  v2 int,"
+                              + "  v3 text,"
+                              + "  PRIMARY KEY (k)"
+                              + ")";
+
+        CQLSSTableWriter.Builder builder = CQLSSTableWriter.builder()
+                                                         .inDirectory(dataDir)
+                                                         .forTable(schema)
+                                                         .using("INSERT INTO " + qualifiedTable +
+                                                                " (k, v1, v2, v3) VALUES (?,?,?,?) using TTL ?");
+        CQLSSTableWriter writer = builder.build();
+        // add a row that _should_ show up - 1 hour TTL
+        writer.addRow( 1, 2, 3, "a", 3600);
+        // Insert a row with a TTL of 1 second - should not appear in results once we sleep
+        writer.addRow( 2, 4, 5, "b", 1);
+        writer.close();
+        Thread.sleep(1200); // Slightly over 1 second, just to make sure
+        loadSSTables(dataDir, keyspace);
+
+        UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable);
+        assertEquals(1, resultSet.size());
+
+        Iterator<UntypedResultSet.Row> iter = resultSet.iterator();
+        UntypedResultSet.Row r1 = iter.next();
+        assertEquals(1, r1.getInt("k"));
+        assertEquals(2, r1.getInt("v1"));
+        assertEquals(3, r1.getInt("v2"));
+        assertEquals("a", r1.getString("v3"));
+        assertFalse(iter.hasNext());
+    }
+    @Test
+    public void testWriteWithTimestampsAndTtl() throws Exception
+    {
+        final String schema = "CREATE TABLE " + qualifiedTable + " ("
+                              + "  k int,"
+                              + "  v1 int,"
+                              + "  v2 int,"
+                              + "  v3 text,"
+                              + "  PRIMARY KEY (k)"
+                              + ")";
+
+        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                  .inDirectory(dataDir)
+                                                  .forTable(schema)
+                                                  .using("INSERT INTO " + qualifiedTable +
+                                                         " (k, v1, v2, v3) VALUES (?,?,?,?) using timestamp ? AND TTL ?" )
+                                                  .build();
+        // NOTE: It would be easier to make this a timestamp in the past, but Cassandra also has a _local_ deletion time
+        // which is based on the server's timestamp, so simply setting the timestamp to some time in the past
+        // doesn't actually do what you'd think it would do.
+        long oneSecondFromNow = TimeUnit.MILLISECONDS.toMicros(currentTimeMillis() + 1000);
+        // Insert some rows with a timestamp of 1 second from now, and different TTLs
+        // add a row that _should_ show up - 1 hour TTL
+        writer.addRow( 1, 2, 3, "a", oneSecondFromNow, 3600);
+        // Insert a row "two seconds ago" with a TTL of 1 second - should not appear in results
+        writer.addRow( 2, 4, 5, "b", oneSecondFromNow, 1);
+        writer.close();
+        loadSSTables(dataDir, keyspace);
+        UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable);
+        Thread.sleep(1200);
+        resultSet = QueryProcessor.executeInternal("SELECT * FROM " + qualifiedTable);
+        assertEquals(1, resultSet.size());
+
+        Iterator<UntypedResultSet.Row> iter = resultSet.iterator();
+        UntypedResultSet.Row r1 = iter.next();
+        assertEquals(1, r1.getInt("k"));
+        assertEquals(2, r1.getInt("v1"));
+        assertEquals(3, r1.getInt("v2"));
+        assertEquals("a", r1.getString("v3"));
+        assertFalse(iter.hasNext());
     }
 
     private static void loadSSTables(File dataDir, String ks) throws ExecutionException, InterruptedException

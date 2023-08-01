@@ -118,7 +118,7 @@ public class CompositesSearcher extends CassandraIndexSearcher
                         dataCmd = SinglePartitionReadCommand.create(index.baseCfs.metadata(),
                                                                     command.nowInSec(),
                                                                     command.columnFilter(),
-                                                                    RowFilter.NONE,
+                                                                    RowFilter.none(),
                                                                     DataLimits.NONE,
                                                                     partitionKey,
                                                                     command.clusteringIndexFilter(partitionKey));
@@ -196,12 +196,12 @@ public class CompositesSearcher extends CassandraIndexSearcher
         };
     }
 
-    private void deleteAllEntries(final List<IndexEntry> entries, final WriteContext ctx, final int nowInSec)
+    private void deleteAllEntries(final List<IndexEntry> entries, final WriteContext ctx, final long nowInSec)
     {
         entries.forEach(entry ->
             index.deleteStaleEntry(entry.indexValue,
                                    entry.indexClustering,
-                                   new DeletionTime(entry.timestamp, nowInSec),
+                                   DeletionTime.build(entry.timestamp, nowInSec),
                                    ctx));
     }
 
@@ -211,7 +211,7 @@ public class CompositesSearcher extends CassandraIndexSearcher
                                                      final ByteBuffer indexValue,
                                                      final List<IndexEntry> entries,
                                                      final WriteContext ctx,
-                                                     final int nowInSec)
+                                                     final long nowInSec)
     {
         // collect stale index entries and delete them when we close this iterator
         final List<IndexEntry> staleEntries = new ArrayList<>();

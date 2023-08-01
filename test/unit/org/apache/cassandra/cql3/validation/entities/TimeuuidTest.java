@@ -55,17 +55,18 @@ public class TimeuuidTest extends CQLTester
 
         assertRowCount(execute("SELECT * FROM %s WHERE k = 0 AND t = ?", rows[0][1]), 1);
 
-        assertInvalid("SELECT dateOf(k) FROM %s WHERE k = 0 AND t = ?", rows[0][1]);
+        assertInvalidMessage("k cannot be passed as argument 0 of function",
+                             "SELECT min_timeuuid(k) FROM %s WHERE k = 0 AND t = ?", rows[0][1]);
 
         for (int i = 0; i < 4; i++)
         {
             long timestamp = ((TimeUUID) rows[i][1]).unix(MILLISECONDS);
-            assertRows(execute("SELECT dateOf(t), unixTimestampOf(t) FROM %s WHERE k = 0 AND t = ?", rows[i][1]),
+            assertRows(execute("SELECT to_timestamp(t), to_unix_timestamp(t) FROM %s WHERE k = 0 AND t = ?", rows[i][1]),
                        row(new Date(timestamp), timestamp));
         }
 
-        assertEmpty(execute("SELECT t FROM %s WHERE k = 0 AND t > maxTimeuuid(1234567) AND t < minTimeuuid('2012-11-07 18:18:22-0800')"));
-        assertEmpty(execute("SELECT t FROM %s WHERE k = 0 AND t > maxTimeuuid(1564830182000) AND t < minTimeuuid('2012-11-07 18:18:22-0800')"));
+        assertEmpty(execute("SELECT t FROM %s WHERE k = 0 AND t > max_timeuuid(1234567) AND t < min_timeuuid('2012-11-07 18:18:22-0800')"));
+        assertEmpty(execute("SELECT t FROM %s WHERE k = 0 AND t > max_timeuuid(1564830182000) AND t < min_timeuuid('2012-11-07 18:18:22-0800')"));
     }
 
     /**

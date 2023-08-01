@@ -20,7 +20,6 @@ package org.apache.cassandra.db.repair;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.function.BooleanSupplier;
 

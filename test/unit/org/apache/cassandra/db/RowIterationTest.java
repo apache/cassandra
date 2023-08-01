@@ -55,7 +55,7 @@ public class RowIterationTest extends CQLTester
         execute("INSERT INTO %s (a, b) VALUES (?, ?) USING TIMESTAMP ?", 0, 0, 1L);
         execute("DELETE FROM %s USING TIMESTAMP ? WHERE a = ?", 1L, 0);
 
-        int localDeletionTime = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs).build()).partitionLevelDeletion().localDeletionTime();
+        long localDeletionTime = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs).build()).partitionLevelDeletion().localDeletionTime();
 
         Util.flush(cfs);
 

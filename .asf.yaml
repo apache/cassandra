@@ -3,3 +3,6 @@ github:
     squash:  false
     merge:   false
     rebase:  true
+
+notifications:
+  jira_options: link worklog

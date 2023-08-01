@@ -22,7 +22,9 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
+import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
@@ -49,6 +51,7 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static java.lang.Long.MAX_VALUE;
 import static java.lang.Math.min;
+import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
@@ -113,32 +116,40 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     {
         long timeoutNanos = currentTimeoutNanos();
 
-        boolean success;
+        boolean signaled;
         try
         {
-            success = condition.await(timeoutNanos, NANOSECONDS);
+            signaled = condition.await(timeoutNanos, NANOSECONDS);
         }
         catch (InterruptedException e)
         {
             throw new UncheckedInterruptedException(e);
         }
 
-        if (!success)
-        {
-            int blockedFor = blockFor();
-            int acks = ackCount();
-            // It's pretty unlikely, but we can race between exiting await above and here, so
-            // that we could now have enough acks. In that case, we "lie" on the acks count to
-            // avoid sending confusing info to the user (see CASSANDRA-6491).
-            if (acks >= blockedFor)
-                acks = blockedFor - 1;
-            throw new WriteTimeoutException(writeType, replicaPlan.consistencyLevel(), acks, blockedFor);
-        }
+        if (!signaled)
+            throwTimeout();
 
         if (blockFor() + failures > candidateReplicaCount())
         {
-            throw new WriteFailureException(replicaPlan.consistencyLevel(), ackCount(), blockFor(), writeType, failureReasonByEndpoint);
+            if (RequestCallback.isTimeout(this.failureReasonByEndpoint.keySet().stream()
+                                                                      .filter(this::waitingFor) // DatacenterWriteResponseHandler filters errors from remote DCs
+                                                                      .collect(Collectors.toMap(Function.identity(), this.failureReasonByEndpoint::get))))
+                throwTimeout();
+
+            throw new WriteFailureException(replicaPlan.consistencyLevel(), ackCount(), blockFor(), writeType, this.failureReasonByEndpoint);
         }
+    }
+
+    private void throwTimeout()
+    {
+        int blockedFor = blockFor();
+        int acks = ackCount();
+        // It's pretty unlikely, but we can race between exiting await above and here, so
+        // that we could now have enough acks. In that case, we "lie" on the acks count to
+        // avoid sending confusing info to the user (see CASSANDRA-6491).
+        if (acks >= blockedFor)
+            acks = blockedFor - 1;
+        throw new WriteTimeoutException(writeType, replicaPlan.consistencyLevel(), acks, blockedFor);
     }
 
     public final long currentTimeoutNanos()
@@ -281,7 +292,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
         if (blockFor() + n > candidateReplicaCount())
             signal();
 
-        if (hintOnFailure != null)
+        if (hintOnFailure != null && StorageProxy.shouldHint(replicaPlan.lookup(from)))
             StorageProxy.submitHint(hintOnFailure.get(), replicaPlan.lookup(from), null);
     }
 
@@ -328,15 +339,15 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
                                               .map(instance::getColumnFamilyStoreInstance)
                                               .collect(toList());
         for (ColumnFamilyStore cf : cfs)
-            timeout = min(timeout, cf.additionalWriteLatencyNanos);
+            timeout = min(timeout, cf.additionalWriteLatencyMicros);
 
         // no latency information, or we're overloaded
-        if (timeout > mutation.getTimeout(NANOSECONDS))
+        if (timeout > mutation.getTimeout(MICROSECONDS))
             return;
 
         try
         {
-            if (!condition.await(timeout, NANOSECONDS))
+            if (!condition.await(timeout, MICROSECONDS))
             {
                 for (ColumnFamilyStore cf : cfs)
                     cf.metric.additionalWrites.inc();

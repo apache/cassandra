@@ -25,9 +25,6 @@ import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.simulator.RandomSource;
 
-import static java.util.concurrent.TimeUnit.NANOSECONDS;
-import static java.util.concurrent.TimeUnit.SECONDS;
-
 public class IntRange
 {
     public final int min;

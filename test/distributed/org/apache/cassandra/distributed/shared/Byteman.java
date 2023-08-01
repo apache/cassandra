@@ -47,11 +47,13 @@ import org.slf4j.LoggerFactory;
 
 import org.jboss.byteman.agent.Transformer;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_BYTEMAN_TRANSFORMATIONS_DEBUG;
+
 public final class Byteman
 {
     private static final Logger logger = LoggerFactory.getLogger(Byteman.class);
 
-    private static final boolean DEBUG_TRANSFORMATIONS = Boolean.getBoolean("cassandra.test.byteman.transformations.debug");
+    private static final boolean DEBUG_TRANSFORMATIONS = TEST_BYTEMAN_TRANSFORMATIONS_DEBUG.getBoolean();
     private static final Method METHOD;
     private static final URL BYTEMAN;
 

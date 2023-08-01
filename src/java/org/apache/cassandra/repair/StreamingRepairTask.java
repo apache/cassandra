@@ -39,7 +39,11 @@ import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.net.Verb.SYNC_RSP;
+import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
+
 
 /**
  * StreamingRepairTask performs data streaming between two remote replicas, neither of which is repair coordinator.
@@ -73,7 +77,10 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
     public void run()
     {
         logger.info("[streaming task #{}] Performing {}streaming repair of {} ranges with {}", desc.sessionId, asymmetric ? "asymmetric " : "", ranges.size(), dst);
-        createStreamPlan(dst).execute();
+        long start = approxTime.now();
+        StreamPlan streamPlan = createStreamPlan(dst);
+        logger.info("[streaming task #{}] Stream plan created in {}ms", desc.sessionId, MILLISECONDS.convert(approxTime.now() - start, NANOSECONDS));
+        streamPlan.execute();
     }
 
     @VisibleForTesting

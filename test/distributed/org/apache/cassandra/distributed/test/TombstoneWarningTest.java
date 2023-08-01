@@ -123,7 +123,8 @@ public class TombstoneWarningTest extends TestBaseImpl
     {
         long mark = cluster.get(1).logs().mark();
         cluster.get(1).flush(KEYSPACE);
-        String pattern = ".*Writing (?<tscount>\\d+) tombstones to distributed_test_keyspace/tbl:(?<key>\\d+).*";
+        String pattern = ".*Guardrail partition_tombstones violated: " +
+                         "Partition distributed_test_keyspace\\.tbl:(?<key>\\d+).* has (?<tscount>\\d+) tombstones.*";
         LogResult<List<String>> res = cluster.get(1).logs().grep(mark, pattern);
         assertEquals(expectedCount, res.getResult().size());
         Pattern p = Pattern.compile(pattern);

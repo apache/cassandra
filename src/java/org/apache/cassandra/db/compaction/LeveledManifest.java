@@ -17,7 +17,17 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicates;
@@ -26,18 +36,16 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
-
-import org.apache.cassandra.db.PartitionPosition;
-import org.apache.cassandra.io.sstable.Component;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Pair;
 
@@ -114,7 +122,7 @@ public class LeveledManifest
             long maxModificationTime = Long.MIN_VALUE;
             for (SSTableReader ssTableReader : level)
             {
-                long modificationTime = ssTableReader.getCreationTimeFor(Component.DATA);
+                long modificationTime = ssTableReader.getDataCreationTime();
                 if (modificationTime >= maxModificationTime)
                 {
                     sstableWithMaxModificationTime = ssTableReader;
@@ -151,7 +159,7 @@ public class LeveledManifest
         if (logger.isTraceEnabled())
             logger.trace("Adding [{}]", toString(added));
         generations.addAll(added);
-        lastCompactedSSTables[minLevel] = SSTableReader.sstableOrdering.max(added);
+        lastCompactedSSTables[minLevel] = SSTableReader.firstKeyOrdering.max(added);
     }
 
     private String toString(Collection<SSTableReader> sstables)
@@ -358,10 +366,10 @@ public class LeveledManifest
                     PartitionPosition min = null;
                     for (SSTableReader candidate : candidates)
                     {
-                        if (min == null || candidate.first.compareTo(min) < 0)
-                            min = candidate.first;
-                        if (max == null || candidate.last.compareTo(max) > 0)
-                            max = candidate.last;
+                        if (min == null || candidate.getFirst().compareTo(min) < 0)
+                            min = candidate.getFirst();
+                        if (max == null || candidate.getLast().compareTo(max) > 0)
+                            max = candidate.getLast();
                     }
                     if (min == null || max == null || min.equals(max)) // single partition sstables - we cannot include a high level sstable.
                         return candidates;
@@ -369,7 +377,7 @@ public class LeveledManifest
                     Range<PartitionPosition> boundaries = new Range<>(min, max);
                     for (SSTableReader sstable : generations.get(i))
                     {
-                        Range<PartitionPosition> r = new Range<>(sstable.first, sstable.last);
+                        Range<PartitionPosition> r = new Range<>(sstable.getFirst(), sstable.getLast());
                         if (boundaries.contains(r) && !compacting.contains(sstable))
                         {
                             logger.info("Adding high-level (L{}) {} to candidates", sstable.getSSTableLevel(), sstable);
@@ -430,20 +438,20 @@ public class LeveledManifest
          */
         Iterator<SSTableReader> iter = candidates.iterator();
         SSTableReader sstable = iter.next();
-        Token first = sstable.first.getToken();
-        Token last = sstable.last.getToken();
+        Token first = sstable.getFirst().getToken();
+        Token last = sstable.getLast().getToken();
         while (iter.hasNext())
         {
             sstable = iter.next();
-            first = first.compareTo(sstable.first.getToken()) <= 0 ? first : sstable.first.getToken();
-            last = last.compareTo(sstable.last.getToken()) >= 0 ? last : sstable.last.getToken();
+            first = first.compareTo(sstable.getFirst().getToken()) <= 0 ? first : sstable.getFirst().getToken();
+            last = last.compareTo(sstable.getLast().getToken()) >= 0 ? last : sstable.getLast().getToken();
         }
         return overlapping(first, last, others);
     }
 
     private static Set<SSTableReader> overlappingWithBounds(SSTableReader sstable, Map<SSTableReader, Bounds<Token>> others)
     {
-        return overlappingWithBounds(sstable.first.getToken(), sstable.last.getToken(), others);
+        return overlappingWithBounds(sstable.getFirst().getToken(), sstable.getLast().getToken(), others);
     }
 
     /**
@@ -474,7 +482,7 @@ public class LeveledManifest
         Map<SSTableReader, Bounds<Token>> boundsMap = new HashMap<>();
         for (SSTableReader sstable : ssTableReaders)
         {
-            boundsMap.put(sstable, new Bounds<>(sstable.first.getToken(), sstable.last.getToken()));
+            boundsMap.put(sstable, new Bounds<>(sstable.getFirst().getToken(), sstable.getLast().getToken()));
         }
         return boundsMap;
     }
@@ -499,10 +507,10 @@ public class LeveledManifest
             PartitionPosition firstCompactingKey = null;
             for (SSTableReader candidate : compactingL0)
             {
-                if (firstCompactingKey == null || candidate.first.compareTo(firstCompactingKey) < 0)
-                    firstCompactingKey = candidate.first;
-                if (lastCompactingKey == null || candidate.last.compareTo(lastCompactingKey) > 0)
-                    lastCompactingKey = candidate.last;
+                if (firstCompactingKey == null || candidate.getFirst().compareTo(firstCompactingKey) < 0)
+                    firstCompactingKey = candidate.getFirst();
+                if (lastCompactingKey == null || candidate.getLast().compareTo(lastCompactingKey) > 0)
+                    lastCompactingKey = candidate.getLast();
             }
 
             // L0 is the dumping ground for new sstables which thus may overlap each other.
@@ -622,16 +630,25 @@ public class LeveledManifest
         return 0;
     }
 
-    public synchronized int getEstimatedTasks()
+    public int getEstimatedTasks()
+    {
+        return getEstimatedTasks(0);
+    }
+
+    int getEstimatedTasks(long additionalLevel0Bytes)
+    {
+        return getEstimatedTasks((level) -> SSTableReader.getTotalBytes(getLevel(level)) + (level == 0 ? additionalLevel0Bytes : 0));
+    }
+
+    private synchronized int getEstimatedTasks(Function<Integer,Long> fnTotalSizeBytesByLevel)
     {
         long tasks = 0;
         long[] estimated = new long[generations.levelCount()];
 
         for (int i = generations.levelCount() - 1; i >= 0; i--)
         {
-            Set<SSTableReader> sstables = generations.get(i);
             // If there is 1 byte over TBL - (MBL * 1.001), there is still a task left, so we need to round up.
-            estimated[i] = (long)Math.ceil((double)Math.max(0L, SSTableReader.getTotalBytes(sstables) - (long)(maxBytesForLevel(i, maxSSTableSizeInBytes) * 1.001)) / (double)maxSSTableSizeInBytes);
+            estimated[i] = (long)Math.ceil((double)Math.max(0L, fnTotalSizeBytesByLevel.apply(i) - (long)(maxBytesForLevel(i, maxSSTableSizeInBytes) * 1.001)) / (double)maxSSTableSizeInBytes);
             tasks += estimated[i];
         }
 
@@ -643,7 +660,7 @@ public class LeveledManifest
         }
 
         logger.trace("Estimating {} compactions to do for {}.{}",
-                     Arrays.toString(estimated), cfs.keyspace.getName(), cfs.name);
+                     Arrays.toString(estimated), cfs.getKeyspaceName(), cfs.name);
         return Ints.checkedCast(tasks);
     }
 

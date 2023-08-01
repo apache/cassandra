@@ -35,7 +35,6 @@ import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
@@ -52,9 +51,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import com.google.common.util.concurrent.RateLimiter;
 import com.google.common.base.Preconditions;
-
+import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -65,7 +63,6 @@ import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.SyncUtil;
 
-import static com.google.common.base.Throwables.propagate;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_IO_TMPDIR;
 import static org.apache.cassandra.utils.Throwables.maybeFail;
 
@@ -211,9 +208,14 @@ public final class FileUtils
 
     public static void createHardLinkWithoutConfirm(String from, String to)
     {
+        createHardLinkWithoutConfirm(new File(from), new File(to));
+    }
+
+    public static void createHardLinkWithoutConfirm(File from, File to)
+    {
         try
         {
-            createHardLink(new File(from), new File(to));
+            createHardLink(from, to);
         }
         catch (FSWriteError fse)
         {
@@ -224,9 +226,14 @@ public final class FileUtils
 
     public static void copyWithOutConfirm(String from, String to)
     {
+        copyWithOutConfirm(new File(from), new File(to));
+    }
+
+    public static void copyWithOutConfirm(File from, File to)
+    {
         try
         {
-            Files.copy(Paths.get(from), Paths.get(to));
+            Files.copy(from.toPath(), to.toPath());
         }
         catch (IOException e)
         {
@@ -479,7 +486,7 @@ public final class FileUtils
     public static void handleFSErrorAndPropagate(FSError e)
     {
         JVMStabilityInspector.inspectThrowable(e);
-        throw propagate(e);
+        throw e;
     }
 
     /**
@@ -489,6 +496,9 @@ public final class FileUtils
      */
     public static long folderSize(File folder)
     {
+        if (!folder.exists())
+            return 0;
+
         final long [] sizeArr = {0L};
         try
         {
@@ -499,6 +509,15 @@ public final class FileUtils
                 {
                     sizeArr[0] += attrs.size();
                     return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFileFailed(Path path, IOException e) throws IOException
+                {
+                    if (e instanceof NoSuchFileException)
+                        return FileVisitResult.CONTINUE;
+                    else
+                        throw e;
                 }
             });
         }

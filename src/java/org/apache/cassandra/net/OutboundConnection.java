@@ -61,6 +61,7 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.apache.cassandra.net.InternodeConnectionUtils.isSSLError;
 import static org.apache.cassandra.net.MessagingService.current_version;
 import static org.apache.cassandra.net.OutboundConnectionInitiator.*;
 import static org.apache.cassandra.net.OutboundConnections.LARGE_MESSAGE_THRESHOLD;
@@ -1100,8 +1101,9 @@ public class OutboundConnection
 
                 if (hasPending())
                 {
+                    boolean isSSLFailure = isSSLError(cause);
                     Promise<Result<MessagingSuccess>> result = AsyncPromise.withExecutor(eventLoop);
-                    state = new Connecting(state.disconnected(), result, eventLoop.schedule(() -> attempt(result), max(100, retryRateMillis), MILLISECONDS));
+                    state = new Connecting(state.disconnected(), result, eventLoop.schedule(() -> attempt(result, isSSLFailure), max(100, retryRateMillis), MILLISECONDS));
                     retryRateMillis = min(1000, retryRateMillis * 2);
                 }
                 else
@@ -1125,7 +1127,7 @@ public class OutboundConnection
 
                         FrameEncoder.PayloadAllocator payloadAllocator = success.allocator;
                         Channel channel = success.channel;
-                        Established established = new Established(messagingVersion, channel, payloadAllocator, settings);
+                        Established established = new Established(success.messagingVersion, channel, payloadAllocator, settings);
                         state = established;
                         channel.pipeline().addLast("handleExceptionalStates", new ChannelInboundHandlerAdapter() {
                             @Override
@@ -1189,7 +1191,7 @@ public class OutboundConnection
              *
              * Note: this should only be invoked on the event loop.
              */
-            private void attempt(Promise<Result<MessagingSuccess>> result)
+            private void attempt(Promise<Result<MessagingSuccess>> result, boolean sslFallbackEnabled)
             {
                 ++connectionAttempts;
 
@@ -1213,10 +1215,20 @@ public class OutboundConnection
                 if (messagingVersion > settings.acceptVersions.max)
                     messagingVersion = settings.acceptVersions.max;
 
-                // ensure we connect to the correct SSL port
-                settings = settings.withLegacyPortIfNecessary(messagingVersion);
-
-                initiateMessaging(eventLoop, type, settings, messagingVersion, result)
+                // In mixed mode operation, some nodes might be configured to use SSL for internode connections and
+                // others might be configured to not use SSL. When a node is configured in optional SSL mode, It should
+                // be able to handle SSL and Non-SSL internode connections. We take care of this when accepting NON-SSL
+                // connection in Inbound connection by having optional SSL handler for inbound connections.
+                // For outbound connections, if the authentication fails, we should fall back to other SSL strategies
+                // while talking to older nodes in the cluster which are configured to make NON-SSL connections
+                SslFallbackConnectionType[] fallBackSslFallbackConnectionTypes = SslFallbackConnectionType.values();
+                int index = sslFallbackEnabled && settings.withEncryption() && settings.encryption.getOptional() ?
+                            (int) (connectionAttempts - 1) % fallBackSslFallbackConnectionTypes.length : 0;
+                if (fallBackSslFallbackConnectionTypes[index] != SslFallbackConnectionType.SERVER_CONFIG)
+                {
+                    logger.info("ConnectionId {} is falling back to {} reconnect strategy for retry", id(), fallBackSslFallbackConnectionTypes[index]);
+                }
+                initiateMessaging(eventLoop, type, fallBackSslFallbackConnectionTypes[index], settings, result)
                 .addListener(future -> {
                     if (future.isCancelled())
                         return;
@@ -1231,7 +1243,7 @@ public class OutboundConnection
             {
                 Promise<Result<MessagingSuccess>> result = AsyncPromise.withExecutor(eventLoop);
                 state = new Connecting(state.disconnected(), result);
-                attempt(result);
+                attempt(result, false);
                 return result;
             }
         }

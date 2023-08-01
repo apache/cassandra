@@ -283,7 +283,7 @@ public class RepairedDataVerifierTest
                   metadata,
                   FBUtilities.nowInSeconds(),
                   ColumnFilter.all(metadata),
-                  RowFilter.NONE,
+                  RowFilter.none(),
                   DataLimits.NONE,
                   metadata.partitioner.decorateKey(ByteBufferUtil.bytes(key)),
                   new ClusteringIndexSliceFilter(Slices.ALL, false),

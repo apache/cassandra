@@ -18,21 +18,21 @@
 
 package org.apache.cassandra.tools;
 
-import static java.lang.String.format;
-
 import java.io.IOException;
 import java.io.PrintStream;
-import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.TreeMap;
-import java.util.Map.Entry;
 import java.util.function.LongFunction;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
+
+import com.google.common.base.Strings;
+import com.google.common.collect.Lists;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -40,21 +40,22 @@ import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
+import org.apache.cassandra.io.sstable.format.StatsComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
+import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.Indexes;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.streamhist.TombstoneHistogram;
 
-import com.google.common.base.Strings;
-import com.google.common.collect.Lists;
+import static java.lang.String.format;
 
 @SuppressWarnings("serial")
 public final class Util
 {
-    public static final String ALLOW_TOOL_REINIT_FOR_TEST = Util.class.getName() + "ALLOW_TOOL_REINIT_FOR_TEST"; // Necessary for testing
     static final String RESET = "\u001B[0m";
     static final String BLUE = "\u001B[34m";
     static final String CYAN = "\u001B[36m";
@@ -310,12 +311,11 @@ public final class Util
      */
     public static TableMetadata metadataFromSSTable(Descriptor desc) throws IOException
     {
-        if (desc.version.getVersion().compareTo("ma") < 0)
-            throw new IOException("pre-3.0 SSTable is not supported.");
+        if (!desc.version.isCompatible())
+            throw new IOException("Unsupported SSTable version " + desc.getFormat().name() + "/" + desc.version);
 
-        EnumSet<MetadataType> types = EnumSet.of(MetadataType.STATS, MetadataType.HEADER);
-        Map<MetadataType, MetadataComponent> sstableMetadata = desc.getMetadataSerializer().deserialize(desc, types);
-        SerializationHeader.Component header = (SerializationHeader.Component) sstableMetadata.get(MetadataType.HEADER);
+        StatsComponent statsComponent = StatsComponent.load(desc, MetadataType.STATS, MetadataType.HEADER);
+        SerializationHeader.Component header = statsComponent.serializationHeader();
 
         IPartitioner partitioner = FBUtilities.newPartitioner(desc);
 
@@ -334,6 +334,15 @@ public final class Util
         for (int i = 0; i < header.getClusteringTypes().size(); i++)
         {
             builder.addClusteringColumn("clustering" + (i > 0 ? i : ""), header.getClusteringTypes().get(i));
+        }
+        if (SecondaryIndexManager.isIndexColumnFamily(desc.cfname))
+        {
+            String index = SecondaryIndexManager.getIndexName(desc.cfname);
+            // Just set the Kind of index to CUSTOM, which is an irrelevant parameter that doesn't make any effect on the result
+            IndexMetadata indexMetadata = IndexMetadata.fromSchemaMetadata(index, IndexMetadata.Kind.CUSTOM, null);
+            Indexes indexes = Indexes.of(indexMetadata);
+            builder.indexes(indexes);
+            builder.kind(TableMetadata.Kind.INDEX);
         }
         return builder.build();
     }

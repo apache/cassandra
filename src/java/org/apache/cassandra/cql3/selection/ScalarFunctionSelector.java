@@ -28,21 +28,21 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 
 final class ScalarFunctionSelector extends AbstractFunctionSelector<ScalarFunction>
 {
-    protected static final SelectorDeserializer deserializer = new AbstractFunctionSelectorDeserializer()
+    static final SelectorDeserializer deserializer = new AbstractFunctionSelectorDeserializer()
     {
         @Override
-        protected Selector newFunctionSelector(Function function, List<Selector> argSelectors)
+        protected Selector newFunctionSelector(ProtocolVersion version, Function function, List<Selector> argSelectors)
         {
-            return new ScalarFunctionSelector(function, argSelectors);
+            return new ScalarFunctionSelector(version, function, argSelectors);
         }
     };
 
-    public void addInput(ProtocolVersion protocolVersion, InputRow input)
+    public void addInput(InputRow input)
     {
         for (int i = 0, m = argSelectors.size(); i < m; i++)
         {
             Selector s = argSelectors.get(i);
-            s.addInput(protocolVersion, input);
+            s.addInput(input);
         }
     }
 
@@ -58,7 +58,7 @@ final class ScalarFunctionSelector extends AbstractFunctionSelector<ScalarFuncti
             setArg(i, s.getOutput(protocolVersion));
             s.reset();
         }
-        return fun.execute(protocolVersion, args());
+        return fun.execute(args());
     }
 
     @Override
@@ -69,8 +69,8 @@ final class ScalarFunctionSelector extends AbstractFunctionSelector<ScalarFuncti
             argSelectors.get(i).validateForGroupBy();
     }
 
-    ScalarFunctionSelector(Function fun, List<Selector> argSelectors)
+    ScalarFunctionSelector(ProtocolVersion version, Function fun, List<Selector> argSelectors)
     {
-        super(Kind.SCALAR_FUNCTION_SELECTOR, (ScalarFunction) fun, argSelectors);
+        super(Kind.SCALAR_FUNCTION_SELECTOR, version, (ScalarFunction) fun, argSelectors);
     }
 }

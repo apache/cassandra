@@ -18,21 +18,32 @@
 package org.apache.cassandra.utils;
 
 import java.lang.reflect.Modifier;
+import java.math.BigInteger;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import javax.annotation.Nullable;
+
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import org.apache.commons.lang3.builder.MultilineRecursiveToStringStyle;
 import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.SchemaCQLHelper;
@@ -43,6 +54,8 @@ import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.EmptyType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.LocalPartitioner;
@@ -50,6 +63,10 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.OrderPreservingPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.gms.ApplicationState;
+import org.apache.cassandra.gms.EndpointState;
+import org.apache.cassandra.gms.HeartBeatState;
+import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.ConnectionType;
 import org.apache.cassandra.net.Message;
@@ -57,9 +74,11 @@ import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.PingRequest;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
+import org.apache.cassandra.utils.AbstractTypeGenerators.ValueDomain;
 import org.quicktheories.core.Gen;
 import org.quicktheories.core.RandomnessSource;
 import org.quicktheories.generators.Generate;
@@ -99,7 +118,7 @@ public final class CassandraGenerators
 
     private static final Gen<SinglePartitionReadCommand> SINGLE_PARTITION_READ_COMMAND_GEN = gen(rnd -> {
         TableMetadata metadata = TABLE_METADATA_GEN.generate(rnd);
-        int nowInSec = (int) rnd.next(Constraint.between(1, Integer.MAX_VALUE));
+        long nowInSec = rnd.next(Constraint.between(1, Cell.getVersionedMaxDeletiontionTime()));
         ByteBuffer key = partitionKeyDataGen(metadata).generate(rnd);
         //TODO support all fields of SinglePartitionReadCommand
         return SinglePartitionReadCommand.create(metadata, nowInSec, key, Slices.ALL);
@@ -146,41 +165,192 @@ public final class CassandraGenerators
 
     }
 
-    private static TableMetadata createTableMetadata(String ks, RandomnessSource rnd)
+    public static Set<UserType> extractUDTs(TableMetadata metadata)
     {
-        String tableName = IDENTIFIER_GEN.generate(rnd);
-        TableMetadata.Builder builder = TableMetadata.builder(ks, tableName, TableId.fromUUID(Generators.UUID_RANDOM_GEN.generate(rnd)))
-                                                     .partitioner(PARTITIONER_GEN.generate(rnd))
-                                                     .kind(TABLE_KIND_GEN.generate(rnd))
-                                                     .isCounter(BOOLEAN_GEN.generate(rnd))
-                                                     .params(TableParams.builder().build());
+        Set<UserType> matches = new HashSet<>();
+        for (ColumnMetadata col : metadata.columns())
+            AbstractTypeGenerators.extractUDTs(col.type, matches);
+        return matches;
+    }
 
-        // generate columns
-        // must have a non-zero amount of partition columns, but may have 0 for the rest; SMALL_POSSITIVE_SIZE_GEN won't return 0
-        int numPartitionColumns = SMALL_POSITIVE_SIZE_GEN.generate(rnd);
-        int numClusteringColumns = SMALL_POSITIVE_SIZE_GEN.generate(rnd) - 1;
-        int numRegularColumns = SMALL_POSITIVE_SIZE_GEN.generate(rnd) - 1;
-        int numStaticColumns = SMALL_POSITIVE_SIZE_GEN.generate(rnd) - 1;
+    public static TableMetadata createTableMetadata(String ks, RandomnessSource rnd)
+    {
+        return new TableMetadataBuilder().withKeyspaceName(ks).build(rnd);
+    }
 
-        Set<String> createdColumnNames = new HashSet<>();
-        for (int i = 0; i < numPartitionColumns; i++)
-            builder.addColumn(createColumnDefinition(ks, tableName, ColumnMetadata.Kind.PARTITION_KEY, createdColumnNames, rnd));
-        for (int i = 0; i < numClusteringColumns; i++)
-            builder.addColumn(createColumnDefinition(ks, tableName, ColumnMetadata.Kind.CLUSTERING, createdColumnNames, rnd));
-        for (int i = 0; i < numStaticColumns; i++)
-            builder.addColumn(createColumnDefinition(ks, tableName, ColumnMetadata.Kind.STATIC, createdColumnNames, rnd));
-        for (int i = 0; i < numRegularColumns; i++)
-            builder.addColumn(createColumnDefinition(ks, tableName, ColumnMetadata.Kind.REGULAR, createdColumnNames, rnd));
+    public static class TableMetadataBuilder
+    {
+        private Gen<String> ksNameGen = IDENTIFIER_GEN;
+        private Gen<AbstractType<?>> defaultTypeGen = AbstractTypeGenerators.builder()
+                                                                            .withDefaultSetKey(AbstractTypeGenerators.withoutUnsafeEquality())
+                                                                            .withMaxDepth(1)
+                                                                            .build();
+        private Gen<AbstractType<?>> partitionColTypeGen, clusteringColTypeGen, staticColTypeGen, regularColTypeGen;
+        private Gen<TableMetadata.Kind> tableKindGen = SourceDSL.arbitrary().constant(TableMetadata.Kind.REGULAR);
+        private Gen<Integer> numPartitionColumnsGen = SourceDSL.integers().between(1, 2);
+        private Gen<Integer> numClusteringColumnsGen = SourceDSL.integers().between(1, 2);
+        private Gen<Integer> numRegularColumnsGen = SourceDSL.integers().between(1, 5);
+        private Gen<Integer> numStaticColumnsGen = SourceDSL.integers().between(0, 2);
+        private Gen<String> memtableKeyGen = null;
 
-        return builder.build();
+        public TableMetadataBuilder withKnownMemtables()
+        {
+            Set<String> known = MemtableParams.knownDefinitions();
+            // for testing reason, some invalid types are added; filter out
+            List<String> valid = known.stream().filter(name -> !name.startsWith("test_")).collect(Collectors.toList());
+            memtableKeyGen = SourceDSL.arbitrary().pick(valid);
+            return this;
+        }
+
+        public TableMetadataBuilder withKeyspaceName(Gen<String> ksNameGen)
+        {
+            this.ksNameGen = ksNameGen;
+            return this;
+        }
+
+        public TableMetadataBuilder withKeyspaceName(String name)
+        {
+            this.ksNameGen = SourceDSL.arbitrary().constant(name);
+            return this;
+        }
+
+        public TableMetadataBuilder withPartitionColumnsCount(int num)
+        {
+            this.numPartitionColumnsGen = SourceDSL.arbitrary().constant(num);
+            return this;
+        }
+
+        public TableMetadataBuilder withPartitionColumnsBetween(int min, int max)
+        {
+            this.numPartitionColumnsGen = SourceDSL.integers().between(min, max);
+            return this;
+        }
+
+        public TableMetadataBuilder withClusteringColumnsCount(int num)
+        {
+            this.numClusteringColumnsGen = SourceDSL.arbitrary().constant(num);
+            return this;
+        }
+
+        public TableMetadataBuilder withClusteringColumnsBetween(int min, int max)
+        {
+            this.numClusteringColumnsGen = SourceDSL.integers().between(min, max);
+            return this;
+        }
+
+        public TableMetadataBuilder withRegularColumnsCount(int num)
+        {
+            this.numRegularColumnsGen = SourceDSL.arbitrary().constant(num);
+            return this;
+        }
+
+        public TableMetadataBuilder withRegularColumnsBetween(int min, int max)
+        {
+            this.numRegularColumnsGen = SourceDSL.integers().between(min, max);
+            return this;
+        }
+
+        public TableMetadataBuilder withStaticColumnsCount(int num)
+        {
+            this.numStaticColumnsGen = SourceDSL.arbitrary().constant(num);
+            return this;
+        }
+
+        public TableMetadataBuilder withStaticColumnsBetween(int min, int max)
+        {
+            this.numStaticColumnsGen = SourceDSL.integers().between(min, max);
+            return this;
+        }
+
+        public TableMetadataBuilder withDefaultTypeGen(Gen<AbstractType<?>> typeGen)
+        {
+            this.defaultTypeGen = typeGen;
+            return this;
+        }
+
+        public TableMetadataBuilder withPrimaryColumnTypeGen(Gen<AbstractType<?>> typeGen)
+        {
+            withPartitionColumnTypeGen(typeGen);
+            withClusteringColumnTypeGen(typeGen);
+            return this;
+        }
+
+        public TableMetadataBuilder withPartitionColumnTypeGen(Gen<AbstractType<?>> typeGen)
+        {
+            this.partitionColTypeGen = typeGen;
+            return this;
+        }
+
+        public TableMetadataBuilder withClusteringColumnTypeGen(Gen<AbstractType<?>> typeGen)
+        {
+            this.clusteringColTypeGen = typeGen;
+            return this;
+        }
+
+        public TableMetadataBuilder withStaticColumnTypeGen(Gen<AbstractType<?>> typeGen)
+        {
+            this.staticColTypeGen = typeGen;
+            return this;
+        }
+
+        public TableMetadataBuilder withRegularColumnTypeGen(Gen<AbstractType<?>> typeGen)
+        {
+            this.regularColTypeGen = typeGen;
+            return this;
+        }
+
+        public TableMetadataBuilder withTableKinds(TableMetadata.Kind... kinds)
+        {
+            tableKindGen = SourceDSL.arbitrary().pick(kinds);
+            return this;
+        }
+
+        public Gen<TableMetadata> build()
+        {
+            return rnd -> build(rnd);
+        }
+
+        public TableMetadata build(RandomnessSource rnd)
+        {
+            if (partitionColTypeGen == null && clusteringColTypeGen == null)
+                withPrimaryColumnTypeGen(Generators.filter(defaultTypeGen, t -> !AbstractTypeGenerators.UNSAFE_EQUALITY.contains(t.getClass())));
+
+            String ks = ksNameGen.generate(rnd);
+            String tableName = IDENTIFIER_GEN.generate(rnd);
+            TableParams.Builder params = TableParams.builder();
+            if (memtableKeyGen != null)
+                params.memtable(MemtableParams.get(memtableKeyGen.generate(rnd)));
+            TableMetadata.Builder builder = TableMetadata.builder(ks, tableName, TableId.fromUUID(Generators.UUID_RANDOM_GEN.generate(rnd)))
+                                                         .partitioner(PARTITIONER_GEN.generate(rnd))
+                                                         .kind(tableKindGen.generate(rnd))
+                                                         .isCounter(BOOLEAN_GEN.generate(rnd))
+                                                         .params(params.build());
+
+            int numPartitionColumns = numPartitionColumnsGen.generate(rnd);
+            int numClusteringColumns = numClusteringColumnsGen.generate(rnd);
+            int numRegularColumns = numRegularColumnsGen.generate(rnd);
+            int numStaticColumns = numStaticColumnsGen.generate(rnd);
+
+            Set<String> createdColumnNames = new HashSet<>();
+            for (int i = 0; i < numPartitionColumns; i++)
+                builder.addColumn(createColumnDefinition(ks, tableName, ColumnMetadata.Kind.PARTITION_KEY, createdColumnNames, partitionColTypeGen == null ? defaultTypeGen : partitionColTypeGen, rnd));
+            for (int i = 0; i < numClusteringColumns; i++)
+                builder.addColumn(createColumnDefinition(ks, tableName, ColumnMetadata.Kind.CLUSTERING, createdColumnNames, clusteringColTypeGen == null ? defaultTypeGen : clusteringColTypeGen, rnd));
+            for (int i = 0; i < numStaticColumns; i++)
+                builder.addColumn(createColumnDefinition(ks, tableName, ColumnMetadata.Kind.STATIC, createdColumnNames, staticColTypeGen == null ? defaultTypeGen : staticColTypeGen, rnd));
+            for (int i = 0; i < numRegularColumns; i++)
+                builder.addColumn(createColumnDefinition(ks, tableName, ColumnMetadata.Kind.REGULAR, createdColumnNames, regularColTypeGen == null ? defaultTypeGen : regularColTypeGen, rnd));
+
+            return builder.build();
+        }
     }
 
     private static ColumnMetadata createColumnDefinition(String ks, String table,
                                                          ColumnMetadata.Kind kind,
                                                          Set<String> createdColumnNames, /* This is mutated to check for collisions, so has a side effect outside of normal random generation */
+                                                         Gen<AbstractType<?>> typeGen,
                                                          RandomnessSource rnd)
     {
-        Gen<AbstractType<?>> typeGen = AbstractTypeGenerators.typeGen();
         switch (kind)
         {
             // partition and clustering keys require frozen types, so make sure all types generated will be frozen
@@ -202,7 +372,7 @@ public final class CassandraGenerators
         }
         ColumnIdentifier name = new ColumnIdentifier(str, true);
         int position = !kind.isPrimaryKeyKind() ? -1 : (int) rnd.next(Constraint.between(0, 30));
-        return new ColumnMetadata(ks, table, name, typeGen.generate(rnd), position, kind);
+        return new ColumnMetadata(ks, table, name, typeGen.generate(rnd), position, kind, null);
     }
 
     public static Gen<ByteBuffer> partitionKeyDataGen(TableMetadata metadata)
@@ -210,7 +380,7 @@ public final class CassandraGenerators
         ImmutableList<ColumnMetadata> columns = metadata.partitionKeyColumns();
         assert !columns.isEmpty() : "Unable to find partition key columns";
         if (columns.size() == 1)
-            return getTypeSupport(columns.get(0).type).bytesGen();
+            return getTypeSupport(columns.get(0).type).withoutEmptyData().bytesGen();
         List<Gen<ByteBuffer>> columnGens = new ArrayList<>(columns.size());
         for (ColumnMetadata cm : columns)
             columnGens.add(getTypeSupport(cm.type).bytesGen());
@@ -219,6 +389,31 @@ public final class CassandraGenerators
             for (int i = 0; i < columnGens.size(); i++)
                 buffers[i] = columnGens.get(i).generate(rnd);
             return CompositeType.build(ByteBufferAccessor.instance, buffers);
+        };
+    }
+
+    public static Gen<ByteBuffer[]> data(TableMetadata metadata, @Nullable Gen<ValueDomain> valueDomainGen)
+    {
+        AbstractTypeGenerators.TypeSupport<?>[] types = new AbstractTypeGenerators.TypeSupport[metadata.columns().size()];
+        Iterator<ColumnMetadata> it = metadata.allColumnsInSelectOrder();
+        int partitionColumns = metadata.partitionKeyColumns().size();
+        int clusteringColumns = metadata.clusteringColumns().size();
+        int primaryKeyColumns = partitionColumns + clusteringColumns;
+        for (int i = 0; it.hasNext(); i++)
+        {
+            ColumnMetadata col = it.next();
+            types[i] = AbstractTypeGenerators.getTypeSupportWithNulls(col.type, i < partitionColumns ? null : valueDomainGen);
+            if (i < partitionColumns)
+                types[i] = types[i].withoutEmptyData();
+            if (i >= partitionColumns && i < primaryKeyColumns)
+                // clustering doesn't allow null...
+                types[i] = types[i].mapBytes(b -> b == null ? ByteBufferUtil.EMPTY_BYTE_BUFFER : b);
+        }
+        return rnd -> {
+            ByteBuffer[] row = new ByteBuffer[types.length];
+            for (int i = 0; i < row.length; i++)
+                row[i] = types[i].bytesGen().generate(rnd);
+            return row;
         };
     }
 
@@ -315,5 +510,186 @@ public final class CassandraGenerators
                 super.setContentEnd(contentEnd.replace("]", "}"));
             }
         }, true);
+    }
+
+    public static Gen<Token> murmurToken()
+    {
+        Constraint token = Constraint.between(Long.MIN_VALUE, Long.MAX_VALUE);
+        return rs -> new Murmur3Partitioner.LongToken(rs.next(token));
+    }
+
+    public static Gen<Token> byteOrderToken()
+    {
+        Constraint size = Constraint.between(0, 10);
+        Constraint byteRange = Constraint.between(Byte.MIN_VALUE, Byte.MAX_VALUE);
+        return rs -> {
+            byte[] token = new byte[Math.toIntExact(rs.next(size))];
+            for (int i = 0; i < token.length; i++)
+                token[i] = (byte) rs.next(byteRange);
+            return new ByteOrderedPartitioner.BytesToken(token);
+        };
+    }
+
+    public static Gen<Token> randomPartitionerToken()
+    {
+        Constraint domain = Constraint.none();
+        return rs -> new RandomPartitioner.BigIntegerToken(BigInteger.valueOf(rs.next(domain)));
+    }
+
+    public static Gen<Token> localPartitionerToken(LocalPartitioner partitioner)
+    {
+        Gen<ByteBuffer> bytes = AbstractTypeGenerators.getTypeSupport(partitioner.getTokenValidator()).bytesGen();
+        return rs -> partitioner.getToken(bytes.generate(rs));
+    }
+
+    public static Gen<Token> orderPreservingToken()
+    {
+        Gen<String> string = Generators.utf8(0, 10);
+        return rs -> new OrderPreservingPartitioner.StringToken(string.generate(rs));
+    }
+
+    public static Gen<Token> token(IPartitioner partitioner)
+    {
+        if (partitioner instanceof Murmur3Partitioner) return murmurToken();
+        if (partitioner instanceof ByteOrderedPartitioner) return byteOrderToken();
+        if (partitioner instanceof RandomPartitioner) return randomPartitionerToken();
+        if (partitioner instanceof LocalPartitioner) return localPartitionerToken((LocalPartitioner) partitioner);
+        if (partitioner instanceof OrderPreservingPartitioner) return orderPreservingToken();
+        throw new UnsupportedOperationException("Unsupported partitioner: " + partitioner.getClass());
+    }
+
+    public static Gen<? extends Collection<Token>> tokens(IPartitioner partitioner)
+    {
+        Gen<Token> tokenGen = token(partitioner);
+        return SourceDSL.lists().of(tokenGen).ofSizeBetween(1, 16);
+    }
+
+    public static Gen<HeartBeatState> heartBeatStates()
+    {
+        Constraint generationDomain = Constraint.between(0, Integer.MAX_VALUE);
+        Constraint versionDomain = Constraint.between(-1, Integer.MAX_VALUE);
+        return rs -> new HeartBeatState(Math.toIntExact(rs.next(generationDomain)), Math.toIntExact(rs.next(versionDomain)));
+    }
+
+    private static Gen<Map<ApplicationState, VersionedValue>> gossipApplicationStates()
+    {
+        //TODO support all application states...
+        // atm only used by a single test, which only looks at status
+        Gen<Boolean> statusWithPort = SourceDSL.booleans().all();
+        Gen<VersionedValue> statusGen = gossipStatusValue();
+
+        return rs -> {
+            ApplicationState statusState = statusWithPort.generate(rs) ? ApplicationState.STATUS_WITH_PORT : ApplicationState.STATUS;
+            VersionedValue vv = statusGen.generate(rs);
+            if (vv == null) return ImmutableMap.of();
+            return ImmutableMap.of(statusState, vv);
+        };
+    }
+
+    private static Gen<String> gossipStatus()
+    {
+        return SourceDSL.arbitrary()
+                        .pick(VersionedValue.STATUS_NORMAL,
+                              VersionedValue.STATUS_BOOTSTRAPPING_REPLACE,
+                              VersionedValue.STATUS_BOOTSTRAPPING,
+                              VersionedValue.STATUS_MOVING,
+                              VersionedValue.STATUS_LEAVING,
+                              VersionedValue.STATUS_LEFT,
+
+                              //TODO would be good to prefix with STATUS_ like others
+                              VersionedValue.REMOVING_TOKEN,
+                              VersionedValue.REMOVED_TOKEN,
+                              VersionedValue.HIBERNATE + VersionedValue.DELIMITER + true,
+                              VersionedValue.HIBERNATE + VersionedValue.DELIMITER + false,
+                              VersionedValue.SHUTDOWN + VersionedValue.DELIMITER + true,
+                              VersionedValue.SHUTDOWN + VersionedValue.DELIMITER + false,
+                              ""
+                        );
+    }
+
+    private static Gen<VersionedValue> gossipStatusValue()
+    {
+        IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
+        Gen<String> statusGen = gossipStatus();
+        Gen<Token> tokenGen = token(partitioner);
+        Gen<? extends Collection<Token>> tokensGen = tokens(partitioner);
+        Gen<InetAddress> addressGen = Generators.INET_ADDRESS_GEN;
+        Gen<InetAddressAndPort> addressAndGenGen = INET_ADDRESS_AND_PORT_GEN;
+        Gen<Boolean> bool = SourceDSL.booleans().all();
+        Constraint millis = Constraint.between(0, Long.MAX_VALUE);
+        Constraint version = Constraint.between(0, Integer.MAX_VALUE);
+        Gen<UUID> hostId = Generators.UUID_RANDOM_GEN;
+        VersionedValue.VersionedValueFactory factory = new VersionedValue.VersionedValueFactory(partitioner);
+        return rs -> {
+            String status = statusGen.generate(rs);
+            switch (status)
+            {
+                case "":
+                    return null;
+                case VersionedValue.STATUS_NORMAL:
+                    return factory.normal(tokensGen.generate(rs)).withVersion(Math.toIntExact(rs.next(version)));
+                case VersionedValue.STATUS_BOOTSTRAPPING:
+                    return factory.bootstrapping(tokensGen.generate(rs)).withVersion(Math.toIntExact(rs.next(version)));
+                case VersionedValue.STATUS_BOOTSTRAPPING_REPLACE:
+                    if (bool.generate(rs)) return factory.bootReplacingWithPort(addressAndGenGen.generate(rs)).withVersion(Math.toIntExact(rs.next(version)));
+                    else return factory.bootReplacing(addressGen.generate(rs)).withVersion(Math.toIntExact(rs.next(version)));
+                case VersionedValue.STATUS_MOVING:
+                    return factory.moving(tokenGen.generate(rs)).withVersion(Math.toIntExact(rs.next(version)));
+                case VersionedValue.STATUS_LEAVING:
+                    return factory.leaving(tokensGen.generate(rs)).withVersion(Math.toIntExact(rs.next(version)));
+                case VersionedValue.STATUS_LEFT:
+                    return factory.left(tokensGen.generate(rs), rs.next(millis)).withVersion(Math.toIntExact(rs.next(version)));
+                case VersionedValue.REMOVING_TOKEN:
+                    return factory.removingNonlocal(hostId.generate(rs)).withVersion(Math.toIntExact(rs.next(version)));
+                case VersionedValue.REMOVED_TOKEN:
+                    return factory.removedNonlocal(hostId.generate(rs), rs.next(millis)).withVersion(Math.toIntExact(rs.next(version)));
+                case VersionedValue.HIBERNATE + VersionedValue.DELIMITER + true:
+                    return factory.hibernate(true).withVersion(Math.toIntExact(rs.next(version)));
+                case VersionedValue.HIBERNATE + VersionedValue.DELIMITER + false:
+                    return factory.hibernate(false).withVersion(Math.toIntExact(rs.next(version)));
+                case VersionedValue.SHUTDOWN + VersionedValue.DELIMITER + true:
+                    return factory.shutdown(true).withVersion(Math.toIntExact(rs.next(version)));
+                case VersionedValue.SHUTDOWN + VersionedValue.DELIMITER + false:
+                    return factory.shutdown(false).withVersion(Math.toIntExact(rs.next(version)));
+                default:
+                    throw new AssertionError("Unexpected status: " + status);
+            }
+        };
+    }
+
+    public static Gen<EndpointState> endpointStates()
+    {
+        Gen<HeartBeatState> hbGen = heartBeatStates();
+        Gen<Map<ApplicationState, VersionedValue>> appStates = gossipApplicationStates();
+        Gen<Boolean> alive = SourceDSL.booleans().all();
+        Constraint updateTimestamp = Constraint.between(0, Long.MAX_VALUE);
+        return rs -> {
+            EndpointState state = new EndpointState(hbGen.generate(rs));
+            Map<ApplicationState, VersionedValue> map = appStates.generate(rs);
+            if (!map.isEmpty()) state.addApplicationStates(map);
+            if (alive.generate(rs)) state.markAlive();
+            else state.markDead();
+            state.unsafeSetUpdateTimestamp(rs.next(updateTimestamp));
+            return state;
+        };
+    }
+
+    public static Gen<Duration> duration()
+    {
+        Constraint ints = Constraint.between(0, Integer.MAX_VALUE);
+        Constraint longs = Constraint.between(0, Long.MAX_VALUE);
+        Gen<Boolean> neg = SourceDSL.booleans().all();
+        return rnd -> {
+            int months = (int) rnd.next(ints);
+            int days = (int) rnd.next(ints);
+            long nanoseconds = rnd.next(longs);
+            if (neg.generate(rnd))
+            {
+                months = -1 * months;
+                days = -1 * days;
+                nanoseconds = -1 * nanoseconds;
+            }
+            return Duration.newInstance(months, days, nanoseconds);
+        };
     }
 }

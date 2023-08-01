@@ -28,6 +28,10 @@ import org.apache.cassandra.serializers.SimpleDateSerializer;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable.Version;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
+import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
@@ -35,7 +39,29 @@ public class SimpleDateType extends TemporalType<Integer>
 {
     public static final SimpleDateType instance = new SimpleDateType();
 
+    private static final ByteBuffer MASKED_VALUE = instance.decompose(SimpleDateSerializer.timeInMillisToDay(0));
+
     SimpleDateType() {super(ComparisonType.BYTE_ORDER);} // singleton
+
+    @Override
+    public boolean allowsEmpty()
+    {
+        return false;
+    }
+
+    @Override
+    public <V> ByteSource asComparableBytes(ValueAccessor<V> accessor, V data, Version version)
+    {
+        // While BYTE_ORDER would still work for this type, making use of the fixed length is more efficient.
+        // This type does not allow non-present values, but we do just to avoid future complexity.
+        return ByteSource.optionalFixedLength(accessor, data);
+    }
+
+    @Override
+    public <V> V fromComparableBytes(ValueAccessor<V> accessor, ByteSource.Peekable comparableBytes, ByteComparable.Version version)
+    {
+        return ByteSourceInverse.getOptionalFixedLength(accessor, comparableBytes, 4);
+    }
 
     public ByteBuffer fromString(String source) throws MarshalException
     {
@@ -97,5 +123,11 @@ public class SimpleDateType extends TemporalType<Integer>
         // Checks that the duration has no data below days.
         if (!duration.hasDayPrecision())
             throw invalidRequest("The duration must have a day precision. Was: %s", duration);
+    }
+
+    @Override
+    public ByteBuffer getMaskedValue()
+    {
+        return MASKED_VALUE;
     }
 }

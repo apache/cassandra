@@ -23,7 +23,7 @@ import java.nio.ByteBuffer;
 import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.cassandra.utils.memory.AbstractAllocator;
+import org.apache.cassandra.utils.memory.ByteBufferCloner;
 
 public class ArrayClusteringBound extends ArrayClusteringBoundOrBoundary implements ClusteringBound<byte[]>
 {
@@ -45,9 +45,10 @@ public class ArrayClusteringBound extends ArrayClusteringBoundOrBoundary impleme
         return create(kind().invert(), values);
     }
 
-    public ClusteringBound<ByteBuffer> copy(AbstractAllocator allocator)
+    @Override
+    public ClusteringBound<ByteBuffer> clone(ByteBufferCloner cloner)
     {
-        return (ClusteringBound<ByteBuffer>) super.copy(allocator);
+        return (ClusteringBound<ByteBuffer>) super.clone(cloner);
     }
 
     public static ArrayClusteringBound create(ClusteringPrefix.Kind kind, byte[][] values)

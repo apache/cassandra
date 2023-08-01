@@ -1,0 +1,63 @@
+Cassandra Trigger Example
+==========================
+
+The `AuditTrigger` class will create a basic audit of
+activity on a table.
+
+Installation
+-------------
+
+----
+$ cd <cassandra_src_dir>/examples/triggers
+$ ant install
+----
+
+It will build the trigger and copy it to `conf/triggers`. `AuditTrigger.properties`
+in `conf` directory of this example will be automatically bundled into built jar file.
+It is not needed to copy it to `conf/triggers` directory.
+
+Usage
+-----
+
+Create the keyspace and table configured in `AuditTrigger.properties`:
+
+----
+cqlsh> CREATE KEYSPACE test WITH REPLICATION =
+    { 'class' : 'SimpleStrategy', 'replication_factor' : '1' };
+cqlsh> CREATE TABLE test.audit (key timeuuid, keyspace_name text,
+    table_name text, primary_key text, PRIMARY KEY(key));
+----
+
+Create a table to add the trigger to:
+
+Note: The example currently only handles non-composite partition keys
+----
+cqlsh> CREATE TABLE test.test (key text, value text, PRIMARY KEY(key));
+----
+
+Configure the trigger on the table:
+
+----
+cqlsh> CREATE TRIGGER test1 ON test.test USING 'org.apache.cassandra.triggers.AuditTrigger';
+----
+
+Start inserting data to the table that has the trigger. For each
+partition added to the table an entry should appear in the 'audit' table:
+
+----
+cqlsh> INSERT INTO test.test (key, value) VALUES ('1', '1');
+----
+
+An entry will be automatically added to `test.audit` table:
+
+----
+cqlsh> SELECT * FROM test.audit ;
+
+@ Row 1
+---------------+--------------------------------------
+ key           | 885141d0-ad7c-11ed-b917-9958320828b8
+ keyspace_name | test
+ primary_key   | 1
+ table_name    | test
+----
+

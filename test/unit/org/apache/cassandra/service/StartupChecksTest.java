@@ -36,20 +36,17 @@ import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.service.DataResurrectionCheck.Heartbeat;
 import org.apache.cassandra.utils.Clock;
 
-import static java.time.Instant.ofEpochMilli;
 import static java.util.Collections.singletonList;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_INVALID_LEGACY_SSTABLE_ROOT;
 import static org.apache.cassandra.io.util.FileUtils.createTempFile;
-import static org.apache.cassandra.io.util.FileUtils.write;
 import static org.apache.cassandra.service.DataResurrectionCheck.HEARTBEAT_FILE_CONFIG_PROPERTY;
 import static org.apache.cassandra.service.StartupChecks.StartupCheckType.check_data_resurrection;
-import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class StartupChecksTest
 {
-    public static final String INVALID_LEGACY_SSTABLE_ROOT_PROP = "invalid-legacy-sstable-root";
     StartupChecks startupChecks;
     Path sstableDir;
     static File heartbeatFile;
@@ -115,6 +112,14 @@ public class StartupChecksTest
         Files.createDirectories(backupDir);
         copyInvalidLegacySSTables(backupDir);
         startupChecks.verify(options);
+
+        // and in the system directory as of CASSANDRA-17777
+        new File(backupDir).deleteRecursive();
+        File dataDir = new File(DatabaseDescriptor.getAllDataFileLocations()[0]);
+        Path systemDir = Paths.get(dataDir.absolutePath(), "system", "InvalidSystemDirectory");
+        Files.createDirectories(systemDir);
+        copyInvalidLegacySSTables(systemDir);
+        startupChecks.verify(options);
     }
 
     @Test
@@ -163,9 +168,9 @@ public class StartupChecksTest
     private void copyLegacyNonSSTableFiles(Path targetDir) throws IOException
     {
 
-        Path legacySSTableRoot = Paths.get(System.getProperty(INVALID_LEGACY_SSTABLE_ROOT_PROP),
-                                          "Keyspace1",
-                                          "Standard1");
+        Path legacySSTableRoot = Paths.get(TEST_INVALID_LEGACY_SSTABLE_ROOT.getString(),
+                                           "Keyspace1",
+                                           "Standard1");
         for (String filename : new String[]{"Keyspace1-Standard1-ic-0-TOC.txt",
                                             "Keyspace1-Standard1-ic-0-Digest.sha1",
                                             "legacyleveled.json"})
@@ -201,9 +206,9 @@ public class StartupChecksTest
 
     private void copyInvalidLegacySSTables(Path targetDir) throws IOException
     {
-        File legacySSTableRoot = new File(Paths.get(System.getProperty(INVALID_LEGACY_SSTABLE_ROOT_PROP),
-                                           "Keyspace1",
-                                           "Standard1"));
+        File legacySSTableRoot = new File(Paths.get(TEST_INVALID_LEGACY_SSTABLE_ROOT.getString(),
+                                                    "Keyspace1",
+                                                    "Standard1"));
         for (File f : legacySSTableRoot.tryList())
             Files.copy(f.toPath(), targetDir.resolve(f.name()));
 

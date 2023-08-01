@@ -21,11 +21,13 @@ package org.apache.cassandra.db.memtable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -44,6 +46,7 @@ import org.apache.cassandra.utils.memory.MemtableCleaner;
 import org.apache.cassandra.utils.memory.MemtablePool;
 import org.apache.cassandra.utils.memory.NativePool;
 import org.apache.cassandra.utils.memory.SlabPool;
+import org.github.jamm.Unmetered;
 
 /**
  * A memtable that uses memory tracked and maybe allocated via a MemtableAllocator from a MemtablePool.
@@ -55,23 +58,39 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
 
     public static final MemtablePool MEMORY_POOL = AbstractAllocatorMemtable.createMemtableAllocatorPool();
 
+    @Unmetered
     protected final Owner owner;
+    @Unmetered  // total pool size should not be included in memtable's deep size
     protected final MemtableAllocator allocator;
 
     // Record the comparator of the CFS at the creation of the memtable. This
     // is only used when a user update the CF comparator, to know if the
     // memtable was created with the new or old comparator.
+    @Unmetered
     protected final ClusteringComparator initialComparator;
+    // As above, used to determine if the memtable needs to be flushed on schema change.
+    @Unmetered
+    public final Factory initialFactory;
 
     private final long creationNano = Clock.Global.nanoTime();
 
-    private static MemtablePool createMemtableAllocatorPool()
+    @VisibleForTesting
+    static MemtablePool createMemtableAllocatorPool()
     {
+        Config.MemtableAllocationType allocationType = DatabaseDescriptor.getMemtableAllocationType();
         long heapLimit = DatabaseDescriptor.getMemtableHeapSpaceInMiB() << 20;
         long offHeapLimit = DatabaseDescriptor.getMemtableOffheapSpaceInMiB() << 20;
         float memtableCleanupThreshold = DatabaseDescriptor.getMemtableCleanupThreshold();
         MemtableCleaner cleaner = AbstractAllocatorMemtable::flushLargestMemtable;
-        switch (DatabaseDescriptor.getMemtableAllocationType())
+        return createMemtableAllocatorPoolInternal(allocationType, heapLimit, offHeapLimit, memtableCleanupThreshold, cleaner);
+    }
+
+    @VisibleForTesting
+    public static MemtablePool createMemtableAllocatorPoolInternal(Config.MemtableAllocationType allocationType,
+                                                                   long heapLimit, long offHeapLimit,
+                                                                   float memtableCleanupThreshold, MemtableCleaner cleaner)
+    {
+        switch (allocationType)
         {
         case unslabbed_heap_buffers_logged:
             return new HeapPool.Logged(heapLimit, memtableCleanupThreshold, cleaner);
@@ -98,6 +117,7 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
         super(metadataRef, commitLogLowerBound);
         this.allocator = MEMORY_POOL.newAllocator(metadataRef.toString());
         this.initialComparator = metadata.get().comparator;
+        this.initialFactory = metadata().params.memtable.factory();
         this.owner = owner;
         scheduleFlush();
     }
@@ -114,7 +134,7 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
         {
         case SCHEMA_CHANGE:
             return initialComparator != metadata().comparator // If the CF comparator has changed, because our partitions reference the old one
-                   || metadata().params.memtable.factory() != factory(); // If a different type of memtable is requested
+                   || !initialFactory.equals(metadata().params.memtable.factory()); // If a different type of memtable is requested
         case OWNED_RANGES_CHANGE:
             return false; // by default we don't use the local ranges, thus this has no effect
         default:
@@ -138,8 +158,6 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
     {
         throw new AssertionError("performSnapshot must be implemented if shouldSwitch(SNAPSHOT) can return false.");
     }
-
-    protected abstract Factory factory();
 
     public void switchOut(OpOrder.Barrier writeBarrier, AtomicReference<CommitLogPosition> commitLogUpperBound)
     {
@@ -202,7 +220,7 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
                     ((AbstractAllocatorMemtable) current).flushIfPeriodExpired();
             }
         };
-        ScheduledExecutors.scheduledTasks.schedule(runnable, period, TimeUnit.MILLISECONDS);
+        ScheduledExecutors.scheduledTasks.scheduleSelfRecurring(runnable, period, TimeUnit.MILLISECONDS);
     }
 
     private void flushIfPeriodExpired()

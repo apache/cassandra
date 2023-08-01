@@ -34,9 +34,13 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.assertj.core.api.Assertions;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_UNLIMITED_CONCURRENT_VALIDATIONS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_LOADER;
+import static org.apache.cassandra.config.CassandraRelevantProperties.PARTITIONER;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.KIBIBYTES;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -63,7 +67,7 @@ public class DatabaseDescriptorTest
 
         // Now try custom loader
         ConfigurationLoader testLoader = new TestLoader();
-        System.setProperty("cassandra.config.loader", testLoader.getClass().getName());
+        CONFIG_LOADER.setString(testLoader.getClass().getName());
 
         config = DatabaseDescriptor.loadConfig();
         assertEquals("ConfigurationLoader Test", config.cluster_name);
@@ -233,11 +237,8 @@ public class DatabaseDescriptorTest
     @Test
     public void testInvalidPartitionPropertyOverride() throws Exception
     {
-        String key = Config.PROPERTY_PREFIX + "partitioner";
-        String previous = System.getProperty(key);
-        try
+        try (WithProperties properties = new WithProperties().set(PARTITIONER, "ThisDoesNotExist"))
         {
-            System.setProperty(key, "ThisDoesNotExist");
             Config testConfig = DatabaseDescriptor.loadConfig();
             testConfig.partitioner = "Murmur3Partitioner";
 
@@ -254,17 +255,6 @@ public class DatabaseDescriptorTest
                 // this is a bit implementation specific, so free to change; mostly here to make sure reason isn't lost
                 Assert.assertEquals(ClassNotFoundException.class, cause.getClass());
                 Assert.assertEquals("org.apache.cassandra.dht.ThisDoesNotExist", cause.getMessage());
-            }
-        }
-        finally
-        {
-            if (previous == null)
-            {
-                System.getProperties().remove(key);
-            }
-            else
-            {
-                System.setProperty(key, previous);
             }
         }
     }
@@ -298,19 +288,22 @@ public class DatabaseDescriptorTest
 
         try
         {
-            DatabaseDescriptor.setColumnIndexSize(-1);
-            fail("Should have received a IllegalArgumentException column_index_size = -1");
+            DatabaseDescriptor.setColumnIndexSizeInKiB(-5);
+            fail("Should have received a IllegalArgumentException column_index_size = -5");
         }
         catch (IllegalArgumentException ignored) { }
-        Assert.assertEquals(4096, DatabaseDescriptor.getColumnIndexSize());
+        Assert.assertEquals(4096, DatabaseDescriptor.getColumnIndexSize(0));
 
         try
         {
-            DatabaseDescriptor.setColumnIndexSize(2 * 1024 * 1024);
+            DatabaseDescriptor.setColumnIndexSizeInKiB(2 * 1024 * 1024);
             fail("Should have received a ConfigurationException column_index_size = 2GiB");
         }
         catch (ConfigurationException ignored) { }
-        Assert.assertEquals(4096, DatabaseDescriptor.getColumnIndexSize());
+        Assert.assertEquals(4096, DatabaseDescriptor.getColumnIndexSize(0));
+
+        DatabaseDescriptor.setColumnIndexSizeInKiB(-1);  // set undefined
+        Assert.assertEquals(8192, DatabaseDescriptor.getColumnIndexSize(8192));
 
         try
         {
@@ -326,7 +319,25 @@ public class DatabaseDescriptorTest
             fail("Should have received a ConfigurationException batch_size_warn_threshold = 2GiB");
         }
         catch (ConfigurationException ignored) { }
-        Assert.assertEquals(4096, DatabaseDescriptor.getColumnIndexSize());
+        Assert.assertEquals(5120, DatabaseDescriptor.getBatchSizeWarnThreshold());
+    }
+
+    @Test
+    public void testWidenToLongInBytes() throws ConfigurationException
+    {
+        Config conf = DatabaseDescriptor.getRawConfig();
+        int maxInt = Integer.MAX_VALUE - 1;
+        long maxIntMebibytesAsBytes = (long) maxInt * 1024 * 1024;
+        long maxIntKibibytesAsBytes = (long) maxInt * 1024;
+
+        conf.min_free_space_per_drive = new DataStorageSpec.IntMebibytesBound(maxInt);
+        Assert.assertEquals(maxIntMebibytesAsBytes, DatabaseDescriptor.getMinFreeSpacePerDriveInBytes());
+
+        conf.max_hints_file_size = new DataStorageSpec.IntMebibytesBound(maxInt);
+        Assert.assertEquals(maxIntMebibytesAsBytes, DatabaseDescriptor.getMaxHintsFileSize());
+
+        DatabaseDescriptor.setBatchSizeFailThresholdInKiB(maxInt);
+        Assert.assertEquals((maxIntKibibytesAsBytes), DatabaseDescriptor.getBatchSizeFailThreshold());
     }
 
     @Test
@@ -394,7 +405,7 @@ public class DatabaseDescriptorTest
             try
             {
                 DatabaseDescriptor.setRepairSessionSpaceInMiB(0);
-                fail("Should have received a ConfigurationException for depth of 9");
+                fail("Should have received a ConfigurationException for depth of 0");
             }
             catch (ConfigurationException ignored) { }
 
@@ -483,7 +494,7 @@ public class DatabaseDescriptorTest
         catch (ConfigurationException e)
         {
             assertThat(e.getMessage()).isEqualTo("To set concurrent_validations > concurrent_compactors, " +
-                                                 "set the system property cassandra.allow_unlimited_concurrent_validations=true");
+                                                 "set the system property -D" + ALLOW_UNLIMITED_CONCURRENT_VALIDATIONS.getKey() + "=true");
         }
 
         // unless we disable that check (done with a system property at startup or via JMX)
@@ -562,6 +573,44 @@ public class DatabaseDescriptorTest
         catch (ConfigurationException ex)
         {
             Assert.assertEquals("initial_token was set but num_tokens is not!", ex.getMessage());
+        }
+    }
+
+    @Test
+    public void testUpperBoundStreamingConfigOnStartup()
+    {
+        Config config = DatabaseDescriptor.loadConfig();
+
+        String expectedMsg = "Invalid value of entire_sstable_stream_throughput_outbound:";
+        config.entire_sstable_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(Integer.MAX_VALUE, DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND);
+        validateProperty(expectedMsg);
+
+        expectedMsg = "Invalid value of entire_sstable_stream_throughput_outbound:";
+        config.entire_sstable_inter_dc_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(Integer.MAX_VALUE, DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND);
+        validateProperty(expectedMsg);
+
+        expectedMsg = "Invalid value of stream_throughput_outbound:";
+        config.stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(Integer.MAX_VALUE * 125_000L);
+        validateProperty(expectedMsg);
+
+        expectedMsg = "Invalid value of inter_dc_stream_throughput_outbound:";
+        config.inter_dc_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(Integer.MAX_VALUE * 125_000L);
+        validateProperty(expectedMsg);
+
+        expectedMsg = "compaction_throughput:";
+        config.compaction_throughput = new DataRateSpec.LongBytesPerSecondBound(Integer.MAX_VALUE, DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND);
+        validateProperty(expectedMsg);
+    }
+
+    private static void validateProperty(String expectedMsg)
+    {
+        try
+        {
+            DatabaseDescriptor.validateUpperBoundStreamingConfig();
+        }
+        catch (ConfigurationException ex)
+        {
+            Assert.assertEquals(expectedMsg, ex.getMessage());
         }
     }
 

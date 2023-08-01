@@ -139,17 +139,25 @@ public abstract class Splitter
 
         List<Token> boundaries = new ArrayList<>();
         BigInteger sum = BigInteger.ZERO;
+        BigInteger tokensLeft = totalTokens;
         for (WeightedRange weightedRange : weightedRanges)
         {
             BigInteger currentRangeWidth = weightedRange.totalTokens(this);
             BigInteger left = valueForToken(weightedRange.left());
+            BigInteger currentRangeFactor = BigInteger.valueOf(Math.max(1, (long) (1 / weightedRange.weight)));
             while (sum.add(currentRangeWidth).compareTo(perPart) >= 0)
             {
                 BigInteger withinRangeBoundary = perPart.subtract(sum);
-                left = left.add(withinRangeBoundary);
+                left = left.add(withinRangeBoundary.multiply(currentRangeFactor));
                 boundaries.add(tokenForValue(left));
+                tokensLeft = tokensLeft.subtract(perPart);
                 currentRangeWidth = currentRangeWidth.subtract(withinRangeBoundary);
                 sum = BigInteger.ZERO;
+                int partsLeft = parts - boundaries.size();
+                if (partsLeft == 0)
+                    break;
+                else if (partsLeft == 1)
+                    perPart = tokensLeft;
             }
             sum = sum.add(currentRangeWidth);
         }
@@ -275,6 +283,14 @@ public abstract class Splitter
             return size.abs().divide(factor);
         }
 
+        /**
+         * A less precise version of the above, returning the size of the span as a double approximation.
+         */
+        public double size()
+        {
+            return left().size(right()) * weight;
+        }
+
         public Token left()
         {
             return range.left;
@@ -288,6 +304,11 @@ public abstract class Splitter
         public Range<Token> range()
         {
             return range;
+        }
+
+        public double weight()
+        {
+            return weight;
         }
 
         public String toString()

@@ -15,7 +15,7 @@
   See the License for the specific language governing permissions and
   limitations under the License.
 -->
-<project basedir="." name="apache-cassandra--rat-tasks"
+<project basedir="." name="apache-cassandra-rat-tasks"
      xmlns:rat="antlib:org.apache.rat.anttasks">
 
     <!--
@@ -27,7 +27,7 @@
     </target>
 
     <target name="_build_ratinclude" depends="_rat_init">
-        <exec executable="git" failifexecutionfails="false" failonerror="false" resultproperty="git.success" output="build/.versioned_files">
+        <exec executable="git" failifexecutionfails="false" failonerror="false" resultproperty="git.success" output="${build.dir}/.versioned_files">
             <arg line="ls-tree -r HEAD --name-only"/>
         </exec>
         <condition property="rat.skip" value="true">
@@ -35,7 +35,10 @@
                 <equals arg1="${git.success}" arg2="0"/>
             </not>
         </condition>
-        <copy file="build/.versioned_files" tofile="build/.ratinclude">
+    </target>
+
+    <target name="_rat_copy_versioned_files" depends="_build_ratinclude" unless="rat.skip">
+        <copy file="${build.dir}/.versioned_files" tofile="${build.dir}/.ratinclude">
             <filterchain>
                 <linecontainsregexp>
                     <regexp pattern=".*\.(java|py|sh|xml|spec|md|iml|bat|btm|cql|css|g|html|jflex|jks|mod|name|pom|textile|yml|yaml|MIDRES|HIGHRES|LOWRES)$"/>
@@ -44,20 +47,23 @@
         </copy>
     </target>
 
-    <target name="rat-check" depends="_build_ratinclude" unless="${rat.skip}" description="License checks on source" >
+    <target name="rat-check" depends="_rat_copy_versioned_files" unless="rat.skip" description="License checks on source" >
         <rat:report reportFile="${build.dir}/rat.txt">
-            <fileset dir="." includesfile="build/.ratinclude">
+            <fileset dir="." includesfile="${build.dir}/.ratinclude">
                  <!-- Config files with not much creativity -->
                  <exclude name="**/.asf.yaml"/>
+                 <exclude name="**/.github/pull_request_template.md"/>
                  <exclude name="**/ide/**/*"/>
                  <exclude name="**/metrics-reporter-config-sample.yaml"/>
                  <exclude name="**/cassandra.yaml"/>
                  <exclude name="**/cassandra-murmur.yaml"/>
                  <exclude name="**/cassandra-seeds.yaml"/>
                  <exclude name="**/harry-generic.yaml"/>
-                 <exclude NAME="**/doc/antora.yml"/>
+                 <exclude name="**/doc/antora.yml"/>
                  <exclude name="**/test/conf/cassandra.yaml"/>
                  <exclude name="**/test/conf/cassandra-old.yaml"/>
+                 <exclude name="**/test/conf/cassandra-converters-special-cases-old-names.yaml"/>
+                 <exclude name="**/test/conf/cassandra-converters-special-cases.yaml"/>
                  <exclude name="**/test/conf/cassandra_encryption.yaml"/>
                  <exclude name="**/test/conf/cdc.yaml"/>
                  <exclude name="**/test/conf/commitlog_compression_LZ4.yaml"/>
@@ -78,12 +84,12 @@
                  <exclude name="**/tools/cqlstress-insanity-example.yaml"/>
                  <exclude name="**/tools/cqlstress-lwt-example.yaml"/>
                  <!-- Documentation files -->
-                 <exclude NAME="**/doc/modules/**/*"/>
-                 <exclude NAME="**/src/java/**/*.md"/>
-                 <!-- NOTICE files -->
-                 <exclude NAME="**/NOTICE.md"/>
-                 <!-- LICENSE files -->
-                 <exclude NAME="**/LICENSE.md"/>
+                 <exclude name="**/doc/modules/**/*"/>
+                 <exclude name="**/src/java/**/*.md"/>
+                 <!-- NOTICE, LICENSE, README files -->
+                 <exclude name="**/NOTICE.md"/>
+                 <exclude name="**/LICENSE.md"/>
+                 <exclude name="**/README.md"/>
             </fileset>
         </rat:report>
         <exec executable="grep" outputproperty="rat.failed.files" failifexecutionfails="false">
@@ -99,15 +105,4 @@
             </condition>
         </fail>
     </target>
-
-    <target name="_assert_rat_output">
-        <fail message="The rat report at build/rat.txt was not generated. Please ensure that the rat-check task is able to run successfully. For dev builds only, touch build/rat.txt to skip this check">
-            <condition>
-                <not>
-                    <available file="build/rat.txt" />
-                </not>
-            </condition>
-        </fail>
-    </target>
-
 </project>

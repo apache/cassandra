@@ -33,6 +33,9 @@ import io.netty.handler.ssl.OpenSslContext;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslProvider;
 import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.distributed.shared.WithProperties;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_TCACTIVE_OPENSSL;
 
 public class DefaultSslContextFactoryTest
 {
@@ -120,6 +123,7 @@ public class DefaultSslContextFactoryTest
         Map<String,Object> config = new HashMap<>();
         config.putAll(commonConfig);
         config.put("keystore", "/this/is/probably/not/a/file/on/your/test/machine");
+        config.put("keystore_password", "ThisWontMatter");
 
         DefaultSslContextFactory defaultSslContextFactoryImpl = new DefaultSslContextFactory(config);
         defaultSslContextFactoryImpl.keystoreContext.checkedExpiry = false;
@@ -168,6 +172,7 @@ public class DefaultSslContextFactoryTest
         Map<String, Object> config = new HashMap<>();
         config.putAll(commonConfig);
         config.put("outbound_keystore", "/this/is/probably/not/a/file/on/your/test/machine");
+        config.put("outbound_keystore_password", "ThisWontMatter");
 
         DefaultSslContextFactory defaultSslContextFactoryImpl = new DefaultSslContextFactory(config);
         defaultSslContextFactoryImpl.outboundKeystoreContext.checkedExpiry = false;
@@ -183,7 +188,7 @@ public class DefaultSslContextFactoryTest
         config.put("outbound_keystore_password", "HomeOfBadPasswords");
 
         DefaultSslContextFactory defaultSslContextFactoryImpl = new DefaultSslContextFactory(config);
-        defaultSslContextFactoryImpl.buildKeyManagerFactory();
+        defaultSslContextFactoryImpl.buildOutboundKeyManagerFactory();
     }
 
     @Test
@@ -216,12 +221,13 @@ public class DefaultSslContextFactoryTest
     public void testDisableOpenSslForInJvmDtests() {
         // The configuration name below is hard-coded intentionally to make sure we don't break the contract without
         // changing the documentation appropriately
-        System.setProperty("cassandra.disable_tcactive_openssl","true");
-        Map<String,Object> config = new HashMap<>();
-        config.putAll(commonConfig);
+        try (WithProperties properties = new WithProperties().set(DISABLE_TCACTIVE_OPENSSL, true))
+        {
+            Map<String,Object> config = new HashMap<>();
+            config.putAll(commonConfig);
 
-        DefaultSslContextFactory defaultSslContextFactoryImpl = new DefaultSslContextFactory(config);
-        Assert.assertEquals(SslProvider.JDK, defaultSslContextFactoryImpl.getSslProvider());
-        System.clearProperty("cassandra.disable_tcactive_openssl");
+            DefaultSslContextFactory defaultSslContextFactoryImpl = new DefaultSslContextFactory(config);
+            Assert.assertEquals(SslProvider.JDK, defaultSslContextFactoryImpl.getSslProvider());
+        }
     }
 }

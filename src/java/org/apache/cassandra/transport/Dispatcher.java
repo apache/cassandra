@@ -23,16 +23,18 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
-import org.apache.cassandra.metrics.ClientMetrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.netty.channel.Channel;
 import io.netty.channel.EventLoop;
 import io.netty.util.AttributeKey;
+import org.apache.cassandra.concurrent.DebuggableTask.RunnableDebuggableTask;
 import org.apache.cassandra.concurrent.LocalAwareExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.FrameEncoder;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
@@ -42,19 +44,39 @@ import org.apache.cassandra.transport.Flusher.FlushItem;
 import org.apache.cassandra.transport.messages.ErrorMessage;
 import org.apache.cassandra.transport.messages.EventMessage;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 import static org.apache.cassandra.concurrent.SharedExecutorPool.SHARED;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class Dispatcher
 {
     private static final Logger logger = LoggerFactory.getLogger(Dispatcher.class);
-    
-    private static final LocalAwareExecutorPlus requestExecutor = SHARED.newExecutor(DatabaseDescriptor.getNativeTransportMaxThreads(),
-                                                                                     DatabaseDescriptor::setNativeTransportMaxThreads,
-                                                                                     "transport",
-                                                                                     "Native-Transport-Requests");
+
+    @VisibleForTesting
+    static final LocalAwareExecutorPlus requestExecutor = SHARED.newExecutor(DatabaseDescriptor.getNativeTransportMaxThreads(),
+                                                                             DatabaseDescriptor::setNativeTransportMaxThreads,
+                                                                             "transport",
+                                                                             "Native-Transport-Requests");
+
+    /** CASSANDRA-17812: Rate-limit new client connection setup to avoid overwhelming during bcrypt
+     *
+     * authExecutor is a separate thread pool for handling requests on connections that need to be authenticated.
+     * Calls to AUTHENTICATE can be expensive if the number of rounds for bcrypt is configured to a high value,
+     * so during a connection storm checking the password hash would starve existing connected clients for CPU and
+     * trigger timeouts if on the same thread pool as standard requests.
+     *
+     * Moving authentication requests to a small, separate pool prevents starvation handling all other
+     * requests. If the authExecutor pool backs up, it may cause authentication timeouts but the clients should
+     * back off and retry while the rest of the system continues to make progress.
+     *
+     * Setting less than 1 will service auth requests on the standard {@link Dispatcher#requestExecutor}
+     */
+    @VisibleForTesting
+    static final LocalAwareExecutorPlus authExecutor = SHARED.newExecutor(Math.max(1, DatabaseDescriptor.getNativeTransportMaxAuthThreads()),
+                                                                          DatabaseDescriptor::setNativeTransportMaxAuthThreads,
+                                                                          "transport",
+                                                                          "Native-Transport-Auth-Requests");
 
     private static final ConcurrentMap<EventLoop, Flusher> flusherLookup = new ConcurrentHashMap<>();
     private final boolean useLegacyFlusher;
@@ -79,17 +101,67 @@ public class Dispatcher
 
     public void dispatch(Channel channel, Message.Request request, FlushItemConverter forFlusher, Overload backpressure)
     {
-        requestExecutor.submit(() -> processRequest(channel, request, forFlusher, backpressure));
+        // if native_transport_max_auth_threads is < 1, don't delegate to new pool on auth messages
+        boolean isAuthQuery = DatabaseDescriptor.getNativeTransportMaxAuthThreads() > 0 &&
+                              (request.type == Message.Type.AUTH_RESPONSE || request.type == Message.Type.CREDENTIALS);
+
+        // Importantly, the authExecutor will handle the AUTHENTICATE message which may be CPU intensive.
+        LocalAwareExecutorPlus executor = isAuthQuery ? authExecutor : requestExecutor;
+
+        executor.submit(new RequestProcessor(channel, request, forFlusher, backpressure));
         ClientMetrics.instance.markRequestDispatched();
+    }
+
+    public class RequestProcessor implements RunnableDebuggableTask
+    {
+        private final Channel channel;
+        private final Message.Request request;
+        private final FlushItemConverter forFlusher;
+        private final Overload backpressure;
+        
+        private final long approxCreationTimeNanos = MonotonicClock.Global.approxTime.now();
+        private volatile long approxStartTimeNanos;
+        
+        public RequestProcessor(Channel channel, Message.Request request, FlushItemConverter forFlusher, Overload backpressure)
+        {
+            this.channel = channel;
+            this.request = request;
+            this.forFlusher = forFlusher;
+            this.backpressure = backpressure;
+        }
+
+        @Override
+        public void run()
+        {
+            approxStartTimeNanos = MonotonicClock.Global.approxTime.now();
+            processRequest(channel, request, forFlusher, backpressure, approxStartTimeNanos);
+        }
+
+        @Override
+        public long creationTimeNanos()
+        {
+            return approxCreationTimeNanos;
+        }
+
+        @Override
+        public long startTimeNanos()
+        {
+            return approxStartTimeNanos;
+        }
+
+        @Override
+        public String description()
+        {
+            return request.toString();
+        }
     }
 
     /**
      * Note: this method may be executed on the netty event loop, during initial protocol negotiation; the caller is
      * responsible for cleaning up any global or thread-local state. (ex. tracing, client warnings, etc.).
      */
-    private static Message.Response processRequest(ServerConnection connection, Message.Request request, Overload backpressure)
+    private static Message.Response processRequest(ServerConnection connection, Message.Request request, Overload backpressure, long startTimeNanos)
     {
-        long queryStartNanoTime = nanoTime();
         if (connection.getVersion().isGreaterOrEqualTo(ProtocolVersion.V4))
             ClientWarn.instance.captureWarnings();
 
@@ -119,7 +191,7 @@ public class Dispatcher
 
         Message.logger.trace("Received: {}, v={}", request, connection.getVersion());
         connection.requests.inc();
-        Message.Response response = request.execute(qstate, queryStartNanoTime);
+        Message.Response response = request.execute(qstate, startTimeNanos);
 
         if (request.isTrackable())
             CoordinatorWarnings.done();
@@ -130,15 +202,15 @@ public class Dispatcher
         connection.applyStateTransition(request.type, response.type);
         return response;
     }
-
+    
     /**
      * Note: this method may be executed on the netty event loop.
      */
-    static Message.Response processRequest(Channel channel, Message.Request request, Overload backpressure)
+    static Message.Response processRequest(Channel channel, Message.Request request, Overload backpressure, long approxStartTimeNanos)
     {
         try
         {
-            return processRequest((ServerConnection) request.connection(), request, backpressure);
+            return processRequest((ServerConnection) request.connection(), request, backpressure, approxStartTimeNanos);
         }
         catch (Throwable t)
         {
@@ -163,9 +235,9 @@ public class Dispatcher
     /**
      * Note: this method is not expected to execute on the netty event loop.
      */
-    void processRequest(Channel channel, Message.Request request, FlushItemConverter forFlusher, Overload backpressure)
+    void processRequest(Channel channel, Message.Request request, FlushItemConverter forFlusher, Overload backpressure, long approxStartTimeNanos)
     {
-        Message.Response response = processRequest(channel, request, backpressure);
+        Message.Response response = processRequest(channel, request, backpressure, approxStartTimeNanos);
         FlushItem<?> toFlush = forFlusher.toFlushItem(channel, request, response);
         Message.logger.trace("Responding: {}, v={}", response, request.connection().getVersion());
         flush(toFlush);
@@ -189,19 +261,16 @@ public class Dispatcher
 
     public static void shutdown()
     {
-        if (requestExecutor != null)
-        {
-            requestExecutor.shutdown();
-        }
+        requestExecutor.shutdown();
+        authExecutor.shutdown();
     }
-
 
     /**
      * Dispatcher for EventMessages. In {@link Server.ConnectionTracker#send(Event)}, the strategy
      * for delivering events to registered clients is dependent on protocol version and the configuration
      * of the pipeline. For v5 and newer connections, the event message is encoded into an Envelope,
      * wrapped in a FlushItem and then delivered via the pipeline's flusher, in a similar way to
-     * a Response returned from {@link #processRequest(Channel, Message.Request, FlushItemConverter, Overload)}.
+     * a Response returned from {@link #processRequest(Channel, Message.Request, FlushItemConverter, Overload, long)}.
      * It's worth noting that events are not generally fired as a direct response to a client request,
      * so this flush item has a null request attribute. The dispatcher itself is created when the
      * pipeline is first configured during protocol negotiation and is attached to the channel for

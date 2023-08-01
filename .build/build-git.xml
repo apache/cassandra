@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  Licensed to the Apache Software Foundation (ASF) under one
+  or more contributor license agreements.  See the NOTICE file
+  distributed with this work for additional information
+  regarding copyright ownership.  The ASF licenses this file
+  to you under the Apache License, Version 2.0 (the
+  "License"); you may not use this file except in compliance
+  with the License.  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<project basedir="." name="apache-cassandra-git-tasks"
+         xmlns:if="ant:if">
+
+    <target name="_get-git-sha">
+        <exec executable="git" osfamily="unix" dir="${basedir}" logError="false" failonerror="false" failifexecutionfails="false" resultproperty="git.is-available.exit-code">
+            <arg value="rev-parse"/>
+            <arg value="--is-inside-work-tree"/>
+            <redirector outputproperty="git.is-available.output"/>
+        </exec>
+        <condition property="git.is-available" else="false">
+            <equals arg1="${git.is-available.exit-code}" arg2="0"/>
+        </condition>
+        <echo message="git.is-available=${git.is-available}"/>
+
+        <exec if:true="${git.is-available}" executable="git" osfamily="unix" dir="${basedir}" logError="true" failonerror="false" failifexecutionfails="false">
+            <arg value="describe"/>
+            <arg value="--match=''"/>
+            <arg value="--always"/>
+            <arg value="--abbrev=0"/>
+            <arg value="--dirty"/>
+            <redirector outputproperty="git.sha"/>
+        </exec>
+        <property name="git.sha" value="Unknown"/>
+        <echo level="info">git.sha=${git.sha}</echo>
+
+        <exec if:true="${git.is-available}" executable="git" osfamily="unix" dir="${basedir}" logError="true" failonerror="false" failifexecutionfails="false">
+            <arg value="diff"/>
+            <arg value="--stat"/>
+            <redirector outputproperty="git.diffstat"/>
+        </exec>
+        <condition property="is-dirty">
+            <contains string="${git.sha}" substring="-dirty"/>
+        </condition>
+        <echo level="warning" if:true="${is-dirty}">Repository state is dirty</echo>
+        <echo level="warning" if:true="${is-dirty}">${git.diffstat}</echo>
+    </target>
+</project>

@@ -24,21 +24,24 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import com.codahale.metrics.Histogram;
 import com.datastax.driver.core.BatchStatement;
 import com.datastax.driver.core.BoundStatement;
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.Session;
-import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.EmbeddedCassandraService;
+import org.apache.cassandra.service.reads.range.RangeCommandIterator;
 
-import static com.datastax.driver.core.Cluster.*;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 
-public class ClientRequestMetricsTest extends SchemaLoader
+import static com.datastax.driver.core.Cluster.builder;
+
+public class ClientRequestMetricsTest
 {
     private static Cluster cluster;
     private static Session session;
@@ -54,13 +57,12 @@ public class ClientRequestMetricsTest extends SchemaLoader
     private static final ClientRequestMetrics readMetrics = ClientRequestsMetricsHolder.readMetrics;
     private static final ClientWriteRequestMetrics writeMetrics = ClientRequestsMetricsHolder.writeMetrics;
 
+    private static EmbeddedCassandraService cassandra;
+
     @BeforeClass
     public static void setup() throws ConfigurationException, IOException
     {
-        Schema.instance.clear();
-
-        EmbeddedCassandraService cassandra = new EmbeddedCassandraService();
-        cassandra.start();
+        cassandra = ServerTestUtils.startEmbeddedCassandraService();
 
         cluster = builder().addContactPoint("127.0.0.1").withPort(DatabaseDescriptor.getNativeTransportPort()).build();
         session = cluster.connect();
@@ -74,11 +76,14 @@ public class ClientRequestMetricsTest extends SchemaLoader
         readPS = session.prepare("SELECT * FROM " + KEYSPACE + '.' + TABLE + " WHERE id=?;");
         readRangePS = session.prepare("SELECT * FROM " + KEYSPACE + '.' + TABLE + " WHERE id=? AND ord>=? AND ord <= ?;");
     }
-    
+
     @AfterClass
-    public static void teardown()
+    public static void tearDown()
     {
-        cluster.close();
+        if (cluster != null)
+            cluster.close();
+        if (cassandra != null)
+            cassandra.stop();
     }
 
     @Test
@@ -160,6 +165,23 @@ public class ClientRequestMetricsTest extends SchemaLoader
         assertEquals(0, writeMetricsContainer.compareRemoteRequest());
     }
 
+    @Test
+    public void testRangeRead() throws Throwable
+    {
+        clearHistogram(RangeCommandIterator.rangeMetrics.roundTrips);
+        long latencyCount = RangeCommandIterator.rangeMetrics.latency.getCount();
+
+        session.execute("SELECT * FROM system.peers");
+
+        assertThat(RangeCommandIterator.rangeMetrics.roundTrips.getCount()).isGreaterThan(0);
+        assertThat(RangeCommandIterator.rangeMetrics.roundTrips.getSnapshot().getMax()).isEqualTo(1);
+        assertThat(RangeCommandIterator.rangeMetrics.latency.getCount()).isEqualTo(latencyCount + 1);
+    }
+
+    private void clearHistogram(Histogram histogram)
+    {
+        ((ClearableHistogram) histogram).clear();
+    }
 
     private static class ClientRequestMetricsContainer
     {

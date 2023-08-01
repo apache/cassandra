@@ -20,6 +20,7 @@ package org.apache.cassandra.service.paxos;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -426,5 +427,40 @@ public class ContentionStrategyTest
         assertParseFailure("p95()");
         assertParseFailure("p95");
         assertParseFailure("p50(rw)+0.66");
+    }
+
+    @Test
+    public void testBackoffTime()
+    {
+        ContentionStrategy strategy = parseStrategy("min=0ms,max=100ms,random=uniform").strategy;
+        double total = 0;
+        int count = 100000;
+        for (int i = 0 ; i < count ; ++i)
+        {
+            long now = System.nanoTime();
+            long waitUntil = strategy.computeWaitUntilForContention(1, null, null, null, null);
+            long waitLength = Math.max(waitUntil - now, 0);
+            total += waitLength;
+        }
+        Assert.assertTrue(Math.abs(TimeUnit.MILLISECONDS.toNanos(50) - (total / count)) < TimeUnit.MILLISECONDS.toNanos(1L));
+    }
+
+    @Test
+    public void testBackoffTimeElapsed()
+    {
+        ContentionStrategy strategy = parseStrategy("min=0ms,max=10ms,random=uniform").strategy;
+        double total = 0;
+        int count = 1000;
+        for (int i = 0 ; i < count ; ++i)
+        {
+            long start = System.nanoTime();
+            strategy.doWaitForContention(Long.MAX_VALUE, 1, null, null, null, null);
+            long end = System.nanoTime();
+            total += end - start;
+        }
+        // make sure we have slept at least 4ms on average, given a mean wait time of 5ms
+        double avg = total / count;
+        double nanos = avg - TimeUnit.MILLISECONDS.toNanos(4);
+        Assert.assertTrue(nanos > 0);
     }
 }

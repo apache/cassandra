@@ -18,7 +18,6 @@
 package org.apache.cassandra.db.filter;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.cql3.Operator;
@@ -26,11 +25,11 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.transform.Transformation;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
 /**
@@ -141,16 +140,11 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
         return partition.unfilteredIterator(columnFilter, clusteringsInQueryOrder, isReversed());
     }
 
-    public boolean shouldInclude(SSTableReader sstable)
+    public boolean intersects(ClusteringComparator comparator, Slice slice)
     {
-        ClusteringComparator comparator = sstable.metadata().comparator;
-        List<ByteBuffer> minClusteringValues = sstable.getSSTableMetadata().minClusteringValues;
-        List<ByteBuffer> maxClusteringValues = sstable.getSSTableMetadata().maxClusteringValues;
-
-        // If any of the requested clustering is within the bounds covered by the sstable, we need to include the sstable
         for (Clustering<?> clustering : clusterings)
         {
-            if (Slice.make(clustering).intersects(comparator, minClusteringValues, maxClusteringValues))
+            if (slice.includes(comparator, clustering))
                 return true;
         }
         return false;
@@ -225,7 +219,7 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
     protected void serializeInternal(DataOutputPlus out, int version) throws IOException
     {
         ClusteringComparator comparator = (ClusteringComparator)clusterings.comparator();
-        out.writeUnsignedVInt(clusterings.size());
+        out.writeUnsignedVInt32(clusterings.size());
         for (Clustering<?> clustering : clusterings)
             Clustering.serializer.serialize(clustering, out, version, comparator.subtypes());
     }
@@ -244,12 +238,14 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
         public ClusteringIndexFilter deserialize(DataInputPlus in, int version, TableMetadata metadata, boolean reversed) throws IOException
         {
             ClusteringComparator comparator = metadata.comparator;
-            BTreeSet.Builder<Clustering<?>> clusterings = BTreeSet.builder(comparator);
-            int size = (int)in.readUnsignedVInt();
-            for (int i = 0; i < size; i++)
-                clusterings.add(Clustering.serializer.deserialize(in, version, comparator.subtypes()));
-
-            return new ClusteringIndexNamesFilter(clusterings.build(), reversed);
+            int size = in.readUnsignedVInt32();
+            try (BTree.FastBuilder<Clustering<?>> builder = BTree.fastBuilder())
+            {
+                for (int i = 0; i < size; i++)
+                    builder.add(Clustering.serializer.deserialize(in, version, comparator.subtypes()));
+                BTreeSet<Clustering<?>> clusterings = BTreeSet.wrap(builder.build(), comparator);
+                return new ClusteringIndexNamesFilter(clusterings, reversed);
+            }
         }
     }
 }

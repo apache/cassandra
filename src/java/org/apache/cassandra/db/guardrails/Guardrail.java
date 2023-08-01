@@ -51,6 +51,10 @@ public abstract class Guardrail
     /** A name identifying the guardrail (mainly for shipping with diagnostic events). */
     public final String name;
 
+    /** An optional description of the reason for guarding the operation. */
+    @Nullable
+    public final String reason;
+
     /** Minimum logging and triggering interval to avoid spamming downstream. */
     private long minNotifyIntervalInMs = 0;
 
@@ -60,9 +64,10 @@ public abstract class Guardrail
     /** Time of last failure in milliseconds. */
     private volatile long lastFailInMs = 0;
 
-    Guardrail(String name)
+    Guardrail(String name, @Nullable String reason)
     {
         this.name = name;
+        this.reason = reason;
     }
 
     /**
@@ -138,8 +143,16 @@ public abstract class Guardrail
     @VisibleForTesting
     String decorateMessage(String message)
     {
-        // Add a prefix to error message so user knows what threw the warning or cause the failure
-        return String.format("Guardrail %s violated: %s", name, message);
+        // Add a prefix to error message so user knows what threw the warning or cause the failure.
+        String decoratedMessage = String.format("Guardrail %s violated: %s", name, message);
+
+        // Add the reason for the guardrail triggering, if there is any.
+        if (reason != null)
+        {
+            decoratedMessage += (message.endsWith(".") ? ' ' : ". ") + reason;
+        }
+
+        return decoratedMessage;
     }
 
     /**

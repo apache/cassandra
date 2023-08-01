@@ -18,6 +18,8 @@
 package org.apache.cassandra.config;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.lang.management.RuntimeMXBean;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
@@ -25,24 +27,33 @@ import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.nio.file.FileStore;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.OptionalDouble;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
-
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
@@ -51,11 +62,13 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.googlecode.concurrenttrees.common.Iterables;
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.auth.AllowAllInternodeAuthenticator;
 import org.apache.cassandra.auth.AuthConfig;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.IAuthorizer;
+import org.apache.cassandra.auth.ICIDRAuthorizer;
 import org.apache.cassandra.auth.IInternodeAuthenticator;
 import org.apache.cassandra.auth.INetworkAuthorizer;
 import org.apache.cassandra.auth.IRoleManager;
@@ -72,6 +85,8 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.util.DiskOptimizationStrategy;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
@@ -84,15 +99,41 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.SeedProvider;
+import org.apache.cassandra.security.AbstractCryptoProvider;
 import org.apache.cassandra.security.EncryptionContext;
+import org.apache.cassandra.security.JREProvider;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.StorageCompatibilityMode;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOCATE_TOKENS_FOR_KEYSPACE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_UNLIMITED_CONCURRENT_VALIDATIONS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.AUTO_BOOTSTRAP;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_LOADER;
+import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_STCS_IN_L0;
+import static org.apache.cassandra.config.CassandraRelevantProperties.INITIAL_TOKEN;
+import static org.apache.cassandra.config.CassandraRelevantProperties.IO_NETTY_TRANSPORT_ESTIMATE_SIZE_ON_SUBMIT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.NATIVE_TRANSPORT_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.OS_ARCH;
+import static org.apache.cassandra.config.CassandraRelevantProperties.PARTITIONER;
+import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_ADDRESS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_ADDRESS_FIRST_BOOT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_NODE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_TOKEN;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SEARCH_CONCURRENCY_FACTOR;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SSL_STORAGE_PORT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.STORAGE_DIR;
+import static org.apache.cassandra.config.CassandraRelevantProperties.STORAGE_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SUN_ARCH_DATA_MODEL;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_FAIL_MV_LOCKS_COUNT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_JVM_DTEST_DISABLE_SSL;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_SKIP_CRYPTO_PROVIDER_INSTALLATION;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_STRICT_RUNTIME_CHECKS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.UNSAFE_SYSTEM;
+import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.BYTES_PER_SECOND;
+import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.MEBIBYTES;
 import static org.apache.cassandra.io.util.FileUtils.ONE_GIB;
 import static org.apache.cassandra.io.util.FileUtils.ONE_MIB;
@@ -104,7 +145,7 @@ public class DatabaseDescriptor
     {
         // This static block covers most usages
         FBUtilities.preventIllegalAccessWarnings();
-        System.setProperty("io.netty.transport.estimateSizeOnSubmit", "false");
+        IO_NETTY_TRANSPORT_ESTIMATE_SIZE_ON_SUBMIT.setBoolean(false);
     }
 
     private static final Logger logger = LoggerFactory.getLogger(DatabaseDescriptor.class);
@@ -137,9 +178,12 @@ public class DatabaseDescriptor
 
     private static Config.DiskAccessMode indexAccessMode;
 
+    private static AbstractCryptoProvider cryptoProvider;
     private static IAuthenticator authenticator;
     private static IAuthorizer authorizer;
     private static INetworkAuthorizer networkAuthorizer;
+    private static ICIDRAuthorizer cidrAuthorizer;
+
     // Don't initialize the role manager until applying config. The options supported by CassandraRoleManager
     // depend on the configured IAuthenticator, so defer creating it until that's been set.
     private static IRoleManager roleManager;
@@ -162,24 +206,29 @@ public class DatabaseDescriptor
     private static boolean toolInitialized;
     private static boolean daemonInitialized;
 
-    private static final int searchConcurrencyFactor = Integer.parseInt(System.getProperty(Config.PROPERTY_PREFIX + "search_concurrency_factor", "1"));
+    private static final int searchConcurrencyFactor = SEARCH_CONCURRENCY_FACTOR.getInt();
     private static DurationSpec.IntSecondsBound autoSnapshoTtl;
 
-    private static volatile boolean disableSTCSInL0 = Boolean.getBoolean(Config.PROPERTY_PREFIX + "disable_stcs_in_l0");
-    private static final boolean unsafeSystem = Boolean.getBoolean(Config.PROPERTY_PREFIX + "unsafesystem");
+    private static volatile boolean disableSTCSInL0 = DISABLE_STCS_IN_L0.getBoolean();
+    private static final boolean unsafeSystem = UNSAFE_SYSTEM.getBoolean();
 
     // turns some warnings into exceptions for testing
-    private static final boolean strictRuntimeChecks = Boolean.getBoolean("cassandra.strict.runtime.checks");
+    private static final boolean strictRuntimeChecks = TEST_STRICT_RUNTIME_CHECKS.getBoolean();
 
-    public static volatile boolean allowUnlimitedConcurrentValidations = Boolean.getBoolean("cassandra.allow_unlimited_concurrent_validations");
+    public static volatile boolean allowUnlimitedConcurrentValidations = ALLOW_UNLIMITED_CONCURRENT_VALIDATIONS.getBoolean();
 
-    /** The configuration for guardrails. */
+    /**
+     * The configuration for guardrails.
+     */
     private static GuardrailsOptions guardrails;
     private static StartupChecksOptions startupChecksOptions;
 
+    private static ImmutableMap<String, SSTableFormat<?, ?>> sstableFormats;
+    private static volatile SSTableFormat<?, ?> selectedSSTableFormat;
+
     private static Function<CommitLog, AbstractCommitLogSegmentManager> commitLogSegmentMgrProvider = c -> DatabaseDescriptor.isCDCEnabled()
-                                       ? new CommitLogSegmentManagerCDC(c, DatabaseDescriptor.getCommitLogLocation())
-                                       : new CommitLogSegmentManagerStandard(c, DatabaseDescriptor.getCommitLogLocation());
+                                                                                                           ? new CommitLogSegmentManagerCDC(c, DatabaseDescriptor.getCommitLogLocation())
+                                                                                                           : new CommitLogSegmentManagerStandard(c, DatabaseDescriptor.getCommitLogLocation());
 
     public static void daemonInitialization() throws ConfigurationException
     {
@@ -239,6 +288,8 @@ public class DatabaseDescriptor
 
         setConfig(loadConfig());
 
+        applySSTableFormats();
+
         applySimpleConfig();
 
         applyPartitioner();
@@ -257,6 +308,14 @@ public class DatabaseDescriptor
     }
 
     /**
+     * Equivalent to {@link #clientInitialization(boolean) clientInitialization(true, Config::new)}.
+     */
+    public static void clientInitialization(boolean failIfDaemonOrTool)
+    {
+        clientInitialization(failIfDaemonOrTool, Config::new);
+    }
+
+    /**
      * Initializes this class as a client, which means that just an empty configuration will
      * be used.
      *
@@ -264,7 +323,7 @@ public class DatabaseDescriptor
      *                           {@link #toolInitialization()} has been performed before, an
      *                           {@link AssertionError} will be thrown.
      */
-    public static void clientInitialization(boolean failIfDaemonOrTool)
+    public static void clientInitialization(boolean failIfDaemonOrTool, Supplier<Config> configSupplier)
     {
         if (!failIfDaemonOrTool && (daemonInitialized || toolInitialized))
         {
@@ -281,10 +340,11 @@ public class DatabaseDescriptor
         if (clientInitialized)
             return;
         clientInitialized = true;
-
+        setDefaultFailureDetector();
         Config.setClientMode(true);
-        conf = new Config();
+        conf = configSupplier.get();
         diskOptimizationStrategy = new SpinningDiskOptimizationStrategy();
+        applySSTableFormats();
     }
 
     public static boolean isClientInitialized()
@@ -318,7 +378,7 @@ public class DatabaseDescriptor
         if (Config.getOverrideLoadConfig() != null)
             return Config.getOverrideLoadConfig().get();
 
-        String loaderClass = System.getProperty(Config.PROPERTY_PREFIX + "config.loader");
+        String loaderClass = CONFIG_LOADER.getString();
         ConfigurationLoader loader = loaderClass == null
                                      ? new YamlConfigurationLoader()
                                      : FBUtilities.construct(loaderClass, "configuration loading");
@@ -363,7 +423,8 @@ public class DatabaseDescriptor
         }
     }
 
-    private static void setConfig(Config config)
+    @VisibleForTesting
+    public static void setConfig(Config config)
     {
         conf = config;
     }
@@ -371,6 +432,10 @@ public class DatabaseDescriptor
     private static void applyAll() throws ConfigurationException
     {
         //InetAddressAndPort cares that applySimpleConfig runs first
+        applySSTableFormats();
+
+        applyCryptoProvider();
+
         applySimpleConfig();
 
         applyPartitioner();
@@ -398,16 +463,7 @@ public class DatabaseDescriptor
         //InetAddressAndPort and get the right defaults
         InetAddressAndPort.initializeDefaultPort(getStoragePort());
 
-        // below 2 checks are needed in order to match the pre-CASSANDRA-15234 upper bound for those parameters which were still in megabits per second
-        if (conf.stream_throughput_outbound.toMegabitsPerSecond() >= Integer.MAX_VALUE)
-        {
-            throw new ConfigurationException("Invalid value of stream_throughput_outbound: " + conf.stream_throughput_outbound.toString(), false);
-        }
-
-        if (conf.inter_dc_stream_throughput_outbound.toMegabitsPerSecond() >= Integer.MAX_VALUE)
-        {
-            throw new ConfigurationException("Invalid value of inter_dc_stream_throughput_outbound: " + conf.inter_dc_stream_throughput_outbound.toString(), false);
-        }
+        validateUpperBoundStreamingConfig();
 
         if (conf.auto_snapshot_ttl != null)
         {
@@ -490,7 +546,7 @@ public class DatabaseDescriptor
             throw new ConfigurationException("concurrent_reads must be at least 2, but was " + conf.concurrent_reads, false);
         }
 
-        if (conf.concurrent_writes < 2 && System.getProperty("cassandra.test.fail_mv_locks_count", "").isEmpty())
+        if (conf.concurrent_writes < 2 && TEST_FAIL_MV_LOCKS_COUNT.getString("").isEmpty())
         {
             throw new ConfigurationException("concurrent_writes must be at least 2, but was " + conf.concurrent_writes, false);
         }
@@ -556,7 +612,8 @@ public class DatabaseDescriptor
                                              false);
         }
 
-        checkValidForByteConversion(conf.column_index_size, "column_index_size");
+        if (conf.column_index_size != null)
+            checkValidForByteConversion(conf.column_index_size, "column_index_size");
         checkValidForByteConversion(conf.column_index_cache_size, "column_index_cache_size");
         checkValidForByteConversion(conf.batch_size_warn_threshold, "batch_size_warn_threshold");
 
@@ -729,6 +786,9 @@ public class DatabaseDescriptor
 
             if (preparedStatementsCacheSizeInMiB == 0)
                 throw new NumberFormatException(); // to escape duplicating error message
+
+            // we need this assignment for the Settings virtual table - CASSANDRA-17734
+            conf.prepared_statements_cache_size = new DataStorageSpec.LongMebibytesBound(preparedStatementsCacheSizeInMiB);
         }
         catch (NumberFormatException e)
         {
@@ -745,6 +805,9 @@ public class DatabaseDescriptor
 
             if (keyCacheSizeInMiB < 0)
                 throw new NumberFormatException(); // to escape duplicating error message
+
+            // we need this assignment for the Settings Virtual Table - CASSANDRA-17734
+            conf.key_cache_size = new DataStorageSpec.LongMebibytesBound(keyCacheSizeInMiB);
         }
         catch (NumberFormatException e)
         {
@@ -784,6 +847,9 @@ public class DatabaseDescriptor
                     + conf.paxos_cache_size + "', supported values are <integer> >= 0.", false);
         }
 
+        // we need this assignment for the Settings virtual table - CASSANDRA-17735
+        conf.counter_cache_size = new DataStorageSpec.LongMebibytesBound(counterCacheSizeInMiB);
+
         // if set to empty/"auto" then use 5% of Heap size
         indexSummaryCapacityInMiB = (conf.index_summary_capacity == null)
                                    ? Math.max(1, (int) (Runtime.getRuntime().totalMemory() * 0.05 / 1024 / 1024))
@@ -792,6 +858,9 @@ public class DatabaseDescriptor
         if (indexSummaryCapacityInMiB < 0)
             throw new ConfigurationException("index_summary_capacity option was set incorrectly to '"
                                              + conf.index_summary_capacity.toString() + "', it should be a non-negative integer.", false);
+
+        // we need this assignment for the Settings virtual table - CASSANDRA-17735
+        conf.index_summary_capacity = new DataStorageSpec.LongMebibytesBound(indexSummaryCapacityInMiB);
 
         if (conf.user_defined_functions_fail_timeout.toMilliseconds() < conf.user_defined_functions_warn_timeout.toMilliseconds())
             throw new ConfigurationException("user_defined_functions_warn_timeout must less than user_defined_function_fail_timeout", false);
@@ -803,7 +872,8 @@ public class DatabaseDescriptor
             logger.warn("Allowing java.lang.System.* access in UDFs is dangerous and not recommended. Set allow_extra_insecure_udfs: false to disable.");
 
         if(conf.scripted_user_defined_functions_enabled)
-            logger.warn("JavaScript user-defined functions have been deprecated. You can still use them but the plan is to remove them in the next major version. For more information - CASSANDRA-17280");
+            throw new ConfigurationException("JavaScript user-defined functions were removed in CASSANDRA-18252. " +
+                                             "Hooks are planned to be introduced as part of CASSANDRA-17280");
 
         if (conf.commitlog_segment_size.toMebibytes() == 0)
             throw new ConfigurationException("commitlog_segment_size must be positive, but was "
@@ -901,6 +971,44 @@ public class DatabaseDescriptor
             conf.paxos_state_purging = PaxosStatePurging.legacy;
 
         logInitializationOutcome(logger);
+
+        if (conf.max_space_usable_for_compactions_in_percentage < 0 || conf.max_space_usable_for_compactions_in_percentage > 1)
+            throw new ConfigurationException("max_space_usable_for_compactions_in_percentage must be between 0 and 1", false);
+
+        if (conf.dump_heap_on_uncaught_exception && DatabaseDescriptor.getHeapDumpPath() == null)
+            throw new ConfigurationException(String.format("Invalid configuration. Heap dump is enabled but cannot create heap dump output path: %s.", conf.heap_dump_path != null ? conf.heap_dump_path : "null"));
+
+        conf.sai_options.validate();
+    }
+
+    @VisibleForTesting
+    static void validateUpperBoundStreamingConfig() throws ConfigurationException
+    {
+        // below 2 checks are needed in order to match the pre-CASSANDRA-15234 upper bound for those parameters which were still in megabits per second
+        if (conf.stream_throughput_outbound.toMegabitsPerSecond() >= Integer.MAX_VALUE)
+        {
+            throw new ConfigurationException("Invalid value of stream_throughput_outbound: " + conf.stream_throughput_outbound.toString(), false);
+        }
+
+        if (conf.inter_dc_stream_throughput_outbound.toMegabitsPerSecond() >= Integer.MAX_VALUE)
+        {
+            throw new ConfigurationException("Invalid value of inter_dc_stream_throughput_outbound: " + conf.inter_dc_stream_throughput_outbound.toString(), false);
+        }
+
+        if (conf.entire_sstable_stream_throughput_outbound.toMebibytesPerSecond() >= Integer.MAX_VALUE)
+        {
+            throw new ConfigurationException("Invalid value of entire_sstable_stream_throughput_outbound: " + conf.entire_sstable_stream_throughput_outbound.toString(), false);
+        }
+
+        if (conf.entire_sstable_inter_dc_stream_throughput_outbound.toMebibytesPerSecond() >= Integer.MAX_VALUE)
+        {
+            throw new ConfigurationException("Invalid value of entire_sstable_inter_dc_stream_throughput_outbound: " + conf.entire_sstable_inter_dc_stream_throughput_outbound.toString(), false);
+        }
+
+        if (conf.compaction_throughput.toMebibytesPerSecond() >= Integer.MAX_VALUE)
+        {
+            throw new ConfigurationException("Invalid value of compaction_throughput: " + conf.compaction_throughput.toString(), false);
+        }
     }
 
     @VisibleForTesting
@@ -913,7 +1021,7 @@ public class DatabaseDescriptor
         else if (config.concurrent_validations > config.concurrent_compactors && !allowUnlimitedConcurrentValidations)
         {
             throw new ConfigurationException("To set concurrent_validations > concurrent_compactors, " +
-                                             "set the system property cassandra.allow_unlimited_concurrent_validations=true");
+                                             "set the system property -D" + ALLOW_UNLIMITED_CONCURRENT_VALIDATIONS.getKey() + "=true");
         }
     }
 
@@ -974,9 +1082,9 @@ public class DatabaseDescriptor
 
     private static String storagedir(String errMsgType)
     {
-        String storagedir = System.getProperty(Config.PROPERTY_PREFIX + "storagedir", null);
+        String storagedir = STORAGE_DIR.getString();
         if (storagedir == null)
-            throw new ConfigurationException(errMsgType + " is missing and -Dcassandra.storagedir is not set", false);
+            throw new ConfigurationException(errMsgType + " is missing and " + STORAGE_DIR.getKey() + " system property is not set", false);
         return storagedir;
     }
 
@@ -1118,6 +1226,42 @@ public class DatabaseDescriptor
         catch (IOException e)
         {
             throw new ConfigurationException("Failed to initialize SSL", e);
+        }
+    }
+
+    public static void applyCryptoProvider()
+    {
+        if (TEST_SKIP_CRYPTO_PROVIDER_INSTALLATION.getBoolean())
+            return;
+
+        if (conf.crypto_provider == null)
+            conf.crypto_provider = new ParameterizedClass(JREProvider.class.getName(), null);
+
+        // properties beat configuration
+        String classNameFromSystemProperties = CassandraRelevantProperties.CRYPTO_PROVIDER_CLASS_NAME.getString();
+        if (classNameFromSystemProperties != null)
+            conf.crypto_provider.class_name = classNameFromSystemProperties;
+
+        if (conf.crypto_provider.class_name == null)
+            throw new ConfigurationException("Failed to initialize crypto provider, class_name cannot be null");
+
+        if (conf.crypto_provider.parameters == null)
+            conf.crypto_provider.parameters = new HashMap<>();
+
+        Map<String, String> cryptoProviderParameters = new HashMap<>(conf.crypto_provider.parameters);
+        cryptoProviderParameters.putIfAbsent(AbstractCryptoProvider.FAIL_ON_MISSING_PROVIDER_KEY, "false");
+
+        try
+        {
+            cryptoProvider = FBUtilities.newCryptoProvider(conf.crypto_provider.class_name, cryptoProviderParameters);
+            cryptoProvider.install();
+        }
+        catch (Exception e)
+        {
+            if (e instanceof ConfigurationException)
+                throw (ConfigurationException) e;
+            else
+                throw new ConfigurationException(String.format("Failed to initialize crypto provider %s", conf.crypto_provider.class_name), e);
         }
     }
 
@@ -1271,7 +1415,7 @@ public class DatabaseDescriptor
         String name = conf.partitioner;
         try
         {
-            name = System.getProperty(Config.PROPERTY_PREFIX + "partitioner", conf.partitioner);
+            name = PARTITIONER.getString(conf.partitioner);
             partitioner = FBUtilities.newPartitioner(name);
         }
         catch (Exception e)
@@ -1282,10 +1426,97 @@ public class DatabaseDescriptor
         paritionerName = partitioner.getClass().getCanonicalName();
     }
 
+    private static void validateSSTableFormatFactories(Iterable<SSTableFormat.Factory> factories)
+    {
+        Map<String, SSTableFormat.Factory> factoryByName = new HashMap<>();
+        for (SSTableFormat.Factory factory : factories)
+        {
+            if (factory.name() == null)
+                throw new ConfigurationException(String.format("SSTable format name in %s cannot be null", factory.getClass().getCanonicalName()));
+
+            if (!factory.name().matches("^[a-z]+$"))
+                throw new ConfigurationException(String.format("SSTable format name for %s must be non-empty, lower-case letters only string", factory.getClass().getCanonicalName()));
+
+            SSTableFormat.Factory prev = factoryByName.put(factory.name(), factory);
+            if (prev != null)
+                throw new ConfigurationException(String.format("Multiple sstable format implementations with the same name %s: %s and %s", factory.name(), factory.getClass().getCanonicalName(), prev.getClass().getCanonicalName()));
+        }
+    }
+
+    private static ImmutableMap<String, Supplier<SSTableFormat<?, ?>>> validateAndMatchSSTableFormatOptions(Iterable<SSTableFormat.Factory> factories, Map<String, Map<String, String>> options)
+    {
+        ImmutableMap.Builder<String, Supplier<SSTableFormat<?, ?>>> providersBuilder = ImmutableMap.builder();
+        if (options == null)
+            options = ImmutableMap.of();
+        for (SSTableFormat.Factory factory : factories)
+        {
+            Map<String, String> formatOptions = options.getOrDefault(factory.name(), ImmutableMap.of());
+            providersBuilder.put(factory.name(), () -> factory.getInstance(ImmutableMap.copyOf(formatOptions)));
+        }
+        ImmutableMap<String, Supplier<SSTableFormat<?, ?>>> providers = providersBuilder.build();
+        if (options != null)
+        {
+            Sets.SetView<String> unknownFormatNames = Sets.difference(options.keySet(), providers.keySet());
+            if (!unknownFormatNames.isEmpty())
+                throw new ConfigurationException(String.format("Configuration contains options of unknown sstable formats: %s", unknownFormatNames));
+        }
+        return providers;
+    }
+
+    private static SSTableFormat<?, ?> getAndValidateWriteFormat(Map<String, SSTableFormat<?, ?>> sstableFormats, String selectedFormatName)
+    {
+        SSTableFormat<?, ?> selectedFormat;
+        if (StringUtils.isBlank(selectedFormatName))
+            selectedFormatName = BigFormat.NAME;
+        selectedFormat = sstableFormats.get(selectedFormatName);
+        if (selectedFormat == null)
+            throw new ConfigurationException(String.format("Selected sstable format '%s' is not available.", selectedFormatName));
+
+        getStorageCompatibilityMode().validateSstableFormat(selectedFormat);
+
+        return selectedFormat;
+    }
+
+    private static void applySSTableFormats()
+    {
+        ServiceLoader<SSTableFormat.Factory> loader = ServiceLoader.load(SSTableFormat.Factory.class, DatabaseDescriptor.class.getClassLoader());
+        List<SSTableFormat.Factory> factories = Iterables.toList(loader);
+        if (factories.isEmpty())
+            factories = ImmutableList.of(new BigFormat.BigFormatFactory());
+        applySSTableFormats(factories, conf.sstable);
+    }
+
+    private static void applySSTableFormats(Iterable<SSTableFormat.Factory> factories, Config.SSTableConfig sstableFormatsConfig)
+    {
+        if (sstableFormats != null)
+            return;
+
+        validateSSTableFormatFactories(factories);
+        ImmutableMap<String, Supplier<SSTableFormat<?, ?>>> providers = validateAndMatchSSTableFormatOptions(factories, sstableFormatsConfig.format);
+
+        ImmutableMap.Builder<String, SSTableFormat<?, ?>> sstableFormatsBuilder = ImmutableMap.builder();
+        providers.forEach((name, provider) -> {
+            try
+            {
+                sstableFormatsBuilder.put(name, provider.get());
+            }
+            catch (RuntimeException | Error ex)
+            {
+                throw new ConfigurationException(String.format("Failed to instantiate sstable format '%s'", name), ex);
+            }
+        });
+        sstableFormats = sstableFormatsBuilder.build();
+
+        selectedSSTableFormat = getAndValidateWriteFormat(sstableFormats, sstableFormatsConfig.selected_format);
+
+        sstableFormats.values().forEach(SSTableFormat::allComponents); // make sure to reach all supported components for a type so that we know all of them are registered
+        logger.info("Supported sstable formats are: {}", sstableFormats.values().stream().map(f -> f.name() + " -> " + f.getClass().getName() + " with singleton components: " + f.allComponents()).collect(Collectors.joining(", ")));
+    }
+
     /**
      * Computes the sum of the 2 specified positive values returning {@code Long.MAX_VALUE} if the sum overflow.
      *
-     * @param left the left operand
+     * @param left  the left operand
      * @param right the right operand
      * @return the sum of the 2 specified positive values of {@code Long.MAX_VALUE} if the sum overflow.
      */
@@ -1317,6 +1548,15 @@ public class DatabaseDescriptor
         return detector;
     }
 
+    public static AbstractCryptoProvider getCryptoProvider()
+    {
+        return cryptoProvider;
+    }
+
+    public static void setCryptoProvider(AbstractCryptoProvider cryptoProvider)
+    {
+        DatabaseDescriptor.cryptoProvider = cryptoProvider;
+    }
     public static IAuthenticator getAuthenticator()
     {
         return authenticator;
@@ -1345,6 +1585,72 @@ public class DatabaseDescriptor
     public static void setNetworkAuthorizer(INetworkAuthorizer networkAuthorizer)
     {
         DatabaseDescriptor.networkAuthorizer = networkAuthorizer;
+    }
+
+    public static ICIDRAuthorizer getCIDRAuthorizer()
+    {
+        return cidrAuthorizer;
+    }
+
+    public static void setCIDRAuthorizer(ICIDRAuthorizer cidrAuthorizer)
+    {
+        DatabaseDescriptor.cidrAuthorizer = cidrAuthorizer;
+    }
+
+    public static boolean getCidrChecksForSuperusers()
+    {
+        boolean defaultCidrChecksForSuperusers = false;
+
+        if (conf.cidr_authorizer == null || conf.cidr_authorizer.parameters == null)
+            return defaultCidrChecksForSuperusers;
+
+        String value = conf.cidr_authorizer.parameters.get("cidr_checks_for_superusers");
+        if (value == null || value.isEmpty())
+            return defaultCidrChecksForSuperusers;
+
+        return Boolean.parseBoolean(value);
+    }
+
+    public static ICIDRAuthorizer.CIDRAuthorizerMode getCidrAuthorizerMode()
+    {
+        ICIDRAuthorizer.CIDRAuthorizerMode defaultCidrAuthorizerMode = ICIDRAuthorizer.CIDRAuthorizerMode.MONITOR;
+
+        if (conf.cidr_authorizer == null || conf.cidr_authorizer.parameters == null)
+            return defaultCidrAuthorizerMode;
+
+        String cidrAuthorizerMode = conf.cidr_authorizer.parameters.get("cidr_authorizer_mode");
+        if (cidrAuthorizerMode == null || cidrAuthorizerMode.isEmpty())
+            return defaultCidrAuthorizerMode;
+
+        return ICIDRAuthorizer.CIDRAuthorizerMode.valueOf(cidrAuthorizerMode.toUpperCase());
+    }
+
+    public static int getCidrGroupsCacheRefreshInterval()
+    {
+        int defaultCidrGroupsCacheRefreshInterval = 5; // mins
+
+        if (conf.cidr_authorizer == null  || conf.cidr_authorizer.parameters == null)
+            return defaultCidrGroupsCacheRefreshInterval;
+
+        String cidrGroupsCacheRefreshInterval = conf.cidr_authorizer.parameters.get("cidr_groups_cache_refresh_interval");
+        if (cidrGroupsCacheRefreshInterval == null || cidrGroupsCacheRefreshInterval.isEmpty())
+            return defaultCidrGroupsCacheRefreshInterval;
+
+        return Integer.parseInt(cidrGroupsCacheRefreshInterval);
+    }
+
+    public static int getIpCacheMaxSize()
+    {
+        int defaultIpCacheMaxSize = 100;
+
+        if (conf.cidr_authorizer == null  || conf.cidr_authorizer.parameters == null)
+            return defaultIpCacheMaxSize;
+
+        String ipCacheMaxSize = conf.cidr_authorizer.parameters.get("ip_cache_max_size");
+        if (ipCacheMaxSize == null || ipCacheMaxSize.isEmpty())
+            return defaultIpCacheMaxSize;
+
+        return Integer.parseInt(ipCacheMaxSize);
     }
 
     public static void setAuthFromRoot(boolean fromRoot)
@@ -1547,6 +1853,13 @@ public class DatabaseDescriptor
                     throw new ConfigurationException("cdc_raw_directory must be specified", false);
                 FileUtils.createDirectory(conf.cdc_raw_directory);
             }
+
+            boolean created = maybeCreateHeapDumpPath();
+            if (!created && conf.dump_heap_on_uncaught_exception)
+            {
+                logger.error(String.format("cassandra.yaml:dump_heap_on_uncaught_exception is enabled but unable to create heap dump path %s. Disabling.", conf.heap_dump_path != null ? conf.heap_dump_path : "null"));
+                conf.dump_heap_on_uncaught_exception = false;
+            }
         }
         catch (ConfigurationException e)
         {
@@ -1595,21 +1908,19 @@ public class DatabaseDescriptor
         newFailureDetector = () -> createFailureDetector("FailureDetector");
     }
 
-    public static int getColumnIndexSize()
+    public static int getColumnIndexSize(int defaultValue)
     {
-        return conf.column_index_size.toBytes();
+        return conf.column_index_size != null ? conf.column_index_size.toBytes() : defaultValue;
     }
 
     public static int getColumnIndexSizeInKiB()
     {
-        return conf.column_index_size.toKibibytes();
+        return conf.column_index_size != null ? conf.column_index_size.toKibibytes() : -1;
     }
 
-    public static void setColumnIndexSize(int val)
+    public static void setColumnIndexSizeInKiB(int val)
     {
-        DataStorageSpec.IntKibibytesBound memory = new DataStorageSpec.IntKibibytesBound(val);
-        checkValidForByteConversion(memory, "column_index_size");
-        conf.column_index_size = new DataStorageSpec.IntKibibytesBound(val);
+        conf.column_index_size = val != -1 ? createIntKibibyteBoundAndEnsureItIsValidForByteConversion(val,"column_index_size") : null;
     }
 
     public static int getColumnIndexCacheSize()
@@ -1624,9 +1935,7 @@ public class DatabaseDescriptor
 
     public static void setColumnIndexCacheSize(int val)
     {
-        DataStorageSpec.IntKibibytesBound memory = new DataStorageSpec.IntKibibytesBound(val);
-        checkValidForByteConversion(memory, "column_index_cache_size");
-        conf.column_index_cache_size = new DataStorageSpec.IntKibibytesBound(val);
+        conf.column_index_cache_size = createIntKibibyteBoundAndEnsureItIsValidForByteConversion(val,"column_index_cache_size");
     }
 
     public static int getBatchSizeWarnThreshold()
@@ -1641,7 +1950,7 @@ public class DatabaseDescriptor
 
     public static long getBatchSizeFailThreshold()
     {
-        return conf.batch_size_fail_threshold.toBytes();
+        return conf.batch_size_fail_threshold.toBytesInLong();
     }
 
     public static int getBatchSizeFailThresholdInKiB()
@@ -1656,9 +1965,7 @@ public class DatabaseDescriptor
 
     public static void setBatchSizeWarnThresholdInKiB(int threshold)
     {
-        DataStorageSpec.IntKibibytesBound storage = new DataStorageSpec.IntKibibytesBound(threshold);
-        checkValidForByteConversion(storage, "batch_size_warn_threshold");
-        conf.batch_size_warn_threshold = new DataStorageSpec.IntKibibytesBound(threshold);
+        conf.batch_size_warn_threshold = createIntKibibyteBoundAndEnsureItIsValidForByteConversion(threshold,"batch_size_warn_threshold");
     }
 
     public static void setBatchSizeFailThresholdInKiB(int threshold)
@@ -1668,12 +1975,12 @@ public class DatabaseDescriptor
 
     public static Collection<String> getInitialTokens()
     {
-        return tokensFromString(System.getProperty(Config.PROPERTY_PREFIX + "initial_token", conf.initial_token));
+        return tokensFromString(INITIAL_TOKEN.getString(conf.initial_token));
     }
 
     public static String getAllocateTokensForKeyspace()
     {
-        return System.getProperty(Config.PROPERTY_PREFIX + "allocate_tokens_for_keyspace", conf.allocate_tokens_for_keyspace);
+        return ALLOCATE_TOKENS_FOR_KEYSPACE.getString(conf.allocate_tokens_for_keyspace);
     }
 
     public static Integer getAllocateTokensForLocalRf()
@@ -1699,10 +2006,14 @@ public class DatabaseDescriptor
     {
         try
         {
-            if (System.getProperty(Config.PROPERTY_PREFIX + "replace_address", null) != null)
-                return InetAddressAndPort.getByName(System.getProperty(Config.PROPERTY_PREFIX + "replace_address", null));
-            else if (System.getProperty(Config.PROPERTY_PREFIX + "replace_address_first_boot", null) != null)
-                return InetAddressAndPort.getByName(System.getProperty(Config.PROPERTY_PREFIX + "replace_address_first_boot", null));
+            String replaceAddress = REPLACE_ADDRESS.getString();
+            if (replaceAddress != null)
+                return InetAddressAndPort.getByName(replaceAddress);
+
+            String replaceAddressFirsstBoot = REPLACE_ADDRESS_FIRST_BOOT.getString();
+            if (replaceAddressFirsstBoot != null)
+                return InetAddressAndPort.getByName(replaceAddressFirsstBoot);
+
             return null;
         }
         catch (UnknownHostException e)
@@ -1713,14 +2024,14 @@ public class DatabaseDescriptor
 
     public static Collection<String> getReplaceTokens()
     {
-        return tokensFromString(System.getProperty(Config.PROPERTY_PREFIX + "replace_token", null));
+        return tokensFromString(REPLACE_TOKEN.getString());
     }
 
     public static UUID getReplaceNode()
     {
         try
         {
-            return UUID.fromString(System.getProperty(Config.PROPERTY_PREFIX + "replace_node", null));
+            return UUID.fromString(REPLACE_NODE.getString());
         } catch (NullPointerException e)
         {
             return null;
@@ -1734,12 +2045,12 @@ public class DatabaseDescriptor
 
     public static int getStoragePort()
     {
-        return Integer.parseInt(System.getProperty(Config.PROPERTY_PREFIX + "storage_port", Integer.toString(conf.storage_port)));
+        return STORAGE_PORT.getInt(conf.storage_port);
     }
 
     public static int getSSLStoragePort()
     {
-        return Integer.parseInt(System.getProperty(Config.PROPERTY_PREFIX + "ssl_storage_port", Integer.toString(conf.ssl_storage_port)));
+        return SSL_STORAGE_PORT.getInt(conf.ssl_storage_port);
     }
 
     public static long nativeTransportIdleTimeout()
@@ -1956,31 +2267,45 @@ public class DatabaseDescriptor
         return conf.compaction_throughput.toMebibytesPerSecondAsInt();
     }
 
+    public static double getCompactionThroughputBytesPerSec()
+    {
+        return conf.compaction_throughput.toBytesPerSecond();
+    }
+
     public static double getCompactionThroughputMebibytesPerSec()
     {
         return conf.compaction_throughput.toMebibytesPerSecond();
     }
 
+    @VisibleForTesting // only for testing!
+    public static void setCompactionThroughputBytesPerSec(int value)
+    {
+        if (BYTES_PER_SECOND.toMebibytesPerSecond(value) >= Integer.MAX_VALUE)
+            throw new IllegalArgumentException("compaction_throughput: " + value +
+                                               " is too large; it should be less than " +
+                                               Integer.MAX_VALUE + " in MiB/s");
+
+        conf.compaction_throughput = new DataRateSpec.LongBytesPerSecondBound(value);
+    }
+
     public static void setCompactionThroughputMebibytesPerSec(int value)
     {
-        conf.compaction_throughput = new DataRateSpec.IntMebibytesPerSecondBound(value);
-    }
+        if (value == Integer.MAX_VALUE)
+            throw new IllegalArgumentException("compaction_throughput: " + value +
+                                               " is too large; it should be less than " +
+                                               Integer.MAX_VALUE + " in MiB/s");
 
-    public static long getCompactionLargePartitionWarningThreshold() { return conf.compaction_large_partition_warning_threshold.toBytes(); }
-
-    public static int getCompactionTombstoneWarningThreshold()
-    {
-        return conf.compaction_tombstone_warning_threshold;
-    }
-
-    public static void setCompactionTombstoneWarningThreshold(int count)
-    {
-        conf.compaction_tombstone_warning_threshold = count;
+        conf.compaction_throughput = new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND);
     }
 
     public static int getConcurrentValidations()
     {
         return conf.concurrent_validations;
+    }
+
+    public static int getConcurrentIndexBuilders()
+    {
+        return conf.concurrent_index_builders;
     }
 
     public static void setConcurrentValidations(int value)
@@ -1999,9 +2324,31 @@ public class DatabaseDescriptor
         conf.concurrent_materialized_view_builders = value;
     }
 
+    public static long getMinFreeSpacePerDriveInMebibytes()
+    {
+        return conf.min_free_space_per_drive.toMebibytes();
+    }
+
     public static long getMinFreeSpacePerDriveInBytes()
     {
-        return conf.min_free_space_per_drive.toBytes();
+        return conf.min_free_space_per_drive.toBytesInLong();
+    }
+
+    @VisibleForTesting
+    public static long setMinFreeSpacePerDriveInMebibytes(long mebiBytes)
+    {
+        conf.min_free_space_per_drive = new DataStorageSpec.IntMebibytesBound(mebiBytes);
+        return getMinFreeSpacePerDriveInBytes();
+    }
+
+    public static double getMaxSpaceForCompactionsPerDrive()
+    {
+        return conf.max_space_usable_for_compactions_in_percentage;
+    }
+
+    public static void setMaxSpaceForCompactionsPerDrive(double percentage)
+    {
+        conf.max_space_usable_for_compactions_in_percentage = percentage;
     }
 
     public static boolean getDisableSTCSInL0()
@@ -2019,19 +2366,44 @@ public class DatabaseDescriptor
         return conf.stream_throughput_outbound.toMegabitsPerSecondAsInt();
     }
 
+    public static double getStreamThroughputOutboundMegabitsPerSecAsDouble()
+    {
+        return conf.stream_throughput_outbound.toMegabitsPerSecond();
+    }
+
     public static double getStreamThroughputOutboundMebibytesPerSec()
     {
         return conf.stream_throughput_outbound.toMebibytesPerSecond();
     }
 
-    public static void setStreamThroughputOutboundMegabitsPerSec(int value)
+    public static double getStreamThroughputOutboundBytesPerSec()
     {
-        conf.stream_throughput_outbound = DataRateSpec.IntMebibytesPerSecondBound.megabitsPerSecondInMebibytesPerSecond(value);
+        return conf.stream_throughput_outbound.toBytesPerSecond();
     }
 
-    public static int getEntireSSTableStreamThroughputOutboundMebibytesPerSecAsInt()
+    public static int getStreamThroughputOutboundMebibytesPerSecAsInt()
     {
-        return conf.entire_sstable_stream_throughput_outbound.toMebibytesPerSecondAsInt();
+        return conf.stream_throughput_outbound.toMebibytesPerSecondAsInt();
+    }
+
+    public static void setStreamThroughputOutboundMebibytesPerSecAsInt(int value)
+    {
+        if (MEBIBYTES_PER_SECOND.toMegabitsPerSecond(value) >= Integer.MAX_VALUE)
+            throw new IllegalArgumentException("stream_throughput_outbound: " + value  +
+                                               " is too large; it should be less than " +
+                                               Integer.MAX_VALUE + " in megabits/s");
+
+        conf.stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND);
+    }
+
+    public static void setStreamThroughputOutboundBytesPerSec(long value)
+    {
+        conf.stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(value, BYTES_PER_SECOND);
+    }
+
+    public static void setStreamThroughputOutboundMegabitsPerSec(int value)
+    {
+        conf.stream_throughput_outbound = DataRateSpec.LongBytesPerSecondBound.megabitsPerSecondInBytesPerSecond(value);
     }
 
     public static double getEntireSSTableStreamThroughputOutboundMebibytesPerSec()
@@ -2039,9 +2411,19 @@ public class DatabaseDescriptor
         return conf.entire_sstable_stream_throughput_outbound.toMebibytesPerSecond();
     }
 
+    public static double getEntireSSTableStreamThroughputOutboundBytesPerSec()
+    {
+        return conf.entire_sstable_stream_throughput_outbound.toBytesPerSecond();
+    }
+
     public static void setEntireSSTableStreamThroughputOutboundMebibytesPerSec(int value)
     {
-        conf.entire_sstable_stream_throughput_outbound = new DataRateSpec.IntMebibytesPerSecondBound(value);
+        if (value == Integer.MAX_VALUE)
+            throw new IllegalArgumentException("entire_sstable_stream_throughput_outbound: " + value +
+                                               " is too large; it should be less than " +
+                                               Integer.MAX_VALUE + " in MiB/s");
+
+        conf.entire_sstable_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND);
     }
 
     public static int getInterDCStreamThroughputOutboundMegabitsPerSec()
@@ -2049,14 +2431,49 @@ public class DatabaseDescriptor
         return conf.inter_dc_stream_throughput_outbound.toMegabitsPerSecondAsInt();
     }
 
+    public static double getInterDCStreamThroughputOutboundMegabitsPerSecAsDouble()
+    {
+        return conf.inter_dc_stream_throughput_outbound.toMegabitsPerSecond();
+    }
+
     public static double getInterDCStreamThroughputOutboundMebibytesPerSec()
     {
         return conf.inter_dc_stream_throughput_outbound.toMebibytesPerSecond();
     }
 
+    public static double getInterDCStreamThroughputOutboundBytesPerSec()
+    {
+        return conf.inter_dc_stream_throughput_outbound.toBytesPerSecond();
+    }
+
+    public static int getInterDCStreamThroughputOutboundMebibytesPerSecAsInt()
+    {
+        return conf.inter_dc_stream_throughput_outbound.toMebibytesPerSecondAsInt();
+    }
+
+    public static void setInterDCStreamThroughputOutboundMebibytesPerSecAsInt(int value)
+    {
+        if (MEBIBYTES_PER_SECOND.toMegabitsPerSecond(value) >= Integer.MAX_VALUE)
+            throw new IllegalArgumentException("inter_dc_stream_throughput_outbound: " + value +
+                                               " is too large; it should be less than " +
+                                               Integer.MAX_VALUE + " in megabits/s");
+
+        conf.inter_dc_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND);
+    }
+
+    public static void setInterDCStreamThroughputOutboundBytesPerSec(long value)
+    {
+        conf.inter_dc_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(value, BYTES_PER_SECOND);
+    }
+
     public static void setInterDCStreamThroughputOutboundMegabitsPerSec(int value)
     {
-        conf.inter_dc_stream_throughput_outbound = DataRateSpec.IntMebibytesPerSecondBound.megabitsPerSecondInMebibytesPerSecond(value);
+        conf.inter_dc_stream_throughput_outbound = DataRateSpec.LongBytesPerSecondBound.megabitsPerSecondInBytesPerSecond(value);
+    }
+
+    public static double getEntireSSTableInterDCStreamThroughputOutboundBytesPerSec()
+    {
+        return conf.entire_sstable_inter_dc_stream_throughput_outbound.toBytesPerSecond();
     }
 
     public static double getEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSec()
@@ -2064,14 +2481,14 @@ public class DatabaseDescriptor
         return conf.entire_sstable_inter_dc_stream_throughput_outbound.toMebibytesPerSecond();
     }
 
-    public static int getEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSecAsInt()
-    {
-        return conf.entire_sstable_inter_dc_stream_throughput_outbound.toMebibytesPerSecondAsInt();
-    }
-
     public static void setEntireSSTableInterDCStreamThroughputOutboundMebibytesPerSec(int value)
     {
-        conf.entire_sstable_inter_dc_stream_throughput_outbound = new DataRateSpec.IntMebibytesPerSecondBound(value);
+        if (value == Integer.MAX_VALUE)
+            throw new IllegalArgumentException("entire_sstable_inter_dc_stream_throughput_outbound: " + value +
+                                               " is too large; it should be less than " +
+                                               Integer.MAX_VALUE + " in MiB/s");
+
+        conf.entire_sstable_inter_dc_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(value, MEBIBYTES_PER_SECOND);
     }
 
     /**
@@ -2428,7 +2845,7 @@ public class DatabaseDescriptor
      */
     public static int getNativeTransportPort()
     {
-        return Integer.parseInt(System.getProperty(Config.PROPERTY_PREFIX + "native_transport_port", Integer.toString(conf.native_transport_port)));
+        return NATIVE_TRANSPORT_PORT.getInt(conf.native_transport_port);
     }
 
     @VisibleForTesting
@@ -2456,6 +2873,22 @@ public class DatabaseDescriptor
     public static void setNativeTransportMaxThreads(int max_threads)
     {
         conf.native_transport_max_threads = max_threads;
+    }
+
+    public static Integer getNativeTransportMaxAuthThreads()
+    {
+        return conf.native_transport_max_auth_threads;
+    }
+
+    /**
+     * If this value is set to <= 0 it will move auth requests to the standard request pool regardless of the current
+     * size of the {@link org.apache.cassandra.transport.Dispatcher#authExecutor}'s active size.
+     *
+     * see {@link org.apache.cassandra.transport.Dispatcher#dispatch} for executor selection
+     */
+    public static void setNativeTransportMaxAuthThreads(int threads)
+    {
+        conf.native_transport_max_auth_threads = threads;
     }
 
     public static int getNativeTransportMaxFrameSize()
@@ -2815,7 +3248,7 @@ public class DatabaseDescriptor
 
     public static boolean isAutoBootstrap()
     {
-        return Boolean.parseBoolean(System.getProperty(Config.PROPERTY_PREFIX + "auto_bootstrap", Boolean.toString(conf.auto_bootstrap)));
+        return AUTO_BOOTSTRAP.getBoolean(conf.auto_bootstrap);
     }
 
     public static void setHintedHandoffEnabled(boolean hintedHandoffEnabled)
@@ -2977,7 +3410,7 @@ public class DatabaseDescriptor
 
     public static long getMaxHintsFileSize()
     {
-        return  conf.max_hints_file_size.toBytes();
+        return  conf.max_hints_file_size.toBytesInLong();
     }
 
     public static ParameterizedClass getHintsCompression()
@@ -3000,6 +3433,16 @@ public class DatabaseDescriptor
         conf.auto_hints_cleanup_enabled = value;
     }
 
+    public static boolean getTransferHintsOnDecommission()
+    {
+        return conf.transfer_hints_on_decommission;
+    }
+
+    public static void setTransferHintsOnDecommission(boolean enabled)
+    {
+        conf.transfer_hints_on_decommission = enabled;
+    }
+
     public static boolean isIncrementalBackupsEnabled()
     {
         return conf.incremental_backups;
@@ -3013,6 +3456,12 @@ public class DatabaseDescriptor
     public static boolean getFileCacheEnabled()
     {
         return conf.file_cache_enabled;
+    }
+
+    @VisibleForTesting
+    public static void setFileCacheEnabled(boolean enabled)
+    {
+        conf.file_cache_enabled = enabled;
     }
 
     public static int getFileCacheSizeInMiB()
@@ -3075,14 +3524,21 @@ public class DatabaseDescriptor
         conf.key_cache_migrate_during_compaction = migrateCacheEntry;
     }
 
+    /** This method can return negative number for disabled */
     public static int getSSTablePreemptiveOpenIntervalInMiB()
     {
+        if (conf.sstable_preemptive_open_interval == null)
+            return -1;
         return conf.sstable_preemptive_open_interval.toMebibytes();
     }
 
+    /** Negative number for disabled */
     public static void setSSTablePreemptiveOpenIntervalInMiB(int mib)
     {
-        conf.sstable_preemptive_open_interval = new DataStorageSpec.IntMebibytesBound(mib);
+        if (mib < 0)
+            conf.sstable_preemptive_open_interval = null;
+        else
+            conf.sstable_preemptive_open_interval = new DataStorageSpec.IntMebibytesBound(mib);
     }
 
     public static boolean getTrickleFsync()
@@ -3217,6 +3673,27 @@ public class DatabaseDescriptor
         return conf.stream_entire_sstables;
     }
 
+    @VisibleForTesting
+    public static boolean setStreamEntireSSTables(boolean value)
+    {
+        return conf.stream_entire_sstables = value;
+    }
+
+    public static DurationSpec.LongMillisecondsBound getStreamTransferTaskTimeout()
+    {
+        return conf.stream_transfer_task_timeout;
+    }
+
+    public static boolean getSkipStreamDiskSpaceCheck()
+    {
+        return conf.skip_stream_disk_space_check;
+    }
+
+    public static void setSkipStreamDiskSpaceCheck(boolean value)
+    {
+        conf.skip_stream_disk_space_check = value;
+    }
+
     public static String getLocalDataCenter()
     {
         return localDC;
@@ -3315,7 +3792,18 @@ public class DatabaseDescriptor
 
     public static int getIndexSummaryResizeIntervalInMinutes()
     {
+        if (conf.index_summary_resize_interval == null)
+            return -1;
+
         return conf.index_summary_resize_interval.toMinutes();
+    }
+
+    public static void setIndexSummaryResizeIntervalInMinutes(int value)
+    {
+        if (value == -1)
+            conf.index_summary_resize_interval = null;
+        else
+            conf.index_summary_resize_interval = new DurationSpec.IntMinutesBound(value);
     }
 
     public static boolean hasLargeAddressSpace()
@@ -3357,11 +3845,6 @@ public class DatabaseDescriptor
     public static boolean enableScriptedUserDefinedFunctions()
     {
         return conf.scripted_user_defined_functions_enabled;
-    }
-
-    public static void enableScriptedUserDefinedFunctions(boolean enableScriptedUserDefinedFunctions)
-    {
-        conf.scripted_user_defined_functions_enabled = enableScriptedUserDefinedFunctions;
     }
 
     public static boolean enableUserDefinedFunctionsThreads()
@@ -3407,6 +3890,26 @@ public class DatabaseDescriptor
     public static void setSASIIndexesEnabled(boolean enableSASIIndexes)
     {
         conf.sasi_indexes_enabled = enableSASIIndexes;
+    }
+
+    public static String getDefaultSecondaryIndex()
+    {
+        return conf.default_secondary_index;
+    }
+
+    public static void setDefaultSecondaryIndex(String name)
+    {
+        conf.default_secondary_index = name;
+    }
+
+    public static boolean getDefaultSecondaryIndexEnabled()
+    {
+        return conf.default_secondary_index_enabled;
+    }
+
+    public static void setDefaultSecondaryIndexEnabled(boolean enabled)
+    {
+        conf.default_secondary_index_enabled = enabled;
     }
 
     public static boolean isTransientReplicationEnabled()
@@ -3455,6 +3958,11 @@ public class DatabaseDescriptor
         return conf.gc_log_threshold.toMilliseconds();
     }
 
+    public static void setGCLogThreshold(int gcLogThreshold)
+    {
+        conf.gc_log_threshold = new DurationSpec.IntMillisecondsBound(gcLogThreshold);
+    }
+
     public static EncryptionContext getEncryptionContext()
     {
         return encryptionContext;
@@ -3463,6 +3971,11 @@ public class DatabaseDescriptor
     public static long getGCWarnThreshold()
     {
         return conf.gc_warn_threshold.toMilliseconds();
+    }
+
+    public static void setGCWarnThreshold(int threshold)
+    {
+        conf.gc_warn_threshold = new DurationSpec.IntMillisecondsBound(threshold);
     }
 
     public static boolean isCDCEnabled()
@@ -3486,20 +3999,30 @@ public class DatabaseDescriptor
         conf.cdc_block_writes = val;
     }
 
+    public static boolean isCDCOnRepairEnabled()
+    {
+        return conf.cdc_on_repair_enabled;
+    }
+
+    public static void setCDCOnRepairEnabled(boolean val)
+    {
+        conf.cdc_on_repair_enabled = val;
+    }
+
     public static String getCDCLogLocation()
     {
         return conf.cdc_raw_directory;
     }
 
-    public static int getCDCSpaceInMiB()
+    public static long getCDCTotalSpace()
     {
-        return conf.cdc_total_space.toMebibytes();
+        return conf.cdc_total_space.toBytesInLong();
     }
 
     @VisibleForTesting
-    public static void setCDCSpaceInMiB(int input)
+    public static void setCDCTotalSpaceInMiB(int mibs)
     {
-        conf.cdc_total_space = new DataStorageSpec.IntMebibytesBound(input);
+        conf.cdc_total_space = new DataStorageSpec.IntMebibytesBound(mibs);
     }
 
     public static int getCDCDiskCheckInterval()
@@ -3556,6 +4079,11 @@ public class DatabaseDescriptor
     public static FullQueryLoggerOptions getFullQueryLogOptions()
     {
         return  conf.full_query_logging_options;
+    }
+
+    public static void setFullQueryLogOptions(FullQueryLoggerOptions options)
+    {
+        conf.full_query_logging_options = options;
     }
 
     public static boolean getBlockForPeersInRemoteDatacenters()
@@ -3697,12 +4225,19 @@ public class DatabaseDescriptor
         commitLogSegmentMgrProvider = provider;
     }
 
+    private static DataStorageSpec.IntKibibytesBound createIntKibibyteBoundAndEnsureItIsValidForByteConversion(int kibibytes, String propertyName)
+    {
+        DataStorageSpec.IntKibibytesBound intKibibytesBound = new DataStorageSpec.IntKibibytesBound(kibibytes);
+        checkValidForByteConversion(intKibibytesBound, propertyName);
+        return intKibibytesBound;
+    }
+
     /**
      * Ensures passed in configuration value is positive and will not overflow when converted to Bytes
      */
     private static void checkValidForByteConversion(final DataStorageSpec.IntKibibytesBound value, String name)
     {
-        long valueInBytes = value.toBytes();
+        long valueInBytes = value.toBytesInLong();
         if (valueInBytes < 0 || valueInBytes > Integer.MAX_VALUE - 1)
         {
             throw new ConfigurationException(String.format("%s must be positive value <= %dB, but was %dB",
@@ -3807,30 +4342,6 @@ public class DatabaseDescriptor
         if (enabled != conf.auto_optimise_preview_repair_streams)
             logger.info("Changing auto_optimise_preview_repair_streams from {} to {}", conf.auto_optimise_preview_repair_streams, enabled);
         conf.auto_optimise_preview_repair_streams = enabled;
-    }
-
-    @Deprecated
-    public static int tableCountWarnThreshold()
-    {
-        return conf.table_count_warn_threshold;
-    }
-
-    @Deprecated // this warning threshold will be replaced by an equivalent guardrail
-    public static void setTableCountWarnThreshold(int value)
-    {
-        conf.table_count_warn_threshold = value;
-    }
-
-    @Deprecated // this warning threshold will be replaced by an equivalent guardrail
-    public static int keyspaceCountWarnThreshold()
-    {
-        return conf.keyspace_count_warn_threshold;
-    }
-
-    @Deprecated // this warning threshold will be replaced by an equivalent guardrail
-    public static void setKeyspaceCountWarnThreshold(int value)
-    {
-        conf.keyspace_count_warn_threshold = value;
     }
 
     @Deprecated // this warning threshold will be replaced by an equivalent guardrail
@@ -4079,6 +4590,11 @@ public class DatabaseDescriptor
             throw new IllegalArgumentException(String.format("default_keyspace_rf to be set (%d) cannot be less than minimum_replication_factor_fail_threshold (%d)", value, guardrails.getMinimumReplicationFactorFailThreshold()));
         }
 
+        if (guardrails.getMaximumReplicationFactorFailThreshold() != -1 && value > guardrails.getMaximumReplicationFactorFailThreshold())
+        {
+            throw new IllegalArgumentException(String.format("default_keyspace_rf to be set (%d) cannot be greater than maximum_replication_factor_fail_threshold (%d)", value, guardrails.getMaximumReplicationFactorFailThreshold()));
+        }
+
         conf.default_keyspace_rf = value;
     }
 
@@ -4139,9 +4655,36 @@ public class DatabaseDescriptor
         }
     }
 
+    public static boolean getStreamingStatsEnabled()
+    {
+        return conf.streaming_stats_enabled;
+    }
+
+    public static void setStreamingStatsEnabled(boolean streamingStatsEnabled)
+    {
+        if (conf.streaming_stats_enabled != streamingStatsEnabled)
+        {
+            logger.info("Setting streaming_stats_enabled to {}", streamingStatsEnabled);
+            conf.streaming_stats_enabled = streamingStatsEnabled;
+        }
+    }
+
+    public static DurationSpec.IntSecondsBound getStreamingSlowEventsLogTimeout() {
+        return conf.streaming_slow_events_log_timeout;
+    }
+
+    public static void setStreamingSlowEventsLogTimeout(String value) {
+        DurationSpec.IntSecondsBound next = new DurationSpec.IntSecondsBound(value);
+        if (!conf.streaming_slow_events_log_timeout.equals(next))
+        {
+            logger.info("Setting streaming_slow_events_log to " + value);
+            conf.streaming_slow_events_log_timeout = next;
+        }
+    }
+
     public static boolean isUUIDSSTableIdentifiersEnabled()
     {
-        return conf.enable_uuid_sstable_identifiers;
+        return conf.uuid_sstable_identifiers_enabled;
     }
 
     public static DurationSpec.LongNanosecondsBound getRepairStateExpires()
@@ -4197,14 +4740,14 @@ public class DatabaseDescriptor
         conf.max_top_tombstone_partition_count = value;
     }
 
-    public static DataStorageSpec.LongBytesBound getMinTrackedPartitionSize()
+    public static DataStorageSpec.LongBytesBound getMinTrackedPartitionSizeInBytes()
     {
-        return conf.min_tracked_partition_size_bytes;
+        return conf.min_tracked_partition_size;
     }
 
-    public static void setMinTrackedPartitionSize(DataStorageSpec.LongBytesBound spec)
+    public static void setMinTrackedPartitionSizeInBytes(DataStorageSpec.LongBytesBound spec)
     {
-        conf.min_tracked_partition_size_bytes = spec;
+        conf.min_tracked_partition_size = spec;
     }
 
     public static long getMinTrackedPartitionTombstoneCount()
@@ -4215,5 +4758,156 @@ public class DatabaseDescriptor
     public static void setMinTrackedPartitionTombstoneCount(long value)
     {
         conf.min_tracked_partition_tombstone_count = value;
+    }
+
+    public static boolean getDumpHeapOnUncaughtException()
+    {
+        return conf.dump_heap_on_uncaught_exception;
+    }
+
+    /**
+     * @return Whether the path exists (be it created now or already prior)
+     */
+    private static boolean maybeCreateHeapDumpPath()
+    {
+        if (!conf.dump_heap_on_uncaught_exception)
+            return false;
+
+        Path heap_dump_path = getHeapDumpPath();
+        if (heap_dump_path == null)
+        {
+            logger.warn("Neither -XX:HeapDumpPath nor cassandra.yaml:heap_dump_path are set; unable to create a directory to hold the output.");
+            return false;
+        }
+        if (PathUtils.exists(File.getPath(conf.heap_dump_path)))
+            return true;
+        return PathUtils.createDirectoryIfNotExists(File.getPath(conf.heap_dump_path));
+    }
+
+    /**
+     * As this is at its heart a debug operation (getting a one-shot heapdump from an uncaught exception), we support
+     * both the more evolved cassandra.yaml approach but also the -XX param to override it on a one-off basis so you don't
+     * have to change the full config of a node or a cluster in order to get a heap dump from a single node that's
+     * misbehaving.
+     * @return the absolute path of the -XX param if provided, else the heap_dump_path in cassandra.yaml
+     */
+    public static Path getHeapDumpPath()
+    {
+        RuntimeMXBean runtimeMxBean = ManagementFactory.getRuntimeMXBean();
+        Optional<String> pathArg = runtimeMxBean.getInputArguments().stream().filter(s -> s.startsWith("-XX:HeapDumpPath=")).findFirst();
+
+        if (pathArg.isPresent())
+        {
+            Pattern HEAP_DUMP_PATH_SPLITTER = Pattern.compile("HeapDumpPath=");
+            String fullHeapPathString = HEAP_DUMP_PATH_SPLITTER.split(pathArg.get())[1];
+            Path absolutePath = File.getPath(fullHeapPathString).toAbsolutePath();
+            Path basePath = fullHeapPathString.endsWith(".hprof") ? absolutePath.subpath(0, absolutePath.getNameCount() - 1) : absolutePath;
+            return File.getPath("/").resolve(basePath);
+        }
+        if (conf.heap_dump_path == null)
+            throw new ConfigurationException("Attempted to get heap dump path without -XX:HeapDumpPath or cassandra.yaml:heap_dump_path set.");
+        return File.getPath(conf.heap_dump_path);
+    }
+
+    public static void setDumpHeapOnUncaughtException(boolean enabled)
+    {
+        conf.dump_heap_on_uncaught_exception = enabled;
+        boolean pathExists = maybeCreateHeapDumpPath();
+
+        if (enabled && !pathExists)
+        {
+            logger.error("Attempted to enable heap dump but cannot create the requested path. Disabling.");
+            conf.dump_heap_on_uncaught_exception = false;
+        }
+        else
+            logger.info("Setting dump_heap_on_uncaught_exception to {}", enabled);
+    }
+
+    public static boolean getSStableReadRatePersistenceEnabled()
+    {
+        return conf.sstable_read_rate_persistence_enabled;
+    }
+
+    public static void setSStableReadRatePersistenceEnabled(boolean enabled)
+    {
+        if (enabled != conf.sstable_read_rate_persistence_enabled)
+        {
+            logger.info("Setting sstable_read_rate_persistence_enabled to {}", enabled);
+            conf.sstable_read_rate_persistence_enabled = enabled;
+        }
+    }
+
+    public static boolean getClientRequestSizeMetricsEnabled()
+    {
+        return conf.client_request_size_metrics_enabled;
+    }
+
+    public static void setClientRequestSizeMetricsEnabled(boolean enabled)
+    {
+        conf.client_request_size_metrics_enabled = enabled;
+    }
+
+    @VisibleForTesting
+    public static void resetSSTableFormats(Iterable<SSTableFormat.Factory> factories, Config.SSTableConfig config)
+    {
+        sstableFormats = null;
+        selectedSSTableFormat = null;
+        applySSTableFormats(factories, config);
+    }
+
+    public static ImmutableMap<String, SSTableFormat<?, ?>> getSSTableFormats()
+    {
+        return Objects.requireNonNull(sstableFormats, "Forgot to initialize DatabaseDescriptor?");
+    }
+
+    public static SSTableFormat<?, ?> getSelectedSSTableFormat()
+    {
+        return Objects.requireNonNull(selectedSSTableFormat, "Forgot to initialize DatabaseDescriptor?");
+    }
+
+    @VisibleForTesting
+    public static void setSelectedSSTableFormat(SSTableFormat<?, ?> format)
+    {
+        selectedSSTableFormat = Objects.requireNonNull(format);
+    }
+
+    public static boolean getDynamicDataMaskingEnabled()
+    {
+        return conf.dynamic_data_masking_enabled;
+    }
+
+    public static void setDynamicDataMaskingEnabled(boolean enabled)
+    {
+        if (enabled != conf.dynamic_data_masking_enabled)
+        {
+            logger.info("Setting dynamic_data_masking_enabled to {}", enabled);
+            conf.dynamic_data_masking_enabled = enabled;
+        }
+    }
+
+    public static OptionalDouble getSeverityDuringDecommission()
+    {
+        return conf.severity_during_decommission > 0 ?
+               OptionalDouble.of(conf.severity_during_decommission) :
+               OptionalDouble.empty();
+    }
+
+    public static StorageCompatibilityMode getStorageCompatibilityMode()
+    {
+        // Config is null for junits that don't load the config. Get from env var that CI/build.xml sets
+        if (conf == null)
+            return CassandraRelevantProperties.JUNIT_STORAGE_COMPATIBILITY_MODE.getEnum(StorageCompatibilityMode.CASSANDRA_4);
+        else
+            return conf.storage_compatibility_mode;
+    }
+
+    public static ParameterizedClass getDefaultCompaction()
+    {
+        return conf != null ? conf.default_compaction : null;
+    }
+
+    public static DataStorageSpec.IntMebibytesBound getSAISegmentWriteBufferSpace()
+    {
+        return conf.sai_options.segment_write_buffer_size;
     }
 }

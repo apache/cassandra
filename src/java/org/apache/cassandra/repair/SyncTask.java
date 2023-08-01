@@ -32,10 +32,13 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.repair.messages.RepairMessage;
+import org.apache.cassandra.repair.messages.SyncRequest;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.tracing.Tracing;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.net.Verb.SYNC_REQ;
 
 public abstract class SyncTask extends AsyncFuture<SyncStat> implements Runnable
 {
@@ -57,7 +60,7 @@ public abstract class SyncTask extends AsyncFuture<SyncStat> implements Runnable
         this.rangesToSync = rangesToSync;
         this.nodePair = new SyncNodePair(primaryEndpoint, peer);
         this.previewKind = previewKind;
-        this.stat = new SyncStat(nodePair, rangesToSync.size());
+        this.stat = new SyncStat(nodePair, rangesToSync);
     }
 
     protected abstract void startSync();
@@ -103,4 +106,12 @@ public abstract class SyncTask extends AsyncFuture<SyncStat> implements Runnable
     }
 
     public void abort() {}
+
+    void sendRequest(SyncRequest request, InetAddressAndPort to)
+    {
+        RepairMessage.sendMessageWithFailureCB(request,
+                                               SYNC_REQ,
+                                               to,
+                                               this::tryFailure);
+    }
 }

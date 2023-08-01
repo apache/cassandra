@@ -80,22 +80,13 @@ fi
 java_ver_output=`"${JAVA:-java}" -version 2>&1`
 jvmver=`echo "$java_ver_output" | grep '[openjdk|java] version' | awk -F'"' 'NR==1 {print $2}' | cut -d\- -f1`
 JVM_VERSION=${jvmver%_*}
+short=$(echo "${jvmver}" | cut -c1-2)
 
-JAVA_VERSION=11
-if [ "$JVM_VERSION" = "1.8.0" ]  ; then
-    JVM_PATCH_VERSION=${jvmver#*_}
-    if [ "$JVM_VERSION" \< "1.8" ] || [ "$JVM_VERSION" \> "1.8.2" ] ; then
-        echo "Cassandra 4.0 requires either Java 8 (update 151 or newer) or Java 11 (or newer). Java $JVM_VERSION is not supported."
-        exit 1;
-    fi
-    if [ "$JVM_PATCH_VERSION" -lt 151 ] ; then
-        echo "Cassandra 4.0 requires either Java 8 (update 151 or newer) or Java 11 (or newer). Java 8 update $JVM_PATCH_VERSION is not supported."
-        exit 1;
-    fi
-    JAVA_VERSION=8
-elif [ "$JVM_VERSION" \< "11" ] ; then
-    echo "Cassandra 4.0 requires either Java 8 (update 151 or newer) or Java 11 (or newer)."
-    exit 1;
+JAVA_VERSION=17
+if [ "$short" = "11" ] ; then
+     JAVA_VERSION=11
+elif [ "$JVM_VERSION" \< "17" ] ; then
+    echo "Cassandra 5.0 requires Java 11 or Java 17(or newer)."
 fi
 
 jvm=`echo "$java_ver_output" | grep -A 1 '[openjdk|java] version' | awk 'NR==2 {print $1}'`
@@ -119,10 +110,10 @@ esac
 
 # Read user-defined JVM options from jvm-server.options file
 JVM_OPTS_FILE=$CASSANDRA_CONF/jvm${jvmoptions_variant:--clients}.options
-if [ $JAVA_VERSION -ge 11 ] ; then
+if [ $JAVA_VERSION -ge 17 ] ; then
+    JVM_DEP_OPTS_FILE=$CASSANDRA_CONF/jvm17${jvmoptions_variant:--clients}.options
+elif [ $JAVA_VERSION -ge 11 ] ; then
     JVM_DEP_OPTS_FILE=$CASSANDRA_CONF/jvm11${jvmoptions_variant:--clients}.options
-else
-    JVM_DEP_OPTS_FILE=$CASSANDRA_CONF/jvm8${jvmoptions_variant:--clients}.options
 fi
 
 for opt in `grep "^-" $JVM_OPTS_FILE` `grep "^-" $JVM_DEP_OPTS_FILE`

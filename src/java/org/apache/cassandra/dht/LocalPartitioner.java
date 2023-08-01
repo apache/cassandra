@@ -26,9 +26,12 @@ import java.util.Random;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.CachedHashDecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.cassandra.utils.memory.HeapAllocator;
+import org.apache.cassandra.utils.memory.HeapCloner;
 
 public class LocalPartitioner implements IPartitioner
 {
@@ -83,6 +86,12 @@ public class LocalPartitioner implements IPartitioner
 
     private final Token.TokenFactory tokenFactory = new Token.TokenFactory()
     {
+        public Token fromComparableBytes(ByteSource.Peekable comparableBytes, ByteComparable.Version version)
+        {
+            ByteBuffer tokenData = comparator.fromComparableBytes(ByteBufferAccessor.instance, comparableBytes, version);
+            return new LocalToken(tokenData);
+        }
+
         public ByteBuffer toByteArray(Token token)
         {
             return ((LocalToken)token).token;
@@ -116,7 +125,7 @@ public class LocalPartitioner implements IPartitioner
 
     public Map<Token, Float> describeOwnership(List<Token> sortedTokens)
     {
-        return Collections.singletonMap((Token)getMinimumToken(), new Float(1.0));
+        return Collections.singletonMap((Token)getMinimumToken(), 1.0F);
     }
 
     public AbstractType<?> getTokenValidator()
@@ -140,7 +149,7 @@ public class LocalPartitioner implements IPartitioner
 
         public LocalToken(ByteBuffer token)
         {
-            super(HeapAllocator.instance.clone(token));
+            super(HeapCloner.instance.clone(token));
         }
 
         @Override
@@ -172,6 +181,12 @@ public class LocalPartitioner implements IPartitioner
                 return false;
             LocalToken other = (LocalToken) obj;
             return token.equals(other.token);
+        }
+
+        @Override
+        public ByteSource asComparableBytes(ByteComparable.Version version)
+        {
+            return comparator.asComparableBytes(ByteBufferAccessor.instance, token, version);
         }
 
         @Override

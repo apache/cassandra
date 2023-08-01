@@ -36,18 +36,25 @@ import static org.apache.cassandra.utils.Throwables.perform;
 
 public class MmappedRegions extends SharedCloseableImpl
 {
-    /** In a perfect world, MAX_SEGMENT_SIZE would be final, but we need to test with a smaller size */
+    /**
+     * In a perfect world, MAX_SEGMENT_SIZE would be final, but we need to test with a smaller size
+     */
     public static int MAX_SEGMENT_SIZE = Integer.MAX_VALUE;
 
-    /** When we need to grow the arrays, we add this number of region slots */
+    /**
+     * When we need to grow the arrays, we add this number of region slots
+     */
     static final int REGION_ALLOC_SIZE = 15;
 
-    /** The original state, which is shared with the tidier and
+    /**
+     * The original state, which is shared with the tidier and
      * contains all the regions mapped so far. It also
-     * does the actual mapping. */
+     * does the actual mapping.
+     */
     private final State state;
 
-    /** A copy of the latest state. We update this each time the original state is
+    /**
+     * A copy of the latest state. We update this each time the original state is
      * updated and we share this with copies. If we are a copy, then this
      * is null. Copies can only access existing regions, they cannot create
      * new ones. This is for thread safety and because MmappedRegions is
@@ -92,7 +99,7 @@ public class MmappedRegions extends SharedCloseableImpl
     }
 
     /**
-     * @param channel file to map. the MmappedRegions instance will hold shared copy of given channel.
+     * @param channel  file to map. the MmappedRegions instance will hold shared copy of given channel.
      * @param metadata
      * @return new instance
      */
@@ -126,7 +133,12 @@ public class MmappedRegions extends SharedCloseableImpl
         return copy == null;
     }
 
-    public void extend(long length)
+    /**
+     * Extends this collection of mmapped regions up to the provided total length.
+     *
+     * @return {@code true} if new regions have been created
+     */
+    public boolean extend(long length)
     {
         if (length < 0)
             throw new IllegalArgumentException("Length must not be negative");
@@ -134,12 +146,41 @@ public class MmappedRegions extends SharedCloseableImpl
         assert !isCopy() : "Copies cannot be extended";
 
         if (length <= state.length)
-            return;
+            return false;
 
+        int initialRegions = state.last;
         updateState(length);
         copy = new State(state);
+        return state.last > initialRegions;
     }
 
+    /**
+     * Extends this collection of mmapped regions up to the length of the compressed file described by the provided
+     * metadata.
+     *
+     * @return {@code true} if new regions have been created
+     */
+    public boolean extend(CompressionMetadata compressionMetadata)
+    {
+        assert !isCopy() : "Copies cannot be extended";
+
+        if (compressionMetadata.compressedFileLength <= state.length)
+            return false;
+
+        int initialRegions = state.last;
+        if (compressionMetadata.compressedFileLength - state.length <= MAX_SEGMENT_SIZE)
+            updateState(compressionMetadata.compressedFileLength);
+        else
+            updateState(compressionMetadata);
+
+        copy = new State(state);
+        return state.last > initialRegions;
+    }
+
+    /**
+     * Updates state by adding the remaining segments. It starts with the current state last segment end position and
+     * subsequently add new segments until all data up to the provided length are mapped.
+     */
     private void updateState(long length)
     {
         state.length = length;
@@ -154,8 +195,8 @@ public class MmappedRegions extends SharedCloseableImpl
 
     private void updateState(CompressionMetadata metadata)
     {
-        long offset = 0;
-        long lastSegmentOffset = 0;
+        long lastSegmentOffset = state.getPosition();
+        long offset = metadata.getDataOffsetForChunkOffset(lastSegmentOffset);
         long segmentSize = 0;
 
         while (offset < metadata.dataLength)
@@ -198,7 +239,7 @@ public class MmappedRegions extends SharedCloseableImpl
         assert !isCleanedUp() : "Attempted to use closed region";
         return state.floor(position);
     }
-    
+
     public void closeQuietly()
     {
         Throwable err = close(null);
@@ -245,19 +286,29 @@ public class MmappedRegions extends SharedCloseableImpl
 
     private static final class State
     {
-        /** The file channel */
+        /**
+         * The file channel
+         */
         private final ChannelProxy channel;
 
-        /** An array of region buffers, synchronized with offsets */
+        /**
+         * An array of region buffers, synchronized with offsets
+         */
         private ByteBuffer[] buffers;
 
-        /** An array of region offsets, synchronized with buffers */
+        /**
+         * An array of region offsets, synchronized with buffers
+         */
         private long[] offsets;
 
-        /** The maximum file length we have mapped */
+        /**
+         * The maximum file length we have mapped
+         */
         private long length;
 
-        /** The index to the last region added */
+        /**
+         * The index to the last region added
+         */
         private int last;
 
         private State(ChannelProxy channel)
@@ -292,7 +343,7 @@ public class MmappedRegions extends SharedCloseableImpl
         {
             assert 0 <= position && position <= length : String.format("%d > %d", position, length);
 
-            int idx = Arrays.binarySearch(offsets, 0, last +1, position);
+            int idx = Arrays.binarySearch(offsets, 0, last + 1, position);
             assert idx != -1 : String.format("Bad position %d for regions %s, last %d in %s", position, Arrays.toString(offsets), last, channel);
             if (idx < 0)
                 idx = -(idx + 2); // round down to entry at insertion point
@@ -362,5 +413,4 @@ public class MmappedRegions extends SharedCloseableImpl
             }
         }
     }
-
 }

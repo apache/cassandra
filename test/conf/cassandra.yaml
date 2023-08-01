@@ -43,7 +43,7 @@ compaction_throughput: 0MiB/s
 row_cache_class_name: org.apache.cassandra.cache.OHCProvider
 row_cache_size: 16MiB
 user_defined_functions_enabled: true
-scripted_user_defined_functions_enabled: true
+scripted_user_defined_functions_enabled: false
 prepared_statements_cache_size: 1MiB
 corrupted_tombstone_strategy: exception
 stream_entire_sstables: true
@@ -52,7 +52,12 @@ sasi_indexes_enabled: true
 materialized_views_enabled: true
 drop_compact_storage_enabled: true
 file_cache_enabled: true
+full_query_logging_options:
+  allow_nodetool_archive_command: true
 auto_hints_cleanup_enabled: true
+
+heap_dump_path: build/test
+dump_heap_on_uncaught_exception: true
 
 read_thresholds_enabled: true
 coordinator_read_size_warn_threshold: 1024KiB
@@ -65,13 +70,15 @@ row_index_read_size_fail_threshold: 8192KiB
 memtable:
     configurations:
         skiplist:
-            inherits: default
             class_name: SkipListMemtable
+        trie:
+            class_name: TrieMemtable
+            parameters:
+                shards: 4
         skiplist_sharded:
             class_name: ShardedSkipListMemtable
             parameters:
                 serialize_writes: false
-                shards: 4
         skiplist_sharded_locking:
             inherits: skiplist_sharded
             parameters:
@@ -79,7 +86,6 @@ memtable:
         skiplist_remapped:
             inherits: skiplist
         test_fullname:
-            inherits: default
             class_name: org.apache.cassandra.db.memtable.TestMemtable
         test_shortname:
             class_name: TestMemtable
@@ -103,3 +109,7 @@ memtable:
             class_name: org.apache.cassandra.cql3.validation.operations.CreateTest$InvalidMemtableFactoryMethod
         test_invalid_factory_field:
             class_name: org.apache.cassandra.cql3.validation.operations.CreateTest$InvalidMemtableFactoryField
+        test_memtable_metrics:
+            class_name: TrieMemtable
+# Note: keep the memtable configuration at the end of the file, so that the default mapping can be changed without
+# duplicating the whole section above.

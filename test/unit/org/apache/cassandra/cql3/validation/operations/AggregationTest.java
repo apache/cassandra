@@ -58,6 +58,7 @@ import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
 import static ch.qos.logback.core.CoreConstants.RECONFIGURE_ON_CHANGE_TASK;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -240,6 +241,114 @@ public class AggregationTest extends CQLTester
     }
 
     @Test
+    public void testAggregateWithSets() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, s set<int>, fs frozen<set<int>>)");
+
+        // Test with empty table
+        String select = "SELECT count(s), count(fs), min(s), min(fs), max(s), max(fs) FROM %s";
+        UntypedResultSet rs = execute(select);
+        assertColumnNames(rs,
+                          "system.count(s)", "system.count(fs)",
+                          "system.min(s)", "system.min(fs)",
+                          "system.max(s)", "system.max(fs)");
+        assertRows(rs, row(0L, 0L, null, null, null, null));
+
+        // Test with not-empty table
+        execute("INSERT INTO %s (k, s, fs) VALUES (1, {1, 2}, {1, 2})");
+        execute("INSERT INTO %s (k, s, fs) VALUES (2, {1, 2, 3}, {1, 2, 3})");
+        execute("INSERT INTO %s (k, s, fs) VALUES (3, {2, 1}, {2, 1})");
+        assertRows(execute(select), row(3L, 3L, set(1, 2), set(1, 2), set(1, 2, 3), set(1, 2, 3)));
+    }
+
+    @Test
+    public void testAggregateWithLists() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, l list<int>, fl frozen<list<int>>)");
+
+        // Test with empty table
+        String select = "SELECT count(l), count(fl), min(l), min(fl), max(l), max(fl) FROM %s";
+        UntypedResultSet rs = execute(select);
+        assertColumnNames(rs,
+                          "system.count(l)", "system.count(fl)",
+                          "system.min(l)", "system.min(fl)",
+                          "system.max(l)", "system.max(fl)");
+        assertRows(rs, row(0L, 0L, null, null, null, null));
+
+        // Test with not-empty table
+        execute("INSERT INTO %s (k, l, fl) VALUES (1, [1, 2], [1, 2])");
+        execute("INSERT INTO %s (k, l, fl) VALUES (2, [1, 2, 3], [1, 2, 3])");
+        execute("INSERT INTO %s (k, l, fl) VALUES (3, [2, 1], [2, 1])");
+        assertRows(execute(select),
+                   row(3L, 3L, list(1, 2), list(1, 2), list(2, 1), list(2, 1)));
+    }
+
+    @Test
+    public void testAggregateWithMaps() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, m map<int, int>, fm frozen<map<int, int>>)");
+
+        // Test with empty table
+        String select = "SELECT count(m), count(fm), min(m), min(fm), max(m), max(fm) FROM %s";
+        UntypedResultSet rs = execute(select);
+        assertColumnNames(rs,
+                          "system.count(m)", "system.count(fm)",
+                          "system.min(m)", "system.min(fm)",
+                          "system.max(m)", "system.max(fm)");
+        assertRows(rs, row(0L, 0L, null, null, null, null));
+
+        // Test with not-empty table
+        execute("INSERT INTO %s (k, m, fm) VALUES (1, {1:10, 2:20}, {1:10, 2:20})");
+        execute("INSERT INTO %s (k, m, fm) VALUES (2, {1:10, 2:20, 3:30}, {1:10, 2:20, 3:30})");
+        execute("INSERT INTO %s (k, m, fm) VALUES (3, {2:20, 1:10}, {2:20, 1:10})");
+        assertRows(execute(select),
+                   row(3L, 3L,
+                       map(1, 10, 2, 20), map(1, 10, 2, 20),
+                       map(1, 10, 2, 20, 3, 30), map(1, 10, 2, 20, 3, 30)));
+    }
+
+    @Test
+    public void testAggregateWithTuples() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, t tuple<int, text, boolean>)");
+
+        // Test with empty table
+        String select = "SELECT count(t), min(t), max(t) FROM %s";
+        UntypedResultSet rs = execute(select);
+        assertColumnNames(rs, "system.count(t)", "system.min(t)", "system.max(t)");
+        assertRows(rs, row(0L, null, null));
+
+        // Test with not-empty table
+        execute("INSERT INTO %s (k, t) VALUES (1, (1, 'a', false))");
+        execute("INSERT INTO %s (k, t) VALUES (2, (2, 'b', true))");
+        execute("INSERT INTO %s (k, t) VALUES (3, (3, null, true))");
+        assertRows(execute(select), row(3L, tuple(1, "a", false), tuple(3, null, true)));
+    }
+
+    @Test
+    public void testAggregateWithUDTs() throws Throwable
+    {
+        String udt = createType("CREATE TYPE %s (x int)");
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, u frozen<" + udt + ">, fu frozen<" + udt + ">)");
+
+        // Test with empty table
+        String select = "SELECT count(u), count(fu), min(u), min(fu), max(u), max(fu) FROM %s";
+        UntypedResultSet rs = execute(select);
+        assertColumnNames(rs,
+                          "system.count(u)", "system.count(fu)",
+                          "system.min(u)", "system.min(fu)",
+                          "system.max(u)", "system.max(fu)");
+        assertRows(rs, row(0L, 0L, null, null, null, null));
+
+        // Test with not-empty table
+        execute("INSERT INTO %s (k, u, fu) VALUES (1, {x: 2}, null)");
+        execute("INSERT INTO %s (k, u, fu) VALUES (2, {x: 4}, {x: 6})");
+        execute("INSERT INTO %s (k, u, fu) VALUES (3, null, {x: 8})");
+        assertRows(execute(select),
+                   row(2L, 2L, userType("x", 2), userType("x", 6), userType("x", 4), userType("x", 8)));
+    }
+
+    @Test
     public void testAggregateWithUdtFields() throws Throwable
     {
         String myType = createType("CREATE TYPE %s (x int)");
@@ -258,8 +367,8 @@ public class AggregationTest extends CQLTester
         assertRows(execute("SELECT count(b.x), max(b.x) as max, b.x, c.x as first FROM %s"),
                    row(3L, 8, 2, null));
 
-        assertInvalidMessage("Invalid field selection: system.max(b) of type blob is not a user type",
-                             "SELECT max(b).x as max FROM %s");
+        assertRows(execute("SELECT count(b), min(b).x, max(b).x, count(c), min(c).x, max(c).x FROM %s"),
+                   row(3L, 2, 8, 2L, 6, 12));
     }
 
     @Test
@@ -368,25 +477,25 @@ public class AggregationTest extends CQLTester
                                          "LANGUAGE JAVA " +
                                          "AS 'return Double.valueOf(Math.copySign(magnitude, sign));';");
 
-        assertColumnNames(execute("SELECT max(a), max(toUnixTimestamp(b)) FROM %s"), "system.max(a)", "system.max(system.tounixtimestamp(b))");
-        assertRows(execute("SELECT max(a), max(toUnixTimestamp(b)) FROM %s"), row(null, null));
-        assertColumnNames(execute("SELECT max(a), toUnixTimestamp(max(b)) FROM %s"), "system.max(a)", "system.tounixtimestamp(system.max(b))");
-        assertRows(execute("SELECT max(a), toUnixTimestamp(max(b)) FROM %s"), row(null, null));
+        assertColumnNames(execute("SELECT max(a), max(to_unix_timestamp(b)) FROM %s"), "system.max(a)", "system.max(system.to_unix_timestamp(b))");
+        assertRows(execute("SELECT max(a), max(to_unix_timestamp(b)) FROM %s"), row(null, null));
+        assertColumnNames(execute("SELECT max(a), to_unix_timestamp(max(b)) FROM %s"), "system.max(a)", "system.to_unix_timestamp(system.max(b))");
+        assertRows(execute("SELECT max(a), to_unix_timestamp(max(b)) FROM %s"), row(null, null));
 
         assertColumnNames(execute("SELECT max(" + copySign + "(c, d)) FROM %s"), "system.max(" + copySign + "(c, d))");
         assertRows(execute("SELECT max(" + copySign + "(c, d)) FROM %s"), row((Object) null));
 
-        execute("INSERT INTO %s (a, b, c, d) VALUES (1, maxTimeuuid('2011-02-03 04:05:00+0000'), -1.2, 2.1)");
-        execute("INSERT INTO %s (a, b, c, d) VALUES (2, maxTimeuuid('2011-02-03 04:06:00+0000'), 1.3, -3.4)");
-        execute("INSERT INTO %s (a, b, c, d) VALUES (3, maxTimeuuid('2011-02-03 04:10:00+0000'), 1.4, 1.2)");
+        execute("INSERT INTO %s (a, b, c, d) VALUES (1, max_timeuuid('2011-02-03 04:05:00+0000'), -1.2, 2.1)");
+        execute("INSERT INTO %s (a, b, c, d) VALUES (2, max_timeuuid('2011-02-03 04:06:00+0000'), 1.3, -3.4)");
+        execute("INSERT INTO %s (a, b, c, d) VALUES (3, max_timeuuid('2011-02-03 04:10:00+0000'), 1.4, 1.2)");
 
         SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss");
         format.setTimeZone(TimeZone.getTimeZone("GMT"));
         Date date = format.parse("2011-02-03 04:10:00");
         date = DateUtils.truncate(date, Calendar.MILLISECOND);
 
-        assertRows(execute("SELECT max(a), max(toUnixTimestamp(b)) FROM %s"), row(3, date.getTime()));
-        assertRows(execute("SELECT max(a), toUnixTimestamp(max(b)) FROM %s"), row(3, date.getTime()));
+        assertRows(execute("SELECT max(a), max(to_unix_timestamp(b)) FROM %s"), row(3, date.getTime()));
+        assertRows(execute("SELECT max(a), to_unix_timestamp(max(b)) FROM %s"), row(3, date.getTime()));
 
         assertRows(execute("SELECT " + copySign + "(max(c), min(c)) FROM %s"), row(-1.4));
         assertRows(execute("SELECT " + copySign + "(c, d) FROM %s"), row(1.2), row(-1.3), row(1.4));
@@ -403,16 +512,16 @@ public class AggregationTest extends CQLTester
                                   "CREATE OR REPLACE FUNCTION %s(state double, val double) " +
                                   "RETURNS NULL ON NULL INPUT " +
                                   "RETURNS double " +
-                                  "LANGUAGE javascript " +
-                                  "AS '\"string\";';");
+                                  "LANGUAGE java " +
+                                  "AS ' return state;';");
 
         createFunctionOverload(f,
                                "double, double",
                                "CREATE OR REPLACE FUNCTION %s(state int, val int) " +
                                "RETURNS NULL ON NULL INPUT " +
                                "RETURNS int " +
-                               "LANGUAGE javascript " +
-                               "AS '\"string\";';");
+                               "LANGUAGE java " +
+                               "AS 'return state;';");
 
         String a = createAggregateName(KEYSPACE);
         String aggregateName = shortFunctionName(a);
@@ -455,8 +564,8 @@ public class AggregationTest extends CQLTester
                                    "CREATE OR REPLACE FUNCTION %s(state double, val list<tuple<int, int>>) " +
                                    "RETURNS NULL ON NULL INPUT " +
                                    "RETURNS double " +
-                                   "LANGUAGE javascript " +
-                                   "AS '\"string\";';");
+                                   "LANGUAGE java " +
+                                   "AS ' return state;';");
 
         String a1 = createAggregateName(KEYSPACE);
         registerAggregate(a1, "list<tuple<int, int>>");
@@ -478,16 +587,16 @@ public class AggregationTest extends CQLTester
                                   "CREATE OR REPLACE FUNCTION %s(state double, val double) " +
                                   "RETURNS NULL ON NULL INPUT " +
                                   "RETURNS double " +
-                                  "LANGUAGE javascript " +
-                                  "AS '\"string\";';");
+                                  "LANGUAGE java " +
+                                  "AS 'return state;';");
 
         createFunctionOverload(f,
                                "double, double",
                                "CREATE OR REPLACE FUNCTION %s(state int, val int) " +
                                "RETURNS NULL ON NULL INPUT " +
                                "RETURNS int " +
-                               "LANGUAGE javascript " +
-                               "AS '\"string\";';");
+                               "LANGUAGE java " +
+                               "AS ' return state;';");
 
         // DROP AGGREGATE must not succeed against a scalar
         assertInvalidMessage("matches multiple function definitions", "DROP AGGREGATE " + f);
@@ -530,8 +639,8 @@ public class AggregationTest extends CQLTester
                                   "CREATE OR REPLACE FUNCTION %s(state double, val double) " +
                                   "RETURNS NULL ON NULL INPUT " +
                                   "RETURNS double " +
-                                  "LANGUAGE javascript " +
-                                  "AS '\"string\";';");
+                                  "LANGUAGE java " +
+                                  "AS ' return state;';");
 
         String a = createAggregate(KEYSPACE,
                                    "double",
@@ -1030,81 +1139,6 @@ public class AggregationTest extends CQLTester
     }
 
     @Test
-    public void testJavascriptAggregate() throws Throwable
-    {
-        createTable("CREATE TABLE %s (a int primary key, b int)");
-        execute("INSERT INTO %s (a, b) VALUES (1, 1)");
-        execute("INSERT INTO %s (a, b) VALUES (2, 2)");
-        execute("INSERT INTO %s (a, b) VALUES (3, 3)");
-
-        String fState = createFunction(KEYSPACE,
-                                       "int, int",
-                                       "CREATE FUNCTION %s(a int, b int) " +
-                                       "RETURNS NULL ON NULL INPUT " +
-                                       "RETURNS int " +
-                                       "LANGUAGE javascript " +
-                                       "AS 'a + b;'");
-
-        String fFinal = createFunction(KEYSPACE,
-                                       "int",
-                                       "CREATE FUNCTION %s(a int) " +
-                                       "RETURNS NULL ON NULL INPUT " +
-                                       "RETURNS text " +
-                                       "LANGUAGE javascript " +
-                                       "AS '\"\"+a'");
-
-        String a = createFunction(KEYSPACE,
-                                  "int",
-                                  "CREATE AGGREGATE %s(int) " +
-                                  "SFUNC " + shortFunctionName(fState) + " " +
-                                  "STYPE int " +
-                                  "FINALFUNC " + shortFunctionName(fFinal) + " " +
-                                  "INITCOND 42");
-
-        // 42 + 1 + 2 + 3 = 48
-        assertRows(execute("SELECT " + a + "(b) FROM %s"), row("48"));
-
-        execute("DROP AGGREGATE " + a + "(int)");
-
-        execute("DROP FUNCTION " + fFinal + "(int)");
-        execute("DROP FUNCTION " + fState + "(int, int)");
-
-        assertInvalidMessage("Unknown function", "SELECT " + a + "(b) FROM %s");
-    }
-
-    @Test
-    public void testJavascriptAggregateSimple() throws Throwable
-    {
-        createTable("CREATE TABLE %s (a int primary key, b int)");
-        execute("INSERT INTO %s (a, b) VALUES (1, 1)");
-        execute("INSERT INTO %s (a, b) VALUES (2, 2)");
-        execute("INSERT INTO %s (a, b) VALUES (3, 3)");
-
-        String fState = createFunction(KEYSPACE,
-                                       "int, int",
-                                       "CREATE FUNCTION %s(a int, b int) " +
-                                       "CALLED ON NULL INPUT " +
-                                       "RETURNS int " +
-                                       "LANGUAGE javascript " +
-                                       "AS 'a + b;'");
-
-        String a = createAggregate(KEYSPACE,
-                                   "int, int",
-                                   "CREATE AGGREGATE %s(int) " +
-                                   "SFUNC " + shortFunctionName(fState) + " " +
-                                   "STYPE int ");
-
-        // 1 + 2 + 3 = 6
-        assertRows(execute("SELECT " + a + "(b) FROM %s"), row(6));
-
-        execute("DROP AGGREGATE " + a + "(int)");
-
-        execute("DROP FUNCTION " + fState + "(int, int)");
-
-        assertInvalidMessage("Unknown function", "SELECT " + a + "(b) FROM %s");
-    }
-
-    @Test
     public void testFunctionDropPreparedStatement() throws Throwable
     {
         String otherKS = "cqltest_foo";
@@ -1119,8 +1153,8 @@ public class AggregationTest extends CQLTester
                                            "CREATE FUNCTION %s(a int, b int) " +
                                            "CALLED ON NULL INPUT " +
                                            "RETURNS int " +
-                                           "LANGUAGE javascript " +
-                                           "AS 'a + b;'");
+                                           "LANGUAGE java " +
+                                           "AS ' return a + b;'");
 
             String a = createAggregate(otherKS,
                                        "int",
@@ -1162,8 +1196,8 @@ public class AggregationTest extends CQLTester
                                        "CREATE FUNCTION %s(a int, b int) " +
                                        "CALLED ON NULL INPUT " +
                                        "RETURNS int " +
-                                       "LANGUAGE javascript " +
-                                       "AS 'a + b;'");
+                                       "LANGUAGE java " +
+                                       "AS ' return a + b;'");
 
         String a = createAggregate(KEYSPACE,
                                    "int",
@@ -1947,7 +1981,7 @@ public class AggregationTest extends CQLTester
 
             AbstractType<?> compositeType = TypeParser.parse(type);
             ByteBuffer compositeTypeValue = compositeType.fromString("s@foo:i@32");
-            String compositeTypeString = compositeType.asCQL3Type().toCQLLiteral(compositeTypeValue, ProtocolVersion.CURRENT);
+            String compositeTypeString = compositeType.asCQL3Type().toCQLLiteral(compositeTypeValue);
             // ensure that the composite type is serialized using the 'blob syntax'
             assertTrue(compositeTypeString.startsWith("0x"));
 
@@ -2123,5 +2157,21 @@ public class AggregationTest extends CQLTester
 
         assertRows(execute("select sum(v1), sum(v2), sum(v3) from %s;"),
                    row((float) 15.3, 15.3, BigDecimal.valueOf(15.3)));
+    }
+
+    @Test
+    public void testRejectInvalidAggregateNamesOnCreation()
+    {
+        for (String funcName : Arrays.asList("my/fancy/aggregate", "my_other[fancy]aggregate"))
+        {
+            assertThatThrownBy(() -> {
+                createAggregateOverload(String.format("%s.\"%s\"", KEYSPACE_PER_TEST, funcName), "int",
+                                        " CREATE AGGREGATE IF NOT EXISTS %s(text, text)\n" +
+                                        " SFUNC func\n" +
+                                        " STYPE map<text,bigint>\n" +
+                                        " INITCOND { };");
+            }).hasRootCauseInstanceOf(InvalidRequestException.class)
+              .hasRootCauseMessage("Aggregate name '%s' is invalid", funcName);
+        }
     }
 }

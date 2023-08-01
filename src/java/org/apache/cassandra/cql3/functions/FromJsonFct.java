@@ -22,58 +22,87 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.apache.cassandra.cql3.Json;
+import org.apache.cassandra.cql3.CQL3Type;
 
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.FunctionExecutionException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.JsonUtils;
+
+import static java.lang.String.format;
 
 public class FromJsonFct extends NativeScalarFunction
 {
-    public static final FunctionName NAME = FunctionName.nativeFunction("fromjson");
-
     private static final Map<AbstractType<?>, FromJsonFct> instances = new ConcurrentHashMap<>();
 
-    public static FromJsonFct getInstance(AbstractType<?> returnType)
+    public static FromJsonFct getInstance(FunctionName name, AbstractType<?> returnType)
     {
         FromJsonFct func = instances.get(returnType);
         if (func == null)
         {
-            func = new FromJsonFct(returnType);
+            func = new FromJsonFct(name, returnType);
             instances.put(returnType, func);
         }
         return func;
     }
 
-    private FromJsonFct(AbstractType<?> returnType)
+    private FromJsonFct(FunctionName name, AbstractType<?> returnType)
     {
-        super("fromjson", returnType, UTF8Type.instance);
+        super(name.name, returnType, UTF8Type.instance);
     }
 
-    public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+    @Override
+    public ByteBuffer execute(Arguments arguments)
     {
-        assert parameters.size() == 1 : "Unexpectedly got " + parameters.size() + " arguments for fromJson()";
-        ByteBuffer argument = parameters.get(0);
-        if (argument == null)
+        assert arguments.size() == 1 : format("Unexpectedly got %d arguments for %s()", arguments.size(), name.name);
+
+        if (arguments.containsNulls())
             return null;
 
-        String jsonArg = UTF8Type.instance.getSerializer().deserialize(argument);
+        String jsonArg = arguments.get(0);
         try
         {
-            Object object = Json.JSON_OBJECT_MAPPER.readValue(jsonArg, Object.class);
+            Object object = JsonUtils.JSON_OBJECT_MAPPER.readValue(jsonArg, Object.class);
             if (object == null)
                 return null;
-            return returnType.fromJSONObject(object).bindAndGet(QueryOptions.forProtocolVersion(protocolVersion));
+
+            return returnType.fromJSONObject(object)
+                             .bindAndGet(QueryOptions.forProtocolVersion(arguments.getProtocolVersion()));
         }
         catch (IOException exc)
         {
-            throw FunctionExecutionException.create(NAME, Collections.singletonList("text"), String.format("Could not decode JSON string '%s': %s", jsonArg, exc.toString()));
+            throw FunctionExecutionException.create(name(), 
+                                                    Collections.singletonList("text"),
+                                                    format("Could not decode JSON string '%s': %s", jsonArg, exc));
         }
         catch (MarshalException exc)
         {
             throw FunctionExecutionException.create(this, exc);
+        }
+    }
+
+    public static void addFunctionsTo(NativeFunctions functions)
+    {
+        functions.add(new Factory("from_json"));
+        functions.add(new Factory("fromjson"));
+    }
+    
+    private static class Factory extends FunctionFactory
+    {
+        private Factory(String name)
+        {
+            super(name, FunctionParameter.fixed(CQL3Type.Native.TEXT));
+        }
+
+        @Override
+        protected NativeFunction doGetOrCreateFunction(List<AbstractType<?>> argTypes, AbstractType<?> receiverType)
+        {
+            if (receiverType == null)
+                throw new InvalidRequestException(format("%s() cannot be used in the selection clause of a SELECT statement", name.name));
+
+            return FromJsonFct.getInstance(name, receiverType);
         }
     }
 }

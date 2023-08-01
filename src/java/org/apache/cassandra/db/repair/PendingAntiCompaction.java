@@ -35,6 +35,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.cassandra.concurrent.FutureTask;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
@@ -67,8 +68,8 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 public class PendingAntiCompaction
 {
     private static final Logger logger = LoggerFactory.getLogger(PendingAntiCompaction.class);
-    private static final int ACQUIRE_SLEEP_MS = Integer.getInteger("cassandra.acquire_sleep_ms", 1000);
-    private static final int ACQUIRE_RETRY_SECONDS = Integer.getInteger("cassandra.acquire_retry_seconds", 60);
+    private static final int ACQUIRE_SLEEP_MS = CassandraRelevantProperties.ACQUIRE_SLEEP_MS.getInt();
+    private static final int ACQUIRE_RETRY_SECONDS = CassandraRelevantProperties.ACQUIRE_RETRY_SECONDS.getInt();
 
     public static class AcquireResult
     {
@@ -214,6 +215,11 @@ public class PendingAntiCompaction
             return null;
         }
 
+        protected AcquireResult acquireSSTables()
+        {
+            return cfs.runWithCompactionsDisabled(this::acquireTuple, predicate, OperationType.ANTICOMPACTION, false, false, false);
+        }
+
         public AcquireResult call()
         {
             logger.debug("acquiring sstables for pending anti compaction on session {}", sessionID);
@@ -231,7 +237,7 @@ public class PendingAntiCompaction
                 {
                     // Note that anticompactions are not disabled when running this. This is safe since runWithCompactionsDisabled
                     // is synchronized - acquireTuple and predicate can only be run by a single thread (for the given cfs).
-                    return cfs.runWithCompactionsDisabled(this::acquireTuple, predicate, false, false, false);
+                    return acquireSSTables();
                 }
                 catch (SSTableAcquisitionException e)
                 {

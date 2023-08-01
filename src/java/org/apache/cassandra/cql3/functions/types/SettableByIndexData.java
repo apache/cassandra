@@ -486,6 +486,20 @@ public interface SettableByIndexData<T extends SettableByIndexData<T>>
     public <E> T setSet(int i, Set<E> v, TypeToken<E> elementsType);
 
     /**
+     * Sets the {@code i}th value to the provided vector value.
+     *
+     * <p>This method uses the {@link CodecRegistry} to find a codec to handle the conversion of {@code v} to the
+     * underlying CQL type.
+     *
+     * @param i the index of the value to set.
+     * @param v the value to set.
+     * @return this object.
+     * @throws IndexOutOfBoundsException if {@code i} is not a valid index for this object.
+     * @throws CodecNotFoundException    if there is no registered codec to convert the value to the underlying CQL type.
+     */
+    public <E> T setVector(int i, List<E> v);
+
+    /**
      * Sets the {@code i}th value to the provided UDT value.
      *
      * <p>This method uses the {@link CodecRegistry} to find a codec to handle the conversion of

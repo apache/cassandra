@@ -25,6 +25,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
 
+import com.google.common.collect.ImmutableMap;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -42,12 +43,13 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.*;
+import org.assertj.core.api.Assertions;
 
 public class DynamicCompositeTypeTest
 {
     private static final String KEYSPACE1 = "DynamicCompositeType";
     private static final String CF_STANDARDDYNCOMPOSITE = "StandardDynamicComposite";
-    private static Map<Byte, AbstractType<?>> aliases = new HashMap<>();
+    public static Map<Byte, AbstractType<?>> aliases = new HashMap<>();
 
     private static final DynamicCompositeType comparator;
     static
@@ -60,7 +62,7 @@ public class DynamicCompositeTypeTest
     }
 
     private static final int UUID_COUNT = 3;
-    private static final UUID[] uuids = new UUID[UUID_COUNT];
+    public static final UUID[] uuids = new UUID[UUID_COUNT];
     static
     {
         for (int i = 0; i < UUID_COUNT; ++i)
@@ -320,13 +322,12 @@ public class DynamicCompositeTypeTest
         assert !TypeParser.parse("DynamicCompositeType(a => BytesType)").isCompatibleWith(TypeParser.parse("DynamicCompositeType(a => BytesType, b => AsciiType)"));
     }
 
-    private ByteBuffer createDynamicCompositeKey(String s, UUID uuid, int i, boolean lastIsOne)
+    private static ByteBuffer createDynamicCompositeKey(String s, UUID uuid, int i, boolean lastIsOne)
     {
         return createDynamicCompositeKey(s, uuid, i, lastIsOne, false);
     }
 
-    private ByteBuffer createDynamicCompositeKey(String s, UUID uuid, int i, boolean lastIsOne,
-            final boolean reversed)
+    public static ByteBuffer createDynamicCompositeKey(String s, UUID uuid, int i, boolean lastIsOne, boolean reversed)
     {
         String intType = (reversed ? "ReversedType(IntegerType)" : "IntegerType");
         ByteBuffer bytes = ByteBufferUtil.bytes(s);
@@ -372,5 +373,19 @@ public class DynamicCompositeTypeTest
         }
         bb.rewind();
         return bb;
+    }
+
+    @Test
+    public void testEmptyValue()
+    {
+        DynamicCompositeType type = DynamicCompositeType.getInstance(ImmutableMap.of((byte) 'V', BytesType.instance));
+
+        String cqlLiteral = "0x8056000000";
+        ByteBuffer bb = type.asCQL3Type().fromCQLLiteral(cqlLiteral);
+        type.validate(bb);
+
+        String str = type.getString(bb);
+        ByteBuffer read = type.fromString(str);
+        Assertions.assertThat(read).isEqualTo(bb);
     }
 }

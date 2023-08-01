@@ -23,7 +23,7 @@ import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.cassandra.utils.btree.BTreeSet;
+import org.apache.cassandra.utils.btree.BTree;
 
 import static java.util.Comparator.naturalOrder;
 
@@ -150,22 +150,22 @@ public class RegularAndStaticColumns implements Iterable<ColumnMetadata>
         // Note that we do want to use sorted sets because we want the column definitions to be compared
         // through compareTo, not equals. The former basically check it's the same column name, while the latter
         // check it's the same object, including the same type.
-        private BTreeSet.Builder<ColumnMetadata> regularColumns;
-        private BTreeSet.Builder<ColumnMetadata> staticColumns;
+        private BTree.Builder<ColumnMetadata> regularColumns;
+        private BTree.Builder<ColumnMetadata> staticColumns;
 
         public Builder add(ColumnMetadata c)
         {
             if (c.isStatic())
             {
                 if (staticColumns == null)
-                    staticColumns = BTreeSet.builder(naturalOrder());
+                    staticColumns = BTree.builder(naturalOrder());
                 staticColumns.add(c);
             }
             else
             {
                 assert c.isRegular();
                 if (regularColumns == null)
-                    regularColumns = BTreeSet.builder(naturalOrder());
+                    regularColumns = BTree.builder(naturalOrder());
                 regularColumns.add(c);
             }
             return this;
@@ -181,13 +181,13 @@ public class RegularAndStaticColumns implements Iterable<ColumnMetadata>
         public Builder addAll(RegularAndStaticColumns columns)
         {
             if (regularColumns == null && !columns.regulars.isEmpty())
-                regularColumns = BTreeSet.builder(naturalOrder());
+                regularColumns = BTree.builder(naturalOrder());
 
             for (ColumnMetadata c : columns.regulars)
                 regularColumns.add(c);
 
             if (staticColumns == null && !columns.statics.isEmpty())
-                staticColumns = BTreeSet.builder(naturalOrder());
+                staticColumns = BTree.builder(naturalOrder());
 
             for (ColumnMetadata c : columns.statics)
                 staticColumns.add(c);
@@ -197,8 +197,8 @@ public class RegularAndStaticColumns implements Iterable<ColumnMetadata>
 
         public RegularAndStaticColumns build()
         {
-            return new RegularAndStaticColumns(staticColumns  == null ? Columns.NONE : Columns.from(staticColumns.build()),
-                                               regularColumns == null ? Columns.NONE : Columns.from(regularColumns.build()));
+            return new RegularAndStaticColumns(staticColumns  == null ? Columns.NONE : Columns.from(staticColumns),
+                                               regularColumns == null ? Columns.NONE : Columns.from(regularColumns));
         }
     }
 }

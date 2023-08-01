@@ -26,6 +26,7 @@ import org.junit.BeforeClass;
 
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.io.sstable.format.big.BigFormat;
 
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.KIBIBYTES;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -37,13 +38,16 @@ public class RowIndexSizeWarningTest extends AbstractClientSizeWarning
     {
         AbstractClientSizeWarning.setupClass();
 
+        //noinspection Convert2MethodRef
+        Assume.assumeTrue(CLUSTER.get(1).callOnInstance(() -> BigFormat.isSelected()));
+
         CLUSTER.stream().forEach(i -> i.runOnInstance(() -> {
             DatabaseDescriptor.setRowIndexReadSizeWarnThreshold(new DataStorageSpec.LongBytesBound(1, KIBIBYTES));
             DatabaseDescriptor.setRowIndexReadSizeFailThreshold(new DataStorageSpec.LongBytesBound(2, KIBIBYTES));
 
             // hack to force multiple index entries
             DatabaseDescriptor.setColumnIndexCacheSize(1 << 20);
-            DatabaseDescriptor.setColumnIndexSize(0);
+            DatabaseDescriptor.setColumnIndexSizeInKiB(0);
         }));
     }
 

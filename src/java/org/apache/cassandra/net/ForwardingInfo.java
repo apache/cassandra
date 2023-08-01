@@ -17,20 +17,17 @@
  */
 package org.apache.cassandra.net;
 
+import com.google.common.base.Preconditions;
+import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.InetAddressAndPort;
+
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
-
-import com.google.common.base.Preconditions;
-import com.google.common.primitives.Ints;
-
-import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.locator.InetAddressAndPort;
 
 import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
@@ -40,7 +37,6 @@ import static org.apache.cassandra.utils.vint.VIntCoding.computeUnsignedVIntSize
  * A container used to store a node -> message_id map for inter-DC write forwarding.
  * We pick one node in each external DC to forward the message to its local peers.
  *
- * TODO: in the next protocol version only serialize peers, message id will become redundant once 3.0 is out of the picture
  */
 public final class ForwardingInfo implements Serializable
 {
@@ -52,19 +48,6 @@ public final class ForwardingInfo implements Serializable
         Preconditions.checkArgument(targets.size() == messageIds.length);
         this.targets = targets;
         this.messageIds = messageIds;
-    }
-
-    /**
-     * @return {@code true} if all host are to use the same message id, {@code false} otherwise. Starting with 4.0 and
-     * above, we should be reusing the same id, always, but it won't always be true until 3.0/3.11 are phased out.
-     */
-    public boolean useSameMessageID(long id)
-    {
-        for (int i = 0; i < messageIds.length; i++)
-            if (id != messageIds[i])
-                return false;
-
-        return true;
     }
 
     /**
@@ -80,37 +63,33 @@ public final class ForwardingInfo implements Serializable
     {
         public void serialize(ForwardingInfo forwardTo, DataOutputPlus out, int version) throws IOException
         {
+            assert version >= VERSION_40;
             long[] ids = forwardTo.messageIds;
             List<InetAddressAndPort> targets = forwardTo.targets;
 
             int count = ids.length;
-            if (version >= VERSION_40)
-                out.writeUnsignedVInt(count);
-            else
-                out.writeInt(count);
+            out.writeUnsignedVInt32(count);
 
             for (int i = 0; i < count; i++)
             {
                 inetAddressAndPortSerializer.serialize(targets.get(i), out, version);
-                if (version >= VERSION_40)
-                    out.writeUnsignedVInt(ids[i]);
-                else
-                    out.writeInt(Ints.checkedCast(ids[i]));
+                out.writeUnsignedVInt(ids[i]);
             }
         }
 
         public long serializedSize(ForwardingInfo forwardTo, int version)
         {
+            assert version >= VERSION_40;
             long[] ids = forwardTo.messageIds;
             List<InetAddressAndPort> targets = forwardTo.targets;
 
             int count = ids.length;
-            long size = version >= VERSION_40 ? computeUnsignedVIntSize(count) : TypeSizes.sizeof(count);
+            long size = computeUnsignedVIntSize(count);
 
             for (int i = 0; i < count; i++)
             {
                 size += inetAddressAndPortSerializer.serializedSize(targets.get(i), version);
-                size += version >= VERSION_40 ? computeUnsignedVIntSize(ids[i]) : 4;
+                size += computeUnsignedVIntSize(ids[i]);
             }
 
             return size;
@@ -118,7 +97,8 @@ public final class ForwardingInfo implements Serializable
 
         public ForwardingInfo deserialize(DataInputPlus in, int version) throws IOException
         {
-            int count = version >= VERSION_40 ? Ints.checkedCast(in.readUnsignedVInt()) : in.readInt();
+            assert version >= VERSION_40;
+            int count = in.readUnsignedVInt32();
 
             long[] ids = new long[count];
             List<InetAddressAndPort> targets = new ArrayList<>(count);
@@ -126,7 +106,7 @@ public final class ForwardingInfo implements Serializable
             for (int i = 0; i < count; i++)
             {
                 targets.add(inetAddressAndPortSerializer.deserialize(in, version));
-                ids[i] = version >= VERSION_40 ? Ints.checkedCast(in.readUnsignedVInt()) : in.readInt();
+                ids[i] = in.readUnsignedVInt32();
             }
 
             return new ForwardingInfo(targets, ids);

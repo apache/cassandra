@@ -27,8 +27,6 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CompletionException;
 
-import com.google.common.util.concurrent.MoreExecutors;
-
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 

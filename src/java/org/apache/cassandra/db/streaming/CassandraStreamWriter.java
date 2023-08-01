@@ -21,23 +21,21 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 
-import org.apache.cassandra.io.util.File;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.cassandra.io.compress.BufferType;
-import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.ChannelProxy;
-import org.apache.cassandra.io.util.DataIntegrityMetadata;
 import org.apache.cassandra.io.util.DataIntegrityMetadata.ChecksumValidator;
 import org.apache.cassandra.streaming.ProgressInfo;
-import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.streaming.StreamManager;
 import org.apache.cassandra.streaming.StreamManager.StreamRateLimiter;
 import org.apache.cassandra.streaming.StreamSession;
+import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.streaming.async.StreamCompressionSerializer;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.memory.BufferPools;
@@ -84,9 +82,7 @@ public class CassandraStreamWriter
                      sstable.getFilename(), session.peer, sstable.getSSTableMetadata().repairedAt, totalSize);
 
         try(ChannelProxy proxy = sstable.getDataChannel().newChannel();
-            ChecksumValidator validator = new File(sstable.descriptor.filenameFor(Component.CRC)).exists()
-                                          ? DataIntegrityMetadata.checksumValidator(sstable.descriptor)
-                                          : null)
+            ChecksumValidator validator = sstable.maybeGetChecksumValidator())
         {
             int bufferSize = validator == null ? DEFAULT_CHUNK_SIZE: validator.chunkSize;
 
@@ -94,6 +90,7 @@ public class CassandraStreamWriter
             long progress = 0L;
 
             // stream each of the required sections of the file
+            String filename = sstable.descriptor.fileFor(Components.DATA).toString();
             for (SSTableReader.PartitionPositionBounds section : sections)
             {
                 long start = validator == null ? section.lowerPosition : validator.chunkStart(section.lowerPosition);
@@ -112,8 +109,9 @@ public class CassandraStreamWriter
                     long lastBytesRead = write(proxy, validator, out, start, transferOffset, toTransfer, bufferSize);
                     start += lastBytesRead;
                     bytesRead += lastBytesRead;
-                    progress += (lastBytesRead - transferOffset);
-                    session.progress(sstable.descriptor.filenameFor(Component.DATA), ProgressInfo.Direction.OUT, progress, totalSize);
+                    long delta = lastBytesRead - transferOffset;
+                    progress += delta;
+                    session.progress(filename, ProgressInfo.Direction.OUT, progress, delta, totalSize);
                     transferOffset = 0;
                 }
 

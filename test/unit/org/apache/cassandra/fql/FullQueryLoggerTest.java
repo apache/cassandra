@@ -43,15 +43,18 @@ import net.openhft.chronicle.queue.RollCycles;
 import net.openhft.chronicle.wire.ValueIn;
 import net.openhft.chronicle.wire.WireOut;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.BatchStatement;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.fql.FullQueryLogger.Query;
 import org.apache.cassandra.fql.FullQueryLogger.Batch;
 import org.apache.cassandra.cql3.statements.BatchStatement.Type;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.binlog.BinLogTest;
@@ -73,6 +76,7 @@ import static org.apache.cassandra.fql.FullQueryLogger.SINGLE_QUERY;
 import static org.apache.cassandra.fql.FullQueryLogger.TYPE;
 import static org.apache.cassandra.fql.FullQueryLogger.VALUES;
 import static org.apache.cassandra.fql.FullQueryLogger.VERSION;
+import static org.junit.Assert.fail;
 
 public class FullQueryLoggerTest extends CQLTester
 {
@@ -517,7 +521,7 @@ public class FullQueryLoggerTest extends CQLTester
                 compareQueryOptions(QueryOptions.DEFAULT, queryOptions);
 
                 assertEquals(Long.MIN_VALUE, wire.read(GENERATED_TIMESTAMP).int64());
-                assertEquals(Integer.MIN_VALUE, wire.read(GENERATED_NOW_IN_SECONDS).int32());
+                assertEquals(Integer.MIN_VALUE, wire.read(GENERATED_NOW_IN_SECONDS).int64());
                 assertEquals(keyspace, wire.read(FullQueryLogger.KEYSPACE).text());
                 assertEquals("UNLOGGED", wire.read(BATCH_TYPE).text());
                 ValueIn in = wire.read(QUERIES);
@@ -667,6 +671,31 @@ public class FullQueryLoggerTest extends CQLTester
     public void testLogQueryNegativeTime() throws Exception
     {
         logQuery("", QueryOptions.DEFAULT, queryState(), -1);
+    }
+
+    @Test
+    public void testJMXArchiveCommand()
+    {
+        FullQueryLoggerOptions options = new FullQueryLoggerOptions();
+
+        try
+        {
+            DatabaseDescriptor.getFullQueryLogOptions().allow_nodetool_archive_command = false;
+            StorageService.instance.enableFullQueryLogger(options.log_dir, options.roll_cycle, false, 1000, 1000, "/xyz/not/null", 0);
+            fail("not allowed");
+        }
+        catch (ConfigurationException e)
+        {
+            assertTrue(e.getMessage().contains("Can't enable full query log archiving via nodetool"));
+        }
+
+        options.allow_nodetool_archive_command = true;
+        options.archive_command = "/xyz/not/null";
+        options.log_dir = "/tmp/abc";
+        DatabaseDescriptor.setFullQueryLogOptions(options);
+        StorageService.instance.enableFullQueryLogger(options.log_dir, options.roll_cycle, false, 1000, 1000, null, 0);
+        assertTrue(FullQueryLogger.instance.isEnabled());
+        assertEquals("/xyz/not/null", FullQueryLogger.instance.getFullQueryLoggerOptions().archive_command);
     }
 
     private static void compareQueryOptions(QueryOptions a, QueryOptions b)

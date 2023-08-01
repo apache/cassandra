@@ -46,7 +46,8 @@ public class MixedModeReadRepairDeleteTest extends UpgradeTestBase
         allUpgrades(2, 1)
         .setup(cluster -> {
             cluster.schemaChange(withKeyspace("CREATE TABLE %s.t (k int, c int, v int, s int static, PRIMARY KEY (k, c))"));
-
+        })
+        .runBeforeClusterUpgrade(cluster -> {
             // insert the rows in all the nodes
             String insert = withKeyspace("INSERT INTO %s.t (k, c, v, s) VALUES (?, ?, ?, ?)");
             cluster.coordinator(1).execute(insert, ConsistencyLevel.ALL, row1);
@@ -85,7 +86,8 @@ public class MixedModeReadRepairDeleteTest extends UpgradeTestBase
         allUpgrades(2, 1)
         .setup(cluster -> {
             cluster.schemaChange(withKeyspace("CREATE TABLE %s.t (k int, c int, v int, s int static, PRIMARY KEY (k, c))"));
-
+        })
+        .runBeforeClusterUpgrade(cluster -> {
             // insert half partition in each node
             String insert = withKeyspace("INSERT INTO %s.t (k, c, v, s) VALUES (?, ?, ?, ?)");
             cluster.coordinator(1).execute(insert, ConsistencyLevel.ALL, partition1[0]);

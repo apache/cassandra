@@ -21,6 +21,7 @@ import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
@@ -39,6 +40,8 @@ public final class DropKeyspaceStatement extends AlterSchemaStatement
 
     public Keyspaces apply(Keyspaces schema)
     {
+        Guardrails.dropKeyspaceEnabled.ensureEnabled(state);
+
         if (schema.containsKeyspace(keyspaceName))
             return schema.without(keyspaceName);
 

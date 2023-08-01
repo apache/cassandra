@@ -40,6 +40,10 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import com.google.common.util.concurrent.Futures;
+
+import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.gms.ApplicationState;
+import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.util.File;
 import org.junit.Assert;
 
@@ -59,6 +63,9 @@ import org.apache.cassandra.utils.Isolated;
 
 import static com.google.common.util.concurrent.Uninterruptibles.sleepUninterruptibly;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SCHEMA_DELAY_MS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.BROADCAST_INTERVAL_MS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_ADDRESS_FIRST_BOOT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.RING_DELAY;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -251,13 +258,13 @@ public class ClusterUtils
 
         return start(inst, properties -> {
             // lower this so the replacement waits less time
-            properties.setProperty("cassandra.broadcast_interval_ms", Long.toString(TimeUnit.SECONDS.toMillis(30)));
+            properties.set(BROADCAST_INTERVAL_MS, Long.toString(TimeUnit.SECONDS.toMillis(30)));
             // default is 30s, lowering as it should be faster
-            properties.setProperty("cassandra.ring_delay_ms", Long.toString(TimeUnit.SECONDS.toMillis(10)));
+            properties.set(RING_DELAY, Long.toString(TimeUnit.SECONDS.toMillis(10)));
             properties.set(BOOTSTRAP_SCHEMA_DELAY_MS, TimeUnit.SECONDS.toMillis(10));
 
             // state which node to replace
-            properties.setProperty("cassandra.replace_address_first_boot", toReplace.config().broadcastAddress().getAddress().getHostAddress());
+            properties.set(REPLACE_ADDRESS_FIRST_BOOT, toReplace.config().broadcastAddress().getAddress().getHostAddress());
 
             fn.accept(inst, properties);
         });
@@ -552,6 +559,63 @@ public class ClusterUtils
                 return targetStatus == null;
             return status.contains(targetStatus);
         });
+    }
+
+    public static void awaitGossipSchemaMatch(ICluster<? extends  IInstance> cluster)
+    {
+        cluster.forEach(ClusterUtils::awaitGossipSchemaMatch);
+    }
+
+    public static void awaitGossipSchemaMatch(IInstance instance)
+    {
+        if (!instance.config().has(Feature.GOSSIP))
+        {
+            // when gosisp isn't enabled, don't bother waiting on gossip to settle...
+            return;
+        }
+        awaitGossip(instance, "Schema IDs did not match", all -> {
+            String current = null;
+            for (Map.Entry<String, Map<String, String>> e : all.entrySet())
+            {
+                Map<String, String> state = e.getValue();
+                // has the instance joined?
+                String status = state.get(ApplicationState.STATUS_WITH_PORT.name());
+                if (status == null)
+                    status = state.get(ApplicationState.STATUS.name());
+                if (status == null || !status.contains(VersionedValue.STATUS_NORMAL))
+                    continue; // ignore instances not joined yet
+                String schema = state.get("SCHEMA");
+                if (schema == null)
+                    throw new AssertionError("Unable to find schema for " + e.getKey() + "; status was " + status);
+                schema = schema.split(":")[1];
+
+                if (current == null)
+                {
+                    current = schema;
+                }
+                else if (!current.equals(schema))
+                {
+                    return false;
+                }
+            }
+            return true;
+        });
+    }
+
+    public static void awaitGossipStateMatch(ICluster<? extends  IInstance> cluster, IInstance expectedInGossip, ApplicationState key)
+    {
+        Set<String> matches = null;
+        for (int i = 0; i < 100; i++)
+        {
+            matches = cluster.stream().map(ClusterUtils::gossipInfo)
+                             .map(gi -> Objects.requireNonNull(gi.get(getBroadcastAddressString(expectedInGossip))))
+                             .map(m -> m.get(key.name()))
+                             .collect(Collectors.toSet());
+            if (matches.isEmpty() || matches.size() == 1)
+                return;
+            sleepUninterruptibly(1, TimeUnit.SECONDS);
+        }
+        throw new AssertionError("Expected ApplicationState." + key + " to match, but saw " + matches);
     }
 
     /**

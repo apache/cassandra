@@ -31,9 +31,13 @@ import org.apache.cassandra.auth.FunctionResource;
 import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.cql3.functions.*;
+import org.apache.cassandra.cql3.functions.FunctionName;
+import org.apache.cassandra.cql3.functions.ScalarFunction;
+import org.apache.cassandra.cql3.functions.UDAggregate;
+import org.apache.cassandra.cql3.functions.UDFunction;
+import org.apache.cassandra.cql3.functions.UserFunction;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.schema.Functions.FunctionsDiff;
+import org.apache.cassandra.schema.UserFunctions.FunctionsDiff;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
@@ -43,7 +47,6 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
-import org.apache.cassandra.transport.ProtocolVersion;
 
 import static java.lang.String.format;
 import static java.lang.String.join;
@@ -91,12 +94,15 @@ public final class CreateAggregateStatement extends AlterSchemaStatement
         if (ifNotExists && orReplace)
             throw ire("Cannot use both 'OR REPLACE' and 'IF NOT EXISTS' directives");
 
+        if (!FunctionName.isNameValid(aggregateName))
+            throw ire("Aggregate name '%s' is invalid", aggregateName);
+
         rawArgumentTypes.stream()
-                        .filter(raw -> !raw.isTuple() && raw.isFrozen())
+                        .filter(raw -> !raw.isImplicitlyFrozen() && raw.isFrozen())
                         .findFirst()
                         .ifPresent(t -> { throw ire("Argument '%s' cannot be frozen; remove frozen<> modifier from '%s'", t, t); });
 
-        if (!rawStateType.isTuple() && rawStateType.isFrozen())
+        if (!rawStateType.isImplicitlyFrozen() && rawStateType.isFrozen())
             throw ire("State type '%s' cannot be frozen; remove frozen<> modifier from '%s'", rawStateType, rawStateType);
 
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
@@ -114,8 +120,8 @@ public final class CreateAggregateStatement extends AlterSchemaStatement
         AbstractType<?> stateType = rawStateType.prepare(keyspaceName, keyspace.types).getType().udfType();
         List<AbstractType<?>> stateFunctionArguments = Lists.newArrayList(concat(singleton(stateType), argumentTypes));
 
-        Function stateFunction =
-            keyspace.functions
+        UserFunction stateFunction =
+            keyspace.userFunctions
                     .find(stateFunctionName, stateFunctionArguments)
                     .orElseThrow(() -> ire("State function %s doesn't exist", stateFunctionString()));
 
@@ -132,12 +138,12 @@ public final class CreateAggregateStatement extends AlterSchemaStatement
          * Resolve the final function and return type
          */
 
-        Function finalFunction = null;
+        UserFunction finalFunction = null;
         AbstractType<?> returnType = stateFunction.returnType();
 
         if (null != finalFunctionName)
         {
-            finalFunction = keyspace.functions.find(finalFunctionName, singletonList(stateType)).orElse(null);
+            finalFunction = keyspace.userFunctions.find(finalFunctionName, singletonList(stateType)).orElse(null);
             if (null == finalFunction)
                 throw ire("Final function %s doesn't exist", finalFunctionString());
 
@@ -170,10 +176,11 @@ public final class CreateAggregateStatement extends AlterSchemaStatement
             }
 
             // Converts initcond to a CQL literal and parse it back to avoid another CASSANDRA-11064
-            String initialValueString = stateType.asCQL3Type().toCQLLiteral(initialValue, ProtocolVersion.CURRENT);
-            assert Objects.equal(initialValue, Terms.asBytes(keyspaceName, initialValueString, stateType));
+            String initialValueString = stateType.asCQL3Type().toCQLLiteral(initialValue);
+            if (!Objects.equal(initialValue, stateType.asCQL3Type().fromCQLLiteral(keyspaceName, initialValueString)))
+                throw new AssertionError(String.format("CQL literal '%s' (from type %s) parsed with a different value", initialValueString, stateType.asCQL3Type()));
 
-            if (Constants.NULL_LITERAL != rawInitialValue && UDHelper.isNullOrEmpty(stateType, initialValue))
+            if (Constants.NULL_LITERAL != rawInitialValue && isNullOrEmpty(stateType, initialValue))
                 throw ire("INITCOND must not be empty for all types except TEXT, ASCII, BLOB");
         }
 
@@ -196,7 +203,7 @@ public final class CreateAggregateStatement extends AlterSchemaStatement
                             (ScalarFunction) finalFunction,
                             initialValue);
 
-        Function existingAggregate = keyspace.functions.find(aggregate.name(), argumentTypes).orElse(null);
+        UserFunction existingAggregate = keyspace.userFunctions.find(aggregate.name(), argumentTypes).orElse(null);
         if (null != existingAggregate)
         {
             if (!existingAggregate.isAggregate())
@@ -217,7 +224,13 @@ public final class CreateAggregateStatement extends AlterSchemaStatement
             }
         }
 
-        return schema.withAddedOrUpdated(keyspace.withSwapped(keyspace.functions.withAddedOrUpdated(aggregate)));
+        return schema.withAddedOrUpdated(keyspace.withSwapped(keyspace.userFunctions.withAddedOrUpdated(aggregate)));
+    }
+
+    private static boolean isNullOrEmpty(AbstractType<?> type, ByteBuffer bb)
+    {
+        return bb == null ||
+               (bb.remaining() == 0 && type.isEmptyValueMeaningless());
     }
 
     SchemaChange schemaChangeEvent(KeyspacesDiff diff)
@@ -239,7 +252,7 @@ public final class CreateAggregateStatement extends AlterSchemaStatement
     {
         FunctionName name = new FunctionName(keyspaceName, aggregateName);
 
-        if (Schema.instance.findFunction(name, Lists.transform(rawArgumentTypes, t -> t.prepare(keyspaceName).getType())).isPresent() && orReplace)
+        if (Schema.instance.findUserFunction(name, Lists.transform(rawArgumentTypes, t -> t.prepare(keyspaceName).getType())).isPresent() && orReplace)
             client.ensurePermission(Permission.ALTER, FunctionResource.functionFromCql(keyspaceName, aggregateName, rawArgumentTypes));
         else
             client.ensurePermission(Permission.CREATE, FunctionResource.keyspace(keyspaceName));

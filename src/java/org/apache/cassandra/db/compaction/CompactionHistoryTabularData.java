@@ -21,20 +21,20 @@ import javax.management.openmbean.*;
 import java.util.Map;
 import java.util.UUID;
 
-import com.google.common.base.Throwables;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class CompactionHistoryTabularData
 {
     private static final String[] ITEM_NAMES = new String[]{ "id", "keyspace_name", "columnfamily_name", "compacted_at",
-                                                             "bytes_in", "bytes_out", "rows_merged" };
+                                                             "bytes_in", "bytes_out", "rows_merged", "compaction_properties" };
 
     private static final String[] ITEM_DESCS = new String[]{ "time uuid", "keyspace name",
                                                              "column family name", "compaction finished at",
-                                                             "total bytes in", "total bytes out", "total rows merged" };
+                                                             "total bytes in", "total bytes out", "total rows merged", "compaction properties" };
 
     private static final String TYPE_NAME = "CompactionHistory";
 
@@ -45,13 +45,15 @@ public class CompactionHistoryTabularData
     private static final CompositeType COMPOSITE_TYPE;
 
     private static final TabularType TABULAR_TYPE;
-
+    
+    public static final String COMPACTION_TYPE_PROPERTY = "compaction_type";
+    
     static 
     {
         try
         {
             ITEM_TYPES = new OpenType[]{ SimpleType.STRING, SimpleType.STRING, SimpleType.STRING, SimpleType.LONG,
-                                         SimpleType.LONG, SimpleType.LONG, SimpleType.STRING };
+                                         SimpleType.LONG, SimpleType.LONG, SimpleType.STRING, SimpleType.STRING };
 
             COMPOSITE_TYPE = new CompositeType(TYPE_NAME, ROW_DESC, ITEM_NAMES, ITEM_DESCS, ITEM_TYPES);
 
@@ -59,7 +61,7 @@ public class CompactionHistoryTabularData
         }
         catch (OpenDataException e)
         {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -75,10 +77,11 @@ public class CompactionHistoryTabularData
             long bytesIn = row.getLong(ITEM_NAMES[4]);
             long bytesOut = row.getLong(ITEM_NAMES[5]);
             Map<Integer, Long> rowMerged = row.getMap(ITEM_NAMES[6], Int32Type.instance, LongType.instance);
-
+            Map<String, String> compactionProperties = row.getMap(ITEM_NAMES[7], UTF8Type.instance, UTF8Type.instance);
             result.put(new CompositeDataSupport(COMPOSITE_TYPE, ITEM_NAMES,
                        new Object[]{ id.toString(), ksName, cfName, compactedAt, bytesIn, bytesOut,
-                                     "{" + FBUtilities.toString(rowMerged) + "}" }));
+                                     '{' + FBUtilities.toString(rowMerged) + '}',
+                                     '{' + FBUtilities.toString(compactionProperties) + '}' }));
         }
         return result;
     }

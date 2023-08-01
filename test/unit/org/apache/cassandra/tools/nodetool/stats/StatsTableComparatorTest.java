@@ -212,6 +212,11 @@ public class StatsTableComparatorTest extends TableStatsTestBase
                        "table1 > table3 > table5 > table2 > table4 > table6",
                        humanReadable,
                        ascending);
+        runCompareTest(testTables,
+                       "twcs_max_duration",
+                       "table2 > table4 > table1 > table3 > table6 > table5",
+                       humanReadable,
+                       ascending);
     }
 
     @Test
@@ -272,12 +277,6 @@ public class StatsTableComparatorTest extends TableStatsTestBase
         runCompareTest(testTables,
                        "bloom_filter_space_used",
                        "table2 > table4 > table6 > table1 > table3 > table5",
-                       humanReadable,
-                       ascending);
-        // dropped mutations: 6 > 3 > 4 > 2 > 1 = 5
-        runCompareTest(testTables,
-                       "dropped_mutations",
-                       "table6 > table3 > table4 > table2 > table1 > table5",
                        humanReadable,
                        ascending);
         // space used by snapshots: 5 > 1 > 2 > 4 > 3 = 6

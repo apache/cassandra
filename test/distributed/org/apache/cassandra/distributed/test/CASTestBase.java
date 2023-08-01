@@ -22,10 +22,10 @@ import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.junit.Assert;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -183,6 +183,12 @@ public abstract class CASTestBase extends TestBaseImpl
         }
     }
 
+    public static void assertVisibleInRing(IInstance peer)
+    {
+        InetAddressAndPort endpoint = InetAddressAndPort.getByAddress(peer.broadcastAddress());
+        Assert.assertTrue(Gossiper.instance.isAlive(endpoint));
+    }
+
     // reset gossip state so we know of the node being alive only
     public static void removeFromRing(IInstance peer)
     {
@@ -206,6 +212,12 @@ public abstract class CASTestBase extends TestBaseImpl
         {
             throw new RuntimeException(e);
         }
+    }
+
+    public static void assertNotVisibleInRing(IInstance peer)
+    {
+        InetAddressAndPort endpoint = InetAddressAndPort.getByAddress(peer.broadcastAddress());
+        Assert.assertFalse(Gossiper.instance.isAlive(endpoint));
     }
 
     public static void addToRingNormal(IInstance peer)

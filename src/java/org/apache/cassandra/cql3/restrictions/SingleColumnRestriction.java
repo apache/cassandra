@@ -23,9 +23,7 @@ import java.util.Collections;
 import java.util.List;
 
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.ListSerializer;
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.Term.Terminal;
 import org.apache.cassandra.cql3.functions.Function;
@@ -81,6 +79,16 @@ public abstract class SingleColumnRestriction implements SingleRestriction
                 return true;
 
         return false;
+    }
+
+    @Override
+    public boolean needsFiltering(Index.Group indexGroup)
+    {
+        for (Index index : indexGroup.getIndexes())
+            if (isSupportedBy(index))
+                return false;
+
+        return true;
     }
 
     @Override
@@ -153,7 +161,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         }
 
         @Override
-        public void addRowFilterTo(RowFilter filter,
+        public void addToRowFilter(RowFilter filter,
                                    IndexRegistry indexRegistry,
                                    QueryOptions options)
         {
@@ -217,12 +225,12 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         }
 
         @Override
-        public void addRowFilterTo(RowFilter filter,
+        public void addToRowFilter(RowFilter filter,
                                    IndexRegistry indexRegistry,
                                    QueryOptions options)
         {
             List<ByteBuffer> values = getValues(options);
-            ByteBuffer buffer = ListSerializer.pack(values, values.size(), ProtocolVersion.V3);
+            ByteBuffer buffer = ListSerializer.pack(values, values.size());
             filter.add(columnDef, Operator.IN, buffer);
         }
 
@@ -390,7 +398,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         }
 
         @Override
-        public void addRowFilterTo(RowFilter filter, IndexRegistry indexRegistry, QueryOptions options)
+        public void addToRowFilter(RowFilter filter, IndexRegistry indexRegistry, QueryOptions options)
         {
             for (Bound b : Bound.values())
                 if (hasBound(b))
@@ -419,10 +427,10 @@ public abstract class SingleColumnRestriction implements SingleRestriction
     // This holds CONTAINS, CONTAINS_KEY, and map[key] = value restrictions because we might want to have any combination of them.
     public static final class ContainsRestriction extends SingleColumnRestriction
     {
-        private List<Term> values = new ArrayList<>(); // for CONTAINS
-        private List<Term> keys = new ArrayList<>(); // for CONTAINS_KEY
-        private List<Term> entryKeys = new ArrayList<>(); // for map[key] = value
-        private List<Term> entryValues = new ArrayList<>(); // for map[key] = value
+        private final List<Term> values = new ArrayList<>(); // for CONTAINS
+        private final List<Term> keys = new ArrayList<>(); // for CONTAINS_KEY
+        private final List<Term> entryKeys = new ArrayList<>(); // for map[key] = value
+        private final List<Term> entryValues = new ArrayList<>(); // for map[key] = value
 
         public ContainsRestriction(ColumnMetadata columnDef, Term t, boolean isKey)
         {
@@ -480,7 +488,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         }
 
         @Override
-        public void addRowFilterTo(RowFilter filter, IndexRegistry indexRegistry, QueryOptions options)
+        public void addToRowFilter(RowFilter filter, IndexRegistry indexRegistry, QueryOptions options)
         {
             for (ByteBuffer value : bindAndGet(values, options))
                 filter.add(columnDef, Operator.CONTAINS, value);
@@ -509,6 +517,21 @@ public abstract class SingleColumnRestriction implements SingleRestriction
                 supported |= index.supportsExpression(columnDef, Operator.EQ);
 
             return supported;
+        }
+
+        @Override
+        public boolean needsFiltering(Index.Group indexGroup)
+        {
+            // multiple contains might require filtering on some indexes, since that is equivalent to a disjunction (or)
+            boolean hasMultipleContains = (numberOfValues() + numberOfKeys() + numberOfEntries()) > 1;
+
+            for (Index index : indexGroup.getIndexes())
+            {
+                if (isSupportedBy(index) && !(hasMultipleContains && index.filtersMultipleContains()))
+                    return false;
+            }
+
+            return true;
         }
 
         public int numberOfValues()
@@ -619,7 +642,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         }
 
         @Override
-        public void addRowFilterTo(RowFilter filter,
+        public void addToRowFilter(RowFilter filter,
                                    IndexRegistry indexRegistry,
                                    QueryOptions options)
         {
@@ -695,7 +718,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         }
 
         @Override
-        public void addRowFilterTo(RowFilter filter,
+        public void addToRowFilter(RowFilter filter,
                                    IndexRegistry indexRegistry,
                                    QueryOptions options)
         {

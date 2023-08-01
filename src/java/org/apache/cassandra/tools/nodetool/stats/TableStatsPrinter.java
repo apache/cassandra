@@ -50,6 +50,9 @@ public class TableStatsPrinter<T extends StatsHolder>
         @Override
         public void print(TableStatsHolder data, PrintStream out)
         {
+            if (data.numberOfTables == 0)
+                return;
+
             out.println("Total number of tables: " + data.numberOfTables);
             out.println("----------------");
 
@@ -57,7 +60,7 @@ public class TableStatsPrinter<T extends StatsHolder>
             for (StatsKeyspace keyspace : keyspaces)
             {
                 // print each keyspace's information
-                out.println("Keyspace : " + keyspace.name);
+                out.println("Keyspace: " + keyspace.name);
                 out.println("\tRead Count: " + keyspace.readCount);
                 out.println("\tRead Latency: " + keyspace.readLatency() + " ms");
                 out.println("\tWrite Count: " + keyspace.writeCount);
@@ -66,6 +69,9 @@ public class TableStatsPrinter<T extends StatsHolder>
 
                 // print each table's information
                 List<StatsTable> tables = keyspace.tables;
+                if (tables.size() == 0)
+                    continue;
+
                 for (StatsTable table : tables)
                 {
                     printStatsTable(table, table.tableName, "\t\t", out);
@@ -79,6 +85,9 @@ public class TableStatsPrinter<T extends StatsHolder>
             out.println(indent + "Table" + (table.isIndex ? " (index): " : ": ") + tableDisplayName);
             out.println(indent + "SSTable count: " + table.sstableCount);
             out.println(indent + "Old SSTable count: " + table.oldSSTableCount);
+            out.println(indent + "Max SSTable size: " + FBUtilities.prettyPrintMemory(table.maxSSTableSize));
+            if (table.twcs != null)
+                out.println(indent + "SSTables Time Window: " + table.twcs);
             if (table.isLeveledSstable)
             {
                 out.println(indent + "SSTables in each level: [" + String.join(", ",
@@ -93,7 +102,7 @@ public class TableStatsPrinter<T extends StatsHolder>
 
             if (table.offHeapUsed)
                 out.println(indent + "Off heap memory used (total): " + table.offHeapMemoryUsedTotal);
-            out.println(indent + "SSTable Compression Ratio: " + table.sstableCompressionRatio);
+            out.printf(indent + "SSTable Compression Ratio: %01.5f%n", table.sstableCompressionRatio);
             out.println(indent + "Number of partitions (estimate): " + table.numberOfPartitionsEstimate);
             out.println(indent + "Memtable cell count: " + table.memtableCellCount);
             out.println(indent + "Memtable data size: " + table.memtableDataSize);
@@ -105,6 +114,9 @@ public class TableStatsPrinter<T extends StatsHolder>
             out.printf(indent + "Local read latency: %01.3f ms%n", table.localReadLatencyMs);
             out.println(indent + "Local write count: " + table.localWriteCount);
             out.printf(indent + "Local write latency: %01.3f ms%n", table.localWriteLatencyMs);
+
+            out.printf(indent + "Local read/write ratio: %01.5f%n", table.localReadWriteRatio);
+
             out.println(indent + "Pending flushes: " + table.pendingFlushes);
             out.println(indent + "Percent repaired: " + table.percentRepaired);
 
@@ -130,7 +142,6 @@ public class TableStatsPrinter<T extends StatsHolder>
             out.println(indent + "Maximum live cells per slice (last five minutes): " + table.maximumLiveCellsPerSliceLastFiveMinutes);
             out.println(indent + "Average tombstones per slice (last five minutes): " + table.averageTombstonesPerSliceLastFiveMinutes);
             out.println(indent + "Maximum tombstones per slice (last five minutes): " + table.maximumTombstonesPerSliceLastFiveMinutes);
-            out.println(indent + "Dropped Mutations: " + table.droppedMutations);
             out.printf(indent + "Droppable tombstone ratio: %01.5f%n", table.droppableTombstoneRatio);
             if (table.isInCorrectLocation != null)
                 out.println(indent + "SSTables in correct location: " + table.isInCorrectLocation);
@@ -164,6 +175,10 @@ public class TableStatsPrinter<T extends StatsHolder>
         public void print(TableStatsHolder data, PrintStream out)
         {
             List<StatsTable> tables = data.getSortedFilteredTables();
+
+            if (tables.size() == 0)
+                return;
+
             String totalTablesSummary = String.format("Total number of tables: %d", data.numberOfTables);
             if (data.top > 0)
             {

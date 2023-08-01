@@ -207,6 +207,14 @@ public abstract class DataStorageSpec
         {
             return unit().toBytes(quantity());
         }
+
+        /**
+         * @return the amount of data storage in mebibytes
+         */
+        public int toMebibytesInt()
+        {
+            return Ints.saturatedCast(unit().toMebibytes(quantity()));
+        }
     }
 
     /**
@@ -314,6 +322,14 @@ public abstract class DataStorageSpec
         public int toKibibytes()
         {
             return Ints.saturatedCast(unit().toKibibytes(quantity()));
+        }
+
+        /**
+         * @return the amount of data storage in bytes.
+         */
+        public long toBytesInLong()
+        {
+           return unit().toBytes(quantity());
         }
     }
 
@@ -446,6 +462,16 @@ public abstract class DataStorageSpec
         public int toMebibytes()
         {
             return Ints.saturatedCast(unit().toMebibytes(quantity()));
+        }
+
+        /**
+         * Returns the amount of data storage in bytes as {@code long}
+         *
+         * @return the amount of data storage in bytes.
+         */
+        public long toBytesInLong()
+        {
+            return unit().toBytes(quantity());
         }
     }
 

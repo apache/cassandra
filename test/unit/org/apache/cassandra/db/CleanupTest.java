@@ -117,9 +117,11 @@ public class CleanupTest
     }
 
     @Test
-    public void testCleanup() throws ExecutionException, InterruptedException
+    public void testCleanup() throws ExecutionException, InterruptedException, UnknownHostException
     {
-        StorageService.instance.getTokenMetadata().clearUnsafe();
+        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
+        tmd.clearUnsafe();
+        tmd.updateNormalToken(token(new byte[]{ 50 }), InetAddressAndPort.getByName("127.0.0.1"));
 
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD1);
@@ -310,8 +312,8 @@ public class CleanupTest
         cfs.forceCleanup(2);
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
-            assertEquals(sstable.first, sstable.last); // single-token sstables
-            assertTrue(sstable.first.getToken().compareTo(token(new byte[]{ 50 })) <= 0);
+            assertEquals(sstable.getFirst(), sstable.getLast()); // single-token sstables
+            assertTrue(sstable.getFirst().getToken().compareTo(token(new byte[]{ 50 })) <= 0);
             // with single-token sstables they should all either be skipped or dropped:
             assertTrue(beforeFirstCleanup.contains(sstable));
         }
@@ -356,8 +358,8 @@ public class CleanupTest
 
         // prepare SSTable and some useful tokens
         SSTableReader ssTable = cfs.getLiveSSTables().iterator().next();
-        final Token ssTableMin = ssTable.first.getToken();
-        final Token ssTableMax = ssTable.last.getToken();
+        final Token ssTableMin = ssTable.getFirst().getToken();
+        final Token ssTableMax = ssTable.getLast().getToken();
 
         final Token min = token((byte) 0);
         final Token before1 = token((byte) 2);

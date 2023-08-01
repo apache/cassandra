@@ -92,7 +92,6 @@ public class ParseAndConvertUnitsTest
         assertEquals(new DataStorageSpec.IntKibibytesBound(2), config.column_index_cache_size);
         assertEquals(new DataStorageSpec.IntKibibytesBound(5), config.batch_size_warn_threshold);
         assertEquals(new DataStorageSpec.IntKibibytesBound(50), config.batch_size_fail_threshold);
-        assertEquals(new DataStorageSpec.IntMebibytesBound(100), config.compaction_large_partition_warning_threshold);
         assertNull(config.commitlog_total_space);
         assertEquals(new DataStorageSpec.IntMebibytesBound(5), config.commitlog_segment_size);
         assertNull(config.max_mutation_size); //not set explicitly in the default yaml, check the config; not set there too
@@ -112,8 +111,8 @@ public class ParseAndConvertUnitsTest
         assertEquals(new DataStorageSpec.IntBytesBound(1, MEBIBYTES), config.native_transport_receive_queue_capacity);
 
         //Confirm rate parameters were successfully parsed with the default values in cassandra.yaml
-        assertEquals(new DataRateSpec.IntMebibytesPerSecondBound(0), config.compaction_throughput);
-        assertEquals(new DataRateSpec.IntMebibytesPerSecondBound(23841858), config.stream_throughput_outbound);
-        assertEquals(new DataRateSpec.IntMebibytesPerSecondBound(24), config.inter_dc_stream_throughput_outbound);
+        assertEquals(new DataRateSpec.LongBytesPerSecondBound(0), config.compaction_throughput);
+        assertEquals(new DataRateSpec.LongBytesPerSecondBound(23841858, DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND), config.stream_throughput_outbound);
+        assertEquals(new DataRateSpec.LongBytesPerSecondBound(24, DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND), config.inter_dc_stream_throughput_outbound);
     }
 }

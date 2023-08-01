@@ -32,6 +32,10 @@ import com.datastax.driver.core.ProtocolOptions;
 import com.datastax.driver.core.ProtocolVersion;
 import org.apache.cassandra.stress.util.ResultLogger;
 
+import static java.lang.String.format;
+import static org.apache.cassandra.stress.settings.SettingsCredentials.CQL_PASSWORD_PROPERTY_KEY;
+import static org.apache.cassandra.stress.settings.SettingsCredentials.CQL_USERNAME_PROPERTY_KEY;
+
 public class SettingsMode implements Serializable
 {
 
@@ -51,7 +55,7 @@ public class SettingsMode implements Serializable
     private final String compression;
 
 
-    public SettingsMode(GroupedOptions options)
+    public SettingsMode(GroupedOptions options, SettingsCredentials credentials)
     {
         if (options instanceof Cql3Options)
         {
@@ -63,8 +67,8 @@ public class SettingsMode implements Serializable
             api = ConnectionAPI.JAVA_DRIVER_NATIVE;
             style = opts.useUnPrepared.setByUser() ? ConnectionStyle.CQL :  ConnectionStyle.CQL_PREPARED;
             compression = ProtocolOptions.Compression.valueOf(opts.useCompression.value().toUpperCase()).name();
-            username = opts.user.value();
-            password = opts.password.value();
+            username = opts.user.setByUser() ? opts.user.value() : credentials.cqlUsername;
+            password = opts.password.setByUser() ? opts.password.value() : credentials.cqlPassword;
             maxPendingPerConnection = opts.maxPendingPerConnection.value().isEmpty() ? null : Integer.valueOf(opts.maxPendingPerConnection.value());
             connectionsPerHost = opts.connectionsPerHost.value().isEmpty() ? null : Integer.valueOf(opts.connectionsPerHost.value());
             authProviderClassname = opts.authProvider.value();
@@ -137,8 +141,12 @@ public class SettingsMode implements Serializable
         final OptionSimple useUnPrepared = new OptionSimple("unprepared", "", null, "force use of unprepared statements", false);
         final OptionSimple useCompression = new OptionSimple("compression=", "none|lz4|snappy", "none", "", false);
         final OptionSimple port = new OptionSimple("port=", "[0-9]+", "9046", "", false);
-        final OptionSimple user = new OptionSimple("user=", ".+", null, "username", false);
-        final OptionSimple password = new OptionSimple("password=", ".+", null, "password", false);
+        final OptionSimple user = new OptionSimple("user=", ".+", null,
+                                                   format("CQL user, when specified, it will override the value in credentials file for key '%s'", CQL_USERNAME_PROPERTY_KEY),
+                                                   false);
+        final OptionSimple password = new OptionSimple("password=", ".+", null,
+                                                       format("CQL password, when specified, it will override the value in credentials file for key '%s'", CQL_PASSWORD_PROPERTY_KEY),
+                                                       false);
         final OptionSimple authProvider = new OptionSimple("auth-provider=", ".*", null, "Fully qualified implementation of com.datastax.driver.core.AuthProvider", false);
         final OptionSimple maxPendingPerConnection = new OptionSimple("maxPending=", "[0-9]+", "128", "Maximum pending requests per connection", false);
         final OptionSimple connectionsPerHost = new OptionSimple("connectionsPerHost=", "[0-9]+", "8", "Number of connections per host", false);
@@ -179,11 +187,9 @@ public class SettingsMode implements Serializable
         out.printf("  Max Pending Per Connection: %d%n", maxPendingPerConnection);
         out.printf("  Connections Per Host: %d%n", connectionsPerHost);
         out.printf("  Compression: %s%n", compression);
-
     }
 
-
-    public static SettingsMode get(Map<String, String[]> clArgs)
+    public static SettingsMode get(Map<String, String[]> clArgs, SettingsCredentials credentials)
     {
         String[] params = clArgs.remove("-mode");
         if (params == null)
@@ -192,7 +198,7 @@ public class SettingsMode implements Serializable
             opts.accept("cql3");
             opts.accept("native");
             opts.accept("prepared");
-            return new SettingsMode(opts);
+            return new SettingsMode(opts, credentials);
         }
 
         GroupedOptions options = GroupedOptions.select(params, new Cql3NativeOptions(), new Cql3SimpleNativeOptions());
@@ -202,7 +208,7 @@ public class SettingsMode implements Serializable
             System.out.println("Invalid -mode options provided, see output for valid options");
             System.exit(1);
         }
-        return new SettingsMode(options);
+        return new SettingsMode(options, credentials);
     }
 
     public static void printHelp()

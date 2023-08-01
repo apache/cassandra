@@ -65,6 +65,7 @@
  *    -XX:ActiveProcessorCount=???
  *    -Xmx???
  *    -XX:-BackgroundCompilation
+ *    -XX:CICompilerCount=1
  *
  * For performance reasons the following parameters are recommended:
  *    -XX:Tier4CompileThreshold=1000

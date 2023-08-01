@@ -52,14 +52,22 @@ public interface ColumnFamilyStoreMBean
     public void forceMajorCompaction(boolean splitOutput) throws ExecutionException, InterruptedException;
 
     /**
-     * force a major compaction of specified key range in this column family
+     * Forces a major compaction of specified token ranges in this column family.
+     * <p>
+     * The token ranges will be interpreted as closed intervals to match the closed interval defined by the first and
+     * last keys of a sstable, even though the {@link Range} class is suppossed to be half-open by definition.
+     *
+     * @param tokenRanges The token ranges to be compacted, interpreted as closed intervals.
      */
     @BreaksJMX("This API was released in 3.10 using a parameter that takes Range of Token, which can only be done IFF client has Cassandra binaries in the classpath")
     @Deprecated
     public void forceCompactionForTokenRange(Collection<Range<Token>> tokenRanges) throws ExecutionException, InterruptedException;
 
     /**
-     * force a major compaction of specified key range in this column family
+     * Forces a major compaction of specified token ranges in this column family.
+     * <p>
+     * The token ranges will be interpreted as closed intervals to match the closed interval defined by the first and
+     * last keys of a sstable, even though the {@link Range} class is suppossed to be half-open by definition.
      */
     public void forceCompactionForTokenRanges(String... tokenRanges);
 
@@ -154,6 +162,15 @@ public interface ColumnFamilyStoreMBean
     public List<String> getSSTablesForKey(String key, boolean hexFormat);
 
     /**
+     * Returns a list of filenames that contain the given key and which level they belong to.
+     * Requires table to be compacted with {@link org.apache.cassandra.db.compaction.LeveledCompactionStrategy}
+     * @param key
+     * @param hexFormat
+     * @return list of filenames and levels containing the key
+     */
+    public Map<Integer, Set<String>> getSSTablesForKeyWithLevel(String key, boolean hexFormat);
+
+    /**
      * Load new sstables from the given directory
      *
      * @param srcPaths the path to the new sstables - if it is an empty set, the data directories will be scanned
@@ -218,6 +235,17 @@ public interface ColumnFamilyStoreMBean
     public long[] getPerLevelSizeBytes();
 
     /**
+     * @return true if the table is using LeveledCompactionStrategy. false otherwise.
+     */
+    public boolean isLeveledCompaction();
+
+    /**
+     * @return sstable count for each bucket in TWCS. null unless time window compaction is used.
+     *         array index corresponds to bucket(int[0] is for most recent, ...).
+     */
+    public int[] getSSTableCountPerTWCSBucket();
+
+    /**
      * @return sstable fanout size for level compaction strategy.
      */
     public int getLevelFanoutSize();
@@ -271,4 +299,23 @@ public interface ColumnFamilyStoreMBean
     public Long getTopSizePartitionsLastUpdate();
     public Map<String, Long> getTopTombstonePartitions();
     public Long getTopTombstonePartitionsLastUpdate();
+
+    /**
+     * Returns the size of the biggest SSTable of this table.
+     *
+     * @return (physical) size of the biggest SSTable of this table on disk or 0 if no SSTable is present
+     */
+    public long getMaxSSTableSize();
+
+    /**
+     * Returns the longest duration of an SSTable, in milliseconds, of this table,
+     * computed as {@code maxTimestamp - minTimestamp}.
+     *
+     * It returns 0 if there are no SSTables or if {@code maxTimestamp} or {@code minTimestamp} is
+     * equal to {@code Long.MAX_VALUE}. Effectively non-zero for tables on {@code TimeWindowCompactionStrategy}.
+     *
+     * @return the biggest {@code maxTimestamp - minTimestamp} among all SSTables of this table
+     * or 0 if no SSTable is present
+     */
+    public long getMaxSSTableDuration();
 }

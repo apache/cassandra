@@ -42,7 +42,8 @@ public class EnableFullQueryLog extends NodeToolCmd
     private String path = null;
 
     @Option(title = "archive_command", name = {"--archive-command"}, description = "Command that will handle archiving rolled full query log files." +
-                                                                                   " Format is \"/path/to/script.sh %path\" where %path will be replaced with the file to archive")
+                                                                                   " Format is \"/path/to/script.sh %path\" where %path will be replaced with the file to archive" +
+                                                                                   " Enable this by setting the full_query_logging_options.allow_nodetool_archive_command: true in the config.")
     private String archiveCommand = null;
 
     @Option(title = "archive_retries", name = {"--max-archive-retries"}, description = "Max number of archive retries.")

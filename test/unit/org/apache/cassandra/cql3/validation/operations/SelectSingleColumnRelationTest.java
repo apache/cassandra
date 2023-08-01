@@ -541,8 +541,8 @@ public class SelectSingleColumnRelationTest extends CQLTester
 
         assertInvalidMessage("Invalid unset value for argument in call to function token",
                              "SELECT * FROM %s WHERE token(k) >= token(?)", unset());
-        assertInvalidMessage("Invalid unset value for argument in call to function blobasint",
-                             "SELECT * FROM %s WHERE k = blobAsInt(?)", unset());
+        assertInvalidMessage("Invalid unset value for argument in call to function blob_as_int",
+                             "SELECT * FROM %s WHERE k = blob_as_int(?)", unset());
     }
 
     @Test

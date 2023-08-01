@@ -26,6 +26,7 @@ import java.util.Collection;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nullable;
 
@@ -36,6 +37,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.util.concurrent.Future; // checkstyle: permit this import
 import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.streaming.StreamDeserializingTask;
@@ -43,6 +45,7 @@ import org.apache.cassandra.streaming.StreamingChannel;
 import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.messages.IncomingStreamMessage;
+import org.apache.cassandra.streaming.messages.KeepAliveMessage;
 import org.apache.cassandra.streaming.messages.OutgoingStreamMessage;
 import org.apache.cassandra.streaming.messages.StreamMessage;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
@@ -50,14 +53,14 @@ import org.apache.cassandra.utils.concurrent.Semaphore;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static com.google.common.base.Throwables.getRootCause;
-import static java.lang.Integer.parseInt;
+
 import static java.lang.String.format;
-import static java.lang.System.getProperty;
 import static java.lang.Thread.currentThread;
 import static java.util.concurrent.TimeUnit.*;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
-import static org.apache.cassandra.config.Config.PROPERTY_PREFIX;
+import static org.apache.cassandra.config.CassandraRelevantProperties.STREAMING_SESSION_PARALLELTRANSFERS;
+import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.streaming.StreamSession.createLogTag;
 import static org.apache.cassandra.streaming.messages.StreamMessage.serialize;
 import static org.apache.cassandra.streaming.messages.StreamMessage.serializedSize;
@@ -88,7 +91,7 @@ public class StreamingMultiplexedChannel
     private static final Logger logger = LoggerFactory.getLogger(StreamingMultiplexedChannel.class);
 
     private static final int DEFAULT_MAX_PARALLEL_TRANSFERS = getAvailableProcessors();
-    private static final int MAX_PARALLEL_TRANSFERS = parseInt(getProperty(PROPERTY_PREFIX + "streaming.session.parallelTransfers", Integer.toString(DEFAULT_MAX_PARALLEL_TRANSFERS)));
+    private static final int MAX_PARALLEL_TRANSFERS = STREAMING_SESSION_PARALLELTRANSFERS.getInt(DEFAULT_MAX_PARALLEL_TRANSFERS);
 
     // a simple mechansim for allowing a degree of fairness across multiple sessions
     private static final Semaphore fileTransferSemaphore = newFairSemaphore(DEFAULT_MAX_PARALLEL_TRANSFERS);
@@ -121,6 +124,7 @@ public class StreamingMultiplexedChannel
         this.session = session;
         this.factory = factory;
         this.to = to;
+        assert messagingVersion >= VERSION_40;
         this.messagingVersion = messagingVersion;
         this.controlChannel = controlChannel;
 
@@ -166,8 +170,11 @@ public class StreamingMultiplexedChannel
         StreamingChannel channel = factory.create(to, messagingVersion, StreamingChannel.Kind.CONTROL);
         executorFactory().startThread(String.format("Stream-Deserializer-%s-%s", to.toString(), channel.id()),
                                       new StreamDeserializingTask(session, channel, messagingVersion));
+
         session.attachInbound(channel);
         session.attachOutbound(channel);
+
+        scheduleKeepAliveTask(channel);
 
         logger.debug("Creating control {}", channel.description());
         return channel;
@@ -211,7 +218,7 @@ public class StreamingMultiplexedChannel
             if (logger.isDebugEnabled())
                 logger.debug("{} Sending {}", createLogTag(session), message);
 
-            InetAddressAndPort connectTo = SystemKeyspace.getPreferredIP(to);
+            InetAddressAndPort connectTo = factory.supportsPreferredIp() ? SystemKeyspace.getPreferredIP(to) : to;
             return fileTransferExecutor.submit(new FileStreamTask((OutgoingStreamMessage) message, connectTo));
         }
 
@@ -246,7 +253,7 @@ public class StreamingMultiplexedChannel
      *
      * Note: this is called from the netty event loop.
      *
-     * @return null if the message was processed sucessfully; else, a {@link java.util.concurrent.Future} to indicate
+     * @return null if the message was processed successfully; else, a {@link java.util.concurrent.Future} to indicate
      * the status of aborting any remaining tasks in the session.
      */
     Future<?> onMessageComplete(Future<?> future, StreamMessage msg)
@@ -405,6 +412,72 @@ public class StreamingMultiplexedChannel
         {
             threadToChannelMap.remove(currentThread());
         }
+    }
+
+    /**
+     * Periodically sends the {@link KeepAliveMessage}.
+     * <p>
+     * NOTE: this task, and the callback function are executed in the netty event loop.
+     */
+    class KeepAliveTask implements Runnable
+    {
+        private final StreamingChannel channel;
+
+        /**
+         * A reference to the scheduled task for this instance so that it may be cancelled.
+         */
+        ScheduledFuture<?> future;
+
+        KeepAliveTask(StreamingChannel channel)
+        {
+            this.channel = channel;
+        }
+
+        @Override
+        public void run()
+        {
+            // if the channel has been closed, cancel the scheduled task and return
+            if (!channel.connected() || closed)
+            {
+                if (null != future)
+                    future.cancel(false);
+                return;
+            }
+
+            if (logger.isTraceEnabled())
+                logger.trace("{} Sending keep-alive to {}.", createLogTag(session, channel), session.peer);
+
+            sendControlMessage(new KeepAliveMessage()).addListener(f ->
+            {
+                if (f.isSuccess() || f.isCancelled())
+                    return;
+
+                if (logger.isDebugEnabled())
+                    logger.debug("{} Could not send keep-alive message (perhaps stream session is finished?).",
+                                 createLogTag(session, channel), f.cause());
+            });
+        }
+    }
+
+    private void scheduleKeepAliveTask(StreamingChannel channel)
+    {
+        if (!(channel instanceof NettyStreamingChannel))
+            return;
+
+        int keepAlivePeriod = DatabaseDescriptor.getStreamingKeepAlivePeriod();
+        if (keepAlivePeriod <= 0)
+            return;
+
+        if (logger.isDebugEnabled())
+            logger.debug("{} Scheduling keep-alive task with {}s period.", createLogTag(session, channel), keepAlivePeriod);
+
+        KeepAliveTask task = new KeepAliveTask(channel);
+        ScheduledFuture<?> scheduledFuture =
+            ((NettyStreamingChannel)channel).channel
+                                            .eventLoop()
+                                            .scheduleAtFixedRate(task, keepAlivePeriod, keepAlivePeriod, TimeUnit.SECONDS);
+        task.future = scheduledFuture;
+        channelKeepAlives.add(scheduledFuture);
     }
 
     /**

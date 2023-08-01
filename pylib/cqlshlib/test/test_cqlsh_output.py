@@ -20,6 +20,7 @@
 import locale
 import os
 import re
+import sys
 
 from .basecase import (BaseTestCase, TEST_HOST, TEST_PORT,
                        at_a_time, cqlshlog, dedent)
@@ -306,9 +307,9 @@ class TestCqlshOutput(BaseTestCase):
         # same query should show up as empty in cql 3
         self.assertQueriesGiveColoredOutput((
             (q, """
-             num | asciicol | bigintcol | blobcol | booleancol | decimalcol | doublecol | floatcol | intcol | smallintcol | textcol | timestampcol | tinyintcol | uuidcol | varcharcol | varintcol
-             RRR   MMMMMMMM   MMMMMMMMM   MMMMMMM   MMMMMMMMMM   MMMMMMMMMM   MMMMMMMMM   MMMMMMMM   MMMMMM   MMMMMMMMMMM   MMMMMMM   MMMMMMMMMMMM   MMMMMMMMMM   MMMMMMM   MMMMMMMMMM   MMMMMMMMM
-            -----+----------+-----------+---------+------------+------------+-----------+----------+--------+-------------+---------+--------------+------------+---------+------------+-----------
+             num | asciicol | bigintcol | blobcol | booleancol | decimalcol | doublecol | durationcol | floatcol | intcol | smallintcol | textcol | timestampcol | tinyintcol | uuidcol | varcharcol | varintcol
+             RRR   MMMMMMMM   MMMMMMMMM   MMMMMMM   MMMMMMMMMM   MMMMMMMMMM   MMMMMMMMM   MMMMMMMMMMM   MMMMMMMM   MMMMMM   MMMMMMMMMMM   MMMMMMM   MMMMMMMMMMMM   MMMMMMMMMM   MMMMMMM   MMMMMMMMMM   MMMMMMMMM
+            -----+----------+-----------+---------+------------+------------+-----------+-------------+----------+--------+-------------+---------+--------------+------------+---------+------------+-----------
 
 
             (0 rows)
@@ -402,7 +403,8 @@ class TestCqlshOutput(BaseTestCase):
             """),
         ), env=env)
         try:
-            import pytz  # test only if pytz is available on PYTHONPATH
+            if sys.version_info < (3, 9):
+                import pytz  # on older versions without zoneinfo, test only if pytz is available on PYTHONPATH
             env['TZ'] = 'America/Sao_Paulo'
             self.assertQueriesGiveColoredOutput((
                 ('''select timestampcol from has_all_types where num = 0;''', """
@@ -560,6 +562,28 @@ class TestCqlshOutput(BaseTestCase):
             """, ),
         ))
 
+    def test_duration_output(self):
+        self.assertQueriesGiveColoredOutput((
+            ("select num, durationcol from has_all_types where num in (0, 1, 2, 3);", r"""
+             num | durationcol
+             RRR   MMMMMMMMMMM
+            -----+----------------
+
+               0 |            12h
+               G   GGGGGGGGGGGGGG
+               1 |         12h30m
+               G   GGGGGGGGGGGGGG
+               2 |      12h30m30s
+               G   GGGGGGGGGGGGGG
+               3 | 12h30m30s250ms
+               G   GGGGGGGGGGGGGG
+
+
+            (4 rows)
+            nnnnnnnn
+            """, ),
+        ))
+
     def test_prompt(self):
         with testrun_cqlsh(tty=True, keyspace=None, env=self.default_env) as c:
             self.assertTrue(c.output_header.splitlines()[-1].endswith('cqlsh> '))
@@ -642,6 +666,7 @@ class TestCqlshOutput(BaseTestCase):
                 booleancol boolean,
                 decimalcol decimal,
                 doublecol double,
+                durationcol duration,
                 floatcol float,
                 intcol int,
                 smallintcol smallint,
@@ -652,6 +677,7 @@ class TestCqlshOutput(BaseTestCase):
                 varcharcol text,
                 varintcol varint
             ) WITH additional_write_policy = '99p'
+                AND allow_auto_snapshot = true
                 AND bloom_filter_fp_chance = 0.01
                 AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}
                 AND cdc = false
@@ -663,6 +689,7 @@ class TestCqlshOutput(BaseTestCase):
                 AND default_time_to_live = 0
                 AND extensions = {}
                 AND gc_grace_seconds = 864000
+                AND incremental_backups = true
                 AND max_index_interval = 2048
                 AND memtable_flush_period_in_ms = 0
                 AND min_index_interval = 128
@@ -913,3 +940,51 @@ class TestCqlshOutput(BaseTestCase):
         row_headers = [s for s in output.splitlines() if "@ Row" in s]
         row_ids = [int(s.split(' ')[2]) for s in row_headers]
         self.assertEqual([i for i in range(1, 21)], row_ids)
+
+    def test_quoted_output_text_in_map(self):
+        ks = get_keyspace()
+
+        query = "SELECT text_data FROM " + ks + ".escape_quotes;"
+        output, result = testcall_cqlsh(prompt=None, env=self.default_env,
+                                                tty=False, input=query)
+        self.assertEqual(0, result)
+        self.assertEqual(output.splitlines()[3].strip(), "I'm newb")
+
+        query = "SELECT map_data FROM " + ks + ".escape_quotes;"
+        output, result = testcall_cqlsh(prompt=None, env=self.default_env,
+                                                        tty=False, input=query)
+        self.assertEqual(0, result)
+        self.assertEqual(output.splitlines()[3].strip(), "{1: 'I''m newb'}")
+
+    def test_quoted_output_text_in_simple_collections(self):
+        ks = get_keyspace()
+
+        # Sets
+        query = "SELECT set_data FROM " + ks + ".escape_quotes;"
+        output, result = testcall_cqlsh(prompt=None, env=self.default_env,
+                                                        tty=False, input=query)
+        self.assertEqual(0, result)
+        self.assertEqual(output.splitlines()[3].strip(), "{'I''m newb'}")
+
+        # Lists
+        query = "SELECT list_data FROM " + ks + ".escape_quotes;"
+        output, result = testcall_cqlsh(prompt=None, env=self.default_env,
+                                                        tty=False, input=query)
+        self.assertEqual(0, result)
+        self.assertEqual(output.splitlines()[3].strip(), "['I''m newb']")
+
+        # Tuples
+        query = "SELECT tuple_data FROM " + ks + ".escape_quotes;"
+        output, result = testcall_cqlsh(prompt=None, env=self.default_env,
+                                                        tty=False, input=query)
+        self.assertEqual(0, result)
+        self.assertEqual(output.splitlines()[3].strip(), "(1, 'I''m newb')")
+
+    def test_quoted_output_text_in_udts(self):
+        ks = get_keyspace()
+
+        query = "SELECT udt_data FROM " + ks + ".escape_quotes;"
+        output, result = testcall_cqlsh(prompt=None, env=self.default_env,
+                                                        tty=False, input=query)
+        self.assertEqual(0, result)
+        self.assertEqual(output.splitlines()[3].strip(), "{data: 'I''m newb'}")

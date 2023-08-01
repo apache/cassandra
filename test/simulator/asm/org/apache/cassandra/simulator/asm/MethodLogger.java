@@ -27,7 +27,6 @@ import java.util.EnumSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.util.Printer;
@@ -37,6 +36,8 @@ import org.objectweb.asm.util.TraceMethodVisitor;
 import static java.util.Arrays.stream;
 import static org.apache.cassandra.simulator.asm.MethodLogger.Level.NONE;
 import static org.apache.cassandra.simulator.asm.MethodLogger.Level.valueOf;
+
+// checkstyle: suppress below 'blockSystemPropertyUsage'
 
 // TODO (config): support logging only for packages/classes matching a pattern
 interface MethodLogger

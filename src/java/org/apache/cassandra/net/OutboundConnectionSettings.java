@@ -23,9 +23,9 @@ import com.google.common.base.Preconditions;
 
 import io.netty.channel.WriteBufferWaterMark;
 import org.apache.cassandra.auth.IInternodeAuthenticator;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.locator.IEndpointSnitch;
@@ -33,7 +33,6 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.getEndpointSnitch;
-import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.MessagingService.instance;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
@@ -43,22 +42,18 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 @SuppressWarnings({ "WeakerAccess", "unused" })
 public class OutboundConnectionSettings
 {
-    private static final String INTRADC_TCP_NODELAY_PROPERTY = Config.PROPERTY_PREFIX + "otc_intradc_tcp_nodelay";
     /**
      * Enabled/disable TCP_NODELAY for intradc connections. Defaults to enabled.
      */
-    private static final boolean INTRADC_TCP_NODELAY = Boolean.parseBoolean(System.getProperty(INTRADC_TCP_NODELAY_PROPERTY, "true"));
+    private static final boolean INTRADC_TCP_NODELAY = CassandraRelevantProperties.OTC_INTRADC_TCP_NODELAY.getBoolean();
 
     public enum Framing
     {
-        // for  < VERSION_40, implies no framing
-        // for >= VERSION_40, uses simple unprotected frames with header crc but no payload protection
+        // uses simple unprotected frames with header crc but no payload protection
         UNPROTECTED(0),
-        // for  < VERSION_40, uses the jpountz framing format
-        // for >= VERSION_40, uses our framing format with header crc24
+        // uses our framing format with header crc24
         LZ4(1),
-        // for  < VERSION_40, implies UNPROTECTED
-        // for >= VERSION_40, uses simple frames with separate header and payload crc
+        // uses simple frames with separate header and payload crc
         CRC(2);
 
         public static Framing forId(int id)
@@ -134,6 +129,7 @@ public class OutboundConnectionSettings
         Preconditions.checkArgument(applicationSendQueueCapacityInBytes == null || applicationSendQueueCapacityInBytes >= 1 << 10, "illegal application send queue capacity: " + applicationSendQueueCapacityInBytes);
         Preconditions.checkArgument(tcpUserTimeoutInMS == null || tcpUserTimeoutInMS >= 0, "tcp user timeout must be non negative: " + tcpUserTimeoutInMS);
         Preconditions.checkArgument(tcpConnectTimeoutInMS == null || tcpConnectTimeoutInMS > 0, "tcp connect timeout must be positive: " + tcpConnectTimeoutInMS);
+        Preconditions.checkArgument(acceptVersions == null || acceptVersions.min >= MessagingService.minimum_version, "acceptVersions.min must be minimum_version or higher: " + (acceptVersions == null ? null : acceptVersions.min));
 
         this.authenticator = authenticator;
         this.to = to;
@@ -155,11 +151,6 @@ public class OutboundConnectionSettings
         this.callbacks = callbacks;
         this.debug = debug;
         this.endpointToVersion = endpointToVersion;
-    }
-
-    public boolean authenticate()
-    {
-        return authenticator.authenticate(to.getAddress(), to.getPort());
     }
 
     public boolean withEncryption()
@@ -443,16 +434,13 @@ public class OutboundConnectionSettings
                                         : MessagingService.accept_messaging;
     }
 
-    public OutboundConnectionSettings withLegacyPortIfNecessary(int messagingVersion)
-    {
-        return withConnectTo(maybeWithSecurePort(connectTo(), messagingVersion, withEncryption()));
-    }
-
     public InetAddressAndPort connectTo()
     {
         InetAddressAndPort connectTo = this.connectTo;
         if (connectTo == null)
             connectTo = SystemKeyspace.getPreferredIP(to);
+        if (FBUtilities.getBroadcastAddressAndPort().equals(connectTo))
+            return FBUtilities.getLocalAddressAndPort();
         return connectTo;
     }
 
@@ -510,22 +498,6 @@ public class OutboundConnectionSettings
     {
         return (DatabaseDescriptor.internodeCompression() == Config.InternodeCompression.all)
                || ((DatabaseDescriptor.internodeCompression() == Config.InternodeCompression.dc) && !isInLocalDC(snitch, localHost, remoteHost));
-    }
-
-    private static InetAddressAndPort maybeWithSecurePort(InetAddressAndPort address, int messagingVersion, boolean isEncrypted)
-    {
-        if (!isEncrypted || messagingVersion >= VERSION_40)
-            return address;
-
-        // if we don't know the version of the peer, assume it is 4.0 (or higher) as the only time is would be lower
-        // (as in a 3.x version) is during a cluster upgrade (from 3.x to 4.0). In that case the outbound connection will
-        // unfortunately fail - however the peer should connect to this node (at some point), and once we learn it's version, it'll be
-        // in versions map. thus, when we attempt to reconnect to that node, we'll have the version and we can get the correct port.
-        // we will be able to remove this logic at 5.0.
-        // Also as of 4.0 we will propagate the "regular" port (which will support both SSL and non-SSL) via gossip so
-        // for SSL and version 4.0 always connect to the gossiped port because if SSL is enabled it should ALWAYS
-        // listen for SSL on the "regular" port.
-        return address.withPort(DatabaseDescriptor.getSSLStoragePort());
     }
 
 }

@@ -54,18 +54,21 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static java.util.Arrays.stream;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_ALTER_RF_DURING_RANGE_MOVEMENT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BATCH_COMMIT_LOG_SYNC_INTERVAL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_REMOTE_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_GLOBAL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_MONOTONIC_APPROX;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_MONOTONIC_PRECISE;
-import static org.apache.cassandra.config.CassandraRelevantProperties.DETERMINISM_CONSISTENT_DIRECTORY_LISTINGS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CONSISTENT_DIRECTORY_LISTINGS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DETERMINISM_UNSAFE_UUID_NODE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_SSTABLE_ACTIVITY_TRACKING;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DETERMINISM_SSTABLE_COMPRESSION_DEFAULT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.DTEST_API_LOG_TOPOLOGY;
 import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIPER_SKIP_WAITING_TO_SETTLE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORE_MISSING_NATIVE_FILE_HINTS;
-import static org.apache.cassandra.config.CassandraRelevantProperties.IS_DISABLED_MBEAN_REGISTRATION;
+import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
+import static org.apache.cassandra.config.CassandraRelevantProperties.LIBJEMALLOC;
 import static org.apache.cassandra.config.CassandraRelevantProperties.MEMTABLE_OVERHEAD_SIZE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.MIGRATION_DELAY;
 import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_REPAIR_RETRY_TIMEOUT_IN_MS;
@@ -99,12 +102,12 @@ public class SimulationRunner
         try { Clock.Global.nanoTime(); } catch (IllegalStateException e) {} // make sure static initializer gets called
 
         // TODO (cleanup): disable unnecessary things like compaction logger threads etc
-        System.setProperty("cassandra.libjemalloc", "-");
-        System.setProperty("cassandra.dtest.api.log.topology", "false");
+        LIBJEMALLOC.setString("-");
+        DTEST_API_LOG_TOPOLOGY.setBoolean(false);
 
         // this property is used to allow non-members of the ring to exist in gossip without breaking RF changes
         // it would be nice not to rely on this, but hopefully we'll have consistent range movements before it matters
-        System.setProperty("cassandra.allow_alter_rf_during_range_movement", "true");
+        ALLOW_ALTER_RF_DURING_RANGE_MOVEMENT.setBoolean(true);
 
         for (CassandraRelevantProperties property : Arrays.asList(CLOCK_GLOBAL, CLOCK_MONOTONIC_APPROX, CLOCK_MONOTONIC_PRECISE))
             property.setString("org.apache.cassandra.simulator.systems.SimulatedTime$Global");
@@ -118,14 +121,14 @@ public class SimulationRunner
         BATCH_COMMIT_LOG_SYNC_INTERVAL.setInt(-1);
         DISABLE_SSTABLE_ACTIVITY_TRACKING.setBoolean(false);
         DETERMINISM_SSTABLE_COMPRESSION_DEFAULT.setBoolean(false); // compression causes variation in file size for e.g. UUIDs, IP addresses, random file paths
-        DETERMINISM_CONSISTENT_DIRECTORY_LISTINGS.setBoolean(true);
+        CONSISTENT_DIRECTORY_LISTINGS.setBoolean(true);
         TEST_IGNORE_SIGAR.setBoolean(true);
         SYSTEM_AUTH_DEFAULT_RF.setInt(3);
         MIGRATION_DELAY.setInt(Integer.MAX_VALUE);
         DISABLE_GOSSIP_ENDPOINT_REMOVAL.setBoolean(true);
         MEMTABLE_OVERHEAD_SIZE.setInt(100);
         IGNORE_MISSING_NATIVE_FILE_HINTS.setBoolean(true);
-        IS_DISABLED_MBEAN_REGISTRATION.setBoolean(true);
+        ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.setBoolean(true);
         TEST_JVM_DTEST_DISABLE_SSL.setBoolean(true); // to support easily running without netty from dtest-jar
 
         if (Thread.currentThread() instanceof InterceptibleThread); // load InterceptibleThread class to avoid infinite loop in InterceptorOfGlobalMethods
@@ -365,8 +368,13 @@ public class SimulationRunner
                 }
                 catch (Throwable t)
                 {
-                    logger.error("Failed on seed {}", Long.toHexString(seed), t);
+                    throw new SimulationException(seed, t);
                 }
+            }
+            catch (Throwable t)
+            {
+                if (t instanceof SimulationException) throw t;
+                throw new SimulationException(seed, "Failure creating the simulation", t);
             }
         }
     }

@@ -32,7 +32,6 @@ import javax.management.openmbean.OpenType;
 import javax.management.openmbean.SimpleType;
 
 import com.google.common.base.Preconditions;
-import com.google.common.base.Throwables;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -57,7 +56,7 @@ public class CleanupSummary
         }
         catch (OpenDataException e)
         {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -77,7 +76,7 @@ public class CleanupSummary
 
     public CleanupSummary(ColumnFamilyStore cfs, Set<TimeUUID> successful, Set<TimeUUID> unsuccessful)
     {
-        this(cfs.keyspace.getName(), cfs.name, successful, unsuccessful);
+        this(cfs.getKeyspaceName(), cfs.name, successful, unsuccessful);
     }
 
     public static CleanupSummary add(CleanupSummary l, CleanupSummary r)
@@ -126,7 +125,7 @@ public class CleanupSummary
         }
         catch (OpenDataException e)
         {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e);
         }
     }
 

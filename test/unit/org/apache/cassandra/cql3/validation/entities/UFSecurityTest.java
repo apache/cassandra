@@ -27,9 +27,9 @@ import org.junit.Test;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.cql3.functions.UDHelper;
 import org.apache.cassandra.exceptions.FunctionExecutionException;
 import org.apache.cassandra.service.ClientWarn;
+import org.apache.cassandra.utils.JavaDriverUtils;
 
 public class UFSecurityTest extends CQLTester
 {
@@ -48,17 +48,17 @@ public class UFSecurityTest extends CQLTester
                                           "RETURNS NULL ON NULL INPUT " +
                                           "RETURNS double " +
                                           "LANGUAGE JAVA\n" +
-                                          "AS 'System.getProperty(\"foo.bar.baz\"); return 0d;';");
+                                          "AS 'System.getProperty(\"foo.bar.baz\"); return 0d;';"); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
             execute("SELECT " + fName + "(dval) FROM %s WHERE key=1");
             Assert.fail();
         }
         catch (FunctionExecutionException e)
         {
-            assertAccessControlException("System.getProperty(\"foo.bar.baz\"); return 0d;", e);
+            assertAccessControlException("System.getProperty(\"foo.bar.baz\"); return 0d;", e); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
         }
 
         String[] cfnSources =
-        { "try { Class.forName(\"" + UDHelper.class.getName() + "\"); } catch (Exception e) { throw new RuntimeException(e); } return 0d;",
+        { "try { Class.forName(\"" + JavaDriverUtils.class.getName() + "\"); } catch (Exception e) { throw new RuntimeException(e); } return 0d;",
           "try { Class.forName(\"sun.misc.Unsafe\"); } catch (Exception e) { throw new RuntimeException(e); } return 0d;" };
         for (String source : cfnSources)
         {
@@ -118,7 +118,13 @@ public class UFSecurityTest extends CQLTester
                                     "     java.lang.Runtime.getRuntime().exec(\"/tmp/foo\"); return 0d;" +
                                     "} catch (Exception t) {" +
                                     "     throw new RuntimeException(t);" +
-                                    '}'}
+                                    '}'},
+        {"org.apache.cassandra.utils.vint.VIntCoding",
+         "try {" +
+         "     org.apache.cassandra.utils.vint.VIntCoding.computeUnsignedVIntSize(0L); return 0d;" +
+         "} catch (Exception t) {" +
+         "     throw new RuntimeException(t);" +
+         '}'}
         };
 
         for (String[] typeAndSource : typesAndSources)
@@ -130,74 +136,6 @@ public class UFSecurityTest extends CQLTester
                                  "LANGUAGE JAVA\n" +
                                  "AS '" + typeAndSource[1] + "';");
         }
-
-        // JavaScript UDFs
-
-        try
-        {
-            String fName = createFunction(KEYSPACE_PER_TEST, "double",
-                                          "CREATE OR REPLACE FUNCTION %s(val double) " +
-                                          "RETURNS NULL ON NULL INPUT " +
-                                          "RETURNS double " +
-                                          "LANGUAGE javascript\n" +
-                                          "AS 'org.apache.cassandra.service.StorageService.instance.isShutdown(); 0;';");
-            execute("SELECT " + fName + "(dval) FROM %s WHERE key=1");
-            Assert.fail("Javascript security check failed");
-        }
-        catch (FunctionExecutionException e)
-        {
-            assertAccessControlException("", e);
-        }
-
-        String[] javascript =
-        {
-        "java.lang.management.ManagmentFactory.getThreadMXBean(); 0;",
-        "new java.io.FileInputStream(\"/tmp/foo\"); 0;",
-        "new java.io.FileOutputStream(\"/tmp/foo\"); 0;",
-        "java.nio.file.FileSystems.getDefault().createFileExclusively(\"./foo_bar_baz\"); 0;",
-        "java.nio.channels.FileChannel.open(java.nio.file.FileSystems.getDefault().getPath(\"/etc/passwd\")); 0;",
-        "java.nio.channels.SocketChannel.open(); 0;",
-        "new java.net.ServerSocket().bind(null); 0;",
-        "var thread = new java.lang.Thread(); thread.start(); 0;",
-        "java.lang.System.getProperty(\"foo.bar.baz\"); 0;",
-        "java.lang.Runtime.getRuntime().exec(\"/tmp/foo\"); 0;",
-        "java.lang.Runtime.getRuntime().loadLibrary(\"foobar\"); 0;",
-        "java.lang.Runtime.getRuntime().loadLibrary(\"foobar\"); 0;",
-        // TODO these (ugly) calls are still possible - these can consume CPU (as one could do with an evil loop, too)
-//        "java.lang.Runtime.getRuntime().traceMethodCalls(true); 0;",
-//        "java.lang.Runtime.getRuntime().gc(); 0;",
-//        "java.lang.Runtime.getRuntime(); 0;",
-        };
-
-        for (String script : javascript)
-        {
-            try
-            {
-                String fName = createFunction(KEYSPACE_PER_TEST, "double",
-                                              "CREATE OR REPLACE FUNCTION %s(val double) " +
-                                              "RETURNS NULL ON NULL INPUT " +
-                                              "RETURNS double " +
-                                              "LANGUAGE javascript\n" +
-                                              "AS '" + script + "';");
-                execute("SELECT " + fName + "(dval) FROM %s WHERE key=1");
-                Assert.fail("Javascript security check failed: " + script);
-            }
-            catch (FunctionExecutionException e)
-            {
-                assertAccessControlException(script, e);
-            }
-        }
-
-        String script = "java.lang.Class.forName(\"java.lang.System\"); 0;";
-        String fName = createFunction(KEYSPACE_PER_TEST, "double",
-                                      "CREATE OR REPLACE FUNCTION %s(val double) " +
-                                      "RETURNS NULL ON NULL INPUT " +
-                                      "RETURNS double " +
-                                      "LANGUAGE javascript\n" +
-                                      "AS '" + script + "';");
-        assertInvalidThrowMessage("Java reflection not supported when class filter is present",
-                                  FunctionExecutionException.class,
-                                  "SELECT " + fName + "(dval) FROM %s WHERE key=1");
     }
 
     private static void assertAccessControlException(String script, FunctionExecutionException e)
@@ -248,16 +186,6 @@ public class UFSecurityTest extends CQLTester
                                        "RETURNS double " +
                                        "LANGUAGE JAVA\n" +
                                        "AS 'long t=System.currentTimeMillis()+500; while (t>System.currentTimeMillis()) { }; return 0d;';");
-                assertInvalidMessage("ran longer than 250ms", "SELECT " + fName + "(dval) FROM %s WHERE key=1");
-
-                // Javascript UDF
-
-                fName = createFunction(KEYSPACE_PER_TEST, "double",
-                                       "CREATE OR REPLACE FUNCTION %s(val double) " +
-                                       "RETURNS NULL ON NULL INPUT " +
-                                       "RETURNS double " +
-                                       "LANGUAGE JAVASCRIPT\n" +
-                                       "AS 'var t=java.lang.System.currentTimeMillis()+500; while (t>java.lang.System.currentTimeMillis()) { }; 0;';");
                 assertInvalidMessage("ran longer than 250ms", "SELECT " + fName + "(dval) FROM %s WHERE key=1");
 
                 return;

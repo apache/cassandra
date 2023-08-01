@@ -33,27 +33,41 @@ import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.BufferDecoratedKey;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.memtable.SkipListMemtable;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.IndexSummary;
 import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.big.BigFormat;
+import org.apache.cassandra.io.sstable.format.big.BigFormat.Components;
+import org.apache.cassandra.io.sstable.format.big.BigTableReader;
+import org.apache.cassandra.io.sstable.format.bti.BtiFormat;
+import org.apache.cassandra.io.sstable.format.bti.BtiTableReader;
+import org.apache.cassandra.io.sstable.format.bti.PartitionIndex;
+import org.apache.cassandra.io.sstable.indexsummary.IndexSummary;
+import org.apache.cassandra.io.sstable.keycache.KeyCache;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
-import org.apache.cassandra.io.util.ChannelProxy;
+import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.Memory;
-import org.apache.cassandra.utils.AlwaysPresentFilter;
+import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FilterFactory;
+import org.apache.cassandra.utils.Throwables;
 
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
 
@@ -74,18 +88,27 @@ public class MockSchema
                              new Object[]{ Util.newUUIDGen() });
     }
 
+    private static final File tempFile = temp("mocksegmentedfile");
+
     static
     {
         Memory offsets = Memory.allocate(4);
         offsets.setInt(0, 0);
         indexSummary = new IndexSummary(Murmur3Partitioner.instance, offsets, 0, Memory.allocate(4), 0, 0, 0, 1);
+
+        try (DataOutputStreamPlus out = tempFile.newOutputStream(File.WriteMode.OVERWRITE))
+        {
+            out.write(new byte[10]);
+        }
+        catch (IOException ex)
+        {
+            throw Throwables.throwAsUncheckedException(ex);
+        }
     }
     private static final AtomicInteger id = new AtomicInteger();
     public static final Keyspace ks = Keyspace.mockKS(KeyspaceMetadata.create("mockks", KeyspaceParams.simpleTransient(1)));
 
     public static final IndexSummary indexSummary;
-
-    private static final File tempFile = temp("mocksegmentedfile");
 
     public static Memtable memtable(ColumnFamilyStore cfs)
     {
@@ -102,6 +125,11 @@ public class MockSchema
         return sstable(generation, 0, false, first, last, cfs);
     }
 
+    public static SSTableReader sstable(int generation, long first, long last, int minLocalDeletionTime, ColumnFamilyStore cfs)
+    {
+        return sstable(generation, 0, false, first, last, 0, cfs, minLocalDeletionTime);
+    }
+
     public static SSTableReader sstable(int generation, boolean keepRef, ColumnFamilyStore cfs)
     {
         return sstable(generation, 0, keepRef, cfs);
@@ -111,6 +139,7 @@ public class MockSchema
     {
         return sstable(generation, size, false, cfs);
     }
+
     public static SSTableReader sstable(int generation, int size, boolean keepRef, ColumnFamilyStore cfs)
     {
         return sstable(generation, size, keepRef, generation, generation, cfs);
@@ -126,54 +155,141 @@ public class MockSchema
         return sstable(generation, size, false, generation, generation, level, cfs);
     }
 
+    public static SSTableReader sstableWithTimestamp(int generation, long timestamp, ColumnFamilyStore cfs)
+    {
+        return sstable(generation, 0, false, 0, 1000, 0, cfs, Integer.MAX_VALUE, timestamp);
+    }
+
+    public static SSTableReader sstable(int generation, int size, boolean keepRef, long firstToken, long lastToken, int level, ColumnFamilyStore cfs)
+    {
+        return sstable(generation, size, keepRef, firstToken, lastToken, level, cfs, Integer.MAX_VALUE);
+    }
+
     public static SSTableReader sstable(int generation, int size, boolean keepRef, long firstToken, long lastToken, ColumnFamilyStore cfs)
     {
         return sstable(generation, size, keepRef, firstToken, lastToken, 0, cfs);
     }
 
-    public static SSTableReader sstable(int generation, int size, boolean keepRef, long firstToken, long lastToken, int level, ColumnFamilyStore cfs)
+    public static SSTableReader sstable(int generation, int size, boolean keepRef, long firstToken, long lastToken, int level, ColumnFamilyStore cfs, int minLocalDeletionTime)
     {
-        Descriptor descriptor = new Descriptor(cfs.getDirectories().getDirectoryForNewSSTables(),
-                                               cfs.keyspace.getName(),
-                                               cfs.getTableName(),
-                                               sstableId(generation), SSTableFormat.Type.BIG);
-        Set<Component> components = ImmutableSet.of(Component.DATA, Component.PRIMARY_INDEX, Component.FILTER, Component.TOC);
-        for (Component component : components)
-        {
-            File file = new File(descriptor.filenameFor(component));
-            file.createFileIfNotExists();
-        }
-        // .complete() with size to make sstable.onDiskLength work
-        try (FileHandle.Builder builder = new FileHandle.Builder(new ChannelProxy(tempFile)).bufferSize(size);
-             FileHandle fileHandle = builder.complete(size))
-        {
-            if (size > 0)
-            {
-                try
-                {
-                    File file = new File(descriptor.filenameFor(Component.DATA));
-                    Util.setFileLength(file, size);
-                }
-                catch (IOException e)
-                {
-                    throw new RuntimeException(e);
-                }
-            }
-            SerializationHeader header = SerializationHeader.make(cfs.metadata(), Collections.emptyList());
-            StatsMetadata metadata = (StatsMetadata) new MetadataCollector(cfs.metadata().comparator)
-                                                     .sstableLevel(level)
-                                                     .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(), 0.01f, UNREPAIRED_SSTABLE, null, false, header)
-                                                     .get(MetadataType.STATS);
-            SSTableReader reader = SSTableReader.internalOpen(descriptor, components, cfs.metadata,
-                                                              fileHandle.sharedCopy(), fileHandle.sharedCopy(), indexSummary.sharedCopy(),
-                                                              new AlwaysPresentFilter(), 1L, metadata, SSTableReader.OpenReason.NORMAL, header);
-            reader.first = readerBounds(firstToken);
-            reader.last = readerBounds(lastToken);
-            if (!keepRef)
-                reader.selfRef().release();
-            return reader;
-        }
+        return sstable(generation, size, keepRef, firstToken, lastToken, level, cfs, minLocalDeletionTime, System.currentTimeMillis() * 1000);
+    }
 
+    public static SSTableReader sstable(int generation, int size, boolean keepRef, long firstToken, long lastToken, int level, ColumnFamilyStore cfs, int minLocalDeletionTime, long timestamp)
+    {
+        SSTableFormat<?, ?> format = DatabaseDescriptor.getSelectedSSTableFormat();
+        Descriptor descriptor = new Descriptor(cfs.getDirectories().getDirectoryForNewSSTables(),
+                                               cfs.getKeyspaceName(),
+                                               cfs.getTableName(),
+                                               sstableId(generation),
+                                               format);
+
+        if (BigFormat.is(format))
+        {
+            Set<Component> components = ImmutableSet.of(Components.DATA, Components.PRIMARY_INDEX, Components.FILTER, Components.TOC);
+            for (Component component : components)
+            {
+                File file = descriptor.fileFor(component);
+                file.createFileIfNotExists();
+            }
+            // .complete() with size to make sstable.onDiskLength work
+            try (FileHandle fileHandle = new FileHandle.Builder(tempFile).bufferSize(size).withLengthOverride(size).complete())
+            {
+                maybeSetDataLength(descriptor, size);
+                SerializationHeader header = SerializationHeader.make(cfs.metadata(), Collections.emptyList());
+                MetadataCollector collector = new MetadataCollector(cfs.metadata().comparator);
+                collector.update(DeletionTime.build(timestamp, minLocalDeletionTime));
+                BufferDecoratedKey first = readerBounds(firstToken);
+                BufferDecoratedKey last = readerBounds(lastToken);
+                StatsMetadata metadata =
+                                       (StatsMetadata) collector.sstableLevel(level)
+                                                                .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(),
+                                                                                  0.01f,
+                                                                                  UNREPAIRED_SSTABLE,
+                                                                                  null,
+                                                                                  false,
+                                                                                  header,
+                                                                                  first.retainable().getKey().slice(),
+                                                                                  last.retainable().getKey().slice())
+                                                                .get(MetadataType.STATS);
+                BigTableReader reader = new BigTableReader.Builder(descriptor).setComponents(components)
+                                                                              .setTableMetadataRef(cfs.metadata)
+                                                                              .setDataFile(fileHandle.sharedCopy())
+                                                                              .setIndexFile(fileHandle.sharedCopy())
+                                                                              .setIndexSummary(indexSummary.sharedCopy())
+                                                                              .setFilter(FilterFactory.AlwaysPresent)
+                                                                              .setMaxDataAge(1L)
+                                                                              .setStatsMetadata(metadata)
+                                                                              .setOpenReason(SSTableReader.OpenReason.NORMAL)
+                                                                              .setSerializationHeader(header)
+                                                                              .setFirst(first)
+                                                                              .setLast(last)
+                                                                              .setKeyCache(cfs.metadata().params.caching.cacheKeys ? new KeyCache(CacheService.instance.keyCache)
+                                                                                                                                   : KeyCache.NO_CACHE)
+                                                                              .build(cfs, false, false);
+                if (!keepRef)
+                    reader.selfRef().release();
+                return reader;
+            }
+        }
+        else if (BtiFormat.is(format))
+        {
+            Set<Component> components = ImmutableSet.of(Components.DATA, BtiFormat.Components.PARTITION_INDEX, BtiFormat.Components.ROW_INDEX, Components.FILTER, Components.TOC);
+            for (Component component : components)
+            {
+                File file = descriptor.fileFor(component);
+                file.createFileIfNotExists();
+            }
+            // .complete() with size to make sstable.onDiskLength work
+            try (FileHandle fileHandle = new FileHandle.Builder(tempFile).bufferSize(size).withLengthOverride(size).complete())
+            {
+                maybeSetDataLength(descriptor, size);
+                SerializationHeader header = SerializationHeader.make(cfs.metadata(), Collections.emptyList());
+                MetadataCollector collector = new MetadataCollector(cfs.metadata().comparator);
+                collector.update(DeletionTime.build(timestamp, minLocalDeletionTime));
+                BufferDecoratedKey first = readerBounds(firstToken);
+                BufferDecoratedKey last = readerBounds(lastToken);
+                StatsMetadata metadata = (StatsMetadata) collector.sstableLevel(level)
+                                                                  .finalizeMetadata(cfs.metadata().partitioner.getClass().getCanonicalName(), 0.01f, UNREPAIRED_SSTABLE, null, false, header, first.retainable().getKey(), last.retainable().getKey())
+                                                                  .get(MetadataType.STATS);
+                BtiTableReader reader = new BtiTableReader.Builder(descriptor).setComponents(components)
+                                                                              .setTableMetadataRef(cfs.metadata)
+                                                                              .setDataFile(fileHandle.sharedCopy())
+                                                                              .setPartitionIndex(new PartitionIndex(fileHandle.sharedCopy(), 0, 0, readerBounds(firstToken), readerBounds(lastToken)))
+                                                                              .setRowIndexFile(fileHandle.sharedCopy())
+                                                                              .setFilter(FilterFactory.AlwaysPresent)
+                                                                              .setMaxDataAge(1L)
+                                                                              .setStatsMetadata(metadata)
+                                                                              .setOpenReason(SSTableReader.OpenReason.NORMAL)
+                                                                              .setSerializationHeader(header)
+                                                                              .setFirst(readerBounds(firstToken))
+                                                                              .setLast(readerBounds(lastToken))
+                                                                              .build(cfs, false, false);
+                if (!keepRef)
+                    reader.selfRef().release();
+                return reader;
+            }
+        }
+        else
+        {
+            throw Util.testMustBeImplementedForSSTableFormat();
+        }
+    }
+
+    private static void maybeSetDataLength(Descriptor descriptor, long size)
+    {
+        if (size > 0)
+        {
+            try
+            {
+                File file = descriptor.fileFor(Components.DATA);
+                Util.setFileLength(file, size);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
     public static ColumnFamilyStore newCFS()

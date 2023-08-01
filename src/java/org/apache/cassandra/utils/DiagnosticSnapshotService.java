@@ -20,6 +20,8 @@ package org.apache.cassandra.utils;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -29,6 +31,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -36,8 +41,10 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.DIAGNOSTIC_SNAPSHOT_INTERVAL_NANOS;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.net.ParamType.SNAPSHOT_RANGES;
 
 /**
  * Provides a means to take snapshots when triggered by anomalous events or when the breaking of invariants is
@@ -68,6 +75,7 @@ public class DiagnosticSnapshotService
 
     public static final String REPAIRED_DATA_MISMATCH_SNAPSHOT_PREFIX = "RepairedDataMismatch-";
     public static final String DUPLICATE_ROWS_DETECTED_SNAPSHOT_PREFIX = "DuplicateRows-";
+    private static final int MAX_SNAPSHOT_RANGE_COUNT = 100; // otherwise, snapshot everything
 
     private final Executor executor;
 
@@ -76,22 +84,22 @@ public class DiagnosticSnapshotService
         this.executor = executor;
     }
 
-    // Issue at most 1 snapshot request per minute for any given table.
-    // Replicas will only create one snapshot per day, but this stops us
-    // from swamping the network.
-    // Overridable via system property for testing.
-    private static final long SNAPSHOT_INTERVAL_NANOS = TimeUnit.MINUTES.toNanos(1);
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.BASIC_ISO_DATE;
     private final ConcurrentHashMap<TableId, AtomicLong> lastSnapshotTimes = new ConcurrentHashMap<>();
+
+    public static void repairedDataMismatch(TableMetadata metadata, Iterable<InetAddressAndPort> replicas)
+    {
+        repairedDataMismatch(metadata, replicas, Collections.emptyList());
+    }
+
+    public static void repairedDataMismatch(TableMetadata metadata, Iterable<InetAddressAndPort> replicas, List<Range<Token>> ranges)
+    {
+        instance.maybeTriggerSnapshot(metadata, REPAIRED_DATA_MISMATCH_SNAPSHOT_PREFIX, replicas, ranges);
+    }
 
     public static void duplicateRows(TableMetadata metadata, Iterable<InetAddressAndPort> replicas)
     {
         instance.maybeTriggerSnapshot(metadata, DUPLICATE_ROWS_DETECTED_SNAPSHOT_PREFIX, replicas);
-    }
-
-    public static void repairedDataMismatch(TableMetadata metadata, Iterable<InetAddressAndPort> replicas)
-    {
-        instance.maybeTriggerSnapshot(metadata, REPAIRED_DATA_MISMATCH_SNAPSHOT_PREFIX, replicas);
     }
 
     public static boolean isDiagnosticSnapshotRequest(SnapshotCommand command)
@@ -100,10 +108,10 @@ public class DiagnosticSnapshotService
             || command.snapshot_name.startsWith(DUPLICATE_ROWS_DETECTED_SNAPSHOT_PREFIX);
     }
 
-    public static void snapshot(SnapshotCommand command, InetAddressAndPort initiator)
+    public static void snapshot(SnapshotCommand command, List<Range<Token>> ranges, InetAddressAndPort initiator)
     {
         Preconditions.checkArgument(isDiagnosticSnapshotRequest(command));
-        instance.maybeSnapshot(command, initiator);
+        instance.maybeSnapshot(command, ranges, initiator);
     }
 
     public static String getSnapshotName(String prefix)
@@ -119,10 +127,15 @@ public class DiagnosticSnapshotService
 
     private void maybeTriggerSnapshot(TableMetadata metadata, String prefix, Iterable<InetAddressAndPort> endpoints)
     {
+        maybeTriggerSnapshot(metadata, prefix, endpoints, Collections.emptyList());
+    }
+
+    private void maybeTriggerSnapshot(TableMetadata metadata, String prefix, Iterable<InetAddressAndPort> endpoints, List<Range<Token>> ranges)
+    {
         long now = nanoTime();
         AtomicLong cached = lastSnapshotTimes.computeIfAbsent(metadata.id, u -> new AtomicLong(0));
         long last = cached.get();
-        long interval = Long.getLong("cassandra.diagnostic_snapshot_interval_nanos", SNAPSHOT_INTERVAL_NANOS);
+        long interval = DIAGNOSTIC_SNAPSHOT_INTERVAL_NANOS.getLong();
         if (now - last > interval && cached.compareAndSet(last, now))
         {
             Message<SnapshotCommand> msg = Message.out(Verb.SNAPSHOT_REQ,
@@ -130,6 +143,9 @@ public class DiagnosticSnapshotService
                                                                            metadata.name,
                                                                            getSnapshotName(prefix),
                                                                            false));
+
+            if (!ranges.isEmpty() && ranges.size() < MAX_SNAPSHOT_RANGE_COUNT)
+                msg = msg.withParam(SNAPSHOT_RANGES, ranges);
             for (InetAddressAndPort replica : endpoints)
                 MessagingService.instance().send(msg, replica);
         }
@@ -139,19 +155,21 @@ public class DiagnosticSnapshotService
         }
     }
 
-    private void maybeSnapshot(SnapshotCommand command, InetAddressAndPort initiator)
+    private void maybeSnapshot(SnapshotCommand command, List<Range<Token>> ranges, InetAddressAndPort initiator)
     {
-        executor.execute(new DiagnosticSnapshotTask(command, initiator));
+        executor.execute(new DiagnosticSnapshotTask(command, ranges, initiator));
     }
 
     private static class DiagnosticSnapshotTask implements Runnable
     {
         final SnapshotCommand command;
         final InetAddressAndPort from;
+        final List<Range<Token>> ranges;
 
-        DiagnosticSnapshotTask(SnapshotCommand command, InetAddressAndPort from)
+        DiagnosticSnapshotTask(SnapshotCommand command, List<Range<Token>> ranges, InetAddressAndPort from)
         {
             this.command = command;
+            this.ranges = ranges;
             this.from = from;
         }
 
@@ -185,7 +203,17 @@ public class DiagnosticSnapshotService
                             command.keyspace,
                             command.column_family,
                             command.snapshot_name);
-                cfs.snapshot(command.snapshot_name);
+
+                if (ranges.isEmpty())
+                    cfs.snapshot(command.snapshot_name);
+                else
+                {
+                    cfs.snapshot(command.snapshot_name,
+                                 (sstable) -> checkIntersection(ranges,
+                                                                sstable.getFirst().getToken(),
+                                                                sstable.getLast().getToken()),
+                                 false, false);
+                }
             }
             catch (IllegalArgumentException e)
             {
@@ -196,4 +224,11 @@ public class DiagnosticSnapshotService
             }
         }
     }
+
+    private static boolean checkIntersection(List<Range<Token>> normalizedRanges, Token first, Token last)
+    {
+        Bounds<Token> bounds = new Bounds<>(first, last);
+        return normalizedRanges.stream().anyMatch(range -> range.intersects(bounds));
+    }
+
 }

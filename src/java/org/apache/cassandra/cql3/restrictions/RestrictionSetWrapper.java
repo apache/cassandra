@@ -17,12 +17,14 @@
  */
 package org.apache.cassandra.cql3.restrictions;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Function;
@@ -45,16 +47,27 @@ class RestrictionSetWrapper implements Restrictions
         this.restrictions = restrictions;
     }
 
-    public void addRowFilterTo(RowFilter filter,
+    public void addToRowFilter(RowFilter filter,
                                IndexRegistry indexRegistry,
                                QueryOptions options)
     {
-        restrictions.addRowFilterTo(filter, indexRegistry, options);
+        restrictions.addToRowFilter(filter, indexRegistry, options);
     }
 
     public List<ColumnMetadata> getColumnDefs()
     {
         return restrictions.getColumnDefs();
+    }
+
+    @Override
+    public Collection<ColumnMetadata> getColumnDefinitions()
+    {
+        return restrictions.getColumnDefinitions();
+    }
+
+    public RestrictionSet getRestrictionSet()
+    {
+        return restrictions;
     }
 
     public void addFunctionsTo(List<Function> functions)
@@ -75,6 +88,12 @@ class RestrictionSetWrapper implements Restrictions
     public boolean hasSupportingIndex(IndexRegistry indexRegistry)
     {
         return restrictions.hasSupportingIndex(indexRegistry);
+    }
+
+    @Override
+    public boolean needsFiltering(Index.Group indexGroup)
+    {
+        return restrictions.needsFiltering(indexGroup);
     }
 
     public ColumnMetadata getFirstColumn()

@@ -25,6 +25,7 @@ import org.junit.Test;
 
 import org.junit.Assert;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.BTREE_BRANCH_SHIFT;
 import static org.junit.Assert.*;
 
 public class BTreeTest
@@ -32,14 +33,14 @@ public class BTreeTest
     static Integer[] ints = new Integer[20];
     static
     {
-        System.setProperty("cassandra.btree.branchshift", "2");
+        BTREE_BRANCH_SHIFT.setInt(2);
         for (int i = 0 ; i < ints.length ; i++)
-            ints[i] = new Integer(i);
+            ints[i] = Integer.valueOf(i);
     }
 
     static final UpdateFunction<Integer, Integer> updateF = new UpdateFunction<Integer, Integer>()
     {
-        public Integer apply(Integer replacing, Integer update)
+        public Integer merge(Integer replacing, Integer update)
         {
             return ints[update];
         }
@@ -48,7 +49,12 @@ public class BTreeTest
         {
         }
 
-        public Integer apply(Integer integer)
+        public Integer insert(Integer integer)
+        {
+            return ints[integer];
+        }
+
+        public Integer retain(Integer integer)
         {
             return ints[integer];
         }
@@ -423,7 +429,7 @@ public class BTreeTest
         private int[] numberOfCalls = new int[20];
 
         @Override
-        public Integer apply(Integer replacing, Integer update)
+        public Integer merge(Integer replacing, Integer update)
         {
             numberOfCalls[update] = numberOfCalls[update] + 1;
             return update;
@@ -436,7 +442,7 @@ public class BTreeTest
         }
 
         @Override
-        public Integer apply(Integer integer)
+        public Integer insert(Integer integer)
         {
             numberOfCalls[integer] = numberOfCalls[integer] + 1;
             return integer;

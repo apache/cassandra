@@ -25,6 +25,7 @@ CREATE TABLE has_all_types (
     booleancol boolean,
     decimalcol decimal,
     doublecol double,
+    durationcol duration,
     floatcol float,
     smallintcol smallint,
     textcol text,
@@ -36,41 +37,41 @@ CREATE TABLE has_all_types (
 ) WITH compression = {'sstable_compression':'LZ4Compressor'};
 
 INSERT INTO has_all_types (num, intcol, asciicol, bigintcol, blobcol, booleancol,
-                           decimalcol, doublecol, floatcol, smallintcol, textcol,
+                           decimalcol, doublecol, durationcol, floatcol, smallintcol, textcol,
                            timestampcol, tinyintcol, uuidcol, varcharcol, varintcol)
 VALUES (0, -12, 'abcdefg', 1234567890123456789, 0x000102030405fffefd, true,
-        19952.11882, 1.0, -2.1, 32767, 'Voilá!',
+        19952.11882, 1.0, 12h, -2.1, 32767, 'Voilá!',
         '2012-05-14 12:53:20+0000', 127, bd1924e1-6af8-44ae-b5e1-f24131dbd460, '"', 10000000000000000000000000);
 
 INSERT INTO has_all_types (num, intcol, asciicol, bigintcol, blobcol, booleancol,
-                           decimalcol, doublecol, floatcol, smallintcol, textcol,
+                           decimalcol, doublecol, durationcol, floatcol, smallintcol, textcol,
                            timestampcol, tinyintcol, uuidcol, varcharcol, varintcol)
 VALUES (1, 2147483647, '__!''$#@!~"', 9223372036854775807, 0xffffffffffffffffff, true,
-        0.00000000000001, 9999999.999, 99999.999, 32767, '∭Ƕ⑮ฑ➳❏''',
+        0.00000000000001, 9999999.999, 12h30m, 99999.999, 32767, '∭Ƕ⑮ฑ➳❏''',
         '1950-01-01+0000', 127, ffffffff-ffff-ffff-ffff-ffffffffffff, 'newline->
 <-', 9);
 
 INSERT INTO has_all_types (num, intcol, asciicol, bigintcol, blobcol, booleancol,
-                           decimalcol, doublecol, floatcol, smallintcol, textcol,
+                           decimalcol, doublecol, durationcol, floatcol, smallintcol, textcol,
                            timestampcol, tinyintcol, uuidcol, varcharcol, varintcol)
 VALUES (2, 0, '', 0, 0x, false,
-        0.0, 0.0, 0.0, 0, '',
+        0.0, 0.0, 12h30m30s, 0.0, 0, '',
         0, 0, 00000000-0000-0000-0000-000000000000, '', 0);
 
 INSERT INTO has_all_types (num, intcol, asciicol, bigintcol, blobcol, booleancol,
-                           decimalcol, doublecol, floatcol, smallintcol, textcol,
+                           decimalcol, doublecol, durationcol, floatcol, smallintcol, textcol,
                            timestampcol, tinyintcol, uuidcol, varcharcol, varintcol)
 VALUES (3, -2147483648, '''''''', -9223372036854775808, 0x80, false,
-        10.0000000000000, -1004.10, 100000000.9, 32767, '龍馭鬱',
+        10.0000000000000, -1004.10, 12h30m30s250ms, 100000000.9, 32767, '龍馭鬱',
         '2038-01-19T03:14-1200', 127, ffffffff-ffff-1fff-8fff-ffffffffffff,
 	    '''', -10000000000000000000000000);
 
 INSERT INTO has_all_types (num, intcol, asciicol, bigintcol, blobcol, booleancol,
                            decimalcol, doublecol, floatcol, smallintcol, textcol,
                            timestampcol, tinyintcol, uuidcol, varcharcol, varintcol)
-VALUES (4, blobAsInt(0x), '', blobAsBigint(0x), 0x, blobAsBoolean(0x),
-	blobAsDecimal(0x), blobAsDouble(0x), blobAsFloat(0x), blobAsSmallInt(0x0000), '',
-	blobAsTimestamp(0x), blobAsTinyInt(0x00), blobAsUuid(0x), '', blobAsVarint(0x));
+VALUES (4, blob_as_int(0x), '', blob_as_bigint(0x), 0x, blob_as_boolean(0x),
+	blob_as_decimal(0x), blob_as_double(0x), blob_as_float(0x), blob_as_smallInt(0x0000), '',
+	blob_as_timestamp(0x), blob_as_tinyint(0x00), blob_as_uuid(0x), '', blob_as_varint(0x));
 
 
 
@@ -140,13 +141,13 @@ CREATE TABLE ascii_with_special_chars (
 );
 
 -- "newline:\n"
-INSERT INTO ascii_with_special_chars (k, val) VALUES (0, blobAsAscii(0x6e65776c696e653a0a));
+INSERT INTO ascii_with_special_chars (k, val) VALUES (0, blob_as_ascii(0x6e65776c696e653a0a));
 -- "return\rand null\0!"
-INSERT INTO ascii_with_special_chars (k, val) VALUES (1, blobAsAscii(0x72657475726e0d616e64206e756c6c0021));
+INSERT INTO ascii_with_special_chars (k, val) VALUES (1, blob_as_ascii(0x72657475726e0d616e64206e756c6c0021));
 -- "\x00\x01\x02\x03\x04\x05control chars\x06\x07"
-INSERT INTO ascii_with_special_chars (k, val) VALUES (2, blobAsAscii(0x000102030405636f6e74726f6c2063686172730607));
+INSERT INTO ascii_with_special_chars (k, val) VALUES (2, blob_as_ascii(0x000102030405636f6e74726f6c2063686172730607));
 -- "fake special chars\\x00\\n"
-INSERT INTO ascii_with_special_chars (k, val) VALUES (3, blobAsAscii(0x66616b65207370656369616c2063686172735c7830305c6e));
+INSERT INTO ascii_with_special_chars (k, val) VALUES (3, blob_as_ascii(0x66616b65207370656369616c2063686172735c7830305c6e));
 
 
 
@@ -279,26 +280,26 @@ values (
 
 CREATE FUNCTION fBestband ( input double )
     RETURNS NULL ON NULL INPUT
-    RETURNS text 
+    RETURNS text
     LANGUAGE java
     AS 'return "Iron Maiden";';
 
 CREATE FUNCTION fBestsong ( input double )
     RETURNS NULL ON NULL INPUT
-    RETURNS text 
+    RETURNS text
     LANGUAGE java
     AS 'return "Revelations";';
 
 CREATE FUNCTION fMax(current int, candidate int)
     CALLED ON NULL INPUT
-    RETURNS int 
-    LANGUAGE java 
+    RETURNS int
+    LANGUAGE java
     AS 'if (current == null) return candidate; else return Math.max(current, candidate);' ;
 
 CREATE FUNCTION fMin(current int, candidate int)
     CALLED ON NULL INPUT
     RETURNS int
-    LANGUAGE java 
+    LANGUAGE java
     AS 'if (current == null) return candidate; else return Math.min(current, candidate);' ;
 
 CREATE AGGREGATE aggMax(int)
@@ -311,3 +312,18 @@ CREATE AGGREGATE aggMin(int)
     STYPE int
     INITCOND null;
 
+CREATE TYPE quote_udt (
+    data text
+);
+
+CREATE TABLE escape_quotes (
+    id int PRIMARY KEY,
+    text_data text,
+    map_data map<int, text>,
+    set_data set<text>,
+    list_data list<text>,
+    tuple_data tuple<int, text>,
+    udt_data frozen<quote_udt>
+);
+
+INSERT INTO escape_quotes (id, text_data, map_data, set_data, list_data, tuple_data, udt_data) values(1, 'I''m newb', {1:'I''m newb'}, {'I''m newb'}, ['I''m newb'], (1, 'I''m newb'), {data: 'I''m newb'});

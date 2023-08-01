@@ -17,12 +17,17 @@
  */
 package org.apache.cassandra.db.rows;
 
-import java.util.*;
+import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.Columns;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.Digest;
+import org.apache.cassandra.db.EmptyIterators;
+import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.transform.FilteredRows;
 import org.apache.cassandra.db.transform.MoreRows;
@@ -118,7 +123,7 @@ public abstract class UnfilteredRowIterators
      * infos (and since an UnfilteredRowIterator cannot shadow it's own data, we know everyting
      * returned isn't shadowed by a tombstone).
      */
-    public static RowIterator filter(UnfilteredRowIterator iter, int nowInSec)
+    public static RowIterator filter(UnfilteredRowIterator iter, long nowInSec)
     {
         return FilteredRows.filter(iter, nowInSec);
     }
@@ -263,16 +268,22 @@ public abstract class UnfilteredRowIterators
     /**
      * Returns an iterator that concatenate the specified atom with the iterator.
      */
-    public static UnfilteredRowIterator concat(final Unfiltered first, final UnfilteredRowIterator rest)
+    public static UnfilteredRowIterator concat(final Unfiltered first, final UnfilteredRowIterator wrapped)
     {
-        return new WrappingUnfilteredRowIterator(rest)
+        return new WrappingUnfilteredRowIterator()
         {
             private boolean hasReturnedFirst;
 
             @Override
+            public UnfilteredRowIterator wrapped()
+            {
+                return wrapped;
+            }
+
+            @Override
             public boolean hasNext()
             {
-                return hasReturnedFirst ? super.hasNext() : true;
+                return hasReturnedFirst ? wrapped.hasNext() : true;
             }
 
             @Override
@@ -283,7 +294,7 @@ public abstract class UnfilteredRowIterators
                     hasReturnedFirst = true;
                     return first;
                 }
-                return super.next();
+                return wrapped.next();
             }
         };
     }

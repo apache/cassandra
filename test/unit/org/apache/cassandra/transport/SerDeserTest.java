@@ -18,22 +18,48 @@
 package org.apache.cassandra.transport;
 
 import java.nio.ByteBuffer;
-import java.util.*;
-
-import org.apache.commons.lang3.RandomStringUtils;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import io.netty.buffer.Unpooled;
 import io.netty.buffer.ByteBuf;
 
+import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.Constants;
+import org.apache.cassandra.cql3.FieldIdentifier;
+import org.apache.cassandra.cql3.Lists;
+import org.apache.cassandra.cql3.Maps;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.ResultSet;
+import org.apache.cassandra.cql3.Sets;
+import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.UserTypes;
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.serializers.CollectionSerializer;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Event.TopologyChange;
@@ -43,16 +69,15 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 import static org.junit.Assert.assertEquals;
-import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNotSame;
+import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 /**
  * Serialization/deserialization tests for protocol objects and messages.
  */
 public class SerDeserTest
 {
-
     @BeforeClass
     public static void setupDD()
     {
@@ -63,12 +88,6 @@ public class SerDeserTest
     @Test
     public void collectionSerDeserTest() throws Exception
     {
-        for (ProtocolVersion version : ProtocolVersion.SUPPORTED)
-            collectionSerDeserTest(version);
-    }
-
-    public void collectionSerDeserTest(ProtocolVersion version) throws Exception
-    {
         // Lists
         ListType<?> lt = ListType.getInstance(Int32Type.instance, true);
         List<Integer> l = Arrays.asList(2, 6, 1, 9);
@@ -77,18 +96,17 @@ public class SerDeserTest
         for (Integer i : l)
             lb.add(Int32Type.instance.decompose(i));
 
-        assertEquals(l, lt.getSerializer().deserializeForNativeProtocol(CollectionSerializer.pack(lb, lb.size(), version), version));
+        assertEquals(l, lt.getSerializer().deserialize(CollectionSerializer.pack(lb, lb.size())));
 
         // Sets
         SetType<?> st = SetType.getInstance(UTF8Type.instance, true);
-        Set<String> s = new LinkedHashSet<>();
-        s.addAll(Arrays.asList("bar", "foo", "zee"));
+        Set<String> s = new LinkedHashSet<>(Arrays.asList("bar", "foo", "zee"));
 
         List<ByteBuffer> sb = new ArrayList<>(s.size());
         for (String t : s)
             sb.add(UTF8Type.instance.decompose(t));
 
-        assertEquals(s, st.getSerializer().deserializeForNativeProtocol(CollectionSerializer.pack(sb, sb.size(), version), version));
+        assertEquals(s, st.getSerializer().deserialize(CollectionSerializer.pack(sb, sb.size())));
 
         // Maps
         MapType<?, ?> mt = MapType.getInstance(UTF8Type.instance, LongType.instance, true);
@@ -104,17 +122,49 @@ public class SerDeserTest
             mb.add(LongType.instance.decompose(entry.getValue()));
         }
 
-        assertEquals(m, mt.getSerializer().deserializeForNativeProtocol(CollectionSerializer.pack(mb, m.size(), version), version));
+        assertEquals(m, mt.getSerializer().deserialize(CollectionSerializer.pack(mb, m.size())));
+    }
+
+    @Test(expected = MarshalException.class)
+    public void setsMayNotContainNullsTest()
+    {
+        SetType<?> st = SetType.getInstance(UTF8Type.instance, true);
+        List<ByteBuffer> sb = new ArrayList<>(1);
+        sb.add(null);
+
+        st.getSerializer().deserialize(CollectionSerializer.pack(sb, sb.size()));
+    }
+
+    @Test(expected = MarshalException.class)
+    public void mapKeysMayNotContainNullsTest()
+    {
+        MapType<?, ?> mt = MapType.getInstance(UTF8Type.instance, LongType.instance, true);
+        List<ByteBuffer> mb = new ArrayList<>(2);
+        mb.add(null);
+        mb.add(LongType.instance.decompose(999L));
+
+        mt.getSerializer().deserialize(CollectionSerializer.pack(mb, mb.size()));
+    }
+
+    @Test(expected = MarshalException.class)
+    public void mapValueMayNotContainNullsTest()
+    {
+        MapType<?, ?> mt = MapType.getInstance(UTF8Type.instance, LongType.instance, true);
+        List<ByteBuffer> mb = new ArrayList<>(2);
+        mb.add(UTF8Type.instance.decompose("danger"));
+        mb.add(null);
+
+        mt.getSerializer().deserialize(CollectionSerializer.pack(mb, mb.size()));
     }
 
     @Test
-    public void eventSerDeserTest() throws Exception
+    public void eventSerDeserTest()
     {
         for (ProtocolVersion version : ProtocolVersion.SUPPORTED)
             eventSerDeserTest(version);
     }
 
-    public void eventSerDeserTest(ProtocolVersion version) throws Exception
+    public void eventSerDeserTest(ProtocolVersion version)
     {
         List<Event> events = new ArrayList<>();
 
@@ -192,14 +242,14 @@ public class SerDeserTest
     }
 
     @Test
-    public void udtSerDeserTest() throws Exception
+    public void udtSerDeserTest()
     {
         for (ProtocolVersion version : ProtocolVersion.SUPPORTED)
             udtSerDeserTest(version);
     }
 
 
-    public void udtSerDeserTest(ProtocolVersion version) throws Exception
+    public void udtSerDeserTest(ProtocolVersion version)
     {
         ListType<?> lt = ListType.getInstance(Int32Type.instance, true);
         SetType<?> st = SetType.getInstance(UTF8Type.instance, true);
@@ -238,7 +288,7 @@ public class SerDeserTest
 
         ByteBuffer serialized = t.bindAndGet(options);
 
-        ByteBuffer[] fields = udt.split(serialized);
+        ByteBuffer[] fields = udt.split(ByteBufferAccessor.instance, serialized);
 
         assertEquals(4, fields.length);
 
@@ -248,16 +298,15 @@ public class SerDeserTest
         // a UDT should alway be serialized with version 3 of the protocol. Which is why we don't use 'version'
         // on purpose below.
 
-        assertEquals(Arrays.asList(3, 1), lt.getSerializer().deserializeForNativeProtocol(fields[1], ProtocolVersion.V3));
+        assertEquals(Arrays.asList(3, 1), lt.getSerializer().deserialize(fields[1]));
 
-        LinkedHashSet<String> s = new LinkedHashSet<>();
-        s.addAll(Arrays.asList("bar", "foo"));
-        assertEquals(s, st.getSerializer().deserializeForNativeProtocol(fields[2], ProtocolVersion.V3));
+        LinkedHashSet<String> s = new LinkedHashSet<>(Arrays.asList("bar", "foo"));
+        assertEquals(s, st.getSerializer().deserialize(fields[2]));
 
         LinkedHashMap<String, Long> m = new LinkedHashMap<>();
         m.put("bar", 12L);
         m.put("foo", 24L);
-        assertEquals(m, mt.getSerializer().deserializeForNativeProtocol(fields[3], ProtocolVersion.V3));
+        assertEquals(m, mt.getSerializer().deserialize(fields[3]));
     }
 
     @Test

@@ -91,13 +91,13 @@ public class OfflineTokenAllocatorTestUtils
         }
 
         @Override
-        public void warn(String msg, Throwable th)
+        public void warn(Throwable th, String msg)
         {
             // We can only guarantee that ownership stdev won't increase above the warn threshold for racks==1 or racks==rf
             if (racks == 1 || racks == rf)
                 fail(msg);
             else
-                super.warn(msg, th);
+                super.warn(th, msg);
         }
     }
 }

@@ -38,7 +38,8 @@ import static org.junit.Assert.assertTrue;
 public class GuardrailsTest extends GuardrailTester
 {
     public static final int DISABLED = -1;
-
+    public static final String REASON = "Testing";
+    public static final String FEATURE = "Feature name";
 
     private void testDisabledThreshold(Threshold guard) throws Throwable
     {
@@ -58,17 +59,18 @@ public class GuardrailsTest extends GuardrailTester
     public void testDisabledMaxThreshold() throws Throwable
     {
         Threshold.ErrorMessageProvider errorMessageProvider = (isWarn, what, v, t) -> "Should never trigger";
-        testDisabledThreshold(new MaxThreshold("x", state -> DISABLED, state -> DISABLED, errorMessageProvider));
+        testDisabledThreshold(new MaxThreshold("x", REASON, state -> DISABLED, state -> DISABLED, errorMessageProvider));
     }
 
     @Test
     public void testMaxThreshold() throws Throwable
     {
         MaxThreshold guard = new MaxThreshold("x",
-                                        state -> 10,
-                                        state -> 100,
-                                        (isWarn, featureName, v, t) -> format("%s: for %s, %s > %s",
-                                                                       isWarn ? "Warning" : "Aborting", featureName, v, t));
+                                              REASON,
+                                              state -> 10,
+                                              state -> 100,
+                                              (isWarn, featureName, v, t) -> format("%s: for %s, %s > %s",
+                                                                             isWarn ? "Warning" : "Aborting", featureName, v, t));
 
         assertTrue(guard.enabled(userClientState));
 
@@ -91,10 +93,11 @@ public class GuardrailsTest extends GuardrailTester
     public void testWarnOnlyMaxThreshold() throws Throwable
     {
         MaxThreshold guard = new MaxThreshold("x",
-                                        state -> 10,
-                                        state -> DISABLED,
-                                        (isWarn, featureName, v, t) -> format("%s: for %s, %s > %s",
-                                                                       isWarn ? "Warning" : "Aborting", featureName, v, t));
+                                              REASON,
+                                              state -> 10,
+                                              state -> DISABLED,
+                                              (isWarn, featureName, v, t) -> format("%s: for %s, %s > %s",
+                                                                             isWarn ? "Warning" : "Aborting", featureName, v, t));
 
         assertTrue(guard.enabled(userClientState));
 
@@ -109,10 +112,11 @@ public class GuardrailsTest extends GuardrailTester
     public void testFailOnlyMaxThreshold() throws Throwable
     {
         MaxThreshold guard = new MaxThreshold("x",
-                                        state -> DISABLED,
-                                        state -> 10,
-                                        (isWarn, featureName, v, t) -> format("%s: for %s, %s > %s",
-                                                                       isWarn ? "Warning" : "Aborting", featureName, v, t));
+                                              REASON,
+                                              state -> DISABLED,
+                                              state -> 10,
+                                              (isWarn, featureName, v, t) -> format("%s: for %s, %s > %s",
+                                                                             isWarn ? "Warning" : "Aborting", featureName, v, t));
 
         assertTrue(guard.enabled(userClientState));
 
@@ -127,10 +131,11 @@ public class GuardrailsTest extends GuardrailTester
     public void testMaxThresholdUsers() throws Throwable
     {
         MaxThreshold guard = new MaxThreshold("x",
-                                        state -> 10,
-                                        state -> 100,
-                                        (isWarn, featureName, v, t) -> format("%s: for %s, %s > %s",
-                                                                       isWarn ? "Warning" : "Failure", featureName, v, t));
+                                              REASON,
+                                              state -> 10,
+                                              state -> 100,
+                                              (isWarn, featureName, v, t) -> format("%s: for %s, %s > %s",
+                                                                             isWarn ? "Warning" : "Failure", featureName, v, t));
 
         // value under both thresholds
         assertValid(() -> guard.guard(5, "x", false, null));
@@ -156,13 +161,14 @@ public class GuardrailsTest extends GuardrailTester
     public void testDisabledMinThreshold() throws Throwable
     {
         Threshold.ErrorMessageProvider errorMessageProvider = (isWarn, what, v, t) -> "Should never trigger";
-        testDisabledThreshold(new MinThreshold("x", state -> DISABLED, state -> DISABLED, errorMessageProvider));
+        testDisabledThreshold(new MinThreshold("x", REASON, state -> DISABLED, state -> DISABLED, errorMessageProvider));
     }
 
     @Test
     public void testMinThreshold() throws Throwable
     {
         MinThreshold guard = new MinThreshold("x",
+                                              REASON,
                                               state -> 100,
                                               state -> 10,
                                               (isWarn, what, v, t) -> format("%s: for %s, %s < %s",
@@ -189,6 +195,7 @@ public class GuardrailsTest extends GuardrailTester
     public void testWarnOnlyMinThreshold() throws Throwable
     {
         MinThreshold guard = new MinThreshold("x",
+                                              REASON,
                                               state -> 10,
                                               state -> DISABLED,
                                               (isWarn, what, v, t) -> format("%s: for %s, %s < %s",
@@ -207,6 +214,7 @@ public class GuardrailsTest extends GuardrailTester
     public void testFailOnlyMinThreshold() throws Throwable
     {
         MinThreshold guard = new MinThreshold("x",
+                                              REASON,
                                               state -> DISABLED,
                                               state -> 10,
                                               (isWarn, what, v, t) -> format("%s: for %s, %s < %s",
@@ -225,6 +233,7 @@ public class GuardrailsTest extends GuardrailTester
     public void testMinThresholdUsers() throws Throwable
     {
         MinThreshold guard = new MinThreshold("x",
+                                              REASON,
                                               state -> 100,
                                               state -> 10,
                                               (isWarn, what, v, t) -> format("%s: for %s, %s < %s",
@@ -253,26 +262,43 @@ public class GuardrailsTest extends GuardrailTester
     @Test
     public void testEnableFlag() throws Throwable
     {
-        assertFails(() -> new EnableFlag("x", state -> false, "X").ensureEnabled(userClientState), "X is not allowed");
-        assertValid(() -> new EnableFlag("x", state -> true, "X").ensureEnabled(userClientState));
+        assertFails(() -> new EnableFlag("x", REASON, state -> false, "X").ensureEnabled(userClientState), "X is not allowed");
+        assertValid(() -> new EnableFlag("x", REASON, state -> true, "X").ensureEnabled(userClientState));
 
-        assertFails(() -> new EnableFlag("x", state -> false, "X").ensureEnabled("Y", userClientState), "Y is not allowed");
-        assertValid(() -> new EnableFlag("x", state -> true, "X").ensureEnabled("Y", userClientState));
+        assertFails(() -> new EnableFlag("x", REASON, state -> false, "X").ensureEnabled("Y", userClientState), "Y is not allowed");
+        assertValid(() -> new EnableFlag("x", REASON, state -> true, "X").ensureEnabled("Y", userClientState));
     }
 
     @Test
     public void testEnableFlagUsers() throws Throwable
     {
-        EnableFlag enabled = new EnableFlag("x", state -> true, "X");
+        EnableFlag enabled = new EnableFlag("x", REASON, state -> true, "X");
         assertValid(() -> enabled.ensureEnabled(null));
         assertValid(() -> enabled.ensureEnabled(userClientState));
         assertValid(() -> enabled.ensureEnabled(systemClientState));
         assertValid(() -> enabled.ensureEnabled(superClientState));
 
-        EnableFlag disabled = new EnableFlag("x", state -> false, "X");
+        EnableFlag disabled = new EnableFlag("x", REASON, state -> false, "X");
         assertFails(() -> disabled.ensureEnabled(userClientState), "X is not allowed");
         assertValid(() -> disabled.ensureEnabled(systemClientState));
         assertValid(() -> disabled.ensureEnabled(superClientState));
+    }
+
+    @Test
+    public void testEnableFlagWarn() throws Throwable
+    {
+        EnableFlag disabledGuard = new EnableFlag("x", null, state -> true, state -> false, FEATURE);
+
+        assertFails(() -> disabledGuard.ensureEnabled(null), false, FEATURE + " is not allowed");
+        assertFails(() -> disabledGuard.ensureEnabled(userClientState), FEATURE + " is not allowed");
+        assertValid(() -> disabledGuard.ensureEnabled(systemClientState));
+        assertValid(() -> disabledGuard.ensureEnabled(superClientState));
+
+        EnableFlag enabledGuard = new EnableFlag("x", null, state -> true, state -> true, FEATURE);
+        assertWarns(() -> enabledGuard.ensureEnabled(null), FEATURE + " is not recommended");
+        assertWarns(() -> enabledGuard.ensureEnabled(userClientState), FEATURE + " is not recommended");
+        assertValid(() -> enabledGuard.ensureEnabled(systemClientState));
+        assertValid(() -> enabledGuard.ensureEnabled(superClientState));
     }
 
     @Test
@@ -280,6 +306,7 @@ public class GuardrailsTest extends GuardrailTester
     {
         // Using a sorted set below to ensure the order in the warning message checked below is not random
         Values<Integer> warned = new Values<>("x",
+                                              REASON,
                                               state -> insertionOrderedSet(4, 6, 20),
                                               state -> Collections.emptySet(),
                                               state -> Collections.emptySet(),
@@ -300,6 +327,7 @@ public class GuardrailsTest extends GuardrailTester
     {
         // Using a sorted set below to ensure the order in the error message checked below are not random
         Values<Integer> ignored = new Values<>("x",
+                                               REASON,
                                                state -> Collections.emptySet(),
                                                state -> insertionOrderedSet(4, 6, 20),
                                                state -> Collections.emptySet(),
@@ -334,6 +362,7 @@ public class GuardrailsTest extends GuardrailTester
     {
         // Using a sorted set below to ensure the order in the error message checked below are not random
         Values<Integer> disallowed = new Values<>("x",
+                                                  REASON,
                                                   state -> Collections.emptySet(),
                                                   state -> Collections.emptySet(),
                                                   state -> insertionOrderedSet(4, 6, 20),
@@ -359,6 +388,7 @@ public class GuardrailsTest extends GuardrailTester
     public void testValuesUsers() throws Throwable
     {
         Values<Integer> disallowed = new Values<>("x",
+                                                  REASON,
                                                   state -> Collections.singleton(2),
                                                   state -> Collections.singleton(3),
                                                   state -> Collections.singleton(4),
@@ -396,6 +426,7 @@ public class GuardrailsTest extends GuardrailTester
     public void testPredicates() throws Throwable
     {
         Predicates<Integer> guard = new Predicates<>("x",
+                                                     REASON,
                                                      state -> x -> x > 10,
                                                      state -> x -> x > 100,
                                                      (isWarn, value) -> format("%s: %s", isWarn ? "Warning" : "Aborting", value));
@@ -412,6 +443,7 @@ public class GuardrailsTest extends GuardrailTester
     public void testPredicatesUsers() throws Throwable
     {
         Predicates<Integer> guard = new Predicates<>("x",
+                                                     REASON,
                                                      state -> x -> x > 10,
                                                      state -> x -> x > 100,
                                                      (isWarn, value) -> format("%s: %s", isWarn ? "Warning" : "Aborting", value));

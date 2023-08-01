@@ -18,13 +18,11 @@
 
 package org.apache.cassandra.db.memtable;
 
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.config.InheritingClass;
-import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.schema.TableMetadataRef;
 

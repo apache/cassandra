@@ -49,7 +49,7 @@ final class SetSelector extends Selector
         protected Selector deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
         {
             SetType<?> type = (SetType<?>) readType(metadata, in);
-            int size = (int) in.readUnsignedVInt();
+            int size = in.readUnsignedVInt32();
             List<Selector> elements = new ArrayList<>(size);
             for (int i = 0; i < size; i++)
                 elements.add(serializer.deserialize(in, version, metadata));
@@ -70,7 +70,7 @@ final class SetSelector extends Selector
 
     public static Factory newFactory(final AbstractType<?> type, final SelectorFactories factories)
     {
-        return new CollectionFactory(type, factories)
+        return new MultiElementFactory(type, factories)
         {
             protected String getColumnName()
             {
@@ -91,10 +91,10 @@ final class SetSelector extends Selector
             elements.get(i).addFetchedColumns(builder);
     }
 
-    public void addInput(ProtocolVersion protocolVersion, InputRow input)
+    public void addInput(InputRow input)
     {
         for (int i = 0, m = elements.size(); i < m; i++)
-            elements.get(i).addInput(protocolVersion, input);
+            elements.get(i).addInput(input);
     }
 
     public ByteBuffer getOutput(ProtocolVersion protocolVersion)
@@ -104,7 +104,7 @@ final class SetSelector extends Selector
         {
             buffers.add(elements.get(i).getOutput(protocolVersion));
         }
-        return CollectionSerializer.pack(buffers, buffers.size(), protocolVersion);
+        return CollectionSerializer.pack(buffers, buffers.size());
     }
 
     public void reset()
@@ -178,7 +178,7 @@ final class SetSelector extends Selector
     protected void serialize(DataOutputPlus out, int version) throws IOException
     {
         writeType(out, type);
-        out.writeUnsignedVInt(elements.size());
+        out.writeUnsignedVInt32(elements.size());
         for (int i = 0, m = elements.size(); i < m; i++)
             serializer.serialize(elements.get(i), out, version);
     }

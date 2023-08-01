@@ -45,6 +45,7 @@ public class MixedModeReadRepairWriteTest extends UpgradeTestBase
 
         allUpgrades(2, 1)
         .setup(c -> c.schemaChange(withKeyspace("CREATE TABLE %s.t (k int, c int, v int, PRIMARY KEY (k, c))")))
+        .runBeforeClusterUpgrade(cluster -> cluster.coordinator(1).execute(withKeyspace("TRUNCATE %s.t"), ConsistencyLevel.ALL))
         .runAfterClusterUpgrade(cluster -> {
 
             // insert rows internally in each node
@@ -77,7 +78,8 @@ public class MixedModeReadRepairWriteTest extends UpgradeTestBase
         allUpgrades(2, 1)
         .setup(cluster -> {
             cluster.schemaChange(withKeyspace("CREATE TABLE %s.t (k int, c int, v int, PRIMARY KEY (k, c))"));
-
+        })
+        .runBeforeClusterUpgrade(cluster -> {
             // insert the initial version of the rows in all the nodes
             String insert = withKeyspace("INSERT INTO %s.t (k, c, v) VALUES (?, ?, ?)");
             cluster.coordinator(1).execute(insert, ConsistencyLevel.ALL, row1);

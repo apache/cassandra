@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.utils;
 
-
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
@@ -27,37 +26,44 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.math.BigInteger;
-import java.net.*;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
+import java.net.URL;
+import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.NavigableSet;
+import java.util.Optional;
+import java.util.Properties;
+import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
-
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
-
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileInputStreamPlus;
-import org.apache.cassandra.io.util.FileOutputStreamPlus;
-import org.apache.cassandra.utils.concurrent.*;
+import com.google.common.collect.ImmutableList;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.cassandra.audit.IAuditLogger;
 import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
 import org.apache.cassandra.auth.IAuthenticator;
@@ -66,7 +72,6 @@ import org.apache.cassandra.auth.INetworkAuthorizer;
 import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.LocalPartitioner;
@@ -75,41 +80,44 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
+import org.apache.cassandra.io.sstable.format.StatsComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
-import org.apache.cassandra.io.sstable.metadata.ValidationMetadata;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.security.AbstractCryptoProvider;
 import org.apache.cassandra.security.ISslContextFactory;
+import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+import org.objectweb.asm.Opcodes;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_AVAILABLE_PROCESSORS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.GIT_SHA;
 import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
+import static org.apache.cassandra.config.CassandraRelevantProperties.OS_NAME;
+import static org.apache.cassandra.config.CassandraRelevantProperties.RELEASE_VERSION;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TRIGGERS_DIR;
 import static org.apache.cassandra.config.CassandraRelevantProperties.USER_HOME;
-import static org.apache.cassandra.io.util.File.WriteMode.OVERWRITE;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
-
 public class FBUtilities
 {
-    private static final ObjectMapper jsonMapper = new ObjectMapper(new JsonFactory());
-
     static
     {
         preventIllegalAccessWarnings();
-        jsonMapper.registerModule(new JavaTimeModule());
-        jsonMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
     }
 
     private static final Logger logger = LoggerFactory.getLogger(FBUtilities.class);
     public static final String UNKNOWN_RELEASE_VERSION = "Unknown";
+    public static final String UNKNOWN_GIT_SHA = "Unknown";
 
     public static final BigInteger TWO = new BigInteger("2");
     private static final String DEFAULT_TRIGGER_DIR = "triggers";
 
-    private static final String OPERATING_SYSTEM = System.getProperty("os.name").toLowerCase();
+    private static final String OPERATING_SYSTEM = OS_NAME.getString().toLowerCase();
     public static final boolean isLinux = OPERATING_SYSTEM.contains("linux");
 
     private static volatile InetAddress localInetAddress;
@@ -121,7 +129,7 @@ public class FBUtilities
 
     private static volatile String previousReleaseVersionString;
 
-    private static int availableProcessors = Integer.getInteger("cassandra.available_processors", DatabaseDescriptor.getAvailableProcessors());
+    private static int availableProcessors = CASSANDRA_AVAILABLE_PROCESSORS.getInt(DatabaseDescriptor.getAvailableProcessors());
 
     public static void setAvailableProcessors(int value)
     {
@@ -137,6 +145,8 @@ public class FBUtilities
     }
 
     public static final int MAX_UNSIGNED_SHORT = 0xFFFF;
+
+    public static final int ASM_BYTECODE_VERSION = Opcodes.ASM9;
 
     public static MessageDigest newMessageDigest(String algorithm)
     {
@@ -391,9 +401,9 @@ public class FBUtilities
     public static File cassandraTriggerDir()
     {
         File triggerDir = null;
-        if (System.getProperty("cassandra.triggers_dir") != null)
+        if (TRIGGERS_DIR.getString() != null)
         {
-            triggerDir = new File(System.getProperty("cassandra.triggers_dir"));
+            triggerDir = new File(TRIGGERS_DIR.getString());
         }
         else
         {
@@ -419,24 +429,40 @@ public class FBUtilities
         return previousReleaseVersionString;
     }
 
-    public static String getReleaseVersionString()
+    private static Properties getVersionProperties()
     {
         try (InputStream in = FBUtilities.class.getClassLoader().getResourceAsStream("org/apache/cassandra/config/version.properties"))
         {
             if (in == null)
             {
-                return System.getProperty("cassandra.releaseVersion", UNKNOWN_RELEASE_VERSION);
+                return null;
             }
             Properties props = new Properties();
             props.load(in);
-            return props.getProperty("CassandraVersion");
+            return props;
         }
         catch (Exception e)
         {
             JVMStabilityInspector.inspectThrowable(e);
             logger.warn("Unable to load version.properties", e);
-            return "debug version";
+            return null;
         }
+    }
+
+    public static String getReleaseVersionString()
+    {
+        Properties props = getVersionProperties();
+        if (props == null)
+            return RELEASE_VERSION.getString(UNKNOWN_RELEASE_VERSION);
+        return props.getProperty("CassandraVersion");
+    }
+
+    public static String getGitSHA()
+    {
+        Properties props = getVersionProperties();
+        if (props == null)
+            return GIT_SHA.getString(UNKNOWN_GIT_SHA);
+        return props.getProperty("GitSHA", UNKNOWN_GIT_SHA);
     }
 
     public static String getReleaseVersionMajor()
@@ -456,9 +482,9 @@ public class FBUtilities
         return currentTimeMillis() * 1000;
     }
 
-    public static int nowInSeconds()
+    public static long nowInSeconds()
     {
-        return (int) (currentTimeMillis() / 1000);
+        return currentTimeMillis() / 1000l;
     }
 
     public static Instant now()
@@ -588,11 +614,8 @@ public class FBUtilities
      */
     public static IPartitioner newPartitioner(Descriptor desc) throws IOException
     {
-        EnumSet<MetadataType> types = EnumSet.of(MetadataType.VALIDATION, MetadataType.HEADER);
-        Map<MetadataType, MetadataComponent> sstableMetadata = desc.getMetadataSerializer().deserialize(desc, types);
-        ValidationMetadata validationMetadata = (ValidationMetadata) sstableMetadata.get(MetadataType.VALIDATION);
-        SerializationHeader.Component header = (SerializationHeader.Component) sstableMetadata.get(MetadataType.HEADER);
-        return newPartitioner(validationMetadata.partitioner, Optional.of(header.getKeyType()));
+        StatsComponent statsComponent = StatsComponent.load(desc, MetadataType.VALIDATION, MetadataType.HEADER);
+        return newPartitioner(statsComponent.validationMetadata().partitioner, Optional.of(statsComponent.serializationHeader().getKeyType()));
     }
 
     public static IPartitioner newPartitioner(String partitionerClassName) throws ConfigurationException
@@ -677,6 +700,26 @@ public class FBUtilities
         catch (Exception ex)
         {
             throw new ConfigurationException("Unable to create instance of ISslContextFactory for " + className, ex);
+        }
+    }
+
+    public static AbstractCryptoProvider newCryptoProvider(String className, Map<String, String> parameters) throws ConfigurationException
+    {
+        try
+        {
+            if (!className.contains("."))
+                className = "org.apache.cassandra.security." + className;
+
+            Class<?> cryptoProviderClass = FBUtilities.classForName(className, "crypto provider class");
+            return (AbstractCryptoProvider) cryptoProviderClass.getConstructor(Map.class).newInstance(Collections.unmodifiableMap(parameters));
+        }
+        catch (Exception e)
+        {
+            // no need to wrap it in another ConfgurationException if FBUtilities.classForName might throw it
+            if (e instanceof ConfigurationException)
+                throw (ConfigurationException) e;
+            else
+                throw new ConfigurationException(String.format("Unable to create an instance of crypto provider for %s", className), e);
         }
     }
 
@@ -807,90 +850,184 @@ public class FBUtilities
         return new WrappedCloseableIterator<T>(iterator);
     }
 
-    public static Map<String, String> fromJsonMap(String json)
-    {
-        try
-        {
-            return jsonMapper.readValue(json, Map.class);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
+    final static String UNIT_PREFIXES = "qryzafpnum KMGTPEZYRQ";
+    final static int UNIT_PREFIXES_BASE = UNIT_PREFIXES.indexOf(' ');
+    final static Pattern BASE_NUMBER_PATTERN = Pattern.compile("NaN|[+-]?Infinity|[+-]?\\d+(\\.\\d+)?([eE]([+-]?)\\d+)?");
+    final static Pattern BINARY_EXPONENT = Pattern.compile("\\*2\\^([+-]?\\d+)");
 
-    public static List<String> fromJsonList(String json)
-    {
-        try
-        {
-            return jsonMapper.readValue(json, List.class);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public static String json(Object object)
-    {
-        try
-        {
-            return jsonMapper.writeValueAsString(object);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public static void serializeToJsonFile(Object object, File outputFile) throws IOException
-    {
-        try (FileOutputStreamPlus out = outputFile.newOutputStream(OVERWRITE))
-        {
-            jsonMapper.writeValue((OutputStream) out, object);
-        }
-    }
-
-    public static <T> T deserializeFromJsonFile(Class<T> tClass, File file) throws IOException
-    {
-        try (FileInputStreamPlus in = file.newInputStream())
-        {
-            return jsonMapper.readValue((InputStream) in, tClass);
-        }
-    }
-
+    /**
+     * Convert the given size in bytes to a human-readable value using binary (i.e. 2^10-based) modifiers.
+     * For example, 1.000KiB, 2.100GiB etc., up to 8.000 EiB.
+     * @param size      Number to convert.
+     */
     public static String prettyPrintMemory(long size)
     {
-        return prettyPrintMemory(size, false);
+        return prettyPrintMemory(size, "");
     }
 
-    public static String prettyPrintMemory(long size, boolean includeSpace)
+    /**
+     * Convert the given size in bytes to a human-readable value using binary (i.e. 2^10-based) modifiers.
+     * For example, 1.000KiB, 2.100GiB etc., up to 8.000 EiB.
+     * @param size      Number to convert.
+     * @param separator Separator between the number and the (modified) unit.
+     */
+    public static String prettyPrintMemory(long size, String separator)
     {
-        if (size >= 1 << 30)
-            return String.format("%.3f%sGiB", size / (double) (1 << 30), includeSpace ? " " : "");
-        if (size >= 1 << 20)
-            return String.format("%.3f%sMiB", size / (double) (1 << 20), includeSpace ? " " : "");
-        return String.format("%.3f%sKiB", size / (double) (1 << 10), includeSpace ? " " : "");
+        int prefixIndex = (63 - Long.numberOfLeadingZeros(Math.abs(size))) / 10;
+        if (prefixIndex == 0)
+            return String.format("%d%sB", size, separator);
+        else
+            return String.format("%.3f%s%ciB",
+                                 Math.scalb(size, -prefixIndex * 10),
+                                 separator,
+                                 UNIT_PREFIXES.charAt(UNIT_PREFIXES_BASE + prefixIndex));
+    }
+
+    /**
+     * Convert the given value to a human-readable string using binary (i.e. 2^10-based) modifiers.
+     * If the number is outside the modifier range (i.e. < 1 qi or > 1 Qi), it will be printed as v*2^e where e is a
+     * multiple of 10 with sign.
+     * For example, 1.000KiB, 2.100 miB/s, 7.006*2^+150, -Infinity.
+     * @param value     Number to convert.
+     * @param separator Separator between the number and the (modified) unit.
+     */
+    public static String prettyPrintBinary(double value, String unit, String separator)
+    {
+        int prefixIndex = Math.floorDiv(Math.getExponent(value), 10);
+        if (prefixIndex == 0 || !Double.isFinite(value) || value == 0)
+            return String.format("%.3f%s%s", value, separator, unit);
+        else if (prefixIndex > UNIT_PREFIXES_BASE || prefixIndex < -UNIT_PREFIXES_BASE)
+            return String.format("%.3f*2^%+d%s%s",
+                                 Math.scalb(value, -prefixIndex * 10),
+                                 prefixIndex * 10,
+                                 separator,
+                                 unit);
+        else
+            return String.format("%.3f%s%ci%s",
+                                 Math.scalb(value, -prefixIndex * 10),
+                                 separator,
+                                 UNIT_PREFIXES.charAt(UNIT_PREFIXES_BASE + prefixIndex),
+                                 unit);
+    }
+
+    /**
+     * Convert the given value to a human-readable string using decimal (i.e. 10^3-based) modifiers.
+     * If the number is outside the modifier range (i.e. < 1 qi or > 1 Qi), it will be printed as vEe where e is a
+     * multiple of 3 with sign.
+     * For example, 1.000km, 2.100 ms, 10E+45, NaN.
+     * @param value     Number to convert.
+     * @param separator Separator between the number and the (modified) unit.
+     */
+    public static String prettyPrintDecimal(double value, String unit, String separator)
+    {
+        int prefixIndex = (int) Math.floor(Math.log10(Math.abs(value)) / 3);
+        double base = value * Math.pow(1000.0, -prefixIndex);
+        if (prefixIndex == 0 || !Double.isFinite(value) || !Double.isFinite(base) || value == 0)
+            return String.format("%.3f%s%s", value, separator, unit);
+        else if (prefixIndex > UNIT_PREFIXES_BASE || prefixIndex < -UNIT_PREFIXES_BASE)
+            return String.format("%.3fe%+d%s%s",
+                                 base,
+                                 prefixIndex * 3,
+                                 separator,
+                                 unit);
+        else
+            return String.format("%.3f%s%c%s",
+                                 base,
+                                 separator,
+                                 UNIT_PREFIXES.charAt(UNIT_PREFIXES_BASE + prefixIndex),
+                                 unit);
     }
 
     public static String prettyPrintMemoryPerSecond(long rate)
     {
-        if (rate >= 1 << 30)
-            return String.format("%.3fGiB/s", rate / (double) (1 << 30));
-        if (rate >= 1 << 20)
-            return String.format("%.3fMiB/s", rate / (double) (1 << 20));
-        return String.format("%.3fKiB/s", rate / (double) (1 << 10));
+        return prettyPrintMemory(rate) + "/s";
     }
 
     public static String prettyPrintMemoryPerSecond(long bytes, long timeInNano)
     {
-        // We can't sanely calculate a rate over 0 nanoseconds
-        if (timeInNano == 0)
-            return "NaN  KiB/s";
+        return prettyPrintBinary(bytes * 1.0e9 / timeInNano, "B/s", "");
+    }
 
-        long rate = (long) (((double) bytes / timeInNano) * 1000 * 1000 * 1000);
+    /**
+     * Parse a human-readable value printed using one of the methods above. Understands both binary and decimal
+     * modifiers, as well as decimal exponents using the E notation and binary exponents using *2^e.
+     *
+     * @param datum     The human-readable number.
+     * @param separator Expected separator, null to accept any amount of whitespace.
+     * @param unit      Expected unit. If null, the method will accept any string as unit, i.e. it will parse the number
+     *                  at the start of the supplied string and ignore any remainder.
+     * @return The parsed value.
+     */
+    public static double parseHumanReadable(String datum, String separator, String unit)
+    {
+        int end = datum.length();
+        if (unit != null)
+        {
+            if (!datum.endsWith(unit))
+                throw new NumberFormatException(datum + " does not end in unit " + unit);
+            end -= unit.length();
+        }
 
-        return prettyPrintMemoryPerSecond(rate);
+        Matcher m = BASE_NUMBER_PATTERN.matcher(datum);
+        m.region(0, end);
+        if (!m.lookingAt())
+            throw new NumberFormatException();
+        double v = Double.parseDouble(m.group(0));
+
+        int pos = m.end();
+        if (m.group(2) == null) // possible binary exponent, parse
+        {
+            m = BINARY_EXPONENT.matcher(datum);
+            m.region(pos, end);
+            if (m.lookingAt())
+            {
+                int power = Integer.parseInt(m.group(1));
+                v = Math.scalb(v, power);
+                pos = m.end();
+            }
+        }
+
+        if (separator != null)
+        {
+            if (!datum.startsWith(separator, pos))
+                throw new NumberFormatException("Missing separator " + separator + " in " + datum);
+            pos += separator.length();
+        }
+        else
+        {
+            while (pos < end && Character.isWhitespace(datum.charAt(pos)))
+                ++pos;
+        }
+
+        if (pos < end)
+        {
+            char prefixChar = datum.charAt(pos);
+            int prefixIndex = UNIT_PREFIXES.indexOf(prefixChar);
+            if (prefixIndex >= 0)
+            {
+                prefixIndex -= UNIT_PREFIXES_BASE;
+                ++pos;
+                if (pos < end && datum.charAt(pos) == 'i')
+                {
+                    ++pos;
+                    v = Math.scalb(v, prefixIndex * 10);
+                }
+                else
+                {
+                    v *= Math.exp(Math.log(1000.0) * prefixIndex);
+                }
+            }
+        }
+
+        if (pos != end && unit != null)
+            throw new NumberFormatException("Unexpected characters between pos " + pos + " and " + end + " in " + datum);
+
+        return v;
+    }
+
+    public static long parseHumanReadableBytes(String value)
+    {
+        return (long) parseHumanReadable(value, null, "B");
     }
 
     /**
@@ -1140,5 +1277,31 @@ public class FBUtilities
             }
         }
         return sb.toString();
+    }
+
+    @SafeVarargs
+    public static <T> ImmutableList<T> immutableListWithFilteredNulls(T... values)
+    {
+        ImmutableList.Builder<T> builder = ImmutableList.builderWithExpectedSize(values.length);
+        for (int i = 0; i < values.length; i++)
+        {
+            if (values[i] != null)
+                builder.add(values[i]);
+        }
+        return builder.build();
+    }
+
+    public static void closeQuietly(Object o)
+    {
+        if (!(o instanceof AutoCloseable))
+            return;
+        try
+        {
+            ((AutoCloseable) o).close();
+        }
+        catch (Exception e)
+        {
+            logger.warn("Closing {} had an unexpected exception", o, e);
+        }
     }
 }

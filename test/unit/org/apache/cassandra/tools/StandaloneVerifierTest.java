@@ -22,6 +22,7 @@ import java.util.Arrays;
 
 import org.junit.Test;
 
+import org.apache.cassandra.io.sstable.VerifyTest;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.assertj.core.api.Assertions;
 import org.hamcrest.CoreMatchers;
@@ -33,7 +34,7 @@ import static org.junit.Assert.assertThat;
  * Note: the complete coverage is composed of:
  * - {@link StandaloneVerifierOnSSTablesTest}
  * - {@link StandaloneVerifierTest}
- * - {@link org.apache.cassandra.db.VerifyTest}
+ * - {@link VerifyTest}
 */
 public class StandaloneVerifierTest extends OfflineToolUtils
 {
@@ -61,9 +62,11 @@ public class StandaloneVerifierTest extends OfflineToolUtils
                        " -h,--help                   display this help message\n" +
                        " -q,--quick                  do a quick check, don't read all data\n" + 
                        " -r,--mutate_repair_status   don't mutate repair status\n" + 
-                       " -t,--token_range <range>    long token range of the format left,right.\n" + 
-                       "                             This may be provided multiple times to define multiple different ranges\n" + 
+                       " -t,--token_range <range>    long token range of the format left,right.\n" +
+                       "                             This may be provided multiple times to define\n" +
+                       "                             multiple different ranges\n" +
                        " -v,--verbose                verbose output\n";
+
         Assertions.assertThat(tool.getStdout()).isEqualTo(help);
     }
 

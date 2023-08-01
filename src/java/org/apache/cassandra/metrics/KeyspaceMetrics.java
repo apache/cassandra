@@ -20,17 +20,21 @@ package org.apache.cassandra.metrics;
 import java.util.Set;
 import java.util.function.ToLongFunction;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Sets;
+
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Timer;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.io.sstable.GaugeProvider;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry.MetricName;
 import org.apache.cassandra.metrics.TableMetrics.ReleasableMetric;
-
-import com.google.common.collect.Sets;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
@@ -59,16 +63,15 @@ public class KeyspaceMetrics
     public final Gauge<Long> pendingFlushes;
     /** Estimate of number of pending compactios for this CF */
     public final Gauge<Long> pendingCompactions;
-    /** Disk space used by SSTables belonging to this CF */
+    /** Disk space used by SSTables belonging to tables in this keyspace */
     public final Gauge<Long> liveDiskSpaceUsed;
-    /** Total disk space used by SSTables belonging to this CF, including obsolete ones waiting to be GC'd */
+    /** Disk space used by SSTables belonging to tables in this keyspace, scaled down by replication factor */
+    public final Gauge<Long> unreplicatedLiveDiskSpaceUsed;
+    /** Uncompressed/logical size of SSTables belonging to tables in this keyspace */
+    public final Gauge<Long> uncompressedLiveDiskSpaceUsed;
+    /** Uncompressed/logical size of SSTables belonging to tables in this keyspace, scaled down by replication factor */
+    public final Gauge<Long> unreplicatedUncompressedLiveDiskSpaceUsed;
     public final Gauge<Long> totalDiskSpaceUsed;
-    /** Disk space used by bloom filter */
-    public final Gauge<Long> bloomFilterDiskSpaceUsed;
-    /** Off heap memory used by bloom filter */
-    public final Gauge<Long> bloomFilterOffHeapMemoryUsed;
-    /** Off heap memory used by index summary */
-    public final Gauge<Long> indexSummaryOffHeapMemoryUsed;
     /** Off heap memory used by compression meta data*/
     public final Gauge<Long> compressionMetadataOffHeapMemoryUsed;
     /** (Local) read metrics */
@@ -77,8 +80,10 @@ public class KeyspaceMetrics
     public final LatencyMetrics rangeLatency;
     /** (Local) write metrics */
     public final LatencyMetrics writeLatency;
-    /** Histogram of the number of sstable data files accessed per read */
+    /** Histogram of the number of sstable data files accessed per single partition read */
     public final Histogram sstablesPerReadHistogram;
+    /** Histogram of the number of sstable data files accessed per partition range read */
+    public final Histogram sstablesPerRangeReadHistogram;
     /** Tombstones scanned in queries on this Keyspace */
     public final Histogram tombstoneScannedHistogram;
     /** Live cells scanned in queries on this Keyspace */
@@ -168,8 +173,10 @@ public class KeyspaceMetrics
     public final Meter rowIndexSizeAborts;
     public final Histogram rowIndexSize;
 
+    public final ImmutableMap<SSTableFormat<?, ?>, ImmutableMap<String, Gauge<? extends Number>>> formatSpecificGauges;
+
     public final MetricNameFactory factory;
-    private Keyspace keyspace;
+    private final Keyspace keyspace;
 
     /** set containing names of all the metrics stored here, for releasing later */
     private Set<ReleasableMetric> allMetrics = Sets.newHashSet();
@@ -201,14 +208,15 @@ public class KeyspaceMetrics
                 metric -> metric.memtableSwitchCount.getCount());
         pendingCompactions = createKeyspaceGauge("PendingCompactions", metric -> metric.pendingCompactions.getValue());
         pendingFlushes = createKeyspaceGauge("PendingFlushes", metric -> metric.pendingFlushes.getCount());
+
         liveDiskSpaceUsed = createKeyspaceGauge("LiveDiskSpaceUsed", metric -> metric.liveDiskSpaceUsed.getCount());
+        uncompressedLiveDiskSpaceUsed = createKeyspaceGauge("UncompressedLiveDiskSpaceUsed", metric -> metric.uncompressedLiveDiskSpaceUsed.getCount());
+        unreplicatedLiveDiskSpaceUsed = createKeyspaceGauge("UnreplicatedLiveDiskSpaceUsed",
+                                                            metric -> metric.liveDiskSpaceUsed.getCount() / keyspace.getReplicationStrategy().getReplicationFactor().fullReplicas);
+        unreplicatedUncompressedLiveDiskSpaceUsed = createKeyspaceGauge("UnreplicatedUncompressedLiveDiskSpaceUsed",
+                                                                        metric -> metric.uncompressedLiveDiskSpaceUsed.getCount() / keyspace.getReplicationStrategy().getReplicationFactor().fullReplicas);
         totalDiskSpaceUsed = createKeyspaceGauge("TotalDiskSpaceUsed", metric -> metric.totalDiskSpaceUsed.getCount());
-        bloomFilterDiskSpaceUsed = createKeyspaceGauge("BloomFilterDiskSpaceUsed",
-                metric -> metric.bloomFilterDiskSpaceUsed.getValue());
-        bloomFilterOffHeapMemoryUsed = createKeyspaceGauge("BloomFilterOffHeapMemoryUsed",
-                metric -> metric.bloomFilterOffHeapMemoryUsed.getValue());
-        indexSummaryOffHeapMemoryUsed = createKeyspaceGauge("IndexSummaryOffHeapMemoryUsed",
-                metric -> metric.indexSummaryOffHeapMemoryUsed.getValue());
+
         compressionMetadataOffHeapMemoryUsed = createKeyspaceGauge("CompressionMetadataOffHeapMemoryUsed",
                 metric -> metric.compressionMetadataOffHeapMemoryUsed.getValue());
 
@@ -219,6 +227,7 @@ public class KeyspaceMetrics
 
         // create histograms for TableMetrics to replicate updates to
         sstablesPerReadHistogram = createKeyspaceHistogram("SSTablesPerReadHistogram", true);
+        sstablesPerRangeReadHistogram = createKeyspaceHistogram("SSTablesPerRangeReadHistogram", true);
         tombstoneScannedHistogram = createKeyspaceHistogram("TombstoneScannedHistogram", false);
         liveScannedHistogram = createKeyspaceHistogram("LiveScannedHistogram", false);
         colUpdateTimeDeltaHistogram = createKeyspaceHistogram("ColUpdateTimeDeltaHistogram", false);
@@ -265,6 +274,8 @@ public class KeyspaceMetrics
         rowIndexSizeWarnings = createKeyspaceMeter("RowIndexSizeWarnings");
         rowIndexSizeAborts = createKeyspaceMeter("RowIndexSizeAborts");
         rowIndexSize = createKeyspaceHistogram("RowIndexSize", false);
+
+        formatSpecificGauges = createFormatSpecificGauges(keyspace);
     }
 
     /**
@@ -278,10 +289,30 @@ public class KeyspaceMetrics
         }
     }
 
+    private ImmutableMap<SSTableFormat<?, ?>, ImmutableMap<String, Gauge<? extends Number>>> createFormatSpecificGauges(Keyspace keyspace)
+    {
+        ImmutableMap.Builder<SSTableFormat<? ,?>, ImmutableMap<String, Gauge<? extends Number>>> builder = ImmutableMap.builder();
+        for (SSTableFormat<?, ?> format : DatabaseDescriptor.getSSTableFormats().values())
+        {
+            ImmutableMap.Builder<String, Gauge<? extends Number>> gauges = ImmutableMap.builder();
+            for (GaugeProvider<?> gaugeProvider : format.getFormatSpecificMetricsProviders().getGaugeProviders())
+            {
+                String finalName = gaugeProvider.name;
+                allMetrics.add(() -> releaseMetric(finalName));
+                Gauge<? extends Number> gauge = Metrics.register(factory.createMetricName(finalName), gaugeProvider.getKeyspaceGauge(keyspace));
+                gauges.put(gaugeProvider.name, gauge);
+            }
+            builder.put(format, gauges.build());
+        }
+        return builder.build();
+    }
+
     /**
      * Creates a gauge that will sum the current value of a metric for all column families in this keyspace
-     * @param name
-     * @param extractor
+     *
+     * @param name the name of the metric being created
+     * @param extractor a function that produces a specified metric value for a given table
+     *
      * @return Gauge&gt;Long> that computes sum of MetricValue.getValue()
      */
     private Gauge<Long> createKeyspaceGauge(String name, final ToLongFunction<TableMetrics> extractor)

@@ -56,6 +56,11 @@ public interface INodeProvisionStrategy
                     {
                         return 9041 + nodeNum;
                     }
+
+                    public int jmxPort(int nodeNum)
+                    {
+                        return 7199 + nodeNum;
+                    }
                 };
             }
         },
@@ -89,6 +94,11 @@ public interface INodeProvisionStrategy
                     {
                         return 9042;
                     }
+
+                    public int jmxPort(int nodeNum)
+                    {
+                        return 7199;
+                    }
                 };
             }
         };
@@ -100,4 +110,5 @@ public interface INodeProvisionStrategy
     abstract String ipAddress(int nodeNum);
     abstract int storagePort(int nodeNum);
     abstract int nativeTransportPort(int nodeNum);
+    abstract int jmxPort(int nodeNum);
 }

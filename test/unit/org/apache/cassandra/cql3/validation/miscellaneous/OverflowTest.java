@@ -170,8 +170,8 @@ public class OverflowTest extends CQLTester
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, i varint, b blob)");
 
-        execute("INSERT INTO %s (k, i, b) VALUES (0, blobAsVarint(bigintAsBlob(3)), textAsBlob('foobar'))");
-        assertRows(execute("SELECT i, blobAsText(b) FROM %s WHERE k = 0"),
+        execute("INSERT INTO %s (k, i, b) VALUES (0, blob_as_varint(bigint_as_blob(3)), text_as_blob('foobar'))");
+        assertRows(execute("SELECT i, blob_as_text(b) FROM %s WHERE k = 0"),
                    row(BigInteger.valueOf(3), "foobar"));
     }
 
@@ -230,7 +230,7 @@ public class OverflowTest extends CQLTester
         createTable("CREATE TABLE %s (k int PRIMARY KEY, t timeuuid,)");
 
         execute("INSERT INTO %s (k) VALUES (0)");
-        Object[][] rows = getRows(execute("SELECT dateOf(t) FROM %s WHERE k=0"));
+        Object[][] rows = getRows(execute("SELECT to_timestamp(t) FROM %s WHERE k=0"));
         assertNull(rows[0][0]);
     }
 
@@ -288,9 +288,9 @@ public class OverflowTest extends CQLTester
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
 
         //  A blob that is not 4 bytes should be rejected
-        assertInvalid("INSERT INTO %s (k, v) VALUES (0, blobAsInt(0x01))");
+        assertInvalid("INSERT INTO %s (k, v) VALUES (0, blob_as_int(0x01))");
 
-        execute("INSERT INTO %s (k, v) VALUES (0, blobAsInt(0x00000001))");
+        execute("INSERT INTO %s (k, v) VALUES (0, blob_as_int(0x00000001))");
         assertRows(execute("select v from %s where k=0"), row(1));
     }
 }

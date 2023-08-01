@@ -23,6 +23,7 @@ import java.util.Set;
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.config.DataStorageSpec;
+import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.ConsistencyLevel;
 
 /**
@@ -168,6 +169,13 @@ public interface GuardrailsConfig
     boolean getDropTruncateTableEnabled();
 
     /**
+     * Returns whether DROP on keyspaces is allowed
+     *
+     * @return {@code true} if allowed, {@code false} otherwise.
+     */
+    boolean getDropKeyspaceEnabled();
+
+    /**
      * @return The threshold to warn when page size exceeds given size.
      */
     int getPageSizeWarnThreshold();
@@ -231,6 +239,40 @@ public interface GuardrailsConfig
     Set<ConsistencyLevel> getWriteConsistencyLevelsDisallowed();
 
     /**
+     * @return The threshold to warn when writing partitions larger than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getPartitionSizeWarnThreshold();
+
+    /**
+     * @return The threshold to fail when writing partitions larger than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getPartitionSizeFailThreshold();
+
+    /**
+     * @return The threshold to warn when writing partitions with more tombstones than threshold.
+     */
+    long getPartitionTombstonesWarnThreshold();
+
+    /**
+     * @return The threshold to fail when writing partitions with more tombstones than threshold.
+     */
+    long getPartitionTombstonesFailThreshold();
+
+    /**
+     * @return The threshold to warn when writing column values larger than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getColumnValueSizeWarnThreshold();
+
+    /**
+     * @return The threshold to prevent writing column values larger than threshold.
+     */
+    @Nullable
+    DataStorageSpec.LongBytesBound getColumnValueSizeFailThreshold();
+
+    /**
      * @return The threshold to warn when encountering a collection with larger data size than threshold.
      */
     @Nullable
@@ -291,4 +333,90 @@ public interface GuardrailsConfig
      */
     int getMinimumReplicationFactorFailThreshold();
 
+    /**
+     * @return The threshold to warn when replication factor is greater than threshold.
+     */
+    int getMaximumReplicationFactorWarnThreshold();
+
+    /**
+     * @return The threshold to fail when replication factor is greater than threshold.
+     */
+    int getMaximumReplicationFactorFailThreshold();
+
+    /**
+     * Returns whether warnings will be emitted when usage of 0 default TTL on a
+     * table with TimeWindowCompactionStrategy is detected.
+     *
+     * @return {@code true} if warnings will be emitted, {@code false} otherwise.
+     */
+    boolean getZeroTTLOnTWCSWarned();
+
+    /**
+     * Sets whether warnings will be emitted when usage of 0 default TTL on a
+     * table with TimeWindowCompactionStrategy is detected.
+     *
+     * @param value {@code true} if warning will be emitted, {@code false} otherwise.
+     */
+    void setZeroTTLOnTWCSWarned(boolean value);
+
+    /**
+     * Returns whether it is allowed to create or alter table to use 0 default TTL with TimeWindowCompactionStrategy.
+     * If it is not, such query will fail.
+     *
+     * @return {@code true} if 0 default TTL is allowed on TWCS table, {@code false} otherwise.
+     */
+    boolean getZeroTTLOnTWCSEnabled();
+
+    /**
+     * Sets whether users can use 0 default TTL on a table with TimeWindowCompactionStrategy.
+     *
+     * @param value {@code true} if 0 default TTL on TWCS tables is allowed, {@code false} otherwise.
+     */
+    void setZeroTTLOnTWCSEnabled(boolean value);
+
+    /**
+     * @return A timestamp that if a user supplied timestamp is after will trigger a warning
+     */
+    @Nullable
+    DurationSpec.LongMicrosecondsBound getMaximumTimestampWarnThreshold();
+
+    /**
+     * @return A timestamp that if a user supplied timestamp is after will cause a failure
+     */
+    @Nullable
+    DurationSpec.LongMicrosecondsBound getMaximumTimestampFailThreshold();
+
+    /**
+     * Sets the warning upper bound for user supplied timestamps
+     *
+     * @param warn The highest acceptable difference between now and the written value timestamp before triggering a
+     *             warning. {@code null} means disabled.
+     * @param fail The highest acceptable difference between now and the written value timestamp before triggering a
+     *             failure. {@code null} means disabled.
+     */
+    void setMaximumTimestampThreshold(@Nullable DurationSpec.LongMicrosecondsBound warn,
+                                      @Nullable DurationSpec.LongMicrosecondsBound fail);
+
+    /**
+     * @return A timestamp that if a user supplied timestamp is before will trigger a warning
+     */
+    @Nullable
+    DurationSpec.LongMicrosecondsBound getMinimumTimestampWarnThreshold();
+
+    /**
+     * @return A timestamp that if a user supplied timestamp is after will trigger a warning
+     */
+    @Nullable
+    DurationSpec.LongMicrosecondsBound getMinimumTimestampFailThreshold();
+
+    /**
+     * Sets the warning lower bound for user supplied timestamps
+     *
+     * @param warn The lowest acceptable difference between now and the written value timestamp before triggering a
+     *             warning. {@code null} means disabled.
+     * @param fail The lowest acceptable difference between now and the written value timestamp before triggering a
+     *             failure. {@code null} means disabled.
+     */
+    void setMinimumTimestampThreshold(@Nullable DurationSpec.LongMicrosecondsBound warn,
+                                      @Nullable DurationSpec.LongMicrosecondsBound fail);
 }

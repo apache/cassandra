@@ -34,9 +34,12 @@ import static org.assertj.core.api.Assertions.withPrecision;
  */
 public class SetGetEntireSSTableInterDCStreamThroughputTest extends CQLTester
 {
+    private static final int MAX_INT_CONFIG_VALUE_MIB = Integer.MAX_VALUE - 1;
+
     @BeforeClass
     public static void setup() throws Exception
     {
+        requireNetwork();
         startJMXServer();
     }
 
@@ -55,7 +58,13 @@ public class SetGetEntireSSTableInterDCStreamThroughputTest extends CQLTester
     @Test
     public void testMaxValue()
     {
-        assertSetGetValidThroughput(Integer.MAX_VALUE - 1, (Integer.MAX_VALUE - 1) * StreamRateLimiter.BYTES_PER_MEBIBYTE);
+        assertSetGetValidThroughput(MAX_INT_CONFIG_VALUE_MIB, MAX_INT_CONFIG_VALUE_MIB * StreamRateLimiter.BYTES_PER_MEBIBYTE);
+    }
+
+    @Test
+    public void testUpperBound()
+    {
+        assertSetInvalidEntireSStableInterDCThroughputMib(String.valueOf(Integer.MAX_VALUE));
     }
 
     @Test
@@ -90,7 +99,15 @@ public class SetGetEntireSSTableInterDCStreamThroughputTest extends CQLTester
         assertThat(tool.getStdout()).contains(expectedErrorMessage);
     }
 
-    private static void assertGetThroughput(int expected)
+    private static void assertSetInvalidEntireSStableInterDCThroughputMib(String throughput)
+    {
+        ToolResult tool = invokeNodetool("setinterdcstreamthroughput", "-e", throughput);
+        assertThat(tool.getExitCode()).isEqualTo(1);
+        assertThat(tool.getStdout()).contains("entire_sstable_inter_dc_stream_throughput_outbound: 2147483647 is too large;" +
+                                              " it should be less than 2147483647 in MiB/s");
+    }
+
+    private static void assertGetThroughput(double expected)
     {
         ToolResult tool = invokeNodetool("getinterdcstreamthroughput", "-e");
         tool.assertOnCleanExit();

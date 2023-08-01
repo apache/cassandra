@@ -228,22 +228,25 @@ class PendingRepairManager
 
     private int getEstimatedRemainingTasks(TimeUUID sessionID, AbstractCompactionStrategy strategy)
     {
-        if (canCleanup(sessionID))
-        {
-            return 0;
-        }
-        else
-        {
-            return strategy.getEstimatedRemainingTasks();
-        }
+        return getEstimatedRemainingTasks(sessionID, strategy, 0, 0);
+    }
+
+    private int getEstimatedRemainingTasks(TimeUUID sessionID, AbstractCompactionStrategy strategy, int additionalSSTables, long additionalBytes)
+    {
+        return canCleanup(sessionID) ? 0 : strategy.getEstimatedRemainingTasks();
     }
 
     int getEstimatedRemainingTasks()
     {
+        return getEstimatedRemainingTasks(0, 0);
+    }
+
+    int getEstimatedRemainingTasks(int additionalSSTables, long additionalBytes)
+    {
         int tasks = 0;
         for (Map.Entry<TimeUUID, AbstractCompactionStrategy> entry : strategies.entrySet())
         {
-            tasks += getEstimatedRemainingTasks(entry.getKey(), entry.getValue());
+            tasks += getEstimatedRemainingTasks(entry.getKey(), entry.getValue(), additionalSSTables, additionalBytes);
         }
         return tasks;
     }
@@ -362,7 +365,7 @@ class PendingRepairManager
         return null;
     }
 
-    synchronized AbstractCompactionTask getNextBackgroundTask(int gcBefore)
+    synchronized AbstractCompactionTask getNextBackgroundTask(long gcBefore)
     {
         if (strategies.isEmpty())
             return null;
@@ -389,7 +392,7 @@ class PendingRepairManager
         return get(sessionID).getNextBackgroundTask(gcBefore);
     }
 
-    synchronized Collection<AbstractCompactionTask> getMaximalTasks(int gcBefore, boolean splitOutput)
+    synchronized Collection<AbstractCompactionTask> getMaximalTasks(long gcBefore, boolean splitOutput)
     {
         if (strategies.isEmpty())
             return null;
@@ -476,7 +479,7 @@ class PendingRepairManager
         return strategy != null && strategy.getSSTables().contains(sstable);
     }
 
-    public Collection<AbstractCompactionTask> createUserDefinedTasks(Collection<SSTableReader> sstables, int gcBefore)
+    public Collection<AbstractCompactionTask> createUserDefinedTasks(Collection<SSTableReader> sstables, long gcBefore)
     {
         Map<TimeUUID, List<SSTableReader>> group = sstables.stream().collect(Collectors.groupingBy(s -> s.getSSTableMetadata().pendingRepair));
         return group.entrySet().stream().map(g -> strategies.get(g.getKey()).getUserDefinedTask(g.getValue(), gcBefore)).collect(Collectors.toList());

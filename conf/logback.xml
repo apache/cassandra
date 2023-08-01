@@ -111,12 +111,23 @@ appender reference in the root level section below.
   <appender name="LogbackMetrics" class="com.codahale.metrics.logback.InstrumentedAppender" />
    -->
 
+  <!-- Uncomment below configuration and corresponding appender-ref to activate
+  logging into system_views.system_logs virtual table. -->
+  <!-- <appender name="CQLLOG" class="org.apache.cassandra.utils.logging.VirtualTableAppender">
+    <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+      <level>WARN</level>
+    </filter>
+  </appender> -->
+
   <root level="INFO">
     <appender-ref ref="SYSTEMLOG" />
     <appender-ref ref="STDOUT" />
     <appender-ref ref="ASYNCDEBUGLOG" /> <!-- Comment this line to disable debug.log -->
     <!--
     <appender-ref ref="LogbackMetrics" />
+    -->
+    <!--
+    <appender-ref ref="CQLLOG"/>
     -->
   </root>
 

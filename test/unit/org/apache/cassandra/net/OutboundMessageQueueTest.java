@@ -61,12 +61,14 @@ public class OutboundMessageQueueTest
 
         CountDownLatch locked = new CountDownLatch(1);
         CountDownLatch lockUntil = new CountDownLatch(1);
+        CountDownLatch lockReleased = new CountDownLatch(1);
         new Thread(() -> {
             try (OutboundMessageQueue.WithLock lock = queue.lockOrCallback(0, () -> {}))
             {
                 locked.countDown();
                 Uninterruptibles.awaitUninterruptibly(lockUntil);
             }
+            lockReleased.countDown();
         }).start();
         Uninterruptibles.awaitUninterruptibly(locked);
 
@@ -86,6 +88,7 @@ public class OutboundMessageQueueTest
         lockUntil.countDown();
         Uninterruptibles.awaitUninterruptibly(finish);
 
+        Uninterruptibles.awaitUninterruptibly(lockReleased);
         try (OutboundMessageQueue.WithLock lock = queue.lockOrCallback(0, () -> {}))
         {
             Assert.assertNull(lock.peek());

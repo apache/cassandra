@@ -61,7 +61,6 @@ import org.apache.cassandra.service.paxos.PaxosRepairHistory;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.ExecutorUtils;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.Throwables;
 
@@ -185,7 +184,7 @@ public class UncommittedTableData
             if (table == null)
                 return Range.normalize(FULL_RANGE);
 
-            String ksName = table.keyspace.getName();
+            String ksName = table.getKeyspaceName();
             List<Range<Token>> ranges = StorageService.instance.getLocalAndPendingRanges(ksName);
 
             // don't filter anything if we're not aware of any locally replicated ranges

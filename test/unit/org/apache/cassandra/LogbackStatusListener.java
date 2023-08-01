@@ -33,7 +33,11 @@ import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.spi.LoggerContextListener;
 import ch.qos.logback.core.status.Status;
 import ch.qos.logback.core.status.StatusListener;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.distributed.shared.InstanceClassLoader;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.SUN_STDERR_ENCODING;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SUN_STDOUT_ENCODING;
 
 /*
  * Listen for logback readiness and then redirect stdout/stderr to logback
@@ -84,9 +88,9 @@ public class LogbackStatusListener implements StatusListener, LoggerContextListe
         }
     }
 
-    private static PrintStream wrapLogger(Logger logger, PrintStream original, String encodingProperty, boolean error) throws Exception
+    private static PrintStream wrapLogger(Logger logger, PrintStream original, CassandraRelevantProperties encodingProperty, boolean error) throws Exception
     {
-        final String encoding = System.getProperty(encodingProperty);
+        final String encoding = encodingProperty.getString();
         OutputStream os = new ToLoggerOutputStream(logger, encoding, error);
         return encoding != null ? new WrappedPrintStream(os, true, encoding, original)
                                 : new WrappedPrintStream(os, true, original);
@@ -475,9 +479,9 @@ public class LogbackStatusListener implements StatusListener, LoggerContextListe
                 Logger stdoutLogger = LoggerFactory.getLogger("stdout");
                 Logger stderrLogger = LoggerFactory.getLogger("stderr");
 
-                replacementOut = wrapLogger(stdoutLogger, originalOut, "sun.stdout.encoding", false);
+                replacementOut = wrapLogger(stdoutLogger, originalOut, SUN_STDOUT_ENCODING, false);
                 System.setOut(replacementOut);
-                replacementErr = wrapLogger(stderrLogger, originalErr, "sun.stderr.encoding", true);
+                replacementErr = wrapLogger(stderrLogger, originalErr, SUN_STDERR_ENCODING, true);
                 System.setErr(replacementErr);
             }
             catch (Exception e)

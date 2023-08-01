@@ -26,17 +26,14 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
-
 import javax.annotation.Nullable;
 
 import com.google.common.base.Throwables;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ExecutorFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
@@ -55,8 +52,9 @@ import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.concurrent.Threads;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
-import static org.apache.cassandra.simulator.Action.Modifiers.NONE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_SIMULATOR_LIVENESS_CHECK;
 import static org.apache.cassandra.simulator.Action.Modifiers.DISPLAY_ORIGIN;
+import static org.apache.cassandra.simulator.Action.Modifiers.NONE;
 import static org.apache.cassandra.simulator.SimulatorUtils.failWithOOM;
 import static org.apache.cassandra.simulator.paxos.HistoryChecker.causedBy;
 
@@ -133,7 +131,7 @@ public abstract class PaxosSimulation implements Simulation, ClusterActionListen
         AtomicLong counter = new AtomicLong();
         ScheduledExecutorPlus livenessChecker = null;
         ScheduledFuture<?> liveness = null;
-        if (CassandraRelevantProperties.TEST_SIMULATOR_LIVENESS_CHECK.getBoolean())
+        if (TEST_SIMULATOR_LIVENESS_CHECK.getBoolean())
         {
             livenessChecker = ExecutorFactory.Global.executorFactory().scheduled("SimulationLiveness");
             liveness = livenessChecker.scheduleWithFixedDelay(new Runnable()
@@ -170,7 +168,7 @@ public abstract class PaxosSimulation implements Simulation, ClusterActionListen
                         long cur = counter.get();
                         if (cur == prev)
                         {
-                            logger.error("Simulation appears to have stalled; terminating. To disable set -Dcassandra.test.simulator.livenesscheck=false");
+                            logger.error("Simulation appears to have stalled; terminating. To disable set -D{}=false", TEST_SIMULATOR_LIVENESS_CHECK.getKey());
                             shutdown.set(1);
                             throw failWithOOM();
                         }
@@ -262,8 +260,9 @@ public abstract class PaxosSimulation implements Simulation, ClusterActionListen
         }
 
         log(causedByPrimaryKey);
-        if (causedByPrimaryKey != null) throw Throwables.propagate(causedByThrowable);
-        else throw Throwables.propagate(simulated.failures.get().get(0));
+        Throwable t = (causedByPrimaryKey != null) ? causedByThrowable : simulated.failures.get().get(0);
+        Throwables.throwIfUnchecked(t);
+        throw new RuntimeException(t);
     }
 
     public void close()

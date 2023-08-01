@@ -20,23 +20,37 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 
+import org.apache.commons.lang3.mutable.MutableShort;
+
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.Constants;
 import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.functions.ArgumentDeserializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.ShortSerializer;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
+import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 
 public class ShortType extends NumberType<Short>
 {
     public static final ShortType instance = new ShortType();
 
+    private static final ByteBuffer MASKED_VALUE = instance.decompose((short) 0);
+
     ShortType()
     {
         super(ComparisonType.CUSTOM);
     } // singleton
+
+    @Override
+    public boolean allowsEmpty()
+    {
+        return false;
+    }
 
     public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
     {
@@ -44,6 +58,19 @@ public class ShortType extends NumberType<Short>
         if (diff != 0)
             return diff;
         return ValueAccessor.compare(left, accessorL, right, accessorR);
+    }
+
+    @Override
+    public <V> ByteSource asComparableBytes(ValueAccessor<V> accessor, V data, ByteComparable.Version version)
+    {
+        // This type does not allow non-present values, but we do just to avoid future complexity.
+        return ByteSource.optionalSignedFixedLengthNumber(accessor, data);
+    }
+
+    @Override
+    public <V> V fromComparableBytes(ValueAccessor<V> accessor, ByteSource.Peekable comparableBytes, ByteComparable.Version version)
+    {
+        return ByteSourceInverse.getOptionalSignedFixedLength(accessor, comparableBytes, 2);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException
@@ -93,45 +120,87 @@ public class ShortType extends NumberType<Short>
     }
 
     @Override
-    public short toShort(ByteBuffer value)
+    public ArgumentDeserializer getArgumentDeserializer()
     {
-        return ByteBufferUtil.toShort(value);
+        return new NumberArgumentDeserializer<MutableShort>(new MutableShort())
+        {
+            @Override
+            protected void setMutableValue(MutableShort mutable, ByteBuffer buffer)
+            {
+                mutable.setValue(ByteBufferUtil.toShort(buffer));
+            }
+        };
     }
 
     @Override
-    public int toInt(ByteBuffer value)
+    public ByteBuffer add(Number left, Number right)
     {
-        return toShort(value);
+        return ByteBufferUtil.bytes((short) (left.shortValue() + right.shortValue()));
     }
 
     @Override
-    public ByteBuffer add(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    public ByteBuffer substract(Number left, Number right)
     {
-        return ByteBufferUtil.bytes((short) (leftType.toShort(left) + rightType.toShort(right)));
+        return ByteBufferUtil.bytes((short) (left.shortValue() - right.shortValue()));
     }
 
-    public ByteBuffer substract(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    @Override
+    public ByteBuffer multiply(Number left, Number right)
     {
-        return ByteBufferUtil.bytes((short) (leftType.toShort(left) - rightType.toShort(right)));
+        return ByteBufferUtil.bytes((short) (left.shortValue() * right.shortValue()));
     }
 
-    public ByteBuffer multiply(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    @Override
+    public ByteBuffer divide(Number left, Number right)
     {
-        return ByteBufferUtil.bytes((short) (leftType.toShort(left) * rightType.toShort(right)));
+        return ByteBufferUtil.bytes((short) (left.shortValue() / right.shortValue()));
     }
 
-    public ByteBuffer divide(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    @Override
+    public ByteBuffer mod(Number left, Number right)
     {
-        return ByteBufferUtil.bytes((short) (leftType.toShort(left) / rightType.toShort(right)));
+        return ByteBufferUtil.bytes((short) (left.shortValue() % right.shortValue()));
     }
 
-    public ByteBuffer mod(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    @Override
+    public ByteBuffer negate(Number input)
     {
-        return ByteBufferUtil.bytes((short) (leftType.toShort(left) % rightType.toShort(right)));
+        return ByteBufferUtil.bytes((short) -input.shortValue());
     }
 
-    public ByteBuffer negate(ByteBuffer input)
+    @Override
+    public ByteBuffer abs(Number input)
     {
-        return ByteBufferUtil.bytes((short) -toShort(input));
+        return ByteBufferUtil.bytes((short) Math.abs(input.shortValue()));
+    }
+
+    @Override
+    public ByteBuffer exp(Number input)
+    {
+        return ByteBufferUtil.bytes((short) Math.exp(input.shortValue()));
+    }
+
+    @Override
+    public ByteBuffer log(Number input)
+    {
+        return ByteBufferUtil.bytes((short) Math.log(input.shortValue()));
+    }
+
+    @Override
+    public ByteBuffer log10(Number input)
+    {
+        return ByteBufferUtil.bytes((short) Math.log10(input.shortValue()));
+    }
+
+    @Override
+    public ByteBuffer round(Number input)
+    {
+        return decompose(input.shortValue());
+    }
+
+    @Override
+    public ByteBuffer getMaskedValue()
+    {
+        return MASKED_VALUE;
     }
 }

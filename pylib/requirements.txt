@@ -3,3 +3,4 @@
 -e git+https://github.com/riptano/ccm.git@cassandra-test#egg=ccm
 coverage
 pytest
+wcwidth

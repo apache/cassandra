@@ -76,4 +76,15 @@ public interface VirtualTable
      * Truncates data from the underlying source, if supported.
      */
     void truncate();
+
+    /**
+     * Tells whether {@code ALLOW FILTERING} is implicitly added to select statement
+     * which requires it. Defaults to true.
+     *
+     * @return true if {@code ALLOW FILTERING} is implicitly added to select statements when required, false otherwise.
+     */
+    default boolean allowFilteringImplicitly()
+    {
+        return true;
+    }
 }

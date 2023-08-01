@@ -64,7 +64,8 @@ public interface ISSTableScanner extends UnfilteredPartitionIterator
 
         if (throwable != null)
         {
-            Throwables.propagate(throwable);
+            Throwables.throwIfUnchecked(throwable);
+            throw new RuntimeException(throwable);
         }
 
     }

@@ -25,6 +25,9 @@ tools/bin/fqltool usr/bin
 tools/bin/auditlogviewer usr/bin
 tools/bin/jmxtool usr/bin
 tools/bin/hash_password usr/bin
+tools/bin/sstablepartitions usr/bin
 lib/*.jar usr/share/cassandra/lib
 lib/*.zip usr/share/cassandra/lib
 lib/sigar-bin/* usr/share/cassandra/lib/sigar-bin
+lib/x86_64/* usr/share/cassandra/lib/x86_64
+lib/aarch64/* usr/share/cassandra/lib/aarch64

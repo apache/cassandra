@@ -24,10 +24,13 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.functions.ArgumentDeserializer;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
 public class ReversedType<T> extends AbstractType<T>
 {
@@ -61,6 +64,32 @@ public class ReversedType<T> extends AbstractType<T>
     public boolean isEmptyValueMeaningless()
     {
         return baseType.isEmptyValueMeaningless();
+    }
+
+    @Override
+    public <V> ByteSource asComparableBytes(ValueAccessor<V> accessor, V data, ByteComparable.Version version)
+    {
+        ByteSource src = baseType.asComparableBytes(accessor, data, version);
+        if (src == null)    // Note: this will only compare correctly if used within a sequence
+            return null;
+        // Invert all bytes.
+        // The comparison requirements for the original type ensure that this encoding will compare correctly with
+        // respect to the reversed comparator function (and, specifically, prefixes of escaped byte-ordered types will
+        // compare as larger). Additionally, the weak prefix-freedom requirement ensures this encoding will also be
+        // weakly prefix-free.
+        return () ->
+        {
+            int v = src.next();
+            if (v == ByteSource.END_OF_STREAM)
+                return v;
+            return v ^ 0xFF;
+        };
+    }
+
+    @Override
+    public <V> V fromComparableBytes(ValueAccessor<V> accessor, ByteSource.Peekable comparableBytes, ByteComparable.Version version)
+    {
+        return baseType.fromComparableBytes(accessor, ReversedPeekableByteSource.of(comparableBytes), version);
     }
 
     public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
@@ -111,9 +140,16 @@ public class ReversedType<T> extends AbstractType<T>
         return baseType.asCQL3Type();
     }
 
+    @Override
     public TypeSerializer<T> getSerializer()
     {
         return baseType.getSerializer();
+    }
+
+    @Override
+    public ArgumentDeserializer getArgumentDeserializer()
+    {
+        return baseType.getArgumentDeserializer();
     }
 
     @Override
@@ -155,5 +191,45 @@ public class ReversedType<T> extends AbstractType<T>
     public String toString()
     {
         return getClass().getName() + "(" + baseType + ")";
+    }
+
+    private static final class ReversedPeekableByteSource extends ByteSource.Peekable
+    {
+        private final ByteSource.Peekable original;
+
+        static ByteSource.Peekable of(ByteSource.Peekable original)
+        {
+            return original != null ? new ReversedPeekableByteSource(original) : null;
+        }
+
+        private ReversedPeekableByteSource(ByteSource.Peekable original)
+        {
+            super(null);
+            this.original = original;
+        }
+
+        @Override
+        public int next()
+        {
+            int v = original.next();
+            if (v != END_OF_STREAM)
+                return v ^ 0xFF;
+            return END_OF_STREAM;
+        }
+
+        @Override
+        public int peek()
+        {
+            int v = original.peek();
+            if (v != END_OF_STREAM)
+                return v ^ 0xFF;
+            return END_OF_STREAM;
+        }
+    }
+
+    @Override
+    public ByteBuffer getMaskedValue()
+    {
+        return baseType.getMaskedValue();
     }
 }

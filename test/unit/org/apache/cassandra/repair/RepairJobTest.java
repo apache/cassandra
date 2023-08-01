@@ -88,7 +88,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.apache.cassandra.net.Verb.PAXOS2_CLEANUP_START_PREPARE_REQ;
 import static org.apache.cassandra.net.Verb.PAXOS2_CLEANUP_REQ;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -306,8 +305,8 @@ public class RepairJobTest
 
         assertThat(results)
             .hasSize(2)
-            .extracting(s -> s.numberOfDifferences)
-            .containsOnly(1L);
+            .extracting(s -> s.differences.size())
+            .containsOnly(1);
 
         assertThat(messages)
             .hasSize(2)
@@ -713,7 +712,7 @@ public class RepairJobTest
                                                                                             false,
                                                                                             PreviewKind.ALL));
 
-        assertThat(tasks.values()).areAllInstanceOf(AsymmetricRemoteSyncTask.class);
+        SyncTaskListAssert.assertThat(tasks.values()).areAllInstanceOf(AsymmetricRemoteSyncTask.class);
 
         // addr1 streams range1 from addr3:
         assertThat(tasks.get(pair(addr1, addr3)).rangesToSync).contains(RANGE_1);

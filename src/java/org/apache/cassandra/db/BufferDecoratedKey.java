@@ -19,7 +19,9 @@ package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 public class BufferDecoratedKey extends DecoratedKey
 {
@@ -35,5 +37,35 @@ public class BufferDecoratedKey extends DecoratedKey
     public ByteBuffer getKey()
     {
         return key;
+    }
+
+    @Override
+    public int getKeyLength()
+    {
+        return key.remaining();
+    }
+
+    /**
+     * A factory method that translates the given byte-comparable representation to a {@link BufferDecoratedKey}
+     * instance. If the given byte comparable doesn't represent the encoding of a buffer decorated key, anything from a
+     * wide variety of throwables may be thrown (e.g. {@link AssertionError}, {@link IndexOutOfBoundsException},
+     * {@link IllegalStateException}, etc.).
+     *
+     * @param byteComparable A byte-comparable representation (presumably of a {@link BufferDecoratedKey} instance).
+     * @param version The encoding version used for the given byte comparable.
+     * @param partitioner The partitioner of the encoded decorated key. Needed in order to correctly decode the token
+     *                    bytes of the key.
+     * @return A new {@link BufferDecoratedKey} instance, corresponding to the given byte-comparable representation. If
+     * we were to call {@link #asComparableBytes(Version)} on the returned object, we should get a {@link ByteSource}
+     * equal to the one of the input byte comparable.
+     */
+    public static BufferDecoratedKey fromByteComparable(ByteComparable byteComparable,
+                                                        Version version,
+                                                        IPartitioner partitioner)
+    {
+        return DecoratedKey.fromByteComparable(byteComparable,
+                                               version,
+                                               partitioner,
+                                               (token, keyBytes) -> new BufferDecoratedKey(token, ByteBuffer.wrap(keyBytes)));
     }
 }

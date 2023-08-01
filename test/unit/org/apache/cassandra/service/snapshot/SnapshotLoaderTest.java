@@ -27,6 +27,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
+import org.junit.Assert;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -123,9 +124,57 @@ public class SnapshotLoaderTest
                                                                  Paths.get(baseDir.toString(), DATA_DIR_3)));
         Set<TableSnapshot> snapshots = loader.loadSnapshots();
         assertThat(snapshots).hasSize(3);
-        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE1_NAME, TABLE1_ID, TAG1, null, null, tag1Files));
-        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE2_NAME, TABLE2_ID,  TAG2, null, null, tag2Files));
-        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_2, TABLE3_NAME, TABLE3_ID,  TAG3, null, null, tag3Files));
+        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE1_NAME, TABLE1_ID, TAG1, null, null, tag1Files, false));
+        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE2_NAME, TABLE2_ID,  TAG2, null, null, tag2Files, false));
+        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_2, TABLE3_NAME, TABLE3_ID,  TAG3, null, null, tag3Files, false));
+
+        // Verify snapshot loading for a specific keyspace
+        loader = new SnapshotLoader(Arrays.asList(Paths.get(baseDir.toString(), DATA_DIR_1),
+                                                  Paths.get(baseDir.toString(), DATA_DIR_2),
+                                                  Paths.get(baseDir.toString(), DATA_DIR_3)));
+
+        snapshots = loader.loadSnapshots(KEYSPACE_1);
+        assertThat(snapshots).hasSize(2);
+        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE1_NAME, TABLE1_ID, TAG1, null, null, tag1Files, false));
+        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE2_NAME, TABLE2_ID,  TAG2, null, null, tag2Files, false));
+
+        loader = new SnapshotLoader(Arrays.asList(Paths.get(baseDir.toString(), DATA_DIR_1),
+                                                  Paths.get(baseDir.toString(), DATA_DIR_2),
+                                                  Paths.get(baseDir.toString(), DATA_DIR_3)));
+        snapshots = loader.loadSnapshots(KEYSPACE_2);
+        assertThat(snapshots).hasSize(1);
+        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_2, TABLE3_NAME, TABLE3_ID,  TAG3, null, null, tag3Files, false));
+    }
+
+    @Test
+    public void testEphemeralSnapshotWithoutManifest() throws IOException
+    {
+        Set<File> tag1Files = new HashSet<>();
+
+        // Create one snapshot per table - without manifests:
+        // - ks1.t1 : tag1
+        File baseDir  = new File(tmpDir.newFolder());
+        boolean ephemeralFileCreated = false;
+        for (String dataDir : DATA_DIRS)
+        {
+            File dir = createDir(baseDir, dataDir, KEYSPACE_1, tableDirName(TABLE1_NAME, TABLE1_ID), Directories.SNAPSHOT_SUBDIR, TAG1);
+            tag1Files.add(dir);
+            if (!ephemeralFileCreated)
+            {
+                createEphemeralMarkerFile(dir);
+                ephemeralFileCreated = true;
+            }
+        }
+
+        // Verify snapshot is found correctly from data directories
+        SnapshotLoader loader = new SnapshotLoader(Arrays.asList(Paths.get(baseDir.toString(), DATA_DIR_1),
+                                                                 Paths.get(baseDir.toString(), DATA_DIR_2),
+                                                                 Paths.get(baseDir.toString(), DATA_DIR_3)));
+
+        Set<TableSnapshot> snapshots = loader.loadSnapshots();
+        assertThat(snapshots).hasSize(1);
+        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE1_NAME, TABLE1_ID, TAG1, null, null, tag1Files, true));
+        Assert.assertTrue(snapshots.stream().findFirst().get().isEphemeral());
     }
 
     @Test
@@ -169,9 +218,26 @@ public class SnapshotLoaderTest
                                                                  Paths.get(baseDir.toString(), DATA_DIR_3)));
         Set<TableSnapshot> snapshots = loader.loadSnapshots();
         assertThat(snapshots).hasSize(3);
-        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE1_NAME, TABLE1_ID, TAG1, tag1Ts, null, tag1Files));
-        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE2_NAME, TABLE2_ID,  TAG2, tag2Ts, tag2Ts.plusSeconds(tag2Ttl.toSeconds()), tag2Files));
-        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_2, TABLE3_NAME, TABLE3_ID,  TAG3, tag3Ts, null, tag3Files));
+        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE1_NAME, TABLE1_ID, TAG1, tag1Ts, null, tag1Files, false));
+        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE2_NAME, TABLE2_ID,  TAG2, tag2Ts, tag2Ts.plusSeconds(tag2Ttl.toSeconds()), tag2Files, false));
+        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_2, TABLE3_NAME, TABLE3_ID,  TAG3, tag3Ts, null, tag3Files, false));
+
+        // Verify snapshot loading for a specific keyspace
+        loader = new SnapshotLoader(Arrays.asList(Paths.get(baseDir.toString(), DATA_DIR_1),
+                                                  Paths.get(baseDir.toString(), DATA_DIR_2),
+                                                  Paths.get(baseDir.toString(), DATA_DIR_3)));
+
+        snapshots = loader.loadSnapshots(KEYSPACE_1);
+        assertThat(snapshots).hasSize(2);
+        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE1_NAME, TABLE1_ID, TAG1, tag1Ts, null, tag1Files, false));
+        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_1, TABLE2_NAME, TABLE2_ID,  TAG2, tag2Ts, tag2Ts.plusSeconds(tag2Ttl.toSeconds()), tag2Files, false));
+
+        loader = new SnapshotLoader(Arrays.asList(Paths.get(baseDir.toString(), DATA_DIR_1),
+                                                  Paths.get(baseDir.toString(), DATA_DIR_2),
+                                                  Paths.get(baseDir.toString(), DATA_DIR_3)));
+        snapshots = loader.loadSnapshots(KEYSPACE_2);
+        assertThat(snapshots).hasSize(1);
+        assertThat(snapshots).contains(new TableSnapshot(KEYSPACE_2, TABLE3_NAME, TABLE3_ID,  TAG3, tag3Ts, null, tag3Files, false));
     }
 
     @Test
@@ -203,12 +269,12 @@ public class SnapshotLoaderTest
     @Test
     public void testParseUUID()
     {
-        assertThat(SnapshotLoader.parseUUID("c7e513243f0711ec9bbc0242ac130002")).isEqualTo(UUID.fromString("c7e51324-3f07-11ec-9bbc-0242ac130002"));
+        assertThat(SnapshotLoader.Visitor.parseUUID("c7e513243f0711ec9bbc0242ac130002")).isEqualTo(UUID.fromString("c7e51324-3f07-11ec-9bbc-0242ac130002"));
     }
 
     private void writeManifest(File snapshotDir, Instant creationTime, DurationSpec.IntSecondsBound ttl) throws IOException
     {
-        SnapshotManifest manifest = new SnapshotManifest(Lists.newArrayList("f1", "f2", "f3"), ttl, creationTime);
+        SnapshotManifest manifest = new SnapshotManifest(Lists.newArrayList("f1", "f2", "f3"), ttl, creationTime, false);
         manifest.serializeToJsonFile(getManifestFile(snapshotDir));
     }
 
@@ -217,6 +283,11 @@ public class SnapshotLoaderTest
         File file = new File(Paths.get(baseDir.toString(), subdirs).toString());
         file.toJavaIOFile().mkdirs();
         return file;
+    }
+
+    private static void createEphemeralMarkerFile(File dir)
+    {
+        Assert.assertTrue(new File(dir, "ephemeral.snapshot").createFileIfNotExists());
     }
 
     static String tableDirName(String tableName, UUID tableId)

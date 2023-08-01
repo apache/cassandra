@@ -29,7 +29,7 @@ public class FilteredPartition extends ImmutableBTreePartition
 {
     public FilteredPartition(RowIterator rows)
     {
-        super(rows.metadata(), rows.partitionKey(), build(rows, DeletionInfo.LIVE, false, 16));
+        super(rows.metadata(), rows.partitionKey(), build(rows, DeletionInfo.LIVE, false));
     }
 
     /**

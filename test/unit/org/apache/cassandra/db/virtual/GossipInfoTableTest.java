@@ -18,11 +18,12 @@
 
 package org.apache.cassandra.db.virtual;
 
+import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
+import java.util.concurrent.ConcurrentMap;
+import java.util.function.Supplier;
 
-import com.google.common.collect.ImmutableList;
-import org.junit.Before;
+import org.awaitility.Awaitility;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -33,35 +34,26 @@ import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 
+import static com.google.common.collect.ImmutableList.of;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class GossipInfoTableTest extends CQLTester
 {
-    private static final String KS_NAME = "vts";
-
-    @SuppressWarnings("FieldCanBeLocal")
-    private GossipInfoTable table;
-
     @BeforeClass
     public static void setUpClass()
     {
         CQLTester.setUpClass();
     }
 
-    @Before
-    public void config()
-    {
-        table = new GossipInfoTable(KS_NAME);
-        VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
-    }
-
     @Test
     public void testSelectAllWhenGossipInfoIsEmpty() throws Throwable
     {
-        assertEmpty(execute("SELECT * FROM vts.gossip_info"));
+        // we have not triggered gossiper yet
+        VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace("vts_1",
+                                                                      of(new GossipInfoTable("vts_1", HashMap::new))));
+        assertEmpty(execute("SELECT * FROM vts_1.gossip_info"));
     }
 
-    @SuppressWarnings("deprecation")
     @Test
     public void testSelectAllWithStateTransitions() throws Throwable
     {
@@ -69,21 +61,23 @@ public class GossipInfoTableTest extends CQLTester
         {
             requireNetwork(); // triggers gossiper
 
-            UntypedResultSet resultSet = execute("SELECT * FROM vts.gossip_info");
+            ConcurrentMap<InetAddressAndPort, EndpointState> states = Gossiper.instance.endpointStateMap;
+            Awaitility.await().until(() -> !states.isEmpty());
+            Map.Entry<InetAddressAndPort, EndpointState> entry = states.entrySet().stream().findFirst()
+                    .orElseThrow(AssertionError::new);
+            InetAddressAndPort endpoint = entry.getKey();
+            EndpointState localState = new EndpointState(entry.getValue());
+
+            Supplier<Map<InetAddressAndPort, EndpointState>> endpointStateMapSupplier = () -> new HashMap<InetAddressAndPort, EndpointState>() {{put(endpoint, localState);}};
+
+            VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace("vts_2",
+                                                                          of(new GossipInfoTable("vts_2", endpointStateMapSupplier))));
+
+            UntypedResultSet resultSet = execute("SELECT * FROM vts_2.gossip_info");
 
             assertThat(resultSet.size()).isEqualTo(1);
-            assertThat(Gossiper.instance.endpointStateMap.size()).isEqualTo(1);
-
-            Optional<Map.Entry<InetAddressAndPort, EndpointState>> entry = Gossiper.instance.endpointStateMap.entrySet()
-                                                                                                             .stream()
-                                                                                                             .findFirst();
-            assertThat(entry).isNotEmpty();
-
             UntypedResultSet.Row row = resultSet.one();
-            assertThat(row.getColumns().size()).isEqualTo(64);
-
-            InetAddressAndPort endpoint = entry.get().getKey();
-            EndpointState localState = entry.get().getValue();
+            assertThat(row.getColumns().size()).isEqualTo(66);
 
             assertThat(endpoint).isNotNull();
             assertThat(localState).isNotNull();
@@ -91,6 +85,7 @@ public class GossipInfoTableTest extends CQLTester
             assertThat(row.getInt("port")).isEqualTo(endpoint.getPort());
             assertThat(row.getString("hostname")).isEqualTo(endpoint.getHostName());
             assertThat(row.getInt("generation")).isEqualTo(localState.getHeartBeatState().getGeneration());
+            assertThat(row.getInt("heartbeat")).isNotNull();
 
             assertValue(row, "status", localState, ApplicationState.STATUS);
             assertValue(row, "load", localState, ApplicationState.LOAD);
@@ -140,6 +135,7 @@ public class GossipInfoTableTest extends CQLTester
             assertVersion(row, "native_address_and_port_version", localState, ApplicationState.NATIVE_ADDRESS_AND_PORT);
             assertVersion(row, "status_with_port_version", localState, ApplicationState.STATUS_WITH_PORT);
             assertVersion(row, "sstable_versions_version", localState, ApplicationState.SSTABLE_VERSIONS);
+            assertVersion(row, "disk_usage_version", localState, ApplicationState.DISK_USAGE);
             assertVersion(row, "x_11_padding", localState, ApplicationState.X_11_PADDING);
             assertVersion(row, "x1", localState, ApplicationState.X1);
             assertVersion(row, "x2", localState, ApplicationState.X2);
@@ -165,8 +161,10 @@ public class GossipInfoTableTest extends CQLTester
         {
             assertThat(localState.getApplicationState(key)).as("'%s' is expected to be not-null", key)
                                                            .isNotNull();
-            assertThat(row.getString(column)).as("'%s' is expected to match column '%s'", key, column)
-                                             .isEqualTo(localState.getApplicationState(key).value);
+            String tableString = row.getString(column);
+            String stateString = localState.getApplicationState(key).value;
+            assertThat(tableString).as("'%s' is expected to match column '%s', table string: %s, state string: %s",
+                                       key, column, tableString, stateString).isEqualTo(stateString);
         }
         else
         {
@@ -181,8 +179,12 @@ public class GossipInfoTableTest extends CQLTester
         {
             assertThat(localState.getApplicationState(key)).as("'%s' is expected to be not-null", key)
                                                            .isNotNull();
-            assertThat(row.getInt(column)).as("'%s' is expected to match column '%s'", key, column)
-                                          .isEqualTo(localState.getApplicationState(key).version);
+
+            int tableVersion = row.getInt(column);
+            int stateVersion = localState.getApplicationState(key).version;
+
+            assertThat(tableVersion).as("'%s' is expected to match column '%s', table int: %s, state int: %s",
+                                        key, column, tableVersion, stateVersion).isEqualTo(stateVersion);
         }
         else
         {

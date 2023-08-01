@@ -21,8 +21,10 @@ package org.apache.cassandra.service.snapshot;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -35,9 +37,11 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.utils.FBUtilities.now;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.Assert.assertTrue;
 
 public class TableSnapshotTest
 {
@@ -50,15 +54,18 @@ public class TableSnapshotTest
     @ClassRule
     public static TemporaryFolder tempFolder = new TemporaryFolder();
 
-    public static Set<File> createFolders(TemporaryFolder temp) throws IOException {
+    public static Set<File> createFolders(TemporaryFolder temp) throws IOException
+    {
         File folder = new File(temp.newFolder());
         Set<File> folders = new HashSet<>();
-        for (String folderName : Arrays.asList("foo", "bar", "buzz")) {
+        for (String folderName : Arrays.asList("foo", "bar", "buzz"))
+        {
             File subfolder = new File(folder, folderName);
             subfolder.tryCreateDirectories();
             assertThat(subfolder.exists());
             folders.add(subfolder);
-        };
+        }
+        ;
         return folders;
     }
 
@@ -74,7 +81,9 @@ public class TableSnapshotTest
         "some",
         null,
         null,
-        folders);
+        folders,
+        false
+        );
 
         assertThat(snapshot.exists()).isTrue();
 
@@ -95,7 +104,9 @@ public class TableSnapshotTest
         "some",
         null,
         null,
-        folders);
+        folders,
+        false
+        );
 
         assertThat(snapshot.isExpiring()).isFalse();
         assertThat(snapshot.isExpired(now())).isFalse();
@@ -107,7 +118,9 @@ public class TableSnapshotTest
         "some",
         now(),
         null,
-        folders);
+        folders,
+        false
+        );
 
         assertThat(snapshot.isExpiring()).isFalse();
         assertThat(snapshot.isExpired(now())).isFalse();
@@ -119,7 +132,9 @@ public class TableSnapshotTest
         "some",
         now(),
         now().plusSeconds(1000),
-        folders);
+        folders,
+        false
+        );
 
         assertThat(snapshot.isExpiring()).isTrue();
         assertThat(snapshot.isExpired(now())).isFalse();
@@ -131,7 +146,8 @@ public class TableSnapshotTest
         "some",
         now(),
         now().minusSeconds(1000),
-        folders);
+        folders,
+        false);
 
         assertThat(snapshot.isExpiring()).isTrue();
         assertThat(snapshot.isExpired(now())).isTrue();
@@ -159,7 +175,8 @@ public class TableSnapshotTest
         "some",
         null,
         null,
-        folders);
+        folders,
+        false);
 
         Long res = 0L;
 
@@ -185,7 +202,9 @@ public class TableSnapshotTest
         "some",
         null,
         null,
-        folders);
+        folders,
+        false
+        );
 
         Long res = 0L;
 
@@ -214,7 +233,10 @@ public class TableSnapshotTest
         "some1",
         createdAt,
         null,
-        folders);
+        folders,
+        false
+        );
+
         assertThat(withCreatedAt.getCreatedAt()).isEqualTo(createdAt);
 
         // When createdAt is  null, it should return the snapshot folder minimum update time
@@ -225,8 +247,79 @@ public class TableSnapshotTest
         "some1",
         null,
         null,
-        folders);
+        folders,
+        false
+        );
+
         assertThat(withoutCreatedAt.getCreatedAt()).isEqualTo(Instant.ofEpochMilli(folders.stream().mapToLong(f -> f.lastModified()).min().getAsLong()));
+    }
+
+    @Test
+    public void testShouldClearSnapshot() throws Exception
+    {
+        // TableSnapshot variables -> ephemeral / true / false, createdAt -> null / notnull
+
+        Instant now = Instant.now();
+
+        String keyspace = "ks";
+        String table = "tbl";
+        UUID id = UUID.randomUUID();
+        String tag = "someTag";
+        Instant snapshotCreation = now.minusSeconds(60);
+        Set<File> folders = createFolders(tempFolder);
+
+        List<TableSnapshot> snapshots = new ArrayList<>();
+
+        for (boolean ephemeral : new boolean[]{ true, false })
+            for (Instant createdAt : new Instant[]{ snapshotCreation, null })
+                snapshots.add(new TableSnapshot(keyspace,
+                                                table,
+                                                id,
+                                                tag,
+                                                createdAt, // variable
+                                                null,
+                                                folders,
+                                                ephemeral)); // variable
+
+        List<Pair<String, Long>> testingMethodInputs = new ArrayList<>();
+
+        for (String testingTag : new String[] {null, "", tag, "someothertag"})
+            // 0 to deactive byTimestamp logic, now.toEpochMilli as true, snapshot minus 60s as false
+            for (long olderThanTimestamp : new long[] {0, now.toEpochMilli(), snapshotCreation.minusSeconds(60).toEpochMilli()})
+                testingMethodInputs.add(Pair.create(testingTag, olderThanTimestamp));
+
+        for (Pair<String, Long> methodInput : testingMethodInputs)
+        {
+            String testingTag = methodInput.left();
+            Long olderThanTimestamp = methodInput.right;
+            for (TableSnapshot snapshot : snapshots)
+            {
+                // if shouldClear method returns true, it is only in case
+                // 1. snapshot to clear is not ephemeral
+                // 2. tag to clear is null, empty, or it is equal to snapshot tag
+                // 3. byTimestamp is true
+                if (TableSnapshot.shouldClearSnapshot(testingTag, olderThanTimestamp).test(snapshot))
+                {
+                    // shouldClearTag = true
+                    boolean shouldClearTag = (testingTag == null || testingTag.isEmpty()) || snapshot.getTag().equals(testingTag);
+                    // notEphemeral
+                    boolean notEphemeral = !snapshot.isEphemeral();
+                    // byTimestamp
+                    boolean byTimestamp = true;
+
+                    if (olderThanTimestamp > 0L)
+                    {
+                        Instant createdAt = snapshot.getCreatedAt();
+                        if (createdAt != null)
+                            byTimestamp = createdAt.isBefore(Instant.ofEpochMilli(olderThanTimestamp));
+                    }
+
+                    assertTrue(notEphemeral);
+                    assertTrue(shouldClearTag);
+                    assertTrue(byTimestamp);
+                }
+            }
+        }
     }
 
     @Test

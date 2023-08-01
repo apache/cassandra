@@ -18,16 +18,23 @@
 package org.apache.cassandra.tools.nodetool;
 
 import io.airlift.airline.Command;
-
+import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
 @Command(name = "version", description = "Print cassandra version")
 public class Version extends NodeToolCmd
 {
+    @Option(title = "verbose",
+            name = {"-v", "--verbose"},
+            description = "Include additional information")
+    private boolean verbose = false;
+
     @Override
     public void execute(NodeProbe probe)
     {
         probe.output().out.println("ReleaseVersion: " + probe.getReleaseVersion());
+        if (verbose)
+            probe.output().out.println("GitSHA: " + probe.getGitSHA());
     }
 }

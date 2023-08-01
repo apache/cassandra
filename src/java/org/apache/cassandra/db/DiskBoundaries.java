@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
@@ -108,7 +109,7 @@ public class DiskBoundaries
             return getBoundariesFromSSTableDirectory(sstable.descriptor);
         }
 
-        int pos = Collections.binarySearch(positions, sstable.first);
+        int pos = Collections.binarySearch(positions, sstable.getFirst());
         assert pos < 0; // boundaries are .minkeybound and .maxkeybound so they should never be equal
         return -pos - 1;
     }
@@ -145,7 +146,7 @@ public class DiskBoundaries
     {
         int diskIndex = getDiskIndex(sstable);
         PartitionPosition diskLast = positions.get(diskIndex);
-        return directories.get(diskIndex).equals(currentLocation) && sstable.last.compareTo(diskLast) <= 0;
+        return directories.get(diskIndex).equals(currentLocation) && sstable.getLast().compareTo(diskLast) <= 0;
     }
 
     private int getDiskIndex(DecoratedKey key)
@@ -153,5 +154,21 @@ public class DiskBoundaries
         int pos = Collections.binarySearch(positions, key);
         assert pos < 0;
         return -pos - 1;
+    }
+
+    public List<Directories.DataDirectory> getDisksInBounds(DecoratedKey first, DecoratedKey last)
+    {
+        if (positions == null || first == null || last == null)
+            return directories;
+        int firstIndex = getDiskIndex(first);
+        int lastIndex = getDiskIndex(last);
+        return directories.subList(firstIndex, lastIndex + 1);
+    }
+
+    public boolean isEquivalentTo(DiskBoundaries oldBoundaries)
+    {
+        return oldBoundaries != null &&
+               Objects.equals(positions, oldBoundaries.positions) &&
+               Objects.equals(directories, oldBoundaries.directories);
     }
 }

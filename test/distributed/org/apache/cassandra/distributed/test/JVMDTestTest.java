@@ -95,6 +95,16 @@ public class JVMDTestTest extends TestBaseImpl
     }
 
     @Test
+    public void jvmArgumentLoggingTest() throws IOException
+    {
+        try (Cluster cluster = Cluster.build(1).start())
+        {
+            LogAction logs = cluster.get(1).logs();
+            Assertions.assertThat(logs.grep("JVM Arguments").getResult()).isNotEmpty();
+        }
+    }
+
+    @Test
     public void nonSharedConfigClassTest() throws IOException
     {
         Map<String,Object> commitLogCompression = ImmutableMap.of("class_name", "org.apache.cassandra.io.compress.LZ4Compressor",

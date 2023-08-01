@@ -22,32 +22,47 @@ package org.apache.cassandra.tools;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.net.*;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.MalformedURLException;
+import java.net.UnknownHostException;
 import java.util.HashSet;
 import java.util.Set;
 
-import com.google.common.base.Throwables;
 import com.google.common.net.HostAndPort;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.GnuParser;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.*;
+import com.datastax.driver.core.AuthProvider;
+import com.datastax.driver.core.PlainTextAuthProvider;
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DataRateSpec;
+import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.config.YamlConfigurationLoader;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tools.BulkLoader.CmdLineOptions;
 
-import com.datastax.driver.core.AuthProvider;
-import com.datastax.driver.core.PlainTextAuthProvider;
-import org.apache.commons.cli.*;
-import org.apache.commons.lang3.StringUtils;
+import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND;
 
 public class LoaderOptions
 {
+    private static final Logger logger = LoggerFactory.getLogger(LoaderOptions.class);
 
     public static final String HELP_OPTION = "help";
     public static final String VERBOSE_OPTION = "verbose";
     public static final String NOPROGRESS_OPTION = "no-progress";
     public static final String NATIVE_PORT_OPTION = "port";
     public static final String STORAGE_PORT_OPTION = "storage-port";
+    @Deprecated
     public static final String SSL_STORAGE_PORT_OPTION = "ssl-storage-port";
     public static final String USER_OPTION = "username";
     public static final String PASSWD_OPTION = "password";
@@ -56,12 +71,28 @@ public class LoaderOptions
     public static final String IGNORE_NODES_OPTION = "ignore";
     public static final String CONNECTIONS_PER_HOST = "connections-per-host";
     public static final String CONFIG_PATH = "conf-path";
+
+    /**
+     * Throttle defined in megabits per second. CASSANDRA-10637 introduced a builder and is the preferred way to
+     * provide options instead of using these constant fields.
+     * @deprecated Use {@code throttle-mib} instead
+     */
+    @Deprecated
     public static final String THROTTLE_MBITS = "throttle";
+    public static final String THROTTLE_MEBIBYTES = "throttle-mib";
+    /**
+     * Inter-datacenter throttle defined in megabits per second. CASSANDRA-10637 introduced a builder and is the
+     * preferred way to provide options instead of using these constant fields.
+     * @deprecated Use {@code inter-dc-throttle-mib} instead
+     */
+    @Deprecated
     public static final String INTER_DC_THROTTLE_MBITS = "inter-dc-throttle";
-    public static final String ENTIRE_SSTABLE_THROTTLE_MBITS = "entire-sstable-throttle";
-    public static final String ENTIRE_SSTABLE_INTER_DC_THROTTLE_MBITS = "entire-sstable-inter-dc-throttle";
+    public static final String INTER_DC_THROTTLE_MEBIBYTES = "inter-dc-throttle-mib";
+    public static final String ENTIRE_SSTABLE_THROTTLE_MEBIBYTES = "entire-sstable-throttle-mib";
+    public static final String ENTIRE_SSTABLE_INTER_DC_THROTTLE_MEBIBYTES = "entire-sstable-inter-dc-throttle-mib";
     public static final String TOOL_NAME = "sstableloader";
     public static final String TARGET_KEYSPACE = "target-keyspace";
+    public static final String TARGET_TABLE = "target-table";
 
     /* client encryption options */
     public static final String SSL_TRUSTSTORE = "truststore";
@@ -81,10 +112,10 @@ public class LoaderOptions
     public final String user;
     public final String passwd;
     public final AuthProvider authProvider;
-    public final int throttle;
-    public final int interDcThrottle;
-    public final int entireSSTableThrottle;
-    public final int entireSSTableInterDcThrottle;
+    public final long throttleBytes;
+    public final long interDcThrottleBytes;
+    public final int entireSSTableThrottleMebibytes;
+    public final int entireSSTableInterDcThrottleMebibytes;
     public final int storagePort;
     public final int sslStoragePort;
     public final EncryptionOptions clientEncOptions;
@@ -93,6 +124,7 @@ public class LoaderOptions
     public final Set<InetSocketAddress> hosts;
     public final Set<InetAddressAndPort> ignores;
     public final String targetKeyspace;
+    public final String targetTable;
 
     LoaderOptions(Builder builder)
     {
@@ -104,10 +136,10 @@ public class LoaderOptions
         user = builder.user;
         passwd = builder.passwd;
         authProvider = builder.authProvider;
-        throttle = builder.throttle;
-        interDcThrottle = builder.interDcThrottle;
-        entireSSTableThrottle = builder.entireSSTableThrottle;
-        entireSSTableInterDcThrottle = builder.entireSSTableInterDcThrottle;
+        throttleBytes = builder.throttleBytes;
+        interDcThrottleBytes = builder.interDcThrottleBytes;
+        entireSSTableThrottleMebibytes = builder.entireSSTableThrottleMebibytes;
+        entireSSTableInterDcThrottleMebibytes = builder.entireSSTableInterDcThrottleMebibytes;
         storagePort = builder.storagePort;
         sslStoragePort = builder.sslStoragePort;
         clientEncOptions = builder.clientEncOptions;
@@ -116,6 +148,7 @@ public class LoaderOptions
         hosts = builder.hosts;
         ignores = builder.ignores;
         targetKeyspace = builder.targetKeyspace;
+        targetTable = builder.targetTable;
     }
 
     static class Builder
@@ -129,10 +162,11 @@ public class LoaderOptions
         String passwd;
         String authProviderName;
         AuthProvider authProvider;
-        int throttle = 0;
-        int interDcThrottle = 0;
-        int entireSSTableThrottle = 0;
-        int entireSSTableInterDcThrottle = 0;
+        long throttleBytes = 0;
+        long interDcThrottleBytes = 0;
+        int entireSSTableThrottleMebibytes = 0;
+        int entireSSTableInterDcThrottleMebibytes = 0;
+
         int storagePort;
         int sslStoragePort;
         EncryptionOptions clientEncOptions = new EncryptionOptions();
@@ -143,6 +177,7 @@ public class LoaderOptions
         Set<InetSocketAddress> hosts = new HashSet<>();
         Set<InetAddressAndPort> ignores = new HashSet<>();
         String targetKeyspace;
+        String targetTable;
 
         Builder()
         {
@@ -166,7 +201,7 @@ public class LoaderOptions
             }
             catch (UnknownHostException e)
             {
-                Throwables.propagate(e);
+                throw new RuntimeException(e);
             }
 
             return new LoaderOptions(this);
@@ -220,27 +255,60 @@ public class LoaderOptions
             return this;
         }
 
-        public Builder throttle(int throttle)
+        public Builder throttleMebibytes(int throttleMebibytes)
         {
-            this.throttle = throttle;
+            this.throttleBytes = (long) MEBIBYTES_PER_SECOND.toBytesPerSecond(throttleMebibytes);
             return this;
         }
 
+        @Deprecated
+        public Builder throttle(int throttleMegabits)
+        {
+            this.throttleBytes = (long) DataRateSpec.LongBytesPerSecondBound.megabitsPerSecondInBytesPerSecond(throttleMegabits).toBytesPerSecond();
+            return this;
+        }
+
+        public Builder interDcThrottleMebibytes(int interDcThrottleMebibytes)
+        {
+            this.interDcThrottleBytes = (long) MEBIBYTES_PER_SECOND.toBytesPerSecond(interDcThrottleMebibytes);
+            return this;
+        }
+
+        public Builder interDcThrottleMegabits(int interDcThrottleMegabits)
+        {
+            this.interDcThrottleBytes = (long) DataRateSpec.LongBytesPerSecondBound.megabitsPerSecondInBytesPerSecond(interDcThrottleMegabits).toBytesPerSecond();
+            return this;
+        }
+
+        @Deprecated
         public Builder interDcThrottle(int interDcThrottle)
         {
-            this.interDcThrottle = interDcThrottle;
+            return interDcThrottleMegabits(interDcThrottle);
+        }
+
+        public Builder entireSSTableThrottleMebibytes(int entireSSTableThrottleMebibytes)
+        {
+            this.entireSSTableThrottleMebibytes = entireSSTableThrottleMebibytes;
             return this;
         }
 
+        @Deprecated
         public Builder entireSSTableThrottle(int entireSSTableThrottle)
         {
-            this.entireSSTableThrottle = entireSSTableThrottle;
+            this.entireSSTableThrottleMebibytes = entireSSTableThrottle;
             return this;
         }
 
+        public Builder entireSSTableInterDcThrottleMebibytes(int entireSSTableInterDcThrottleMebibytes)
+        {
+            this.entireSSTableInterDcThrottleMebibytes = entireSSTableInterDcThrottleMebibytes;
+            return this;
+        }
+
+        @Deprecated
         public Builder entireSSTableInterDcThrottle(int entireSSTableInterDcThrottle)
         {
-            this.entireSSTableInterDcThrottle = entireSSTableInterDcThrottle;
+            this.entireSSTableInterDcThrottleMebibytes = entireSSTableInterDcThrottle;
             return this;
         }
 
@@ -250,9 +318,10 @@ public class LoaderOptions
             return this;
         }
 
+        @Deprecated
         public Builder sslStoragePort(int sslStoragePort)
         {
-            this.sslStoragePort = sslStoragePort;
+            this.sslStoragePort = storagePort;
             return this;
         }
 
@@ -320,6 +389,18 @@ public class LoaderOptions
         public Builder ignoreAndInternalPorts(InetAddressAndPort ignore)
         {
             ignores.add(ignore);
+            return this;
+        }
+
+        public Builder targetKeyspace(String keyspace)
+        {
+            this.targetKeyspace = keyspace;
+            return this;
+        }
+
+        public Builder targetTable(String table)
+        {
+            this.targetKeyspace = table;
             return this;
         }
 
@@ -401,22 +482,32 @@ public class LoaderOptions
                     // below 2 checks are needed in order to match the pre-CASSANDRA-15234 upper bound for those parameters which were still in megabits per second
                     if (config.stream_throughput_outbound.toMegabitsPerSecond() >= Integer.MAX_VALUE)
                     {
-                        throw new ConfigurationException("Invalid value of stream_throughput_outbound: " + config.stream_throughput_outbound.toString(), false);
+                        throw new ConfigurationException("stream_throughput_outbound: " + config.stream_throughput_outbound.toString() + " is too large", false);
                     }
 
                     if (config.inter_dc_stream_throughput_outbound.toMegabitsPerSecond() >= Integer.MAX_VALUE)
                     {
-                        throw new ConfigurationException("Invalid value of inter_dc_stream_throughput_outbound: " + config.inter_dc_stream_throughput_outbound.toString(), false);
+                        throw new ConfigurationException("inter_dc_stream_throughput_outbound: " + config.inter_dc_stream_throughput_outbound.toString() + " is too large", false);
+                    }
+
+                    if (config.entire_sstable_stream_throughput_outbound.toMebibytesPerSecond() >= Integer.MAX_VALUE)
+                    {
+                        throw new ConfigurationException("entire_sstable_stream_throughput_outbound: " + config.entire_sstable_stream_throughput_outbound.toString() + " is too large", false);
+                    }
+
+                    if (config.entire_sstable_inter_dc_stream_throughput_outbound.toMebibytesPerSecond() >= Integer.MAX_VALUE)
+                    {
+                        throw new ConfigurationException("entire_sstable_inter_dc_stream_throughput_outbound: " + config.entire_sstable_inter_dc_stream_throughput_outbound.toString() + " is too large", false);
                     }
                 }
                 else
                 {
                     config = new Config();
                     // unthrottle stream by default
-                    config.stream_throughput_outbound = new DataRateSpec.IntMebibytesPerSecondBound(0);
-                    config.inter_dc_stream_throughput_outbound = new DataRateSpec.IntMebibytesPerSecondBound(0);
-                    config.entire_sstable_stream_throughput_outbound = new DataRateSpec.IntMebibytesPerSecondBound(0);
-                    config.entire_sstable_inter_dc_stream_throughput_outbound = new DataRateSpec.IntMebibytesPerSecondBound(0);
+                    config.stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(0);
+                    config.inter_dc_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(0);
+                    config.entire_sstable_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(0);
+                    config.entire_sstable_inter_dc_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound(0);
                 }
 
                 if (cmd.hasOption(STORAGE_PORT_OPTION))
@@ -444,11 +535,12 @@ public class LoaderOptions
                     connectionsPerHost = Integer.parseInt(cmd.getOptionValue(CONNECTIONS_PER_HOST));
                 }
 
+                throttleBytes = config.stream_throughput_outbound.toBytesPerSecondAsInt();
+
                 if (cmd.hasOption(SSL_STORAGE_PORT_OPTION))
-                    sslStoragePort = Integer.parseInt(cmd.getOptionValue(SSL_STORAGE_PORT_OPTION));
-                else
-                    sslStoragePort = config.ssl_storage_port;
-                throttle = config.stream_throughput_outbound.toMebibytesPerSecondAsInt();
+                    logger.info("ssl storage port is deprecated and not used, all communication goes though storage port " +
+                                "which is able to handle encrypted communication too.");
+
                 // Copy the encryption options and apply the config so that argument parsing can accesss isEnabled.
                 clientEncOptions = config.client_encryption_options.applyConfig();
                 serverEncOptions = config.server_encryption_options;
@@ -488,28 +580,48 @@ public class LoaderOptions
                     System.exit(1);
                 }
 
+                if (cmd.hasOption(THROTTLE_MBITS) && cmd.hasOption(THROTTLE_MEBIBYTES))
+                {
+                    errorMsg(String.format("Both '%s' and '%s' were provided. Please only provide one of the two options", THROTTLE_MBITS, THROTTLE_MEBIBYTES), options);
+                }
+
+                if (cmd.hasOption(INTER_DC_THROTTLE_MBITS) && cmd.hasOption(INTER_DC_THROTTLE_MEBIBYTES))
+                {
+                    errorMsg(String.format("Both '%s' and '%s' were provided. Please only provide one of the two options", INTER_DC_THROTTLE_MBITS, INTER_DC_THROTTLE_MEBIBYTES), options);
+                }
+
                 if (cmd.hasOption(THROTTLE_MBITS))
                 {
-                    throttle = Integer.parseInt(cmd.getOptionValue(THROTTLE_MBITS));
+                    throttle(Integer.parseInt(cmd.getOptionValue(THROTTLE_MBITS)));
+                }
+
+                if (cmd.hasOption(THROTTLE_MEBIBYTES))
+                {
+                    throttleMebibytes(Integer.parseInt(cmd.getOptionValue(THROTTLE_MEBIBYTES)));
                 }
 
                 if (cmd.hasOption(INTER_DC_THROTTLE_MBITS))
                 {
-                    interDcThrottle = Integer.parseInt(cmd.getOptionValue(INTER_DC_THROTTLE_MBITS));
+                    interDcThrottleMegabits(Integer.parseInt(cmd.getOptionValue(INTER_DC_THROTTLE_MBITS)));
                 }
 
-                if (cmd.hasOption(ENTIRE_SSTABLE_THROTTLE_MBITS))
+                if (cmd.hasOption(INTER_DC_THROTTLE_MEBIBYTES))
                 {
-                    entireSSTableThrottle = Integer.parseInt(cmd.getOptionValue(ENTIRE_SSTABLE_THROTTLE_MBITS));
+                    interDcThrottleMebibytes(Integer.parseInt(cmd.getOptionValue(INTER_DC_THROTTLE_MEBIBYTES)));
                 }
 
-                if (cmd.hasOption(ENTIRE_SSTABLE_INTER_DC_THROTTLE_MBITS))
+                if (cmd.hasOption(ENTIRE_SSTABLE_THROTTLE_MEBIBYTES))
                 {
-                    entireSSTableInterDcThrottle = Integer.parseInt(cmd.getOptionValue(ENTIRE_SSTABLE_INTER_DC_THROTTLE_MBITS));
+                    entireSSTableThrottleMebibytes(Integer.parseInt(cmd.getOptionValue(ENTIRE_SSTABLE_THROTTLE_MEBIBYTES)));
+                }
+
+                if (cmd.hasOption(ENTIRE_SSTABLE_INTER_DC_THROTTLE_MEBIBYTES))
+                {
+                    entireSSTableInterDcThrottleMebibytes(Integer.parseInt(cmd.getOptionValue(ENTIRE_SSTABLE_INTER_DC_THROTTLE_MEBIBYTES)));
                 }
 
                 if (cmd.hasOption(SSL_TRUSTSTORE) || cmd.hasOption(SSL_TRUSTSTORE_PW) ||
-                            cmd.hasOption(SSL_KEYSTORE) || cmd.hasOption(SSL_KEYSTORE_PW))
+                    cmd.hasOption(SSL_KEYSTORE) || cmd.hasOption(SSL_KEYSTORE_PW))
                 {
                     clientEncOptions = clientEncOptions.withEnabled(true);
                 }
@@ -560,10 +672,16 @@ public class LoaderOptions
                 {
                     targetKeyspace = cmd.getOptionValue(TARGET_KEYSPACE);
                     if (StringUtils.isBlank(targetKeyspace))
-                    {
                         errorMsg("Empty keyspace is not supported.", options);
-                    }
                 }
+
+                if (cmd.hasOption(TARGET_TABLE))
+                {
+                    targetTable = cmd.getOptionValue(TARGET_TABLE);
+                    if (StringUtils.isBlank(targetTable))
+                        errorMsg("Empty table is not supported.", options);
+                }
+
                 return this;
             }
             catch (ParseException | ConfigurationException | MalformedURLException e)
@@ -652,11 +770,13 @@ public class LoaderOptions
         options.addOption("d", INITIAL_HOST_ADDRESS_OPTION, "initial hosts", "Required. try to connect to these hosts (comma separated) initially for ring information");
         options.addOption("p",  NATIVE_PORT_OPTION, "native transport port", "port used for native connection (default 9042)");
         options.addOption("sp",  STORAGE_PORT_OPTION, "storage port", "port used for internode communication (default 7000)");
-        options.addOption("ssp",  SSL_STORAGE_PORT_OPTION, "ssl storage port", "port used for TLS internode communication (default 7001)");
-        options.addOption("t", THROTTLE_MBITS, "throttle", "throttle speed in Mbits (default unlimited)");
-        options.addOption("idct", INTER_DC_THROTTLE_MBITS, "inter-dc-throttle", "inter-datacenter throttle speed in Mbits (default unlimited)");
-        options.addOption("e", ENTIRE_SSTABLE_THROTTLE_MBITS, "entire-sstable-throttle", "entire SSTable throttle speed in Mbits (default unlimited)");
-        options.addOption("eidct", ENTIRE_SSTABLE_INTER_DC_THROTTLE_MBITS, "entire-sstable-inter-dc-throttle", "entire SSTable inter-datacenter throttle speed in Mbits (default unlimited)");
+        options.addOption("ssp",  SSL_STORAGE_PORT_OPTION, "ssl storage port", "port used for TLS internode communication (default 7001), this option is deprecated, all communication goes through storage port which handles encrypted communication as well");
+        options.addOption("t", THROTTLE_MBITS, "throttle", "throttle speed in Mbps (default 0 for unlimited), this option is deprecated, use \"throttle-mib\" instead");
+        options.addOption(null, THROTTLE_MEBIBYTES, "throttle-mib", "throttle speed in MiB/s (default 0 for unlimited)");
+        options.addOption("idct", INTER_DC_THROTTLE_MBITS, "inter-dc-throttle", "inter-datacenter throttle speed in Mbps (default 0 for unlimited), this option is deprecated, use \"inter-dc-throttle-mib\" instead");
+        options.addOption(null, INTER_DC_THROTTLE_MEBIBYTES, "inter-dc-throttle-mib", "inter-datacenter throttle speed in MiB/s (default 0 for unlimited)");
+        options.addOption(null, ENTIRE_SSTABLE_THROTTLE_MEBIBYTES, "entire-sstable-throttle-mib", "entire SSTable throttle speed in MiB/s (default 0 for unlimited)");
+        options.addOption(null, ENTIRE_SSTABLE_INTER_DC_THROTTLE_MEBIBYTES, "entire-sstable-inter-dc-throttle-mib", "entire SSTable inter-datacenter throttle speed in MiB/s (default 0 for unlimited)");
         options.addOption("u", USER_OPTION, "username", "username for cassandra authentication");
         options.addOption("pw", PASSWD_OPTION, "password", "password for cassandra authentication");
         options.addOption("ap", AUTH_PROVIDER_OPTION, "auth provider", "custom AuthProvider class name for cassandra authentication");
@@ -672,6 +792,7 @@ public class LoaderOptions
         options.addOption("ciphers", SSL_CIPHER_SUITES, "CIPHER-SUITES", "Client SSL: comma-separated list of encryption suites to use");
         options.addOption("f", CONFIG_PATH, "path to config file", "cassandra.yaml file path for streaming throughput and client/server SSL.");
         options.addOption("k", TARGET_KEYSPACE, "target keyspace name", "target keyspace name");
+        options.addOption("tb", TARGET_TABLE, "target table name", "target table name");
         return options;
     }
 

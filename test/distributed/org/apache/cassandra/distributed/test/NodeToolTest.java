@@ -116,4 +116,35 @@ public class NodeToolTest extends TestBaseImpl
             ringResult.asserts().stderrContains("is not permitted as this cache is disabled");
         }
     }
+
+    @Test
+    public void testInfoOutput() throws Throwable
+    {
+        try (ICluster<?> cluster = init(builder().withNodes(1).start()))
+        {
+            NodeToolResult ringResult = cluster.get(1).nodetoolResult("info");
+            ringResult.asserts().stdoutContains("ID");
+            ringResult.asserts().stdoutContains("Gossip active");
+            ringResult.asserts().stdoutContains("Native Transport active");
+            ringResult.asserts().stdoutContains("Load");
+            ringResult.asserts().stdoutContains("Uncompressed load");
+            ringResult.asserts().stdoutContains("Generation");
+            ringResult.asserts().stdoutContains("Uptime");
+            ringResult.asserts().stdoutContains("Heap Memory");
+        }
+    }
+
+    @Test
+    public void testVersionIncludesGitSHAWhenVerbose() throws Throwable
+    {
+        NODE.nodetoolResult("version")
+            .asserts()
+            .success()
+            .stdoutNotContains("GitSHA:");
+
+        NODE.nodetoolResult("version", "--verbose")
+            .asserts()
+            .success()
+            .stdoutContains("GitSHA:");
+    }
 }

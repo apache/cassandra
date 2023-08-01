@@ -23,10 +23,13 @@ import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
+
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.InheritingClass;
@@ -99,6 +102,11 @@ public final class MemtableParams
     private static final Map<String, MemtableParams> CONFIGURATIONS = new HashMap<>();
     public static final MemtableParams DEFAULT = get(null);
 
+    public static Set<String> knownDefinitions()
+    {
+        return CONFIGURATION_DEFINITIONS.keySet();
+    }
+
     public static MemtableParams get(String key)
     {
         if (key == null)
@@ -107,6 +115,22 @@ public final class MemtableParams
         synchronized (CONFIGURATIONS)
         {
             return CONFIGURATIONS.computeIfAbsent(key, MemtableParams::parseConfiguration);
+        }
+    }
+
+    public static MemtableParams getWithFallback(String key)
+    {
+        try
+        {
+            return get(key);
+        }
+        catch (ConfigurationException e)
+        {
+            LoggerFactory.getLogger(MemtableParams.class).error("Invalid memtable configuration \"" + key + "\" in schema. " +
+                                                                "Falling back to default to avoid schema mismatch.\n" +
+                                                                "Please ensure the correct definition is given in cassandra.yaml.",
+                                                                e);
+            return new MemtableParams(DEFAULT.factory(), key);
         }
     }
 

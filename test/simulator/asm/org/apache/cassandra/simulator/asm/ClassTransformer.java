@@ -110,6 +110,8 @@ class ClassTransformer extends ClassVisitor implements MethodWriterSink
     private final EnumSet<Flag> flags;
     private final Consumer<String> dependentTypes;
 
+    private boolean updateVisibility = false;
+
     ClassTransformer(int api, String className, EnumSet<Flag> flags, Consumer<String> dependentTypes)
     {
         this(api, new ClassWriter(0), className, flags, null, null, null, null, dependentTypes);
@@ -137,12 +139,58 @@ class ClassTransformer extends ClassVisitor implements MethodWriterSink
         this.methodLogger = MethodLogger.log(api, className);
     }
 
+    public void setUpdateVisibility(boolean updateVisibility)
+    {
+        this.updateVisibility = updateVisibility;
+    }
+
+    /**
+     * Java 11 changed the way that classes defined in the same source file get access to private state (see https://openjdk.org/jeps/181),
+     * rather than trying to adapt to this, this method attempts to make the field/method/class public so that access
+     * is not restricted.
+     */
+    private int makePublic(int access)
+    {
+        if (!updateVisibility)
+            return access;
+        // leave non-user created methods/fields/etc. alone
+        if (contains(access, Opcodes.ACC_BRIDGE) || contains(access, Opcodes.ACC_SYNTHETIC))
+            return access;
+        if (contains(access, Opcodes.ACC_PRIVATE))
+        {
+            access &= ~Opcodes.ACC_PRIVATE;
+            access |= Opcodes.ACC_PUBLIC;
+        }
+        else if (contains(access, Opcodes.ACC_PROTECTED))
+        {
+            access &= ~Opcodes.ACC_PROTECTED;
+            access |= Opcodes.ACC_PUBLIC;
+        }
+        else if (!contains(access, Opcodes.ACC_PUBLIC)) // package-protected
+        {
+            access |= Opcodes.ACC_PUBLIC;
+        }
+        return access;
+    }
+
+    private static boolean contains(int value, int mask)
+    {
+        return (value & mask) != 0;
+    }
+
+    @Override
+    public void visit(int version, int access, String name, String signature, String superName, String[] interfaces)
+    {
+        super.visit(version, makePublic(access), name, signature, superName, interfaces);
+
+    }
+
     @Override
     public FieldVisitor visitField(int access, String name, String descriptor, String signature, Object value)
     {
         if (dependentTypes != null)
             Utils.visitIfRefType(descriptor, dependentTypes);
-        return super.visitField(access, name, descriptor, signature, value);
+        return super.visitField(makePublic(access), name, descriptor, signature, value);
     }
 
     @Override
@@ -176,6 +224,7 @@ class ClassTransformer extends ClassVisitor implements MethodWriterSink
             isToString = true;
         }
 
+        access = makePublic(access);
         MethodVisitor visitor;
         if (flags.contains(MONITORS) && (access & Opcodes.ACC_SYNCHRONIZED) != 0)
         {

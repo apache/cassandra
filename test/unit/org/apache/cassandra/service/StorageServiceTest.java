@@ -21,6 +21,8 @@ package org.apache.cassandra.service;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.google.common.collect.ImmutableMultimap;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -39,12 +41,15 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.locator.ReplicaMultimap;
+import org.apache.cassandra.locator.SimpleSnitch;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.mockito.Mockito;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.awaitility.Awaitility.await;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -169,6 +174,13 @@ public class StorageServiceTest
     }
 
     @Test
+    public void testSetGetSSTablePreemptiveOpenIntervalInMB()
+    {
+        StorageService.instance.setSSTablePreemptiveOpenIntervalInMB(-1);
+        Assert.assertEquals(-1, StorageService.instance.getSSTablePreemptiveOpenIntervalInMB());
+    }
+
+    @Test
     public void testScheduledExecutorsShutdownOnDrain() throws Throwable
     {
         final AtomicInteger numberOfRuns = new AtomicInteger(0);
@@ -189,5 +201,180 @@ public class StorageServiceTest
 
         // fast tasks are shut down as part of the Runtime shutdown hook.
         assertFalse(ScheduledExecutors.scheduledFastTasks.isTerminated());
+    }
+
+    @Test
+    public void testRepairSessionMaximumTreeDepth()
+    {
+        StorageService storageService = StorageService.instance;
+        int previousDepth = storageService.getRepairSessionMaximumTreeDepth();
+        try
+        {
+            Assert.assertEquals(20, storageService.getRepairSessionMaximumTreeDepth());
+            storageService.setRepairSessionMaximumTreeDepth(10);
+            Assert.assertEquals(10, storageService.getRepairSessionMaximumTreeDepth());
+
+            try
+            {
+                storageService.setRepairSessionMaximumTreeDepth(9);
+                fail("Should have received a IllegalArgumentException for depth of 9");
+            }
+            catch (IllegalArgumentException ignored) { }
+            Assert.assertEquals(10, storageService.getRepairSessionMaximumTreeDepth());
+
+            try
+            {
+                storageService.setRepairSessionMaximumTreeDepth(-20);
+                fail("Should have received a IllegalArgumentException for depth of -20");
+            }
+            catch (IllegalArgumentException ignored) { }
+            Assert.assertEquals(10, storageService.getRepairSessionMaximumTreeDepth());
+
+            storageService.setRepairSessionMaximumTreeDepth(22);
+            Assert.assertEquals(22, storageService.getRepairSessionMaximumTreeDepth());
+        }
+        finally
+        {
+            storageService.setRepairSessionMaximumTreeDepth(previousDepth);
+        }
+    }
+
+    @Test
+    public void testColumnIndexSizeInKiB()
+    {
+        StorageService storageService = StorageService.instance;
+        int previousColumnIndexSize = storageService.getColumnIndexSizeInKiB();
+        try
+        {
+            storageService.setColumnIndexSizeInKiB(1024);
+            Assert.assertEquals(1024, storageService.getColumnIndexSizeInKiB());
+
+            try
+            {
+                storageService.setColumnIndexSizeInKiB(2 * 1024 * 1024);
+                fail("Should have received an IllegalArgumentException column_index_size = 2GiB");
+            }
+            catch (IllegalArgumentException ignored) { }
+            Assert.assertEquals(1024, storageService.getColumnIndexSizeInKiB());
+        }
+        finally
+        {
+            storageService.setColumnIndexSizeInKiB(previousColumnIndexSize);
+        }
+    }
+
+    @Test
+    public void testColumnIndexCacheSizeInKiB()
+    {
+        StorageService storageService = StorageService.instance;
+        int previousColumnIndexCacheSize = storageService.getColumnIndexCacheSizeInKiB();
+        try
+        {
+            storageService.setColumnIndexCacheSizeInKiB(1024);
+            Assert.assertEquals(1024, storageService.getColumnIndexCacheSizeInKiB());
+
+            try
+            {
+                storageService.setColumnIndexCacheSizeInKiB(2 * 1024 * 1024);
+                fail("Should have received an IllegalArgumentException column_index_cache_size= 2GiB");
+            }
+            catch (IllegalArgumentException ignored) { }
+            Assert.assertEquals(1024, storageService.getColumnIndexCacheSizeInKiB());
+        }
+        finally
+        {
+            storageService.setColumnIndexCacheSizeInKiB(previousColumnIndexCacheSize);
+        }
+    }
+
+    @Test
+    public void testBatchSizeWarnThresholdInKiB()
+    {
+        StorageService storageService = StorageService.instance;
+        int previousBatchSizeWarnThreshold = storageService.getBatchSizeWarnThresholdInKiB();
+        try
+        {
+            storageService.setBatchSizeWarnThresholdInKiB(1024);
+            Assert.assertEquals(1024, storageService.getBatchSizeWarnThresholdInKiB());
+
+            try
+            {
+                storageService.setBatchSizeWarnThresholdInKiB(2 * 1024 * 1024);
+                fail("Should have received an IllegalArgumentException batch_size_warn_threshold = 2GiB");
+            }
+            catch (IllegalArgumentException ignored) { }
+            Assert.assertEquals(1024, storageService.getBatchSizeWarnThresholdInKiB());
+        }
+        finally
+        {
+            storageService.setBatchSizeWarnThresholdInKiB(previousBatchSizeWarnThreshold);
+        }
+    }
+
+    @Test
+    public void testLocalDatacenterNodesExcludedDuringRebuild()
+    {
+        try
+        {
+            getStorageService().rebuild(DatabaseDescriptor.getLocalDataCenter(), "StorageServiceTest", null, null, true);
+            fail();
+        }
+        catch (IllegalArgumentException e)
+        {
+            Assert.assertEquals("Cannot set source data center to be local data center, when excludeLocalDataCenter flag is set", e.getMessage());
+        }
+    }
+
+    @Test
+    public void testRebuildFailOnNonExistingDatacenter()
+    {
+        String nonExistentDC = "NON_EXISTENT_DC";
+
+        try
+        {
+            getStorageService().rebuild(nonExistentDC, "StorageServiceTest", null, null, true);
+            fail();
+        }
+        catch (IllegalArgumentException ex)
+        {
+            Assert.assertEquals(String.format("Provided datacenter '%s' is not a valid datacenter, available datacenters are: %s",
+                                              nonExistentDC,
+                                              SimpleSnitch.DATA_CENTER_NAME),
+                                ex.getMessage());
+        }
+    }
+
+    @Test
+    public void testRebuildingWithTokensWithoutKeyspace() throws Exception
+    {
+        try
+        {
+            getStorageService().rebuild("datacenter1", null, "123", null);
+            fail();
+        }
+        catch (IllegalArgumentException ex)
+        {
+            assertEquals("Cannot specify tokens without keyspace.", ex.getMessage());
+        }
+    }
+
+    private StorageService getStorageService()
+    {
+        ImmutableMultimap.Builder<String, InetAddressAndPort> builder = ImmutableMultimap.builder();
+        builder.put(SimpleSnitch.DATA_CENTER_NAME, aAddress);
+
+        TokenMetadata.Topology tokenMetadataTopology = Mockito.mock(TokenMetadata.Topology.class);
+        Mockito.when(tokenMetadataTopology.getDatacenterEndpoints()).thenReturn(builder.build());
+
+        TokenMetadata metadata = new TokenMetadata(new SimpleSnitch());
+        TokenMetadata spiedMetadata = Mockito.spy(metadata);
+
+        Mockito.when(spiedMetadata.getTopology()).thenReturn(tokenMetadataTopology);
+
+        StorageService spiedStorageService = Mockito.spy(StorageService.instance);
+        Mockito.when(spiedStorageService.getTokenMetadata()).thenReturn(spiedMetadata);
+        Mockito.when(spiedMetadata.cloneOnlyTokenMap()).thenReturn(spiedMetadata);
+
+        return spiedStorageService;
     }
 }

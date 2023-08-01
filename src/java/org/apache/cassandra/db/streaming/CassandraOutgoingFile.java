@@ -31,9 +31,9 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.OutgoingStream;
-import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamSession;
+import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Ref;
 
@@ -65,7 +65,7 @@ public class CassandraOutgoingFile implements OutgoingStream
 
         this.filename = sstable.getFilename();
         this.shouldStreamEntireSSTable = computeShouldStreamEntireSSTables();
-        ComponentManifest manifest = ComponentManifest.create(sstable.descriptor);
+        ComponentManifest manifest = ComponentManifest.create(sstable);
         this.header = makeHeader(sstable, operation, sections, estimatedKeys, shouldStreamEntireSSTable, manifest);
     }
 
@@ -76,23 +76,20 @@ public class CassandraOutgoingFile implements OutgoingStream
                                                     boolean shouldStreamEntireSSTable,
                                                     ComponentManifest manifest)
     {
-        boolean keepSSTableLevel = operation == StreamOperation.BOOTSTRAP || operation == StreamOperation.REBUILD;
-
         CompressionInfo compressionInfo = sstable.compression
                 ? CompressionInfo.newLazyInstance(sstable.getCompressionMetadata(), sections)
                 : null;
 
         return CassandraStreamHeader.builder()
-                                    .withSSTableFormat(sstable.descriptor.formatType)
                                     .withSSTableVersion(sstable.descriptor.version)
-                                    .withSSTableLevel(keepSSTableLevel ? sstable.getSSTableLevel() : 0)
+                                    .withSSTableLevel(operation.keepSSTableLevel() ? sstable.getSSTableLevel() : 0)
                                     .withEstimatedKeys(estimatedKeys)
                                     .withSections(sections)
                                     .withCompressionInfo(compressionInfo)
                                     .withSerializationHeader(sstable.header.toComponent())
                                     .isEntireSSTable(shouldStreamEntireSSTable)
                                     .withComponentManifest(manifest)
-                                    .withFirstKey(sstable.first)
+                                    .withFirstKey(sstable.getFirst())
                                     .withTableId(sstable.metadata().id)
                                     .build();
     }
@@ -157,7 +154,7 @@ public class CassandraOutgoingFile implements OutgoingStream
             // redistribution, otherwise file sizes recorded in component manifest will be different from actual
             // file sizes.
             // Recreate the latest manifest and hard links for mutatable components in case they are modified.
-            try (ComponentContext context = sstable.runWithLock(ignored -> ComponentContext.create(sstable.descriptor)))
+            try (ComponentContext context = sstable.runWithLock(ignored -> ComponentContext.create(sstable)))
             {
                 CassandraStreamHeader current = makeHeader(sstable, operation, sections, estimatedKeys, true, context.manifest());
                 CassandraStreamHeader.serializer.serialize(current, out, version);

@@ -18,13 +18,16 @@
 
 package org.apache.cassandra.config;
 
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Predicate;
 
 import com.google.common.collect.ImmutableMap;
@@ -40,6 +43,7 @@ import static org.apache.cassandra.config.YamlConfigurationLoader.SYSTEM_PROPERT
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 
@@ -90,24 +94,63 @@ public class YamlConfigurationLoaderTest
         // the reason is that its not a scalar but a complex type (collection type), so the map we use needs to have a collection to match.
         // It is possible that we define a common string representation for these types so they can be written to; this
         // is an issue that SettingsTable may need to worry about.
-        try (WithProperties ignore = new WithProperties(CONFIG_ALLOW_SYSTEM_PROPERTIES.getKey(), "true",
-                                                        SYSTEM_PROPERTY_PREFIX + "storage_port", "123",
-                                                        SYSTEM_PROPERTY_PREFIX + "commitlog_sync", "batch",
-                                                        SYSTEM_PROPERTY_PREFIX + "seed_provider.class_name", "org.apache.cassandra.locator.SimpleSeedProvider",
-//                                                        PROPERTY_PREFIX + "client_encryption_options.cipher_suites", "[\"FakeCipher\"]",
-                                                        SYSTEM_PROPERTY_PREFIX + "client_encryption_options.optional", "false",
-                                                        SYSTEM_PROPERTY_PREFIX + "client_encryption_options.enabled", "true",
-                                                        SYSTEM_PROPERTY_PREFIX + "doesnotexist", "true"
-        ))
+        try (WithProperties ignore = new WithProperties()
+                                     .set(CONFIG_ALLOW_SYSTEM_PROPERTIES, true)
+                                     .with(SYSTEM_PROPERTY_PREFIX + "storage_port", "123",
+                                           SYSTEM_PROPERTY_PREFIX + "commitlog_sync", "batch",
+                                           SYSTEM_PROPERTY_PREFIX + "seed_provider.class_name", "org.apache.cassandra.locator.SimpleSeedProvider",
+                                           SYSTEM_PROPERTY_PREFIX + "client_encryption_options.optional", Boolean.FALSE.toString(),
+                                           SYSTEM_PROPERTY_PREFIX + "client_encryption_options.enabled", Boolean.TRUE.toString(),
+                                           SYSTEM_PROPERTY_PREFIX + "doesnotexist", Boolean.TRUE.toString()))
         {
             Config config = YamlConfigurationLoader.fromMap(Collections.emptyMap(), true, Config.class);
             assertThat(config.storage_port).isEqualTo(123);
             assertThat(config.commitlog_sync).isEqualTo(Config.CommitLogSync.batch);
             assertThat(config.seed_provider.class_name).isEqualTo("org.apache.cassandra.locator.SimpleSeedProvider");
-//            assertThat(config.client_encryption_options.cipher_suites).isEqualTo(Collections.singletonList("FakeCipher"));
             assertThat(config.client_encryption_options.optional).isFalse();
             assertThat(config.client_encryption_options.enabled).isTrue();
         }
+    }
+
+    @Test
+    public void readConvertersSpecialCasesFromConfig()
+    {
+        Config c = load("test/conf/cassandra-converters-special-cases.yaml");
+        assertThat(c.sstable_preemptive_open_interval).isNull();
+        assertThat(c.index_summary_resize_interval).isNull();
+        assertThat(c.cache_load_timeout).isEqualTo(new DurationSpec.IntSecondsBound("0s"));
+
+        c = load("test/conf/cassandra-converters-special-cases-old-names.yaml");
+        assertThat(c.sstable_preemptive_open_interval).isNull();
+        assertThat(c.index_summary_resize_interval).isNull();
+        assertThat(c.cache_load_timeout).isEqualTo(new DurationSpec.IntSecondsBound("0s"));
+    }
+
+    @Test
+    public void readConvertersSpecialCasesFromMap()
+    {
+        Map<String, Object> map = new HashMap<>();
+        map.put("sstable_preemptive_open_interval", null);
+        map.put("index_summary_resize_interval", null);
+        map.put("credentials_update_interval", null);
+
+        Config c = YamlConfigurationLoader.fromMap(map, true, Config.class);
+        assertThat(c.sstable_preemptive_open_interval).isNull();
+        assertThat(c.index_summary_resize_interval).isNull();
+        assertThat(c.credentials_update_interval).isNull();
+
+        map = ImmutableMap.of(
+        "sstable_preemptive_open_interval_in_mb", "-1",
+        "index_summary_resize_interval_in_minutes", "-1",
+        "cache_load_timeout_seconds", "-1",
+        "credentials_update_interval_in_ms", "-1"
+        );
+        c = YamlConfigurationLoader.fromMap(map, Config.class);
+
+        assertThat(c.sstable_preemptive_open_interval).isNull();
+        assertThat(c.index_summary_resize_interval).isNull();
+        assertThat(c.cache_load_timeout).isEqualTo(new DurationSpec.IntSecondsBound("0s"));
+        assertThat(c.credentials_update_interval).isNull();
     }
 
     @Test
@@ -264,8 +307,9 @@ public class YamlConfigurationLoaderTest
 
         // SECONDS_CUSTOM_DURATION already tested in type change
 
-        // MINUTES_DURATION
+        // MINUTES_CUSTOM_DURATION
         assertThat(from("index_summary_resize_interval_in_minutes", "42").index_summary_resize_interval.toMinutes()).isEqualTo(42);
+        assertThat(from("index_summary_resize_interval_in_minutes", "-1").index_summary_resize_interval).isNull();
         assertThatThrownBy(() -> from("index_summary_resize_interval_in_minutes", -2).index_summary_resize_interval.toMinutes())
         .hasRootCauseInstanceOf(IllegalArgumentException.class)
         .hasRootCauseMessage("Invalid duration: value must be non-negative");
@@ -305,11 +349,36 @@ public class YamlConfigurationLoaderTest
         .hasRootCauseInstanceOf(IllegalArgumentException.class)
         .hasRootCauseMessage("Invalid data rate: value must be non-negative");
 
-        // MEGABITS_TO_MEBIBYTES_PER_SECOND_DATA_RATE
+        // MEGABITS_TO_BYTES_PER_SECOND_DATA_RATE
         assertThat(from("stream_throughput_outbound_megabits_per_sec", "42").stream_throughput_outbound.toMegabitsPerSecondAsInt()).isEqualTo(42);
         assertThatThrownBy(() -> from("stream_throughput_outbound_megabits_per_sec", -2).stream_throughput_outbound.toMegabitsPerSecondAsInt())
         .hasRootCauseInstanceOf(IllegalArgumentException.class)
         .hasRootCauseMessage("Invalid data rate: value must be non-negative");
+
+        // NEGATIVE_MEBIBYTES_DATA_STORAGE_INT
+        assertThat(from("sstable_preemptive_open_interval_in_mb", "1").sstable_preemptive_open_interval.toMebibytes()).isEqualTo(1);
+        assertThat(from("sstable_preemptive_open_interval_in_mb", -2).sstable_preemptive_open_interval).isNull();
+
+        // LONG_BYTES_DATASTORAGE_MEBIBYTES_INT
+        assertThat(from("compaction_large_partition_warning_threshold_mb", "42").partition_size_warn_threshold.toMebibytesInt()).isEqualTo(42);
+        assertThatThrownBy(() -> from("compaction_large_partition_warning_threshold_mb", -1).partition_size_warn_threshold.toMebibytesInt())
+        .hasRootCauseInstanceOf(IllegalArgumentException.class)
+        .hasRootCauseMessage("Invalid data storage: value must be non-negative");
+
+        // LONG_BYTES_DATASTORAGE_MEBIBYTES_DATASTORAGE
+        assertThat(from("compaction_large_partition_warning_threshold", "42MiB").partition_size_warn_threshold.toMebibytesInt()).isEqualTo(42);
+        assertThat(from("compaction_large_partition_warning_threshold", "42GiB").partition_size_warn_threshold.toMebibytesInt()).isEqualTo(42 * 1024);
+        assertThatThrownBy(() -> from("compaction_large_partition_warning_threshold", "42B").partition_size_warn_threshold.toBytes())
+        .hasRootCauseInstanceOf(IllegalArgumentException.class)
+        .hasRootCauseMessage("Invalid data storage: 42B Accepted units:[MEBIBYTES, GIBIBYTES]");
+        assertThatThrownBy(() -> from("compaction_large_partition_warning_threshold", -1).partition_size_warn_threshold.toMebibytesInt())
+        .hasRootCauseInstanceOf(IllegalArgumentException.class)
+        .hasRootCauseMessage("Invalid data storage: -1 Accepted units:[MEBIBYTES, GIBIBYTES] where case matters and only non-negative values are accepted");
+
+        // IDENTITY
+        assertThat(from("compaction_tombstone_warning_threshold", "42").partition_tombstones_warn_threshold).isEqualTo(42);
+        assertThat(from("compaction_tombstone_warning_threshold", "-1").partition_tombstones_warn_threshold).isEqualTo(-1);
+        assertThat(from("compaction_tombstone_warning_threshold", "0").partition_tombstones_warn_threshold).isEqualTo(0);
     }
 
     private static Config from(Object... values)
@@ -321,7 +390,41 @@ public class YamlConfigurationLoaderTest
         return YamlConfigurationLoader.fromMap(builder.build(), Config.class);
     }
 
-    private static Config load(String path)
+    @Test
+    public void testBackwardCompatibilityOfInternodeAuthenticatorPropertyAsMap()
+    {
+        Config config = load("cassandra-mtls.yaml");
+        assertEquals(config.internode_authenticator.class_name, "org.apache.cassandra.auth.MutualTlsInternodeAuthenticator");
+        assertFalse(config.internode_authenticator.parameters.isEmpty());
+        assertEquals(config.internode_authenticator.parameters.get("validator_class_name"), "org.apache.cassandra.auth.SpiffeCertificateValidator");
+    }
+
+    @Test
+    public void testBackwardCompatibilityOfInternodeAuthenticatorPropertyAsString()
+    {
+        Config config = load("cassandra-mtls-backward-compatibility.yaml");
+        assertEquals(config.internode_authenticator.class_name, "org.apache.cassandra.auth.AllowAllInternodeAuthenticator");
+        assertTrue(config.internode_authenticator.parameters.isEmpty());
+    }
+
+    @Test
+    public void testBackwardCompatibilityOfAuthenticatorPropertyAsMap()
+    {
+        Config config = load("cassandra-mtls.yaml");
+        assertEquals(config.authenticator.class_name, "org.apache.cassandra.auth.MutualTlsAuthenticator");
+        assertFalse(config.authenticator.parameters.isEmpty());
+        assertEquals(config.authenticator.parameters.get("validator_class_name"), "org.apache.cassandra.auth.SpiffeCertificateValidator");
+    }
+
+    @Test
+    public void testBackwardCompatibilityOfAuthenticatorPropertyAsString() throws IOException, TimeoutException
+    {
+        Config config = load("cassandra-mtls-backward-compatibility.yaml");
+        assertEquals(config.authenticator.class_name, "org.apache.cassandra.auth.AllowAllAuthenticator");
+        assertTrue(config.authenticator.parameters.isEmpty());
+    }
+
+    public static Config load(String path)
     {
         URL url = YamlConfigurationLoaderTest.class.getClassLoader().getResource(path);
         if (url == null)

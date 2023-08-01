@@ -27,6 +27,7 @@ import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 /**
  * Groups both the range of partitions to query, and the clustering index filter to
@@ -136,6 +137,34 @@ public class DataRange
     public PartitionPosition stopKey()
     {
         return keyRange.right;
+    }
+
+    /**
+     * The start of the partition key range queried by this {@code DataRange}.
+     *
+     * @return the start of the partition key range expressed as a ByteComparable.
+     */
+    public ByteComparable startAsByteComparable()
+    {
+        PartitionPosition bound = keyRange.left;
+        if (bound.isMinimum())
+            return null;
+
+        return bound.asComparableBound(keyRange.inclusiveLeft());
+    }
+
+    /**
+     * The end of the partition key range queried by this {@code DataRange}.
+     *
+     * @return the end of the partition key range expressed as a ByteComparable.
+     */
+    public ByteComparable stopAsByteComparable()
+    {
+        PartitionPosition bound = keyRange.right;
+        if (bound.isMinimum())
+            return null;
+
+        return bound.asComparableBound(!keyRange.inclusiveRight());
     }
 
     /**

@@ -46,7 +46,7 @@ import org.apache.cassandra.transport.ProtocolVersion;
 public interface SinglePartitionReadQuery extends ReadQuery
 {
     public static Group<? extends SinglePartitionReadQuery> createGroup(TableMetadata metadata,
-                                                                        int nowInSec,
+                                                                        long nowInSec,
                                                                         ColumnFilter columnFilter,
                                                                         RowFilter rowFilter,
                                                                         DataLimits limits,
@@ -69,12 +69,12 @@ public interface SinglePartitionReadQuery extends ReadQuery
      * @return a newly created read query. The returned query will use no row filter and have no limits.
      */
     public static SinglePartitionReadQuery create(TableMetadata metadata,
-                                                  int nowInSec,
+                                                  long nowInSec,
                                                   DecoratedKey key,
                                                   ColumnFilter columnFilter,
                                                   ClusteringIndexFilter filter)
     {
-        return create(metadata, nowInSec, columnFilter, RowFilter.NONE, DataLimits.NONE, key, filter);
+        return create(metadata, nowInSec, columnFilter, RowFilter.none(), DataLimits.NONE, key, filter);
     }
 
     /**
@@ -91,7 +91,7 @@ public interface SinglePartitionReadQuery extends ReadQuery
      * @return a newly created read query.
      */
     public static SinglePartitionReadQuery create(TableMetadata metadata,
-                                                  int nowInSec,
+                                                  long nowInSec,
                                                   ColumnFilter columnFilter,
                                                   RowFilter rowFilter,
                                                   DataLimits limits,
@@ -161,7 +161,7 @@ public interface SinglePartitionReadQuery extends ReadQuery
     {
         public final List<T> queries;
         private final DataLimits limits;
-        private final int nowInSec;
+        private final long nowInSec;
         private final boolean selectsFullPartitions;
 
         public Group(List<T> queries, DataLimits limits)
@@ -176,7 +176,7 @@ public interface SinglePartitionReadQuery extends ReadQuery
                 assert queries.get(i).nowInSec() == nowInSec;
         }
 
-        public int nowInSec()
+        public long nowInSec()
         {
             return nowInSec;
         }

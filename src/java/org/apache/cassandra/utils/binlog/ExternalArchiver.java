@@ -154,7 +154,7 @@ public class ExternalArchiver implements BinLogArchiver
     {
         if (path == null)
             return;
-        for (File f : path.toFile().listFiles((f) -> f.isFile() && f.getName().endsWith(SingleChronicleQueue.SUFFIX)))
+        for (File f : path.toFile().listFiles((f) -> f.isFile() && f.getName().endsWith(SingleChronicleQueue.SUFFIX))) // checkstyle: permit this invocation
         {
             try
             {

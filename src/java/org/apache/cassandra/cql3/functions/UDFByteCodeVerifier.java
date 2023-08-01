@@ -35,6 +35,8 @@ import org.objectweb.asm.Handle;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 
+import static org.apache.cassandra.utils.FBUtilities.ASM_BYTECODE_VERSION;
+
 /**
  * Verifies Java UDF byte code.
  * Checks for disallowed method calls (e.g. {@code Object.finalize()}),
@@ -47,7 +49,7 @@ public final class UDFByteCodeVerifier
 
     public static final String JAVA_UDF_NAME = JavaUDF.class.getName().replace('.', '/');
     public static final String OBJECT_NAME = Object.class.getName().replace('.', '/');
-    public static final String CTOR_SIG = "(Lorg/apache/cassandra/cql3/functions/types/TypeCodec;[Lorg/apache/cassandra/cql3/functions/types/TypeCodec;Lorg/apache/cassandra/cql3/functions/UDFContext;)V";
+    public static final String CTOR_SIG = "(Lorg/apache/cassandra/cql3/functions/UDFDataType;Lorg/apache/cassandra/cql3/functions/UDFContext;)V";
 
     private final Set<String> disallowedClasses = new HashSet<>();
     private final Multimap<String, String> disallowedMethodCalls = HashMultimap.create();
@@ -84,7 +86,7 @@ public final class UDFByteCodeVerifier
     {
         String clsNameSl = clsName.replace('.', '/');
         Set<String> errors = new TreeSet<>(); // it's a TreeSet for unit tests
-        ClassVisitor classVisitor = new ClassVisitor(Opcodes.ASM7)
+        ClassVisitor classVisitor = new ClassVisitor(ASM_BYTECODE_VERSION)
         {
             public FieldVisitor visitField(int access, String name, String desc, String signature, Object value)
             {
@@ -98,21 +100,21 @@ public final class UDFByteCodeVerifier
                 {
                     if (Opcodes.ACC_PUBLIC != access)
                         errors.add("constructor not public");
-                    // allowed constructor - JavaUDF(TypeCodec returnCodec, TypeCodec[] argCodecs)
+                    // allowed constructor - JavaUDF(UDFDataType returnType, UDFContext udfContext)
                     return new ConstructorVisitor(errors);
                 }
-                if ("executeImpl".equals(name) && "(Lorg/apache/cassandra/transport/ProtocolVersion;Ljava/util/List;)Ljava/nio/ByteBuffer;".equals(desc))
+                if ("executeImpl".equals(name) && "(Lorg/apache/cassandra/cql3/functions/Arguments;)Ljava/nio/ByteBuffer;".equals(desc))
                 {
                     if (Opcodes.ACC_PROTECTED != access)
                         errors.add("executeImpl not protected");
-                    // the executeImpl method - ByteBuffer executeImpl(ProtocolVersion protocolVersion, List<ByteBuffer> params)
+                    // the executeImpl method - ByteBuffer executeImpl(Arguments arguments)
                     return new ExecuteImplVisitor(errors);
                 }
-                if ("executeAggregateImpl".equals(name) && "(Lorg/apache/cassandra/transport/ProtocolVersion;Ljava/lang/Object;Ljava/util/List;)Ljava/lang/Object;".equals(desc))
+                if ("executeAggregateImpl".equals(name) && "(Ljava/lang/Object;Lorg/apache/cassandra/cql3/functions/Arguments;)Ljava/lang/Object;".equals(desc))
                 {
                     if (Opcodes.ACC_PROTECTED != access)
                         errors.add("executeAggregateImpl not protected");
-                    // the executeImpl method - ByteBuffer executeImpl(ProtocolVersion protocolVersion, List<ByteBuffer> params)
+                    // the executeImpl method - ByteBuffer executeImpl(Object state, Arguments arguments)
                     return new ExecuteImplVisitor(errors);
                 }
                 if ("<clinit>".equals(name))
@@ -160,7 +162,7 @@ public final class UDFByteCodeVerifier
 
         ExecuteImplVisitor(Set<String> errors)
         {
-            super(Opcodes.ASM5);
+            super(ASM_BYTECODE_VERSION);
             this.errors = errors;
         }
 
@@ -210,7 +212,7 @@ public final class UDFByteCodeVerifier
 
         ConstructorVisitor(Set<String> errors)
         {
-            super(Opcodes.ASM5);
+            super(ASM_BYTECODE_VERSION);
             this.errors = errors;
         }
 

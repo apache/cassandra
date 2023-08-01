@@ -25,6 +25,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 
@@ -72,8 +74,10 @@ public class EncryptionOptions
      */
     public final ParameterizedClass ssl_context_factory;
     public final String keystore;
+    @Nullable
     public final String keystore_password;
     public final String truststore;
+    @Nullable
     public final String truststore_password;
     public final List<String> cipher_suites;
     protected String protocol;
@@ -147,9 +151,9 @@ public class EncryptionOptions
         ssl_context_factory = new ParameterizedClass("org.apache.cassandra.security.DefaultSslContextFactory",
                                                      new HashMap<>());
         keystore = "conf/.keystore";
-        keystore_password = "cassandra";
+        keystore_password = null;
         truststore = "conf/.truststore";
-        truststore_password = "cassandra";
+        truststore_password = null;
         cipher_suites = null;
         protocol = null;
         accepted_protocols = null;
@@ -608,6 +612,7 @@ public class EncryptionOptions
         @Replaces(oldName = "enable_legacy_ssl_storage_port", deprecated = true)
         public final boolean legacy_ssl_storage_port_enabled;
         public final String outbound_keystore;
+        @Nullable
         public final String outbound_keystore_password;
 
         public ServerEncryptionOptions()
@@ -716,6 +721,43 @@ public class EncryptionOptions
         public boolean isExplicitlyOptional()
         {
             return optional != null && optional;
+        }
+
+        /**
+         * The method is being mainly used to cache SslContexts therefore, we only consider
+         * fields that would make a difference when the TrustStore or KeyStore files are updated
+         */
+        @Override
+        public boolean equals(Object o)
+        {
+            if (o == this)
+                return true;
+            if (o == null || getClass() != o.getClass())
+                return false;
+            if (!super.equals(o))
+                return false;
+
+            ServerEncryptionOptions opt = (ServerEncryptionOptions) o;
+            return internode_encryption == opt.internode_encryption &&
+                   legacy_ssl_storage_port_enabled == opt.legacy_ssl_storage_port_enabled &&
+                   Objects.equals(outbound_keystore, opt.outbound_keystore) &&
+                   Objects.equals(outbound_keystore_password, opt.outbound_keystore_password);
+        }
+
+        /**
+         * The method is being mainly used to cache SslContexts therefore, we only consider
+         * fields that would make a difference when the TrustStore or KeyStore files are updated
+         */
+        @Override
+        public int hashCode()
+        {
+            int result = 0;
+            result += 31 * super.hashCode();
+            result += 31 * (internode_encryption == null ? 0 : internode_encryption.hashCode());
+            result += 31 * Boolean.hashCode(legacy_ssl_storage_port_enabled);
+            result += 31 * (outbound_keystore == null ? 0 : outbound_keystore.hashCode());
+            result += 31 * (outbound_keystore_password == null ? 0 : outbound_keystore_password.hashCode());
+            return result;
         }
 
         public ServerEncryptionOptions withSslContextFactory(ParameterizedClass sslContextFactoryClass)

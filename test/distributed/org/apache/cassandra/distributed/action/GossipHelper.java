@@ -29,10 +29,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.api.IInstance;
@@ -74,6 +74,18 @@ public class GossipHelper
         };
     }
 
+    public static InstanceAction statusToDecommission(IInvokableInstance newNode)
+    {
+        return (instance) ->
+        {
+            changeGossipState(instance,
+                              newNode,
+                              Arrays.asList(tokens(newNode),
+                                            statusLeaving(newNode),
+                                            statusWithPortLeaving(newNode)));
+        };
+    }
+
     public static InstanceAction statusToNormal(IInvokableInstance peer)
     {
         return (target) ->
@@ -95,7 +107,7 @@ public class GossipHelper
      */
     public static void unsafeStatusToNormal(IInvokableInstance target, IInstance peer)
     {
-        int messagingVersion = peer.getMessagingVersion();
+        final int messagingVersion = getOrDefaultMessagingVersion(target, peer);
         changeGossipState(target,
                           peer,
                           Arrays.asList(unsafeVersionedValue(target,
@@ -422,7 +434,7 @@ public class GossipHelper
     {
         InetSocketAddress addr = peer.broadcastAddress();
         UUID hostId = peer.config().hostId();
-        int netVersion = peer.getMessagingVersion();
+        final int netVersion = getOrDefaultMessagingVersion(target, peer);
         target.runOnInstance(() -> {
             InetAddressAndPort endpoint = toCassandraInetAddressAndPort(addr);
             StorageService storageService = StorageService.instance;
@@ -448,25 +460,32 @@ public class GossipHelper
         });
     }
 
-    public static void withProperty(String prop, boolean value, Runnable r)
+    private static int getOrDefaultMessagingVersion(IInvokableInstance target, IInstance peer)
+    {
+        int peerVersion = peer.getMessagingVersion();
+        final int netVersion = peerVersion == 0 ? target.getMessagingVersion() : peerVersion;
+        assert netVersion != 0 : "Unable to determine messaging version for peer {}" + peer.config().num();
+        return netVersion;
+    }
+
+    public static void withProperty(CassandraRelevantProperties prop, boolean value, Runnable r)
     {
         withProperty(prop, Boolean.toString(value), r);
     }
 
-    public static void withProperty(String prop, String value, Runnable r)
+    public static void withProperty(CassandraRelevantProperties prop, String value, Runnable r)
     {
-        String before = System.getProperty(prop);
+        String prev = prop.setString(value);
         try
         {
-            System.setProperty(prop, value);
             r.run();
         }
         finally
         {
-            if (before == null)
-                System.clearProperty(prop);
+            if (prev == null)
+                prop.clearValue(); // checkstyle: suppress nearby 'clearValueSystemPropertyUsage'
             else
-                System.setProperty(prop, before);
+                prop.setString(prev);
         }
     }
 }

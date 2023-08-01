@@ -147,9 +147,8 @@ abstract class MessageGenerator
 
     static Header readHeader(DataInputPlus in, int messagingVersion) throws IOException
     {
-        int length = messagingVersion < VERSION_40
-                     ? in.readInt()
-                     : (int) in.readUnsignedVInt();
+        assert messagingVersion >= VERSION_40;
+        int length = in.readUnsignedVInt32();
         long id = in.readLong();
         if (ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN)
             id = Long.reverseBytes(id);
@@ -159,15 +158,13 @@ abstract class MessageGenerator
 
     static void writeLength(byte[] payload, DataOutputPlus out, int messagingVersion) throws IOException
     {
-        if (messagingVersion < VERSION_40)
-            out.writeInt(payload.length);
-        else
-            out.writeUnsignedVInt(payload.length);
+        assert messagingVersion >= VERSION_40;
+        out.writeUnsignedVInt32(payload.length);
     }
 
-    static long serializedSize(byte[] payload, int messagingVersion)
+    static long serializedSize(byte[] payload)
     {
-        return payload.length + (messagingVersion < VERSION_40 ? 4 : VIntCoding.computeUnsignedVIntSize(payload.length));
+        return payload.length + VIntCoding.computeUnsignedVIntSize(payload.length);
     }
 
     private static final Unsafe unsafe;

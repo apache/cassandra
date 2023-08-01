@@ -76,7 +76,7 @@ public abstract class SimpleBuilders
     {
         protected long timestamp = FBUtilities.timestampMicros();
         protected int ttl = 0;
-        protected int nowInSec = FBUtilities.nowInSeconds();
+        protected long nowInSec = FBUtilities.nowInSeconds();
 
         protected void copyParams(AbstractBuilder<?> other)
         {
@@ -97,7 +97,7 @@ public abstract class SimpleBuilders
             return (T)this;
         }
 
-        public T nowInSec(int nowInSec)
+        public T nowInSec(long nowInSec)
         {
             this.nowInSec = nowInSec;
             return (T)this;
@@ -192,7 +192,7 @@ public abstract class SimpleBuilders
 
         public PartitionUpdate.SimpleBuilder delete()
         {
-            this.partitionDeletion = new DeletionTime(timestamp, nowInSec);
+            this.partitionDeletion = DeletionTime.build(timestamp, nowInSec);
             return this;
         }
 
@@ -201,7 +201,7 @@ public abstract class SimpleBuilders
             if (rangeBuilders == null)
                 rangeBuilders = new ArrayList<>();
 
-            RTBuilder builder = new RTBuilder(metadata.comparator, new DeletionTime(timestamp, nowInSec));
+            RTBuilder builder = new RTBuilder(metadata.comparator, DeletionTime.build(timestamp, nowInSec));
             rangeBuilders.add(builder);
             return builder;
         }
@@ -379,13 +379,13 @@ public abstract class SimpleBuilders
 
             if (value == null)
             {
-                builder.addComplexDeletion(column, new DeletionTime(timestamp, nowInSec));
+                builder.addComplexDeletion(column, DeletionTime.build(timestamp, nowInSec));
                 return this;
             }
 
             // Erase previous entry if any.
             if (overwriteForCollection)
-                builder.addComplexDeletion(column, new DeletionTime(timestamp - 1, nowInSec));
+                builder.addComplexDeletion(column, DeletionTime.build(timestamp - 1, nowInSec));
             switch (((CollectionType)column.type).kind)
             {
                 case LIST:
@@ -417,13 +417,13 @@ public abstract class SimpleBuilders
         public Row.SimpleBuilder delete()
         {
             assert !initiated : "If called, delete() should be called before any other column value addition";
-            builder.addRowDeletion(Row.Deletion.regular(new DeletionTime(timestamp, nowInSec)));
+            builder.addRowDeletion(Row.Deletion.regular(DeletionTime.build(timestamp, nowInSec)));
             return this;
         }
 
         public Row.SimpleBuilder deletePrevious()
         {
-            builder.addRowDeletion(Row.Deletion.regular(new DeletionTime(timestamp - 1, nowInSec)));
+            builder.addRowDeletion(Row.Deletion.regular(DeletionTime.build(timestamp - 1, nowInSec)));
             return this;
         }
 

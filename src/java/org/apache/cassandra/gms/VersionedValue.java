@@ -17,30 +17,32 @@
  */
 package org.apache.cassandra.gms;
 
-import java.io.*;
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Collection;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import static java.nio.charset.StandardCharsets.ISO_8859_1;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
+import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.sstable.format.VersionAndType;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.commons.lang3.StringUtils;
+
+import static java.nio.charset.StandardCharsets.ISO_8859_1;
 
 
 /**
@@ -100,6 +102,12 @@ public class VersionedValue implements Comparable<VersionedValue>
     private VersionedValue(String value)
     {
         this(value, VersionGenerator.getNextVersion());
+    }
+
+    @VisibleForTesting
+    public VersionedValue withVersion(int version)
+    {
+        return new VersionedValue(value, version);
     }
 
     public static VersionedValue unsafeMakeVersionedValue(String value, int version)
@@ -261,6 +269,11 @@ public class VersionedValue implements Comparable<VersionedValue>
             return new VersionedValue(VersionedValue.SHUTDOWN + VersionedValue.DELIMITER + value);
         }
 
+        public VersionedValue indexStatus(String status)
+        {
+            return new VersionedValue(status);
+        }
+
         public VersionedValue datacenter(String dcId)
         {
             return new VersionedValue(dcId);
@@ -318,10 +331,10 @@ public class VersionedValue implements Comparable<VersionedValue>
             return new VersionedValue(String.valueOf(value));
         }
 
-        public VersionedValue sstableVersions(Set<VersionAndType> versions)
+        public VersionedValue sstableVersions(Set<Version> versions)
         {
             return new VersionedValue(versions.stream()
-                                              .map(VersionAndType::toString)
+                                              .map(Version::toFormatAndVersionString)
                                               .collect(Collectors.joining(",")));
         }
     }

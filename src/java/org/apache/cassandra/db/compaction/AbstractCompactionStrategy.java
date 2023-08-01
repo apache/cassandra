@@ -17,34 +17,41 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
-
-import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.SerializationHeader;
-import org.apache.cassandra.index.Index;
-import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
-import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.SSTableMultiWriter;
-import org.apache.cassandra.io.sstable.SimpleSSTableMultiWriter;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.commitlog.CommitLogPosition;
+import org.apache.cassandra.db.commitlog.IntervalSet;
+import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.index.Index;
+import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
+import org.apache.cassandra.io.sstable.SSTableMultiWriter;
+import org.apache.cassandra.io.sstable.SimpleSSTableMultiWriter;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.utils.TimeUUID;
 
-import static org.apache.cassandra.io.sstable.Component.DATA;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 /**
@@ -173,7 +180,7 @@ public abstract class AbstractCompactionStrategy
      *
      * Is responsible for marking its sstables as compaction-pending.
      */
-    public abstract AbstractCompactionTask getNextBackgroundTask(final int gcBefore);
+    public abstract AbstractCompactionTask getNextBackgroundTask(final long gcBefore);
 
     /**
      * @param gcBefore throw away tombstones older than this
@@ -183,7 +190,7 @@ public abstract class AbstractCompactionStrategy
      *
      * Is responsible for marking its sstables as compaction-pending.
      */
-    public abstract Collection<AbstractCompactionTask> getMaximalTask(final int gcBefore, boolean splitOutput);
+    public abstract Collection<AbstractCompactionTask> getMaximalTask(final long gcBefore, boolean splitOutput);
 
     /**
      * @param sstables SSTables to compact. Must be marked as compacting.
@@ -194,9 +201,9 @@ public abstract class AbstractCompactionStrategy
      *
      * Is responsible for marking its sstables as compaction-pending.
      */
-    public abstract AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, final int gcBefore);
+    public abstract AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, final long gcBefore);
 
-    public AbstractCompactionTask getCompactionTask(LifecycleTransaction txn, final int gcBefore, long maxSSTableBytes)
+    public AbstractCompactionTask getCompactionTask(LifecycleTransaction txn, final long gcBefore, long maxSSTableBytes)
     {
         return new CompactionTask(cfs, txn, gcBefore);
     }
@@ -205,6 +212,14 @@ public abstract class AbstractCompactionStrategy
      * @return the number of background tasks estimated to still be needed for this columnfamilystore
      */
     public abstract int getEstimatedRemainingTasks();
+
+    /**
+     * @return the estimated number of background tasks needed, assuming an additional number of SSTables
+     */
+    int getEstimatedRemainingTasks(int additionalSSTables, long additionalBytes)
+    {
+        return getEstimatedRemainingTasks() + (int)Math.ceil((double)additionalSSTables / cfs.getMaximumCompactionThreshold());
+    }
 
     /**
      * @return size in bytes of the largest sstables for this strategy
@@ -239,10 +254,10 @@ public abstract class AbstractCompactionStrategy
      * allow for a more memory efficient solution if we know the sstable don't overlap (see
      * LeveledCompactionStrategy for instance).
      */
-    @SuppressWarnings("resource")
+    @SuppressWarnings({"resource", "RedundantSuppression"})
     public ScannerList getScanners(Collection<SSTableReader> sstables, Collection<Range<Token>> ranges)
     {
-        ArrayList<ISSTableScanner> scanners = new ArrayList<ISSTableScanner>();
+        ArrayList<ISSTableScanner> scanners = new ArrayList<>();
         try
         {
             for (SSTableReader sstable : sstables)
@@ -312,9 +327,6 @@ public abstract class AbstractCompactionStrategy
      *
      * Not called when repair status changes (which is also metadata), because this results in the
      * sstable getting removed from the compaction strategy instance.
-     *
-     * @param oldMetadata
-     * @param sstable
      */
     public void metadataChanged(StatsMetadata oldMetadata, SSTableReader sstable)
     {
@@ -353,7 +365,7 @@ public abstract class AbstractCompactionStrategy
 
             for (int i=0, isize=scanners.size(); i<isize; i++)
             {
-                @SuppressWarnings("resource")
+                @SuppressWarnings({"resource", "RedundantSuppression"})
                 ISSTableScanner scanner = scanners.get(i);
                 compressed += scanner.getCompressedLengthInBytes();
                 uncompressed += scanner.getLengthInBytes();
@@ -384,14 +396,14 @@ public abstract class AbstractCompactionStrategy
      * @param gcBefore time to drop tombstones
      * @return true if given sstable's tombstones are expected to be removed
      */
-    protected boolean worthDroppingTombstones(SSTableReader sstable, int gcBefore)
+    protected boolean worthDroppingTombstones(SSTableReader sstable, long gcBefore)
     {
-        if (disableTombstoneCompactions || CompactionController.NEVER_PURGE_TOMBSTONES || cfs.getNeverPurgeTombstones())
+        if (disableTombstoneCompactions || CompactionController.NEVER_PURGE_TOMBSTONES_PROPERTY_VALUE || cfs.getNeverPurgeTombstones())
             return false;
         // since we use estimations to calculate, there is a chance that compaction will not drop tombstones actually.
         // if that happens we will end up in infinite compaction loop, so first we check enough if enough time has
         // elapsed since SSTable created.
-        if (currentTimeMillis() < sstable.getCreationTimeFor(DATA) + tombstoneCompactionInterval * 1000)
+        if (currentTimeMillis() < sstable.getDataCreationTime() + tombstoneCompactionInterval * 1000)
            return false;
 
         double droppableRatio = sstable.getEstimatedDroppableTombstoneRatio(gcBefore);
@@ -415,16 +427,16 @@ public abstract class AbstractCompactionStrategy
         else
         {
             // what percentage of columns do we expect to compact outside of overlap?
-            if (sstable.getIndexSummarySize() < 2)
+            if (!sstable.isEstimationInformative())
             {
                 // we have too few samples to estimate correct percentage
                 return false;
             }
             // first, calculate estimated keys that do not overlap
             long keys = sstable.estimatedKeys();
-            Set<Range<Token>> ranges = new HashSet<Range<Token>>(overlaps.size());
+            Set<Range<Token>> ranges = new HashSet<>(overlaps.size());
             for (SSTableReader overlap : overlaps)
-                ranges.add(new Range<>(overlap.first.getToken(), overlap.last.getToken()));
+                ranges.add(new Range<>(overlap.getFirst().getToken(), overlap.getLast().getToken()));
             long remainingKeys = keys - sstable.estimatedKeysForRanges(ranges);
             // next, calculate what percentage of columns we have within those keys
             long columns = sstable.getEstimatedCellPerPartitionCount().mean() * remainingKeys;
@@ -517,7 +529,7 @@ public abstract class AbstractCompactionStrategy
     {
         int groupSize = 2;
         List<SSTableReader> sortedSSTablesToGroup = new ArrayList<>(sstablesToGroup);
-        Collections.sort(sortedSSTablesToGroup, SSTableReader.sstableComparator);
+        Collections.sort(sortedSSTablesToGroup, SSTableReader.firstKeyComparator);
 
         Collection<Collection<SSTableReader>> groupedSSTables = new ArrayList<>();
         Collection<SSTableReader> currGroup = new ArrayList<>(groupSize);
@@ -547,12 +559,23 @@ public abstract class AbstractCompactionStrategy
                                                        long repairedAt,
                                                        TimeUUID pendingRepair,
                                                        boolean isTransient,
-                                                       MetadataCollector meta,
+                                                       IntervalSet<CommitLogPosition> commitLogPositions,
+                                                       int sstableLevel,
                                                        SerializationHeader header,
-                                                       Collection<Index> indexes,
+                                                       Collection<Index.Group> indexGroups,
                                                        LifecycleNewTracker lifecycleNewTracker)
     {
-        return SimpleSSTableMultiWriter.create(descriptor, keyCount, repairedAt, pendingRepair, isTransient, cfs.metadata, meta, header, indexes, lifecycleNewTracker);
+        return SimpleSSTableMultiWriter.create(descriptor,
+                                               keyCount,
+                                               repairedAt,
+                                               pendingRepair,
+                                               isTransient,
+                                               cfs.metadata,
+                                               commitLogPositions,
+                                               sstableLevel,
+                                               header,
+                                               indexGroups,
+                                               lifecycleNewTracker, cfs);
     }
 
     public boolean supportsEarlyOpen()

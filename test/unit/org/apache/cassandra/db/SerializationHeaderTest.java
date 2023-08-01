@@ -18,7 +18,16 @@
 
 package org.apache.cassandra.db;
 
+import java.nio.ByteBuffer;
+import java.util.Collections;
+import java.util.concurrent.Callable;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.Supplier;
+
 import com.google.common.io.Files;
+import org.junit.Assert;
+import org.junit.Test;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -38,27 +47,16 @@ import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
-import org.apache.cassandra.io.sstable.format.big.BigFormat;
-import org.apache.cassandra.io.sstable.format.big.BigTableWriter;
+import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
-import org.junit.Assert;
-import org.junit.Test;
-
-import java.nio.ByteBuffer;
-import java.util.Collections;
-import java.util.concurrent.Callable;
-import java.util.function.BiFunction;
-import java.util.function.Function;
-import java.util.function.Supplier;
-
-import org.apache.cassandra.io.util.File;
 
 public class SerializationHeaderTest
 {
-    private static String KEYSPACE = "SerializationHeaderTest";
+    private static final String KEYSPACE = "SerializationHeaderTest";
 
     static
     {
@@ -68,9 +66,8 @@ public class SerializationHeaderTest
     @Test
     public void testWrittenAsDifferentKind() throws Exception
     {
+        SSTableFormat<?, ?> format = DatabaseDescriptor.getSelectedSSTableFormat();
         final String tableName = "testWrittenAsDifferentKind";
-//        final String schemaCqlWithStatic = String.format("CREATE TABLE %s (k int, c int, v int static, PRIMARY KEY(k, c))", tableName);
-//        final String schemaCqlWithRegular = String.format("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY(k, c))", tableName);
         ColumnIdentifier v = ColumnIdentifier.getInterned("v", false);
         TableMetadata schemaWithStatic = TableMetadata.builder(KEYSPACE, tableName)
                 .addPartitionKeyColumn("k", Int32Type.instance)
@@ -87,16 +84,26 @@ public class SerializationHeaderTest
         schemaWithStatic = schemaWithStatic.unbuild().recordColumnDrop(columnRegular, 0L).build();
         schemaWithRegular = schemaWithRegular.unbuild().recordColumnDrop(columnStatic, 0L).build();
 
+        SSTableReader readerWithStatic = null;
+        SSTableReader readerWithRegular = null;
         Supplier<SequenceBasedSSTableId> id = Util.newSeqGen();
         File dir = new File(Files.createTempDir());
         try
         {
             BiFunction<TableMetadata, Function<ByteBuffer, Clustering<?>>, Callable<Descriptor>> writer = (schema, clusteringFunction) -> () -> {
-                Descriptor descriptor = new Descriptor(BigFormat.latestVersion, dir, schema.keyspace, schema.name, id.get(), SSTableFormat.Type.BIG);
+                Descriptor descriptor = new Descriptor(format.getLatestVersion(), dir, schema.keyspace, schema.name, id.get());
 
                 SerializationHeader header = SerializationHeader.makeWithoutStats(schema);
                 try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.WRITE);
-                     SSTableWriter sstableWriter = BigTableWriter.create(TableMetadataRef.forOfflineTools(schema), descriptor, 1, 0L, null, false, 0, header, Collections.emptyList(),  txn))
+                     SSTableWriter sstableWriter = descriptor.getFormat().getWriterFactory()
+                                                             .builder(descriptor)
+                                                             .setTableMetadataRef(TableMetadataRef.forOfflineTools(schema))
+                                                             .setKeyCount(1)
+                                                             .setSerializationHeader(header)
+                                                             .setFlushObservers(Collections.emptyList())
+                                                             .setMetadataCollector(new MetadataCollector(schema.comparator))
+                                                             .addDefaultComponents(Collections.emptySet())
+                                                             .build(txn, null))
                 {
                     ColumnMetadata cd = schema.getColumn(v);
                     for (int i = 0 ; i < 5 ; ++i) {
@@ -114,8 +121,8 @@ public class SerializationHeaderTest
 
             Descriptor sstableWithRegular = writer.apply(schemaWithRegular, BufferClustering::new).call();
             Descriptor sstableWithStatic = writer.apply(schemaWithStatic, value -> Clustering.STATIC_CLUSTERING).call();
-            SSTableReader readerWithStatic = SSTableReader.openNoValidation(sstableWithStatic, TableMetadataRef.forOfflineTools(schemaWithRegular));
-            SSTableReader readerWithRegular = SSTableReader.openNoValidation(sstableWithRegular, TableMetadataRef.forOfflineTools(schemaWithStatic));
+            readerWithStatic = SSTableReader.openNoValidation(null, sstableWithStatic, TableMetadataRef.forOfflineTools(schemaWithRegular));
+            readerWithRegular = SSTableReader.openNoValidation(null, sstableWithRegular, TableMetadataRef.forOfflineTools(schemaWithStatic));
 
             try (ISSTableScanner partitions = readerWithStatic.getScanner()) {
                 for (int i = 0 ; i < 5 ; ++i)
@@ -132,7 +139,7 @@ public class SerializationHeaderTest
                 {
                     UnfilteredRowIterator partition = partitions.next();
                     long value = Int32Type.instance.compose(((Row)partition.next()).getCell(columnRegular).buffer());
-                    Assert.assertEquals(value, (long)i);
+                    Assert.assertEquals(value, i);
                     Assert.assertTrue(partition.staticRow().isEmpty());
                     Assert.assertFalse(partition.hasNext());
                 }
@@ -141,6 +148,10 @@ public class SerializationHeaderTest
         }
         finally
         {
+            if (readerWithStatic != null)
+                readerWithStatic.selfRef().close();
+            if (readerWithRegular != null)
+                readerWithRegular.selfRef().close();
             FileUtils.deleteRecursive(dir);
         }
     }

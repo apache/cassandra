@@ -22,7 +22,6 @@ import java.lang.management.ThreadMXBean;
 import java.net.InetAddress;
 import java.net.URL;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashSet;
@@ -46,8 +45,6 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.CqlBuilder;
-import org.apache.cassandra.cql3.SchemaElement;
-import org.apache.cassandra.cql3.functions.types.DataType;
 import org.apache.cassandra.cql3.functions.types.TypeCodec;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
@@ -67,7 +64,7 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 /**
  * Base class for User Defined Functions.
  */
-public abstract class UDFunction extends AbstractFunction implements ScalarFunction, SchemaElement
+public abstract class UDFunction extends UserFunction implements ScalarFunction
 {
     protected static final Logger logger = LoggerFactory.getLogger(UDFunction.class);
 
@@ -78,8 +75,8 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     protected final String language;
     protected final String body;
 
-    protected final TypeCodec<Object>[] argCodecs;
-    protected final TypeCodec<Object> returnCodec;
+    protected final List<UDFDataType> argumentTypes;
+    protected final UDFDataType resultType;
     protected final boolean calledOnNullInput;
 
     protected final UDFContext udfContext;
@@ -116,6 +113,8 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     "java/time/",
     "java/util/",
     "org/apache/cassandra/cql3/functions/types/",
+    "org/apache/cassandra/cql3/functions/Arguments.class",
+    "org/apache/cassandra/cql3/functions/UDFDataType.class",
     "org/apache/cassandra/cql3/functions/JavaUDF.class",
     "org/apache/cassandra/cql3/functions/UDFContext.class",
     "org/apache/cassandra/exceptions/",
@@ -212,31 +211,22 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
                          String language,
                          String body)
     {
-        this(name, argNames, argTypes, UDHelper.driverTypes(argTypes), returnType,
-             UDHelper.driverType(returnType), calledOnNullInput, language, body);
-    }
-
-    protected UDFunction(FunctionName name,
-                         List<ColumnIdentifier> argNames,
-                         List<AbstractType<?>> argTypes,
-                         DataType[] argDataTypes,
-                         AbstractType<?> returnType,
-                         DataType returnDataType,
-                         boolean calledOnNullInput,
-                         String language,
-                         String body)
-    {
         super(name, argTypes, returnType);
         assert new HashSet<>(argNames).size() == argNames.size() : "duplicate argument names";
         this.argNames = argNames;
         this.language = language;
         this.body = body;
-        this.argCodecs = UDHelper.codecsFor(argDataTypes);
-        this.returnCodec = UDHelper.codecFor(returnDataType);
+        this.argumentTypes = UDFDataType.wrap(argTypes, !calledOnNullInput);
+        this.resultType = UDFDataType.wrap(returnType, !calledOnNullInput);
         this.calledOnNullInput = calledOnNullInput;
         KeyspaceMetadata keyspaceMetadata = Schema.instance.getKeyspaceMetadata(name.keyspace);
-        this.udfContext = new UDFContextImpl(argNames, argCodecs, returnCodec,
-                                             keyspaceMetadata);
+        this.udfContext = new UDFContextImpl(argNames, argumentTypes, resultType, keyspaceMetadata);
+    }
+
+    @Override
+    public Arguments newArguments(ProtocolVersion version)
+    {
+        return FunctionArguments.newInstanceForUdf(version, argumentTypes);
     }
 
     public static UDFunction tryCreate(FunctionName name,
@@ -267,13 +257,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     {
         assertUdfsEnabled(language);
 
-        switch (language)
-        {
-            case "java":
-                return new JavaBasedUDFunction(name, argNames, argTypes, returnType, calledOnNullInput, body);
-            default:
-                return new ScriptBasedUDFunction(name, argNames, argTypes, returnType, calledOnNullInput, language, body);
-        }
+        return new JavaBasedUDFunction(name, argNames, argTypes, returnType, calledOnNullInput, body);
     }
 
     /**
@@ -301,12 +285,14 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
                 return ImmediateExecutor.INSTANCE;
             }
 
-            protected Object executeAggregateUserDefined(ProtocolVersion protocolVersion, Object firstParam, List<ByteBuffer> parameters)
+            @Override
+            protected Object executeAggregateUserDefined(Object firstParam, Arguments arguments)
             {
                 throw broken();
             }
 
-            public ByteBuffer executeUserDefined(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+            @Override
+            public ByteBuffer executeUserDefined(Arguments arguments)
             {
                 throw broken();
             }
@@ -368,28 +354,29 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
         return builder.toString();
     }
 
+    @Override
     public boolean isPure()
     {
         // Right now, we have no way to check if an UDF is pure. Due to that we consider them as non pure to avoid any risk.
         return false;
     }
 
-    public final ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+    @Override
+    public final ByteBuffer execute(Arguments arguments)
     {
         assertUdfsEnabled(language);
 
-        if (!isCallableWrtNullable(parameters))
+        if (!isCallableWrtNullable(arguments))
             return null;
 
         long tStart = nanoTime();
-        parameters = makeEmptyParametersNull(parameters);
 
         try
         {
             // Using async UDF execution is expensive (adds about 100us overhead per invocation on a Core-i7 MBPr).
             ByteBuffer result = DatabaseDescriptor.enableUserDefinedFunctionsThreads()
-                                ? executeAsync(protocolVersion, parameters)
-                                : executeUserDefined(protocolVersion, parameters);
+                                ? executeAsync(arguments)
+                                : executeUserDefined(arguments);
 
             Tracing.trace("Executed UDF {} in {}\u03bcs", name(), (nanoTime() - tStart) / 1000);
             return result;
@@ -407,28 +394,21 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
         }
     }
 
-    /**
-     * Like {@link ScalarFunction#execute(ProtocolVersion, List)} but the first parameter is already in non-serialized form.
-     * Remaining parameters (2nd paramters and all others) are in {@code parameters}.
-     * This is used to prevent superfluous (de)serialization of the state of aggregates.
-     * Means: scalar functions of aggregates are called using this variant.
-     */
-    public final Object executeForAggregate(ProtocolVersion protocolVersion, Object firstParam, List<ByteBuffer> parameters)
+    public final Object executeForAggregate(Object state, Arguments arguments)
     {
         assertUdfsEnabled(language);
 
-        if (!calledOnNullInput && firstParam == null || !isCallableWrtNullable(parameters))
+        if (!calledOnNullInput && state == null || !isCallableWrtNullable(arguments))
             return null;
 
         long tStart = nanoTime();
-        parameters = makeEmptyParametersNull(parameters);
 
         try
         {
             // Using async UDF execution is expensive (adds about 100us overhead per invocation on a Core-i7 MBPr).
             Object result = DatabaseDescriptor.enableUserDefinedFunctionsThreads()
-                                ? executeAggregateAsync(protocolVersion, firstParam, parameters)
-                                : executeAggregateUserDefined(protocolVersion, firstParam, parameters);
+                                ? executeAggregateAsync(state, arguments)
+                                : executeAggregateUserDefined(state, arguments);
             Tracing.trace("Executed UDF {} in {}\u03bcs", name(), (nanoTime() - tStart) / 1000);
             return result;
         }
@@ -449,8 +429,8 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     {
         if (!DatabaseDescriptor.enableUserDefinedFunctions())
             throw new InvalidRequestException("User-defined functions are disabled in cassandra.yaml - set user_defined_functions_enabled=true to enable");
-        if (!"java".equalsIgnoreCase(language) && !DatabaseDescriptor.enableScriptedUserDefinedFunctions())
-            throw new InvalidRequestException("Scripted user-defined functions are disabled in cassandra.yaml - set scripted_user_defined_functions_enabled=true to enable if you are aware of the security risks");
+        if (!"java".equalsIgnoreCase(language))
+            throw new InvalidRequestException("Currently only Java UDFs are available in Cassandra. For more information - CASSANDRA-18252 and CASSANDRA-17281");
     }
 
     static void initializeThread()
@@ -484,29 +464,23 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
         }
     }
 
-    private ByteBuffer executeAsync(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+    private ByteBuffer executeAsync(Arguments arguments)
     {
         ThreadIdAndCpuTime threadIdAndCpuTime = new ThreadIdAndCpuTime();
 
         return async(threadIdAndCpuTime, () -> {
             threadIdAndCpuTime.setup();
-            return executeUserDefined(protocolVersion, parameters);
+            return executeUserDefined(arguments);
         });
     }
 
-    /**
-     * Like {@link #executeAsync(ProtocolVersion, List)} but the first parameter is already in non-serialized form.
-     * Remaining parameters (2nd paramters and all others) are in {@code parameters}.
-     * This is used to prevent superfluous (de)serialization of the state of aggregates.
-     * Means: scalar functions of aggregates are called using this variant.
-     */
-    private Object executeAggregateAsync(ProtocolVersion protocolVersion, Object firstParam, List<ByteBuffer> parameters)
+    private Object executeAggregateAsync(Object state, Arguments arguments)
     {
         ThreadIdAndCpuTime threadIdAndCpuTime = new ThreadIdAndCpuTime();
 
         return async(threadIdAndCpuTime, () -> {
             threadIdAndCpuTime.setup();
-            return executeAggregateUserDefined(protocolVersion, firstParam, parameters);
+            return executeAggregateUserDefined(state, arguments);
         });
     }
 
@@ -585,39 +559,18 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
         }
     }
 
-    private List<ByteBuffer> makeEmptyParametersNull(List<ByteBuffer> parameters)
-    {
-        List<ByteBuffer> r = new ArrayList<>(parameters.size());
-        for (int i = 0; i < parameters.size(); i++)
-        {
-            ByteBuffer param = parameters.get(i);
-            r.add(UDHelper.isNullOrEmpty(argTypes.get(i), param)
-                  ? null : param);
-        }
-        return r;
-    }
-
     protected abstract ExecutorService executor();
 
-    public boolean isCallableWrtNullable(List<ByteBuffer> parameters)
+    public boolean isCallableWrtNullable(Arguments arguments)
     {
-        if (!calledOnNullInput)
-            for (int i = 0; i < parameters.size(); i++)
-                if (UDHelper.isNullOrEmpty(argTypes.get(i), parameters.get(i)))
-                    return false;
-        return true;
+        return calledOnNullInput || !arguments.containsNulls();
     }
 
-    protected abstract ByteBuffer executeUserDefined(ProtocolVersion protocolVersion, List<ByteBuffer> parameters);
+    protected abstract ByteBuffer executeUserDefined(Arguments arguments);
 
-    protected abstract Object executeAggregateUserDefined(ProtocolVersion protocolVersion, Object firstParam, List<ByteBuffer> parameters);
+    protected abstract Object executeAggregateUserDefined(Object firstParam, Arguments arguments);
 
     public boolean isAggregate()
-    {
-        return false;
-    }
-
-    public boolean isNative()
     {
         return false;
     }
@@ -643,38 +596,14 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     }
 
     /**
-     * Used by UDF implementations (both Java code generated by {@link JavaBasedUDFunction}
-     * and script executor {@link ScriptBasedUDFunction}) to convert the C*
-     * serialized representation to the Java object representation.
-     *
-     * @param protocolVersion the native protocol version used for serialization
-     * @param argIndex        index of the UDF input argument
-     */
-    protected Object compose(ProtocolVersion protocolVersion, int argIndex, ByteBuffer value)
-    {
-        return compose(argCodecs, protocolVersion, argIndex, value);
-    }
-
-    protected static Object compose(TypeCodec<Object>[] codecs, ProtocolVersion protocolVersion, int argIndex, ByteBuffer value)
-    {
-        return value == null ? null : UDHelper.deserialize(codecs[argIndex], protocolVersion, value);
-    }
-
-    /**
-     * Used by UDF implementations (both Java code generated by {@link JavaBasedUDFunction}
-     * and script executor {@link ScriptBasedUDFunction}) to convert the Java
+     * Used by UDF implementations (both Java code generated by {@link JavaBasedUDFunction}) to convert the Java
      * object representation for the return value to the C* serialized representation.
      *
      * @param protocolVersion the native protocol version used for serialization
      */
     protected ByteBuffer decompose(ProtocolVersion protocolVersion, Object value)
     {
-        return decompose(returnCodec, protocolVersion, value);
-    }
-
-    protected static ByteBuffer decompose(TypeCodec<Object> codec, ProtocolVersion protocolVersion, Object value)
-    {
-        return value == null ? null : UDHelper.serialize(codec, protocolVersion, value);
+        return resultType.decompose(protocolVersion, value);
     }
 
     @Override
@@ -760,7 +689,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(name, Functions.typeHashCode(argTypes), Functions.typeHashCode(returnType), returnType, language, body);
+        return Objects.hashCode(name, UserFunctions.typeHashCode(argTypes), returnType, language, body);
     }
 
     private static class UDFClassLoader extends ClassLoader

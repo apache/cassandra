@@ -19,7 +19,6 @@
 package org.apache.cassandra.simulator.utils;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.function.Consumer;
 
 import org.apache.cassandra.utils.Throwables;

@@ -1,0 +1,22 @@
+Cassandra Custom SslContextFactory Example
+==========================================
+
+This example shows custom SslContextFactory implementation based on Kubernetes secrets
+For the documentation please refer to the javadocs for `K8SecretsSslContextFactory.java.`
+
+Installation
+-------------
+
+Step 1: Build the Cassandra classes locally
+
+----
+$ cd <cassandra_src_dir>
+$ ant build
+----
+
+Step 2: Run tests for the security examples
+
+----
+$ cd <cassandra_src_dir>/examples/ssl-factory
+$ ant test
+----

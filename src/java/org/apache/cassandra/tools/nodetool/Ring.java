@@ -85,21 +85,29 @@ public class Ring extends NodeToolCmd
         boolean showEffectiveOwnership = true;
 
         // Calculate per-token ownership of the ring
-        Map<String, Float> ownerships;
+        Map<String, Float> ownerships = null;
         try
         {
             ownerships = probe.effectiveOwnershipWithPort(keyspace);
         }
         catch (IllegalStateException ex)
         {
-            ownerships = probe.getOwnershipWithPort();
-            errors.append("Note: ").append(ex.getMessage()).append("%n");
-            showEffectiveOwnership = false;
+            try
+            {
+                ownerships = probe.getOwnershipWithPort();
+                errors.append("Note: ").append(ex.getMessage()).append("%n");
+                showEffectiveOwnership = false;
+            }
+            catch (Exception e)
+            {
+                out.printf("%nError: %s%n", ex.getMessage());
+                System.exit(1);
+            }
         }
         catch (IllegalArgumentException ex)
         {
             out.printf("%nError: %s%n", ex.getMessage());
-            return;
+            System.exit(1);
         }
 
         out.println();
@@ -112,7 +120,7 @@ public class Ring extends NodeToolCmd
             out.println("  To view status related info of a node use \"nodetool status\" instead.\n");
         }
 
-        out.printf("%n  " + errors.toString());
+        out.printf("%n  " + errors);
     }
 
     private void printDc(String format, String dc,
@@ -167,9 +175,7 @@ public class Ring extends NodeToolCmd
             else if (movingNodes.contains(endpoint))
                 state = "Moving";
 
-            String load = loadMap.containsKey(endpoint)
-                          ? loadMap.get(endpoint)
-                          : "?";
+            String load = loadMap.getOrDefault(endpoint, "?");
             String owns = stat.owns != null && showEffectiveOwnership? new DecimalFormat("##0.00%").format(stat.owns) : "?";
             out.printf(format, stat.ipOrDns(printPort), rack, status, state, load, owns, stat.token);
         }

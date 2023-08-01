@@ -41,17 +41,14 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 
-import org.apache.cassandra.Util;
-import org.apache.cassandra.concurrent.ExecutorPlus;
-import org.apache.cassandra.concurrent.FutureTask;
-import org.apache.cassandra.concurrent.ImmediateExecutor;
-import org.apache.cassandra.utils.TimeUUID;
-import org.apache.cassandra.utils.concurrent.Future;
 import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.concurrent.FutureTask;
+import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -78,7 +75,10 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.concurrent.Future;
+import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.utils.concurrent.Transactional;
 
@@ -176,7 +176,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
         Collection<Range<Token>> ranges = new HashSet<>();
         for (SSTableReader sstable : expected)
         {
-            ranges.add(new Range<>(sstable.first.getToken(), sstable.last.getToken()));
+            ranges.add(new Range<>(sstable.getFirst().getToken(), sstable.getLast().getToken()));
         }
 
         PendingAntiCompaction.AcquisitionCallable acquisitionCallable = new PendingAntiCompaction.AcquisitionCallable(cfs, ranges, nextTimeUUID(), 0, 0);
@@ -400,8 +400,8 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
 
         // attempt to anti-compact the sstable in half
         SSTableReader sstable = Iterables.getOnlyElement(cfs.getLiveSSTables());
-        Token left = cfs.getPartitioner().midpoint(sstable.first.getToken(), sstable.last.getToken());
-        Token right = sstable.last.getToken();
+        Token left = cfs.getPartitioner().midpoint(sstable.getFirst().getToken(), sstable.getLast().getToken());
+        Token right = sstable.getLast().getToken();
         CompactionManager.instance.performAnticompaction(result.cfs,
                                                          atEndpoint(Collections.singleton(new Range<>(left, right)), NO_RANGES),
                                                          result.refs, result.txn, sessionID, () -> true);
@@ -665,14 +665,23 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
                 @Override
                 public boolean apply(SSTableReader sstable)
                 {
-                    cdl.countDown();
-                    if (cdl.getCount() > 0)
-                        throw new PendingAntiCompaction.SSTableAcquisitionException("blah");
                     return true;
                 }
             };
+
             CompactionManager.instance.active.beginCompaction(holder);
-            PendingAntiCompaction.AcquisitionCallable acquisitionCallable = new PendingAntiCompaction.AcquisitionCallable(cfs, nextTimeUUID(), 10, 1, acp);
+            PendingAntiCompaction.AcquisitionCallable acquisitionCallable = new PendingAntiCompaction.AcquisitionCallable(cfs, nextTimeUUID(), 10, 1, acp)
+            {
+                protected PendingAntiCompaction.AcquireResult acquireSSTables()
+                {
+                    cdl.countDown();
+                    if (cdl.getCount() > 0)
+                        throw new PendingAntiCompaction.SSTableAcquisitionException("blah");
+                    else
+                        CompactionManager.instance.active.finishCompaction(holder);
+                    return super.acquireSSTables();
+                }
+            };
             Future f = es.submit(acquisitionCallable);
             cdl.await();
             assertNotNull(f.get());

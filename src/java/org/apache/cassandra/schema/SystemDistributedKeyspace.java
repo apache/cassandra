@@ -31,6 +31,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Joiner;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
@@ -93,6 +94,8 @@ public final class SystemDistributedKeyspace
 
     public static final String PARTITION_DENYLIST_TABLE = "partition_denylist";
 
+    public static final Set<String> TABLE_NAMES = ImmutableSet.of(REPAIR_HISTORY, PARENT_REPAIR_HISTORY, VIEW_BUILD_STATUS, PARTITION_DENYLIST_TABLE);
+    
     private static final TableMetadata RepairHistory =
         parse(REPAIR_HISTORY,
                 "Repair history",
@@ -174,7 +177,7 @@ public final class SystemDistributedKeyspace
     {
         Collection<Range<Token>> ranges = options.getRanges();
         String query = "INSERT INTO %s.%s (parent_id, keyspace_name, columnfamily_names, requested_ranges, started_at,          options)"+
-                                 " VALUES (%s,        '%s',          { '%s' },           { '%s' },          toTimestamp(now()), { %s })";
+                                 " VALUES (%s,        '%s',          { '%s' },           { '%s' },          to_timestamp(now()), { %s })";
         String fmtQry = format(query,
                                       SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
                                       PARENT_REPAIR_HISTORY,
@@ -206,7 +209,7 @@ public final class SystemDistributedKeyspace
 
     public static void failParentRepair(TimeUUID parent_id, Throwable t)
     {
-        String query = "UPDATE %s.%s SET finished_at = toTimestamp(now()), exception_message=?, exception_stacktrace=? WHERE parent_id=%s";
+        String query = "UPDATE %s.%s SET finished_at = to_timestamp(now()), exception_message=?, exception_stacktrace=? WHERE parent_id=%s";
 
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
@@ -218,7 +221,7 @@ public final class SystemDistributedKeyspace
 
     public static void successfulParentRepair(TimeUUID parent_id, Collection<Range<Token>> successfulRanges)
     {
-        String query = "UPDATE %s.%s SET finished_at = toTimestamp(now()), successful_ranges = {'%s'} WHERE parent_id=%s";
+        String query = "UPDATE %s.%s SET finished_at = to_timestamp(now()), successful_ranges = {'%s'} WHERE parent_id=%s";
         String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, PARENT_REPAIR_HISTORY, Joiner.on("','").join(successfulRanges), parent_id.toString());
         processSilent(fmtQuery);
     }
@@ -241,10 +244,10 @@ public final class SystemDistributedKeyspace
 
         String query =
                 "INSERT INTO %s.%s (keyspace_name, columnfamily_name, id, parent_id, range_begin, range_end, coordinator, coordinator_port, participants, participants_v2, status, started_at) " +
-                        "VALUES (   '%s',          '%s',              %s, %s,        '%s',        '%s',      '%s',        %d,               { '%s' },     { '%s' },        '%s',   toTimestamp(now()))";
+                        "VALUES (   '%s',          '%s',              %s, %s,        '%s',        '%s',      '%s',        %d,               { '%s' },     { '%s' },        '%s',   to_timestamp(now()))";
         String queryWithoutNewColumns =
                 "INSERT INTO %s.%s (keyspace_name, columnfamily_name, id, parent_id, range_begin, range_end, coordinator, participants, status, started_at) " +
-                        "VALUES (   '%s',          '%s',              %s, %s,        '%s',        '%s',      '%s',               { '%s' },        '%s',   toTimestamp(now()))";
+                        "VALUES (   '%s',          '%s',              %s, %s,        '%s',        '%s',      '%s',               { '%s' },        '%s',   to_timestamp(now()))";
 
         for (String cfname : cfnames)
         {
@@ -292,7 +295,7 @@ public final class SystemDistributedKeyspace
 
     public static void successfulRepairJob(TimeUUID id, String keyspaceName, String cfname)
     {
-        String query = "UPDATE %s.%s SET status = '%s', finished_at = toTimestamp(now()) WHERE keyspace_name = '%s' AND columnfamily_name = '%s' AND id = %s";
+        String query = "UPDATE %s.%s SET status = '%s', finished_at = to_timestamp(now()) WHERE keyspace_name = '%s' AND columnfamily_name = '%s' AND id = %s";
         String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, REPAIR_HISTORY,
                                         RepairState.SUCCESS.toString(),
                                         keyspaceName,
@@ -303,7 +306,7 @@ public final class SystemDistributedKeyspace
 
     public static void failedRepairJob(TimeUUID id, String keyspaceName, String cfname, Throwable t)
     {
-        String query = "UPDATE %s.%s SET status = '%s', finished_at = toTimestamp(now()), exception_message=?, exception_stacktrace=? WHERE keyspace_name = '%s' AND columnfamily_name = '%s' AND id = %s";
+        String query = "UPDATE %s.%s SET status = '%s', finished_at = to_timestamp(now()), exception_message=?, exception_stacktrace=? WHERE keyspace_name = '%s' AND columnfamily_name = '%s' AND id = %s";
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
         t.printStackTrace(pw);

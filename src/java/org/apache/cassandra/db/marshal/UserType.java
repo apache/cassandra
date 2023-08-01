@@ -36,10 +36,12 @@ import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.UserTypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.utils.Pair;
 
 import static com.google.common.collect.Iterables.any;
 import static com.google.common.collect.Iterables.transform;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TYPE_UDT_CONFLICT_BEHAVIOR;
 import static org.apache.cassandra.cql3.ColumnIdentifier.maybeQuote;
 
 /**
@@ -211,7 +213,7 @@ public class UserType extends TupleType implements SchemaElement
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
         if (parsed instanceof String)
-            parsed = Json.decodeJson((String) parsed);
+            parsed = JsonUtils.decodeJson((String) parsed);
 
         if (!(parsed instanceof Map))
             throw new MarshalException(String.format(
@@ -219,7 +221,7 @@ public class UserType extends TupleType implements SchemaElement
 
         Map<String, Object> map = (Map<String, Object>) parsed;
 
-        Json.handleCaseSensitivity(map);
+        JsonUtils.handleCaseSensitivity(map);
 
         List<Term> terms = new ArrayList<>(types.size());
 
@@ -258,7 +260,7 @@ public class UserType extends TupleType implements SchemaElement
     @Override
     public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
-        ByteBuffer[] buffers = split(buffer);
+        ByteBuffer[] buffers = split(ByteBufferAccessor.instance, buffer);
         StringBuilder sb = new StringBuilder("{");
         for (int i = 0; i < types.size(); i++)
         {
@@ -270,7 +272,7 @@ public class UserType extends TupleType implements SchemaElement
                 name = "\"" + name + "\"";
 
             sb.append('"');
-            sb.append(Json.quoteAsJsonString(name));
+            sb.append(JsonUtils.quoteAsJsonString(name));
             sb.append("\": ");
 
             ByteBuffer valueBuffer = (i >= buffers.length) ? null : buffers[i];
@@ -285,10 +287,13 @@ public class UserType extends TupleType implements SchemaElement
     @Override
     public UserType freeze()
     {
-        if (isMultiCell)
-            return new UserType(keyspace, name, fieldNames, fieldTypes(), false);
-        else
-            return this;
+        return isMultiCell ? new UserType(keyspace, name, fieldNames, fieldTypes(), false) : this;
+    }
+
+    @Override
+    public UserType unfreeze()
+    {
+        return isMultiCell ? this : new UserType(keyspace, name, fieldNames, fieldTypes(), true);
     }
 
     @Override
@@ -495,7 +500,7 @@ public class UserType extends TupleType implements SchemaElement
                 builder.append(",")
                        .newLine();
 
-            builder.append(fieldNameAsString(i))
+            builder.appendQuotingIfNeeded(fieldNameAsString(i))
                    .append(' ')
                    .append(fieldType(i));
         }
@@ -522,18 +527,16 @@ public class UserType extends TupleType implements SchemaElement
             {
 
                 throw new AssertionError(String.format("Duplicate names found in UDT %s.%s for column %s; " +
-                                                       "to resolve set -D" + UDT_CONFLICT_BEHAVIOR + "=LOG on startup and remove the type",
-                                                       maybeQuote(keyspace), maybeQuote(name), maybeQuote(fieldName)));
+                                                       "to resolve set -D%s=LOG on startup and remove the type",
+                                                       maybeQuote(keyspace), maybeQuote(name), maybeQuote(fieldName), TYPE_UDT_CONFLICT_BEHAVIOR.getKey()));
             }
         };
-
-        private static final String UDT_CONFLICT_BEHAVIOR = "cassandra.type.udt.conflict_behavior";
 
         abstract void onConflict(String keyspace, String name, String fieldName);
 
         static ConflictBehavior get()
         {
-            String value = System.getProperty(UDT_CONFLICT_BEHAVIOR, REJECT.name());
+            String value = TYPE_UDT_CONFLICT_BEHAVIOR.getString(REJECT.name());
             return ConflictBehavior.valueOf(value);
         }
     }

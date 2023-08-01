@@ -21,14 +21,14 @@ public interface DeletionPurger
 {
     public static final DeletionPurger PURGE_ALL = (ts, ldt) -> true;
 
-    public boolean shouldPurge(long timestamp, int localDeletionTime);
+    public boolean shouldPurge(long timestamp, long localDeletionTime);
 
     public default boolean shouldPurge(DeletionTime dt)
     {
         return !dt.isLive() && shouldPurge(dt.markedForDeleteAt(), dt.localDeletionTime());
     }
 
-    public default boolean shouldPurge(LivenessInfo liveness, int nowInSec)
+    public default boolean shouldPurge(LivenessInfo liveness, long nowInSec)
     {
         return !liveness.isLive(nowInSec) && shouldPurge(liveness.timestamp(), liveness.localExpirationTime());
     }

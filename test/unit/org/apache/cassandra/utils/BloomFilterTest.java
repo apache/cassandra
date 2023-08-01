@@ -18,10 +18,7 @@
 */
 package org.apache.cassandra.utils;
 
-import org.apache.cassandra.io.util.*;
-
 import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.HashSet;
@@ -29,10 +26,20 @@ import java.util.Iterator;
 import java.util.Random;
 import java.util.Set;
 
-import org.junit.*;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Ignore;
+import org.junit.Test;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
+import org.apache.cassandra.io.util.FileOutputStreamPlus;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.IFilter.FilterKey;
 import org.apache.cassandra.utils.KeyGenerator.RandomStringGenerator;
 import org.apache.cassandra.utils.obs.IBitSet;
@@ -55,11 +62,11 @@ public class BloomFilterTest
         }
         else
         {
-            BloomFilterSerializer.serialize((BloomFilter) f, out);
+            BloomFilterSerializer.forVersion(false).serialize((BloomFilter) f, out);
         }
 
         ByteArrayInputStream in = new ByteArrayInputStream(out.getData(), 0, out.getLength());
-        IFilter f2 = BloomFilterSerializer.deserialize(new DataInputStream(in), oldBfFormat);
+        IFilter f2 = BloomFilterSerializer.forVersion(oldBfFormat).deserialize(Util.DataInputStreamPlusImpl.wrap(in));
 
         assert f2.isPresent(FilterTestHelper.bytes("a"));
         assert !f2.isPresent(FilterTestHelper.bytes("b"));
@@ -210,13 +217,14 @@ public class BloomFilterTest
         File file = FileUtils.createDeletableTempFile("bloomFilterTest-", ".dat");
         BloomFilter filter = (BloomFilter) FilterFactory.getFilter(((long) Integer.MAX_VALUE / 8) + 1, 0.01d);
         filter.add(FilterTestHelper.wrap(test));
-        DataOutputStreamPlus out = new FileOutputStreamPlus(file);
-        BloomFilterSerializer.serialize(filter, out);
+        FileOutputStreamPlus out = file.newOutputStream(File.WriteMode.OVERWRITE);
+        BloomFilterSerializer serializer = BloomFilterSerializer.forVersion(false);
+        serializer.serialize(filter, out);
         out.close();
         filter.close();
 
-        DataInputStream in = new DataInputStream(new FileInputStreamPlus(file));
-        BloomFilter filter2 = BloomFilterSerializer.deserialize(in, false);
+        FileInputStreamPlus in = file.newInputStream();
+        BloomFilter filter2 = BloomFilterSerializer.forVersion(false).deserialize(in);
         Assert.assertTrue(filter2.isPresent(FilterTestHelper.wrap(test)));
         FileUtils.closeQuietly(in);
         filter2.close();

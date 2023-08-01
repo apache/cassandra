@@ -1,0 +1,220 @@
+= Liberating cassandra.yaml Parameters' Names from Their Units
+
+== Objective
+
+Three big things happened as part of https://issues.apache.org/jira/browse/CASSANDRA-15234[CASSANDRA-15234]:
+
+1) Renaming of parameters in `cassandra.yaml` to follow the form `noun_verb`.
+
+2) Liberating `cassandra.yaml` parameters from their units (DataStorage, DataRate and Duration) and introducing temporary smallest accepted unit per parameter (only for DataStorage and Duration ones)
+
+3) Backward compatibility framework to support the old names and lack of units support until at least the next major release.
+
+
+== Renamed Parameters
+
+The community has decided to allow operators to specify units for Cassandra parameters of types duration, data storage, and data rate.
+All parameters which had a particular unit (most of the time added as a suffix to their name) can be now set by using the format [value][unit]. The unit suffix has been removed from their names.
+Supported units:
+[cols=",",options="header",]
+|===
+|Parameter Type |Units Supported
+|Duration | d, h, m, s, ms, us, µs, ns
+|Data Storage | B, KiB, MiB, GiB
+|Data Rate | B/s, MiB/s, KiB/s
+|===
+
+
+*Example*:
+
+Old name and value format:
+....
+permissions_update_interval_ms: 0
+....
+New name and possible value formats:
+....
+permissions_update_interval: 0ms
+permissions_update_interval: 0s
+permissions_update_interval: 0d
+permissions_update_interval: 0us
+permissions_update_interval: 0µs
+....
+
+The work in https://issues.apache.org/jira/browse/CASSANDRA-15234[CASSANDRA-15234] was already quite big, so we decided
+to introduce the notion of the smallest allowed unit per parameter for duration and data storage parameters. What does this mean?
+Cassandra's internals still use the old units for parameters. If, for example, seconds are used internally, but you want
+to add a value in nanoseconds in `cassandra.yaml`, you will get a configuration exception that contains the following information:
+....
+Accepted units: seconds, minutes, hours, days.
+....
+
+Why was this needed?
+Because we can run into precision issues. The full solution to the problem is to convert internally all parameters’ values
+to be manipulated with the smallest supported by Cassandra unit. A series of tickets to assess and maybe migrate to the smallest unit
+our parameters (incrementally, post https://issues.apache.org/jira/browse/CASSANDRA-15234[CASSANDRA-15234]) will be opened in the future.
+
+
+[cols=",,",options="header",]
+|===
+|Old Name |New Name |The Smallest Supported Unit
+|permissions_validity_in_ms |permissions_validity |ms
+|permissions_update_interval_in_ms |permissions_update_interval |ms
+|roles_validity_in_ms |roles_validity |ms
+|roles_update_interval_in_ms |roles_update_interval |ms
+|credentials_validity_in_ms |credentials_validity |ms
+|credentials_update_interval_in_ms |credentials_update_interval |ms
+|max_hint_window_in_ms |max_hint_window |ms
+|native_transport_idle_timeout_in_ms |native_transport_idle_timeout |ms
+|request_timeout_in_ms |request_timeout |ms
+|read_request_timeout_in_ms |read_request_timeout |ms
+|range_request_timeout_in_ms |range_request_timeout |ms
+|write_request_timeout_in_ms |write_request_timeout |ms
+|counter_write_request_timeout_in_ms |counter_write_request_timeout |ms
+|cas_contention_timeout_in_ms |cas_contention_timeout |ms
+|truncate_request_timeout_in_ms |truncate_request_timeout |ms
+|streaming_keep_alive_period_in_secs |streaming_keep_alive_period |s
+|cross_node_timeout |internode_timeout |-
+|slow_query_log_timeout_in_ms |slow_query_log_timeout |ms
+|memtable_heap_space_in_mb |memtable_heap_space |MiB
+|memtable_offheap_space_in_mb |memtable_offheap_space |MiB
+|repair_session_space_in_mb |repair_session_space |MiB
+|internode_max_message_size_in_bytes |internode_max_message_size |B
+|internode_send_buff_size_in_bytes |internode_socket_send_buffer_size |B
+|internode_socket_send_buffer_size_in_bytes |internode_socket_send_buffer_size |B
+|internode_socket_receive_buffer_size_in_bytes |internode_socket_receive_buffer_size |B
+|internode_recv_buff_size_in_bytes |internode_socket_receive_buffer_size |B
+|internode_application_send_queue_capacity_in_bytes |internode_application_send_queue_capacity |B
+|internode_application_send_queue_reserve_endpoint_capacity_in_bytes |internode_application_send_queue_reserve_endpoint_capacity |B
+|internode_application_send_queue_reserve_global_capacity_in_bytes |internode_application_send_queue_reserve_global_capacity |B
+|internode_application_receive_queue_capacity_in_bytes |internode_application_receive_queue_capacity |B
+|internode_application_receive_queue_reserve_endpoint_capacity_in_bytes |internode_application_receive_queue_reserve_endpoint_capacity |B
+|internode_application_receive_queue_reserve_global_capacity_in_bytes |internode_application_receive_queue_reserve_global_capacity |B
+|internode_tcp_connect_timeout_in_ms |internode_tcp_connect_timeout |ms
+|internode_tcp_user_timeout_in_ms |internode_tcp_user_timeout |ms
+|internode_streaming_tcp_user_timeout_in_ms |internode_streaming_tcp_user_timeout |ms
+|native_transport_max_frame_size_in_mb |native_transport_max_frame_size |MiB
+|max_value_size_in_mb |max_value_size |MiB
+|column_index_size_in_kb |column_index_size |KiB
+|column_index_cache_size_in_kb |column_index_cache_size |KiB
+|batch_size_warn_threshold_in_kb |batch_size_warn_threshold |KiB
+|batch_size_fail_threshold_in_kb |batch_size_fail_threshold |KiB
+|compaction_throughput_mb_per_sec |compaction_throughput |MiB/s
+|compaction_large_partition_warning_threshold_mb |compaction_large_partition_warning_threshold |MiB
+|min_free_space_per_drive_in_mb |min_free_space_per_drive |MiB
+|stream_throughput_outbound_megabits_per_sec |stream_throughput_outbound |MiB/s
+|inter_dc_stream_throughput_outbound_megabits_per_sec |inter_dc_stream_throughput_outbound |MiB/s
+|commitlog_total_space_in_mb |commitlog_total_space |MiB
+|commitlog_sync_group_window_in_ms |commitlog_sync_group_window |ms
+|commitlog_sync_period_in_ms |commitlog_sync_period |ms
+|commitlog_segment_size_in_mb |commitlog_segment_size |MiB
+|periodic_commitlog_sync_lag_block_in_ms |periodic_commitlog_sync_lag_block |ms
+|max_mutation_size_in_kb |max_mutation_size |KiB
+|cdc_total_space_in_mb |cdc_total_space |MiB
+|cdc_free_space_check_interval_ms |cdc_free_space_check_interval |ms
+|dynamic_snitch_update_interval_in_ms |dynamic_snitch_update_interval |ms
+|dynamic_snitch_reset_interval_in_ms |dynamic_snitch_reset_interval |ms
+|hinted_handoff_throttle_in_kb |hinted_handoff_throttle |KiB
+|batchlog_replay_throttle_in_kb |batchlog_replay_throttle |KiB
+|hints_flush_period_in_ms |hints_flush_period |ms
+|max_hints_file_size_in_mb |max_hints_file_size |MiB
+|trickle_fsync_interval_in_kb |trickle_fsync_interval |KiB
+|sstable_preemptive_open_interval_in_mb |sstable_preemptive_open_interval |MiB
+|key_cache_size_in_mb |key_cache_size |MiB
+|row_cache_size_in_mb |row_cache_size |MiB
+|counter_cache_size_in_mb |counter_cache_size |MiB
+|networking_cache_size_in_mb |networking_cache_size |MiB
+|file_cache_size_in_mb |file_cache_size |MiB
+|index_summary_capacity_in_mb |index_summary_capacity |MiB
+|index_summary_resize_interval_in_minutes |index_summary_resize_interval |m
+|gc_log_threshold_in_ms |gc_log_threshold |ms
+|gc_warn_threshold_in_ms |gc_warn_threshold |ms
+|tracetype_query_ttl |trace_type_query_ttl |s
+|tracetype_repair_ttl |trace_type_repair_ttl |s
+|prepared_statements_cache_size_mb |prepared_statements_cache_size |MiB
+|enable_user_defined_functions |user_defined_functions_enabled |-
+|enable_scripted_user_defined_functions |scripted_user_defined_functions_enabled |-
+|enable_materialized_views |materialized_views_enabled |-
+|enable_transient_replication |transient_replication_enabled |-
+|enable_sasi_indexes |sasi_indexes_enabled |-
+|enable_drop_compact_storage |drop_compact_storage_enabled |-
+|enable_user_defined_functions_threads |user_defined_functions_threads_enabled |-
+|enable_legacy_ssl_storage_port |legacy_ssl_storage_port_enabled |-
+|user_defined_function_fail_timeout |user_defined_functions_fail_timeout |ms
+|user_defined_function_warn_timeout |user_defined_functions_warn_timeout |ms
+|cache_load_timeout_seconds |cache_load_timeout |s
+|===
+
+Another TO DO is to add JMX methods supporting the new format. However, we may abandon this if virtual tables support
+configuration changes in the near future.
+
+*Notes for Cassandra Developers*:
+
+- Most of our parameters are already moved to the new framework as part of https://issues.apache.org/jira/browse/CASSANDRA-15234[CASSANDRA-15234].
+`@Replaces` is the annotation to be used when you make changes to any configuration parameters in `Config` class and `cassandra.yaml`, and you want to add backward
+compatibility with previous Cassandra versions. `Converters` class enumerates the different methods used for backward compatibility.
+`IDENTITY` is the one used for name change only. For more information about the other Converters, please, check the JavaDoc in the class.
+For backward compatibility virtual table `Settings` contains both the old and the new
+parameters with the old and the new value format. Only exception at the moment are the following three parameters: `key_cache_save_period`,
+`row_cache_save_period` and `counter_cache_save_period` which appear only once with the new value format.
+The old names and value format still can be used at least until the next major release. Deprecation warning is emitted on startup.
+If the parameter is of type duration, data rate or data storage, its value should be accompanied by a unit when new name is used.
+
+- Please follow the new format `noun_verb` when adding new configuration parameters.
+
+- Please consider adding any new parameters with the lowest supported by Cassandra unit when possible. Our new types also
+support long and integer upper bound, depending on your needs. All options for configuration parameters' types are nested
+classes in our three main abstract classes - `DurationSpec`, `DataStorageSpec`, `DataRateSpec`.
+
+- If for some reason you consider the smallest unit for a new parameter shouldn’t be the one that is supported as such in
+Cassandra, you can use the rest of the nested classes in `DurationSpec`, `DataStorageSpec`. The smallest allowed unit is
+the one we use internally for the property, so we don't have to do conversions to bigger units which will lead to precision
+problems. This is a problem only with `DurationSpec` and `DataStorageSpec`. `DataRateSpec` is handled internally in double.
+
+- New parameters should be added as non-negative numbers. For parameters where you would have set -1 to disable in the past, you might
+want to consider a separate flag parameter or null value. In case you use the null value, please, ensure that any default value
+introduced in the DatabaseDescriptor to handle it is also duplicated in any related setters.
+
+- Parameters of type data storage, duration and data rate cannot be set to Long.MAX_VALUE (former parameters of long type)
+and Integer.MAX_VALUE (former parameters of int type). That numbers are used during conversion between units to prevent
+an overflow from happening.
+
+- Any time you add @Replaces with a name change, we need to add an entry in this https://github.com/riptano/ccm/blob/808b6ca13526785b0fddfe1ead2383c060c4b8b6/ccmlib/common.py#L62[Python dictionary in CCM] to support the same backward compatibility as SnakeYAML.
+
+Please follow the instructions in requirements.txt in the DTest repo how to retag CCM after committing any changes.
+You might want to test also with tagging in your repo to ensure that there will be no surprise after retagging the official CCM.
+Please be sure to run a full CI after any changes as CCM affects a few of our testing suites.
+
+- Some configuration parameters are not announced in cassandra.yaml, but they are presented in the Config class for advanced users.
+Those also should be using the new framework and naming conventions.
+
+- As we have backward compatibility, we didn’t have to rework all python DTests to set config in the new format, and we exercise
+the backward compatibility while testing. Please consider adding any new tests using the new names and value format though.
+
+- In-JVM upgrade tests do not support per-version configuration at the moment, so we have to keep the old names and value format.
+Currently, if we try to use the new config for a newer version, that will be silently ignored and default config will be used.
+
+- SnakeYAML supports overloading of parameters. This means that if you add a configuration parameter more than once in your `cassandra.yaml` -
+the latest occasion will be the one to load in Config during Cassandra startup. In order to make upgrades as less disruptive as possible,
+we continue supporting that behavior also with adding old and new names of a parameter into `cassandra.yaml`.
+
+- Please ensure that any JMX setters/getters update the Config class properties and not some local copies. Settings Virtual Table
+reports the configuration loaded at any time from the Config class.
+
+*Example*:
+
+If you add the following to `cassandra.yaml`:
+....
+hinted_handoff_enabled: true
+enabled_hinted_handolff: false
+....
+
+you will get loaded in `Config`:
+....
+hinted_handoff_enabled: false
+....
+
+https://issues.apache.org/jira/browse/CASSANDRA-17379[CASSANDRA-17379] was opened to improve the user experience and deprecate the overloading.
+By default, we refuse starting Cassandra with a config containing both old and new config keys for the same parameter. Start
+Cassandra with `-Dcassandra.allow_new_old_config_keys=true` to override. For historical reasons duplicate config keys
+in `cassandra.yaml` are allowed by default, start Cassandra with `-Dcassandra.allow_duplicate_config_keys=false` to disallow this.
+Please note that `key_cache_save_period`, `row_cache_save_period`, `counter_cache_save_period` will be affected only by `-Dcassandra.allow_duplicate_config_keys`.

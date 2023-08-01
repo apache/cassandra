@@ -20,6 +20,7 @@ package org.apache.cassandra.net;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.security.cert.Certificate;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.concurrent.Future;
@@ -46,6 +47,7 @@ import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
+import org.apache.cassandra.auth.IInternodeAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -60,7 +62,11 @@ import org.apache.cassandra.utils.memory.BufferPools;
 
 import static java.lang.Math.*;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.apache.cassandra.auth.IInternodeAuthenticator.InternodeConnectionDirection.INBOUND;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.net.InternodeConnectionUtils.DISCARD_HANDLER_NAME;
+import static org.apache.cassandra.net.InternodeConnectionUtils.SSL_HANDLER_NAME;
+import static org.apache.cassandra.net.InternodeConnectionUtils.certificates;
 import static org.apache.cassandra.net.MessagingService.*;
 import static org.apache.cassandra.net.SocketFactory.WIRETRACE;
 import static org.apache.cassandra.net.SocketFactory.newSslHandler;
@@ -102,7 +108,7 @@ public class InboundConnectionInitiator
 
             pipelineInjector.accept(pipeline);
 
-            // order of handlers: ssl -> logger -> handshakeHandler
+            // order of handlers: ssl -> client-authentication -> logger -> handshakeHandler
             // For either unencrypted or transitional modes, allow Ssl optionally.
             switch(settings.encryption.tlsEncryptionPolicy())
             {
@@ -111,13 +117,16 @@ public class InboundConnectionInitiator
                     pipeline.addAfter(PIPELINE_INTERNODE_ERROR_EXCLUSIONS, "rejectssl", new RejectSslHandler());
                     break;
                 case OPTIONAL:
-                    pipeline.addAfter(PIPELINE_INTERNODE_ERROR_EXCLUSIONS, "ssl", new OptionalSslHandler(settings.encryption));
+                    pipeline.addAfter(PIPELINE_INTERNODE_ERROR_EXCLUSIONS, SSL_HANDLER_NAME, new OptionalSslHandler(settings.encryption));
                     break;
                 case ENCRYPTED:
                     SslHandler sslHandler = getSslHandler("creating", channel, settings.encryption);
-                    pipeline.addAfter(PIPELINE_INTERNODE_ERROR_EXCLUSIONS, "ssl", sslHandler);
+                    pipeline.addAfter(PIPELINE_INTERNODE_ERROR_EXCLUSIONS, SSL_HANDLER_NAME, sslHandler);
                     break;
             }
+
+            // Pipeline for performing client authentication
+            pipeline.addLast("client-authentication", new ClientAuthenticationHandler(settings.authenticator));
 
             if (WIRETRACE)
                 pipeline.addLast("logger", new LoggingHandler(LogLevel.INFO));
@@ -199,6 +208,61 @@ public class InboundConnectionInitiator
     }
 
     /**
+     * Handler to perform authentication for internode inbound connections.
+     * This handler is called even before messaging handshake starts.
+     */
+    private static class ClientAuthenticationHandler extends ByteToMessageDecoder
+    {
+        private final IInternodeAuthenticator authenticator;
+
+        public ClientAuthenticationHandler(IInternodeAuthenticator authenticator)
+        {
+            this.authenticator = authenticator;
+        }
+
+        @Override
+        protected void decode(ChannelHandlerContext channelHandlerContext, ByteBuf byteBuf, List<Object> list) throws Exception
+        {
+            // Extract certificates from SSL handler(handler with name "ssl").
+            final Certificate[] certificates = certificates(channelHandlerContext.channel());
+            if (!authenticate(channelHandlerContext.channel().remoteAddress(), certificates))
+            {
+                logger.error("Unable to authenticate peer {} for internode authentication", channelHandlerContext.channel());
+
+                // To release all the pending buffered data, replace authentication handler with discard handler.
+                // This avoids pending inbound data to be fired through the pipeline
+                channelHandlerContext.pipeline().replace(this, DISCARD_HANDLER_NAME, new InternodeConnectionUtils.ByteBufDiscardHandler());
+                channelHandlerContext.pipeline().close();
+            }
+            else
+            {
+                channelHandlerContext.pipeline().remove(this);
+            }
+        }
+
+        private boolean authenticate(SocketAddress socketAddress, final Certificate[] certificates) throws IOException
+        {
+            if (socketAddress.getClass().getSimpleName().equals("EmbeddedSocketAddress"))
+                return true;
+
+            if (!(socketAddress instanceof InetSocketAddress))
+                throw new IOException(String.format("Unexpected SocketAddress type: %s, %s", socketAddress.getClass(), socketAddress));
+
+            InetSocketAddress addr = (InetSocketAddress) socketAddress;
+            if (!authenticator.authenticate(addr.getAddress(), addr.getPort(), certificates, INBOUND))
+            {
+                // Log at info level as anything that can reach the inbound port could hit this
+                // and trigger a log of noise.  Failed outbound connections to known cluster endpoints
+                // still fail with an ERROR message and exception to alert operators that aren't watching logs closely.
+                logger.info("Authenticate rejected inbound internode connection from {}", addr);
+                return false;
+            }
+            return true;
+        }
+
+    }
+
+    /**
      * 'Server-side' component that negotiates the internode handshake when establishing a new connection.
      * This handler will be the first in the netty channel for each incoming connection (secure socket (TLS) notwithstanding),
      * and once the handshake is successful, it will configure the proper handlers ({@link InboundMessageHandler}
@@ -209,7 +273,6 @@ public class InboundConnectionInitiator
         private final InboundConnectionSettings settings;
 
         private HandshakeProtocol.Initiate initiate;
-        private HandshakeProtocol.ConfirmOutboundPre40 confirmOutboundPre40;
 
         /**
          * A future the essentially places a timeout on how long we'll wait for the peer
@@ -223,8 +286,7 @@ public class InboundConnectionInitiator
         }
 
         /**
-         * On registration, immediately schedule a timeout to kill this connection if it does not handshake promptly,
-         * and authenticate the remote address.
+         * On registration, immediately schedule a timeout to kill this connection if it does not handshake promptly.
          */
         public void handlerAdded(ChannelHandlerContext ctx) throws Exception
         {
@@ -232,38 +294,12 @@ public class InboundConnectionInitiator
                 logger.error("Timeout handshaking with {} (on {})", SocketFactory.addressId(initiate.from, (InetSocketAddress) ctx.channel().remoteAddress()), settings.bindAddress);
                 failHandshake(ctx);
             }, HandshakeProtocol.TIMEOUT_MILLIS, MILLISECONDS);
-
-            if (!authenticate(ctx.channel().remoteAddress()))
-            {
-                failHandshake(ctx);
-            }
-        }
-
-        private boolean authenticate(SocketAddress socketAddress) throws IOException
-        {
-            if (socketAddress.getClass().getSimpleName().equals("EmbeddedSocketAddress"))
-                return true;
-
-            if (!(socketAddress instanceof InetSocketAddress))
-                throw new IOException(String.format("Unexpected SocketAddress type: %s, %s", socketAddress.getClass(), socketAddress));
-
-            InetSocketAddress addr = (InetSocketAddress)socketAddress;
-            if (!settings.authenticate(addr.getAddress(), addr.getPort()))
-            {
-                // Log at info level as anything that can reach the inbound port could hit this
-                // and trigger a log of noise.  Failed outbound connections to known cluster endpoints
-                // still fail with an ERROR message and exception to alert operators that aren't watching logs closely.
-                logger.info("Authenticate rejected inbound internode connection from {}", addr);
-                return false;
-            }
-            return true;
         }
 
         @Override
         protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception
         {
             if (initiate == null) initiate(ctx, in);
-            else if (initiate.acceptVersions == null && confirmOutboundPre40 == null) confirmPre40(ctx, in);
             else throw new IllegalStateException("Should no longer be on pipeline");
         }
 
@@ -280,77 +316,43 @@ public class InboundConnectionInitiator
                 logger.warn("peer {} attempted to establish an unencrypted connection (broadcast address {})",
                             ctx.channel().remoteAddress(), initiate.from);
                 failHandshake(ctx);
+                return;
             }
 
-            if (initiate.acceptVersions != null)
+            assert initiate.acceptVersions != null;
+            logger.trace("Connection version {} (min {}) from {}", initiate.acceptVersions.max, initiate.acceptVersions.min, initiate.from);
+
+            final AcceptVersions accept;
+
+            if (initiate.type.isStreaming())
+                accept = settings.acceptStreaming;
+            else
+                accept = settings.acceptMessaging;
+
+            int useMessagingVersion = max(accept.min, min(accept.max, initiate.acceptVersions.max));
+            ByteBuf flush = new HandshakeProtocol.Accept(useMessagingVersion, accept.max).encode(ctx.alloc());
+
+            AsyncChannelPromise.writeAndFlush(ctx, flush, (ChannelFutureListener) future -> {
+                if (!future.isSuccess())
+                    exceptionCaught(future.channel(), future.cause());
+            });
+
+            if (initiate.acceptVersions.min > accept.max)
             {
-                logger.trace("Connection version {} (min {}) from {}", initiate.acceptVersions.max, initiate.acceptVersions.min, initiate.from);
-
-                final AcceptVersions accept;
-
-                if (initiate.type.isStreaming())
-                    accept = settings.acceptStreaming;
-                else
-                    accept = settings.acceptMessaging;
-
-                int useMessagingVersion = max(accept.min, min(accept.max, initiate.acceptVersions.max));
-                ByteBuf flush = new HandshakeProtocol.Accept(useMessagingVersion, accept.max).encode(ctx.alloc());
-
-                AsyncChannelPromise.writeAndFlush(ctx, flush, (ChannelFutureListener) future -> {
-                    if (!future.isSuccess())
-                        exceptionCaught(future.channel(), future.cause());
-                });
-
-                if (initiate.acceptVersions.min > accept.max)
-                {
-                    logger.info("peer {} only supports messaging versions higher ({}) than this node supports ({})", ctx.channel().remoteAddress(), initiate.acceptVersions.min, current_version);
-                    failHandshake(ctx);
-                }
-                else if (initiate.acceptVersions.max < accept.min)
-                {
-                    logger.info("peer {} only supports messaging versions lower ({}) than this node supports ({})", ctx.channel().remoteAddress(), initiate.acceptVersions.max, minimum_version);
-                    failHandshake(ctx);
-                }
-                else
-                {
-                    if (initiate.type.isStreaming())
-                        setupStreamingPipeline(initiate.from, ctx);
-                    else
-                        setupMessagingPipeline(initiate.from, useMessagingVersion, initiate.acceptVersions.max, ctx.pipeline());
-                }
+                logger.info("peer {} only supports messaging versions higher ({}) than this node supports ({})", ctx.channel().remoteAddress(), initiate.acceptVersions.min, current_version);
+                failHandshake(ctx);
+            }
+            else if (initiate.acceptVersions.max < accept.min)
+            {
+                logger.info("peer {} only supports messaging versions lower ({}) than this node supports ({})", ctx.channel().remoteAddress(), initiate.acceptVersions.max, minimum_version);
+                failHandshake(ctx);
             }
             else
             {
-                int version = initiate.requestMessagingVersion;
-                assert version < VERSION_40 && version >= settings.acceptMessaging.min;
-                logger.trace("Connection version {} from {}", version, ctx.channel().remoteAddress());
-
                 if (initiate.type.isStreaming())
-                {
-                    // streaming connections are per-session and have a fixed version.  we can't do anything with a wrong-version stream connection, so drop it.
-                    if (version != settings.acceptStreaming.max)
-                    {
-                        logger.warn("Received stream using protocol version {} (my version {}). Terminating connection", version, settings.acceptStreaming.max);
-                        failHandshake(ctx);
-                    }
                     setupStreamingPipeline(initiate.from, ctx);
-                }
                 else
-                {
-                    // if this version is < the MS version the other node is trying
-                    // to connect with, the other node will disconnect
-                    ByteBuf response = HandshakeProtocol.Accept.respondPre40(settings.acceptMessaging.max, ctx.alloc());
-                    AsyncChannelPromise.writeAndFlush(ctx, response,
-                          (ChannelFutureListener) future -> {
-                               if (!future.isSuccess())
-                                   exceptionCaught(future.channel(), future.cause());
-                    });
-
-                    if (version < VERSION_30)
-                        throw new IOException(String.format("Unable to read obsolete message version %s from %s; The earliest version supported is 3.0.0", version, ctx.channel().remoteAddress()));
-
-                    // we don't setup the messaging pipeline here, as the legacy messaging handshake requires one more message to finish
-                }
+                    setupMessagingPipeline(initiate.from, useMessagingVersion, initiate.acceptVersions.max, ctx.pipeline());
             }
         }
 
@@ -362,21 +364,6 @@ public class InboundConnectionInitiator
         private boolean isChannelEncrypted(ChannelHandlerContext ctx)
         {
             return ctx.pipeline().get(SslHandler.class) != null;
-        }
-
-        /**
-         * Handles the third (and last) message in the internode messaging handshake protocol for pre40 nodes.
-         * Grabs the protocol version and IP addr the peer wants to use.
-         */
-        @VisibleForTesting
-        void confirmPre40(ChannelHandlerContext ctx, ByteBuf in)
-        {
-            confirmOutboundPre40 = HandshakeProtocol.ConfirmOutboundPre40.maybeDecode(in);
-            if (confirmOutboundPre40 == null)
-                return;
-
-            logger.trace("Received third handshake message from peer {}, message = {}", ctx.channel().remoteAddress(), confirmOutboundPre40);
-            setupMessagingPipeline(confirmOutboundPre40.from, initiate.requestMessagingVersion, confirmOutboundPre40.maxMessagingVersion, ctx.pipeline());
         }
 
         @Override
@@ -448,7 +435,11 @@ public class InboundConnectionInitiator
             }
 
             BufferPools.forNetworking().setRecycleWhenFreeForCurrentThread(false);
-            NettyStreamingChannel streamingChannel = new NettyStreamingChannel(current_version, channel, StreamingChannel.Kind.CONTROL);
+
+            // we can't infer the type of streaming connection at this point,
+            // so we use CONTROL unconditionally; it's ugly but does what we want
+            // (establishes an AsyncStreamingInputPlus)
+            NettyStreamingChannel streamingChannel = new NettyStreamingChannel(channel, StreamingChannel.Kind.CONTROL);
             pipeline.replace(this, "streamInbound", streamingChannel);
             executorFactory().startThread(String.format("Stream-Deserializer-%s-%s", from, channel.id()),
                                           new StreamDeserializingTask(null, streamingChannel, current_version));
@@ -486,26 +477,17 @@ public class InboundConnectionInitiator
             {
                 case LZ4:
                 {
-                    if (useMessagingVersion >= VERSION_40)
-                        frameDecoder = FrameDecoderLZ4.fast(allocator);
-                    else
-                        frameDecoder = new FrameDecoderLegacyLZ4(allocator, useMessagingVersion);
+                    frameDecoder = FrameDecoderLZ4.fast(allocator);
                     break;
                 }
                 case CRC:
                 {
-                    if (useMessagingVersion >= VERSION_40)
-                    {
-                        frameDecoder = FrameDecoderCrc.create(allocator);
-                        break;
-                    }
+                    frameDecoder = FrameDecoderCrc.create(allocator);
+                    break;
                 }
                 case UNPROTECTED:
                 {
-                    if (useMessagingVersion >= VERSION_40)
-                        frameDecoder = new FrameDecoderUnprotected(allocator);
-                    else
-                        frameDecoder = new FrameDecoderLegacy(allocator, useMessagingVersion);
+                    frameDecoder = new FrameDecoderUnprotected(allocator);
                     break;
                 }
                 default:
@@ -525,7 +507,14 @@ public class InboundConnectionInitiator
 
             pipeline.addLast("deserialize", handler);
 
-            pipeline.remove(this);
+            try
+            {
+                pipeline.remove(this);
+            }
+            catch (NoSuchElementException ex)
+            {
+                // possible race with the handshake timeout firing and removing this handler already
+            }
         }
     }
 
@@ -562,7 +551,7 @@ public class InboundConnectionInitiator
             {
                 // Connection uses SSL/TLS, replace the detection handler with a SslHandler and so use encryption.
                 SslHandler sslHandler = getSslHandler("replacing optional", ctx.channel(), encryptionOptions);
-                ctx.pipeline().replace(this, "ssl", sslHandler);
+                ctx.pipeline().replace(this, SSL_HANDLER_NAME, sslHandler);
             }
             else
             {

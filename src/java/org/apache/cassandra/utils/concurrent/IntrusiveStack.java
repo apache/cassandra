@@ -25,7 +25,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import net.nicoulaj.compilecommand.annotations.Inline;
-import org.apache.cassandra.utils.BiLongAccumulator;
 import org.apache.cassandra.utils.LongAccumulator;
 
 /**

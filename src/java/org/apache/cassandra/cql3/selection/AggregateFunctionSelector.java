@@ -27,12 +27,12 @@ import org.apache.cassandra.transport.ProtocolVersion;
 
 final class AggregateFunctionSelector extends AbstractFunctionSelector<AggregateFunction>
 {
-    protected static final SelectorDeserializer deserializer = new AbstractFunctionSelectorDeserializer()
+    static final SelectorDeserializer deserializer = new AbstractFunctionSelectorDeserializer()
     {
         @Override
-        protected Selector newFunctionSelector(Function function, List<Selector> argSelectors)
+        protected Selector newFunctionSelector(ProtocolVersion version, Function function, List<Selector> argSelectors)
         {
-            return new AggregateFunctionSelector(function, argSelectors);
+            return new AggregateFunctionSelector(version, function, argSelectors);
         }
     };
 
@@ -43,17 +43,19 @@ final class AggregateFunctionSelector extends AbstractFunctionSelector<Aggregate
         return true;
     }
 
-    public void addInput(ProtocolVersion protocolVersion, InputRow input)
+    public void addInput(InputRow input)
     {
+        ProtocolVersion protocolVersion = input.getProtocolVersion();
+
         // Aggregation of aggregation is not supported
         for (int i = 0, m = argSelectors.size(); i < m; i++)
         {
             Selector s = argSelectors.get(i);
-            s.addInput(protocolVersion, input);
+            s.addInput(input);
             setArg(i, s.getOutput(protocolVersion));
             s.reset();
         }
-        this.aggregate.addInput(protocolVersion, args());
+        aggregate.addInput(args());
     }
 
     public ByteBuffer getOutput(ProtocolVersion protocolVersion) throws InvalidRequestException
@@ -66,9 +68,9 @@ final class AggregateFunctionSelector extends AbstractFunctionSelector<Aggregate
         aggregate.reset();
     }
 
-    AggregateFunctionSelector(Function fun, List<Selector> argSelectors) throws InvalidRequestException
+    AggregateFunctionSelector(ProtocolVersion version, Function fun, List<Selector> argSelectors) throws InvalidRequestException
     {
-        super(Kind.AGGREGATE_FUNCTION_SELECTOR, (AggregateFunction) fun, argSelectors);
+        super(Kind.AGGREGATE_FUNCTION_SELECTOR, version, (AggregateFunction) fun, argSelectors);
 
         this.aggregate = this.fun.newAggregate();
     }

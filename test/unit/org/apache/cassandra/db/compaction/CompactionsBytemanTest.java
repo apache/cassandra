@@ -55,7 +55,7 @@ public class CompactionsBytemanTest extends CQLTester
     @Test
     @BMRules(rules = { @BMRule(name = "One SSTable too big for remaining disk space test",
     targetClass = "Directories",
-    targetMethod = "hasAvailableDiskSpace",
+    targetMethod = "hasDiskSpaceForCompactionsAndStreams",
     condition = "not flagged(\"done\")",
     action = "flag(\"done\"); return false;") } )
     public void testSSTableNotEnoughDiskSpaceForCompactionGetsDropped() throws Throwable
@@ -80,7 +80,7 @@ public class CompactionsBytemanTest extends CQLTester
     @Test
     @BMRules(rules = { @BMRule(name = "No disk space with expired SSTables test",
     targetClass = "Directories",
-    targetMethod = "hasAvailableDiskSpace",
+    targetMethod = "hasDiskSpaceForCompactionsAndStreams",
     action = "return false;") } )
     public void testExpiredSSTablesStillGetDroppedWithNoDiskSpace() throws Throwable
     {
@@ -103,7 +103,7 @@ public class CompactionsBytemanTest extends CQLTester
     @Test(expected = RuntimeException.class)
     @BMRules(rules = { @BMRule(name = "No disk space with expired SSTables test",
     targetClass = "Directories",
-    targetMethod = "hasAvailableDiskSpace",
+    targetMethod = "hasDiskSpaceForCompactionsAndStreams",
     action = "return false;") } )
     public void testRuntimeExceptionWhenNoDiskSpaceForCompaction() throws Throwable
     {
@@ -120,7 +120,7 @@ public class CompactionsBytemanTest extends CQLTester
             targetClass = "CompactionManager",
             targetMethod = "submitBackground",
             targetLocation = "AT INVOKE java.util.concurrent.Future.isCancelled",
-            condition = "!$cfs.keyspace.getName().contains(\"system\")",
+            condition = "!$cfs.getKeyspaceName().contains(\"system\")",
             action = "Thread.sleep(5000)")
     public void testCompactingCFCounting() throws Throwable
     {

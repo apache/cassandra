@@ -43,12 +43,16 @@ public class BufferClustering extends AbstractBufferClusteringPrefix implements 
 
     public long unsharedHeapSize()
     {
+        if (this == Clustering.EMPTY || this == Clustering.STATIC_CLUSTERING)
+            return 0;
         return EMPTY_SIZE + ObjectSizes.sizeOnHeapOf(values);
     }
 
     public long unsharedHeapSizeExcludingData()
     {
-        return EMPTY_SIZE + ObjectSizes.sizeOnHeapExcludingData(values);
+        if (this == Clustering.EMPTY || this == Clustering.STATIC_CLUSTERING)
+            return 0;
+        return EMPTY_SIZE + ObjectSizes.sizeOnHeapExcludingDataOf(values);
     }
 
     public static BufferClustering make(ByteBuffer... values)

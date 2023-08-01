@@ -21,8 +21,6 @@ import static com.google.common.base.Preconditions.checkState;
 
 import java.util.Iterator;
 
-import com.google.common.util.concurrent.MoreExecutors;
-
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.Policy.Eviction;

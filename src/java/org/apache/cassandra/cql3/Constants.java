@@ -20,17 +20,15 @@ package org.apache.cassandra.cql3;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -41,15 +39,14 @@ import org.apache.cassandra.utils.FastByteOperations;
  */
 public abstract class Constants
 {
-    private static final Logger logger = LoggerFactory.getLogger(Constants.class);
-
     public enum Type
     {
         STRING
         {
+            @Override
             public AbstractType<?> getPreferedTypeFor(String text)
             {
-                 if(Charset.forName("US-ASCII").newEncoder().canEncode(text))
+                 if (StandardCharsets.US_ASCII.newEncoder().canEncode(text))
                  {
                      return AsciiType.instance;
                  }
@@ -59,6 +56,7 @@ public abstract class Constants
         },
         INTEGER
         {
+            @Override
             public AbstractType<?> getPreferedTypeFor(String text)
             {
                 // We only try to determine the smallest possible type between int, long and BigInteger
@@ -73,9 +71,19 @@ public abstract class Constants
                 return IntegerType.instance;
             }
         },
-        UUID,
+        UUID
+        {
+            @Override
+            public AbstractType<?> getPreferedTypeFor(String text)
+            {
+                return java.util.UUID.fromString(text).version() == 1
+                       ? TimeUUIDType.instance
+                       : UUIDType.instance;
+            }
+        },
         FLOAT
         {
+            @Override
             public AbstractType<?> getPreferedTypeFor(String text)
             {
                 if ("NaN".equals(text) || "-NaN".equals(text) || "Infinity".equals(text) || "-Infinity".equals(text))
@@ -90,9 +98,30 @@ public abstract class Constants
                 return DecimalType.instance;
             }
         },
-        BOOLEAN,
-        HEX,
-        DURATION;
+        BOOLEAN
+        {
+            @Override
+            public AbstractType<?> getPreferedTypeFor(String text)
+            {
+                return BooleanType.instance;
+            }
+        },
+        HEX
+        {
+            @Override
+            public AbstractType<?> getPreferedTypeFor(String text)
+            {
+                return ByteType.instance;
+            }
+        },
+        DURATION
+        {
+            @Override
+            public AbstractType<?> getPreferedTypeFor(String text)
+            {
+                return DurationType.instance;
+            }
+        };
 
         /**
          * Returns the exact type for the specified text
@@ -362,6 +391,12 @@ public abstract class Constants
             return null;
         }
 
+        @Override
+        public AbstractType<?> getCompatibleTypeIfKnown(String keyspace)
+        {
+            return preferedType;
+        }
+
         public String getRawText()
         {
             return text;
@@ -385,7 +420,7 @@ public abstract class Constants
             this.bytes = bytes;
         }
 
-        public ByteBuffer get(ProtocolVersion protocolVersion)
+        public ByteBuffer get(ProtocolVersion version)
         {
             return bytes;
         }
@@ -485,24 +520,20 @@ public abstract class Constants
                 @SuppressWarnings("unchecked") NumberType<Number> type = (NumberType<Number>) column.type;
                 ByteBuffer increment = t.bindAndGet(params.options);
                 ByteBuffer current = getCurrentCellBuffer(partitionKey, params);
-                ByteBuffer newValue = type.add(type, current, type, increment);
+                if (current == null)
+                    return;
+                ByteBuffer newValue = type.add(type.compose(current), type.compose(increment));
                 params.addCell(column, newValue);
             }
             else if (column.type instanceof StringType)
             {
                 ByteBuffer append = t.bindAndGet(params.options);
                 ByteBuffer current = getCurrentCellBuffer(partitionKey, params);
-                ByteBuffer newValue;
                 if (current == null)
-                {
-                    newValue = append;
-                }
-                else
-                {
-                    newValue = ByteBuffer.allocate(current.remaining() + append.remaining());
-                    FastByteOperations.copy(current, current.position(), newValue, newValue.position(), current.remaining());
-                    FastByteOperations.copy(append, append.position(), newValue, newValue.position() + current.remaining(), append.remaining());
-                }
+                    return;
+                ByteBuffer newValue = ByteBuffer.allocate(current.remaining() + append.remaining());
+                FastByteOperations.copy(current, current.position(), newValue, newValue.position(), current.remaining());
+                FastByteOperations.copy(append, append.position(), newValue, newValue.position() + current.remaining(), append.remaining());
                 params.addCell(column, newValue);
             }
         }

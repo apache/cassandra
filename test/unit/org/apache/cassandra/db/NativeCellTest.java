@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 import java.nio.ByteBuffer;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -29,6 +30,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.schema.ColumnMetadata;
+import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.SetType;
@@ -36,11 +38,11 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.concurrent.OpOrder;
-import org.apache.cassandra.utils.memory.HeapAllocator;
+import org.apache.cassandra.utils.memory.HeapCloner;
 import org.apache.cassandra.utils.memory.NativeAllocator;
 import org.apache.cassandra.utils.memory.NativePool;
 
-public class NativeCellTest
+public class NativeCellTest extends CQLTester
 {
 
     private static final Logger logger = LoggerFactory.getLogger(NativeCellTest.class);
@@ -118,14 +120,15 @@ public class NativeCellTest
                                   ColumnIdentifier.getInterned(uuid.toString(), false),
                                     isComplex ? new SetType<>(BytesType.instance, true) : BytesType.instance,
                                   -1,
-                                  ColumnMetadata.Kind.REGULAR);
+                                  ColumnMetadata.Kind.REGULAR,
+                                  null);
     }
 
     private static Cell<?> rndcell(ColumnMetadata col)
     {
         long timestamp = rand.nextLong();
         int ttl = rand.nextInt();
-        int localDeletionTime = rand.nextInt();
+        long localDeletionTime = ThreadLocalRandom.current().nextLong(Cell.getVersionedMaxDeletiontionTime() + 1);
         byte[] value = new byte[rand.nextInt(sanesize(expdecay()))];
         rand.nextBytes(value);
         CellPath path = null;
@@ -151,8 +154,8 @@ public class NativeCellTest
 
     private static void test(Row row)
     {
-        Row nrow = clone(row, nativeAllocator.rowBuilder(group));
-        Row brow = clone(row, HeapAllocator.instance.cloningBTreeRowBuilder());
+        Row nrow = row.clone(nativeAllocator.cloner(group));
+        Row brow = row.clone(HeapCloner.instance);
         Assert.assertEquals(row, nrow);
         Assert.assertEquals(row, brow);
         Assert.assertEquals(nrow, brow);
@@ -166,10 +169,4 @@ public class NativeCellTest
         Assert.assertEquals(0, comparator.compare(row.clustering(), brow.clustering()));
         Assert.assertEquals(0, comparator.compare(nrow.clustering(), brow.clustering()));
     }
-
-    private static Row clone(Row row, Row.Builder builder)
-    {
-        return Rows.copy(row, builder).build();
-    }
-
 }

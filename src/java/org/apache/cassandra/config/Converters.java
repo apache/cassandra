@@ -21,6 +21,10 @@ package org.apache.cassandra.config;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
+import org.apache.cassandra.schema.SchemaConstants;
+
+import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND;
+
 /**
  * Converters for backward compatibility with the old cassandra.yaml where duration, data rate and
  * data storage configuration parameters were provided only by value and the expected unit was part of the configuration
@@ -40,10 +44,10 @@ public enum Converters
     IDENTITY(null, null, o -> o, o -> o),
     MILLIS_DURATION_LONG(Long.class, DurationSpec.LongMillisecondsBound.class,
                          DurationSpec.LongMillisecondsBound::new,
-                         o -> o.toMilliseconds()),
+                         o -> o == null ? null : o.toMilliseconds()),
     MILLIS_DURATION_INT(Integer.class, DurationSpec.IntMillisecondsBound.class,
                         DurationSpec.IntMillisecondsBound::new,
-                        DurationSpec.IntMillisecondsBound::toMilliseconds),
+                        o -> o == null ? null : o.toMilliseconds()),
     MILLIS_DURATION_DOUBLE(Double.class, DurationSpec.IntMillisecondsBound.class,
                            o -> Double.isNaN(o) ? new DurationSpec.IntMillisecondsBound(0) :
                                 new DurationSpec.IntMillisecondsBound(o, TimeUnit.MILLISECONDS),
@@ -57,10 +61,10 @@ public enum Converters
                            o -> o == null ? -1 : o.toMilliseconds()),
     SECONDS_DURATION(Integer.class, DurationSpec.IntSecondsBound.class,
                      DurationSpec.IntSecondsBound::new,
-                     DurationSpec.IntSecondsBound::toSeconds),
+                     o -> o == null ? null : o.toSeconds()),
     NEGATIVE_SECONDS_DURATION(Integer.class, DurationSpec.IntSecondsBound.class,
                               o -> o < 0 ? new DurationSpec.IntSecondsBound(0) : new DurationSpec.IntSecondsBound(o),
-                              DurationSpec.IntSecondsBound::toSeconds),
+                              o -> o == null ? null : o.toSeconds()),
     /**
      * This converter is used to support backward compatibility for Duration parameters where we added the opportunity
      * for the users to add a unit in the parameters' values but we didn't change the names. (key_cache_save_period,
@@ -69,22 +73,35 @@ public enum Converters
      */
     SECONDS_CUSTOM_DURATION(String.class, DurationSpec.IntSecondsBound.class,
                             DurationSpec.IntSecondsBound::inSecondsString,
-                            o -> Long.toString(o.toSeconds())),
-    MINUTES_DURATION(Integer.class, DurationSpec.IntMinutesBound.class,
-                     DurationSpec.IntMinutesBound::new,
-                     DurationSpec.IntMinutesBound::toMinutes),
+                            o -> o == null ? null : Long.toString(o.toSeconds())),
+    /**
+     * This converter is used to support backward compatibility for parameters where in the past -1 was used as a value
+     * Example:  index_summary_resize_interval_in_minutes = -1 and  index_summary_resize_interval = null are equal.
+     */
+    MINUTES_CUSTOM_DURATION(Integer.class, DurationSpec.IntMinutesBound.class,
+                            o -> o == -1 ? null : new DurationSpec.IntMinutesBound(o),
+                            o -> o == null ? -1 : o.toMinutes()),
     MEBIBYTES_DATA_STORAGE_LONG(Long.class, DataStorageSpec.LongMebibytesBound.class,
                                 DataStorageSpec.LongMebibytesBound::new,
-                                DataStorageSpec.LongMebibytesBound::toMebibytes),
+                                o -> o == null ? null : o.toMebibytes()),
     MEBIBYTES_DATA_STORAGE_INT(Integer.class, DataStorageSpec.IntMebibytesBound.class,
                                DataStorageSpec.IntMebibytesBound::new,
-                               DataStorageSpec.IntMebibytesBound::toMebibytes),
+                               o -> o == null ? null : o.toMebibytes()),
+    NEGATIVE_MEBIBYTES_DATA_STORAGE_INT(Integer.class, DataStorageSpec.IntMebibytesBound.class,
+                                        o -> o < 0 ? null : new DataStorageSpec.IntMebibytesBound(o),
+                                        o -> o == null ? -1 : o.toMebibytes()),
     KIBIBYTES_DATASTORAGE(Integer.class, DataStorageSpec.IntKibibytesBound.class,
                           DataStorageSpec.IntKibibytesBound::new,
-                          DataStorageSpec.IntKibibytesBound::toKibibytes),
+                          o -> o == null ? null : o.toKibibytes()),
     BYTES_DATASTORAGE(Integer.class, DataStorageSpec.IntBytesBound.class,
                       DataStorageSpec.IntBytesBound::new,
-                      DataStorageSpec.IntBytesBound::toBytes),
+                      o -> o == null ? null : o.toBytes()),
+    LONG_BYTES_DATASTORAGE_MEBIBYTES_INT(Integer.class, DataStorageSpec.LongBytesBound.class,
+                                              o -> o == null ? null : new DataStorageSpec.LongBytesBound(o, DataStorageSpec.DataStorageUnit.MEBIBYTES),
+                                              o -> o == null ? null : o.toMebibytesInt()),
+    LONG_BYTES_DATASTORAGE_MEBIBYTES_DATASTORAGE(DataStorageSpec.IntMebibytesBound.class, DataStorageSpec.LongBytesBound.class,
+                                                 o -> o == null ? null : new DataStorageSpec.LongBytesBound(o.toBytesInLong()),
+                                                 o -> o == null ? null : new DataStorageSpec.IntMebibytesBound(o.toMebibytesInt())),
     /**
      * This converter is used to support backward compatibility for parameters where in the past negative number was used as a value
      * Example: native_transport_max_concurrent_requests_in_bytes_per_ip = -1 and native_transport_max_request_data_in_flight_per_ip = null
@@ -92,17 +109,23 @@ public enum Converters
      */
     BYTES_CUSTOM_DATASTORAGE(Long.class, DataStorageSpec.LongBytesBound.class,
                              o -> o == -1 ? null : new DataStorageSpec.LongBytesBound(o),
-                             DataStorageSpec.LongBytesBound::toBytes),
-    MEBIBYTES_PER_SECOND_DATA_RATE(Integer.class, DataRateSpec.IntMebibytesPerSecondBound.class,
-                                   DataRateSpec.IntMebibytesPerSecondBound::new,
-                                   DataRateSpec.IntMebibytesPerSecondBound::toMebibytesPerSecondAsInt),
+                             o -> o == null ? null : o.toBytes()),
+    MEBIBYTES_PER_SECOND_DATA_RATE(Integer.class, DataRateSpec.LongBytesPerSecondBound.class,
+                                   i -> new DataRateSpec.LongBytesPerSecondBound(i, MEBIBYTES_PER_SECOND),
+                                   o -> o == null ? null : o.toMebibytesPerSecondAsInt()),
     /**
      * This converter is a custom one to support backward compatibility for stream_throughput_outbound and
-     * inter_dc_stream_throughput_outbound which were provided in megatibs per second prior CASSANDRA-15234.
+     * inter_dc_stream_throughput_outbound which were provided in megabits per second prior CASSANDRA-15234.
      */
-    MEGABITS_TO_MEBIBYTES_PER_SECOND_DATA_RATE(Integer.class, DataRateSpec.IntMebibytesPerSecondBound.class,
-                                               i -> DataRateSpec.IntMebibytesPerSecondBound.megabitsPerSecondInMebibytesPerSecond(i),
-                                               DataRateSpec.IntMebibytesPerSecondBound::toMegabitsPerSecondAsInt);
+    MEGABITS_TO_BYTES_PER_SECOND_DATA_RATE(Integer.class, DataRateSpec.LongBytesPerSecondBound.class,
+                                           i -> DataRateSpec.LongBytesPerSecondBound.megabitsPerSecondInBytesPerSecond(i),
+                                           o -> o == null ? null : o.toMegabitsPerSecondAsInt()),
+    KEYSPACE_COUNT_THRESHOLD_TO_GUARDRAIL(int.class, int.class, 
+                                          i -> i - SchemaConstants.getLocalAndReplicatedSystemKeyspaceNames().size(),
+                                          o -> o == null ? null : o + SchemaConstants.getLocalAndReplicatedSystemKeyspaceNames().size()),
+    TABLE_COUNT_THRESHOLD_TO_GUARDRAIL(int.class, int.class, 
+                                       i -> i - SchemaConstants.getLocalAndReplicatedSystemTableNames().size(), 
+                                       o -> o == null ? null : o + SchemaConstants.getLocalAndReplicatedSystemTableNames().size());
     private final Class<?> oldType;
     private final Class<?> newType;
     private final Function<Object, Object> convert;
@@ -160,7 +183,6 @@ public enum Converters
      */
     public Object unconvert(Object value)
     {
-        if (value == null) return null;
         return reverseConvert.apply(value);
     }
 }

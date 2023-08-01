@@ -75,7 +75,7 @@ public class ReadExecutorTest
                 full(InetAddressAndPort.getByName("127.0.0.254")),
                 full(InetAddressAndPort.getByName("127.0.0.253"))
         );
-        cfs.sampleReadLatencyNanos = 0;
+        cfs.sampleReadLatencyMicros = 0;
     }
 
     @Before
@@ -209,7 +209,7 @@ public class ReadExecutorTest
         executor.executeAsync();
 
         // ...and then force a speculative retry against another endpoint.
-        cfs.sampleReadLatencyNanos = 0L;
+        cfs.sampleReadLatencyMicros = 0L;
         executor.maybeTryAdditionalReplicas();
 
         new Thread(() ->

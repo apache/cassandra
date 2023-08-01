@@ -28,7 +28,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JsonUtils;
 
 // Only serialize fields
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY,
@@ -46,19 +46,25 @@ public class SnapshotManifest
     @JsonProperty("expires_at")
     public final Instant expiresAt;
 
+    @JsonProperty("ephemeral")
+    public final boolean ephemeral;
+
     /** needed for jackson serialization */
     @SuppressWarnings("unused")
-    private SnapshotManifest() {
+    private SnapshotManifest()
+    {
         this.files = null;
         this.createdAt = null;
         this.expiresAt = null;
+        this.ephemeral = false;
     }
 
-    public SnapshotManifest(List<String> files, DurationSpec.IntSecondsBound ttl, Instant creationTime)
+    public SnapshotManifest(List<String> files, DurationSpec.IntSecondsBound ttl, Instant creationTime, boolean ephemeral)
     {
         this.files = files;
         this.createdAt = creationTime;
         this.expiresAt = ttl == null ? null : createdAt.plusSeconds(ttl.toSeconds());
+        this.ephemeral = ephemeral;
     }
 
     public List<String> getFiles()
@@ -76,14 +82,19 @@ public class SnapshotManifest
         return expiresAt;
     }
 
+    public boolean isEphemeral()
+    {
+        return ephemeral;
+    }
+
     public void serializeToJsonFile(File outputFile) throws IOException
     {
-        FBUtilities.serializeToJsonFile(this, outputFile);
+        JsonUtils.serializeToJsonFile(this, outputFile);
     }
 
     public static SnapshotManifest deserializeFromJsonFile(File file) throws IOException
     {
-        return FBUtilities.deserializeFromJsonFile(SnapshotManifest.class, file);
+        return JsonUtils.deserializeFromJsonFile(SnapshotManifest.class, file);
     }
 
     @Override
@@ -92,12 +103,15 @@ public class SnapshotManifest
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SnapshotManifest manifest = (SnapshotManifest) o;
-        return Objects.equals(files, manifest.files) && Objects.equals(createdAt, manifest.createdAt) && Objects.equals(expiresAt, manifest.expiresAt);
+        return Objects.equals(files, manifest.files)
+               && Objects.equals(createdAt, manifest.createdAt)
+               && Objects.equals(expiresAt, manifest.expiresAt)
+               && Objects.equals(ephemeral, manifest.ephemeral);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(files, createdAt, expiresAt);
+        return Objects.hash(files, createdAt, expiresAt, ephemeral);
     }
 }

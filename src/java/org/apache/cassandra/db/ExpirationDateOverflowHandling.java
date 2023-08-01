@@ -25,6 +25,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.helpers.MessageFormatter;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -32,13 +33,14 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.utils.NoSpamLogger;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.EXPIRATION_DATE_OVERFLOW_POLICY;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 public class ExpirationDateOverflowHandling
 {
     private static final Logger logger = LoggerFactory.getLogger(ExpirationDateOverflowHandling.class);
 
-    private static final int EXPIRATION_OVERFLOW_WARNING_INTERVAL_MINUTES = Integer.getInteger("cassandra.expiration_overflow_warning_interval_minutes", 5);
+    private static final int EXPIRATION_OVERFLOW_WARNING_INTERVAL_MINUTES = CassandraRelevantProperties.EXPIRATION_OVERFLOW_WARNING_INTERVAL_MINUTES.getInt();
 
     public enum ExpirationDateOverflowPolicy
     {
@@ -49,57 +51,58 @@ public class ExpirationDateOverflowHandling
     public static ExpirationDateOverflowPolicy policy;
 
     static {
-        String policyAsString = System.getProperty("cassandra.expiration_date_overflow_policy", ExpirationDateOverflowPolicy.REJECT.name());
         try
         {
-            policy = ExpirationDateOverflowPolicy.valueOf(policyAsString.toUpperCase());
+            policy = EXPIRATION_DATE_OVERFLOW_POLICY.getEnum(ExpirationDateOverflowPolicy.REJECT);
         }
         catch (RuntimeException e)
         {
-            logger.warn("Invalid expiration date overflow policy: {}. Using default: {}", policyAsString, ExpirationDateOverflowPolicy.REJECT.name());
+            logger.warn("Invalid expiration date overflow policy. Using default: {}", ExpirationDateOverflowPolicy.REJECT.name());
             policy = ExpirationDateOverflowPolicy.REJECT;
         }
     }
 
     public static final String MAXIMUM_EXPIRATION_DATE_EXCEEDED_WARNING = "Request on table {}.{} with {}ttl of {} seconds exceeds maximum supported expiration " +
-                                                                          "date of 2038-01-19T03:14:06+00:00 and will have its expiration capped to that date. " +
+                                                                          "date of {} and will have its expiration capped to that date. " +
                                                                           "In order to avoid this use a lower TTL or upgrade to a version where this limitation " +
-                                                                          "is fixed. See CASSANDRA-14092 for more details.";
+                                                                          "is fixed. See CASSANDRA-14092 and CASSANDRA-14227 for more details.";
 
     public static final String MAXIMUM_EXPIRATION_DATE_EXCEEDED_REJECT_MESSAGE = "Request on table %s.%s with %sttl of %d seconds exceeds maximum supported expiration " +
-                                                                                 "date of 2038-01-19T03:14:06+00:00. In order to avoid this use a lower TTL, change " +
+                                                                                 "date of %s. In order to avoid this use a lower TTL, change " +
                                                                                  "the expiration date overflow policy or upgrade to a version where this limitation " +
-                                                                                 "is fixed. See CASSANDRA-14092 for more details.";
+                                                                                 "is fixed. See CASSANDRA-14092 and CASSANDRA-14227 for more details.";
 
     public static void maybeApplyExpirationDateOverflowPolicy(TableMetadata metadata, int ttl, boolean isDefaultTTL) throws InvalidRequestException
     {
         if (ttl == BufferCell.NO_TTL)
             return;
 
-        // Check for localExpirationTime overflow (CASSANDRA-14092)
-        int nowInSecs = (int)(currentTimeMillis() / 1000);
-        if (ttl + nowInSecs < 0)
+        // Check for localExpirationTime overflow (CASSANDRA-14092) to apply a policy if needed
+        long nowInSecs = currentTimeMillis() / 1000;
+        if (((long) ttl + nowInSecs) > Cell.getVersionedMaxDeletiontionTime())
         {
             switch (policy)
             {
                 case CAP:
                     ClientWarn.instance.warn(MessageFormatter.arrayFormat(MAXIMUM_EXPIRATION_DATE_EXCEEDED_WARNING, new Object[] { metadata.keyspace,
                                                                                                                                    metadata.name,
-                                                                                                                                   isDefaultTTL? "default " : "", ttl })
+                                                                                                                                   isDefaultTTL? "default " : "",
+                                                                                                                                   ttl,
+                                                                                                                                   getMaxExpirationDateTS()})
                                                              .getMessage());
                 case CAP_NOWARN:
                     /**
                      * Capping at this stage is basically not rejecting the request. The actual capping is done
-                     * by {@link #computeLocalExpirationTime(int, int)}, which converts the negative TTL
+                     * by {@link #computeLocalExpirationTime(long, int)}, which converts the negative TTL
                      * to {@link org.apache.cassandra.db.BufferExpiringCell#MAX_DELETION_TIME}
                      */
                     NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, EXPIRATION_OVERFLOW_WARNING_INTERVAL_MINUTES, TimeUnit.MINUTES, MAXIMUM_EXPIRATION_DATE_EXCEEDED_WARNING,
-                                     metadata.keyspace, metadata.name, isDefaultTTL? "default " : "", ttl);
+                                     metadata.keyspace, metadata.name, isDefaultTTL? "default " : "", ttl, getMaxExpirationDateTS());
                     return;
 
                 default:
                     throw new InvalidRequestException(String.format(MAXIMUM_EXPIRATION_DATE_EXCEEDED_REJECT_MESSAGE, metadata.keyspace, metadata.name,
-                                                                    isDefaultTTL? "default " : "", ttl));
+                                                                    isDefaultTTL? "default " : "", ttl, getMaxExpirationDateTS()));
             }
         }
     }
@@ -114,9 +117,17 @@ public class ExpirationDateOverflowHandling
      *
      * See CASSANDRA-14092
      */
-    public static int computeLocalExpirationTime(int nowInSec, int timeToLive)
+    public static long computeLocalExpirationTime(long nowInSec, int timeToLive)
     {
-        int localExpirationTime = nowInSec + timeToLive;
-        return localExpirationTime >= 0? localExpirationTime : Cell.MAX_DELETION_TIME;
+
+        long localExpirationTime = (long) (nowInSec + timeToLive);
+        long cellMaxDeletionTime = Cell.getVersionedMaxDeletiontionTime();
+        return localExpirationTime <= cellMaxDeletionTime ? localExpirationTime : cellMaxDeletionTime;
+    }
+
+    private static String getMaxExpirationDateTS()
+    {
+        return Cell.getVersionedMaxDeletiontionTime() == Cell.MAX_DELETION_TIME_2038_LEGACY_CAP ? "2038-01-19T03:14:06+00:00"
+                                                                                                : "2106-02-07T06:28:13+00:00";
     }
 }

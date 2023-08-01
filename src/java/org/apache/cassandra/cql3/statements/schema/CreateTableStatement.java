@@ -18,6 +18,9 @@
 package org.apache.cassandra.cql3.statements.schema;
 
 import java.util.*;
+import java.util.stream.Collectors;
+
+import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableSet;
 
@@ -31,8 +34,8 @@ import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.functions.masking.ColumnMask;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.*;
@@ -54,7 +57,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
     private static final Logger logger = LoggerFactory.getLogger(CreateTableStatement.class);
     private final String tableName;
 
-    private final Map<ColumnIdentifier, CQL3Type.Raw> rawColumns;
+    private final Map<ColumnIdentifier, ColumnProperties.Raw> rawColumns;
     private final Set<ColumnIdentifier> staticColumns;
     private final List<ColumnIdentifier> partitionKeyColumns;
     private final List<ColumnIdentifier> clusteringColumns;
@@ -67,15 +70,12 @@ public final class CreateTableStatement extends AlterSchemaStatement
 
     public CreateTableStatement(String keyspaceName,
                                 String tableName,
-
-                                Map<ColumnIdentifier, CQL3Type.Raw> rawColumns,
+                                Map<ColumnIdentifier, ColumnProperties.Raw> rawColumns,
                                 Set<ColumnIdentifier> staticColumns,
                                 List<ColumnIdentifier> partitionKeyColumns,
                                 List<ColumnIdentifier> clusteringColumns,
-
                                 LinkedHashMap<ColumnIdentifier, Boolean> clusteringOrder,
                                 TableAttributes attrs,
-
                                 boolean ifNotExists,
                                 boolean useCompactStorage)
     {
@@ -149,6 +149,15 @@ public final class CreateTableStatement extends AlterSchemaStatement
         // Guardrail to check whether creation of new COMPACT STORAGE tables is allowed
         if (useCompactStorage)
             Guardrails.compactTablesEnabled.ensureEnabled(state);
+
+        validateDefaultTimeToLive(attrs.asNewTableParams());
+
+        // Verify that dynamic data masking is enabled if there are masked columns
+        for (ColumnProperties.Raw raw : rawColumns.values())
+        {
+            if (raw.rawMask != null)
+                ColumnMask.ensureEnabled();
+        }
     }
 
     SchemaChange schemaChangeEvent(KeyspacesDiff diff)
@@ -184,15 +193,16 @@ public final class CreateTableStatement extends AlterSchemaStatement
         TableParams params = attrs.asNewTableParams();
 
         // use a TreeMap to preserve ordering across JDK versions (see CASSANDRA-9492) - important for stable unit tests
-        Map<ColumnIdentifier, CQL3Type> columns = new TreeMap<>(comparing(o -> o.bytes));
-        rawColumns.forEach((column, type) -> columns.put(column, type.prepare(keyspaceName, types)));
+        Map<ColumnIdentifier, ColumnProperties> columns = new TreeMap<>(comparing(o -> o.bytes));
+        rawColumns.forEach((column, properties) -> columns.put(column, properties.prepare(keyspaceName, tableName, column, types)));
 
         // check for nested non-frozen UDTs or collections in a non-frozen UDT
-        columns.forEach((column, type) ->
+        columns.forEach((column, properties) ->
         {
-            if (type.isUDT() && type.getType().isMultiCell())
+            AbstractType<?> type = properties.type;
+            if (type.isUDT() && type.isMultiCell())
             {
-                ((UserType) type.getType()).fieldTypes().forEach(field ->
+                ((UserType) type).fieldTypes().forEach(field ->
                 {
                     if (field.isMultiCell())
                         throw ire("Non-frozen UDTs with nested non-frozen collections are not supported");
@@ -207,49 +217,56 @@ public final class CreateTableStatement extends AlterSchemaStatement
         HashSet<ColumnIdentifier> primaryKeyColumns = new HashSet<>();
         concat(partitionKeyColumns, clusteringColumns).forEach(column ->
         {
-            CQL3Type type = columns.get(column);
-            if (null == type)
+            ColumnProperties properties = columns.get(column);
+            if (null == properties)
                 throw ire("Unknown column '%s' referenced in PRIMARY KEY for table '%s'", column, tableName);
 
             if (!primaryKeyColumns.add(column))
                 throw ire("Duplicate column '%s' in PRIMARY KEY clause for table '%s'", column, tableName);
 
-            if (type.getType().isMultiCell())
+            AbstractType<?> type = properties.type;
+            if (type.isMultiCell())
             {
+                CQL3Type cqlType = properties.cqlType;
                 if (type.isCollection())
-                    throw ire("Invalid non-frozen collection type %s for PRIMARY KEY column '%s'", type, column);
+                    throw ire("Invalid non-frozen collection type %s for PRIMARY KEY column '%s'", cqlType, column);
                 else
-                    throw ire("Invalid non-frozen user-defined type %s for PRIMARY KEY column '%s'", type, column);
+                    throw ire("Invalid non-frozen user-defined type %s for PRIMARY KEY column '%s'", cqlType, column);
             }
 
-            if (type.getType().isCounter())
+            if (type.isCounter())
                 throw ire("counter type is not supported for PRIMARY KEY column '%s'", column);
 
-            if (type.getType().referencesDuration())
+            if (type.referencesDuration())
                 throw ire("duration type is not supported for PRIMARY KEY column '%s'", column);
 
             if (staticColumns.contains(column))
                 throw ire("Static column '%s' cannot be part of the PRIMARY KEY", column);
         });
 
-        List<AbstractType<?>> partitionKeyTypes = new ArrayList<>();
-        List<AbstractType<?>> clusteringTypes = new ArrayList<>();
+        List<ColumnProperties> partitionKeyColumnProperties = new ArrayList<>();
+        List<ColumnProperties> clusteringColumnProperties = new ArrayList<>();
 
         partitionKeyColumns.forEach(column ->
         {
-            CQL3Type type = columns.remove(column);
-            partitionKeyTypes.add(type.getType());
+            ColumnProperties columnProperties = columns.remove(column);
+            partitionKeyColumnProperties.add(columnProperties);
         });
 
         clusteringColumns.forEach(column ->
         {
-            CQL3Type type = columns.remove(column);
+            ColumnProperties columnProperties = columns.remove(column);
             boolean reverse = !clusteringOrder.getOrDefault(column, true);
-            clusteringTypes.add(reverse ? ReversedType.getInstance(type.getType()) : type.getType());
+            clusteringColumnProperties.add(reverse ? columnProperties.withReversedType() : columnProperties);
         });
 
-        if (clusteringOrder.size() > clusteringColumns.size())
-            throw ire("Only clustering columns can be defined in CLUSTERING ORDER directive");
+        List<ColumnIdentifier> nonClusterColumn = clusteringOrder.keySet().stream()
+                                                                 .filter((id) -> !clusteringColumns.contains(id))
+                                                                 .collect(Collectors.toList());
+        if (!nonClusterColumn.isEmpty())
+        {
+            throw ire("Only clustering key columns can be defined in CLUSTERING ORDER directive: " + nonClusterColumn + " are not clustering columns");
+        }
 
         int n = 0;
         for (ColumnIdentifier id : clusteringOrder.keySet())
@@ -268,7 +285,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
         // For COMPACT STORAGE, we reject any "feature" that we wouldn't be able to translate back to thrift.
         if (useCompactStorage)
         {
-            validateCompactTable(clusteringTypes, columns);
+            validateCompactTable(clusteringColumnProperties, columns);
         }
         else
         {
@@ -281,12 +298,12 @@ public final class CreateTableStatement extends AlterSchemaStatement
          * Counter table validation
          */
 
-        boolean hasCounters = rawColumns.values().stream().anyMatch(CQL3Type.Raw::isCounter);
+        boolean hasCounters = rawColumns.values().stream().anyMatch(c -> c.rawType.isCounter());
         if (hasCounters)
         {
             // We've handled anything that is not a PRIMARY KEY so columns only contains NON-PK columns. So
             // if it's a counter table, make sure we don't have non-counter types
-            if (columns.values().stream().anyMatch(t -> !t.getType().isCounter()))
+            if (columns.values().stream().anyMatch(t -> !t.type.isCounter()))
                 throw ire("Cannot mix counter and non counter columns in the same table");
 
             if (params.defaultTimeToLive > 0)
@@ -306,38 +323,44 @@ public final class CreateTableStatement extends AlterSchemaStatement
                .params(params);
 
         for (int i = 0; i < partitionKeyColumns.size(); i++)
-            builder.addPartitionKeyColumn(partitionKeyColumns.get(i), partitionKeyTypes.get(i));
+        {
+            ColumnProperties properties = partitionKeyColumnProperties.get(i);
+            builder.addPartitionKeyColumn(partitionKeyColumns.get(i), properties.type, properties.mask);
+        }
 
         for (int i = 0; i < clusteringColumns.size(); i++)
-            builder.addClusteringColumn(clusteringColumns.get(i), clusteringTypes.get(i));
+        {
+            ColumnProperties properties = clusteringColumnProperties.get(i);
+            builder.addClusteringColumn(clusteringColumns.get(i), properties.type, properties.mask);
+        }
 
         if (useCompactStorage)
         {
-            fixupCompactTable(clusteringTypes, columns, hasCounters, builder);
+            fixupCompactTable(clusteringColumnProperties, columns, hasCounters, builder);
         }
         else
         {
-            columns.forEach((column, type) -> {
+            columns.forEach((column, properties) -> {
                 if (staticColumns.contains(column))
-                    builder.addStaticColumn(column, type.getType());
+                    builder.addStaticColumn(column, properties.type, properties.mask);
                 else
-                    builder.addRegularColumn(column, type.getType());
+                    builder.addRegularColumn(column, properties.type, properties.mask);
             });
         }
         return builder;
     }
 
-    private void validateCompactTable(List<AbstractType<?>> clusteringTypes,
-                                      Map<ColumnIdentifier, CQL3Type> columns)
+    private void validateCompactTable(List<ColumnProperties> clusteringColumnProperties,
+                                      Map<ColumnIdentifier, ColumnProperties> columns)
     {
-        boolean isDense = !clusteringTypes.isEmpty();
+        boolean isDense = !clusteringColumnProperties.isEmpty();
 
-        if (columns.values().stream().anyMatch(c -> c.getType().isMultiCell()))
+        if (columns.values().stream().anyMatch(c -> c.type.isMultiCell()))
             throw ire("Non-frozen collections and UDTs are not supported with COMPACT STORAGE");
         if (!staticColumns.isEmpty())
             throw ire("Static columns are not supported in COMPACT STORAGE tables");
 
-        if (clusteringTypes.isEmpty())
+        if (clusteringColumnProperties.isEmpty())
         {
             // It's a thrift "static CF" so there should be some columns definition
             if (columns.isEmpty())
@@ -359,8 +382,8 @@ public final class CreateTableStatement extends AlterSchemaStatement
         }
     }
 
-    private void fixupCompactTable(List<AbstractType<?>> clusteringTypes,
-                                   Map<ColumnIdentifier, CQL3Type> columns,
+    private void fixupCompactTable(List<ColumnProperties> clusteringTypes,
+                                   Map<ColumnIdentifier, ColumnProperties> columns,
                                    boolean hasCounters,
                                    TableMetadata.Builder builder)
     {
@@ -379,12 +402,12 @@ public final class CreateTableStatement extends AlterSchemaStatement
 
         builder.flags(flags);
 
-        columns.forEach((name, type) -> {
+        columns.forEach((name, properties) -> {
             // Note that for "static" no-clustering compact storage we use static for the defined columns
             if (staticColumns.contains(name) || isStaticCompact)
-                builder.addStaticColumn(name, type.getType());
+                builder.addStaticColumn(name, properties.type, properties.mask);
             else
-                builder.addRegularColumn(name, type.getType());
+                builder.addRegularColumn(name, properties.type, properties.mask);
         });
 
         DefaultNames names = new DefaultNames(builder.columnNames());
@@ -400,22 +423,6 @@ public final class CreateTableStatement extends AlterSchemaStatement
             // that's the case, add it but with a specific EmptyType so we can recognize that case later
             builder.addRegularColumn(names.defaultCompactValueName(), EmptyType.instance);
         }
-    }
-
-    @Override
-    public Set<String> clientWarnings(KeyspacesDiff diff)
-    {
-        // this threshold is deprecated, it will be replaced by the guardrail used in #validate(ClientState)
-        int tableCount = Schema.instance.getNumberOfTables();
-        if (tableCount > DatabaseDescriptor.tableCountWarnThreshold())
-        {
-            String msg = String.format("Cluster already contains %d tables in %d keyspaces. Having a large number of tables will significantly slow down schema dependent cluster operations.",
-                                       tableCount,
-                                       Schema.instance.getKeyspaces().size());
-            logger.warn(msg);
-            return ImmutableSet.of(msg);
-        }
-        return ImmutableSet.of();
     }
 
     private static class DefaultNames
@@ -469,7 +476,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
         private final boolean ifNotExists;
 
         private boolean useCompactStorage = false;
-        private final Map<ColumnIdentifier, CQL3Type.Raw> rawColumns = new HashMap<>();
+        private final Map<ColumnIdentifier, ColumnProperties.Raw> rawColumns = new HashMap<>();
         private final Set<ColumnIdentifier> staticColumns = new HashSet<>();
         private final List<ColumnIdentifier> clusteringColumns = new ArrayList<>();
 
@@ -493,15 +500,12 @@ public final class CreateTableStatement extends AlterSchemaStatement
 
             return new CreateTableStatement(keyspaceName,
                                             name.getName(),
-
                                             rawColumns,
                                             staticColumns,
                                             partitionKeyColumns,
                                             clusteringColumns,
-
                                             clusteringOrder,
                                             attrs,
-
                                             ifNotExists,
                                             useCompactStorage);
         }
@@ -522,9 +526,10 @@ public final class CreateTableStatement extends AlterSchemaStatement
             return name.getName();
         }
 
-        public void addColumn(ColumnIdentifier column, CQL3Type.Raw type, boolean isStatic)
+        public void addColumn(ColumnIdentifier column, CQL3Type.Raw type, boolean isStatic, ColumnMask.Raw mask)
         {
-            if (null != rawColumns.put(column, type))
+
+            if (null != rawColumns.put(column, new ColumnProperties.Raw(type, mask)))
                 throw ire("Duplicate column '%s' declaration for table '%s'", column, name);
 
             if (isStatic)
@@ -558,6 +563,54 @@ public final class CreateTableStatement extends AlterSchemaStatement
         {
             if (null != clusteringOrder.put(column, ascending))
                 throw ire("Duplicate column '%s' in CLUSTERING ORDER BY clause for table '%s'", column, name);
+        }
+    }
+
+    /**
+     * Class encapsulating the properties of a column, which are its type and mask.
+     */
+    private final static class ColumnProperties
+    {
+        public final AbstractType<?> type;
+        public final CQL3Type cqlType; // we keep the original CQL type for printing fully qualified user type names
+
+        @Nullable
+        public final ColumnMask mask;
+
+        public ColumnProperties(AbstractType<?> type, CQL3Type cqlType, @Nullable ColumnMask mask)
+        {
+            this.type = type;
+            this.cqlType = cqlType;
+            this.mask = mask;
+        }
+
+        public ColumnProperties withReversedType()
+        {
+            return new ColumnProperties(ReversedType.getInstance(type),
+                                        cqlType,
+                                        mask == null ? null : mask.withReversedType());
+        }
+
+        public final static class Raw
+        {
+            public final CQL3Type.Raw rawType;
+
+            @Nullable
+            public final ColumnMask.Raw rawMask;
+
+            public Raw(CQL3Type.Raw rawType, @Nullable ColumnMask.Raw rawMask)
+            {
+                this.rawType = rawType;
+                this.rawMask = rawMask;
+            }
+
+            public ColumnProperties prepare(String keyspace, String table, ColumnIdentifier column, Types udts)
+            {
+                CQL3Type cqlType = rawType.prepare(keyspace, udts);
+                AbstractType<?> type = cqlType.getType();
+                ColumnMask mask = rawMask == null ? null : rawMask.prepare(keyspace, table, column, type);
+                return new ColumnProperties(type, cqlType, mask);
+            }
         }
     }
 }

@@ -22,7 +22,6 @@ import java.util.*;
 import javax.management.openmbean.*;
 
 import com.google.common.base.Function;
-import com.google.common.base.Throwables;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
@@ -83,7 +82,7 @@ public class SessionInfoCompositeData
         }
         catch (OpenDataException e)
         {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -121,7 +120,7 @@ public class SessionInfoCompositeData
         }
         catch (OpenDataException e)
         {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e);
         }
     }
 
@@ -138,7 +137,7 @@ public class SessionInfoCompositeData
         }
         catch (UnknownHostException e)
         {
-            throw Throwables.propagate(e);
+            throw new RuntimeException(e);
         }
         Function<CompositeData, StreamSummary> toStreamSummary = new Function<CompositeData, StreamSummary>()
         {
@@ -152,7 +151,7 @@ public class SessionInfoCompositeData
                                            connecting,
                                            fromArrayOfCompositeData((CompositeData[]) values[5], toStreamSummary),
                                            fromArrayOfCompositeData((CompositeData[]) values[6], toStreamSummary),
-                                           StreamSession.State.valueOf((String) values[7]));
+                                           StreamSession.State.valueOf((String) values[7]), null); // null is here to maintain backwards compatibility
         Function<CompositeData, ProgressInfo> toProgressInfo = new Function<CompositeData, ProgressInfo>()
         {
             public ProgressInfo apply(CompositeData input)

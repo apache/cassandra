@@ -20,20 +20,21 @@ package org.apache.cassandra.streaming;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.net.InetSocketAddress;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 
+import javax.annotation.concurrent.GuardedBy;
+
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.db.virtual.SimpleDataSet;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.apache.cassandra.utils.Clock;
@@ -43,29 +44,23 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
-public class StreamingState implements StreamEventHandler
+public class StreamingState implements StreamEventHandler, IMeasurableMemory
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamingState.class);
 
-    public static final long ELEMENT_SIZE = ObjectSizes.measureDeep(new StreamingState(nextTimeUUID(), StreamOperation.OTHER, false));
+    public static final long EMPTY = ObjectSizes.measureDeep(new StreamingState(nextTimeUUID(), StreamOperation.OTHER, false));
 
     public enum Status
     {INIT, START, SUCCESS, FAILURE}
 
     private final long createdAtMillis = Clock.Global.currentTimeMillis();
 
-    // while streaming is running, this is a cache of StreamInfo seen with progress state
-    // the reason for the cache is that StreamSession drops data after tasks (recieve/send) complete, this makes
-    // it so that current state of a future tracks work pending rather than work done, cache solves this by not deleting
-    // when tasks complete
-    // To lower memory costs, clear this after the stream completes
-    private ConcurrentMap<InetSocketAddress, SessionInfo> streamProgress = new ConcurrentHashMap<>();
-
     private final TimeUUID id;
     private final boolean follower;
     private final StreamOperation operation;
-    private Set<InetSocketAddress> peers = null;
-    private Sessions sessions = Sessions.EMPTY;
+    private final Set<InetSocketAddress> peers = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    @GuardedBy("this")
+    private final Sessions sessions = new Sessions();
 
     private Status status;
     private String completeMessage = null;
@@ -75,6 +70,14 @@ public class StreamingState implements StreamEventHandler
 
     // API for state changes
     public final Phase phase = new Phase();
+
+    @Override
+    public long unsharedHeapSize()
+    {
+        long costOfPeers = peers().size() * (ObjectSizes.IPV6_SOCKET_ADDRESS_SIZE + 48); // 48 represents the datastructure cost computed by the JOL
+        long costOfCompleteMessage = ObjectSizes.sizeOf(completeMessage());
+        return costOfPeers + costOfCompleteMessage + EMPTY;
+    }
 
     public StreamingState(StreamResultFuture result)
     {
@@ -107,13 +110,12 @@ public class StreamingState implements StreamEventHandler
 
     public Set<InetSocketAddress> peers()
     {
-        Set<InetSocketAddress> peers = this.peers;
-        if (peers != null)
-            return peers;
-        ConcurrentMap<InetSocketAddress, SessionInfo> streamProgress = this.streamProgress;
-        if (streamProgress != null)
-            return streamProgress.keySet();
-        return Collections.emptySet();
+        return this.peers;
+    }
+
+    public String completeMessage()
+    {
+        return this.completeMessage;
     }
 
     public Status status()
@@ -138,6 +140,7 @@ public class StreamingState implements StreamEventHandler
         }
     }
 
+    @VisibleForTesting
     public StreamResultFuture future()
     {
         if (follower)
@@ -225,12 +228,6 @@ public class StreamingState implements StreamEventHandler
     @Override
     public synchronized void handleStreamEvent(StreamEvent event)
     {
-        ConcurrentMap<InetSocketAddress, SessionInfo> streamProgress = this.streamProgress;
-        if (streamProgress == null)
-        {
-            logger.warn("Got stream event {} after the stream completed", event.eventType);
-            return;
-        }
         try
         {
             switch (event.eventType)
@@ -252,54 +249,56 @@ public class StreamingState implements StreamEventHandler
         {
             logger.warn("Unexpected exception handling stream event", t);
         }
-        sessions = Sessions.create(streamProgress.values());
         lastUpdatedAtNanos = Clock.Global.nanoTime();
     }
 
     private void streamPrepared(StreamEvent.SessionPreparedEvent event)
     {
-        SessionInfo session = new SessionInfo(event.session);
-        streamProgress.putIfAbsent(session.peer, session);
+        SessionInfo session = event.session;
+        peers.add(session.peer);
+        // only update stats on ACK to avoid duplication
+        if (event.prepareDirection != StreamSession.PrepareDirection.ACK)
+            return;
+        sessions.bytesToReceive += session.getTotalSizeToReceive();
+        sessions.bytesToSend += session.getTotalSizeToSend();
+
+        sessions.filesToReceive += session.getTotalFilesToReceive();
+        sessions.filesToSend += session.getTotalFilesToSend();
     }
 
     private void streamProgress(StreamEvent.ProgressEvent event)
     {
-        SessionInfo info = streamProgress.get(event.progress.peer);
-        if (info != null)
+        ProgressInfo info = event.progress;
+
+        if (info.direction == ProgressInfo.Direction.IN)
         {
-            info.updateProgress(event.progress);
+            // receiving
+            sessions.bytesReceived += info.deltaBytes;
+            if (info.isCompleted())
+                sessions.filesReceived++;
         }
         else
         {
-            logger.warn("[Stream #{}} ID#{}] Recieved stream progress before prepare; peer={}", id, event.progress.sessionIndex, event.progress.peer);
+            // sending
+            sessions.bytesSent += info.deltaBytes;
+            if (info.isCompleted())
+                sessions.filesSent++;
         }
     }
 
     @Override
     public synchronized void onSuccess(@Nullable StreamState state)
     {
-        ConcurrentMap<InetSocketAddress, SessionInfo> streamProgress = this.streamProgress;
-        if (streamProgress != null)
-        {
-            sessions = Sessions.create(streamProgress.values());
-            peers = new HashSet<>(streamProgress.keySet());
-            this.streamProgress = null;
-            updateState(Status.SUCCESS);
-        }
+        updateState(Status.SUCCESS);
     }
 
     @Override
     public synchronized void onFailure(Throwable throwable)
     {
-        ConcurrentMap<InetSocketAddress, SessionInfo> streamProgress = this.streamProgress;
-        if (streamProgress != null)
-        {
-            sessions = Sessions.create(streamProgress.values());
-            peers = new HashSet<>(streamProgress.keySet());
-            this.streamProgress = null;
-        }
         completeMessage = Throwables.getStackTraceAsString(throwable);
         updateState(Status.FAILURE);
+        //we know the size is now very different from the estimate so recompute by adding again
+        StreamManager.instance.addStreamingStateAgain(this);
     }
 
     private synchronized void updateState(Status state)
@@ -326,24 +325,10 @@ public class StreamingState implements StreamEventHandler
 
     public static class Sessions
     {
-        public static final Sessions EMPTY = new Sessions(0, 0, 0, 0, 0, 0, 0, 0);
-
-        public final long bytesToReceive, bytesReceived;
-        public final long bytesToSend, bytesSent;
-        public final long filesToReceive, filesReceived;
-        public final long filesToSend, filesSent;
-
-        public Sessions(long bytesToReceive, long bytesReceived, long bytesToSend, long bytesSent, long filesToReceive, long filesReceived, long filesToSend, long filesSent)
-        {
-            this.bytesToReceive = bytesToReceive;
-            this.bytesReceived = bytesReceived;
-            this.bytesToSend = bytesToSend;
-            this.bytesSent = bytesSent;
-            this.filesToReceive = filesToReceive;
-            this.filesReceived = filesReceived;
-            this.filesToSend = filesToSend;
-            this.filesSent = filesSent;
-        }
+        public long bytesToReceive, bytesReceived;
+        public long bytesToSend, bytesSent;
+        public long filesToReceive, filesReceived;
+        public long filesToSend, filesSent;
 
         public static String columns()
         {
@@ -357,51 +342,9 @@ public class StreamingState implements StreamEventHandler
                    "  files_sent bigint, \n";
         }
 
-        public static Sessions create(Collection<SessionInfo> sessions)
-        {
-            long bytesToReceive = 0;
-            long bytesReceived = 0;
-            long filesToReceive = 0;
-            long filesReceived = 0;
-            long bytesToSend = 0;
-            long bytesSent = 0;
-            long filesToSend = 0;
-            long filesSent = 0;
-            for (SessionInfo session : sessions)
-            {
-                bytesToReceive += session.getTotalSizeToReceive();
-                bytesReceived += session.getTotalSizeReceived();
-
-                filesToReceive += session.getTotalFilesToReceive();
-                filesReceived += session.getTotalFilesReceived();
-
-                bytesToSend += session.getTotalSizeToSend();
-                bytesSent += session.getTotalSizeSent();
-
-                filesToSend += session.getTotalFilesToSend();
-                filesSent += session.getTotalFilesSent();
-            }
-            if (0 == bytesToReceive && 0 == bytesReceived && 0 == filesToReceive && 0 == filesReceived && 0 == bytesToSend && 0 == bytesSent && 0 == filesToSend && 0 == filesSent)
-                return EMPTY;
-            return new Sessions(bytesToReceive, bytesReceived,
-                                bytesToSend, bytesSent,
-                                filesToReceive, filesReceived,
-                                filesToSend, filesSent);
-        }
-
         public boolean isEmpty()
         {
-            return this == EMPTY;
-        }
-
-        public BigDecimal receivedBytesPercent()
-        {
-            return div(bytesReceived, bytesToReceive);
-        }
-
-        public BigDecimal sentBytesPercent()
-        {
-            return div(bytesSent, bytesToSend);
+            return bytesToReceive == 0 && bytesToSend == 0 && filesToReceive == 0 && filesToSend == 0;
         }
 
         public BigDecimal progress()

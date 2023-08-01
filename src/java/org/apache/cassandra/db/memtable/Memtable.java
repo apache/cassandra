@@ -26,6 +26,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.EncodingStats;
@@ -55,6 +56,8 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
  */
 public interface Memtable extends Comparable<Memtable>, UnfilteredSource
 {
+    public static final long NO_MIN_TIMESTAMP = -1;
+
     // Construction
 
     /**
@@ -369,13 +372,17 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource
     CommitLogPosition getCommitLogLowerBound();
 
     /** The commit log position at the time that this memtable was switched out */
-    CommitLogPosition getCommitLogUpperBound();
+    LastCommitLogPosition getFinalCommitLogUpperBound();
 
     /** True if the memtable can contain any data that was written before the given commit log position */
     boolean mayContainDataBefore(CommitLogPosition position);
 
     /** True if the memtable contains no data */
     boolean isClean();
+
+    // The following two methods provide a way of tracking ongoing flushes
+    LifecycleTransaction setFlushTransaction(LifecycleTransaction transaction);
+    LifecycleTransaction getFlushTransaction();
 
     /** Order memtables by time as reflected in the commit log position at time of construction */
     default int compareTo(Memtable that)

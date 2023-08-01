@@ -17,30 +17,31 @@
  */
 package org.apache.cassandra.io.sstable.format;
 
+import java.util.Objects;
 import java.util.regex.Pattern;
 
 
 /**
  * A set of feature flags associated with a SSTable format
- *
+ * <p>
  * versions are denoted as [major][minor].  Minor versions must be forward-compatible:
  * new fields are allowed in e.g. the metadata component, but fields can't be removed
  * or have their size changed.
- *
+ * <p>
  * Minor versions were introduced with version "hb" for Cassandra 1.0.3; prior to that,
  * we always incremented the major version.
- *
  */
 public abstract class Version
 {
     private static final Pattern VALIDATION = Pattern.compile("[a-z]+");
 
-    protected final String version;
-    protected final SSTableFormat format;
+    public final String version;
+    public final SSTableFormat<?, ?> format;
+
     protected Version(SSTableFormat format, String version)
     {
-        this.format = format;
-        this.version = version;
+        this.format = Objects.requireNonNull(format);
+        this.version = Objects.requireNonNull(version);
     }
 
     public abstract boolean isLatestVersion();
@@ -58,25 +59,47 @@ public abstract class Version
     public abstract boolean hasIsTransient();
 
     public abstract boolean hasMetadataChecksum();
+    
+    /**
+     * This format raises the legacy int year 2038 limit to 2106 by using an uint instead
+     */
+    public abstract boolean hasUIntDeletionTime();
 
     /**
      * The old bloomfilter format serializes the data as BIG_ENDIAN long's, the new one uses the
      * same format as in memory (serializes as bytes).
+     *
      * @return True if the bloomfilter file is old serialization format
      */
     public abstract boolean hasOldBfFormat();
 
+    /**
+     * @deprecated it is replaced by {@link #hasImprovedMinMax()} since 'nc' and to be completetly removed since 'oa'
+     */
+    @Deprecated
     public abstract boolean hasAccurateMinMax();
 
-    public String getVersion()
-    {
-        return version;
-    }
+    /**
+     * @deprecated it is replaced by {@link #hasImprovedMinMax()} since 'nc' and to be completetly removed since 'oa'
+     */
+    @Deprecated
+    public abstract boolean hasLegacyMinMax();
 
-    public SSTableFormat getSSTableFormat()
-    {
-        return format;
-    }
+    public abstract boolean hasOriginatingHostId();
+
+    public abstract boolean hasImprovedMinMax();
+
+    /**
+     * If the sstable has token space coverage data.
+     */
+    public abstract boolean hasTokenSpaceCoverage();
+
+    /**
+     * Records in th stats if the sstable has any partition deletions.
+     */
+    public abstract boolean hasPartitionLevelDeletionsPresenceMarker();
+
+    public abstract boolean hasKeyRange();
 
     /**
      * @param ver SSTable version
@@ -89,6 +112,7 @@ public abstract class Version
     }
 
     abstract public boolean isCompatible();
+
     abstract public boolean isCompatibleForStreaming();
 
     @Override
@@ -97,24 +121,24 @@ public abstract class Version
         return version;
     }
 
-    @Override
-    public boolean equals(Object o)
+    public String toFormatAndVersionString()
     {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        return format.name() + '-' + version;
+    }
 
-        Version version1 = (Version) o;
+    @Override
+    public boolean equals(Object other)
+    {
+        if (this == other) return true;
+        if (other == null || getClass() != other.getClass()) return false;
 
-        if (version != null ? !version.equals(version1.version) : version1.version != null) return false;
-
-        return true;
+        Version otherVersion = (Version) other;
+        return Objects.equals(version, otherVersion.version) && Objects.equals(format.name(), otherVersion.format.name());
     }
 
     @Override
     public int hashCode()
     {
-        return version != null ? version.hashCode() : 0;
+        return Objects.hash(version, format.name());
     }
-
-    public abstract boolean hasOriginatingHostId();
 }

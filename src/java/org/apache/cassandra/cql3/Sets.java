@@ -20,17 +20,31 @@ package org.apache.cassandra.cql3;
 import static org.apache.cassandra.cql3.Constants.UNSET_VALUE;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import org.apache.cassandra.db.guardrails.Guardrails;
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.guardrails.Guardrails;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.ReversedType;
+import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -55,7 +69,7 @@ public abstract class Sets
 
     private static AbstractType<?> elementsType(AbstractType<?> type)
     {
-        return ((SetType) unwrap(type)).getElementsType();
+        return ((SetType<?>) unwrap(type)).getElementsType();
     }
 
     /**
@@ -106,7 +120,7 @@ public abstract class Sets
     public static <T> String setToString(Iterable<T> items, java.util.function.Function<T, String> mapper)
     {
         return StreamSupport.stream(items.spliterator(), false)
-                            .map(e -> mapper.apply(e))
+                            .map(mapper)
                             .collect(Collectors.joining(", ", "{", "}"));
     }
 
@@ -117,11 +131,19 @@ public abstract class Sets
      * @param mapper the mapper used to retrieve the element types from the items
      * @return the exact SetType from the items if it can be known or <code>null</code>
      */
-    public static <T> AbstractType<?> getExactSetTypeIfKnown(List<T> items,
-                                                             java.util.function.Function<T, AbstractType<?>> mapper)
+    public static <T> SetType<?> getExactSetTypeIfKnown(List<T> items,
+                                                        java.util.function.Function<T, AbstractType<?>> mapper)
     {
         Optional<AbstractType<?>> type = items.stream().map(mapper).filter(Objects::nonNull).findFirst();
         return type.isPresent() ? SetType.getInstance(type.get(), false) : null;
+    }
+
+    public static <T> SetType<?> getPreferredCompatibleType(List<T> items,
+                                                            java.util.function.Function<T, AbstractType<?>> mapper)
+    {
+        Set<AbstractType<?>> types = items.stream().map(mapper).filter(Objects::nonNull).collect(Collectors.toSet());
+        AbstractType<?> type = AssignmentTestable.getCompatibleTypeIfKnown(types);
+        return type == null ? null : SetType.getInstance(type, false);
     }
 
     public static class Literal extends Term.Raw
@@ -194,6 +216,12 @@ public abstract class Sets
             return getExactSetTypeIfKnown(elements, p -> p.getExactTypeIfKnown(keyspace));
         }
 
+        @Override
+        public AbstractType<?> getCompatibleTypeIfKnown(String keyspace)
+        {
+            return Sets.getPreferredCompatibleType(elements, p -> p.getCompatibleTypeIfKnown(keyspace));
+        }
+
         public String getText()
         {
             return setToString(elements, Term.Raw::getText);
@@ -209,15 +237,15 @@ public abstract class Sets
             this.elements = elements;
         }
 
-        public static Value fromSerialized(ByteBuffer value, SetType type, ProtocolVersion version) throws InvalidRequestException
+        public static <T> Value fromSerialized(ByteBuffer value, SetType<T> type) throws InvalidRequestException
         {
             try
             {
                 // Collections have this small hack that validate cannot be called on a serialized object,
                 // but compose does the validation (so we're fine).
-                Set<?> s = type.getSerializer().deserializeForNativeProtocol(value, ByteBufferAccessor.instance, version);
+                Set<T> s = type.getSerializer().deserialize(value, ByteBufferAccessor.instance);
                 SortedSet<ByteBuffer> elements = new TreeSet<>(type.getElementsType());
-                for (Object element : s)
+                for (T element : s)
                     elements.add(type.getElementsType().decomposeUntyped(element));
                 return new Value(elements);
             }
@@ -227,19 +255,19 @@ public abstract class Sets
             }
         }
 
-        public ByteBuffer get(ProtocolVersion protocolVersion)
+        public ByteBuffer get(ProtocolVersion version)
         {
-            return CollectionSerializer.pack(elements, elements.size(), protocolVersion);
+            return CollectionSerializer.pack(elements, elements.size());
         }
 
-        public boolean equals(SetType st, Value v)
+        public boolean equals(SetType<?> st, Value v)
         {
             if (elements.size() != v.elements.size())
                 return false;
 
             Iterator<ByteBuffer> thisIter = elements.iterator();
             Iterator<ByteBuffer> thatIter = v.elements.iterator();
-            AbstractType elementsType = st.getElementsType();
+            AbstractType<?> elementsType = st.getElementsType();
             while (thisIter.hasNext())
                 if (elementsType.compare(thisIter.next(), thatIter.next()) != 0)
                     return false;
@@ -308,7 +336,7 @@ public abstract class Sets
                 return null;
             if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
                 return UNSET_VALUE;
-            return Value.fromSerialized(value, (SetType)receiver.type, options.getProtocolVersion());
+            return Value.fromSerialized(value, (SetType<?>) receiver.type);
         }
     }
 

@@ -21,7 +21,6 @@ import java.util.Set;
 
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.RoleName;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
@@ -55,13 +54,6 @@ public abstract class PermissionsManagementStatement extends AuthorizationStatem
         // called both here and in authorize(), as in some cases we do not call the latter.
         resource = maybeCorrectResource(resource, state);
 
-        // altering permissions on builtin functions is not supported
-        if (resource instanceof FunctionResource
-            && SchemaConstants.SYSTEM_KEYSPACE_NAME.equals(((FunctionResource)resource).getKeyspace()))
-        {
-            throw new InvalidRequestException("Altering permissions on builtin functions is not supported");
-        }
-
         if (!resource.exists())
             throw new InvalidRequestException(String.format("Resource %s doesn't exist", resource));
     }
@@ -78,7 +70,7 @@ public abstract class PermissionsManagementStatement extends AuthorizationStatem
         for (Permission p : permissions)
             state.ensurePermission(p, resource);
     }
-    
+
     @Override
     public String toString()
     {

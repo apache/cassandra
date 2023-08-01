@@ -117,13 +117,18 @@ public class Attributes
         if (tval == ByteBufferUtil.UNSET_BYTE_BUFFER)
             return metadata.params.defaultTimeToLive;
 
+        // byte[0] and null are the same for Int32Type.  UNSET_BYTE_BUFFER is also byte[0] but we rely on pointer
+        // identity, so need to check this after checking that
+        if (ByteBufferUtil.EMPTY_BYTE_BUFFER.equals(tval))
+            return 0;
+
         try
         {
             Int32Type.instance.validate(tval);
         }
         catch (MarshalException e)
         {
-            throw new InvalidRequestException("Invalid timestamp value: " + tval);
+            throw new InvalidRequestException("Invalid TTL value: " + tval);
         }
 
         int ttl = Int32Type.instance.compose(tval);

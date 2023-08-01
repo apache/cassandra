@@ -21,28 +21,36 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Supplier;
+import javax.annotation.Nullable;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
+import org.apache.cassandra.index.internal.CassandraIndex;
+import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.service.StartupChecks.StartupCheckType;
+import org.apache.cassandra.utils.StorageCompatibilityMode;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.AUTOCOMPACTION_ON_STARTUP_ENABLED;
+import static org.apache.cassandra.config.CassandraRelevantProperties.FILE_CACHE_ENABLED;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SKIP_PAXOS_REPAIR_ON_TOPOLOGY_CHANGE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SKIP_PAXOS_REPAIR_ON_TOPOLOGY_CHANGE_KEYSPACES;
 
 /**
  * A class that contains configuration properties for the cassandra node it runs within.
- *
+ * <p>
  * Properties declared as volatile can be mutated via JMX.
  */
 public class Config
@@ -69,10 +77,13 @@ public class Config
     public static final String PROPERTY_PREFIX = "cassandra.";
 
     public String cluster_name = "Test Cluster";
-    public String authenticator;
+    public ParameterizedClass authenticator;
     public String authorizer;
     public String role_manager;
+    public ParameterizedClass crypto_provider;
     public String network_authorizer;
+    public ParameterizedClass cidr_authorizer;
+
     @Replaces(oldName = "permissions_validity_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
     public volatile DurationSpec.IntMillisecondsBound permissions_validity = new DurationSpec.IntMillisecondsBound("2s");
     public volatile int permissions_cache_max_entries = 1000;
@@ -145,6 +156,7 @@ public class Config
     @Replaces(oldName = "truncate_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
     public volatile DurationSpec.LongMillisecondsBound truncate_request_timeout = new DurationSpec.LongMillisecondsBound("60000ms");
 
+    @Replaces(oldName = "repair_request_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
     public volatile DurationSpec.LongMillisecondsBound repair_request_timeout = new DurationSpec.LongMillisecondsBound("120000ms");
 
     public Integer streaming_connections_per_host = 1;
@@ -156,6 +168,8 @@ public class Config
 
     @Replaces(oldName = "slow_query_log_timeout_in_ms", converter = Converters.MILLIS_DURATION_LONG, deprecated = true)
     public volatile DurationSpec.LongMillisecondsBound slow_query_log_timeout = new DurationSpec.LongMillisecondsBound("500ms");
+
+    public volatile DurationSpec.LongMillisecondsBound stream_transfer_task_timeout = new DurationSpec.LongMillisecondsBound("12h");
 
     public volatile double phi_convict_threshold = 8.0;
 
@@ -201,7 +215,7 @@ public class Config
     public boolean listen_interface_prefer_ipv6 = false;
     public String broadcast_address;
     public boolean listen_on_broadcast_address = false;
-    public String internode_authenticator;
+    public ParameterizedClass internode_authenticator;
 
     public boolean traverse_auth_from_root = false;
 
@@ -264,6 +278,8 @@ public class Config
     public int native_transport_max_threads = 128;
     @Replaces(oldName = "native_transport_max_frame_size_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
     public DataStorageSpec.IntMebibytesBound native_transport_max_frame_size = new DataStorageSpec.IntMebibytesBound("16MiB");
+    /** do bcrypt hashing in a limited pool to prevent cpu load spikes; note: any value < 1 will be set to 1 on init **/
+    public int native_transport_max_auth_threads = 4;
     public volatile long native_transport_max_concurrent_connections = -1L;
     public volatile long native_transport_max_concurrent_connections_per_ip = -1L;
     public boolean native_transport_flush_in_batches_legacy = false;
@@ -304,7 +320,7 @@ public class Config
 
     /* if the size of columns or super-columns are more than this, indexing will kick in */
     @Replaces(oldName = "column_index_size_in_kb", converter = Converters.KIBIBYTES_DATASTORAGE, deprecated = true)
-    public volatile DataStorageSpec.IntKibibytesBound column_index_size = new DataStorageSpec.IntKibibytesBound("64KiB");
+    public volatile DataStorageSpec.IntKibibytesBound column_index_size;
     @Replaces(oldName = "column_index_cache_size_in_kb", converter = Converters.KIBIBYTES_DATASTORAGE, deprecated = true)
     public volatile DataStorageSpec.IntKibibytesBound column_index_cache_size = new DataStorageSpec.IntKibibytesBound("2KiB");
     @Replaces(oldName = "batch_size_warn_threshold_in_kb", converter = Converters.KIBIBYTES_DATASTORAGE, deprecated = true)
@@ -315,15 +331,18 @@ public class Config
     public Integer unlogged_batch_across_partitions_warn_threshold = 10;
     public volatile Integer concurrent_compactors;
     @Replaces(oldName = "compaction_throughput_mb_per_sec", converter = Converters.MEBIBYTES_PER_SECOND_DATA_RATE, deprecated = true)
-    public volatile DataRateSpec.IntMebibytesPerSecondBound compaction_throughput = new DataRateSpec.IntMebibytesPerSecondBound("16MiB/s");
-    @Replaces(oldName = "compaction_large_partition_warning_threshold_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
-    public volatile DataStorageSpec.IntMebibytesBound compaction_large_partition_warning_threshold = new DataStorageSpec.IntMebibytesBound("100MiB");
+    public volatile DataRateSpec.LongBytesPerSecondBound compaction_throughput = new DataRateSpec.LongBytesPerSecondBound("64MiB/s");
     @Replaces(oldName = "min_free_space_per_drive_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
     public DataStorageSpec.IntMebibytesBound min_free_space_per_drive = new DataStorageSpec.IntMebibytesBound("50MiB");
-    public volatile Integer compaction_tombstone_warning_threshold = 100000;
+
+    // fraction of free disk space available for compaction after min free space is subtracted
+    public volatile Double max_space_usable_for_compactions_in_percentage = .95;
 
     public volatile int concurrent_materialized_view_builders = 1;
     public volatile int reject_repair_compaction_threshold = Integer.MAX_VALUE;
+
+    // The number of executors to use for building secondary indexes
+    public int concurrent_index_builders = 2;
 
     /**
      * @deprecated retry support removed on CASSANDRA-10992
@@ -331,15 +350,23 @@ public class Config
     @Deprecated
     public int max_streaming_retries = 3;
 
-    @Replaces(oldName = "stream_throughput_outbound_megabits_per_sec", converter = Converters.MEGABITS_TO_MEBIBYTES_PER_SECOND_DATA_RATE, deprecated = true)
-    public volatile DataRateSpec.IntMebibytesPerSecondBound stream_throughput_outbound = new DataRateSpec.IntMebibytesPerSecondBound("24MiB/s");
-    @Replaces(oldName = "inter_dc_stream_throughput_outbound_megabits_per_sec", converter = Converters.MEGABITS_TO_MEBIBYTES_PER_SECOND_DATA_RATE, deprecated = true)
-    public volatile DataRateSpec.IntMebibytesPerSecondBound inter_dc_stream_throughput_outbound = new DataRateSpec.IntMebibytesPerSecondBound("24MiB/s");
+    @Replaces(oldName = "stream_throughput_outbound_megabits_per_sec", converter = Converters.MEGABITS_TO_BYTES_PER_SECOND_DATA_RATE, deprecated = true)
+    public volatile DataRateSpec.LongBytesPerSecondBound stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound("24MiB/s");
+    @Replaces(oldName = "inter_dc_stream_throughput_outbound_megabits_per_sec", converter = Converters.MEGABITS_TO_BYTES_PER_SECOND_DATA_RATE, deprecated = true)
+    public volatile DataRateSpec.LongBytesPerSecondBound inter_dc_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound("24MiB/s");
 
-    public volatile DataRateSpec.IntMebibytesPerSecondBound entire_sstable_stream_throughput_outbound = new DataRateSpec.IntMebibytesPerSecondBound("24MiB/s");
-    public volatile DataRateSpec.IntMebibytesPerSecondBound entire_sstable_inter_dc_stream_throughput_outbound = new DataRateSpec.IntMebibytesPerSecondBound("24MiB/s");
+    public volatile DataRateSpec.LongBytesPerSecondBound entire_sstable_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound("24MiB/s");
+    public volatile DataRateSpec.LongBytesPerSecondBound entire_sstable_inter_dc_stream_throughput_outbound = new DataRateSpec.LongBytesPerSecondBound("24MiB/s");
 
     public String[] data_file_directories = new String[0];
+
+    public static class SSTableConfig
+    {
+        public String selected_format = BigFormat.NAME;
+        public Map<String, Map<String, String>> format = new HashMap<>();
+    }
+
+    public final SSTableConfig sstable = new SSTableConfig();
 
     /**
      * The directory to use for storing the system keyspaces data.
@@ -380,6 +407,9 @@ public class Config
     // When true, new CDC mutations are rejected/blocked when reaching max CDC storage.
     // When false, new CDC mutations can always be added. But it will remove the oldest CDC commit log segment on full.
     public volatile boolean cdc_block_writes = true;
+    // When true, CDC data in SSTable go through commit logs during internodes streaming, e.g. repair
+    // When false, it behaves the same as normal streaming.
+    public volatile boolean cdc_on_repair_enabled = true;
     public String cdc_raw_directory;
     @Replaces(oldName = "cdc_total_space_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
     public DataStorageSpec.IntMebibytesBound cdc_total_space = new DataStorageSpec.IntMebibytesBound("0MiB");
@@ -417,38 +447,40 @@ public class Config
 
     public ParameterizedClass hints_compression;
     public volatile boolean auto_hints_cleanup_enabled = false;
+    public volatile boolean transfer_hints_on_decommission = true;
 
     public volatile boolean incremental_backups = false;
     public boolean trickle_fsync = false;
     @Replaces(oldName = "trickle_fsync_interval_in_kb", converter = Converters.KIBIBYTES_DATASTORAGE, deprecated = true)
     public DataStorageSpec.IntKibibytesBound trickle_fsync_interval = new DataStorageSpec.IntKibibytesBound("10240KiB");
 
-    @Replaces(oldName = "sstable_preemptive_open_interval_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
+    @Nullable
+    @Replaces(oldName = "sstable_preemptive_open_interval_in_mb", converter = Converters.NEGATIVE_MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
     public volatile DataStorageSpec.IntMebibytesBound sstable_preemptive_open_interval = new DataStorageSpec.IntMebibytesBound("50MiB");
 
     public volatile boolean key_cache_migrate_during_compaction = true;
     public volatile int key_cache_keys_to_save = Integer.MAX_VALUE;
     @Replaces(oldName = "key_cache_size_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_LONG, deprecated = true)
     public DataStorageSpec.LongMebibytesBound key_cache_size = null;
-    @Replaces(oldName = "key_cache_save_period", converter = Converters.SECONDS_CUSTOM_DURATION, deprecated = true)
+    @Replaces(oldName = "key_cache_save_period", converter = Converters.SECONDS_CUSTOM_DURATION)
     public volatile DurationSpec.IntSecondsBound key_cache_save_period = new DurationSpec.IntSecondsBound("4h");
 
     public String row_cache_class_name = "org.apache.cassandra.cache.OHCProvider";
     @Replaces(oldName = "row_cache_size_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_LONG, deprecated = true)
     public DataStorageSpec.LongMebibytesBound row_cache_size = new DataStorageSpec.LongMebibytesBound("0MiB");
-    @Replaces(oldName = "row_cache_save_period", converter = Converters.SECONDS_CUSTOM_DURATION, deprecated = true)
+    @Replaces(oldName = "row_cache_save_period", converter = Converters.SECONDS_CUSTOM_DURATION)
     public volatile DurationSpec.IntSecondsBound row_cache_save_period = new DurationSpec.IntSecondsBound("0s");
     public volatile int row_cache_keys_to_save = Integer.MAX_VALUE;
 
     @Replaces(oldName = "counter_cache_size_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_LONG, deprecated = true)
     public DataStorageSpec.LongMebibytesBound counter_cache_size = null;
-    @Replaces(oldName = "counter_cache_save_period", converter = Converters.SECONDS_CUSTOM_DURATION, deprecated = true)
+    @Replaces(oldName = "counter_cache_save_period", converter = Converters.SECONDS_CUSTOM_DURATION)
     public volatile DurationSpec.IntSecondsBound counter_cache_save_period = new DurationSpec.IntSecondsBound("7200s");
     public volatile int counter_cache_keys_to_save = Integer.MAX_VALUE;
 
     public DataStorageSpec.LongMebibytesBound paxos_cache_size = null;
 
-    @Replaces(oldName = "cache_load_timeout_seconds", converter = Converters.SECONDS_DURATION, deprecated = true)
+    @Replaces(oldName = "cache_load_timeout_seconds", converter = Converters.NEGATIVE_SECONDS_DURATION, deprecated = true)
     public DurationSpec.IntSecondsBound cache_load_timeout = new DurationSpec.IntSecondsBound("30s");
 
     private static boolean isClientMode = false;
@@ -460,7 +492,7 @@ public class Config
     @Replaces(oldName = "file_cache_size_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
     public DataStorageSpec.IntMebibytesBound file_cache_size;
 
-    public boolean file_cache_enabled = Boolean.getBoolean("cassandra.file_cache_enabled");
+    public boolean file_cache_enabled = FILE_CACHE_ENABLED.getBoolean();
 
     /**
      * Because of the current {@link org.apache.cassandra.utils.memory.BufferPool} slab sizes of 64 KiB, we
@@ -501,13 +533,14 @@ public class Config
 
     @Replaces(oldName = "index_summary_capacity_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_LONG, deprecated = true)
     public volatile DataStorageSpec.LongMebibytesBound index_summary_capacity;
-    @Replaces(oldName = "index_summary_resize_interval_in_minutes", converter = Converters.MINUTES_DURATION, deprecated = true)
+    @Nullable
+    @Replaces(oldName = "index_summary_resize_interval_in_minutes", converter = Converters.MINUTES_CUSTOM_DURATION, deprecated = true)
     public volatile DurationSpec.IntMinutesBound index_summary_resize_interval = new DurationSpec.IntMinutesBound("60m");
 
     @Replaces(oldName = "gc_log_threshold_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
-    public DurationSpec.IntMillisecondsBound gc_log_threshold = new DurationSpec.IntMillisecondsBound("200ms");
+    public volatile DurationSpec.IntMillisecondsBound gc_log_threshold = new DurationSpec.IntMillisecondsBound("200ms");
     @Replaces(oldName = "gc_warn_threshold_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
-    public DurationSpec.IntMillisecondsBound gc_warn_threshold = new DurationSpec.IntMillisecondsBound("1s");
+    public volatile DurationSpec.IntMillisecondsBound gc_warn_threshold = new DurationSpec.IntMillisecondsBound("1s");
 
     // TTL for different types of trace events.
     @Replaces(oldName = "tracetype_query_ttl", converter = Converters.SECONDS_DURATION, deprecated=true)
@@ -547,6 +580,8 @@ public class Config
 
     @Replaces(oldName = "enable_user_defined_functions", converter = Converters.IDENTITY, deprecated = true)
     public boolean user_defined_functions_enabled = false;
+
+    @Deprecated
     @Replaces(oldName = "enable_scripted_user_defined_functions", converter = Converters.IDENTITY, deprecated = true)
     public boolean scripted_user_defined_functions_enabled = false;
 
@@ -589,6 +624,8 @@ public class Config
      * Set this to allow UDFs accessing java.lang.System.* methods, which basically allows UDFs to execute any arbitrary code on the system.
      */
     public boolean allow_extra_insecure_udfs = false;
+
+    public boolean dynamic_data_masking_enabled = false;
 
     /**
      * Time in milliseconds after a warning will be emitted to the log and to the client that a UDF runs too long.
@@ -647,6 +684,8 @@ public class Config
     public volatile boolean automatic_sstable_upgrade = false;
     public volatile int max_concurrent_automatic_sstable_upgrades = 1;
     public boolean stream_entire_sstables = true;
+
+    public volatile boolean skip_stream_disk_space_check = false;
 
     public volatile AuditLogOptions audit_logging_options = new AuditLogOptions();
     public volatile FullQueryLoggerOptions full_query_logging_options = new FullQueryLoggerOptions();
@@ -742,6 +781,8 @@ public class Config
      */
     public volatile double range_tombstone_list_growth_factor = 1.5;
 
+    public StorageAttachedIndexOptions sai_options = new StorageAttachedIndexOptions();
+
     /**
      * @deprecated migrate to {@link DatabaseDescriptor#isClientInitialized()}
      */
@@ -769,7 +810,7 @@ public class Config
     public volatile boolean check_for_duplicate_rows_during_reads = true;
     public volatile boolean check_for_duplicate_rows_during_compaction = true;
 
-    public boolean autocompaction_on_startup_enabled = Boolean.parseBoolean(System.getProperty("cassandra.autocompaction_on_startup_enabled", "true"));
+    public boolean autocompaction_on_startup_enabled = AUTOCOMPACTION_ON_STARTUP_ENABLED.getBoolean();
 
     // see CASSANDRA-3200 / CASSANDRA-16274
     public volatile boolean auto_optimise_inc_repair_streams = false;
@@ -777,7 +818,7 @@ public class Config
     public volatile boolean auto_optimise_preview_repair_streams = false;
 
     // see CASSANDRA-17048 and the comment in cassandra.yaml
-    public boolean enable_uuid_sstable_identifiers = false;
+    public boolean uuid_sstable_identifiers_enabled = false;
 
     /**
      * Client mode means that the process is a pure client, that uses C* code base but does
@@ -791,18 +832,15 @@ public class Config
         isClientMode = clientMode;
     }
 
-    @Deprecated // this warning threshold will be replaced by an equivalent guardrail
-    public volatile int table_count_warn_threshold = 150;
-    @Deprecated // this warning threshold will be replaced by an equivalent guardrail
-    public volatile int keyspace_count_warn_threshold = 40;
-
     public volatile int consecutive_message_errors_threshold = 1;
 
     public volatile SubnetGroups client_error_reporting_exclusions = new SubnetGroups();
     public volatile SubnetGroups internode_error_reporting_exclusions = new SubnetGroups();
 
+    @Replaces(oldName = "keyspace_count_warn_threshold", converter = Converters.KEYSPACE_COUNT_THRESHOLD_TO_GUARDRAIL, deprecated = true)
     public volatile int keyspaces_warn_threshold = -1;
     public volatile int keyspaces_fail_threshold = -1;
+    @Replaces(oldName = "table_count_warn_threshold", converter = Converters.TABLE_COUNT_THRESHOLD_TO_GUARDRAIL, deprecated = true)
     public volatile int tables_warn_threshold = -1;
     public volatile int tables_fail_threshold = -1;
     public volatile int columns_per_table_warn_threshold = -1;
@@ -828,12 +866,26 @@ public class Config
     public volatile boolean alter_table_enabled = true;
     public volatile boolean group_by_enabled = true;
     public volatile boolean drop_truncate_table_enabled = true;
+    public volatile boolean drop_keyspace_enabled = true;
     public volatile boolean secondary_indexes_enabled = true;
+
+    public volatile String default_secondary_index = CassandraIndex.NAME;
+    public volatile boolean default_secondary_index_enabled = true;
+
     public volatile boolean uncompressed_tables_enabled = true;
     public volatile boolean compact_tables_enabled = true;
     public volatile boolean read_before_write_list_operations_enabled = true;
     public volatile boolean allow_filtering_enabled = true;
     public volatile boolean simplestrategy_enabled = true;
+    @Replaces(oldName = "compaction_large_partition_warning_threshold_mb", converter = Converters.LONG_BYTES_DATASTORAGE_MEBIBYTES_INT, deprecated = true)
+    @Replaces(oldName = "compaction_large_partition_warning_threshold", converter = Converters.LONG_BYTES_DATASTORAGE_MEBIBYTES_DATASTORAGE, deprecated = true)
+    public volatile DataStorageSpec.LongBytesBound partition_size_warn_threshold = null;
+    public volatile DataStorageSpec.LongBytesBound partition_size_fail_threshold = null;
+    @Replaces(oldName = "compaction_tombstone_warning_threshold", converter = Converters.IDENTITY, deprecated = true)
+    public volatile long partition_tombstones_warn_threshold = -1;
+    public volatile long partition_tombstones_fail_threshold = -1;
+    public volatile DataStorageSpec.LongBytesBound column_value_size_warn_threshold = null;
+    public volatile DataStorageSpec.LongBytesBound column_value_size_fail_threshold = null;
     public volatile DataStorageSpec.LongBytesBound collection_size_warn_threshold = null;
     public volatile DataStorageSpec.LongBytesBound collection_size_fail_threshold = null;
     public volatile int items_per_collection_warn_threshold = -1;
@@ -845,15 +897,28 @@ public class Config
     public volatile DataStorageSpec.LongBytesBound data_disk_usage_max_disk_size = null;
     public volatile int minimum_replication_factor_warn_threshold = -1;
     public volatile int minimum_replication_factor_fail_threshold = -1;
+    public volatile int maximum_replication_factor_warn_threshold = -1;
+    public volatile int maximum_replication_factor_fail_threshold = -1;
+    public volatile boolean zero_ttl_on_twcs_warned = true;
+    public volatile boolean zero_ttl_on_twcs_enabled = true;
 
     public volatile DurationSpec.LongNanosecondsBound streaming_state_expires = new DurationSpec.LongNanosecondsBound("3d");
     public volatile DataStorageSpec.LongBytesBound streaming_state_size = new DataStorageSpec.LongBytesBound("40MiB");
+
+    public volatile boolean streaming_stats_enabled = true;
+    public volatile DurationSpec.IntSecondsBound streaming_slow_events_log_timeout = new DurationSpec.IntSecondsBound("10s");
 
     /** The configuration of startup checks. */
     public volatile Map<StartupCheckType, Map<String, Object>> startup_checks = new HashMap<>();
 
     public volatile DurationSpec.LongNanosecondsBound repair_state_expires = new DurationSpec.LongNanosecondsBound("3d");
     public volatile int repair_state_size = 100_000;
+
+    /** The configuration of timestamp bounds */
+    public volatile DurationSpec.LongMicrosecondsBound maximum_timestamp_warn_threshold = null;
+    public volatile DurationSpec.LongMicrosecondsBound maximum_timestamp_fail_threshold = null;
+    public volatile DurationSpec.LongMicrosecondsBound minimum_timestamp_warn_threshold = null;
+    public volatile DurationSpec.LongMicrosecondsBound minimum_timestamp_fail_threshold = null;
 
     /**
      * The variants of paxos implementation and semantics supported by Cassandra.
@@ -945,7 +1010,7 @@ public class Config
      * rare operation circumstances e.g. where for some reason the repair is impossible to perform (e.g. too few replicas)
      * and an unsafe topology change must be made
      */
-    public volatile boolean skip_paxos_repair_on_topology_change = Boolean.getBoolean("cassandra.skip_paxos_repair_on_topology_change");
+    public volatile boolean skip_paxos_repair_on_topology_change = SKIP_PAXOS_REPAIR_ON_TOPOLOGY_CHANGE.getBoolean();
 
     /**
      * A safety margin when purging paxos state information that has been safely replicated to a quorum.
@@ -1006,7 +1071,7 @@ public class Config
     /**
      * If necessary for operational purposes, permit certain keyspaces to be ignored for paxos topology repairs
      */
-    public volatile Set<String> skip_paxos_repair_on_topology_change_keyspaces = splitCommaDelimited(System.getProperty("cassandra.skip_paxos_repair_on_topology_change_keyspaces"));
+    public volatile Set<String> skip_paxos_repair_on_topology_change_keyspaces = splitCommaDelimited(SKIP_PAXOS_REPAIR_ON_TOPOLOGY_CHANGE_KEYSPACES.getString());
 
     /**
      * See {@link org.apache.cassandra.service.paxos.ContentionStrategy}
@@ -1033,11 +1098,20 @@ public class Config
      */
     public volatile int paxos_repair_parallelism = -1;
 
+    public volatile boolean sstable_read_rate_persistence_enabled = false;
+
+    public volatile boolean client_request_size_metrics_enabled = true;
+
     public volatile int max_top_size_partition_count = 10;
     public volatile int max_top_tombstone_partition_count = 10;
-    public volatile DataStorageSpec.LongBytesBound min_tracked_partition_size_bytes = new DataStorageSpec.LongBytesBound("1MiB");
+    public volatile DataStorageSpec.LongBytesBound min_tracked_partition_size = new DataStorageSpec.LongBytesBound("1MiB");
     public volatile long min_tracked_partition_tombstone_count = 5000;
     public volatile boolean top_partitions_enabled = true;
+
+    /**
+     * Default compaction configuration, used if a table does not specify any.
+     */
+    public ParameterizedClass default_compaction = null;
 
     public static Supplier<Config> getOverrideLoadConfig()
     {
@@ -1164,4 +1238,12 @@ public class Config
 
         logger.info("Node configuration:[{}]", Joiner.on("; ").join(configMap.entrySet()));
     }
+
+    public volatile boolean dump_heap_on_uncaught_exception = false;
+    public String heap_dump_path = "heapdump";
+
+
+    public double severity_during_decommission = 0;
+
+    public StorageCompatibilityMode storage_compatibility_mode = StorageCompatibilityMode.CASSANDRA_4;
 }

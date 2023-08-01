@@ -20,6 +20,7 @@ package org.apache.cassandra.db.streaming;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -53,10 +54,12 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.streaming.StreamSummary;
 import org.apache.cassandra.streaming.StreamingChannel;
 import org.apache.cassandra.streaming.async.NettyStreamingConnectionFactory;
 import org.apache.cassandra.streaming.OutgoingStream;
@@ -69,6 +72,8 @@ import org.apache.cassandra.utils.concurrent.Ref;
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class CassandraStreamManagerTest
 {
@@ -90,7 +95,9 @@ public class CassandraStreamManagerTest
     public void createKeyspace() throws Exception
     {
         keyspace = String.format("ks_%s", System.currentTimeMillis());
-        tbm = CreateTableStatement.parse(String.format("CREATE TABLE %s (k INT PRIMARY KEY, v INT)", table), keyspace).build();
+        tbm = CreateTableStatement.parse(String.format("CREATE TABLE %s (k INT PRIMARY KEY, v INT)", table), keyspace)
+                                  .compaction(CompactionParams.stcs(Collections.emptyMap()))
+                                  .build();
         SchemaLoader.createKeyspace(keyspace, KeyspaceParams.simple(1), tbm);
         cfs = Schema.instance.getColumnFamilyStoreInstance(tbm.id);
     }
@@ -203,7 +210,7 @@ public class CassandraStreamManagerTest
 
         Collection<SSTableReader> allSSTables = cfs.getLiveSSTables();
         Assert.assertEquals(1, allSSTables.size());
-        final Token firstToken = allSSTables.iterator().next().first.getToken();
+        final Token firstToken = allSSTables.iterator().next().getFirst().getToken();
         DatabaseDescriptor.setSSTablePreemptiveOpenIntervalInMiB(1);
 
         Set<SSTableReader> sstablesBeforeRewrite = getReadersForRange(new Range<>(firstToken, firstToken));
@@ -240,8 +247,34 @@ public class CassandraStreamManagerTest
             done.set(true);
             t.join(20);
         }
-        Assert.assertFalse(failed.get());
-        Assert.assertTrue(checkCount.get() >= 2);
+        assertFalse(failed.get());
+        assertTrue(checkCount.get() >= 2);
         cfs.truncateBlocking();
+    }
+
+    @Test
+    public void checkAvailableDiskSpaceAndCompactions()
+    {
+        assertTrue(StreamSession.checkAvailableDiskSpaceAndCompactions(createSummaries(), nextTimeUUID(), null, false));
+    }
+
+    @Test
+    public void checkAvailableDiskSpaceAndCompactionsFailing()
+    {
+        int threshold = ActiveRepairService.instance.getRepairPendingCompactionRejectThreshold();
+        ActiveRepairService.instance.setRepairPendingCompactionRejectThreshold(1);
+        assertFalse(StreamSession.checkAvailableDiskSpaceAndCompactions(createSummaries(), nextTimeUUID(), null, false));
+        ActiveRepairService.instance.setRepairPendingCompactionRejectThreshold(threshold);
+    }
+
+    private Collection<StreamSummary> createSummaries()
+    {
+        Collection<StreamSummary> summaries = new ArrayList<>();
+        for (int i = 0; i < 10; i++)
+        {
+            StreamSummary summary = new StreamSummary(tbm.id, i, (i + 1) * 10);
+            summaries.add(summary);
+        }
+        return summaries;
     }
 }

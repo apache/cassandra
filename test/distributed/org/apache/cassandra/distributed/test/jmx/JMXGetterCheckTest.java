@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.distributed.test.jmx;
 
-import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -31,7 +30,6 @@ import javax.management.MBeanServerConnection;
 import javax.management.ObjectName;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
-import javax.management.remote.JMXConnectorServer;
 import javax.management.remote.JMXServiceURL;
 
 import com.google.common.collect.ImmutableSet;
@@ -39,11 +37,8 @@ import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
-import org.apache.cassandra.utils.JMXServerUtils;
-
-import static org.apache.cassandra.config.CassandraRelevantProperties.IS_DISABLED_MBEAN_REGISTRATION;
-import static org.apache.cassandra.cql3.CQLTester.getAutomaticallyAllocatedPort;
 
 public class JMXGetterCheckTest extends TestBaseImpl
 {
@@ -53,23 +48,22 @@ public class JMXGetterCheckTest extends TestBaseImpl
     private static final Set<String> IGNORE_OPERATIONS = ImmutableSet.of(
     "org.apache.cassandra.db:type=StorageService:stopDaemon", // halts the instance, which then causes the JVM to exit
     "org.apache.cassandra.db:type=StorageService:drain", // don't drain, it stops things which can cause other APIs to be unstable as we are in a stopped state
-    "org.apache.cassandra.db:type=StorageService:stopGossiping" // if we stop gossip this can causes other issues, so avoid
+    "org.apache.cassandra.db:type=StorageService:stopGossiping", // if we stop gossip this can cause other issues, so avoid
+    "org.apache.cassandra.db:type=StorageService:resetLocalSchema", // this will fail when there are no other nodes which can serve schema
+    "org.apache.cassandra.db:type=CIDRGroupsMappingManager:loadCidrGroupsCache" // AllowAllCIDRAuthorizer doesn't support this operation, as feature is disabled by default
     );
 
-    @Test
-    public void test() throws Exception
-    {
-        // start JMX server, which the instance will register with
-        InetAddress loopback = InetAddress.getLoopbackAddress();
-        String jmxHost = loopback.getHostAddress();
-        int jmxPort = getAutomaticallyAllocatedPort(loopback);
-        JMXConnectorServer jmxServer = JMXServerUtils.createJMXServer(jmxPort, true);
-        jmxServer.start();
-        String url = "service:jmx:rmi:///jndi/rmi://" + jmxHost + ":" + jmxPort + "/jmxrmi";
+    public static final String JMX_SERVICE_URL_FMT = "service:jmx:rmi:///jndi/rmi://%s:%d/jmxrmi";
 
-        IS_DISABLED_MBEAN_REGISTRATION.setBoolean(false);
+    @Test
+    public void testGetters() throws Exception
+    {
         try (Cluster cluster = Cluster.build(1).withConfig(c -> c.with(Feature.values())).start())
         {
+            IInvokableInstance instance = cluster.get(1);
+
+            String jmxHost = instance.config().broadcastAddress().getAddress().getHostAddress();
+            String url = String.format(JMX_SERVICE_URL_FMT, jmxHost, instance.config().jmxPort());
             List<Named> errors = new ArrayList<>();
             try (JMXConnector jmxc = JMXConnectorFactory.connect(new JMXServiceURL(url), null))
             {
@@ -121,7 +115,7 @@ public class JMXGetterCheckTest extends TestBaseImpl
     }
 
     /**
-     * This class is meant to make new errors easier to read, by adding the JMX endpoint, and cleaning up the unneded JMX/Reflection logic cluttering the stacktrace
+     * This class is meant to make new errors easier to read, by adding the JMX endpoint, and cleaning up the unneeded JMX/Reflection logic cluttering the stacktrace
      */
     private static class Named extends RuntimeException
     {

@@ -29,7 +29,7 @@ public class GetVersionTest extends OfflineToolUtils
     {
         ToolResult tool = ToolRunner.invokeClass(GetVersion.class);
         tool.assertOnCleanExit();
-        assertNoUnexpectedThreadsStarted(null);
+        assertNoUnexpectedThreadsStarted(null, false);
         assertSchemaNotLoaded();
         assertCLSMNotLoaded();
         assertSystemKSNotLoaded();

@@ -50,7 +50,7 @@ public class CollectionKeyIndex extends CollectionKeyIndexBase
         return path.get(0);
     }
 
-    public boolean isStale(Row data, ByteBuffer indexValue, int nowInSec)
+    public boolean isStale(Row data, ByteBuffer indexValue, long nowInSec)
     {
         Cell<?> cell = data.getCell(indexedColumn, CellPath.create(indexValue));
         return cell == null || !cell.isLive(nowInSec);

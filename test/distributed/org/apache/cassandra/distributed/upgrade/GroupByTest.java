@@ -21,7 +21,6 @@ package org.apache.cassandra.distributed.upgrade;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
-import org.apache.cassandra.distributed.shared.Versions;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
@@ -36,7 +35,7 @@ public class GroupByTest extends UpgradeTestBase
         // CASSANDRA-16582: group-by across mixed version cluster would fail with ArrayIndexOutOfBoundException
         new UpgradeTestBase.TestCase()
         .nodes(2)
-        .upgradesFrom(v3X)
+        .upgradesToCurrentFrom(v3X)
         .nodesToUpgrade(1)
         .withConfig(config -> config.with(GOSSIP, NETWORK))
         .setup(cluster -> {

@@ -20,6 +20,7 @@ package org.apache.cassandra.schema;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
 
@@ -30,12 +31,13 @@ import com.google.common.collect.Iterables;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.cql3.SchemaElement;
+import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.UDAggregate;
 import org.apache.cassandra.cql3.functions.UDFunction;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
-import org.apache.cassandra.schema.Functions.FunctionsDiff;
+import org.apache.cassandra.schema.UserFunctions.FunctionsDiff;
 import org.apache.cassandra.schema.Tables.TablesDiff;
 import org.apache.cassandra.schema.Types.TypesDiff;
 import org.apache.cassandra.schema.Views.ViewsDiff;
@@ -61,9 +63,9 @@ public final class KeyspaceMetadata implements SchemaElement
     public final Tables tables;
     public final Views views;
     public final Types types;
-    public final Functions functions;
+    public final UserFunctions userFunctions;
 
-    private KeyspaceMetadata(String name, Kind kind, KeyspaceParams params, Tables tables, Views views, Types types, Functions functions)
+    private KeyspaceMetadata(String name, Kind kind, KeyspaceParams params, Tables tables, Views views, Types types, UserFunctions functions)
     {
         this.name = name;
         this.kind = kind;
@@ -71,57 +73,57 @@ public final class KeyspaceMetadata implements SchemaElement
         this.tables = tables;
         this.views = views;
         this.types = types;
-        this.functions = functions;
+        this.userFunctions = functions;
     }
 
     public static KeyspaceMetadata create(String name, KeyspaceParams params)
     {
-        return new KeyspaceMetadata(name, Kind.REGULAR, params, Tables.none(), Views.none(), Types.none(), Functions.none());
+        return new KeyspaceMetadata(name, Kind.REGULAR, params, Tables.none(), Views.none(), Types.none(), UserFunctions.none());
     }
 
     public static KeyspaceMetadata create(String name, KeyspaceParams params, Tables tables)
     {
-        return new KeyspaceMetadata(name, Kind.REGULAR, params, tables, Views.none(), Types.none(), Functions.none());
+        return new KeyspaceMetadata(name, Kind.REGULAR, params, tables, Views.none(), Types.none(), UserFunctions.none());
     }
 
-    public static KeyspaceMetadata create(String name, KeyspaceParams params, Tables tables, Views views, Types types, Functions functions)
+    public static KeyspaceMetadata create(String name, KeyspaceParams params, Tables tables, Views views, Types types, UserFunctions functions)
     {
         return new KeyspaceMetadata(name, Kind.REGULAR, params, tables, views, types, functions);
     }
 
     public static KeyspaceMetadata virtual(String name, Tables tables)
     {
-        return new KeyspaceMetadata(name, Kind.VIRTUAL, KeyspaceParams.local(), tables, Views.none(), Types.none(), Functions.none());
+        return new KeyspaceMetadata(name, Kind.VIRTUAL, KeyspaceParams.local(), tables, Views.none(), Types.none(), UserFunctions.none());
     }
 
     public KeyspaceMetadata withSwapped(KeyspaceParams params)
     {
-        return new KeyspaceMetadata(name, kind, params, tables, views, types, functions);
+        return new KeyspaceMetadata(name, kind, params, tables, views, types, userFunctions);
     }
 
     public KeyspaceMetadata withSwapped(Tables regular)
     {
-        return new KeyspaceMetadata(name, kind, params, regular, views, types, functions);
+        return new KeyspaceMetadata(name, kind, params, regular, views, types, userFunctions);
     }
 
     public KeyspaceMetadata withSwapped(Views views)
     {
-        return new KeyspaceMetadata(name, kind, params, tables, views, types, functions);
+        return new KeyspaceMetadata(name, kind, params, tables, views, types, userFunctions);
     }
 
     public KeyspaceMetadata withSwapped(Types types)
     {
-        return new KeyspaceMetadata(name, kind, params, tables, views, types, functions);
+        return new KeyspaceMetadata(name, kind, params, tables, views, types, userFunctions);
     }
 
-    public KeyspaceMetadata withSwapped(Functions functions)
+    public KeyspaceMetadata withSwapped(UserFunctions functions)
     {
         return new KeyspaceMetadata(name, kind, params, tables, views, types, functions);
     }
 
     public KeyspaceMetadata empty()
     {
-        return new KeyspaceMetadata(this.name, this.kind, this.params, Tables.none(), Views.none(), Types.none(), Functions.none());
+        return new KeyspaceMetadata(this.name, this.kind, this.params, Tables.none(), Views.none(), Types.none(), UserFunctions.none());
     }
 
     public boolean isVirtual()
@@ -141,7 +143,7 @@ public final class KeyspaceMetadata implements SchemaElement
                                     tables.withUpdatedUserType(udt),
                                     views.withUpdatedUserTypes(udt),
                                     types.withUpdatedUserType(udt),
-                                    functions.withUpdatedUserType(udt));
+                                    userFunctions.withUpdatedUserType(udt));
     }
 
     public Iterable<TableMetadata> tablesAndViews()
@@ -158,6 +160,12 @@ public final class KeyspaceMetadata implements SchemaElement
              : view.metadata;
     }
 
+    @Nullable
+    public TableMetadata getTableNullable(String tableName)
+    {
+        return tables.getNullable(tableName);
+    }
+
     public boolean hasTable(String tableName)
     {
         return tables.get(tableName).isPresent();
@@ -171,6 +179,15 @@ public final class KeyspaceMetadata implements SchemaElement
     public boolean hasIndex(String indexName)
     {
         return any(tables, t -> t.indexes.has(indexName));
+    }
+
+    /**
+     * @param function a user function
+     * @return a stream of tables within this keyspace that have column masks using the specified user function
+     */
+    public Stream<TableMetadata> tablesUsingFunction(Function function)
+    {
+        return tables.stream().filter(table -> table.dependsOn(function));
     }
 
     public String findAvailableIndexName(String baseName)
@@ -200,7 +217,7 @@ public final class KeyspaceMetadata implements SchemaElement
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(name, kind, params, tables, views, functions, types);
+        return Objects.hashCode(name, kind, params, tables, views, userFunctions, types);
     }
 
     @Override
@@ -215,12 +232,12 @@ public final class KeyspaceMetadata implements SchemaElement
         KeyspaceMetadata other = (KeyspaceMetadata) o;
 
         return name.equals(other.name)
-            && kind == other.kind
-            && params.equals(other.params)
-            && tables.equals(other.tables)
-            && views.equals(other.views)
-            && functions.equals(other.functions)
-            && types.equals(other.types);
+               && kind == other.kind
+               && params.equals(other.params)
+               && tables.equals(other.tables)
+               && views.equals(other.views)
+               && userFunctions.equals(other.userFunctions)
+               && types.equals(other.types);
     }
 
     @Override
@@ -232,7 +249,7 @@ public final class KeyspaceMetadata implements SchemaElement
                           .add("params", params)
                           .add("tables", tables)
                           .add("views", views)
-                          .add("functions", functions)
+                          .add("functions", userFunctions)
                           .add("types", types)
                           .toString();
     }
@@ -385,10 +402,10 @@ public final class KeyspaceMetadata implements SchemaElement
 
             @SuppressWarnings("unchecked") FunctionsDiff<UDFunction>  udfs = FunctionsDiff.NONE;
             @SuppressWarnings("unchecked") FunctionsDiff<UDAggregate> udas = FunctionsDiff.NONE;
-            if (before.functions != after.functions)
+            if (before.userFunctions != after.userFunctions)
             {
-                udfs = Functions.udfsDiff(before.functions, after.functions);
-                udas = Functions.udasDiff(before.functions, after.functions);
+                udfs = UserFunctions.udfsDiff(before.userFunctions, after.userFunctions);
+                udas = UserFunctions.udasDiff(before.userFunctions, after.userFunctions);
             }
 
             if (before.params.equals(after.params) && tables.isEmpty() && views.isEmpty() && types.isEmpty() && udfs.isEmpty() && udas.isEmpty())

@@ -41,6 +41,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.dht.OrderPreservingPartitioner.StringToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
@@ -55,6 +56,8 @@ import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.ServerTestUtils.cleanup;
 import static org.apache.cassandra.ServerTestUtils.mkdirs;
+import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIP_DISABLE_THREAD_VALIDATION;
+import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_ADDRESS;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -63,7 +66,7 @@ public class StorageServiceServerTest
     @BeforeClass
     public static void setUp() throws ConfigurationException
     {
-        System.setProperty(Gossiper.Props.DISABLE_THREAD_VALIDATION, "true");
+        GOSSIP_DISABLE_THREAD_VALIDATION.setBoolean(true);
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
         IEndpointSnitch snitch = new PropertyFileSnitch();
@@ -573,6 +576,28 @@ public class StorageServiceServerTest
     }
 
     @Test
+    public void testGetNativeAddressIPV6() throws Exception
+    {
+        // Ensure IPv6 addresses are properly bracketed in RFC2732 (https://datatracker.ietf.org/doc/html/rfc2732) format when including ports.
+        // See https://issues.apache.org/jira/browse/CASSANDRA-17945 for more context.
+        String internalAddressIPV6String = "[0:0:0:0:0:0:0:3]:666";
+        InetAddressAndPort internalAddressIPV6 = InetAddressAndPort.getByName(internalAddressIPV6String);
+        Gossiper.instance.addSavedEndpoint(internalAddressIPV6);
+
+        //Default to using the provided address with the configured port
+        assertEquals("[0:0:0:0:0:0:0:3]:" + DatabaseDescriptor.getNativeTransportPort(), StorageService.instance.getNativeaddress(internalAddressIPV6, true));
+
+        VersionedValue.VersionedValueFactory valueFactory =  new VersionedValue.VersionedValueFactory(Murmur3Partitioner.instance);
+        //If RPC_ADDRESS is present with an IPv6 address, we should properly bracket encode the IP with the configured port.
+        Gossiper.instance.getEndpointStateForEndpoint(internalAddressIPV6).addApplicationState(ApplicationState.RPC_ADDRESS, valueFactory.rpcaddress(InetAddress.getByName("0:0:0:0:0:0:5a:3")));
+        assertEquals("[0:0:0:0:0:0:5a:3]:" + DatabaseDescriptor.getNativeTransportPort(), StorageService.instance.getNativeaddress(internalAddressIPV6, true));
+
+        //If we have the address and port in gossip use that
+        Gossiper.instance.getEndpointStateForEndpoint(internalAddressIPV6).addApplicationState(ApplicationState.NATIVE_ADDRESS_AND_PORT, valueFactory.nativeaddressAndPort(InetAddressAndPort.getByName("[0:0:0:0:0:0:5c:3]:8675")));
+        assertEquals("[0:0:0:0:0:0:5c:3]:8675", StorageService.instance.getNativeaddress(internalAddressIPV6, true));
+    }
+
+    @Test
     public void testAuditLogEnableLoggerNotFound() throws Exception
     {
         StorageService.instance.enableAuditLog(null, null, null, null, null, null, null, null);
@@ -611,7 +636,7 @@ public class StorageServiceServerTest
     @Test
     public void isReplacingSameHostAddressAndHostIdTest() throws UnknownHostException
     {
-        try
+        try (WithProperties properties = new WithProperties())
         {
             UUID differentHostId = UUID.randomUUID();
             Assert.assertFalse(StorageService.instance.isReplacingSameHostAddressAndHostId(differentHostId));
@@ -621,20 +646,16 @@ public class StorageServiceServerTest
             Gossiper.instance.initializeNodeUnsafe(FBUtilities.getBroadcastAddressAndPort(), localHostId, 1);
 
             // Check detects replacing the same host address with the same hostid
-            System.setProperty("cassandra.replace_address", hostAddress);
+            REPLACE_ADDRESS.setString(hostAddress);
             Assert.assertTrue(StorageService.instance.isReplacingSameHostAddressAndHostId(localHostId));
 
             // Check detects replacing the same host address with a different host id
-            System.setProperty("cassandra.replace_address", hostAddress);
+            REPLACE_ADDRESS.setString(hostAddress);
             Assert.assertFalse(StorageService.instance.isReplacingSameHostAddressAndHostId(differentHostId));
 
             // Check tolerates the DNS entry going away for the replace_address
-            System.setProperty("cassandra.replace_address", "unresolvable.host.local.");
+            REPLACE_ADDRESS.setString("unresolvable.host.local.");
             Assert.assertFalse(StorageService.instance.isReplacingSameHostAddressAndHostId(differentHostId));
-        }
-        finally
-        {
-            System.clearProperty("cassandra.replace_address");
         }
     }
 }

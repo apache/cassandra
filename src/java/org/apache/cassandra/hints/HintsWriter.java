@@ -37,6 +37,7 @@ import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.SyncUtil;
 import org.apache.cassandra.utils.Throwables;
 
+import static com.google.common.base.Preconditions.checkState;
 import static org.apache.cassandra.utils.FBUtilities.updateChecksum;
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
 import static org.apache.cassandra.utils.Throwables.perform;
@@ -78,7 +79,7 @@ class HintsWriter implements AutoCloseable
         {
             // write the descriptor
             descriptor.serialize(dob);
-            ByteBuffer descriptorBytes = dob.buffer();
+            ByteBuffer descriptorBytes = dob.unsafeGetBufferAndFlip();
             updateChecksum(crc, descriptorBytes);
             channel.write(descriptorBytes);
 
@@ -248,7 +249,10 @@ class HintsWriter implements AutoCloseable
                 updateChecksumInt(crc, hintSize);
                 out.writeInt((int) crc.getValue());
 
+                long startPosition = out.position();
                 Hint.serializer.serialize(hint, out, descriptor.messagingVersion());
+                long actualSize = out.position() - startPosition;
+                checkState(actualSize == hintSize, "Serialized hint size doesn't match calculated hint size");
                 updateChecksum(crc, hintBuffer, hintBuffer.position() - hintSize, hintSize);
                 out.writeInt((int) crc.getValue());
             }

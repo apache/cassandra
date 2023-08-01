@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.Map;
 
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.db.*;
@@ -40,7 +41,7 @@ public class UpdateParameters
     public final ClientState clientState;
     public final QueryOptions options;
 
-    private final int nowInSec;
+    private final long nowInSec;
     private final long timestamp;
     private final int ttl;
 
@@ -60,7 +61,7 @@ public class UpdateParameters
                             ClientState clientState,
                             QueryOptions options,
                             long timestamp,
-                            int nowInSec,
+                            long nowInSec,
                             int ttl,
                             Map<DecoratedKey, Partition> prefetchedRows)
     throws InvalidRequestException
@@ -74,7 +75,7 @@ public class UpdateParameters
         this.timestamp = timestamp;
         this.ttl = ttl;
 
-        this.deletionTime = new DeletionTime(timestamp, nowInSec);
+        this.deletionTime = DeletionTime.build(timestamp, nowInSec);
 
         this.prefetchedRows = prefetchedRows;
 
@@ -143,6 +144,15 @@ public class UpdateParameters
 
     public void addTombstone(ColumnMetadata column, CellPath path) throws InvalidRequestException
     {
+        // Deleting individual elements of non-frozen sets and maps involves creating tombstones that contain the value
+        // of the deleted element, independently on whether the element existed or not. That tombstone value is guarded
+        // by the columnValueSize guardrail, to prevent the insertion of tombstones over the threshold. The downside is
+        // that enabling or raising this threshold can prevent users from deleting set/map elements that were written
+        // when the guardrail was disabled or with a lower value. Deleting the entire column, row or partition is always
+        // allowed, since the tombstones created for those operations don't contain the CQL column values.
+        if (path != null && column.type.isMultiCell())
+            Guardrails.columnValueSize.guard(path.dataSize(), column.name.toString(), false, clientState);
+
         builder.addCell(BufferCell.tombstone(column, timestamp, nowInSec, path));
     }
 
@@ -153,6 +163,11 @@ public class UpdateParameters
 
     public Cell<?> addCell(ColumnMetadata column, CellPath path, ByteBuffer value) throws InvalidRequestException
     {
+        Guardrails.columnValueSize.guard(value.remaining(), column.name.toString(), false, clientState);
+
+        if (path != null && column.type.isMultiCell())
+            Guardrails.columnValueSize.guard(path.dataSize(), column.name.toString(), false, clientState);
+
         Cell<?> cell = ttl == LivenessInfo.NO_TTL
                        ? BufferCell.live(column, timestamp, value, path)
                        : BufferCell.expiring(column, timestamp, ttl, nowInSec, value, path);
@@ -186,7 +201,7 @@ public class UpdateParameters
 
     public void setComplexDeletionTimeForOverwrite(ColumnMetadata column)
     {
-        builder.addComplexDeletion(column, new DeletionTime(deletionTime.markedForDeleteAt() - 1, deletionTime.localDeletionTime()));
+        builder.addComplexDeletion(column, DeletionTime.build(deletionTime.markedForDeleteAt() - 1, deletionTime.localDeletionTime()));
     }
 
     public Row buildRow()

@@ -56,7 +56,6 @@ import org.apache.cassandra.security.SSLFactory;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.distributed.test.AbstractEncryptionOptionsImpl.ConnectResult.CONNECTING;
 import static org.apache.cassandra.distributed.test.AbstractEncryptionOptionsImpl.ConnectResult.UNINITIALIZED;
-import static org.apache.cassandra.security.SSLFactory.getOrCreateSslContext;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 
 public class AbstractEncryptionOptionsImpl extends TestBaseImpl

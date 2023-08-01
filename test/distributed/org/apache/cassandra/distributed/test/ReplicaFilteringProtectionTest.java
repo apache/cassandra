@@ -22,8 +22,6 @@ import java.io.IOException;
 import java.util.List;
 
 import org.junit.AfterClass;
-import org.junit.Assume;
-import org.junit.AssumptionViolatedException;
 import org.junit.BeforeClass;
 import org.junit.Test;
 

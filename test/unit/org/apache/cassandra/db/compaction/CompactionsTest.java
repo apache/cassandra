@@ -31,6 +31,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -61,13 +62,12 @@ import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.io.sstable.SSTableIdFactory;
+import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
-import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaTestUtil;
@@ -95,7 +95,7 @@ public class CompactionsTest
         compactionOptions.put("tombstone_compaction_interval", "1");
 
         // Disable tombstone histogram rounding for tests
-        System.setProperty("cassandra.streaminghistogram.roundseconds", "1");
+        CassandraRelevantProperties.STREAMING_HISTOGRAM_ROUND_SECONDS.setInt(1);
 
         SchemaLoader.prepareServer();
 
@@ -110,11 +110,16 @@ public class CompactionsTest
 
     public static long populate(String ks, String cf, int startRowKey, int endRowKey, int ttl)
     {
+        return populate(ks, cf, startRowKey, endRowKey, "", ttl);
+    }
+
+    public static long populate(String ks, String cf, int startRowKey, int endRowKey, String suffix, int ttl)
+    {
         long timestamp = System.currentTimeMillis();
         TableMetadata cfm = Keyspace.open(ks).getColumnFamilyStore(cf).metadata();
         for (int i = startRowKey; i <= endRowKey; i++)
         {
-            DecoratedKey key = Util.dk(Integer.toString(i));
+            DecoratedKey key = Util.dk(Integer.toString(i) + suffix);
             for (int j = 0; j < 10; j++)
             {
                 new RowUpdateBuilder(cfm, timestamp, j > 0 ? ttl : 0, key.getKey())
@@ -181,12 +186,14 @@ public class CompactionsTest
         // disable compaction while flushing
         store.disableAutoCompaction();
 
-        //Populate sstable1 with with keys [0..9]
-        populate(KEYSPACE1, CF_STANDARD1, 0, 9, 3); //ttl=3s
+        //Populate sstable1 with with keys [0a..29aaaaaaaaaaa] Partitions have to be big enough 
+        //that prevent the size dependent AbstractCompactionStrategy.worthDroppingTombstones to trigger 
+        //a compaction.
+        populate(KEYSPACE1, CF_STANDARD1, 0, 29, "aaaaaaaaaaa",3); //ttl=3s
         Util.flush(store);
 
-        //Populate sstable2 with with keys [10..19] (keys do not overlap with SSTable1)
-        long timestamp2 = populate(KEYSPACE1, CF_STANDARD1, 10, 19, 3); //ttl=3s
+        //Populate sstable2 with with keys [0b..29b] (keys do not overlap with SSTable1, but the range is almost fully covered)
+        long timestamp2 = populate(KEYSPACE1, CF_STANDARD1, 0, 29, "bbbbbbbbbbb", 3); //ttl=3s
         Util.flush(store);
 
         assertEquals(2, store.getLiveSSTables().size());
@@ -274,7 +281,7 @@ public class CompactionsTest
         SSTableReader sstable = sstables.iterator().next();
 
         SSTableId prevGeneration = sstable.descriptor.id;
-        String file = new File(sstable.descriptor.filenameFor(Component.DATA)).absolutePath();
+        String file = sstable.descriptor.fileFor(Components.DATA).absolutePath();
         // submit user defined compaction on flushed sstable
         CompactionManager.instance.forceUserDefinedCompaction(file);
         // wait until user defined compaction finishes
@@ -295,7 +302,7 @@ public class CompactionsTest
             deletedRowUpdateBuilder.clustering("01").add("val", "a"); //Range tombstone covers this (timestamp 2 > 1)
             Clustering<?> startClustering = Clustering.make(ByteBufferUtil.bytes("0"));
             Clustering<?> endClustering = Clustering.make(ByteBufferUtil.bytes("b"));
-            deletedRowUpdateBuilder.addRangeTombstone(new RangeTombstone(Slice.make(startClustering, endClustering), new DeletionTime(2, (int) (System.currentTimeMillis() / 1000))));
+            deletedRowUpdateBuilder.addRangeTombstone(new RangeTombstone(Slice.make(startClustering, endClustering), DeletionTime.build(2, (int) (System.currentTimeMillis() / 1000))));
             deletedRowUpdateBuilder.build().applyUnsafe();
 
             RowUpdateBuilder notYetDeletedRowUpdateBuilder = new RowUpdateBuilder(table, 3, Util.dk(Integer.toString(dk)));
@@ -345,7 +352,7 @@ public class CompactionsTest
         for (FilteredPartition p : Util.getAll(Util.cmd(cfs).build()))
         {
             k.add(p.partitionKey());
-            final SinglePartitionReadCommand command = SinglePartitionReadCommand.create(cfs.metadata(), FBUtilities.nowInSeconds(), ColumnFilter.all(cfs.metadata()), RowFilter.NONE, DataLimits.NONE, p.partitionKey(), new ClusteringIndexSliceFilter(Slices.ALL, false));
+            final SinglePartitionReadCommand command = SinglePartitionReadCommand.create(cfs.metadata(), FBUtilities.nowInSeconds(), ColumnFilter.all(cfs.metadata()), RowFilter.none(), DataLimits.NONE, p.partitionKey(), new ClusteringIndexSliceFilter(Slices.ALL, false));
             try (ReadExecutionController executionController = command.executionController();
                  PartitionIterator iterator = command.executeInternal(executionController))
             {
@@ -363,8 +370,8 @@ public class CompactionsTest
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
             StatsMetadata stats = sstable.getSSTableMetadata();
-            assertEquals(ByteBufferUtil.bytes("0"), stats.minClusteringValues.get(0));
-            assertEquals(ByteBufferUtil.bytes("b"), stats.maxClusteringValues.get(0));
+            assertEquals(ByteBufferUtil.bytes("0"), stats.coveredClustering.start().bufferAt(0));
+            assertEquals(ByteBufferUtil.bytes("b"), stats.coveredClustering.end().bufferAt(0));
         }
 
         assertEquals(keys, k);

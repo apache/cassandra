@@ -21,8 +21,10 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
-import org.apache.cassandra.exceptions.ConfigurationException;
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.service.StorageService;
@@ -40,16 +42,28 @@ import org.apache.cassandra.service.StorageService;
  */
 public class Ec2MultiRegionSnitch extends Ec2Snitch
 {
-    private static final String PUBLIC_IP_QUERY_URL = "http://169.254.169.254/latest/meta-data/public-ipv4";
-    private static final String PRIVATE_IP_QUERY_URL = "http://169.254.169.254/latest/meta-data/local-ipv4";
+    @VisibleForTesting
+    static final String PUBLIC_IP_QUERY = "/latest/meta-data/public-ipv4";
+    @VisibleForTesting
+    static final String PRIVATE_IP_QUERY = "/latest/meta-data/local-ipv4";
     private final String localPrivateAddress;
 
     public Ec2MultiRegionSnitch() throws IOException, ConfigurationException
     {
-        super();
-        InetAddress localPublicAddress = InetAddress.getByName(awsApiCall(PUBLIC_IP_QUERY_URL));
+        this(new SnitchProperties());
+    }
+
+    public Ec2MultiRegionSnitch(SnitchProperties props) throws IOException, ConfigurationException
+    {
+        this(Ec2MetadataServiceConnector.create(props));
+    }
+
+    Ec2MultiRegionSnitch(AbstractCloudMetadataServiceConnector connector) throws IOException
+    {
+        super(connector);
+        InetAddress localPublicAddress = InetAddress.getByName(connector.apiCall(PUBLIC_IP_QUERY));
         logger.info("EC2Snitch using publicIP as identifier: {}", localPublicAddress);
-        localPrivateAddress = awsApiCall(PRIVATE_IP_QUERY_URL);
+        localPrivateAddress = connector.apiCall(PRIVATE_IP_QUERY);
         // use the Public IP to broadcast Address to other nodes.
         DatabaseDescriptor.setBroadcastAddress(localPublicAddress);
         if (DatabaseDescriptor.getBroadcastRpcAddress() == null)
@@ -74,6 +88,6 @@ public class Ec2MultiRegionSnitch extends Ec2Snitch
         }
         Gossiper.instance.addLocalApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORT, StorageService.instance.valueFactory.internalAddressAndPort(address));
         Gossiper.instance.addLocalApplicationState(ApplicationState.INTERNAL_IP, StorageService.instance.valueFactory.internalIP(address.getAddress()));
-        Gossiper.instance.register(new ReconnectableSnitchHelper(this, ec2region, true));
+        Gossiper.instance.register(new ReconnectableSnitchHelper(this, getLocalDatacenter(), true));
     }
 }
