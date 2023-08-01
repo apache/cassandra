@@ -17,17 +17,17 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import static org.apache.commons.lang3.StringUtils.EMPTY;
-
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
-
 import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+
+import io.airlift.airline.Arguments;
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
+
+import static org.apache.commons.lang3.StringUtils.EMPTY;
 
 @Command(name = "compact", description = "Force a (major) compaction on one or more tables or user-defined compaction on given SSTables")
 public class Compact extends NodeToolCmd

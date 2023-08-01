@@ -18,10 +18,11 @@
 
 package org.apache.cassandra.distributed.fuzz;
 
+import org.apache.cassandra.db.Keyspace;
+
 import harry.core.Run;
 import harry.model.OpSelectors;
 import harry.visitors.VisitExecutor;
-import org.apache.cassandra.db.Keyspace;
 
 public class SSTableLoadingVisitor extends VisitExecutor
 {

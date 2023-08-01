@@ -18,22 +18,32 @@
 
 package org.apache.cassandra.auth.jmx;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
 import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
 import javax.security.auth.Subject;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.auth.*;
+import org.apache.cassandra.auth.CassandraPrincipal;
+import org.apache.cassandra.auth.IResource;
+import org.apache.cassandra.auth.JMXResource;
+import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.auth.PermissionDetails;
+import org.apache.cassandra.auth.RoleResource;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
 import static org.junit.Assert.assertEquals;

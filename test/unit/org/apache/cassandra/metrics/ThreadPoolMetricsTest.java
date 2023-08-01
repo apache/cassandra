@@ -25,10 +25,14 @@ import java.util.function.Supplier;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
-import org.apache.cassandra.concurrent.*;
+import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.concurrent.SEPExecutor;
+import org.apache.cassandra.concurrent.SharedExecutorPool;
+import org.apache.cassandra.concurrent.ThreadPoolExecutorJMXAdapter;
+import org.apache.cassandra.concurrent.ThreadPoolExecutorPlus;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 public class ThreadPoolMetricsTest
 {

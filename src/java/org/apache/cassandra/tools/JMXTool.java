@@ -40,6 +40,7 @@ import java.util.function.BiConsumer;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
 import javax.inject.Inject;
 import javax.management.InstanceNotFoundException;
 import javax.management.IntrospectionException;
@@ -56,21 +57,12 @@ import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Sets;
 import com.google.common.collect.Sets.SetView;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Cli;
-import io.airlift.airline.Command;
-import io.airlift.airline.Help;
-import io.airlift.airline.HelpOption;
-import io.airlift.airline.Option;
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileInputStreamPlus;
-import org.apache.cassandra.utils.JsonUtils;
 import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.Constructor;
@@ -78,6 +70,17 @@ import org.yaml.snakeyaml.nodes.MappingNode;
 import org.yaml.snakeyaml.nodes.Node;
 import org.yaml.snakeyaml.nodes.Tag;
 import org.yaml.snakeyaml.representer.Representer;
+
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
+import org.apache.cassandra.utils.JsonUtils;
+
+import io.airlift.airline.Arguments;
+import io.airlift.airline.Cli;
+import io.airlift.airline.Command;
+import io.airlift.airline.Help;
+import io.airlift.airline.HelpOption;
+import io.airlift.airline.Option;
 
 public class JMXTool
 {

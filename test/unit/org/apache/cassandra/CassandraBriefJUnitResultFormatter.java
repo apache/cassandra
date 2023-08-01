@@ -24,9 +24,6 @@ import java.io.OutputStream;
 import java.io.StringWriter;
 import java.text.NumberFormat;
 
-import junit.framework.AssertionFailedError;  // checkstyle: permit this import
-import junit.framework.Test;  // checkstyle: permit this import
-
 import org.apache.tools.ant.BuildException;
 import org.apache.tools.ant.taskdefs.optional.junit.IgnoredTestListener;
 import org.apache.tools.ant.taskdefs.optional.junit.JUnitResultFormatter;
@@ -35,6 +32,9 @@ import org.apache.tools.ant.taskdefs.optional.junit.JUnitTestRunner;
 import org.apache.tools.ant.taskdefs.optional.junit.JUnitVersionHelper;
 import org.apache.tools.ant.util.FileUtils;
 import org.apache.tools.ant.util.StringUtils;
+
+import junit.framework.AssertionFailedError;  // checkstyle: permit this import
+import junit.framework.Test; // checkstyle: permit this import
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_CASSANDRA_KEEPBRIEFBRIEF;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_CASSANDRA_TESTTAG;

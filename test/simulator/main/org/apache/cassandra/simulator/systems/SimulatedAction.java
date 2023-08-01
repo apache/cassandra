@@ -27,9 +27,10 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 
 import javax.annotation.Nullable;
-import org.apache.cassandra.concurrent.ImmediateExecutor;
+
 import com.google.common.base.Preconditions;
 
+import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.exceptions.RequestFailureReason;
@@ -53,23 +54,23 @@ import static org.apache.cassandra.simulator.Action.Modifiers.DROP;
 import static org.apache.cassandra.simulator.Action.Modifiers.NONE;
 import static org.apache.cassandra.simulator.Action.Modifiers.PSEUDO_ORPHAN;
 import static org.apache.cassandra.simulator.Action.Modifiers.START_DAEMON_TASK;
-import static org.apache.cassandra.simulator.Action.Modifiers.START_SCHEDULED_TASK;
 import static org.apache.cassandra.simulator.Action.Modifiers.START_INFINITE_LOOP;
+import static org.apache.cassandra.simulator.Action.Modifiers.START_SCHEDULED_TASK;
 import static org.apache.cassandra.simulator.Action.Modifiers.START_TASK;
 import static org.apache.cassandra.simulator.Action.Modifiers.START_THREAD;
 import static org.apache.cassandra.simulator.Action.Modifiers.START_TIMEOUT_TASK;
 import static org.apache.cassandra.simulator.Action.Modifiers.WAKE_UP_THREAD;
+import static org.apache.cassandra.simulator.Debug.Info.LOG;
 import static org.apache.cassandra.simulator.FutureActionScheduler.Deliver.DELIVER;
 import static org.apache.cassandra.simulator.FutureActionScheduler.Deliver.DELIVER_AND_TIMEOUT;
 import static org.apache.cassandra.simulator.FutureActionScheduler.Deliver.FAILURE;
+import static org.apache.cassandra.simulator.systems.InterceptedWait.Kind.UNBOUNDED_WAIT;
 import static org.apache.cassandra.simulator.systems.InterceptedWait.Trigger.SIGNAL;
 import static org.apache.cassandra.simulator.systems.InterceptedWait.Trigger.TIMEOUT;
 import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.MESSAGE;
 import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.REDUNDANT_MESSAGE_TIMEOUT;
 import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.SCHEDULED_TIMEOUT;
 import static org.apache.cassandra.simulator.systems.SimulatedAction.Kind.TASK;
-import static org.apache.cassandra.simulator.Debug.Info.LOG;
-import static org.apache.cassandra.simulator.systems.InterceptedWait.Kind.UNBOUNDED_WAIT;
 import static org.apache.cassandra.utils.LazyToString.lazy;
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 

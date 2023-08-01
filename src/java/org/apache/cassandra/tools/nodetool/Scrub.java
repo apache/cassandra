@@ -17,16 +17,16 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
-
 import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 import org.apache.cassandra.tools.StandaloneScrubber;
+
+import io.airlift.airline.Arguments;
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 
 @Command(name = "scrub", description = "Scrub (rebuild sstables for) one or more tables")
 public class Scrub extends NodeToolCmd

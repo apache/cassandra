@@ -20,7 +20,7 @@ package org.apache.cassandra.concurrent;
 
 import org.apache.cassandra.utils.Shared;
 
-import static org.apache.cassandra.concurrent.Interruptible.State.*;
+import static org.apache.cassandra.concurrent.Interruptible.State.NORMAL;
 import static org.apache.cassandra.utils.Shared.Recursive.INTERFACES;
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 

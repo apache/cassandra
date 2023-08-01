@@ -55,7 +55,7 @@ import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
-import static org.apache.cassandra.db.partitions.PartitionUpdate.PartitionUpdateSerializer.*;
+import static org.apache.cassandra.db.partitions.PartitionUpdate.PartitionUpdateSerializer.isEmpty;
 import static org.apache.cassandra.service.paxos.Commit.isAfter;
 import static org.apache.cassandra.service.paxos.Commit.latest;
 

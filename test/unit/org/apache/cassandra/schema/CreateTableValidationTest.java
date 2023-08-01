@@ -18,11 +18,11 @@
  */
 package org.apache.cassandra.schema;
 
+import org.junit.Test;
+
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-
-import org.junit.Test;
 
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.junit.Assert.fail;

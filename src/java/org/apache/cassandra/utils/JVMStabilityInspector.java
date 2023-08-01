@@ -30,20 +30,21 @@ import java.util.function.Consumer;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 
-import org.apache.cassandra.exceptions.UnrecoverableIllegalStateException;
-import org.apache.cassandra.metrics.StorageMetrics;
-import org.apache.cassandra.tracing.Tracing;
+import net.nicoulaj.compilecommand.annotations.Exclude;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import net.nicoulaj.compilecommand.annotations.Exclude;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.UnrecoverableIllegalStateException;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.PRINT_HEAP_HISTOGRAM_ON_OUT_OF_MEMORY_ERROR;

@@ -18,17 +18,19 @@
 
 package org.apache.cassandra.distributed.test;
 
-import com.google.common.util.concurrent.Uninterruptibles;
-import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.api.ConsistencyLevel;
-import org.apache.cassandra.distributed.api.IInvokableInstance;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.io.IOException;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+
+import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.junit.Assert;
+import org.junit.Test;
+
+import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 
 public class ProfileLoadTest extends TestBaseImpl
 {

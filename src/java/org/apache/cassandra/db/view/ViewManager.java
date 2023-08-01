@@ -17,22 +17,27 @@
  */
 package org.apache.cassandra.db.view;
 
-import java.util.*;
-import java.util.concurrent.ConcurrentMap;
+import java.util.Collection;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.locks.Lock;
 
 import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.Striped;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.IMutation;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.ViewMetadata;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.partitions.*;
-import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.service.StorageService;
 

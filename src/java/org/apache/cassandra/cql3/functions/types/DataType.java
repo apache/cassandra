@@ -17,7 +17,11 @@
  */
 package org.apache.cassandra.cql3.functions.types;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 import com.google.common.collect.ImmutableList;
 

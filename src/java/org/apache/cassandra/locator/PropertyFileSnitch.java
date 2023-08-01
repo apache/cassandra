@@ -26,6 +26,8 @@ import java.util.Properties;
 import java.util.Set;
 
 import com.google.common.collect.Sets;
+
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,7 +36,6 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ResourceWatcher;
 import org.apache.cassandra.utils.WrappedRunnable;
-import org.apache.commons.lang3.StringUtils;
 
 /**
  * <p>

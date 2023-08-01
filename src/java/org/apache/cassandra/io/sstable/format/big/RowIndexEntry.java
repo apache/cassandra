@@ -22,6 +22,9 @@ import java.nio.ByteBuffer;
 import java.util.List;
 
 import com.codahale.metrics.Histogram;
+
+import org.github.jamm.Unmetered;
+
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ArrayClustering;
@@ -49,7 +52,6 @@ import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.vint.VIntCoding;
-import org.github.jamm.Unmetered;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 

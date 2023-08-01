@@ -26,12 +26,11 @@ import java.util.Objects;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.serializers.MarshalException;
-
 import org.apache.cassandra.io.sstable.IndexInfo;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 

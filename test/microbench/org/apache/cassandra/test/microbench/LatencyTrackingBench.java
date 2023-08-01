@@ -20,10 +20,6 @@ package org.apache.cassandra.test.microbench;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.metrics.CassandraMetricsRegistry;
-import org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir;
-import org.apache.cassandra.metrics.LatencyMetrics;
-import org.apache.cassandra.metrics.MetricNameFactory;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -38,6 +34,11 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
+
+import org.apache.cassandra.metrics.CassandraMetricsRegistry;
+import org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir;
+import org.apache.cassandra.metrics.LatencyMetrics;
+import org.apache.cassandra.metrics.MetricNameFactory;
 
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.SECONDS)

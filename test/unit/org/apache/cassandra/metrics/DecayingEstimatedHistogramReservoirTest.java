@@ -27,27 +27,30 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.Function;
 
+import com.codahale.metrics.Snapshot;
 import com.google.common.collect.ImmutableList;
+
 import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.experimental.runners.Enclosed;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.quicktheories.core.Gen;
 
-import com.codahale.metrics.Snapshot;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.MonotonicClockTranslation;
 import org.apache.cassandra.utils.Pair;
-import org.quicktheories.core.Gen;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.quicktheories.QuickTheory.qt;
-import static org.quicktheories.generators.SourceDSL.*;
+import static org.quicktheories.generators.SourceDSL.booleans;
+import static org.quicktheories.generators.SourceDSL.integers;
+import static org.quicktheories.generators.SourceDSL.longs;
 
 @RunWith(Enclosed.class)
 public class DecayingEstimatedHistogramReservoirTest

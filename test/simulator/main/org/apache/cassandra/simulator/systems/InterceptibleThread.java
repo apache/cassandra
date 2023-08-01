@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.locks.LockSupport;
 
-import io.netty.util.concurrent.FastThreadLocalThread;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.simulator.OrderOn;
@@ -30,6 +29,8 @@ import org.apache.cassandra.simulator.systems.InterceptedWait.Trigger;
 import org.apache.cassandra.simulator.systems.SimulatedTime.LocalTime;
 import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+
+import io.netty.util.concurrent.FastThreadLocalThread;
 
 import static org.apache.cassandra.simulator.systems.InterceptedWait.Kind.UNBOUNDED_WAIT;
 import static org.apache.cassandra.simulator.systems.InterceptedWait.Kind.WAIT_UNTIL;

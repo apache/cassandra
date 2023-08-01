@@ -22,10 +22,13 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import org.agrona.collections.IntArrayList;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.packed.PackedInts;
+import org.apache.lucene.util.packed.PackedLongValues;
 import org.junit.Before;
 import org.junit.Test;
 
-import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SAITester;
@@ -37,9 +40,6 @@ import org.apache.cassandra.index.sai.disk.v1.postings.PostingsReader;
 import org.apache.cassandra.index.sai.metrics.QueryEventListener;
 import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.util.packed.PackedInts;
-import org.apache.lucene.util.packed.PackedLongValues;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;

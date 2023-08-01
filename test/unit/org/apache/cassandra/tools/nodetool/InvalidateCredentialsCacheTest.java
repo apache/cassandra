@@ -18,11 +18,12 @@
 
 package org.apache.cassandra.tools.nodetool;
 
+import com.datastax.driver.core.EndPoint;
+import com.datastax.driver.core.PlainTextAuthProvider;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.datastax.driver.core.EndPoint;
-import com.datastax.driver.core.PlainTextAuthProvider;
 import org.apache.cassandra.auth.AuthTestUtils;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.IAuthenticator;

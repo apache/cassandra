@@ -20,10 +20,10 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.util.Date;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import org.apache.cassandra.utils.AbstractTypeGenerators.TypeSupport;
-import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.utils.AbstractTypeGenerators.getTypeSupport;
 import static org.quicktheories.QuickTheory.qt;

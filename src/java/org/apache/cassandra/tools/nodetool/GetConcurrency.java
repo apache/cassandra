@@ -21,10 +21,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+
+import io.airlift.airline.Arguments;
+import io.airlift.airline.Command;
 
 @Command(name = "getconcurrency", description = "Get maximum concurrency for processing stages")
 public class GetConcurrency extends NodeToolCmd

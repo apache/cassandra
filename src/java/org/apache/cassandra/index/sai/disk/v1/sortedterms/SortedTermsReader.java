@@ -19,10 +19,13 @@
 package org.apache.cassandra.index.sai.disk.v1.sortedterms;
 
 import java.io.IOException;
+
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.lucene.util.BytesRef;
 
 import org.apache.cassandra.index.sai.disk.io.IndexInputReader;
 import org.apache.cassandra.index.sai.disk.v1.LongArray;
@@ -31,7 +34,6 @@ import org.apache.cassandra.index.sai.disk.v1.bitpack.MonotonicBlockPackedReader
 import org.apache.cassandra.index.sai.disk.v1.bitpack.NumericValuesMeta;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
-import org.apache.lucene.util.BytesRef;
 
 import static org.apache.cassandra.index.sai.disk.v1.sortedterms.SortedTermsWriter.TERMS_DICT_BLOCK_MASK;
 import static org.apache.cassandra.index.sai.disk.v1.sortedterms.SortedTermsWriter.TERMS_DICT_BLOCK_SHIFT;

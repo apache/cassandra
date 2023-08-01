@@ -20,6 +20,7 @@ package org.apache.cassandra.index.sai.virtual;
 import java.util.Objects;
 
 import com.google.common.collect.ImmutableList;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -30,8 +31,8 @@ import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.SAITester;
-import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
+import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.io.sstable.SSTableIdFactory;
 import org.apache.cassandra.io.sstable.format.SSTableReader;

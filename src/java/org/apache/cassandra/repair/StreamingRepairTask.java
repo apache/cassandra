@@ -17,26 +17,27 @@
  */
 package org.apache.cassandra.repair;
 
-import java.util.Collections;
 import java.util.Collection;
+import java.util.Collections;
 
 import com.google.common.annotations.VisibleForTesting;
-import org.apache.cassandra.locator.RangesAtEndpoint;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.SyncResponse;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.StreamEvent;
 import org.apache.cassandra.streaming.StreamEventHandler;
+import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamState;
-import org.apache.cassandra.streaming.StreamOperation;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;

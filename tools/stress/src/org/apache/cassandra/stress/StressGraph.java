@@ -31,11 +31,12 @@ import java.nio.file.Paths;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import com.google.common.io.ByteStreams;
-import org.apache.commons.lang3.StringUtils;
-
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.google.common.io.ByteStreams;
+
+import org.apache.commons.lang3.StringUtils;
+
 import org.apache.cassandra.stress.report.StressMetrics;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.utils.JsonUtils;

@@ -35,11 +35,12 @@ import java.util.stream.Stream;
 
 import com.google.common.collect.Sets;
 import com.google.common.primitives.UnsignedBytes;
+
+import org.awaitility.Awaitility;
 import org.junit.Test;
 
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.utils.TimeUUID;
-import org.awaitility.Awaitility;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.assertj.core.api.Assertions.assertThat;

@@ -17,11 +17,11 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+
+import io.airlift.airline.Arguments;
+import io.airlift.airline.Command;
 
 @Command(name = "sethintedhandoffthrottlekb", description =  "Set hinted handoff throttle in KiB per second, per delivery thread.")
 public class SetHintedHandoffThrottleInKB extends NodeToolCmd

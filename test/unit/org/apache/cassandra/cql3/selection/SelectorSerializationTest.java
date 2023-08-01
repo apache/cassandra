@@ -25,14 +25,23 @@ import java.util.List;
 
 import org.junit.Test;
 
-import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Constants.Literal;
+import org.apache.cassandra.cql3.FieldIdentifier;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.functions.AggregateFcts;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.TimeFcts;
 import org.apache.cassandra.cql3.selection.Selectable.RawIdentifier;
 import org.apache.cassandra.cql3.selection.Selector.Serializer;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.DurationType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.TimestampType;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.MessagingService;
@@ -44,7 +53,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
 import static java.util.Arrays.asList;
-
 import static org.junit.Assert.assertEquals;
 
 public class SelectorSerializationTest extends CQLTester

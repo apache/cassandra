@@ -24,8 +24,8 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.OutgoingStream;
-import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.streaming.StreamSession;
+import org.apache.cassandra.streaming.StreamingDataOutputPlus;
 import org.apache.cassandra.utils.FBUtilities;
 
 public class OutgoingStreamMessage extends StreamMessage

@@ -20,14 +20,14 @@ package org.apache.cassandra.index.sai.disk.v1.bbtree;
 
 import java.util.function.IntFunction;
 
-import org.junit.Before;
-import org.junit.Test;
-
-import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.util.NumericUtils;
+import org.junit.Before;
+import org.junit.Test;
+
+import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;

@@ -23,6 +23,7 @@ package org.apache.cassandra.index;
 
 import java.util.Collections;
 import java.util.Set;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 

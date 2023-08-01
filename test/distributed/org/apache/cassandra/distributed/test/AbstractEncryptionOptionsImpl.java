@@ -28,10 +28,17 @@ import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLSession;
 
 import com.google.common.collect.ImmutableMap;
-import org.apache.cassandra.utils.concurrent.Condition;
+
 import org.junit.Assert;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.security.ISslContextFactory;
+import org.apache.cassandra.security.SSLFactory;
+import org.apache.cassandra.utils.concurrent.Condition;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
@@ -47,11 +54,6 @@ import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.util.concurrent.FutureListener;
-import org.apache.cassandra.config.EncryptionOptions;
-import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.security.ISslContextFactory;
-import org.apache.cassandra.security.SSLFactory;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.distributed.test.AbstractEncryptionOptionsImpl.ConnectResult.CONNECTING;

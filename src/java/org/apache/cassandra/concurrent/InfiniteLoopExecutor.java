@@ -18,15 +18,15 @@
 
 package org.apache.cassandra.concurrent;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.concurrent.TimeUnit;
-
-import com.google.common.annotations.VisibleForTesting;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+
+import com.google.common.annotations.VisibleForTesting;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.concurrent.Condition;

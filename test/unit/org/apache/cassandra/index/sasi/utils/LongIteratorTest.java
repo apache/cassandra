@@ -17,10 +17,10 @@
  */
 package org.apache.cassandra.index.sasi.utils;
 
+import java.io.IOException;
+
 import org.junit.Assert;
 import org.junit.Test;
-
-import java.io.IOException;
 
 public class LongIteratorTest
 {

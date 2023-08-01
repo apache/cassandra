@@ -27,7 +27,6 @@ import org.apache.cassandra.utils.RangesSerializer;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static java.lang.Math.max;
-
 import static org.apache.cassandra.locator.InetAddressAndPort.FwdFrmSerializer.fwdFrmSerializer;
 
 /**

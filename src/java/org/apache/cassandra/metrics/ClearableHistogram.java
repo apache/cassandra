@@ -21,9 +21,8 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.concurrent.atomic.LongAdder;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import com.codahale.metrics.Histogram;
+import com.google.common.annotations.VisibleForTesting;
 
 /**
  * Adds ability to reset a histogram

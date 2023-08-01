@@ -24,11 +24,13 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import com.carrotsearch.hppc.LongArrayList;
 import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.apache.commons.lang3.ArrayUtils;
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
-import com.carrotsearch.hppc.LongArrayList;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.distributed.Cluster;
@@ -47,7 +49,6 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
-import org.assertj.core.api.Assertions;
 
 public class ForceRepairTest extends TestBaseImpl
 {

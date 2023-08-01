@@ -23,17 +23,18 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.codahale.metrics.Reservoir;
+import com.codahale.metrics.Snapshot;
 import com.google.common.annotations.VisibleForTesting;
-import org.apache.cassandra.utils.concurrent.NonBlockingRateLimiter;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Reservoir;
-import com.codahale.metrics.Snapshot;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.metrics.DecayingEstimatedHistogramReservoir;
 import org.apache.cassandra.net.AbstractMessageHandler;
 import org.apache.cassandra.net.ResourceLimits;
+import org.apache.cassandra.utils.concurrent.NonBlockingRateLimiter;
 
 public class ClientResourceLimits
 {

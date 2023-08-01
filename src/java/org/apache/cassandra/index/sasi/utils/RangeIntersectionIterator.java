@@ -23,10 +23,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.PriorityQueue;
 
-import com.google.common.collect.Iterators;
-import org.apache.cassandra.io.util.FileUtils;
-
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Iterators;
+
+import org.apache.cassandra.io.util.FileUtils;
 
 @SuppressWarnings("resource")
 public class RangeIntersectionIterator

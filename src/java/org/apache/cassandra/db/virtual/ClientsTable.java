@@ -19,7 +19,12 @@ package org.apache.cassandra.db.virtual;
 
 import java.net.InetSocketAddress;
 
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.BooleanType;
+import org.apache.cassandra.db.marshal.InetAddressType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.schema.TableMetadata;

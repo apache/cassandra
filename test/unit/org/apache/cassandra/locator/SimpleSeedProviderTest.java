@@ -24,12 +24,12 @@ import java.util.List;
 import java.util.Map;
 
 import org.junit.Test;
+import org.mockito.MockedStatic;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.utils.FBUtilities;
-import org.mockito.MockedStatic;
 
 import static java.lang.String.format;
 import static java.util.Arrays.asList;

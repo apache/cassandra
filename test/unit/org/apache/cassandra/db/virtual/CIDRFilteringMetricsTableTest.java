@@ -26,13 +26,14 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import com.codahale.metrics.Snapshot;
 import com.google.common.collect.ImmutableList;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.codahale.metrics.Snapshot;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.auth.AuthCacheService;
 import org.apache.cassandra.auth.AuthKeyspace;

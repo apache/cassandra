@@ -27,9 +27,10 @@ import java.util.concurrent.ThreadLocalRandom;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import static org.junit.Assert.*;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
+
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertTrue;
 
 public class ChecksummedRandomAccessReaderTest
 {

@@ -18,8 +18,9 @@
 
 package org.apache.cassandra.distributed.impl;
 
-import ch.qos.logback.core.PropertyDefinerBase;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
+
+import ch.qos.logback.core.PropertyDefinerBase;
 
 /**
  * Used by logback to find/define property value, see logback-dtest.xml

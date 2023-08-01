@@ -18,13 +18,13 @@
 
 package org.apache.cassandra.distributed.upgrade;
 
-import org.apache.cassandra.distributed.api.Feature;
-import org.apache.cassandra.distributed.api.IInstanceConfig;
+import java.util.function.Consumer;
+
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
-
-import java.util.function.Consumer;
+import org.apache.cassandra.distributed.api.Feature;
+import org.apache.cassandra.distributed.api.IInstanceConfig;
 
 public class Pre40MessageFilterTest extends UpgradeTestBase
 {

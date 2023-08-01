@@ -17,27 +17,37 @@
  */
 package org.apache.cassandra.utils.bytecomparable;
 
-import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.utils.*;
-import org.apache.cassandra.utils.memory.MemoryUtil;
+import java.lang.reflect.Method;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.UUID;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.IntConsumer;
+import java.util.function.LongConsumer;
+import java.util.stream.IntStream;
+import java.util.stream.LongStream;
+import java.util.stream.Stream;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import java.lang.reflect.Method;
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.util.*;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.IntConsumer;
-import java.util.function.LongConsumer;
-import java.util.stream.*;
-
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
+import org.apache.cassandra.db.marshal.ByteType;
+import org.apache.cassandra.db.marshal.ShortType;
+import org.apache.cassandra.db.marshal.UUIDType;
+import org.apache.cassandra.utils.Throwables;
+import org.apache.cassandra.utils.memory.MemoryUtil;
 
 @RunWith(Parameterized.class)
 public class ByteSourceInverseTest

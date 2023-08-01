@@ -32,7 +32,12 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
+
 import org.junit.Test;
+import org.quicktheories.core.Gen;
+import org.quicktheories.core.RandomnessSource;
+import org.quicktheories.generators.SourceDSL;
+import org.quicktheories.impl.JavaRandom;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,10 +53,6 @@ import org.apache.cassandra.utils.CassandraGenerators;
 import org.apache.cassandra.utils.CassandraGenerators.TableMetadataBuilder;
 import org.apache.cassandra.utils.FailingConsumer;
 import org.apache.cassandra.utils.Generators;
-import org.quicktheories.core.Gen;
-import org.quicktheories.core.RandomnessSource;
-import org.quicktheories.generators.SourceDSL;
-import org.quicktheories.impl.JavaRandom;
 
 import static org.apache.cassandra.utils.Generators.IDENTIFIER_GEN;
 

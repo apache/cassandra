@@ -21,22 +21,22 @@ package org.apache.cassandra.db.marshal;
  *
  */
 
-import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
-import static org.junit.Assert.assertEquals;
-
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.Random;
 import java.util.UUID;
 
-import org.junit.Test;
-
 import org.junit.Assert;
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDGen;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
+import static org.junit.Assert.assertEquals;
 
 public class UUIDTypeTest
 {

@@ -18,9 +18,10 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+
+import io.airlift.airline.Command;
 
 @Command(name = "resetfullquerylog", description = "Stop the full query log and clean files in the configured full query log directory from cassandra.yaml as well as JMX")
 public class ResetFullQueryLog extends NodeToolCmd

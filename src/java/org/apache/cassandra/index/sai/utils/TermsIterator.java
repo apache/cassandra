@@ -20,6 +20,7 @@ package org.apache.cassandra.index.sai.utils;
 import java.io.Closeable;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
+
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.cassandra.index.sai.postings.PostingList;

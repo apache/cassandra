@@ -28,6 +28,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.github.jamm.Unmetered;
+
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
@@ -36,7 +38,6 @@ import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
-import org.github.jamm.Unmetered;
 
 public abstract class AbstractMemtable implements Memtable
 {

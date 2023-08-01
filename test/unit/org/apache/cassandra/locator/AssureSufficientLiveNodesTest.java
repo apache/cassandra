@@ -33,6 +33,9 @@ import java.util.function.Supplier;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.jboss.byteman.contrib.bmunit.BMRule;
+import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -50,8 +53,6 @@ import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.reads.NeverSpeculativeRetryPolicy;
 import org.apache.cassandra.utils.FBUtilities;
-import org.jboss.byteman.contrib.bmunit.BMRule;
-import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
 import static org.apache.cassandra.db.ConsistencyLevel.EACH_QUORUM;
 import static org.apache.cassandra.db.ConsistencyLevel.LOCAL_QUORUM;

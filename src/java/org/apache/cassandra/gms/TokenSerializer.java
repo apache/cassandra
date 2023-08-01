@@ -17,18 +17,20 @@
  */
 package org.apache.cassandra.gms;
 
-import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.utils.ByteArrayUtil;
-import org.apache.cassandra.utils.FBUtilities;
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collection;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collection;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.utils.ByteArrayUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class TokenSerializer
 {

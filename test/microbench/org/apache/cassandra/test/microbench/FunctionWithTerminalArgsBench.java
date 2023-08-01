@@ -21,13 +21,6 @@ package org.apache.cassandra.test.microbench;
 
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.OverrideConfigurationLoader;
-import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.commitlog.CommitLog;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -41,6 +34,14 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.OverrideConfigurationLoader;
+import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.commitlog.CommitLog;
 
 /**
  * Benchmarks the performance of CQL functions calls with terminal arguments.

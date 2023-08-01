@@ -31,18 +31,10 @@ import java.util.TimeZone;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.apache.commons.lang3.time.DateUtils;
-
 import org.junit.Test;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import ch.qos.logback.classic.LoggerContext;
-import ch.qos.logback.classic.joran.ReconfigureOnChangeTask;
-import ch.qos.logback.classic.spi.TurboFilterList;
-import ch.qos.logback.classic.turbo.ReconfigureOnChangeFilter;
-import ch.qos.logback.classic.turbo.TurboFilter;
-import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -51,11 +43,18 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.exceptions.FunctionExecutionException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
+
+import ch.qos.logback.classic.LoggerContext;
+import ch.qos.logback.classic.joran.ReconfigureOnChangeTask;
+import ch.qos.logback.classic.spi.TurboFilterList;
+import ch.qos.logback.classic.turbo.ReconfigureOnChangeFilter;
+import ch.qos.logback.classic.turbo.TurboFilter;
 
 import static ch.qos.logback.core.CoreConstants.RECONFIGURE_ON_CHANGE_TASK;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

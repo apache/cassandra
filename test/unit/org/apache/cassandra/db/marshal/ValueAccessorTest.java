@@ -22,14 +22,14 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
+import org.quicktheories.core.Gen;
 
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.vint.VIntCoding;
-import org.assertj.core.api.Assertions;
-import org.quicktheories.core.Gen;
 
 import static org.apache.cassandra.utils.ByteArrayUtil.bytesToHex;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytesToHex;

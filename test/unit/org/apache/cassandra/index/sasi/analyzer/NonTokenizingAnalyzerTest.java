@@ -19,12 +19,12 @@ package org.apache.cassandra.index.sasi.analyzer;
 
 import java.nio.ByteBuffer;
 
+import org.junit.Assert;
+import org.junit.Test;
+
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.utils.ByteBufferUtil;
-
-import org.junit.Assert;
-import org.junit.Test;
 
 /**
  * Tests for the non-tokenizing analyzer

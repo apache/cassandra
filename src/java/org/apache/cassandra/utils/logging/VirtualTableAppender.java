@@ -25,13 +25,14 @@ import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
 
-import ch.qos.logback.classic.spi.LoggingEvent;
-import ch.qos.logback.core.AppenderBase;
 import org.apache.cassandra.audit.FileAuditLogger;
 import org.apache.cassandra.db.virtual.LogMessagesTable;
 import org.apache.cassandra.db.virtual.VirtualKeyspace;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.db.virtual.VirtualTable;
+
+import ch.qos.logback.classic.spi.LoggingEvent;
+import ch.qos.logback.core.AppenderBase;
 
 import static org.apache.cassandra.db.virtual.LogMessagesTable.LOGS_VIRTUAL_TABLE_DEFAULT_ROWS;
 import static org.apache.cassandra.db.virtual.LogMessagesTable.TABLE_NAME;

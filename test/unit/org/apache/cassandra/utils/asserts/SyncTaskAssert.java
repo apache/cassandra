@@ -20,11 +20,12 @@ package org.apache.cassandra.utils.asserts;
 
 import com.google.common.base.Preconditions;
 
+import org.assertj.core.api.AbstractObjectAssert;
+import org.assertj.core.api.Assertions;
+
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.repair.LocalSyncTask;
 import org.apache.cassandra.repair.SyncTask;
-import org.assertj.core.api.AbstractObjectAssert;
-import org.assertj.core.api.Assertions;
 
 public class SyncTaskAssert extends AbstractObjectAssert<SyncTaskAssert, SyncTask> implements SizeableObjectAssert<SyncTaskAssert>
 {

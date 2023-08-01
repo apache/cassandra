@@ -23,6 +23,7 @@ import java.util.Collections;
 
 import com.google.common.collect.Sets;
 import com.google.common.io.Files;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -55,7 +56,12 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.FORCE_PAXOS_STATE_REBUILD;
 import static org.apache.cassandra.service.paxos.uncommitted.PaxosStateTracker.stateDirectory;
-import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.*;
+import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.ALL_RANGES;
+import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.PAXOS_CFS;
+import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.PAXOS_REPAIR_CFS;
+import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.createBallots;
+import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.dk;
+import static org.apache.cassandra.service.paxos.uncommitted.PaxosUncommittedTests.kl;
 import static org.apache.cassandra.service.paxos.uncommitted.UncommittedTableDataTest.assertIteratorContents;
 import static org.apache.cassandra.service.paxos.uncommitted.UncommittedTableDataTest.uncommitted;
 

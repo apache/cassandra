@@ -22,6 +22,8 @@ import java.util.Collections;
 import java.util.List;
 
 import com.google.common.collect.ImmutableList;
+
+import org.assertj.core.api.Assertions;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -38,7 +40,6 @@ import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.FBUtilities;
-import org.assertj.core.api.Assertions;
 
 import static java.lang.String.format;
 import static java.util.Collections.emptyMap;

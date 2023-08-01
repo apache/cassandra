@@ -21,23 +21,25 @@ package org.apache.cassandra.index.sai.disk.v1.sortedterms;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
+
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.base.Preconditions;
 
-import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
-import org.apache.cassandra.index.sai.disk.v1.MetadataWriter;
-import org.apache.cassandra.index.sai.disk.v1.bitpack.NumericValuesWriter;
-import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
-import org.apache.cassandra.io.tries.IncrementalDeepTrieWriterPageAware;
-import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.utils.bytecomparable.ByteComparable;
-import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.StringHelper;
+
+import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
+import org.apache.cassandra.index.sai.disk.v1.MetadataWriter;
+import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
+import org.apache.cassandra.index.sai.disk.v1.bitpack.NumericValuesWriter;
+import org.apache.cassandra.io.tries.IncrementalDeepTrieWriterPageAware;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.bytecomparable.ByteComparable;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
 import static org.apache.cassandra.index.sai.disk.v1.trie.TrieTermsDictionaryReader.trieSerializer;
 

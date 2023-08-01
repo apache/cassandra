@@ -18,17 +18,17 @@
 
 package org.apache.cassandra.repair;
 
+import java.net.UnknownHostException;
+import java.util.UUID;
+
+import org.junit.Test;
+
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.MerkleTrees;
-
-import org.junit.Test;
-
-import java.net.UnknownHostException;
-import java.util.UUID;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertEquals;

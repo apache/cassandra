@@ -26,6 +26,8 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import org.assertj.core.util.Streams;
+
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstance;
@@ -36,7 +38,6 @@ import org.apache.cassandra.index.IndexStatusManager;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.index.sai.virtual.ColumnIndexesSystemView;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.assertj.core.util.Streams;
 
 import static org.awaitility.Awaitility.await;
 

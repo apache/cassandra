@@ -21,6 +21,9 @@ package org.apache.cassandra.distributed.test;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import org.assertj.core.api.Assertions;
+import org.awaitility.Awaitility;
+import org.awaitility.core.ConditionFactory;
 import org.junit.Test;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
@@ -33,9 +36,6 @@ import org.apache.cassandra.distributed.api.IIsolatedExecutor.SerializableCallab
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
-import org.assertj.core.api.Assertions;
-import org.awaitility.Awaitility;
-import org.awaitility.core.ConditionFactory;
 
 import static java.time.Duration.ofSeconds;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;

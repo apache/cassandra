@@ -20,7 +20,8 @@ package org.apache.cassandra.serializers;
 
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.function.Predicate;

@@ -25,12 +25,10 @@ import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.channel.Channel;
-import io.netty.channel.EventLoop;
-import io.netty.util.AttributeKey;
 import org.apache.cassandra.concurrent.DebuggableTask.RunnableDebuggableTask;
 import org.apache.cassandra.concurrent.LocalAwareExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -46,6 +44,10 @@ import org.apache.cassandra.transport.messages.EventMessage;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.NoSpamLogger;
+
+import io.netty.channel.Channel;
+import io.netty.channel.EventLoop;
+import io.netty.util.AttributeKey;
 
 import static org.apache.cassandra.concurrent.SharedExecutorPool.SHARED;
 

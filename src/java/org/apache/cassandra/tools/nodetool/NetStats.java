@@ -17,9 +17,6 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
-
 import java.io.PrintStream;
 import java.util.Set;
 
@@ -33,6 +30,9 @@ import org.apache.cassandra.streaming.SessionInfo;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 
 @Command(name = "netstats", description = "Print network information on provided host (connecting node by default)")
 public class NetStats extends NodeToolCmd

@@ -25,9 +25,11 @@ import java.util.Map;
 import java.util.function.BiFunction;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.Config.SSTableConfig;
@@ -41,7 +43,6 @@ import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.io.util.FileUtils;
-import org.mockito.Mockito;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;

@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 
 import com.codahale.metrics.Meter;
 import com.google.common.base.Ticker;
+
 import org.awaitility.Awaitility;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -44,13 +45,12 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.messages.QueryMessage;
 import org.apache.cassandra.utils.Throwables;
 
+import static org.apache.cassandra.Util.spinAssertEquals;
+import static org.apache.cassandra.transport.ProtocolVersion.V4;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-
-import static org.apache.cassandra.Util.spinAssertEquals;
-import static org.apache.cassandra.transport.ProtocolVersion.V4;
 
 @SuppressWarnings("UnstableApiUsage")
 @RunWith(Parameterized.class)

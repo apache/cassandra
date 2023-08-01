@@ -22,8 +22,9 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 
-import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
+import io.netty.util.concurrent.FastThreadLocal;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.DATA_OUTPUT_STREAM_PLUS_TEMP_BUFFER_SIZE;
 

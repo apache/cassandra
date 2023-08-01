@@ -17,12 +17,12 @@
  */
 package org.apache.cassandra.serializers;
 
-import org.apache.cassandra.db.marshal.ValueAccessor;
-import org.apache.cassandra.utils.ByteBufferUtil;
-
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+
+import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class DecimalSerializer extends TypeSerializer<BigDecimal>
 {

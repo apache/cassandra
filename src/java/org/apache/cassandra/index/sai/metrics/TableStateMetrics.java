@@ -19,6 +19,7 @@ package org.apache.cassandra.index.sai.metrics;
 
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.RatioGauge;
+
 import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
 import org.apache.cassandra.schema.TableMetadata;
 

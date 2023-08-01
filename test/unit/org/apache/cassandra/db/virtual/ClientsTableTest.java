@@ -20,17 +20,18 @@ package org.apache.cassandra.db.virtual;
 
 import java.net.InetAddress;
 
+import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.Row;
 import com.google.common.collect.ImmutableList;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.datastax.driver.core.ResultSet;
-import com.datastax.driver.core.Row;
 import org.apache.cassandra.cql3.CQLTester;
-import org.assertj.core.api.Assertions;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class ClientsTableTest extends CQLTester

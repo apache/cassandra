@@ -20,10 +20,11 @@ package org.apache.cassandra.index.sai.disk.io;
 
 import java.io.IOException;
 
-import org.apache.cassandra.io.util.FileHandle;
-import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IndexInput;
+
+import org.apache.cassandra.io.util.FileHandle;
+import org.apache.cassandra.io.util.RandomAccessReader;
 
 /**
  * This is a wrapper over a Cassandra {@link RandomAccessReader} that provides an {@link IndexInput}

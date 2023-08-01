@@ -23,21 +23,21 @@ import java.lang.reflect.Field;
 import java.nio.channels.FileChannel;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileInputStreamPlus;
+import com.sun.jna.LastErrorException;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.sun.jna.LastErrorException;
-
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORE_MISSING_NATIVE_FILE_HINTS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.OS_ARCH;
 import static org.apache.cassandra.config.CassandraRelevantProperties.OS_NAME;
+import static org.apache.cassandra.utils.NativeLibrary.OSType.AIX;
 import static org.apache.cassandra.utils.NativeLibrary.OSType.LINUX;
 import static org.apache.cassandra.utils.NativeLibrary.OSType.MAC;
-import static org.apache.cassandra.utils.NativeLibrary.OSType.AIX;
 
 public final class NativeLibrary
 {

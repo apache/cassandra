@@ -24,9 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
-
 import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionInfo.Unit;
 import org.apache.cassandra.io.util.FileUtils;
@@ -34,6 +31,9 @@ import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
+
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 
 import static java.lang.String.format;
 

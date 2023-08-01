@@ -26,14 +26,15 @@ import java.util.Map;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 
+import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.packed.PackedInts;
+import org.apache.lucene.util.packed.PackedLongValues;
+
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
-import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.packed.PackedInts;
-import org.apache.lucene.util.packed.PackedLongValues;
 
 import static com.google.common.base.Preconditions.checkArgument;
 

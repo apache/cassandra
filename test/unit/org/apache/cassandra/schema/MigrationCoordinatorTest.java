@@ -34,8 +34,12 @@ import java.util.concurrent.ScheduledFuture;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
+
 import org.junit.Assert;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
+import org.mockito.internal.creation.MockSettingsImpl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,9 +60,6 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
-import org.mockito.ArgumentCaptor;
-import org.mockito.ArgumentMatchers;
-import org.mockito.internal.creation.MockSettingsImpl;
 
 import static com.google.common.util.concurrent.Futures.getUnchecked;
 import static org.assertj.core.api.Assertions.assertThat;

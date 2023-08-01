@@ -21,7 +21,6 @@ package org.apache.cassandra.io.util;
 import java.nio.ByteBuffer;
 
 import org.junit.Test;
-
 import org.mockito.Mockito;
 
 import static org.junit.Assert.assertEquals;

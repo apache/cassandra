@@ -29,19 +29,19 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 
-import org.apache.cassandra.io.util.File;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import io.netty.buffer.ByteBuf;
 import net.openhft.chronicle.bytes.BytesStore;
 import net.openhft.chronicle.wire.ValueOut;
 import net.openhft.chronicle.wire.WireOut;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryEvents;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.BatchStatement;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.Message;
@@ -50,6 +50,8 @@ import org.apache.cassandra.utils.binlog.BinLog;
 import org.apache.cassandra.utils.binlog.BinLogOptions;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.apache.cassandra.utils.concurrent.WeightedQueue;
+
+import io.netty.buffer.ByteBuf;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 

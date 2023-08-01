@@ -18,6 +18,7 @@
 package org.apache.cassandra.utils.progress.jmx;
 
 import java.util.Map;
+
 import javax.management.Notification;
 import javax.management.NotificationListener;
 import javax.management.remote.JMXConnectionNotification;

@@ -19,9 +19,10 @@ package org.apache.cassandra.net;
 
 import java.nio.ByteBuffer;
 
-import io.netty.channel.EventLoop;
 import org.apache.cassandra.utils.memory.BufferPool;
 import org.apache.cassandra.utils.memory.BufferPools;
+
+import io.netty.channel.EventLoop;
 
 /**
  * Equivalent to {@link GlobalBufferPoolAllocator}, except explicitly using a specified

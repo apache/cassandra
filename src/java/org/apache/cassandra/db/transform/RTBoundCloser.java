@@ -21,7 +21,11 @@ import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.rows.RangeTombstoneBoundMarker;
+import org.apache.cassandra.db.rows.RangeTombstoneMarker;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 
 /**
  * A transformation that appends an RT bound marker to row iterators in case they don't have one.

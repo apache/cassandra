@@ -27,15 +27,18 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
 import net.bytebuddy.implementation.bind.annotation.This;
+
+import org.assertj.core.api.Assertions;
+import org.awaitility.Awaitility;
+import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.auth.CassandraRoleManager;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
@@ -46,8 +49,6 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.metrics.ClientRequestsMetricsHolder;
 import org.apache.cassandra.streaming.StreamException;
 import org.apache.cassandra.streaming.StreamResultFuture;
-import org.assertj.core.api.Assertions;
-import org.awaitility.Awaitility;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SUPERUSER_SETUP_DELAY_MS;

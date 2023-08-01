@@ -18,11 +18,11 @@
 
 package org.apache.cassandra.locator;
 
+import java.util.Map;
+
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-
-import java.util.Map;
 
 public class RangesByEndpoint extends ReplicaMultimap<InetAddressAndPort, RangesAtEndpoint>
 {

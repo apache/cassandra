@@ -18,8 +18,8 @@
 package org.apache.cassandra.dht;
 
 import java.nio.ByteBuffer;
-import java.util.Collection;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -28,6 +28,7 @@ import java.util.Set;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Sets;
+
 import org.apache.commons.lang3.StringUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -39,7 +40,11 @@ import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
 
 import static java.util.Arrays.asList;
 import static org.apache.cassandra.Util.range;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 
 public class RangeTest

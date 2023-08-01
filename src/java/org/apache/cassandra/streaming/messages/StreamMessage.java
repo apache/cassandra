@@ -22,9 +22,9 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamingChannel;
 import org.apache.cassandra.streaming.StreamingDataOutputPlus;
-import org.apache.cassandra.streaming.StreamSession;
 
 /**
  * StreamMessage is an abstract base class that every messages in streaming protocol inherit.

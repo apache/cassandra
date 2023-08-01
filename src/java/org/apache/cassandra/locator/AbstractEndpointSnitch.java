@@ -18,6 +18,7 @@
 package org.apache.cassandra.locator;
 
 import com.google.common.collect.Iterables;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 
 public abstract class AbstractEndpointSnitch implements IEndpointSnitch

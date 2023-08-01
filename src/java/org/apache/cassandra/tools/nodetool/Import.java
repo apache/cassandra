@@ -18,12 +18,6 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-
-import io.airlift.airline.Option;
-
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -33,6 +27,12 @@ import com.google.common.collect.Lists;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+
+import io.airlift.airline.Arguments;
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
+
+import static com.google.common.base.Preconditions.checkArgument;
 
 @Command(name = "import", description = "Import new SSTables to the system")
 public class Import extends NodeToolCmd

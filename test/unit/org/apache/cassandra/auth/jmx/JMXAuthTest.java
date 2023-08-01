@@ -23,21 +23,32 @@ import java.nio.file.Paths;
 import java.rmi.server.RMISocketFactory;
 import java.util.HashMap;
 import java.util.Map;
+
 import javax.management.JMX;
 import javax.management.MBeanServerConnection;
 import javax.management.ObjectName;
-import javax.management.remote.*;
+import javax.management.remote.JMXConnector;
+import javax.management.remote.JMXConnectorFactory;
+import javax.management.remote.JMXConnectorServer;
+import javax.management.remote.JMXServiceURL;
 import javax.security.auth.Subject;
 import javax.security.auth.callback.CallbackHandler;
 import javax.security.auth.login.LoginException;
 import javax.security.auth.spi.LoginModule;
 
 import com.google.common.collect.ImmutableSet;
+
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.auth.*;
+import org.apache.cassandra.auth.AuthenticatedUser;
+import org.apache.cassandra.auth.CassandraPrincipal;
+import org.apache.cassandra.auth.IAuthorizer;
+import org.apache.cassandra.auth.JMXResource;
+import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.auth.RoleResource;
+import org.apache.cassandra.auth.StubAuthorizer;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;

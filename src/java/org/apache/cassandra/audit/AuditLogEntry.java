@@ -20,6 +20,7 @@ package org.apache.cassandra.audit;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.UUID;
+
 import javax.annotation.Nullable;
 
 import org.apache.commons.lang3.StringUtils;

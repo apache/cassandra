@@ -19,6 +19,7 @@
 package org.apache.cassandra.tools.nodetool;
 
 import java.util.Set;
+
 import javax.security.auth.Subject;
 
 import org.junit.BeforeClass;

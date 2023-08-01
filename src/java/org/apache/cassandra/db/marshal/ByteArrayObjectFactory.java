@@ -18,7 +18,14 @@
 
 package org.apache.cassandra.db.marshal;
 
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.AbstractArrayClusteringPrefix;
+import org.apache.cassandra.db.ArrayClustering;
+import org.apache.cassandra.db.ArrayClusteringBound;
+import org.apache.cassandra.db.ArrayClusteringBoundary;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ClusteringBound;
+import org.apache.cassandra.db.ClusteringBoundary;
+import org.apache.cassandra.db.ClusteringPrefix;
 import org.apache.cassandra.db.rows.ArrayCell;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;

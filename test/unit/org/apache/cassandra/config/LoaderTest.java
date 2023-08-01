@@ -21,9 +21,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
-import org.junit.Test;
-
 import org.assertj.core.api.Assertions;
+import org.junit.Test;
 import org.yaml.snakeyaml.introspector.Property;
 
 public class LoaderTest

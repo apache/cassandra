@@ -19,9 +19,10 @@ package org.apache.cassandra.index.sai.disk.v1.postings;
 
 import java.io.IOException;
 
+import org.apache.lucene.util.FixedBitSet;
+
 import org.apache.cassandra.index.sai.postings.OrdinalPostingList;
 import org.apache.cassandra.index.sai.postings.PostingList;
-import org.apache.lucene.util.FixedBitSet;
 
 /**
  * A wrapper that iterates over a delegate {@link PostingList}, filtering out postings at

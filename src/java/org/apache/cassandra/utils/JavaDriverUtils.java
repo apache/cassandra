@@ -25,7 +25,6 @@ import java.lang.reflect.Method;
 import org.apache.cassandra.cql3.functions.types.CodecRegistry;
 import org.apache.cassandra.cql3.functions.types.DataType;
 import org.apache.cassandra.cql3.functions.types.TypeCodec;
-
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.transport.ProtocolVersion;
 

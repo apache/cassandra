@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;

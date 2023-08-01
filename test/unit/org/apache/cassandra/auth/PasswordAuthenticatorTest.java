@@ -21,21 +21,21 @@ package org.apache.cassandra.auth;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
+import com.datastax.driver.core.Authenticator;
+import com.datastax.driver.core.EndPoint;
+import com.datastax.driver.core.PlainTextAuthProvider;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
-import org.apache.cassandra.distributed.shared.WithProperties;
 import org.mindrot.jbcrypt.BCrypt;
 
-import com.datastax.driver.core.Authenticator;
-import com.datastax.driver.core.EndPoint;
-import com.datastax.driver.core.PlainTextAuthProvider;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.SchemaConstants;

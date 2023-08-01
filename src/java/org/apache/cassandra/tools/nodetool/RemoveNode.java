@@ -17,12 +17,13 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import static org.apache.commons.lang3.StringUtils.EMPTY;
+import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+
 import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
 
-import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import static org.apache.commons.lang3.StringUtils.EMPTY;
 
 @Command(name = "removenode", description = "Show status of current node removal, force completion of pending removal or remove provided ID")
 public class RemoveNode extends NodeToolCmd

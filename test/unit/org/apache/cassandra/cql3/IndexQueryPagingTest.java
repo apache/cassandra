@@ -20,11 +20,11 @@
  */
 package org.apache.cassandra.cql3;
 
-import org.junit.Test;
-
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.Statement;
+
+import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
 

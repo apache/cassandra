@@ -27,12 +27,12 @@ import com.google.common.base.Objects;
 
 import org.apache.cassandra.serializers.MarshalException;
 
+import io.netty.util.concurrent.FastThreadLocal;
+
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 import static org.apache.commons.lang3.time.DateUtils.MILLIS_PER_DAY;
-
-import io.netty.util.concurrent.FastThreadLocal;
 
 /**
  * Represents a duration. A durations store separately months, days, and seconds due to the fact that

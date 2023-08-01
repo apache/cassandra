@@ -17,18 +17,19 @@
  */
 package org.apache.cassandra.service.pager;
 
-import org.apache.cassandra.transport.ProtocolVersion;
-import org.apache.cassandra.utils.AbstractIterator;
-
 import java.util.Arrays;
 
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.SinglePartitionReadQuery;
 import org.apache.cassandra.db.filter.DataLimits;
-import org.apache.cassandra.db.partitions.*;
-import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.AbstractIterator;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 

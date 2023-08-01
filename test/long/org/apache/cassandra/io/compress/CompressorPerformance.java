@@ -20,12 +20,12 @@
  */
 package org.apache.cassandra.io.compress;
 
-import org.apache.cassandra.io.util.FileInputStreamPlus;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.concurrent.ThreadLocalRandom;
+
+import org.apache.cassandra.io.util.FileInputStreamPlus;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 

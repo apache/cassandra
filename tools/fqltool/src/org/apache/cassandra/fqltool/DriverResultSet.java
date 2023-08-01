@@ -25,11 +25,11 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.AbstractIterator;
-
 import com.datastax.driver.core.ColumnDefinitions;
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
+import com.google.common.collect.AbstractIterator;
+
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 

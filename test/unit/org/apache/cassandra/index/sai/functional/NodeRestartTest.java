@@ -20,6 +20,7 @@
  */
 package org.apache.cassandra.index.sai.functional;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -31,7 +32,6 @@ import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.inject.Injection;
 import org.apache.cassandra.inject.Injections;
 import org.apache.cassandra.inject.InvokePointBuilder;
-import org.assertj.core.api.Assertions;
 
 public class NodeRestartTest extends SAITester
 {

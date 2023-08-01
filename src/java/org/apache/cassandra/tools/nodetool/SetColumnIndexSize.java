@@ -18,10 +18,11 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+
+import io.airlift.airline.Arguments;
+import io.airlift.airline.Command;
 
 @Command(name = "setcolumnindexsize", description = "Set the granularity of the collation index of rows within a partition in KiB")
 public class SetColumnIndexSize extends NodeToolCmd

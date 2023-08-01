@@ -17,11 +17,12 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
+import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+
 import io.airlift.airline.Arguments;
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
-import org.apache.cassandra.tools.NodeProbe;
-import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
 @Command(name = "setinterdcstreamthroughput", description = "Set the throughput cap for inter-datacenter streaming and entire SSTable inter-datacenter streaming in the system, or 0 to disable throttling")
 public class SetInterDCStreamThroughput extends NodeToolCmd

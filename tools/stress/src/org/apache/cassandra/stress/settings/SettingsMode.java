@@ -30,6 +30,7 @@ import com.datastax.driver.core.AuthProvider;
 import com.datastax.driver.core.PlainTextAuthProvider;
 import com.datastax.driver.core.ProtocolOptions;
 import com.datastax.driver.core.ProtocolVersion;
+
 import org.apache.cassandra.stress.util.ResultLogger;
 
 import static java.lang.String.format;

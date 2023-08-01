@@ -33,9 +33,6 @@ import java.util.Properties;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 
-import junit.framework.AssertionFailedError;  // checkstyle: permit this import
-import junit.framework.Test;  // checkstyle: permit this import
-
 import org.apache.tools.ant.BuildException;
 import org.apache.tools.ant.taskdefs.optional.junit.IgnoredTestListener;
 import org.apache.tools.ant.taskdefs.optional.junit.JUnitResultFormatter;
@@ -50,9 +47,12 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Text;
 
+import junit.framework.AssertionFailedError; // checkstyle: permit this import
+import junit.framework.Test; // checkstyle: permit this import
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.SUN_JAVA_COMMAND;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_CASSANDRA_SUITENAME;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_CASSANDRA_TESTTAG;
-import static org.apache.cassandra.config.CassandraRelevantProperties.SUN_JAVA_COMMAND;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 /**

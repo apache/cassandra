@@ -21,12 +21,12 @@ import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.Iterator;
 
+import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ValueAccessor;
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.partitions.PartitionStatisticsCollector;
+import org.apache.cassandra.schema.ColumnMetadata;
 
 /**
  * Static methods to work on cells.

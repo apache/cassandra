@@ -19,14 +19,19 @@ package org.apache.cassandra.transport.messages;
 
 import java.nio.ByteBuffer;
 
-import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.auth.AuthEvents;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.service.QueryState;
-import org.apache.cassandra.transport.*;
+import org.apache.cassandra.transport.CBUtil;
+import org.apache.cassandra.transport.Message;
+import org.apache.cassandra.transport.ProtocolException;
+import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.transport.ServerConnection;
+
+import io.netty.buffer.ByteBuf;
 
 /**
  * A SASL token message sent from client to server. Some SASL

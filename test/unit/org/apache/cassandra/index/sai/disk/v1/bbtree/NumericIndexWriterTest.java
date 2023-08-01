@@ -19,10 +19,14 @@ package org.apache.cassandra.index.sai.disk.v1.bbtree;
 
 import java.nio.ByteBuffer;
 
+import com.carrotsearch.hppc.LongArrayList;
+
+import org.apache.lucene.index.PointValues;
+import org.apache.lucene.util.Counter;
+import org.apache.lucene.util.NumericUtils;
 import org.junit.Before;
 import org.junit.Test;
 
-import com.carrotsearch.hppc.LongArrayList;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
@@ -41,9 +45,6 @@ import org.apache.cassandra.utils.AbstractGuavaIterator;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
-import org.apache.lucene.index.PointValues;
-import org.apache.lucene.util.Counter;
-import org.apache.lucene.util.NumericUtils;
 
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.mock;

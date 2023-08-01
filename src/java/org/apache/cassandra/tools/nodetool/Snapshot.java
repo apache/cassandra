@@ -24,13 +24,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+
+import io.airlift.airline.Arguments;
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 
 import static com.google.common.collect.Iterables.toArray;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;

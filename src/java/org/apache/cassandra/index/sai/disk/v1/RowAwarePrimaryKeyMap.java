@@ -21,6 +21,7 @@ package org.apache.cassandra.index.sai.disk.v1;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.annotation.concurrent.ThreadSafe;
 

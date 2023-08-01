@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test;
 
 import java.io.IOException;
 
+import org.assertj.core.api.Assertions;
 import org.junit.AfterClass;
 import org.junit.Assume;
 import org.junit.BeforeClass;
@@ -29,7 +30,6 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.QueryResult;
-import org.assertj.core.api.Assertions;
 
 public class TableEstimatesTest extends TestBaseImpl
 {

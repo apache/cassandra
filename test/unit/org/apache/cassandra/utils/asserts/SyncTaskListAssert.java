@@ -22,8 +22,9 @@ import java.util.List;
 
 import com.google.common.collect.ImmutableList;
 
-import org.apache.cassandra.repair.SyncTask;
 import org.assertj.core.api.AbstractListAssert;
+
+import org.apache.cassandra.repair.SyncTask;
 
 public class SyncTaskListAssert extends AbstractListAssert<SyncTaskListAssert, List<SyncTask>, SyncTask, SyncTaskAssert>
 implements SizeableObjectAssert<SyncTaskListAssert>

@@ -18,9 +18,9 @@
 
 package org.apache.cassandra.cql3;
 
+import org.junit.Assert;
 import org.junit.Test;
 
-import org.junit.Assert;
 import org.apache.cassandra.exceptions.SyntaxException;
 
 public class ReservedKeywordsTest

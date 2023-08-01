@@ -23,16 +23,17 @@ import java.util.Collection;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import harry.core.Configuration;
-import harry.core.Run;
-import harry.ddl.SchemaSpec;
-import harry.model.clock.OffsetClock;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+
+import harry.core.Configuration;
+import harry.core.Run;
+import harry.ddl.SchemaSpec;
+import harry.model.clock.OffsetClock;
 
 public abstract class FuzzTestBase extends TestBaseImpl
 {

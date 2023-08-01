@@ -28,9 +28,13 @@ import com.google.common.reflect.TypeToken;
 
 import org.apache.cassandra.cql3.functions.types.DataType;
 import org.apache.cassandra.cql3.functions.types.TypeCodec;
-import org.apache.cassandra.cql3.functions.types.TypeCodec.*;
+import org.apache.cassandra.cql3.functions.types.TypeCodec.PrimitiveByteCodec;
+import org.apache.cassandra.cql3.functions.types.TypeCodec.PrimitiveDoubleCodec;
+import org.apache.cassandra.cql3.functions.types.TypeCodec.PrimitiveFloatCodec;
+import org.apache.cassandra.cql3.functions.types.TypeCodec.PrimitiveIntCodec;
+import org.apache.cassandra.cql3.functions.types.TypeCodec.PrimitiveLongCodec;
+import org.apache.cassandra.cql3.functions.types.TypeCodec.PrimitiveShortCodec;
 import org.apache.cassandra.cql3.functions.types.exceptions.InvalidTypeException;
-
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.JavaDriverUtils;

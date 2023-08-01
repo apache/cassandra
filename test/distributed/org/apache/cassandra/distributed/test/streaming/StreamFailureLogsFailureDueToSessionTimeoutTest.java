@@ -25,12 +25,15 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.util.concurrent.UncheckedTimeoutException;
-import org.junit.Test;
 
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
+
+import org.awaitility.Awaitility;
+import org.junit.Test;
+
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.streaming.CassandraIncomingFile;
 import org.apache.cassandra.distributed.Cluster;
@@ -40,7 +43,6 @@ import org.apache.cassandra.io.sstable.SSTableZeroCopyWriter;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.Shared;
-import org.awaitility.Awaitility;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 import static net.bytebuddy.matcher.ElementMatchers.takesArguments;

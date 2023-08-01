@@ -44,9 +44,6 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
-import io.netty.channel.Channel;
-import io.netty.util.concurrent.Future; //checkstyle: permit this import
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -67,17 +64,30 @@ import org.apache.cassandra.metrics.StreamingMetrics;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.async.StreamingMultiplexedChannel;
-import org.apache.cassandra.streaming.messages.*;
+import org.apache.cassandra.streaming.messages.CompleteMessage;
+import org.apache.cassandra.streaming.messages.IncomingStreamMessage;
+import org.apache.cassandra.streaming.messages.OutgoingStreamMessage;
+import org.apache.cassandra.streaming.messages.PrepareAckMessage;
+import org.apache.cassandra.streaming.messages.PrepareSynAckMessage;
+import org.apache.cassandra.streaming.messages.PrepareSynMessage;
+import org.apache.cassandra.streaming.messages.ReceivedMessage;
+import org.apache.cassandra.streaming.messages.SessionFailedMessage;
+import org.apache.cassandra.streaming.messages.StreamInitMessage;
+import org.apache.cassandra.streaming.messages.StreamMessage;
+import org.apache.cassandra.streaming.messages.StreamMessageHeader;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
+import io.netty.channel.Channel;
+import io.netty.util.concurrent.Future; // checkstyle: permit this import
+
 import static com.google.common.collect.Iterables.all;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_STREAMING_DEBUG_STACKTRACE_LIMIT;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.locator.InetAddressAndPort.hostAddressAndPort;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
 /**

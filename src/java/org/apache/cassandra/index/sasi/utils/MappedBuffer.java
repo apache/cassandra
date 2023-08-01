@@ -22,12 +22,12 @@ import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel.MapMode;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
-
-import com.google.common.annotations.VisibleForTesting;
 
 public class MappedBuffer implements Closeable
 {

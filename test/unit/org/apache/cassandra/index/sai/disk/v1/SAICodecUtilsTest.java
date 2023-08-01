@@ -18,18 +18,18 @@
 
 package org.apache.cassandra.index.sai.disk.v1;
 
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.store.BufferedChecksumIndexInput;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Mockito;
 
 import org.apache.cassandra.index.sai.disk.io.IndexFileUtils;
 import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
 import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
 import org.apache.cassandra.io.util.File;
-import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.store.BufferedChecksumIndexInput;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
-import org.mockito.Mockito;
 
 import static org.apache.lucene.codecs.CodecUtil.CODEC_MAGIC;
 import static org.apache.lucene.codecs.CodecUtil.FOOTER_MAGIC;

@@ -36,7 +36,13 @@ import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
+
 import org.junit.Test;
+import org.quicktheories.core.Gen;
+import org.quicktheories.generators.SourceDSL;
+import org.reflections.Reflections;
+import org.reflections.scanners.Scanners;
+import org.reflections.util.ConfigurationBuilder;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.AssignmentTestable;
@@ -66,13 +72,12 @@ import org.apache.cassandra.utils.Generators;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
-import org.quicktheories.core.Gen;
-import org.quicktheories.generators.SourceDSL;
-import org.reflections.Reflections;
-import org.reflections.scanners.Scanners;
-import org.reflections.util.ConfigurationBuilder;
 
-import static org.apache.cassandra.utils.AbstractTypeGenerators.TypeKind.*;
+import static org.apache.cassandra.utils.AbstractTypeGenerators.TypeKind.COMPOSITE;
+import static org.apache.cassandra.utils.AbstractTypeGenerators.TypeKind.COUNTER;
+import static org.apache.cassandra.utils.AbstractTypeGenerators.TypeKind.DYNAMIC_COMPOSITE;
+import static org.apache.cassandra.utils.AbstractTypeGenerators.TypeKind.PRIMITIVE;
+import static org.apache.cassandra.utils.AbstractTypeGenerators.TypeKind.UDT;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.TypeSupport.of;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.extractUDTs;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.overridePrimitiveTypeSupport;

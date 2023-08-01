@@ -18,7 +18,16 @@
 package org.apache.cassandra.db.filter;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.StringJoiner;
 
 import javax.annotation.Nullable;
 
@@ -27,7 +36,9 @@ import com.google.common.collect.SortedSetMultimap;
 import com.google.common.collect.TreeMultimap;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.Columns;
+import org.apache.cassandra.db.RegularAndStaticColumns;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;

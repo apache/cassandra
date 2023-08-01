@@ -25,10 +25,11 @@ import java.util.PriorityQueue;
 import java.util.Random;
 
 import com.google.common.collect.Maps;
+
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
+import org.junit.Assert;
 import org.junit.Test;
 
-import org.junit.Assert;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.RandomPartitioner;

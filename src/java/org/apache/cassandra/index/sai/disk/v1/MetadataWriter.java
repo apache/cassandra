@@ -21,11 +21,13 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.apache.cassandra.index.sai.disk.ResettableByteBuffersIndexOutput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
+
+import org.apache.cassandra.index.sai.disk.ResettableByteBuffersIndexOutput;
 
 @NotThreadSafe
 public class MetadataWriter implements Closeable

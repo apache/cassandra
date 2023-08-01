@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import com.datastax.driver.core.SimpleStatement;
+
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.inject.Injections;
 

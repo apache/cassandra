@@ -17,11 +17,11 @@
  */
 package org.apache.cassandra.gms;
 
-import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.Message;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.net.IVerbHandler;
+import org.apache.cassandra.net.Message;
 
 public class GossipShutdownVerbHandler implements IVerbHandler
 {

@@ -17,10 +17,6 @@
  */
 package org.apache.cassandra.serializers;
 
-import io.netty.util.concurrent.FastThreadLocal;
-import org.apache.cassandra.db.marshal.ValueAccessor;
-import org.apache.cassandra.utils.ByteBufferUtil;
-
 import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
 import java.time.ZoneId;
@@ -34,6 +30,11 @@ import java.util.Date;
 import java.util.List;
 import java.util.TimeZone;
 import java.util.regex.Pattern;
+
+import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.utils.ByteBufferUtil;
+
+import io.netty.util.concurrent.FastThreadLocal;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 

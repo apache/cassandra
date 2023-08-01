@@ -23,7 +23,8 @@ import org.junit.Test;
 import org.apache.cassandra.stress.settings.OptionDistribution;
 
 import static java.lang.Math.toIntExact;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class DistributionGaussianTest
 {

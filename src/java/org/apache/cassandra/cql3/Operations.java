@@ -21,10 +21,10 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+import com.google.common.collect.Iterators;
+
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.StatementType;
-
-import com.google.common.collect.Iterators;
 
 /**
  * A set of <code>Operation</code>s.

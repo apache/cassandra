@@ -24,8 +24,9 @@ import java.util.Random;
 
 import org.junit.Test;
 
-import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.config.DatabaseDescriptor;
+
+import io.netty.buffer.ByteBuf;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;

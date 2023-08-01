@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import org.apache.lucene.util.BytesRef;
 import org.junit.Test;
 
 import org.apache.cassandra.index.sai.postings.PostingList;
@@ -30,7 +31,6 @@ import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
 import org.apache.cassandra.index.sai.utils.TermsIterator;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
-import org.apache.lucene.util.BytesRef;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.string;
 import static org.junit.Assert.assertEquals;

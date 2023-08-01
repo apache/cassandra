@@ -32,11 +32,9 @@ import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.compress.BufferType;
@@ -47,7 +45,9 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.memory.BufferPools;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
-import static java.lang.Math.*;
+import io.netty.buffer.ByteBuf;
+
+import static java.lang.Math.min;
 import static org.apache.cassandra.net.ShareableBytes.wrap;
 
 // TODO: test corruption

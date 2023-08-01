@@ -23,12 +23,12 @@ import java.util.Objects;
 import com.google.common.collect.ImmutableList;
 
 import org.antlr.runtime.RecognitionException;
-import org.apache.cassandra.cql3.restrictions.CustomIndexExpression;
 
-import static java.lang.String.join;
+import org.apache.cassandra.cql3.restrictions.CustomIndexExpression;
 
 import static com.google.common.collect.Iterables.concat;
 import static com.google.common.collect.Iterables.transform;
+import static java.lang.String.join;
 
 public final class WhereClause
 {

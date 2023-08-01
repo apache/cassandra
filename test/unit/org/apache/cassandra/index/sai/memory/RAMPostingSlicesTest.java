@@ -20,11 +20,11 @@ package org.apache.cassandra.index.sai.memory;
 
 import java.util.Arrays;
 
+import org.apache.lucene.util.Counter;
+import org.apache.lucene.util.FixedBitSet;
 import org.junit.Test;
 
 import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
-import org.apache.lucene.util.Counter;
-import org.apache.lucene.util.FixedBitSet;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;

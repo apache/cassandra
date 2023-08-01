@@ -24,7 +24,6 @@ import com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.cql3.QueryEvents;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.service.ClientState;
@@ -35,6 +34,8 @@ import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NoSpamLogger;
+
+import io.netty.buffer.ByteBuf;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 

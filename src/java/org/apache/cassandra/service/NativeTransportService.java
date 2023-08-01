@@ -28,17 +28,18 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.netty.channel.EventLoopGroup;
-import io.netty.channel.epoll.Epoll;
-import io.netty.channel.epoll.EpollEventLoopGroup;
-import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.util.Version;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.utils.NativeLibrary;
+
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.epoll.Epoll;
+import io.netty.channel.epoll.EpollEventLoopGroup;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.util.Version;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.NATIVE_EPOLL_ENABLED;
 

@@ -23,7 +23,6 @@ import java.util.List;
 
 import com.google.common.collect.ImmutableMap;
 
-import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.BatchQueryOptions;
 import org.apache.cassandra.cql3.CQLStatement;
@@ -45,6 +44,8 @@ import org.apache.cassandra.transport.ProtocolException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MD5Digest;
+
+import io.netty.buffer.ByteBuf;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 

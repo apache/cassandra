@@ -21,6 +21,7 @@ package org.apache.cassandra.cql3.validation.operations;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -34,7 +35,6 @@ import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.transport.ProtocolVersion;
-import org.assertj.core.api.Assertions;
 
 import static java.lang.String.format;
 

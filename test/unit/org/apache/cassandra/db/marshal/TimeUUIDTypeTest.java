@@ -22,15 +22,15 @@ import java.nio.ByteBuffer;
 import java.util.UUID;
 
 import org.junit.Assert;
-import org.apache.cassandra.serializers.MarshalException;
 import org.junit.Test;
 
-import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
-import static org.junit.Assert.assertEquals;
-
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.UUIDSerializer;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.UUIDGen;
+
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
+import static org.junit.Assert.assertEquals;
 
 public class TimeUUIDTypeTest
 {

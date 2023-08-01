@@ -25,6 +25,7 @@ import java.util.Random;
 import java.util.function.Function;
 
 import com.datastax.driver.core.SimpleStatement;
+
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;

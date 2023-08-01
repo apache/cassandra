@@ -22,16 +22,15 @@ import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+
 import javax.management.openmbean.CompositeData;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+
 import org.apache.commons.lang3.StringUtils;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 import org.apache.cassandra.repair.consistent.LocalSessionInfo;
 import org.apache.cassandra.repair.consistent.admin.CleanupSummary;
 import org.apache.cassandra.repair.consistent.admin.PendingStats;
@@ -39,6 +38,10 @@ import org.apache.cassandra.repair.consistent.admin.RepairStats;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.utils.FBUtilities;
+
+import io.airlift.airline.Arguments;
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 
 /**
  * Supports listing and failing incremental repair sessions

@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.compaction;
 
 import java.util.Set;
+
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.db.PartitionPosition;

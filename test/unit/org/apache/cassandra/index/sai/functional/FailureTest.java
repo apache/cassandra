@@ -20,6 +20,7 @@
  */
 package org.apache.cassandra.index.sai.functional;
 
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -29,7 +30,6 @@ import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.SSTableContext;
 import org.apache.cassandra.inject.Injection;
 import org.apache.cassandra.inject.Injections;
-import org.assertj.core.api.Assertions;
 
 import static org.junit.Assert.assertEquals;
 

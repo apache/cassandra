@@ -23,10 +23,11 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 
+import com.datastax.driver.core.exceptions.InvalidQueryException;
+
 import org.junit.Assert;
 import org.junit.Test;
 
-import com.datastax.driver.core.exceptions.InvalidQueryException;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;

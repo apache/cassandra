@@ -36,7 +36,25 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.lang.String.format;
 import static java.util.stream.Collectors.toMap;
-import static org.apache.cassandra.schema.TableParams.Option.*;
+import static org.apache.cassandra.schema.TableParams.Option.ADDITIONAL_WRITE_POLICY;
+import static org.apache.cassandra.schema.TableParams.Option.ALLOW_AUTO_SNAPSHOT;
+import static org.apache.cassandra.schema.TableParams.Option.BLOOM_FILTER_FP_CHANCE;
+import static org.apache.cassandra.schema.TableParams.Option.CACHING;
+import static org.apache.cassandra.schema.TableParams.Option.CDC;
+import static org.apache.cassandra.schema.TableParams.Option.COMMENT;
+import static org.apache.cassandra.schema.TableParams.Option.COMPACTION;
+import static org.apache.cassandra.schema.TableParams.Option.COMPRESSION;
+import static org.apache.cassandra.schema.TableParams.Option.CRC_CHECK_CHANCE;
+import static org.apache.cassandra.schema.TableParams.Option.DEFAULT_TIME_TO_LIVE;
+import static org.apache.cassandra.schema.TableParams.Option.EXTENSIONS;
+import static org.apache.cassandra.schema.TableParams.Option.GC_GRACE_SECONDS;
+import static org.apache.cassandra.schema.TableParams.Option.INCREMENTAL_BACKUPS;
+import static org.apache.cassandra.schema.TableParams.Option.MAX_INDEX_INTERVAL;
+import static org.apache.cassandra.schema.TableParams.Option.MEMTABLE;
+import static org.apache.cassandra.schema.TableParams.Option.MEMTABLE_FLUSH_PERIOD_IN_MS;
+import static org.apache.cassandra.schema.TableParams.Option.MIN_INDEX_INTERVAL;
+import static org.apache.cassandra.schema.TableParams.Option.READ_REPAIR;
+import static org.apache.cassandra.schema.TableParams.Option.SPECULATIVE_RETRY;
 
 public final class TableParams
 {

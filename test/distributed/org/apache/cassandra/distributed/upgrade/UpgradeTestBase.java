@@ -36,7 +36,6 @@ import com.vdurmont.semver4j.Semver.SemverType;
 import org.junit.After;
 import org.junit.Assume;
 import org.junit.BeforeClass;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

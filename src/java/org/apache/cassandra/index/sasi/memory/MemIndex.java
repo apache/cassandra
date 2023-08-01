@@ -20,11 +20,11 @@ package org.apache.cassandra.index.sasi.memory;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.index.sasi.conf.ColumnIndex;
 import org.apache.cassandra.index.sasi.disk.Token;
 import org.apache.cassandra.index.sasi.plan.Expression;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
-import org.apache.cassandra.db.marshal.AbstractType;
 
 public abstract class MemIndex
 {

@@ -21,6 +21,8 @@ package org.apache.cassandra.index.sai.disk.v1;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import org.apache.lucene.store.IndexInput;
+
 import org.apache.cassandra.index.sai.disk.io.IndexFileUtils;
 import org.apache.cassandra.index.sai.disk.v1.postings.PostingsReader;
 import org.apache.cassandra.index.sai.disk.v1.postings.ScanningPostingsReader;
@@ -33,7 +35,6 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
-import org.apache.lucene.store.IndexInput;
 
 public class TermsScanner implements TermsIterator
 {

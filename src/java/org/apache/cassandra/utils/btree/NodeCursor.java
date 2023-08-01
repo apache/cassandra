@@ -21,7 +21,15 @@ package org.apache.cassandra.utils.btree;
 import java.util.Arrays;
 import java.util.Comparator;
 
-import static org.apache.cassandra.utils.btree.BTree.*;
+import static org.apache.cassandra.utils.btree.BTree.getBranchKeyEnd;
+import static org.apache.cassandra.utils.btree.BTree.getChildCount;
+import static org.apache.cassandra.utils.btree.BTree.getChildStart;
+import static org.apache.cassandra.utils.btree.BTree.getKeyEnd;
+import static org.apache.cassandra.utils.btree.BTree.getLeafKeyEnd;
+import static org.apache.cassandra.utils.btree.BTree.treeIndexOfBranchKey;
+import static org.apache.cassandra.utils.btree.BTree.treeIndexOfKey;
+import static org.apache.cassandra.utils.btree.BTree.treeIndexOfLeafKey;
+import static org.apache.cassandra.utils.btree.BTree.treeIndexOffsetOfChild;
 
 /**
  * A class for searching within one node of a btree: a linear chain (stack) of these is built of tree height

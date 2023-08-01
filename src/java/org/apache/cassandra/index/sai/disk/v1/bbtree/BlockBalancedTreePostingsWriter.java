@@ -36,10 +36,13 @@ import com.google.common.base.Stopwatch;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
+
+import org.agrona.collections.IntArrayList;
+import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.util.packed.PackedLongValues;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
@@ -49,8 +52,6 @@ import org.apache.cassandra.index.sai.disk.v1.postings.PostingsWriter;
 import org.apache.cassandra.index.sai.postings.PeekablePostingList;
 import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.packed.PackedLongValues;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;

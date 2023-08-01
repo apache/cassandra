@@ -26,18 +26,34 @@ import java.util.Map;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.*;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.transport.messages.*;
-import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.transport.messages.AuthChallenge;
+import org.apache.cassandra.transport.messages.AuthResponse;
+import org.apache.cassandra.transport.messages.AuthSuccess;
+import org.apache.cassandra.transport.messages.AuthenticateMessage;
+import org.apache.cassandra.transport.messages.BatchMessage;
+import org.apache.cassandra.transport.messages.ErrorMessage;
+import org.apache.cassandra.transport.messages.EventMessage;
+import org.apache.cassandra.transport.messages.ExecuteMessage;
+import org.apache.cassandra.transport.messages.OptionsMessage;
+import org.apache.cassandra.transport.messages.PrepareMessage;
+import org.apache.cassandra.transport.messages.QueryMessage;
+import org.apache.cassandra.transport.messages.ReadyMessage;
+import org.apache.cassandra.transport.messages.RegisterMessage;
+import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.transport.messages.StartupMessage;
+import org.apache.cassandra.transport.messages.SupportedMessage;
+import org.apache.cassandra.transport.messages.UnsupportedMessageCodec;
 import org.apache.cassandra.utils.ReflectionUtils;
 import org.apache.cassandra.utils.TimeUUID;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 

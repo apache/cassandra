@@ -25,15 +25,17 @@ import java.nio.file.Path;
 import java.sql.Date;
 import java.text.SimpleDateFormat;
 import java.util.function.Consumer;
+
 import javax.management.MBeanServer;
 import javax.management.MBeanServerConnection;
 import javax.management.remote.JMXConnector;
+
+import com.sun.management.HotSpotDiagnosticMXBean;
 
 import org.junit.Assert;
 import org.junit.Ignore;
 import org.junit.Test;
 
-import com.sun.management.HotSpotDiagnosticMXBean;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;

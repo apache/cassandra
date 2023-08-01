@@ -24,7 +24,8 @@ import org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Shared;
 
-import static java.lang.Thread.*;
+import static java.lang.Thread.NORM_PRIORITY;
+import static java.lang.Thread.UncaughtExceptionHandler;
 import static org.apache.cassandra.concurrent.ExecutorFactory.SimulatorSemantics.NORMAL;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Daemon.DAEMON;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Interrupts.UNSYNCHRONIZED;

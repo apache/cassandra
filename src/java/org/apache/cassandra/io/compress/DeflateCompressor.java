@@ -17,9 +17,6 @@
  */
 package org.apache.cassandra.io.compress;
 
-import io.netty.util.concurrent.FastThreadLocal;
-import org.apache.cassandra.schema.CompressionParams;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
@@ -30,6 +27,10 @@ import java.util.zip.Deflater;
 import java.util.zip.Inflater;
 
 import com.google.common.collect.ImmutableSet;
+
+import org.apache.cassandra.schema.CompressionParams;
+
+import io.netty.util.concurrent.FastThreadLocal;
 
 public class DeflateCompressor implements ICompressor
 {

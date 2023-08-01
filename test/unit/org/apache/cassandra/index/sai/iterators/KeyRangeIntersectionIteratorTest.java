@@ -22,10 +22,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import org.junit.Test;
-
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
+
+import org.junit.Test;
+
 import org.apache.cassandra.io.util.FileUtils;
 
 import static org.apache.cassandra.index.sai.iterators.LongIterator.convert;

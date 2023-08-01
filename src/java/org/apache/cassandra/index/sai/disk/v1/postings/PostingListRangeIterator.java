@@ -20,9 +20,11 @@ package org.apache.cassandra.index.sai.disk.v1.postings;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
+
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.base.Stopwatch;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

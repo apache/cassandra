@@ -21,10 +21,10 @@ package org.apache.cassandra.service.paxos.v1;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.utils.Nemesis;
 

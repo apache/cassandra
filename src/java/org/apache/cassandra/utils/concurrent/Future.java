@@ -27,10 +27,10 @@ import com.google.common.util.concurrent.AsyncFunction;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture; // checkstyle: permit this import
 
-import io.netty.util.concurrent.GenericFutureListener;
-
-import io.netty.util.internal.PlatformDependent;
 import org.apache.cassandra.utils.Shared;
+
+import io.netty.util.concurrent.GenericFutureListener;
+import io.netty.util.internal.PlatformDependent;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.utils.Shared.Recursive.INTERFACES;

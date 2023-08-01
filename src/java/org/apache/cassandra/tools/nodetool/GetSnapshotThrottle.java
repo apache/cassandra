@@ -17,9 +17,10 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+
+import io.airlift.airline.Command;
 
 @Command(name = "getsnapshotthrottle", description = "Print the snapshot_links_per_second throttle for snapshot/clearsnapshot")
 public class GetSnapshotThrottle extends NodeToolCmd

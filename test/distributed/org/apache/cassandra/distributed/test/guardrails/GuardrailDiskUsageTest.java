@@ -22,17 +22,20 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.Callable;
 
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.exceptions.InvalidQueryException;
+
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
+
+import org.assertj.core.api.Assertions;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.guardrails.Guardrails;
@@ -43,7 +46,6 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.disk.usage.DiskUsageBroadcaster;
 import org.apache.cassandra.service.disk.usage.DiskUsageMonitor;
 import org.apache.cassandra.service.disk.usage.DiskUsageState;
-import org.assertj.core.api.Assertions;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 

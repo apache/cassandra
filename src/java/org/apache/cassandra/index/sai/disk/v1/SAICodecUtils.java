@@ -20,13 +20,14 @@ package org.apache.cassandra.index.sai.disk.v1;
 
 import java.io.IOException;
 
-import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+
+import org.apache.cassandra.index.sai.disk.format.Version;
 
 import static org.apache.lucene.codecs.CodecUtil.CODEC_MAGIC;
 import static org.apache.lucene.codecs.CodecUtil.FOOTER_MAGIC;

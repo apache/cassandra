@@ -20,12 +20,12 @@
  */
 package org.apache.cassandra.io.util;
 
-import com.google.common.base.Charsets;
-import com.google.common.primitives.UnsignedBytes;
-import com.google.common.primitives.UnsignedLong;
-import org.junit.Test;
-
-import java.io.*;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.EOFException;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
@@ -33,10 +33,19 @@ import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.Random;
 
+import com.google.common.base.Charsets;
+import com.google.common.primitives.UnsignedBytes;
+import com.google.common.primitives.UnsignedLong;
+
+import org.junit.Test;
+
 import org.apache.cassandra.utils.CassandraUInt;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class NIODataInputStreamTest
 {

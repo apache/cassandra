@@ -28,14 +28,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLongArray;
 
+import com.codahale.metrics.Reservoir;
+import com.codahale.metrics.Snapshot;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.codahale.metrics.Reservoir;
-import com.codahale.metrics.Snapshot;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.NoSpamLogger;

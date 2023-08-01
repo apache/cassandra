@@ -17,16 +17,17 @@
  * under the License.
  */
 package org.apache.cassandra.serializers;
+
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.ArrayList;
 
 import org.junit.Test;
+
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-
-import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 public class TimestampSerializerTest
 {

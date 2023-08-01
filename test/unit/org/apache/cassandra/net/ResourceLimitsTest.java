@@ -23,15 +23,19 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongFunction;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.KillerForTests;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.net.ResourceLimits.*;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.net.ResourceLimits.Basic;
+import org.apache.cassandra.net.ResourceLimits.Concurrent;
+import org.apache.cassandra.net.ResourceLimits.Limit;
+import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.KillerForTests;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class ResourceLimitsTest
 {

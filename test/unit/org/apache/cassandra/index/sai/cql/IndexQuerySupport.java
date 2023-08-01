@@ -25,13 +25,15 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import com.datastax.driver.core.exceptions.InvalidQueryException;
 import com.google.common.base.MoreObjects;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 
+import org.assertj.core.api.Assertions;
+import org.hamcrest.Matchers;
 import org.junit.Assert;
 
-import com.datastax.driver.core.exceptions.InvalidQueryException;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.db.marshal.InetAddressType;
@@ -41,8 +43,6 @@ import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.index.sai.plan.StorageAttachedIndexSearcher;
 import org.apache.cassandra.utils.Pair;
-import org.assertj.core.api.Assertions;
-import org.hamcrest.Matchers;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;

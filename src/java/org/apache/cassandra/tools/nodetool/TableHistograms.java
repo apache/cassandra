@@ -17,11 +17,6 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import static java.lang.String.format;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -31,13 +26,19 @@ import java.util.Map;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 
+import org.apache.commons.lang3.ArrayUtils;
+
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 import org.apache.cassandra.utils.EstimatedHistogram;
 
-import org.apache.commons.lang3.ArrayUtils;
+import io.airlift.airline.Arguments;
+import io.airlift.airline.Command;
+
+import static com.google.common.base.Preconditions.checkArgument;
+import static java.lang.String.format;
 
 @Command(name = "tablehistograms", description = "Print statistic histograms for a given table")
 public class TableHistograms extends NodeToolCmd

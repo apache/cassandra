@@ -22,20 +22,20 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.index.sasi.analyzer.filter.BasicResultFilters;
 import org.apache.cassandra.index.sasi.analyzer.filter.FilterPipelineBuilder;
 import org.apache.cassandra.index.sasi.analyzer.filter.FilterPipelineExecutor;
 import org.apache.cassandra.index.sasi.analyzer.filter.FilterPipelineTask;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.AsciiType;
-import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Analyzer that does *not* tokenize the input. Optionally will

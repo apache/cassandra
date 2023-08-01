@@ -17,12 +17,12 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
-
 import java.util.Map;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+
+import io.airlift.airline.Command;
 
 @Command(name = "getlogginglevels", description = "Get the runtime logging levels")
 public class GetLoggingLevels extends NodeToolCmd

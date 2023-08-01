@@ -25,7 +25,10 @@ import javax.annotation.Nullable;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 
-import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.CqlBuilder;
+import org.apache.cassandra.cql3.SchemaElement;
+import org.apache.cassandra.cql3.WhereClause;
 import org.apache.cassandra.cql3.functions.masking.ColumnMask;
 import org.apache.cassandra.db.marshal.UserType;
 

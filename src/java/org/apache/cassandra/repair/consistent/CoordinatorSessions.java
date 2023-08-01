@@ -25,11 +25,11 @@ import java.util.Set;
 import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.repair.NoSuchRepairSessionException;
 import org.apache.cassandra.repair.messages.FailSession;
 import org.apache.cassandra.repair.messages.FinalizePromise;
 import org.apache.cassandra.repair.messages.PrepareConsistentResponse;
 import org.apache.cassandra.service.ActiveRepairService;
-import org.apache.cassandra.repair.NoSuchRepairSessionException;
 import org.apache.cassandra.utils.TimeUUID;
 
 /**

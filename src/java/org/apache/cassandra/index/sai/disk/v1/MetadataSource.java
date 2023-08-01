@@ -20,16 +20,18 @@ package org.apache.cassandra.index.sai.disk.v1;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+
 import javax.annotation.concurrent.NotThreadSafe;
 
-import org.apache.cassandra.index.sai.IndexContext;
-import org.apache.cassandra.index.sai.disk.format.IndexComponent;
-import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.lucene.store.BufferedChecksumIndexInput;
 import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
+
+import org.apache.cassandra.index.sai.IndexContext;
+import org.apache.cassandra.index.sai.disk.format.IndexComponent;
+import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 
 @NotThreadSafe
 public class MetadataSource

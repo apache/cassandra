@@ -23,9 +23,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 
-import org.junit.Assert;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
 public class ChecksummedSequentialWriterTest extends SequentialWriterTest

@@ -19,13 +19,14 @@ package org.apache.cassandra.service;
  * under the License.
  *
  */
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class EchoVerbHandler implements IVerbHandler<NoPayload>
 {

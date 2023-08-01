@@ -22,8 +22,9 @@ import java.nio.ByteBuffer;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.apache.cassandra.io.compress.BufferType;
 import org.jctools.queues.MpmcArrayQueue;
+
+import org.apache.cassandra.io.compress.BufferType;
 
 /**
  * A very simple Bytebuffer pool with a fixed allocation size and a cached max allocation count. Will allow

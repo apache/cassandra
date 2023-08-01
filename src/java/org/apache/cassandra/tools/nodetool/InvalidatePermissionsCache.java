@@ -22,9 +22,6 @@ import java.util.List;
 
 import org.apache.commons.lang3.StringUtils;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.auth.FunctionResource;
 import org.apache.cassandra.auth.JMXResource;
@@ -32,6 +29,10 @@ import org.apache.cassandra.auth.RoleResource;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+
+import io.airlift.airline.Arguments;
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 
 import static com.google.common.base.Preconditions.checkArgument;
 

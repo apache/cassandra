@@ -17,10 +17,10 @@
  */
 package org.apache.cassandra.utils.btree;
 
-import static org.apache.cassandra.utils.btree.BTree.size;
-
 import java.util.Comparator;
 import java.util.NoSuchElementException;
+
+import static org.apache.cassandra.utils.btree.BTree.size;
 
 public class FullBTreeSearchIterator<K, V> extends TreeCursor<K> implements BTreeSearchIterator<K, V>
 {

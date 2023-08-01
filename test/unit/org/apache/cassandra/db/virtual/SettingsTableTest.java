@@ -22,21 +22,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.Row;
 import com.google.common.collect.ImmutableList;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.yaml.snakeyaml.introspector.Property;
 
-import com.datastax.driver.core.ResultSet;
-import com.datastax.driver.core.Row;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.InternodeEncryption;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.security.SSLFactory;
-import org.yaml.snakeyaml.introspector.Property;
 
 public class SettingsTableTest extends CQLTester
 {

@@ -25,6 +25,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.LockSupport;
 
+import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.jctools.queues.SpscArrayQueue;
+import org.jctools.queues.SpscUnboundedArrayQueue;
+
 import org.apache.cassandra.stress.operations.OpDistribution;
 import org.apache.cassandra.stress.operations.OpDistributionFactory;
 import org.apache.cassandra.stress.report.StressMetrics;
@@ -34,10 +39,6 @@ import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.stress.util.ResultLogger;
 import org.apache.cassandra.transport.SimpleClient;
-import org.jctools.queues.SpscArrayQueue;
-import org.jctools.queues.SpscUnboundedArrayQueue;
-
-import com.google.common.util.concurrent.Uninterruptibles;
 
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 

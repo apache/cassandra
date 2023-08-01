@@ -19,9 +19,9 @@ package org.apache.cassandra.index.sasi;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder.TermSize;
 import org.apache.cassandra.index.sasi.utils.MappedBuffer;
-import org.apache.cassandra.db.marshal.AbstractType;
 
 import static org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder.IS_PARTIAL_BIT;
 

@@ -17,13 +17,13 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
-
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+
+import io.airlift.airline.Command;
 
 @Command(name = "drain", description = "Drain the node (stop accepting writes and flush all tables)")
 public class Drain extends NodeToolCmd

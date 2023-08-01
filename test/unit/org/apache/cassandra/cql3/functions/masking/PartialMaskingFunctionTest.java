@@ -18,17 +18,18 @@
 
 package org.apache.cassandra.cql3.functions.masking;
 
-import org.junit.Assert;
-import org.junit.Test;
-
 import com.datastax.driver.core.ColumnDefinitions;
 import com.datastax.driver.core.DataType;
 import com.datastax.driver.core.ResultSet;
+
+import org.assertj.core.api.Assertions;
+import org.junit.Assert;
+import org.junit.Test;
+
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.marshal.StringType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.SchemaConstants;
-import org.assertj.core.api.Assertions;
 
 import static java.lang.String.format;
 

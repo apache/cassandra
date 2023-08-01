@@ -27,12 +27,17 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 
 import com.google.common.collect.ImmutableList;
+
 import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
-import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.*;
+import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.VERSION;
+import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.addToInMemoryTrie;
+import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.assertSameContent;
+import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.generateKeys;
+import static org.apache.cassandra.db.tries.InMemoryTrieTestBase.makeInMemoryTrie;
 import static org.apache.cassandra.db.tries.MergeTrieTest.removeDuplicates;
 
 public class CollectionMergeTrieTest

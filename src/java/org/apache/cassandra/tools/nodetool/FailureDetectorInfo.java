@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
-
 import java.util.List;
 
 import javax.management.openmbean.CompositeData;
@@ -26,6 +24,8 @@ import javax.management.openmbean.TabularData;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+
+import io.airlift.airline.Command;
 
 @Command(name = "failuredetector", description = "Shows the failure detector information for the cluster")
 public class FailureDetectorInfo extends NodeToolCmd

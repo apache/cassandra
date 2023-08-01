@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.memtable;
 
 import java.io.IOException;
+
 import javax.management.Attribute;
 import javax.management.AttributeNotFoundException;
 import javax.management.InstanceNotFoundException;

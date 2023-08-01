@@ -26,13 +26,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.SortedSet;
 
-import harry.core.Run;
-import harry.ddl.SchemaSpec;
-import harry.model.OpSelectors;
-import harry.operations.Relation;
-import harry.operations.Query;
-import harry.operations.QueryGenerator;
-import harry.util.BitSet;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.AbstractMarker;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -62,6 +55,14 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+
+import harry.core.Run;
+import harry.ddl.SchemaSpec;
+import harry.model.OpSelectors;
+import harry.operations.Query;
+import harry.operations.QueryGenerator;
+import harry.operations.Relation;
+import harry.util.BitSet;
 
 import static harry.generators.DataGenerators.UNSET_VALUE;
 

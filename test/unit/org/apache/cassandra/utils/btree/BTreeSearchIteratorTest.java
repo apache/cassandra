@@ -18,18 +18,19 @@
 
 package org.apache.cassandra.utils.btree;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-import org.apache.cassandra.utils.btree.BTree.Dir;
 import org.junit.Test;
+
+import org.apache.cassandra.utils.btree.BTree.Dir;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class BTreeSearchIteratorTest
 {

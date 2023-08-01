@@ -28,7 +28,6 @@ import java.util.zip.CRC32;
 
 import com.google.common.collect.Iterables;
 
-import org.apache.cassandra.io.util.File;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
@@ -36,6 +35,7 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
@@ -44,11 +44,10 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.Util.dk;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
+import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-
-import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 public class HintsWriteThenReadTest
 {

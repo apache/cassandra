@@ -45,6 +45,10 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 import org.apache.commons.lang3.ArrayUtils;
+import org.quicktheories.core.Gen;
+import org.quicktheories.core.RandomnessSource;
+import org.quicktheories.generators.SourceDSL;
+import org.quicktheories.impl.JavaRandom;
 
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Duration;
@@ -88,10 +92,6 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.marshal.VectorType;
-import org.quicktheories.core.Gen;
-import org.quicktheories.core.RandomnessSource;
-import org.quicktheories.generators.SourceDSL;
-import org.quicktheories.impl.JavaRandom;
 
 import static org.apache.cassandra.utils.Generators.IDENTIFIER_GEN;
 import static org.apache.cassandra.utils.Generators.filter;

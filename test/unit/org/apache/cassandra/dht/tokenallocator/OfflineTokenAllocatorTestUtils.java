@@ -23,9 +23,10 @@ import java.util.List;
 
 import com.google.common.collect.Lists;
 
+import org.assertj.core.api.Assertions;
+
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.utils.OutputHandler;
-import org.assertj.core.api.Assertions;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;

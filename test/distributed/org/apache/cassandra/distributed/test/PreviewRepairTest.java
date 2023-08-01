@@ -35,8 +35,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.util.concurrent.Uninterruptibles;
 
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.concurrent.Condition;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -55,17 +53,19 @@ import org.apache.cassandra.distributed.api.IMessage;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.shared.RepairResult;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.Verb;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.repair.RepairParallelism;
 import org.apache.cassandra.repair.messages.FinalizePropose;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.repair.messages.ValidationRequest;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.Condition;
 
 import static com.google.common.collect.ImmutableList.of;
 import static java.util.concurrent.TimeUnit.MINUTES;
@@ -77,7 +77,9 @@ import static org.apache.cassandra.distributed.test.PreviewRepairTest.DelayFirst
 import static org.apache.cassandra.net.Verb.VALIDATION_REQ;
 import static org.apache.cassandra.service.StorageService.instance;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
-import static org.apache.cassandra.utils.progress.ProgressEventType.*;
+import static org.apache.cassandra.utils.progress.ProgressEventType.COMPLETE;
+import static org.apache.cassandra.utils.progress.ProgressEventType.ERROR;
+import static org.apache.cassandra.utils.progress.ProgressEventType.NOTIFICATION;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;

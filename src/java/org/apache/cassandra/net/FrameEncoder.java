@@ -19,13 +19,14 @@ package org.apache.cassandra.net;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.io.compress.BufferType;
+import org.apache.cassandra.utils.memory.BufferPool;
+import org.apache.cassandra.utils.memory.BufferPools;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
-import org.apache.cassandra.io.compress.BufferType;
-import org.apache.cassandra.utils.memory.BufferPool;
-import org.apache.cassandra.utils.memory.BufferPools;
 
 public abstract class FrameEncoder extends ChannelOutboundHandlerAdapter
 {

@@ -20,14 +20,18 @@
  */
 package org.apache.cassandra.cql3.selection;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.stream.Collectors;
 
 import com.google.common.base.Objects;
-import com.google.common.collect.*;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.Multimaps;
 
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.schema.ColumnMetadata;
 
 /**
  * Separately maintains the ColumnSpecifications and their mappings to underlying

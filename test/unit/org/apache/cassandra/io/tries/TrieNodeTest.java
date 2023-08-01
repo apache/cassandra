@@ -23,11 +23,11 @@ import java.util.Arrays;
 
 import org.junit.After;
 import org.junit.Test;
-
-import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.mockito.Mockito;
 import org.quicktheories.api.Pair;
 import org.quicktheories.generators.Generate;
+
+import org.apache.cassandra.io.util.DataOutputBuffer;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;

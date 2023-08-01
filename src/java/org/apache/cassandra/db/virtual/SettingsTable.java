@@ -20,7 +20,10 @@ package org.apache.cassandra.db.virtual;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+
 import com.google.common.collect.ImmutableMap;
+
+import org.yaml.snakeyaml.introspector.Property;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -33,7 +36,6 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientWarn;
-import org.yaml.snakeyaml.introspector.Property;
 
 final class SettingsTable extends AbstractVirtualTable
 {

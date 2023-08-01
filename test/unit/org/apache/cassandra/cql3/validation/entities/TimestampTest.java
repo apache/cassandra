@@ -20,9 +20,9 @@ package org.apache.cassandra.cql3.validation.entities;
 import java.util.Arrays;
 import java.util.List;
 
+import org.junit.Assert;
 import org.junit.Test;
 
-import org.junit.Assert;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.utils.Pair;
 

@@ -24,6 +24,8 @@ import java.util.Set;
 import java.util.UUID;
 
 import com.google.common.collect.ImmutableSet;
+
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
@@ -34,7 +36,6 @@ import org.apache.cassandra.distributed.impl.InstanceConfig;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.tools.ToolRunner;
-import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_ADDRESS;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.assertRingIs;

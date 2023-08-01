@@ -19,10 +19,11 @@ package org.apache.cassandra.index.sai.cql;
 
 import java.util.List;
 
+import com.datastax.driver.core.Row;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.datastax.driver.core.Row;
 import org.apache.cassandra.index.sai.SAITester;
 
 import static org.junit.Assert.assertEquals;

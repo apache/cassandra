@@ -18,11 +18,11 @@
 
 package org.apache.cassandra.metrics;
 
-import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
-
 import com.codahale.metrics.Counter;
-import com.codahale.metrics.Timer;
 import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Timer;
+
+import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 public class ViewWriteMetrics extends ClientRequestMetrics
 {

@@ -34,13 +34,12 @@ import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CounterId;
 
+import static org.apache.cassandra.db.context.CounterContext.ContextState;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
-
-import static org.apache.cassandra.db.context.CounterContext.ContextState;
 
 public class CounterContextTest
 {

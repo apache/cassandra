@@ -18,15 +18,17 @@
 package org.apache.cassandra.index.sai.disk.io;
 
 import java.io.IOException;
+
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.base.MoreObjects;
+
+import org.apache.lucene.store.IndexOutput;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.SequentialWriter;
-import org.apache.lucene.store.IndexOutput;
 
 /**
  * This is a wrapper over a Cassandra {@link SequentialWriter} that provides a Lucene {@link IndexOutput}

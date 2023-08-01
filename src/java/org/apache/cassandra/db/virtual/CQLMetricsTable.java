@@ -20,12 +20,12 @@ package org.apache.cassandra.db.virtual;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.marshal.DoubleType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.metrics.CQLMetrics;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.cql3.QueryProcessor;
 
 
 final class CQLMetricsTable extends AbstractVirtualTable

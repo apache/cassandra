@@ -23,7 +23,6 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.apache.cassandra.utils.concurrent.Condition;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -31,10 +30,11 @@ import org.junit.Test;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.utils.concurrent.Condition;
 
 import static com.google.common.collect.ImmutableList.of;
 import static java.util.concurrent.TimeUnit.MINUTES;
-import static org.apache.cassandra.dht.Murmur3Partitioner.*;
+import static org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import static org.apache.cassandra.dht.Murmur3Partitioner.LongToken.keyForToken;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;

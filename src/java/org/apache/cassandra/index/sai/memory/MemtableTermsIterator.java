@@ -20,12 +20,12 @@ package org.apache.cassandra.index.sai.memory;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 
-import com.google.common.base.Preconditions;
-
 import com.carrotsearch.hppc.LongArrayList;
 import com.carrotsearch.hppc.cursors.LongCursor;
-import org.apache.cassandra.index.sai.utils.TermsIterator;
+import com.google.common.base.Preconditions;
+
 import org.apache.cassandra.index.sai.postings.PostingList;
+import org.apache.cassandra.index.sai.utils.TermsIterator;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 

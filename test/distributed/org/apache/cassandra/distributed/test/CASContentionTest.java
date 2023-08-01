@@ -18,22 +18,24 @@
 
 package org.apache.cassandra.distributed.test;
 
-import com.google.common.util.concurrent.Uninterruptibles;
-import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.distributed.Cluster;
-import org.apache.cassandra.distributed.api.IInstanceConfig;
-import org.apache.cassandra.service.paxos.ContentionStrategy;
-import org.apache.cassandra.utils.FBUtilities;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+
+import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
+import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.IInstanceConfig;
+import org.apache.cassandra.service.paxos.ContentionStrategy;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_USE_SELF_EXECUTION;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.QUORUM;

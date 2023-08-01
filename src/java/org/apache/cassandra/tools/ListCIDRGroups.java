@@ -21,10 +21,11 @@ import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+
+import io.airlift.airline.Arguments;
+import io.airlift.airline.Command;
 
 /**
  * Nodetool command to list available CIDR groups, in the table {@link AuthKeyspace#CIDR_GROUPS}

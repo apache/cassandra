@@ -47,7 +47,6 @@ import org.apache.cassandra.cql3.functions.masking.ColumnMask;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.AbstractType;
-
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
@@ -70,12 +69,10 @@ import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
 import org.apache.cassandra.utils.NoSpamLogger;
 
-import static java.lang.String.format;
-import static java.lang.String.join;
-
 import static com.google.common.collect.Iterables.isEmpty;
 import static com.google.common.collect.Iterables.transform;
-
+import static java.lang.String.format;
+import static java.lang.String.join;
 import static org.apache.cassandra.schema.TableMetadata.Flag;
 
 public abstract class AlterTableStatement extends AlterSchemaStatement

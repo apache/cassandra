@@ -21,13 +21,13 @@ package org.apache.cassandra.tools;
 import java.io.IOException;
 import java.nio.file.Files;
 
-import org.apache.cassandra.io.util.File;
-import org.junit.Test;
-
-import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.tools.ToolRunner.ToolResult;
 import org.assertj.core.api.Assertions;
 import org.hamcrest.CoreMatchers;
+import org.junit.Test;
+
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.tools.ToolRunner.ToolResult;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;

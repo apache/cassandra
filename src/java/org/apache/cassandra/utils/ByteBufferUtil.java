@@ -37,6 +37,7 @@ import java.util.Arrays;
 import java.util.UUID;
 
 import net.nicoulaj.compilecommand.annotations.Inline;
+
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.DataInputPlus;

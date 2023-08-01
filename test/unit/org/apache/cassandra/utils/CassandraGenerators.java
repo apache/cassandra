@@ -38,8 +38,14 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.commons.lang3.builder.MultilineRecursiveToStringStyle;
 import org.apache.commons.lang3.builder.ReflectionToStringBuilder;
+import org.quicktheories.core.Gen;
+import org.quicktheories.core.RandomnessSource;
+import org.quicktheories.generators.Generate;
+import org.quicktheories.generators.SourceDSL;
+import org.quicktheories.impl.Constraint;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -54,8 +60,8 @@ import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.EmptyType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
-import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.LocalPartitioner;
@@ -79,11 +85,6 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.utils.AbstractTypeGenerators.ValueDomain;
-import org.quicktheories.core.Gen;
-import org.quicktheories.core.RandomnessSource;
-import org.quicktheories.generators.Generate;
-import org.quicktheories.generators.SourceDSL;
-import org.quicktheories.impl.Constraint;
 
 import static org.apache.cassandra.utils.AbstractTypeGenerators.allowReversed;
 import static org.apache.cassandra.utils.AbstractTypeGenerators.getTypeSupport;

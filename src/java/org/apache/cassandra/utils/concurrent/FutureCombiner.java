@@ -17,9 +17,6 @@
  */
 package org.apache.cassandra.utils.concurrent;
 
-import io.netty.util.concurrent.GenericFutureListener;
-import io.netty.util.concurrent.GlobalEventExecutor;
-
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -30,6 +27,9 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import com.google.common.base.Preconditions;
+
+import io.netty.util.concurrent.GenericFutureListener;
+import io.netty.util.concurrent.GlobalEventExecutor;
 
 /**
  * Netty's PromiseCombiner is not threadsafe, and we combine futures from multiple event executors.

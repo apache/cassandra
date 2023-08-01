@@ -24,13 +24,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.apache.cassandra.transport.ClientStat;
 import org.apache.cassandra.transport.ConnectedClient;
+
+import io.airlift.airline.Command;
+import io.airlift.airline.Option;
 
 @Command(name = "clientstats", description = "Print information about connected clients")
 public class ClientStats extends NodeToolCmd
