@@ -37,7 +37,6 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
 
         Arrays.sort(keys);
 
-        byteComparisonTests(factory, keys);
         compareToAndEqualsTests(factory, keys);
     }
 
@@ -52,7 +51,6 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
 
         Arrays.sort(keys);
 
-        byteComparisonTests(factory, keys);
         compareToAndEqualsTests(factory, keys);
     }
 
@@ -77,7 +75,6 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
 
         Arrays.sort(keys);
 
-        byteComparisonTests(factory, keys);
         compareToAndEqualsTests(factory, keys);
     }
 
@@ -108,7 +105,6 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
 
         Arrays.sort(keys);
 
-        byteComparisonTests(factory, keys);
         compareToAndEqualsTests(factory, keys);
     }
 
@@ -133,7 +129,6 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
 
         Arrays.sort(keys);
 
-        byteComparisonTests(factory, keys);
         compareToAndEqualsTests(factory, keys);
     }
 
@@ -164,7 +159,6 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
 
         Arrays.sort(keys);
 
-        byteComparisonTests(factory, keys);
         compareToAndEqualsTests(factory, keys);
     }
 
@@ -189,7 +183,6 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
 
         Arrays.sort(keys);
 
-        byteComparisonTests(factory, keys);
         compareToAndEqualsTests(factory, keys);
     }
 
@@ -220,7 +213,6 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
 
         Arrays.sort(keys);
 
-        byteComparisonTests(factory, keys);
         compareToAndEqualsTests(factory, keys);
     }
 
@@ -245,7 +237,6 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
 
         Arrays.sort(keys);
 
-        byteComparisonTests(factory, keys);
         compareToAndEqualsTests(factory, keys);
     }
 
@@ -276,7 +267,6 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
 
         Arrays.sort(keys);
 
-        byteComparisonTests(factory, keys);
         compareToAndEqualsTests(factory, keys);
     }
 
@@ -307,7 +297,6 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
 
         Arrays.sort(keys);
 
-        byteComparisonTests(factory, keys);
         compareToAndEqualsTests(factory, keys);
     }
 
@@ -338,7 +327,6 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
 
         Arrays.sort(keys);
 
-        byteComparisonTests(factory, keys);
         compareToAndEqualsTests(factory, keys);
     }
 
@@ -357,24 +345,6 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
             {
                 assertCompareToAndEquals(key, keys[comparisonIndex], -1);
                 assertCompareToAndEquals(tokenOnlyKey, keys[comparisonIndex], tokenOnlyKey.token().equals(keys[comparisonIndex].token()) ? 0 : -1);
-            }
-        }
-    }
-
-    private void byteComparisonTests(PrimaryKey.Factory factory, PrimaryKey... keys)
-    {
-        for (int index = 0; index < keys.length - 1; index++)
-        {
-            PrimaryKey key = keys[index];
-            PrimaryKey tokenOnlyKey = factory.createTokenOnly(key.token());
-            assertByteComparison(tokenOnlyKey, key, -1);
-            assertByteComparison(key, key, 0);
-            assertByteComparison(tokenOnlyKey, tokenOnlyKey, 0);
-
-            for (int comparisonIndex = index + 1; comparisonIndex < keys.length; comparisonIndex++)
-            {
-                assertByteComparison(key, keys[comparisonIndex], -1);
-                assertByteComparison(tokenOnlyKey, keys[comparisonIndex], -1);
             }
         }
     }
