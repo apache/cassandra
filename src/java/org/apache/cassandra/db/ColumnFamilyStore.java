@@ -558,7 +558,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         repairManager = new CassandraTableRepairManager(this);
         sstableImporter = new SSTableImporter(this);
 
-        if (SchemaConstants.isSystemKeyspace(getKeyspaceName()))
+        if (DatabaseDescriptor.isClientOrToolInitialized() || SchemaConstants.isSystemKeyspace(getKeyspaceName()))
             topPartitions = null;
         else
             topPartitions = new TopPartitionTracker(metadata());
