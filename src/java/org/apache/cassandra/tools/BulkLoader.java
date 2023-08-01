@@ -273,8 +273,9 @@ public class BulkLoader
 
         // Temporarily override newSSLEngine to set accepted protocols until it is added to
         // RemoteEndpointAwareJdkSSLOptions.  See CASSANDRA-13325 and CASSANDRA-16362.
-        RemoteEndpointAwareJdkSSLOptions sslOptions = new RemoteEndpointAwareJdkSSLOptions(sslContext, null)
+        RemoteEndpointAwareJdkSSLOptions sslOptions = new RemoteEndpointAwareJdkSSLOptions(sslContext, clientEncryptionOptions.cipherSuitesArray())
         {
+            @Override
             protected SSLEngine newSSLEngine(SocketChannel channel, InetSocketAddress remoteEndpoint)
             {
                 SSLEngine engine = super.newSSLEngine(channel, remoteEndpoint);
