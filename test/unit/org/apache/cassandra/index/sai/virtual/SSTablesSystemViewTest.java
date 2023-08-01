@@ -20,11 +20,14 @@ package org.apache.cassandra.index.sai.virtual;
 import java.util.Objects;
 
 import com.google.common.collect.ImmutableList;
+import com.googlecode.concurrenttrees.common.Iterables;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.virtual.VirtualKeyspace;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -122,8 +125,10 @@ public class SSTablesSystemViewTest extends SAITester
         assertRowsIgnoringOrder(execute(SELECT), row1, row2, row6, row3, row4, row5, row7);
 
         // compact the table and verify that the virtual table has a single entry per index
-        compact();
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        Util.compact(cfs, Iterables.toList(cfs.getSSTables(SSTableSet.LIVE)));
         waitForCompactions();
+
         SSTableId[] ids5 = currentIdsSorted();
         // Compaction may result in sstables with generation 5 or 6. Try both.
         // key 4, key 6 are not indexable on v1
