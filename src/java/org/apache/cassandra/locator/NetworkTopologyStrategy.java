@@ -86,7 +86,6 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
 
         datacenters = Collections.unmodifiableMap(newDatacenters);
         aggregateRf = ReplicationFactor.withTransient(replicas, trans);
-        logger.info("Configured datacenter replicas are {}", FBUtilities.toString(datacenters));
     }
 
     /**
@@ -302,6 +301,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
 
         // Validate the data center names
         super.validateExpectedOptions();
+        logger.info("Configured datacenter replicas are {}", FBUtilities.toString(datacenters));
     }
 
     @Override
