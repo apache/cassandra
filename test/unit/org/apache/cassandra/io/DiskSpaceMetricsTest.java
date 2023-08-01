@@ -109,6 +109,7 @@ public class DiskSpaceMetricsTest extends CQLTester
         for (int i = 0; i < 3; i++)
             insertN(KEYSPACE_PER_TEST, cfs, 1000, 55);
 
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         int totalSize = 0;
         final Set<SSTableReader> liveSSTables = cfs.getLiveSSTables();
         for (SSTableReader rdr : liveSSTables)
