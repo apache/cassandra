@@ -33,6 +33,7 @@ import org.apache.cassandra.index.sai.disk.v1.sortedterms.SortedTermsReader;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileHandle;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
@@ -90,6 +91,13 @@ public class WideRowAwarePrimaryKeyMap extends SkinnyRowAwarePrimaryKeyMap
                                                  primaryKeyFactory,
                                                  clusteringComparator);
         }
+
+        @Override
+        public void close()
+        {
+            super.close();
+            FileUtils.closeQuietly(partitionsFile);
+        }
     }
 
     private final ClusteringComparator clusteringComparator;
@@ -125,6 +133,7 @@ public class WideRowAwarePrimaryKeyMap extends SkinnyRowAwarePrimaryKeyMap
     public void close()
     {
         super.close();
+        FileUtils.closeQuietly(partitionArray);
     }
 
     @Override
