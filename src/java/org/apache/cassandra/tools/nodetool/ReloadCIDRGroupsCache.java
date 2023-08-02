@@ -15,24 +15,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.net;
+package org.apache.cassandra.tools.nodetool;
 
-import java.nio.ByteBuffer;
-
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandler;
+import io.airlift.airline.Command;
+import org.apache.cassandra.tools.NodeProbe;
+import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
 /**
- * A no-op frame encoder: legacy format doesn't support framing. Instead, the byte stream
- * contains messages, serialized back to back.
+ * Nodetool command to reload CIDR groups cache
  */
-@ChannelHandler.Sharable
-class FrameEncoderLegacy extends FrameEncoder
+@Command(name = "reloadcidrgroupscache", description = "Reload CIDR groups cache with latest entries in cidr_groups table, when CIDR authorizer is enabled")
+public class ReloadCIDRGroupsCache extends NodeToolCmd
 {
-    static final FrameEncoderLegacy instance = new FrameEncoderLegacy();
-
-    ByteBuf encode(boolean isSelfContained, ByteBuffer buffer)
+    @Override
+    public void execute(NodeProbe probe)
     {
-        return GlobalBufferPoolAllocator.wrap(buffer);
+        probe.reloadCidrGroupsCache();
+        probe.output().out.println("Reloaded CIDR groups cache");
     }
 }

@@ -69,6 +69,18 @@ specifiying datacenters implicitly grants access to all datacenters. The
 clause `ACCESS TO ALL DATACENTERS` can be used for explicitness, but
 there's no functional difference.
 
+==== Restricting connections from specific CIDR groups
+
+If a `cidr_authorizer` has been configured, you can restrict roles to login
+only from specific regions, aka CIDR groups, with the `ACCESS FROM CIDRS` clause
+followed by a set literal of CIDR groups the user can access from. Not
+specifying CIDR groups implicitly grants access from all CIDR groups. The
+clause `ACCESS FROM ALL CIDRS` can be used for explicitness, but there's no
+functional difference. This clause can be also be used to remove any CIDR
+groups restrictions. Valid CIDR groups should be used with `ACCESS FROM CIDRS`
+clause. `nodetool list-cidrgroups` command can be used to see available CIDR groups
+in the Cluster.
+
 ==== Creating a role conditionally
 
 Attempting to create an existing role results in an invalid query
@@ -108,7 +120,19 @@ followed by a set literal of datacenters the user can access. To remove
 any data center restrictions, use the `ACCESS TO ALL DATACENTERS`
 clause.
 
-Conditions on executing `ALTER ROLE` statements:
+==== Restricting connections from specific CIDR groups
+
+If a `cidr_authorizer` has been configured, you can restrict roles to login
+only from specific regions, aka CIDR groups, with the `ACCESS FROM CIDRS` clause
+followed by a set literal of CIDR groups the user can access from. Not
+specifying CIDR groups implicitly grants access from all CIDR groups. The
+clause `ACCESS FROM ALL CIDRS` can be used for explicitness, but there's no
+functional difference. This clause can be also be used to remove any CIDR
+groups restrictions. Valid CIDR groups should be used with `ACCESS FROM CIDRS`
+clause. `nodetool list-cidrgroups` command can be used to see available CIDR groups
+in the Cluster.
+
+==== Conditions on executing `ALTER ROLE` statements:
 
 * a client must have `SUPERUSER` status to alter the `SUPERUSER` status
 of another role

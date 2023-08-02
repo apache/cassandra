@@ -59,7 +59,6 @@ public class NettyStreamingChannel extends ChannelInboundHandlerAdapter implemen
 
     @VisibleForTesting
     static final AttributeKey<Boolean> TRANSFERRING_FILE_ATTR = valueOf("transferringFile");
-    final int messagingVersion;
     final Channel channel;
 
     /**
@@ -75,9 +74,8 @@ public class NettyStreamingChannel extends ChannelInboundHandlerAdapter implemen
 
     private volatile boolean closed;
 
-    public NettyStreamingChannel(int messagingVersion, Channel channel, Kind kind)
+    public NettyStreamingChannel(Channel channel, Kind kind)
     {
-        this.messagingVersion = messagingVersion;
         this.channel = channel;
         channel.attr(TRANSFERRING_FILE_ATTR).set(FALSE);
         if (kind == Kind.CONTROL)

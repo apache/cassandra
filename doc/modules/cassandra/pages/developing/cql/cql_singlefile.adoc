@@ -2246,6 +2246,57 @@ LIST ROLES;
 
 but only roles with the `LOGIN` privilege are included in the output.
 
+[[databaseIdentity]]
+=== Database Identities
+
+[[AddIdentityStmt]]
+==== ADD IDENTITY
+
+_Syntax:_
+
+bc(syntax).. +
+::= ADD IDENTITY ( IF NOT EXISTS )? TO ROLE ?
+
+_Sample:_
+
+bc(sample). +
+ADD IDENTITY 'id1' TO ROLE 'role1';
+
+Only a user with privileges to add roles can add identities
+
+Role names & Identity names should be quoted if they contain non-alphanumeric characters.
+
+[[addIdentityConditional]]
+===== Adding an identity conditionally
+
+Attempting to add an existing identity results in an invalid query
+condition unless the `IF NOT EXISTS` option is used. If the option is
+used and the identity exists, the statement is a no-op.
+
+bc(sample). +
+ADD IDENTITY IF NOT EXISTS 'id1' TO ROLE 'role1';
+
+[[dropIdentityStmt]]
+==== DROP IDENTITY
+
+_Syntax:_
+
+bc(syntax).. +
+::= DROP IDENTITY ( IF EXISTS )?  +
+p.
+
+_Sample:_
+
+bc(sample). +
+DROP IDENTITY 'testIdentity'; +
+DROP IDENTITY IF EXISTS 'testIdentity';
+
+Only a user with privileges to drop roles can remove identities
+
+Attempting to drop an Identity which does not exist results in an invalid
+query condition unless the `IF EXISTS` option is used. If the option is
+used and the identity does not exist the statement is a no-op.
+
 [[dataControl]]
 === Data Control
 

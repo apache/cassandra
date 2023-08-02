@@ -726,7 +726,7 @@ public interface Selectable extends AssignmentTestable
         /**
          * The list elements
          */
-        private final List<Selectable> selectables;
+        protected final List<Selectable> selectables;
 
         public WithArrayLiteral(List<Selectable> selectables)
         {
@@ -787,6 +787,11 @@ public interface Selectable extends AssignmentTestable
             return Lists.listToString(selectables);
         }
 
+        public int getSize()
+        {
+            return selectables.size();
+        }
+
         public static class Raw implements Selectable.Raw
         {
             private final List<Selectable.Raw> raws;
@@ -804,16 +809,11 @@ public interface Selectable extends AssignmentTestable
         }
     }
 
-    public static class WithList implements Selectable
+    public static class WithList extends WithArrayLiteral
     {
-        /**
-         * The list elements
-         */
-        private final List<Selectable> selectables;
-
         public WithList(List<Selectable> selectables)
         {
-            this.selectables = selectables;
+            super(selectables);
         }
 
         @Override
@@ -876,16 +876,11 @@ public interface Selectable extends AssignmentTestable
         }
     }
 
-    public static class WithVector implements Selectable
+    public static class WithVector extends WithArrayLiteral
     {
-        /**
-         * The vector elements
-         */
-        private final List<Selectable> selectables;
-
         public WithVector(List<Selectable> selectables)
         {
-            this.selectables = selectables;
+            super(selectables);
         }
 
         @Override

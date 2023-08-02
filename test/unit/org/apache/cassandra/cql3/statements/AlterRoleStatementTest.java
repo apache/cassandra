@@ -22,6 +22,7 @@ import com.google.common.collect.Sets;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.auth.CIDRPermissions;
 import org.apache.cassandra.auth.DCPermissions;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -40,14 +41,19 @@ public class AlterRoleStatementTest
         return parse(query).dcPermissions;
     }
 
+    private static CIDRPermissions cidrPerms(String query)
+    {
+        return parse(query).cidrPermissions;
+    }
+
     @Test
-    public void dcsNotSpecified() throws Exception
+    public void dcsNotSpecified()
     {
         Assert.assertNull(dcPerms("ALTER ROLE r1 WITH PASSWORD = 'password'"));
     }
 
     @Test
-    public void dcsAllSpecified() throws Exception
+    public void dcsAllSpecified()
     {
         DCPermissions dcPerms = dcPerms("ALTER ROLE r1 WITH ACCESS TO ALL DATACENTERS");
         Assert.assertNotNull(dcPerms);
@@ -55,7 +61,7 @@ public class AlterRoleStatementTest
     }
 
     @Test
-    public void singleDc() throws Exception
+    public void singleDc()
     {
         DCPermissions dcPerms = dcPerms("ALTER ROLE r1 WITH ACCESS TO DATACENTERS {'dc1'}");
         Assert.assertNotNull(dcPerms);
@@ -64,11 +70,43 @@ public class AlterRoleStatementTest
     }
 
     @Test
-    public void multiDcs() throws Exception
+    public void multiDcs()
     {
         DCPermissions dcPerms = dcPerms("ALTER ROLE r1 WITH ACCESS TO DATACENTERS {'dc1', 'dc2'}");
         Assert.assertNotNull(dcPerms);
         Assert.assertTrue(dcPerms.restrictsAccess());
         Assert.assertEquals(Sets.newHashSet("dc1", "dc2"), dcPerms.allowedDCs());
+    }
+
+    @Test
+    public void cidrsNotSpecified()
+    {
+        Assert.assertNull(cidrPerms("ALTER ROLE r1 WITH PASSWORD = 'password'"));
+    }
+
+    @Test
+    public void cidrsAllSpecified()
+    {
+        CIDRPermissions cidrPerms = cidrPerms("ALTER ROLE r1 WITH ACCESS FROM ALL CIDRS");
+        Assert.assertNotNull(cidrPerms);
+        Assert.assertFalse(cidrPerms.restrictsAccess());
+    }
+
+    @Test
+    public void singleCidr()
+    {
+        CIDRPermissions cidrPerms = cidrPerms("ALTER ROLE r1 WITH ACCESS FROM CIDRS {'region1'}");
+        Assert.assertNotNull(cidrPerms);
+        Assert.assertTrue(cidrPerms.restrictsAccess());
+        Assert.assertEquals(Sets.newHashSet("region1"), cidrPerms.allowedCIDRGroups());
+    }
+
+    @Test
+    public void multiCidrs()
+    {
+        CIDRPermissions cidrPerms = cidrPerms("ALTER ROLE r1 WITH ACCESS FROM CIDRS {'region1', 'region2'}");
+        Assert.assertNotNull(cidrPerms);
+        Assert.assertTrue(cidrPerms.restrictsAccess());
+        Assert.assertEquals(Sets.newHashSet("region1", "region2"), cidrPerms.allowedCIDRGroups());
     }
 }

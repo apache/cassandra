@@ -21,6 +21,7 @@ package org.apache.cassandra.cql3.statements;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.auth.CIDRPermissions;
 import org.apache.cassandra.auth.DCPermissions;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -39,9 +40,20 @@ public class CreateUserStatementTest
         return parse(query).dcPermissions;
     }
 
+    private static CIDRPermissions cidrPerms(String query)
+    {
+        return parse(query).cidrPermissions;
+    }
+
     @Test
-    public void allDcsImplicit() throws Exception
+    public void allDcsImplicit()
     {
         Assert.assertFalse(dcPerms("CREATE USER u1").restrictsAccess());
+    }
+
+    @Test
+    public void allCidrsImplicit() throws Exception
+    {
+        Assert.assertFalse(cidrPerms("CREATE USER u2").restrictsAccess());
     }
 }

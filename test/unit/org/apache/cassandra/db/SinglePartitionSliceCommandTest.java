@@ -269,10 +269,10 @@ public class SinglePartitionSliceCommandTest
             response = ReadResponse.createDataResponse(pi, cmd, executionController.getRepairedDataInfo());
         }
 
-        out = new DataOutputBuffer((int) ReadResponse.serializer.serializedSize(response, MessagingService.VERSION_30));
-        ReadResponse.serializer.serialize(response, out, MessagingService.VERSION_30);
+        out = new DataOutputBuffer((int) ReadResponse.serializer.serializedSize(response, MessagingService.VERSION_40));
+        ReadResponse.serializer.serialize(response, out, MessagingService.VERSION_40);
         in = new DataInputBuffer(out.buffer(), true);
-        dst = ReadResponse.serializer.deserialize(in, MessagingService.VERSION_30);
+        dst = ReadResponse.serializer.deserialize(in, MessagingService.VERSION_40);
         try (UnfilteredPartitionIterator pi = dst.makeIterator(cmd))
         {
             checkForS(pi);
@@ -284,10 +284,10 @@ public class SinglePartitionSliceCommandTest
         {
             response = ReadResponse.createDataResponse(pi, cmd, executionController.getRepairedDataInfo());
         }
-        out = new DataOutputBuffer((int) ReadResponse.serializer.serializedSize(response, MessagingService.VERSION_30));
-        ReadResponse.serializer.serialize(response, out, MessagingService.VERSION_30);
+        out = new DataOutputBuffer((int) ReadResponse.serializer.serializedSize(response, MessagingService.VERSION_40));
+        ReadResponse.serializer.serialize(response, out, MessagingService.VERSION_40);
         in = new DataInputBuffer(out.buffer(), true);
-        dst = ReadResponse.serializer.deserialize(in, MessagingService.VERSION_30);
+        dst = ReadResponse.serializer.deserialize(in, MessagingService.VERSION_40);
         try (UnfilteredPartitionIterator pi = dst.makeIterator(cmd))
         {
             checkForS(pi);

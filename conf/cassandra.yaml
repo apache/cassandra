@@ -150,7 +150,14 @@ batchlog_replay_throttle: 1024KiB
 #   users. It keeps usernames and hashed passwords in system_auth.roles table.
 #   Please increase system_auth keyspace replication factor if you use this authenticator.
 #   If using PasswordAuthenticator, CassandraRoleManager must also be used (see below)
-authenticator: AllowAllAuthenticator
+authenticator:
+  class_name : org.apache.cassandra.auth.AllowAllAuthenticator
+# MutualTlsAuthenticator can be configured using the following configuration. One can add their own validator
+# which implements MutualTlsCertificateValidator class and provide logic for extracting identity out of certificates
+# and validating certificates.
+#  class_name : org.apache.cassandra.auth.MutualTlsAuthenticator
+#  parameters :
+#    validator_class_name: org.apache.cassandra.auth.SpiffeCertificateValidator
 
 # Authorization backend, implementing IAuthorizer; used to limit access/provide permissions
 # Out of the box, Cassandra provides org.apache.cassandra.auth.{AllowAllAuthorizer,
@@ -181,6 +188,37 @@ role_manager: CassandraRoleManager
 # - CassandraNetworkAuthorizer stores permissions in system_auth.network_permissions table. Please
 #   increase system_auth keyspace replication factor if you use this authorizer.
 network_authorizer: AllowAllNetworkAuthorizer
+
+# CIDR authorization backend, implementing ICIDRAuthorizer; used to restrict user
+# access from certain CIDRs
+# Out of the box, Cassandra provides org.apache.cassandra.auth.{AllowAllCIDRAuthorizer,
+# CassandraCIDRAuthorizer}.
+# - AllowAllCIDRAuthorizer allows access from any CIDR to any user - set it to disable CIDR authorization.
+# - CassandraCIDRAuthorizer stores user's CIDR permissions in system_auth.cidr_permissions table. Please
+#   increase system_auth keyspace replication factor if you use this authorizer, otherwise any changes to
+#   system_auth tables being used by this feature may be lost when a host goes down.
+cidr_authorizer:
+  class_name: AllowAllCIDRAuthorizer
+  # Below parameters are used only when CIDR authorizer is enabled
+  # parameters:
+    # CIDR authorizer when enabled, i.e, CassandraCIDRAuthorizer, is applicable for non-superusers only by default.
+    # Set this setting to true, to enable CIDR authorization for superusers as well.
+    # Note: CIDR checks cannot be performed for JMX calls
+    # cidr_checks_for_superusers: true
+
+    # CIDR authorizer when enabled, supports MONITOR and ENFORCE modes. Default mode is MONITOR
+    # In MONITOR mode, CIDR checks are NOT enforced. Instead, CIDR groups of users accesses are logged using
+    # nospamlogger. A warning message would be logged if a user accesses from unauthorized CIDR group (but access won't
+    # be rejected). An info message would be logged otherwise.
+    # In ENFORCE mode, CIDR checks are enforced, i.e, users accesses would be rejected if attempted from unauthorized
+    # CIDR groups.
+    # cidr_authorizer_mode: MONITOR
+
+    # Refresh interval for CIDR groups cache, this value is considered in minutes
+    # cidr_groups_cache_refresh_interval: 5
+
+    # Maximum number of entries an IP to CIDR groups cache can accommodate
+    # ip_cache_max_size: 100
 
 # Depending on the auth strategy of the cluster, it can be beneficial to iterate
 # from root to table (root -> ks -> table) instead of table to root (table -> ks -> root).
@@ -820,8 +858,17 @@ listen_address: localhost
 
 # Internode authentication backend, implementing IInternodeAuthenticator;
 # used to allow/disallow connections from peer nodes.
-# internode_authenticator: org.apache.cassandra.auth.AllowAllInternodeAuthenticator
-
+#internode_authenticator:
+#  class_name : org.apache.cassandra.auth.AllowAllInternodeAuthenticator
+#  parameters :
+# MutualTlsInternodeAuthenticator can be configured using the following configuration.One can add their own validator
+# which implements MutualTlsCertificateValidator class and provide logic for extracting identity out of certificates
+# and validating certificates.
+#  class_name : org.apache.cassandra.auth.MutualTlsInternodeAuthenticator
+#  parameters :
+#    validator_class_name: org.apache.cassandra.auth.SpiffeCertificateValidator
+#    trusted_peer_identities: "spiffe1,spiffe2"
+#    node_identity: "spiffe1"
 # Whether to start the native transport server.
 # The address on which the native transport is bound is defined by rpc_address.
 start_native_transport: true

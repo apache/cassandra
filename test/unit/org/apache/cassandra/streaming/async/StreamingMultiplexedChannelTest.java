@@ -62,7 +62,7 @@ public class StreamingMultiplexedChannelTest
     public void setUp()
     {
         channel = new TestChannel();
-        streamingChannel = new NettyStreamingChannel(current_version, channel, StreamingChannel.Kind.CONTROL);
+        streamingChannel = new NettyStreamingChannel(channel, StreamingChannel.Kind.CONTROL);
         TimeUUID pendingRepair = nextTimeUUID();
         session = new StreamSession(StreamOperation.BOOTSTRAP, REMOTE_ADDR, new NettyStreamingConnectionFactory(), streamingChannel, current_version, true, 0, pendingRepair, PreviewKind.ALL);
         StreamResultFuture future = StreamResultFuture.createFollower(0, nextTimeUUID(), StreamOperation.REPAIR, REMOTE_ADDR, streamingChannel, current_version, pendingRepair, session.getPreviewKind());

@@ -520,15 +520,15 @@ public final class AbstractTypeGenerators
         return vectorTypeGen(typeGen, SourceDSL.integers().between(1, 100));
     }
 
-    public static Gen<VectorType<?>> vectorTypeGen(Gen<AbstractType<?>> typeGen, Gen<Integer> dimentionGen)
+    public static Gen<VectorType<?>> vectorTypeGen(Gen<AbstractType<?>> typeGen, Gen<Integer> dimensionGen)
     {
         return rnd -> {
-            int dimention = dimentionGen.generate(rnd);
+            int dimension = dimensionGen.generate(rnd);
             AbstractType<?> element = typeGen.generate(rnd);
             // empty type not supported
             while (element == EmptyType.instance)
                 element = typeGen.generate(rnd);
-            return VectorType.getInstance(element.freeze(), dimention);
+            return VectorType.getInstance(element.freeze(), dimension);
         };
     }
 

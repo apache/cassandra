@@ -414,8 +414,7 @@ public class IndexSummary extends WrappedSharedCloseable
                 int offset = t.offsets.getInt(i * 4) + baseOffset;
                 // our serialization format for this file uses native byte order, so if this is different to the
                 // default Java serialization order (BIG_ENDIAN) we have to reverse our bytes
-                if (ByteOrder.nativeOrder() != ByteOrder.BIG_ENDIAN)
-                    offset = Integer.reverseBytes(offset);
+                offset = Integer.reverseBytes(offset);
                 out.writeInt(offset);
             }
             out.write(t.entries, 0, t.entriesLength);

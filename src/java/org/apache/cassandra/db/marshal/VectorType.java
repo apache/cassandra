@@ -84,7 +84,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
     {
         super(ComparisonType.CUSTOM);
         if (dimension <= 0)
-            throw new InvalidRequestException(String.format("vectors may only have positive dimentions; given %d", dimension));
+            throw new InvalidRequestException(String.format("vectors may only have positive dimensions; given %d", dimension));
         this.elementType = elementType;
         this.dimension = dimension;
         this.elementSerializer = elementType.getSerializer();

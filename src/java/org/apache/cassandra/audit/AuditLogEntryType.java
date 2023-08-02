@@ -58,6 +58,8 @@ public enum AuditLogEntryType
     LIST_PERMISSIONS(AuditLogEntryCategory.DCL),
     ALTER_TYPE(AuditLogEntryCategory.DDL),
     CREATE_ROLE(AuditLogEntryCategory.DCL),
+    CREATE_IDENTITY(AuditLogEntryCategory.DCL),
+    DROP_IDENTITY(AuditLogEntryCategory.DCL),
     USE_KEYSPACE(AuditLogEntryCategory.OTHER),
     DESCRIBE(AuditLogEntryCategory.OTHER),
 

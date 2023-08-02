@@ -1,4 +1,9 @@
 5.0
+ * Fix for (unsupported) big endian unaligned architecture, eg s390x (CASSANDRA-17723)
+ * CIDR filtering authorizer (CASSANDRA-18592)
+ * Remove 3.x from the versions checked for prepared statement behaviour (CASSANDRA-18695)
+ * Add vector similarity functions (CASSANDRA-18640)
+ * Lift MessagingService.minimum_version to 40 (CASSANDRA-18314)
  * Introduce pluggable crypto providers and default to AmazonCorrettoCryptoProvider (CASSANDRA-18624)
  * Improved DeletionTime serialization (CASSANDRA-18648)
  * CEP-7: Storage Attached Indexes (CASSANDRA-16052)
@@ -174,6 +179,7 @@ Merged from 4.0:
 
 4.1.4
 Merged from 4.0:
+ * Fix BulkLoader ignoring cipher suites options (CASSANDRA-18582)
  * Migrate Python optparse to argparse (CASSANDRA-17914)
 Merged from 3.11:
 Merged from 3.0:

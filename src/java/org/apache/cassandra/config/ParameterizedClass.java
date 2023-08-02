@@ -17,11 +17,14 @@
  */
 package org.apache.cassandra.config;
 
+import java.lang.reflect.Constructor;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 import com.google.common.base.Objects;
 
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.Shared;
 
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
@@ -40,6 +43,12 @@ public class ParameterizedClass
         // for snakeyaml
     }
 
+    public ParameterizedClass(String class_name)
+    {
+        this.class_name = class_name;
+        this.parameters = Collections.emptyMap();
+    }
+
     public ParameterizedClass(String class_name, Map<String, String> parameters)
     {
         this.class_name = class_name;
@@ -51,6 +60,46 @@ public class ParameterizedClass
     {
         this((String)p.get(CLASS_NAME),
              p.containsKey(PARAMETERS) ? (Map<String, String>)((List<?>)p.get(PARAMETERS)).get(0) : null);
+    }
+
+    static public <K> K newInstance(ParameterizedClass parameterizedClass, List<String> searchPackages)
+    {
+        Exception last = null;
+        if (searchPackages == null || searchPackages.isEmpty())
+            searchPackages = Collections.singletonList("");
+        for (String searchPackage : searchPackages)
+        {
+            try
+            {
+                if (!searchPackage.isEmpty() && !searchPackage.endsWith("."))
+                    searchPackage = searchPackage + '.';
+                String name = searchPackage + parameterizedClass.class_name;
+                Class<?> providerClass = Class.forName(name);
+                try
+                {
+                    Constructor<?> constructor = providerClass.getConstructor(Map.class);
+                    K instance = (K) constructor.newInstance(parameterizedClass.parameters);
+                    return instance;
+                }
+                catch (Exception constructorEx)
+                {
+                    //no-op
+                }
+                // fallback to no arg constructor if no params present
+                if (parameterizedClass.parameters == null || parameterizedClass.parameters.isEmpty())
+                {
+                    Constructor<?> constructor = providerClass.getConstructor();
+                    K instance = (K) constructor.newInstance();
+                    return instance;
+                }
+            }
+            // there are about 5 checked exceptions that could be thrown here.
+            catch (Exception e)
+            {
+                last = e;
+            }
+        }
+        throw new ConfigurationException("Unable to create parameterized class " + parameterizedClass.class_name, last);
     }
 
     @Override

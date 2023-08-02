@@ -337,15 +337,6 @@ public enum Verb
         return handler.get() == ResponseVerbHandler.instance;
     }
 
-    Verb toPre40Verb()
-    {
-        if (!isResponse())
-            return this;
-        if (priority == P0)
-            return INTERNAL_RSP;
-        return REQUEST_RSP;
-    }
-
     @VisibleForTesting
     Supplier<? extends IVerbHandler<?>> unsafeSetHandler(Supplier<? extends IVerbHandler<?>> handler) throws NoSuchFieldException, IllegalAccessException
     {

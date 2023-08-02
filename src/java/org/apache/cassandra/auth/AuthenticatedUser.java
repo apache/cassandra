@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.auth;
 
+import java.net.InetSocketAddress;
 import java.util.Set;
 import com.google.common.base.Objects;
 
@@ -41,11 +42,15 @@ public class AuthenticatedUser
     public static final PermissionsCache permissionsCache = new PermissionsCache(DatabaseDescriptor.getAuthorizer());
     public static final NetworkPermissionsCache networkPermissionsCache = new NetworkPermissionsCache(DatabaseDescriptor.getNetworkAuthorizer());
 
+    private static final ICIDRAuthorizer cidrAuthorizer = DatabaseDescriptor.getCIDRAuthorizer();
+
     /** Use {@link AuthCacheService#initializeAndRegisterCaches} rather than calling this directly */
     public static void init()
     {
         AuthCacheService.instance.register(permissionsCache);
         AuthCacheService.instance.register(networkPermissionsCache);
+
+        cidrAuthorizer.initCaches();
     }
 
     private final String name;
@@ -144,6 +149,11 @@ public class AuthenticatedUser
     public boolean hasLocalAccess()
     {
         return networkPermissionsCache.get(this.getPrimaryRole()).canAccess(Datacenters.thisDatacenter());
+    }
+
+    public boolean hasAccessFromIp(InetSocketAddress remoteAddress)
+    {
+        return cidrAuthorizer.hasAccessFromIp(role, remoteAddress.getAddress());
     }
 
     @Override

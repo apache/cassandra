@@ -49,7 +49,8 @@ public class RolesTest
         SchemaLoader.setupAuth(roleManager,
                                new AuthTestUtils.LocalPasswordAuthenticator(),
                                new AuthTestUtils.LocalCassandraAuthorizer(),
-                               new AuthTestUtils.LocalCassandraNetworkAuthorizer());
+                               new AuthTestUtils.LocalCassandraNetworkAuthorizer(),
+                               new AuthTestUtils.LocalCassandraCIDRAuthorizer());
 
         for (RoleResource role : ALL_ROLES)
             roleManager.createRole(AuthenticatedUser.ANONYMOUS_USER, role, new RoleOptions());

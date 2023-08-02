@@ -32,7 +32,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.RequestFailureReason;
-import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.InternodeOutboundMetrics;
@@ -107,12 +106,6 @@ public class RequestCallbacks implements OutboundMessageCallbacks
         assert message.verb() == Verb.MUTATION_REQ || message.verb() == Verb.COUNTER_MUTATION_REQ || message.verb() == Verb.PAXOS_COMMIT_REQ;
         CallbackInfo previous = callbacks.put(key(message.id(), to.endpoint()), new CallbackInfo(message, to.endpoint(), cb));
         assert previous == null : format("Callback already exists for id %d/%s! (%s)", message.id(), to.endpoint(), previous);
-    }
-
-    <In,Out> IVersionedAsymmetricSerializer<In, Out> responseSerializer(long id, InetAddressAndPort peer)
-    {
-        CallbackInfo info = get(id, peer);
-        return info == null ? null : info.responseVerb.serializer();
     }
 
     @VisibleForTesting
@@ -243,16 +236,12 @@ public class RequestCallbacks implements OutboundMessageCallbacks
         final InetAddressAndPort peer;
         public final RequestCallback callback;
 
-        @Deprecated // for 3.0 compatibility purposes only
-        public final Verb responseVerb;
-
         private CallbackInfo(Message message, InetAddressAndPort peer, RequestCallback callback)
         {
             this.createdAtNanos = message.createdAtNanos();
             this.expiresAtNanos = message.expiresAtNanos();
             this.peer = peer;
             this.callback = callback;
-            this.responseVerb = message.verb().responseVerb;
         }
 
         public long timeout()
