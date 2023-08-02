@@ -42,6 +42,7 @@ public enum Converters
      * able to still use the old name too. No units involved.
      */
     IDENTITY(null, null, o -> o, o -> o),
+    INTEGER_PRIMITIVE_LONG(Integer.class, long.class, Integer::longValue, Long::intValue),
     MILLIS_DURATION_LONG(Long.class, DurationSpec.LongMillisecondsBound.class,
                          DurationSpec.LongMillisecondsBound::new,
                          o -> o == null ? null : o.toMilliseconds()),

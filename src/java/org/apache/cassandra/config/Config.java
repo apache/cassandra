@@ -881,7 +881,7 @@ public class Config
     @Replaces(oldName = "compaction_large_partition_warning_threshold", converter = Converters.LONG_BYTES_DATASTORAGE_MEBIBYTES_DATASTORAGE, deprecated = true)
     public volatile DataStorageSpec.LongBytesBound partition_size_warn_threshold = null;
     public volatile DataStorageSpec.LongBytesBound partition_size_fail_threshold = null;
-    @Replaces(oldName = "compaction_tombstone_warning_threshold", converter = Converters.IDENTITY, deprecated = true)
+    @Replaces(oldName = "compaction_tombstone_warning_threshold", converter = Converters.INTEGER_PRIMITIVE_LONG, deprecated = true)
     public volatile long partition_tombstones_warn_threshold = -1;
     public volatile long partition_tombstones_fail_threshold = -1;
     public volatile DataStorageSpec.LongBytesBound column_value_size_warn_threshold = null;

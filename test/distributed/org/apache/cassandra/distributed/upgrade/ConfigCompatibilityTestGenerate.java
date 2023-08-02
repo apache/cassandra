@@ -30,20 +30,20 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.impl.AbstractCluster;
 import org.apache.cassandra.distributed.shared.Versions;
 
-import static org.apache.cassandra.config.ConfigCompatabilityTest.TEST_DIR;
-import static org.apache.cassandra.config.ConfigCompatabilityTest.dump;
-import static org.apache.cassandra.config.ConfigCompatabilityTest.toTree;
+import static org.apache.cassandra.config.ConfigCompatibilityTest.TEST_DIR;
+import static org.apache.cassandra.config.ConfigCompatibilityTest.dump;
+import static org.apache.cassandra.config.ConfigCompatibilityTest.toTree;
 
 /**
  * This class is to generate YAML dumps per version, this is a manual process and should be updated for each release.
  */
-public class ConfigCompatabilityTestGenerate
+public class ConfigCompatibilityTestGenerate
 {
     public static void main(String[] args) throws Throwable
     {
         ICluster.setup();
         Versions versions = Versions.find();
-        for (Semver version : Arrays.asList(UpgradeTestBase.v30, UpgradeTestBase.v3X, UpgradeTestBase.v40))
+        for (Semver version : Arrays.asList(UpgradeTestBase.v30, UpgradeTestBase.v3X, UpgradeTestBase.v40, UpgradeTestBase.v41))
         {
             File path = new File(TEST_DIR, "version=" + version + ".yml");
             path.getParentFile().mkdirs();
@@ -55,7 +55,7 @@ public class ConfigCompatabilityTestGenerate
             {
                 IInvokableInstance inst = (IInvokableInstance) cluster.get(1);
                 Class<?> klass = inst.callOnInstance(() -> Config.class);
-                assert klass.getClassLoader() != ConfigCompatabilityTestGenerate.class.getClassLoader();
+                assert klass.getClassLoader() != ConfigCompatibilityTestGenerate.class.getClassLoader();
                 dump(toTree(klass), path.getAbsolutePath());
             }
         }
