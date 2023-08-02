@@ -51,14 +51,15 @@ import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import org.apache.cassandra.distributed.upgrade.ConfigCompatibilityTestGenerate;
 import org.yaml.snakeyaml.introspector.Property;
 
 /**
- * To create the test files used by this class, run {@link org.apache.cassandra.distributed.upgrade.ConfigCompatabilityTestGenerate}.
+ * To create the test files used by this class, run {@link ConfigCompatibilityTestGenerate}.
  */
-public class ConfigCompatabilityTest
+public class ConfigCompatibilityTest
 {
-    private static final Logger logger = LoggerFactory.getLogger(ConfigCompatabilityTest.class);
+    private static final Logger logger = LoggerFactory.getLogger(ConfigCompatibilityTest.class);
 
     public static final String TEST_DIR = "test/data/config";
 
@@ -118,8 +119,16 @@ public class ConfigCompatabilityTest
     public void diff_4_0() throws IOException
     {
         diff(TEST_DIR + "/version=4.0-alpha1.yml", ImmutableSet.<String>builder()
-                                                        .addAll(WINDOWS)
-                                                        .build(), EXPECTED_FOR_50);
+                                                               .addAll(WINDOWS)
+                                                               .build(), EXPECTED_FOR_50);
+    }
+
+    @Test
+    public void diff_4_1() throws IOException
+    {
+        diff(TEST_DIR + "/version=4.1-alpha1.yml", ImmutableSet.<String>builder()
+                                                               .addAll(WINDOWS)
+                                                               .build(), EXPECTED_FOR_50);
     }
 
     private void diff(String original, Set<String> ignore, Set<String> expectedErrors) throws IOException
