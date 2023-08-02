@@ -1,8 +1,13 @@
 = Cassandra Stress
 :page-aliases: cassandra-stress.adoc
 
-The `cassandra-stress` tool is used to benchmark and load-test a Cassandra
-cluster. 
+[IMPORTANT] 
+====
+The `cassandra-stress` tool is deprecated.
+A better tool for benchmarking Cassandra is https://docs.nosqlbench.io/[NoSQLBench].
+====
+
+The `cassandra-stress` tool is used to benchmark and load-test a Cassandra cluster. 
 `cassandra-stress` supports testing arbitrary CQL tables and queries, allowing users to benchmark their own data model.
 
 This documentation focuses on user mode to test personal schema.
