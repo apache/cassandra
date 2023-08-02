@@ -90,7 +90,6 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
 
         datacenters = Collections.unmodifiableMap(newDatacenters);
         aggregateRf = ReplicationFactor.withTransient(replicas, trans);
-        logger.info("Configured datacenter replicas are {}", FBUtilities.toString(datacenters));
     }
 
     /**
@@ -324,6 +323,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
                 throw new ConfigurationException("Following datacenters have active nodes and must be present in replication options for keyspace " + SchemaConstants.AUTH_KEYSPACE_NAME + ": " + differenceSet.toString());
             }
         }
+        logger.info("Configured datacenter replicas are {}", FBUtilities.toString(datacenters));
     }
 
     @Override
