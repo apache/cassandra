@@ -20,8 +20,8 @@ package org.apache.cassandra.tools.nodetool;
 import java.util.ArrayList;
 import java.util.List;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
@@ -31,7 +31,7 @@ import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 @Command(name = "invalidatecidrpermissionscache", description = "Invalidate the cidr permissions cache")
 public class InvalidateCIDRPermissionsCache extends NodeToolCmd
 {
-    @Arguments(usage = "[<role>...]", description = "List of roles to invalidate. By default, all roles")
+    @Arguments(title = "[<role>...]", description = "List of roles to invalidate. By default, all roles")
     private List<String> args = new ArrayList<>();
 
     @Override

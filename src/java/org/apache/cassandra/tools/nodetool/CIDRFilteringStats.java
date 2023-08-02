@@ -22,7 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Command;
 import org.apache.cassandra.db.virtual.CIDRFilteringMetricsTable.CIDRFilteringMetricsCountsTable;
 import org.apache.cassandra.db.virtual.CIDRFilteringMetricsTable.CIDRFilteringMetricsLatenciesTable;
 import org.apache.cassandra.tools.NodeProbe;

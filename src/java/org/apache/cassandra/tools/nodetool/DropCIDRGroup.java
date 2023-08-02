@@ -20,8 +20,8 @@ package org.apache.cassandra.tools.nodetool;
 import java.util.ArrayList;
 import java.util.List;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
@@ -34,7 +34,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 @Command(name = "dropcidrgroup", description = "Drop an existing cidr group")
 public class DropCIDRGroup extends NodeToolCmd
 {
-    @Arguments(usage = "<cidrGroup>", description = "Requires a cidr group name")
+    @Arguments(title = "<cidrGroup>", description = "Requires a cidr group name")
     private List<String> args = new ArrayList<>();
 
     @Override

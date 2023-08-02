@@ -21,8 +21,8 @@ import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
@@ -32,7 +32,7 @@ import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 @Command(name = "listcidrgroups", description = "List existing cidr groups")
 public class ListCIDRGroups extends NodeToolCmd
 {
-    @Arguments(usage = "[<cidrGroup>]", description = "LIST operation can be invoked with or without cidr group name")
+    @Arguments(title = "[<cidrGroup>]", description = "LIST operation can be invoked with or without cidr group name")
     private List<String> args = new ArrayList<>();
 
     @Override

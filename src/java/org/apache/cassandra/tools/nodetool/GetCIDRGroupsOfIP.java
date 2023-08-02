@@ -21,8 +21,8 @@ import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
@@ -34,7 +34,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 @Command(name = "getcidrgroupsofip", description = "Print CIDR groups associated with given IP")
 public class GetCIDRGroupsOfIP extends NodeToolCmd
 {
-    @Arguments(usage = "<IP address>", description = "Requires IP address as a string")
+    @Arguments(title = "<IP address>", description = "Requires IP address as a string")
     private List<String> args = new ArrayList<>();
 
     @Override
