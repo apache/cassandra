@@ -71,6 +71,9 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - New `VectorType` (cql `vector<element_type, dimension>`) which adds new fixed-length element arrays. See CASSANDRA-18504
+    - Removed UDT type migration logic for 3.6+ clusters upgrading to 4.0.  If migration has been disabled, it must be
+      enabled before upgrading to 5.0 if the cluster used UDTs. See CASSANDRA-18504
     - Entended max expiration time from 2038-01-19T03:14:06+00:00 to 2106-02-07T06:28:13+00:00
     - Added new Mathematical CQL functions: abs, exp, log, log10 and round.
     - Added a trie-based memtable implementation, which improves memory use, garbage collection efficiency and lookup
@@ -164,6 +167,7 @@ New features
     - Added `sstablepartitions` offline tool to find large partitions in sstables.
     - `cassandra-stress` has a new option called '-jmx' which enables a user to pass username and password to JMX (CASSANDRA-18544)
     - It is possible to read all credentials for `cassandra-stress` from a file via option `-credentials-file` (CASSANDRA-18544)
+    - nodetool info displays bootstrap state a node is in as well as if it was decommissioned or if it failed to decommission (CASSANDRA-18555)
 
 Upgrading
 ---------

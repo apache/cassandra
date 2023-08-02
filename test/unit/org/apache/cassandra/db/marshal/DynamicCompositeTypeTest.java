@@ -25,6 +25,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
 
+import com.google.common.collect.ImmutableMap;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -42,6 +43,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.*;
+import org.assertj.core.api.Assertions;
 
 public class DynamicCompositeTypeTest
 {
@@ -371,5 +373,19 @@ public class DynamicCompositeTypeTest
         }
         bb.rewind();
         return bb;
+    }
+
+    @Test
+    public void testEmptyValue()
+    {
+        DynamicCompositeType type = DynamicCompositeType.getInstance(ImmutableMap.of((byte) 'V', BytesType.instance));
+
+        String cqlLiteral = "0x8056000000";
+        ByteBuffer bb = type.asCQL3Type().fromCQLLiteral(cqlLiteral);
+        type.validate(bb);
+
+        String str = type.getString(bb);
+        ByteBuffer read = type.fromString(str);
+        Assertions.assertThat(read).isEqualTo(bb);
     }
 }

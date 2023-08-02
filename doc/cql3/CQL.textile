@@ -131,7 +131,9 @@ bc(syntax)..
          <set-literal> ::= '{' ( <term> ( ',' <term> )* )? '}'
         <list-literal> ::= '[' ( <term> ( ',' <term> )* )? ']'
 
-    <function> ::= <ident>
+  <vector-literal> ::= '[' ( <term> ( ',' <term> )* )? ']'
+
+  <function> ::= <identifier>
 
   <properties> ::= <property> (AND <property>)*
     <property> ::= <identifier> '=' ( <identifier> | <constant> | <map-literal> )
@@ -1730,6 +1732,7 @@ bc(syntax)..
 <type> ::= <native-type>
          | <collection-type>
          | <tuple-type>
+         | <vector-type>
          | <string>       // Used for custom types. The fully-qualified name of a JAVA class
 
 <native-type> ::= ascii
@@ -1757,7 +1760,11 @@ bc(syntax)..
 <collection-type> ::= list '<' <native-type> '>'
                     | set  '<' <native-type> '>'
                     | map  '<' <native-type> ',' <native-type> '>'
+
 <tuple-type> ::= tuple '<' <type> (',' <type>)* '>'
+
+<vector-type> ::= vector '<' <native-type> ',' <number> '>'
+
 p. Note that the native types are keywords and as such are case-insensitive. They are however not reserved ones.
 
 p. The following table gives additional informations on the native data types, and on which kind of "constants":#constants each type supports:
@@ -1786,6 +1793,8 @@ p. The following table gives additional informations on the native data types, a
 |@varint@   |   integers           |Arbitrary-precision integer|
 
 For more information on how to use the collection types, see the "Working with collections":#collections section below.
+
+For more information on how to use the vector type, see the "Working with vectors":#vectors section below.
 
 h3(#usingtimestamps). Working with timestamps
 
@@ -2005,6 +2014,34 @@ DELETE scores[1] FROM plays WHERE id = '123-afde';                   // deletes 
 UPDATE plays SET scores = scores - [ 12, 21 ] WHERE id = '123-afde'; // removes all occurrences of 12 and 21 from scores
 
 As with "maps":#map, TTLs if used only apply to the newly inserted/updated _values_.
+
+h3(#vectors). Working with vectors
+
+Vectors are fixed-size sequences of non-null values of a certain data type. They use the same literals as lists and it isn't possible to select individual elements of a vector.
+
+To create a column of type @vector@, use the @vector@ keyword suffixed with the value type and the number of dimensions enclosed in angle brackets.  For example:
+
+bc(sample).
+CREATE TABLE plays (
+    id text PRIMARY KEY,
+    game text,
+    players int,
+    scores vector<int, 3>
+)
+
+That would create a @vector@ of 3 @int@ values.
+
+To write a record using @INSERT@, specify the entire vector as a JSON array:
+
+bc(sample).
+INSERT INTO plays (id, game, players, scores) VALUES ('123-afde', 'quake', 3, [17, 4, 2]);
+
+To update a vector using @UPDATE@, specify the entire vector as a JSON array:
+
+bc(sample).
+UPDATE plays SET players = 5, scores = [ 14, 4, 3 ] WHERE id = '123-afde';
+
+It isn't possible to change the individual values of a vector.
 
 h2(#arithmeticOperators). Arithmetic Operators
 

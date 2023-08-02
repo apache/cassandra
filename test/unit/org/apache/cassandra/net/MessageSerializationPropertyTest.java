@@ -69,7 +69,7 @@ public class MessageSerializationPropertyTest implements Serializable
     {
         try (DataOutputBuffer out = new DataOutputBuffer(1024))
         {
-            qt().forAll(MESSAGE_GEN).checkAssert(orFail(message -> {
+            qt().withShrinkCycles(0).forAll(MESSAGE_GEN).checkAssert(orFail(message -> {
                 for (MessagingService.Version version : MessagingService.Version.values())
                 {
                     out.clear();
@@ -97,7 +97,7 @@ public class MessageSerializationPropertyTest implements Serializable
         try (DataOutputBuffer first = new DataOutputBuffer(1024);
              DataOutputBuffer second = new DataOutputBuffer(1024))
         {
-            qt().forAll(MESSAGE_GEN).checkAssert(orFail(message -> {
+            qt().withShrinkCycles(0).forAll(MESSAGE_GEN).checkAssert(orFail(message -> {
                 withTable(schema, message, orFail(ignore -> {
                     for (MessagingService.Version version : MessagingService.Version.values())
                     {

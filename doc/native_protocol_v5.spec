@@ -1207,6 +1207,13 @@ Table of Contents
   value.  Implementors should pad positive values that have a MSB >= 0x80
   with a leading 0x00 byte.
 
+5.25 vector
+
+  For a vector of n dimensions of a fixed-length type, a sequence of those n elements.
+  For a vector with variable-length elements, the size of the elements will preced
+  each element.  Each element is the [bytes] representing the serialized value.  The
+  number of dimensions is not encoded, since it's part of the type definition.
+
 
 6. User Defined Types
 

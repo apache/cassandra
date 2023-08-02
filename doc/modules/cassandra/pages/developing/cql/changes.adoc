@@ -10,6 +10,7 @@ The following describes the changes in each version of CQL.
 * Add SELECT_MASKED permission (`18070`)
 * Add support for using UDFs as masking functions (`18071`)
 * Adopt snake_case function names, deprecating all previous camelCase or alltogetherwithoutspaces function names (`18037`)
+* Add new `vector` data type (`18504`)
 
 == 3.4.6
 

@@ -1,4 +1,8 @@
 5.0
+ * Enhance nodetool compactionstats with additional metrics (CASSANDRA-18305)
+ * Added support for type VECTOR<type, dimension> (CASSANDRA-18504)
+ * Expose bootstrap and decommission state to nodetool info (CASSANDRA-18555)
+ * Fix SSTabledump errors when dumping data from index (CASSANDRA-17698)
  * Avoid unnecessary deserialization of terminal arguments when executing CQL functions (CASSANDRA-18566)
  * Remove dependency on pytz library for setting CQLSH timezones on Python version >= 3.9 (CASSANDRA-17433)
  * Extend maximum expiration date (CASSANDRA-14227)
@@ -150,6 +154,8 @@ Merged from 4.0:
 
 4.1.3
 Merged from 4.0:
+ * Upgrade snappy to 1.1.10.1 (CASSANDRA-18608)
+ * Fix assertion error when describing mv as table (CASSANDRA-18596)
  * Track the amount of read data per row (CASSANDRA-18513)
  * Fix Down nodes counter in nodetool describecluster (CASSANDRA-18512)
  * Remove unnecessary shuffling of GossipDigests in Gossiper#makeRandomGossipDigest (CASSANDRA-18546)
@@ -158,6 +164,8 @@ Merged from 3.11:
  * Fix error message handling when trying to use CLUSTERING ORDER with non-clustering column (CASSANDRA-17818
  * Add keyspace and table name to exception message during ColumnSubselection deserialization (CASSANDRA-18346)
 Merged from 3.0:
+ * Pass taskId from CompactionTask to system.compaction_history (CASSANDRA-12183)
+ * Backport CASSANDRA-10508: Remove hard-coded SSL cipher suites (CASSANDRA-18575)
  * Suppress CVE-2023-2976 (CASSANDRA-18562)
  * Remove dh_python use in Debian packaging (CASSANDRA-18558)
 

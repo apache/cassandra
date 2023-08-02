@@ -263,6 +263,8 @@ import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.Verb.REPLICATION_DONE_REQ;
 import static org.apache.cassandra.service.ActiveRepairService.ParentRepairStatus;
 import static org.apache.cassandra.service.ActiveRepairService.repairCommandExecutor;
+import static org.apache.cassandra.service.StorageService.Mode.DECOMMISSIONED;
+import static org.apache.cassandra.service.StorageService.Mode.DECOMMISSION_FAILED;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
@@ -414,7 +416,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     /* the probability for tracing any particular request, 0 disables tracing and 1 enables for all */
     private double traceProbability = 0.0;
 
-    public enum Mode { STARTING, NORMAL, JOINING, LEAVING, DECOMMISSIONED, MOVING, DRAINING, DRAINED }
+    public enum Mode { STARTING, NORMAL, JOINING, LEAVING, DECOMMISSIONED, DECOMMISSION_FAILED, MOVING, DRAINING, DRAINED }
     private volatile Mode operationMode = Mode.STARTING;
 
     /* Used for tracking drain progress */
@@ -626,7 +628,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * they get the Gossip shutdown message, so even if
      * we don't get time to broadcast this, it is not a problem.
      *
-     * See {@link Gossiper#markAsShutdown(InetAddressAndPort)}
+     * See Gossiper.markAsShutdown(InetAddressAndPort)
      */
     private void shutdownClientServers()
     {
@@ -2157,7 +2159,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     /**
      * All MVs have been created during bootstrap, so mark them as built
      */
-    private void markViewsAsBuilt() {
+    private void markViewsAsBuilt()
+    {
         for (String keyspace : Schema.instance.getUserKeyspaces().names())
         {
             for (ViewMetadata view: Schema.instance.getKeyspaceMetadata(keyspace).views)
@@ -2168,9 +2171,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     /**
      * Called when bootstrap did finish successfully
      */
-    private void bootstrapFinished() {
+    private void bootstrapFinished()
+    {
         markViewsAsBuilt();
         isBootstrapMode = false;
+    }
+
+    @Override
+    public String getBootstrapState()
+    {
+        return SystemKeyspace.getBootstrapState().name();
     }
 
     public boolean resumeBootstrap()
@@ -5128,18 +5138,32 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void decommission(boolean force) throws InterruptedException
     {
+        if (operationMode == DECOMMISSIONED)
+        {
+            logger.info("This node was already decommissioned. There is no point in decommissioning it again.");
+            return;
+        }
+
+        if (isDecommissioning())
+        {
+            logger.info("This node is still decommissioning.");
+            return;
+        }
+
         TokenMetadata metadata = tokenMetadata.cloneAfterAllLeft();
+        // there is no point to do this logic again once node was decommissioning but failed to do so
         if (operationMode != Mode.LEAVING)
         {
             if (!tokenMetadata.isMember(FBUtilities.getBroadcastAddressAndPort()))
                 throw new UnsupportedOperationException("local node is not a member of the token ring yet");
-            if (metadata.getAllEndpoints().size() < 2)
+            if (metadata.getAllEndpoints().size() < 2 && metadata.getAllEndpoints().contains(FBUtilities.getBroadcastAddressAndPort()))
                     throw new UnsupportedOperationException("no other normal nodes in the ring; decommission would be pointless");
-            if (operationMode != Mode.NORMAL)
+            if (operationMode != Mode.NORMAL && operationMode != DECOMMISSION_FAILED)
                 throw new UnsupportedOperationException("Node in " + operationMode + " state; wait for status to become normal or restart");
         }
+
         if (!isDecommissioning.compareAndSet(false, true))
-            throw new IllegalStateException("Node is still decommissioning. Check nodetool netstats.");
+            throw new IllegalStateException("Node is still decommissioning. Check nodetool netstats or nodetool info.");
 
         if (logger.isDebugEnabled())
             logger.debug("DECOMMISSIONING");
@@ -5150,27 +5174,35 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             String dc = DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
 
-            if (operationMode != Mode.LEAVING) // If we're already decommissioning there is no point checking RF/pending ranges
+            // If we're already decommissioning there is no point checking RF/pending ranges
+            if (operationMode != Mode.LEAVING)
             {
                 int rf, numNodes;
                 for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces().names())
                 {
                     if (!force)
                     {
+                        boolean notEnoughLiveNodes = false;
                         Keyspace keyspace = Keyspace.open(keyspaceName);
                         if (keyspace.getReplicationStrategy() instanceof NetworkTopologyStrategy)
                         {
                             NetworkTopologyStrategy strategy = (NetworkTopologyStrategy) keyspace.getReplicationStrategy();
                             rf = strategy.getReplicationFactor(dc).allReplicas;
-                            numNodes = metadata.getTopology().getDatacenterEndpoints().get(dc).size();
+                            Collection<InetAddressAndPort> datacenterEndpoints = metadata.getTopology().getDatacenterEndpoints().get(dc);
+                            numNodes = datacenterEndpoints.size();
+                            if (numNodes <= rf && datacenterEndpoints.contains(FBUtilities.getBroadcastAddressAndPort()))
+                                notEnoughLiveNodes = true;
                         }
                         else
                         {
-                            numNodes = metadata.getAllEndpoints().size();
+                            Set<InetAddressAndPort> allEndpoints = metadata.getAllEndpoints();
+                            numNodes = allEndpoints.size();
                             rf = keyspace.getReplicationStrategy().getReplicationFactor().allReplicas;
+                            if (numNodes <= rf && allEndpoints.contains(FBUtilities.getBroadcastAddressAndPort()))
+                                notEnoughLiveNodes = true;
                         }
 
-                        if (numNodes <= rf)
+                        if (notEnoughLiveNodes)
                             throw new UnsupportedOperationException("Not enough live nodes to maintain replication factor in keyspace "
                                                                     + keyspaceName + " (RF = " + rf + ", N = " + numNodes + ")."
                                                                     + " Perform a forceful decommission to ignore.");
@@ -5182,41 +5214,47 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
 
             startLeaving();
-            long timeout = Math.max(RING_DELAY_MILLIS, BatchlogManager.instance.getBatchlogTimeout());
+            long timeout = Math.max(RING_DELAY_MILLIS, BatchlogManager.getBatchlogTimeout());
             setMode(Mode.LEAVING, "sleeping " + timeout + " ms for batch processing and pending range setup", true);
             Thread.sleep(timeout);
 
-            Runnable finishLeaving = new Runnable()
-            {
-                public void run()
-                {
-                    shutdownClientServers();
-                    Gossiper.instance.stop();
-                    try
-                    {
-                        MessagingService.instance().shutdown();
-                    }
-                    catch (IOError ioe)
-                    {
-                        logger.info("failed to shutdown message service: {}", ioe);
-                    }
+            unbootstrap();
 
-                    Stage.shutdownNow();
-                    SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.DECOMMISSIONED);
-                    setMode(Mode.DECOMMISSIONED, true);
-                    // let op be responsible for killing the process
-                }
-            };
-            unbootstrap(finishLeaving);
+            // shutdown cql, gossip, messaging, Stage and set state to DECOMMISSIONED
+
+            shutdownClientServers();
+            Gossiper.instance.stop();
+            try
+            {
+                MessagingService.instance().shutdown();
+            }
+            catch (IOError ioe)
+            {
+                logger.info("failed to shutdown message service", ioe);
+            }
+
+            Stage.shutdownNow();
+            SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.DECOMMISSIONED);
+            setMode(DECOMMISSIONED, true);
+            // let op be responsible for killing the process
         }
         catch (InterruptedException e)
         {
-            throw new UncheckedInterruptedException(e);
+            setMode(DECOMMISSION_FAILED, true);
+            logger.error("Node interrupted while decommissioning");
+            throw new RuntimeException("Node interrupted while decommissioning");
         }
         catch (ExecutionException e)
         {
-            logger.error("Error while decommissioning node ", e.getCause());
+            setMode(DECOMMISSION_FAILED, true);
+            logger.error("Error while decommissioning node: {}", e.getCause().getMessage());
             throw new RuntimeException("Error while decommissioning node: " + e.getCause().getMessage());
+        }
+        catch (Throwable t)
+        {
+            setMode(DECOMMISSION_FAILED, true);
+            logger.error("Error while decommissioning node: {}", t.getMessage());
+            throw t;
         }
         finally
         {
@@ -5254,7 +5292,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return () -> streamRanges(rangesToStream);
     }
 
-    private void unbootstrap(Runnable onFinish) throws ExecutionException, InterruptedException
+    private void unbootstrap() throws ExecutionException, InterruptedException
     {
         Supplier<Future<StreamState>> startStreaming = prepareUnbootstrapStreaming();
 
@@ -5290,7 +5328,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         hintsSuccess.get();
         logger.debug("stream acks all received.");
         leaveRing();
-        onFinish.run();
     }
 
     private Future streamHints()
@@ -5610,7 +5647,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public boolean isDecommissioned()
     {
-        return operationMode == Mode.DECOMMISSIONED;
+        return operationMode == DECOMMISSIONED;
+    }
+
+    public boolean isDecommissionFailed()
+    {
+        return operationMode == DECOMMISSION_FAILED;
+    }
+
+    public boolean isDecommissioning()
+    {
+        return isDecommissioning.get();
     }
 
     public String getDrainProgress()

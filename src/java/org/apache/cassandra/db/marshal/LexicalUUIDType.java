@@ -33,6 +33,9 @@ import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 
 public class LexicalUUIDType extends AbstractType<UUID>
 {
+    public static class Serializer extends UUIDSerializer {}
+    private static final Serializer SERIALIZER = new Serializer();
+
     public static final LexicalUUIDType instance = new LexicalUUIDType();
 
     private static final ArgumentDeserializer ARGUMENT_DESERIALIZER = new DefaultArgumentDeserializer(instance);
@@ -129,7 +132,7 @@ public class LexicalUUIDType extends AbstractType<UUID>
     @Override
     public TypeSerializer<UUID> getSerializer()
     {
-        return UUIDSerializer.instance;
+        return SERIALIZER;
     }
 
     @Override

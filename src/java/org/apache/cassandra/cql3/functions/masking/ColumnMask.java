@@ -181,7 +181,7 @@ public class ColumnMask
         {
             CQL3Type type = types.get(i).asCQL3Type();
             ByteBuffer value = partialArgumentValues[i];
-            arguments.add(type.toCQLLiteral(value, ProtocolVersion.CURRENT));
+            arguments.add(type.toCQLLiteral(value));
         }
         return format("%s(%s)", function.name(), StringUtils.join(arguments, ", "));
     }

@@ -61,7 +61,12 @@ final class PartitionKeySingleRestrictionSet extends RestrictionSetWrapper imple
     {
         List<ByteBuffer> l = new ArrayList<>(clusterings.size());
         for (ClusteringPrefix clustering : clusterings)
+        {
+            // Can not use QueryProcessor.validateKey here to validate each column as that validates that empty are not allowed
+            // but composite partition keys actually allow empty!
+            clustering.validate();
             l.add(clustering.serializeAsPartitionKey());
+        }
         return l;
     }
 

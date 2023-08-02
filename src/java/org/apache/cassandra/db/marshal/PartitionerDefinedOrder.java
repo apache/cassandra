@@ -18,46 +18,54 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
-import java.util.Iterator;
+import java.util.Objects;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.cql3.functions.ArgumentDeserializer;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
-import org.apache.cassandra.serializers.TypeSerializer;
-import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable.Version;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
-import org.apache.cassandra.utils.FBUtilities;
+
+import javax.annotation.Nullable;
 
 /** for sorting columns representing row keys in the row ordering as determined by a partitioner.
  * Not intended for user-defined CFs, and will in fact error out if used with such. */
 public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
 {
     private final IPartitioner partitioner;
-
+    private final AbstractType<?> partitionKeyType;
+    
     public PartitionerDefinedOrder(IPartitioner partitioner)
     {
         super(ComparisonType.CUSTOM);
         this.partitioner = partitioner;
+        this.partitionKeyType = null;
+    }
+
+    public PartitionerDefinedOrder(IPartitioner partitioner, AbstractType<?> partitionKeyType)
+    {
+        super(ComparisonType.CUSTOM);
+        this.partitioner = partitioner;
+        this.partitionKeyType = partitionKeyType;
     }
 
     public static AbstractType<?> getInstance(TypeParser parser)
     {
-        IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
-        Iterator<String> argIterator = parser.getKeyValueParameters().keySet().iterator();
-        if (argIterator.hasNext())
-        {
-            partitioner = FBUtilities.newPartitioner(argIterator.next());
-            assert !argIterator.hasNext();
-        }
-        return partitioner.partitionOrdering();
+        return parser.getPartitionerDefinedOrder();
     }
 
+    public AbstractType<?> withPartitionKeyType(AbstractType<?> partitionKeyType)
+    {
+        return new PartitionerDefinedOrder(partitioner, partitionKeyType);
+    }
+    
     @Override
     public <V> ByteBuffer compose(V value, ValueAccessor<V> accessor)
     {
@@ -89,7 +97,8 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
     @Override
     public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
-        throw new UnsupportedOperationException();
+        assert partitionKeyType != null : "PartitionerDefinedOrder's toJSONString method needs a partition key type but now is null.";
+        return partitionKeyType.toJSONString(buffer, protocolVersion);
     }
 
     public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
@@ -132,6 +141,12 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
     }
 
     @Override
+    public <V> boolean isNull(V buffer, ValueAccessor<V> accessor)
+    {
+        return buffer == null || accessor.isEmpty(buffer);
+    }
+
+    @Override
     public TypeSerializer<ByteBuffer> getSerializer()
     {
         throw new UnsupportedOperationException("You can't do this with a local partitioner.");
@@ -146,6 +161,32 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
     @Override
     public String toString()
     {
+        if (partitionKeyType != null && !DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5))
+        {
+            return String.format("%s(%s:%s)", getClass().getName(), partitioner.getClass().getName(), partitionKeyType);
+        }
+        // if Cassandra's major version is before 5, use the old behaviour
         return String.format("%s(%s)", getClass().getName(), partitioner.getClass().getName());
+    }
+    
+    @Nullable
+    public AbstractType<?>  getPartitionKeyType()
+    {
+        return partitionKeyType;
+    }
+
+    @Override
+    public boolean equals(Object obj)
+    {
+        if (this == obj)
+        {
+            return true;
+        }
+        if (obj instanceof PartitionerDefinedOrder)
+        {
+            PartitionerDefinedOrder other = (PartitionerDefinedOrder) obj;
+            return partitioner.equals(other.partitioner) && Objects.equals(partitionKeyType, other.partitionKeyType);
+        }
+        return false;
     }
 }

@@ -40,9 +40,12 @@ import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.StatsComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
+import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.Indexes;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.FBUtilities;
@@ -331,6 +334,15 @@ public final class Util
         for (int i = 0; i < header.getClusteringTypes().size(); i++)
         {
             builder.addClusteringColumn("clustering" + (i > 0 ? i : ""), header.getClusteringTypes().get(i));
+        }
+        if (SecondaryIndexManager.isIndexColumnFamily(desc.cfname))
+        {
+            String index = SecondaryIndexManager.getIndexName(desc.cfname);
+            // Just set the Kind of index to CUSTOM, which is an irrelevant parameter that doesn't make any effect on the result
+            IndexMetadata indexMetadata = IndexMetadata.fromSchemaMetadata(index, IndexMetadata.Kind.CUSTOM, null);
+            Indexes indexes = Indexes.of(indexMetadata);
+            builder.indexes(indexes);
+            builder.kind(TableMetadata.Kind.INDEX);
         }
         return builder.build();
     }

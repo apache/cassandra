@@ -48,6 +48,7 @@
 
     <!-- directory details -->
     <property name="basedir" value="."/>
+    <property name="build.helpers.dir" value="${basedir}/.build"/>
     <property name="build.src" value="${basedir}/src"/>
     <property name="build.src.java" value="${basedir}/src/java"/>
     <property name="build.src.antlr" value="${basedir}/src/antlr"/>
@@ -2027,8 +2028,8 @@
       <property name="checkstyle.report.file" value="${checkstyle.log.dir}/checkstyle_report.xml"/>
       <mkdir  dir="${checkstyle.log.dir}" />
 
-      <property name="checkstyle.properties" value="${basedir}/checkstyle.xml" />
-      <property name="checkstyle.suppressions" value="${basedir}/checkstyle_suppressions.xml" />
+      <property name="checkstyle.properties" value="${build.helpers.dir}/checkstyle.xml" />
+      <property name="checkstyle.suppressions" value="${build.helpers.dir}/checkstyle_suppressions.xml" />
       <checkstyle config="${checkstyle.properties}"
                   failureProperty="checkstyle.failure"
                   failOnViolation="true">
@@ -2043,8 +2044,8 @@
       <property name="checkstyle_test.report.file" value="${checkstyle.log.dir}/checkstyle_report_test.xml"/>
       <mkdir  dir="${checkstyle.log.dir}" />
 
-      <property name="checkstyle_test.properties" value="${basedir}/checkstyle_test.xml" />
-      <property name="checkstyle.suppressions" value="${basedir}/checkstyle_suppressions.xml" />
+      <property name="checkstyle_test.properties" value="${build.helpers.dir}/checkstyle_test.xml" />
+      <property name="checkstyle.suppressions" value="${build.helpers.dir}/checkstyle_suppressions.xml" />
       <checkstyle config="${checkstyle_test.properties}"
                   failureProperty="checkstyle.failure"
                   failOnViolation="true">
@@ -2101,8 +2102,8 @@
 
   </target>
 
-  <import file="${basedir}/.build/build-resolver.xml"/>
-  <import file="${basedir}/.build/build-rat.xml"/>
-  <import file="${basedir}/.build/build-owasp.xml"/>
-  <import file="${basedir}/.build/build-git.xml"/>
+  <import file="${build.helpers.dir}/build-resolver.xml"/>
+  <import file="${build.helpers.dir}/build-rat.xml"/>
+  <import file="${build.helpers.dir}/build-owasp.xml"/>
+  <import file="${build.helpers.dir}/build-git.xml"/>
 </project>

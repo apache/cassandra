@@ -490,6 +490,23 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void decommission(boolean force) throws InterruptedException;
 
     /**
+     * Returns whether a node has failed to decommission.
+     *
+     * The fact that this method returns false does not mean that there was an attempt to
+     * decommission this node which was successful.
+     *
+     * @return true if decommission of this node has failed, false otherwise
+     */
+    public boolean isDecommissionFailed();
+
+    /**
+     * Returns whether a node is being decommissioned or not.
+     *
+     * @return true if this node is decommissioning, false otherwise
+     */
+    public boolean isDecommissioning();
+
+    /**
      * @param newToken token to move this node to.
      * This node will unload its data onto its neighbors, and bootstrap to the new token.
      */
@@ -1005,6 +1022,8 @@ public interface StorageServiceMBean extends NotificationEmitter
      * @return true if the node successfully starts resuming. (this does not mean bootstrap streaming was success.)
      */
     public boolean resumeBootstrap();
+
+    public String getBootstrapState();
 
     /** Gets the concurrency settings for processing stages*/
     static class StageConcurrency implements Serializable

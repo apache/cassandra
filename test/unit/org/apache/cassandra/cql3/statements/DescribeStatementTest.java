@@ -600,6 +600,23 @@ public class DescribeStatementTest extends CQLTester
                           tableCreateStatementWithoutDroppedColumn));
     }
 
+    @Test
+    public void testDescribeMaterializedViewAsTable() throws Throwable
+    {
+        String table = createTable(KEYSPACE_PER_TEST, "CREATE TABLE IF NOT EXISTS %s (pk1 int, pk2 int, ck1 int, ck2 int, reg1 int, reg2 list<int>, reg3 int, PRIMARY KEY ((pk1, pk2), ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC, ck2 DESC);");
+
+        execute("CREATE MATERIALIZED VIEW IF NOT EXISTS " + KEYSPACE_PER_TEST + ".mv AS SELECT * FROM " + KEYSPACE_PER_TEST + '.' + table
+                + " WHERE pk2 IS NOT NULL AND pk1 IS NOT NULL AND ck2 IS NOT NULL AND ck1 IS NOT NULL PRIMARY KEY ((pk2, pk1), ck2, ck1)");
+        try
+        {
+            describeError(format("DESCRIBE TABLE %s.%s", KEYSPACE_PER_TEST, "mv"),
+                          format("Table '%s' not found in keyspace '%s'", "mv", KEYSPACE_PER_TEST));
+        }
+        finally
+        {
+            execute("DROP MATERIALIZED VIEW " + KEYSPACE_PER_TEST + ".mv");
+        }
+    }
     
     @Test
     public void testDescribeMissingKeyspace() throws Throwable

@@ -158,7 +158,7 @@ public class FBUtilitiesTest
                 IPartitioner partitioner = FBUtilities.newPartitioner(name, Optional.of(type));
                 Assert.assertTrue(String.format("%s != LocalPartitioner", partitioner.toString()),
                                   LocalPartitioner.class.isInstance(partitioner));
-                Assert.assertEquals(partitioner.partitionOrdering(), type);
+                Assert.assertEquals(partitioner.partitionOrdering(null), type);
             }
     }
 

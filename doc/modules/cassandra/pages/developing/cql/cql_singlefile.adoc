@@ -115,7 +115,32 @@ where `hex` is an hexadecimal character, e.g. `[0-9a-fA-F]`.
 For how these constants are typed, see the link:#types[data types
 section].
 
-=== Comments
+== Terms
+
+CQL has the notion of a _term_, which denotes the kind of values that
+CQL support. Terms are defined by:
+
+[source, bnf]
+----
+include::example$BNF/term.bnf[]
+----
+
+A term is thus one of:
+
+* A xref:cql/defintions.adoc#constants[constant]
+* A literal for either a xref:cql/types.adoc#collections[collection], a xref:cql/types.adoc#vectors[vector],
+a xref:cql/types.adoc#udts[user-defined type] or a xref:cql/types.adoc#tuples[tuple]
+* A xref:cql/functions.adoc#cql-functions[function] call, either a xref:cql/functions.adoc#scalar-native-functions[native function]
+or a xref:cql/functions.adoc#user-defined-scalar-functions[user-defined function]
+* An xref:cql/operators.adoc#arithmetic_operators[arithmetic operation] between terms
+* A type hint
+* A bind marker, which denotes a variable to be bound at execution time.
+See the section on `prepared-statements` for details. A bind marker can
+be either anonymous (`?`) or named (`:some_name`). The latter form
+provides a more convenient way to refer to the variable for binding it
+and should generally be preferred.
+
+==== Comments
 
 A comment in CQL is a line beginning by either double dashes (`--`) or
 double slash (`//`).
@@ -2954,6 +2979,21 @@ removes all occurrences of 12 and 21 from scores
 
 As with link:#map[maps], TTLs if used only apply to the newly
 inserted/updated _values_.
+
+[[vectors]]
+==== Working with vectors
+
+Vectors are fixed-size sequences of non-null values of a certain data type. They use the same literals as lists.
+
+You can define, insert and update a vector with:
+
+[source,cql]
+----
+include::example$CQL/vector.cql[]
+----
+
+Note that it isn't possible to change the individual values of a vector, and it isn't possible to select individual
+elements of a vector.
 
 === Functions
 

@@ -45,7 +45,6 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.IScrubber;
-import org.apache.cassandra.io.sstable.SSTableHeaderFix;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -75,6 +74,9 @@ public class StandaloneScrubber
     private static final String SKIP_CORRUPTED_OPTION = "skip-corrupted";
     private static final String NO_VALIDATE_OPTION = "no-validate";
     private static final String REINSERT_OVERFLOWED_TTL_OPTION = "reinsert-overflowed-ttl";
+    /**
+     * This option was logically removed from the code, but to avoid breaking backwards compatability the option remains
+     */
     private static final String HEADERFIX_OPTION = "header-fix";
 
     public static void main(String args[])
@@ -132,66 +134,6 @@ public class StandaloneScrubber
                 SSTableReader.createLinks(descriptor, components, snapshotDirectory.path());
             }
             System.out.println(String.format("Pre-scrub sstables snapshotted into snapshot %s", snapshotName));
-
-            if (options.headerFixMode != Options.HeaderFixMode.OFF)
-            {
-                // Run the frozen-UDT checks _before_ the sstables are opened
-
-                List<String> logOutput = new ArrayList<>();
-
-                SSTableHeaderFix.Builder headerFixBuilder = SSTableHeaderFix.builder()
-                                                                            .logToList(logOutput)
-                                                                            .schemaCallback(() -> Schema.instance::getTableMetadata);
-                if (options.headerFixMode == Options.HeaderFixMode.VALIDATE)
-                    headerFixBuilder = headerFixBuilder.dryRun();
-
-                for (Pair<Descriptor, Set<Component>> p : listResult)
-                    headerFixBuilder.withPath(p.left.fileFor(Components.DATA).toPath());
-
-                SSTableHeaderFix headerFix = headerFixBuilder.build();
-                try
-                {
-                    headerFix.execute();
-                }
-                catch (Exception e)
-                {
-                    JVMStabilityInspector.inspectThrowable(e);
-                    if (options.debug)
-                        e.printStackTrace(System.err);
-                }
-
-                if (headerFix.hasChanges() || headerFix.hasError())
-                    logOutput.forEach(System.out::println);
-
-                if (headerFix.hasError())
-                {
-                    System.err.println("Errors in serialization-header detected, aborting.");
-                    System.exit(1);
-                }
-
-                switch (options.headerFixMode)
-                {
-                    case VALIDATE_ONLY:
-                    case FIX_ONLY:
-                        System.out.printf("Not continuing with scrub, since '--%s %s' was specified.%n",
-                                          HEADERFIX_OPTION,
-                                          options.headerFixMode.asCommandLineOption());
-                        System.exit(0);
-                    case VALIDATE:
-                        if (headerFix.hasChanges())
-                        {
-                            System.err.printf("Unfixed, but fixable errors in serialization-header detected, aborting. " +
-                                              "Use a non-validating mode ('-e %s' or '-e %s') for --%s%n",
-                                              Options.HeaderFixMode.FIX.asCommandLineOption(),
-                                              Options.HeaderFixMode.FIX_ONLY.asCommandLineOption(),
-                                              HEADERFIX_OPTION);
-                            System.exit(2);
-                        }
-                        break;
-                    case FIX:
-                        break;
-                }
-            }
 
             List<SSTableReader> sstables = new ArrayList<>();
 
@@ -350,17 +292,7 @@ public class StandaloneScrubber
                 opts.checkData(!cmd.hasOption(NO_VALIDATE_OPTION));
                 opts.reinsertOverflowedTTLRows(cmd.hasOption(REINSERT_OVERFLOWED_TTL_OPTION));
                 if (cmd.hasOption(HEADERFIX_OPTION))
-                {
-                    try
-                    {
-                        opts.headerFixMode = HeaderFixMode.fromCommandLine(cmd.getOptionValue(HEADERFIX_OPTION));
-                    }
-                    catch (Exception e)
-                    {
-                        errorMsg(String.format("Invalid argument value '%s' for --%s", cmd.getOptionValue(HEADERFIX_OPTION), HEADERFIX_OPTION), options);
-                        return null;
-                    }
-                }
+                    System.err.println(String.format("Option %s is deprecated and no longer functional", HEADERFIX_OPTION));
                 return opts;
             }
             catch (ParseException e)

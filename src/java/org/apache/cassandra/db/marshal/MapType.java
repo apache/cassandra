@@ -61,7 +61,7 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
         if (l.size() != 2)
             throw new ConfigurationException("MapType takes exactly 2 type parameters");
 
-        return getInstance(l.get(0), l.get(1), true);
+        return getInstance(l.get(0).freeze(), l.get(1).freeze(), true);
     }
 
     public static <K, V> MapType<K, V> getInstance(AbstractType<K> keys, AbstractType<V> values, boolean isMultiCell)
@@ -150,10 +150,14 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     @Override
     public AbstractType<?> freeze()
     {
-        if (isMultiCell)
-            return getInstance(this.keys, this.values, false);
-        else
-            return this;
+        // freeze key/value to match org.apache.cassandra.cql3.CQL3Type.Raw.RawCollection.freeze
+        return isMultiCell ? getInstance(this.keys.freeze(), this.values.freeze(), false) : this;
+    }
+
+    @Override
+    public AbstractType<?> unfreeze()
+    {
+        return isMultiCell ? this : getInstance(this.keys, this.values, true);
     }
 
     @Override

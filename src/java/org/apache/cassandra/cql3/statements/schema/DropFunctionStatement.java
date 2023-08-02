@@ -92,7 +92,7 @@ public final class DropFunctionStatement extends AlterSchemaStatement
         }
 
         arguments.stream()
-                 .filter(raw -> !raw.isTuple() && raw.isFrozen())
+                 .filter(raw -> !raw.isImplicitlyFrozen() && raw.isFrozen())
                  .findFirst()
                  .ifPresent(t -> { throw ire("Argument '%s' cannot be frozen; remove frozen<> modifier from '%s'", t, t); });
 

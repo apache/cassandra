@@ -87,6 +87,8 @@ public class MapSerializer<K, V> extends AbstractMapSerializer<Map<K, V>>
     @Override
     public <T> void validate(T input, ValueAccessor<T> accessor)
     {
+        if (accessor.isEmpty(input))
+            throw new MarshalException("Not enough bytes to read a map");
         try
         {
             // Empty values are still valid.

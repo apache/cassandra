@@ -289,18 +289,6 @@ public class SerializationHeader
             this.stats = stats;
         }
 
-        /**
-         * <em>Only</em> exposed for {@link org.apache.cassandra.io.sstable.SSTableHeaderFix}.
-         */
-        public static Component buildComponentForTools(AbstractType<?> keyType,
-                                                       List<AbstractType<?>> clusteringTypes,
-                                                       Map<ByteBuffer, AbstractType<?>> staticColumns,
-                                                       Map<ByteBuffer, AbstractType<?>> regularColumns,
-                                                       EncodingStats stats)
-        {
-            return new Component(keyType, clusteringTypes, staticColumns, regularColumns, stats);
-        }
-
         public MetadataType getType()
         {
             return MetadataType.HEADER;
