@@ -388,7 +388,7 @@ public abstract class SortedTableVerifier<R extends SSTableReaderWithFilter> imp
         {
             ByteBuffer last = it.key();
             while (it.advance()) last = it.key(); // no-op, just check if index is readable
-            if (!Objects.equals(last, sstable.last.getKey()))
+            if (!Objects.equals(last, sstable.getLast().getKey()))
                 throw new CorruptSSTableException(new IOException("Failed to read partition index"), it.toString());
         }
     }

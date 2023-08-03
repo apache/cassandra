@@ -244,7 +244,7 @@
       <artifactId>sigar</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.eclipse.jdt.core.compiler</groupId>
+      <groupId>org.eclipse.jdt</groupId>
       <artifactId>ecj</artifactId>
     </dependency>
     <dependency>
@@ -325,14 +325,6 @@
       <artifactId>HdrHistogram</artifactId>
     </dependency>
     <dependency>
-      <groupId>de.jflex</groupId>
-      <artifactId>jflex</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>com.github.rholder</groupId>
-      <artifactId>snowball-stemmer</artifactId>
-    </dependency>
-    <dependency>
       <groupId>com.googlecode.concurrent-trees</groupId>
       <artifactId>concurrent-trees</artifactId>
     </dependency>
@@ -343,10 +335,6 @@
     <dependency>
       <groupId>net.ju-n.compile-command-annotations</groupId>
       <artifactId>compile-command-annotations</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.assertj</groupId>
-      <artifactId>assertj-core</artifactId>
     </dependency>
     <dependency>
       <groupId>org.jboss.byteman</groupId>
@@ -375,6 +363,14 @@
     <dependency>
       <groupId>org.agrona</groupId>
       <artifactId>agrona</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.lucene</groupId>
+      <artifactId>lucene-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.lucene</groupId>
+      <artifactId>lucene-analysis-common</artifactId>
     </dependency>
   </dependencies>
 </project>

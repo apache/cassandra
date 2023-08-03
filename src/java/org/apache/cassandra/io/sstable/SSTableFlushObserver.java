@@ -38,12 +38,12 @@ public interface SSTableFlushObserver
      *
      * @param key                the key being appended to SSTable.
      * @param keyPosition        the position of the key in the SSTable data file
-     * @param KeyPositionForSASI SSTable format specific key position for storage attached indexes, it can be
+     * @param keyPositionForSASI SSTable format specific key position for storage attached indexes, it can be
      *                           in data file or in some index file. It is the same position as returned by
      *                           {@link KeyReader#keyPositionForSecondaryIndex()} for the same format, and the same
      *                           position as expected by {@link SSTableReader#keyAtPositionFromSecondaryIndex(long)}.
      */
-    void startPartition(DecoratedKey key, long keyPosition, long KeyPositionForSASI);
+    void startPartition(DecoratedKey key, long keyPosition, long keyPositionForSASI);
 
     /**
      * Called when a static row is being written to the sstable. If static columns are present in the table, it is called
@@ -54,16 +54,23 @@ public interface SSTableFlushObserver
     void staticRow(Row staticRow);
 
     /**
-     * Called after the unfiltered cluster is written to the sstable.
-     * Will be preceded by a call to {@code startPartition(DecoratedKey, long)},
-     * and the cluster should be assumed to belong to that partition.
+     * Called after an unfiltered is written to the sstable.
      *
-     * @param unfilteredCluster The unfiltered cluster being added to SSTable.
+     * Will be preceded by a call to {@link #startPartition(DecoratedKey, long, long)},
+     * and the unfiltered should be assumed to belong to that partition.
+     *
+     * @param unfiltered the unfiltered being written to the SSTable
      */
-    void nextUnfilteredCluster(Unfiltered unfilteredCluster);
+    void nextUnfilteredCluster(Unfiltered unfiltered);
 
     /**
      * Called when all data is written to the file and it's ready to be finished up.
      */
     void complete();
+
+    /**
+     * Clean up resources on error. There should be no side effects if called multiple times.
+     */
+    @SuppressWarnings("unused")
+    default void abort(Throwable accumulator) {}
 }

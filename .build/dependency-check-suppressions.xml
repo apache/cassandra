@@ -49,12 +49,6 @@
         <packageUrl regex="true">^pkg:maven/net\.openhft/chronicle\-wire@.*$</packageUrl>
         <cpe>cpe:/a:wire:wire</cpe>
     </suppress>
-    <suppress>
-        <!-- not applicable https://nvd.nist.gov/vuln/detail/CVE-2020-8908 -->
-        <packageUrl regex="true">^pkg:maven/com\.google\.guava/guava@.*$</packageUrl>
-        <cve>CVE-2020-8908</cve>
-        <cve>CVE-2023-2976</cve>
-    </suppress>
     <!-- https://issues.apache.org/jira/browse/CASSANDRA-18146 -->
     <suppress>
         <packageUrl regex="true">^pkg:maven/org\.apache\.commons.*$</packageUrl>
@@ -84,16 +78,19 @@
         <cve>CVE-2022-24823</cve>
         <cve>CVE-2022-41881</cve>
         <cve>CVE-2022-41915</cve>
+        <cve>CVE-2023-34462</cve>
     </suppress>
     <!-- https://issues.apache.org/jira/browse/CASSANDRA-17966 -->
     <suppress>
         <packageUrl regex="true">^pkg:maven/com\.fasterxml\.jackson\.core/jackson\-databind@.*$</packageUrl>
         <cve>CVE-2022-42003</cve>
         <cve>CVE-2022-42004</cve>
+        <cve>CVE-2023-35116</cve>
     </suppress>
-    <!-- https://issues.apache.org/jira/browse/CASSANDRA-18389 -->
+
+    <!-- https://issues.apache.org/jira/browse/CASSANDRA-18643 -->
     <suppress>
-        <packageUrl regex="true">^pkg:maven/com\.fasterxml\.jackson\.core/jackson\-core.*$</packageUrl>
+        <packageUrl regex="true">^pkg:maven/com\.fasterxml\.jackson\.core/jackson\-core@.*$</packageUrl>
         <cve>CVE-2022-45688</cve>
     </suppress>
 

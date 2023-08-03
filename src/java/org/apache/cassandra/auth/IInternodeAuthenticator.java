@@ -74,7 +74,7 @@ public interface IInternodeAuthenticator
     /**
      * Setup is called once upon system startup to initialize the IAuthenticator.
      *
-     * For example, use this method to create any required keyspaces/column families.
+     * For example, use this method to do any required initialization of the class.
      */
     default void setupInternode()
     {

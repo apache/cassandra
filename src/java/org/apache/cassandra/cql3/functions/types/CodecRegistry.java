@@ -165,27 +165,27 @@ public final class CodecRegistry
 
     static
     {
-        BUILT_IN_CODECS_MAP.put(DataType.Name.ASCII, TypeCodec.ascii());
-        BUILT_IN_CODECS_MAP.put(DataType.Name.BIGINT, TypeCodec.bigint());
-        BUILT_IN_CODECS_MAP.put(DataType.Name.BLOB, TypeCodec.blob());
-        BUILT_IN_CODECS_MAP.put(DataType.Name.BOOLEAN, TypeCodec.cboolean());
-        BUILT_IN_CODECS_MAP.put(DataType.Name.COUNTER, TypeCodec.counter());
-        BUILT_IN_CODECS_MAP.put(DataType.Name.DECIMAL, TypeCodec.decimal());
-        BUILT_IN_CODECS_MAP.put(DataType.Name.DOUBLE, TypeCodec.cdouble());
-        BUILT_IN_CODECS_MAP.put(DataType.Name.FLOAT, TypeCodec.cfloat());
-        BUILT_IN_CODECS_MAP.put(DataType.Name.INET, TypeCodec.inet());
-        BUILT_IN_CODECS_MAP.put(DataType.Name.INT, TypeCodec.cint());
-        BUILT_IN_CODECS_MAP.put(DataType.Name.TEXT, TypeCodec.varchar());
-        BUILT_IN_CODECS_MAP.put(DataType.Name.TIMESTAMP, TypeCodec.timestamp());
-        BUILT_IN_CODECS_MAP.put(DataType.Name.UUID, TypeCodec.uuid());
-        BUILT_IN_CODECS_MAP.put(DataType.Name.VARCHAR, TypeCodec.varchar());
-        BUILT_IN_CODECS_MAP.put(DataType.Name.VARINT, TypeCodec.varint());
-        BUILT_IN_CODECS_MAP.put(DataType.Name.TIMEUUID, TypeCodec.timeUUID());
-        BUILT_IN_CODECS_MAP.put(DataType.Name.SMALLINT, TypeCodec.smallInt());
-        BUILT_IN_CODECS_MAP.put(DataType.Name.TINYINT, TypeCodec.tinyInt());
-        BUILT_IN_CODECS_MAP.put(DataType.Name.DATE, TypeCodec.date());
-        BUILT_IN_CODECS_MAP.put(DataType.Name.TIME, TypeCodec.time());
-        BUILT_IN_CODECS_MAP.put(DataType.Name.DURATION, TypeCodec.duration());
+        BUILT_IN_CODECS_MAP.put(ASCII, TypeCodec.ascii());
+        BUILT_IN_CODECS_MAP.put(BIGINT, TypeCodec.bigint());
+        BUILT_IN_CODECS_MAP.put(BLOB, TypeCodec.blob());
+        BUILT_IN_CODECS_MAP.put(BOOLEAN, TypeCodec.cboolean());
+        BUILT_IN_CODECS_MAP.put(COUNTER, TypeCodec.counter());
+        BUILT_IN_CODECS_MAP.put(DECIMAL, TypeCodec.decimal());
+        BUILT_IN_CODECS_MAP.put(DOUBLE, TypeCodec.cdouble());
+        BUILT_IN_CODECS_MAP.put(FLOAT, TypeCodec.cfloat());
+        BUILT_IN_CODECS_MAP.put(INET, TypeCodec.inet());
+        BUILT_IN_CODECS_MAP.put(INT, TypeCodec.cint());
+        BUILT_IN_CODECS_MAP.put(TEXT, TypeCodec.varchar());
+        BUILT_IN_CODECS_MAP.put(TIMESTAMP, TypeCodec.timestamp());
+        BUILT_IN_CODECS_MAP.put(UUID, TypeCodec.uuid());
+        BUILT_IN_CODECS_MAP.put(VARCHAR, TypeCodec.varchar());
+        BUILT_IN_CODECS_MAP.put(VARINT, TypeCodec.varint());
+        BUILT_IN_CODECS_MAP.put(TIMEUUID, TypeCodec.timeUUID());
+        BUILT_IN_CODECS_MAP.put(SMALLINT, TypeCodec.smallInt());
+        BUILT_IN_CODECS_MAP.put(TINYINT, TypeCodec.tinyInt());
+        BUILT_IN_CODECS_MAP.put(DATE, TypeCodec.date());
+        BUILT_IN_CODECS_MAP.put(TIME, TypeCodec.time());
+        BUILT_IN_CODECS_MAP.put(DURATION, TypeCodec.duration());
     }
 
     // roughly sorted by popularity
@@ -317,6 +317,16 @@ public final class CodecRegistry
                         weight += weigh(eltType, level + 1);
                     }
                     return weight;
+                }
+                case VECTOR:
+                {
+                    int weight = level;
+                    DataType eltType = cqlType.getTypeArguments().get(0);
+                    if (eltType != null)
+                    {
+                        weight += weigh(eltType, level + 1);
+                    }
+                    return weight == 0 ? 1 : weight;
                 }
                 case UDT:
                 {
@@ -746,6 +756,13 @@ public final class CodecRegistry
             return (TypeCodec<T>) TypeCodec.map(keyCodec, valueCodec);
         }
 
+        if (cqlType instanceof VectorType
+            && (javaType == null || List.class.isAssignableFrom(javaType.getRawType())))
+        {
+            VectorType type = (VectorType) cqlType;
+            return (TypeCodec<T>) TypeCodec.vector(type, findCodec(type.getSubtype(), null));
+        }
+
         if (cqlType instanceof TupleType
             && (javaType == null || TupleValue.class.isAssignableFrom(javaType.getRawType())))
         {
@@ -847,14 +864,20 @@ public final class CodecRegistry
             }
         }
 
-        if ((cqlType == null || cqlType.getName() == DataType.Name.TUPLE)
+        if ((cqlType == null || cqlType.getName() == VECTOR) && value instanceof List)
+        {
+            VectorType type = (VectorType) cqlType;
+            return (TypeCodec<T>) TypeCodec.vector(type, findCodec(type.getSubtype(), null));
+        }
+
+        if ((cqlType == null || cqlType.getName() == TUPLE)
             && value instanceof TupleValue)
         {
             return (TypeCodec<T>)
                    TypeCodec.tuple(cqlType == null ? ((TupleValue) value).getType() : (TupleType) cqlType);
         }
 
-        if ((cqlType == null || cqlType.getName() == DataType.Name.UDT) && value instanceof UDTValue)
+        if ((cqlType == null || cqlType.getName() == UDT) && value instanceof UDTValue)
         {
             return (TypeCodec<T>)
                    TypeCodec.userType(cqlType == null ? ((UDTValue) value).getType() : (UserType) cqlType);

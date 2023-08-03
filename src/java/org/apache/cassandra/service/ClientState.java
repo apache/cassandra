@@ -534,6 +534,11 @@ public class ClientState
         {
             throw new UnauthorizedException(String.format("You do not have access to this datacenter (%s)", Datacenters.thisDatacenter()));
         }
+        else
+        {
+            if (remoteAddress != null && !user.hasAccessFromIp(remoteAddress))
+                throw new UnauthorizedException("You do not have access from this IP " + remoteAddress.getHostString());
+        }
     }
 
     public void ensureNotAnonymous()

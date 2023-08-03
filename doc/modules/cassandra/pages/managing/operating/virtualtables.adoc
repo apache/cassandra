@@ -20,8 +20,7 @@ Virtual keyspaces and tables are quite different from regular tables and keyspac
 * Consistency level of the queries sent to virtual tables are ignored.
 * All existing virtual tables use `LocalPartitioner`. 
 Since a virtual table is not replicated the partitioner sorts in order of partition keys instead of by their hash.
-* Making advanced queries using `ALLOW FILTERING` and aggregation functions can be executed in virtual tables, even though in normal tables we do not recommend it.
-From https://issues.apache.org/jira/browse/CASSANDRA-18238[CASSANDRA-18238], it is not necessary to specify `ALLOW FILTERING` when a query would normally require that, except when querying the table `system_views.system_logs`.
+* Making advanced queries using `ALLOW FILTERING` and aggregation functions can be executed in virtual tables, even though in normal tables we don't recommend it.
 
 == Virtual Keyspaces
 
@@ -103,13 +102,12 @@ recent_hit_rate_per_second, recent_request_rate_per_second, request_count, and s
 
 |sstable_tasks |Lists currently running tasks and progress on SSTables, for operations like compaction and upgrade.
 
-|system_logs |Displays Cassandra logs if logged via CQLLOG appender in logback.xml
-
 |system_properties |Displays environmental system properties set on the node.
 
 |thread_pools |Lists metrics for each thread pool.
 
 |tombstones_per_read |Records counts, keyspace_name, tablek_name, max, and median for tombstones.
+
 |===
 
 We shall discuss some of the virtual tables in more detail next.
@@ -213,19 +211,19 @@ cqlsh> DESCRIBE TABLE system_views.clients;
 Warning: Table system_views.clients is a virtual table and cannot be recreated with CQL.
 Structure, for reference:
 VIRTUAL TABLE system_views.clients (
-  address inet,
-  port int,
-  client_options frozen<map<text, text>>,
-  connection_stage text,
-  driver_name text,
-  driver_version text,
-  hostname text,
-  protocol_version int,
-  request_count bigint,
-  ssl_cipher_suite text,
-  ssl_enabled boolean,
-  ssl_protocol text,
-  username text,
+    address inet,
+    port int,
+    client_options frozen<map<text, text>>,
+    connection_stage text,
+    driver_name text,
+    driver_version text,
+    hostname text,
+    protocol_version int,
+    request_count bigint,
+    ssl_cipher_suite text,
+    ssl_enabled boolean,
+    ssl_protocol text,
+    username text,
     PRIMARY KEY (address, port)
 ) WITH CLUSTERING ORDER BY (port ASC)
     AND comment = 'currently connected clients';
@@ -249,6 +247,7 @@ counters |       26214400 |           0 |         0 |       NaN |               
 
 (4 rows)
 ....
+
 
 === CIDR filtering metrics Virtual Tables
 The `cidr_filtering_metrics_counts` virtual table lists counts metrics specific to CIDR filtering. A query on `cidr_filtering_metrics_counts` virtual table lists metrics similar to below.
@@ -307,7 +306,7 @@ name                                 | value
   auto_snapshot                      | true
   automatic_sstable_upgrade          | false
   cluster_name                       | Test Cluster
-  enable_transient_replication       | false
+  transient_replication_enabled      | false
   hinted_handoff_enabled             | true
   hints_directory                    | /home/ec2-user/cassandra/data/hints
   incremental_backups                | false
@@ -324,7 +323,7 @@ name                                 | value
 ....
 
 The `settings` table can be really useful if yaml file has been changed
-since startup and do not know running configuration, or to find if they
+since startup and dont know running configuration, or to find if they
 have been modified via jmx/nodetool or virtual tables.
 
 === Thread Pools Virtual Table

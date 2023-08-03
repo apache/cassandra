@@ -198,8 +198,8 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
     @Override
     public DecoratedKey firstKeyBeyond(PartitionPosition token)
     {
-        if (token.compareTo(first) < 0)
-            return first;
+        if (token.compareTo(getFirst()) < 0)
+            return getFirst();
 
         long sampledPosition = getIndexScanPosition(token);
 
@@ -263,7 +263,7 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
 
         // check the smallest and greatest keys in the sstable to see if it can't be present
         boolean skip = false;
-        if (key.compareTo(first) < 0)
+        if (key.compareTo(getFirst()) < 0)
         {
             if (searchOp == Operator.EQ)
             {
@@ -271,13 +271,13 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
             }
             else
             {
-                key = first;
+                key = getFirst();
                 searchOp = Operator.GE; // since op != EQ, bloom filter will be skipped; first key is included so no reason to check bloom filter
             }
         }
         else
         {
-            int l = last.compareTo(key);
+            int l = getLast().compareTo(key);
             skip = l < 0 // out of range, skip
                    || l == 0 && searchOp == Operator.GT; // search entry > key, but key is the last in range, so skip
             if (l == 0)
@@ -529,8 +529,8 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
      */
     long getIndexScanPosition(PartitionPosition key)
     {
-        if (openReason == OpenReason.MOVED_START && key.compareTo(first) < 0)
-            key = first;
+        if (openReason == OpenReason.MOVED_START && key.compareTo(getFirst()) < 0)
+            key = getFirst();
 
         return indexSummary.getScanPosition(key);
     }
@@ -599,7 +599,7 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
         return runWithLock(ignored -> {
             assert openReason != OpenReason.EARLY;
             // TODO: merge with caller's firstKeyBeyond() work,to save time
-            if (newStart.compareTo(first) > 0)
+            if (newStart.compareTo(getFirst()) > 0)
             {
                 Map<FileHandle, Long> handleAndPositions = new LinkedHashMap<>(2);
                 if (dfile != null)
@@ -654,8 +654,8 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
 
         // Always save the resampled index with lock to avoid racing with entire-sstable streaming
         return runWithLock(ignored -> {
-            new IndexSummaryComponent(newSummary, first, last).save(descriptor.fileFor(Components.SUMMARY), true);
-            return cloneAndReplace(first, OpenReason.METADATA_CHANGE, newSummary);
+            new IndexSummaryComponent(newSummary, getFirst(), getLast()).save(descriptor.fileFor(Components.SUMMARY), true);
+            return cloneAndReplace(getFirst(), OpenReason.METADATA_CHANGE, newSummary);
         });
     }
 

@@ -76,8 +76,9 @@ public class RowIndexReader extends Walker<RowIndexReader>
 
     /**
      * Computes the floor for a given key.
+     * @throws IOException 
      */
-    public IndexInfo separatorFloor(ByteComparable key)
+    public IndexInfo separatorFloor(ByteComparable key) throws IOException
     {
         // Check for a prefix and find closest smaller branch.
         IndexInfo res = prefixAndNeighbours(key, RowIndexReader::readPayload);
@@ -96,23 +97,23 @@ public class RowIndexReader extends Walker<RowIndexReader>
         return getCurrentIndexInfo();
     }
 
-    public IndexInfo min()
+    public IndexInfo min() throws IOException
     {
         goMin(root);
         return getCurrentIndexInfo();
     }
 
-    protected IndexInfo getCurrentIndexInfo()
+    protected IndexInfo getCurrentIndexInfo() throws IOException
     {
         return readPayload(payloadPosition(), payloadFlags());
     }
 
-    protected IndexInfo readPayload(int ppos, int bits)
+    protected IndexInfo readPayload(int ppos, int bits) throws IOException
     {
         return readPayload(buf, ppos, bits, version);
     }
 
-    static IndexInfo readPayload(ByteBuffer buf, int ppos, int bits, Version version)
+    static IndexInfo readPayload(ByteBuffer buf, int ppos, int bits, Version version) throws IOException
     {
         long dataOffset;
         if (bits == 0)
@@ -183,12 +184,12 @@ public class RowIndexReader extends Walker<RowIndexReader>
 
     // debug/test code
     @SuppressWarnings("unused")
-    public void dumpTrie(PrintStream out)
+    public void dumpTrie(PrintStream out) throws IOException
     {
         dumpTrie(out, RowIndexReader::dumpRowIndexEntry, version);
     }
 
-    static String dumpRowIndexEntry(ByteBuffer buf, int ppos, int bits, Version version)
+    static String dumpRowIndexEntry(ByteBuffer buf, int ppos, int bits, Version version) throws IOException
     {
         IndexInfo ii = readPayload(buf, ppos, bits, version);
 

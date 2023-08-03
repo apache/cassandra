@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.io.sstable.format.bti;
 
+import java.io.IOException;
 import java.io.PrintStream;
 
 import org.apache.cassandra.io.sstable.format.Version;
@@ -44,7 +45,7 @@ class RowIndexReverseIterator extends ReverseValueIterator<RowIndexReverseIterat
         this(file, entry.indexTrieRoot, ByteComparable.EMPTY, end, version);
     }
 
-    public IndexInfo nextIndexInfo()
+    public IndexInfo nextIndexInfo() throws IOException
     {
         if (currentNode == -1)
         {
@@ -62,7 +63,7 @@ class RowIndexReverseIterator extends ReverseValueIterator<RowIndexReverseIterat
 
     // debug/test code
     @SuppressWarnings("unused")
-    public void dumpTrie(PrintStream out)
+    public void dumpTrie(PrintStream out) throws IOException
     {
         dumpTrie(out, RowIndexReader::dumpRowIndexEntry, version);
     }

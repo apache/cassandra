@@ -14,7 +14,7 @@
   See the License for the specific language governing permissions and
   limitations under the License.
 -->
-<project basedir="." default="jar" name="apache-cassandra"
+<project basedir="." default="check" name="apache-cassandra"
          xmlns:if="ant:if"
          xmlns:unless="ant:unless">
 
@@ -43,8 +43,8 @@
         When building, javac's source and target flags are set to the jdk used, so lower JDKs are not supported at runtime.
         The use of both CASSANDRA_USE_JDK11 and use-jdk11 is deprecated.
     -->
-    <property name="java.default" value="1.8" />
-    <property name="java.supported" value="1.8,11,17" />
+    <property name="java.default" value="11" />
+    <property name="java.supported" value="11,17" />
 
     <!-- directory details -->
     <property name="basedir" value="."/>
@@ -56,7 +56,7 @@
     <property name="build.src.gen-java" value="${basedir}/src/gen-java"/>
     <property name="build.lib" value="${basedir}/lib"/>
     <property name="build.dir" value="${basedir}/build"/>
-    <property name="build.dir.lib" value="${basedir}/build/lib"/>
+    <property name="build.dir.lib" value="${build.dir}/lib"/>
     <property name="build.test.dir" value="${build.dir}/test"/>
     <property name="build.classes" value="${build.dir}/classes"/>
     <property name="build.classes.main" value="${build.classes}/main" />
@@ -88,6 +88,7 @@
     <property name="test.driver.connection_timeout_ms" value="10000"/>
     <property name="test.driver.read_timeout_ms" value="24000"/>
     <property name="test.jvm.args" value="" />
+    <property name="testtag.extra" value="" />
     <property name="dist.dir" value="${build.dir}/dist"/>
     <property name="tmp.dir" value="${java.io.tmpdir}"/>
 
@@ -141,8 +142,8 @@
     <property name="jacoco.finalexecfile" value="${jacoco.export.dir}/jacoco.exec" />
 
     <property name="jflex.version" value="1.8.2"/>
-    <property name="jamm.version" value="0.3.2"/>
-    <property name="ecj.version" value="4.6.1"/>
+    <property name="jamm.version" value="0.4.0"/>
+    <property name="ecj.version" value="3.33.0"/>
     <!-- When updating ASM, please, do consider whether you might need to update also FBUtilities#ASM_BYTECODE_VERSION
       and the simulator InterceptClasses#BYTECODE_VERSION, in particular if we are looking to provide Cassandra support
       for newer JDKs (CASSANDRA-17873). -->
@@ -221,8 +222,8 @@
         <string>--add-opens java.base/jdk.internal.util.jar=ALL-UNNAMED</string>
         <string>--add-opens jdk.management/com.sun.management.internal=ALL-UNNAMED</string>
     </resources>
-    <pathconvert property="_jvm_args_concat" refid="_jvm11_arg_items" pathsep=" "/>
-    <condition property="java11-jvmargs" value="${_jvm_args_concat}" else="">
+    <pathconvert property="_jvm11_args_concat" refid="_jvm11_arg_items" pathsep=" "/>
+    <condition property="java-jvmargs" value="${_jvm11_args_concat}">
         <equals arg1="${ant.java.version}" arg2="11"/>
     </condition>
 
@@ -258,7 +259,6 @@
 
         <string>--add-opens java.base/sun.nio.ch=ALL-UNNAMED</string>
         <string>--add-opens java.base/java.io=ALL-UNNAMED</string>
-        <string>--add-opens java.base/java.nio=ALL-UNNAMED</string>
         <string>--add-opens java.base/java.util.concurrent=ALL-UNNAMED</string>
         <string>--add-opens java.base/java.util=ALL-UNNAMED</string>
         <string>--add-opens java.base/java.util.concurrent.atomic=ALL-UNNAMED</string>
@@ -269,8 +269,8 @@
 
         <string>--add-opens java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED</string>
     </resources>
-    <pathconvert property="_jvm_args_concat2" refid="_jvm17_arg_items" pathsep=" "/>
-    <condition property="java17-jvmargs" value="${_jvm_args_concat2}" else="">
+    <pathconvert property="_jvm17_args_concat" refid="_jvm17_arg_items" pathsep=" "/>
+    <condition property="java-jvmargs" value="${_jvm17_args_concat}">
         <equals arg1="${ant.java.version}" arg2="17"/>
     </condition>
 
@@ -286,15 +286,6 @@
       In java 11 we also need to set a system property to enable netty to use Unsafe direct byte
       buffer construction (see CASSANDRA-16493)
     -->
-    <!-- Leaving  _jvm8_test_arg_items for now as we are not dropping Java 8 yet but it will be useless after CASSANDRA-18258-->
-    <resources id="_jvm8_test_arg_items">
-      <!-- TODO see CASSANDRA-16212 - we seem to OOM non stop now after CASSANDRA-16212, so to have clean CI while this gets looked into, disabling limiting metaspace
-        <string>-XX:MaxMetaspaceExpansion=64M</string>
-        <string>-XX:MaxMetaspaceSize=512M</string>
-        <string>-XX:MetaspaceSize=128M</string>
-      -->
-    </resources>
-    <pathconvert property="_jvm8_test_arg_items_concat" refid="_jvm8_test_arg_items" pathsep=" "/>
     <resources id="_jvm11_test_arg_items">
         <string>-XX:-CMSClassUnloadingEnabled</string>
         <string>-Dio.netty.tryReflectionSetAccessible=true</string>
@@ -304,28 +295,17 @@
         <string>-Dio.netty.tryReflectionSetAccessible=true</string>
     </resources>
     <pathconvert property="_jvm17_test_arg_items_concat" refid="_jvm17_test_arg_items" pathsep=" "/>
-    <condition property="_std-test-jvmargs11" value="${_jvm11_test_arg_items_concat}" else=" ">
+    <condition property="_std-test-jvmargs" value="${_jvm11_test_arg_items_concat}">
             <equals arg1="${ant.java.version}" arg2="11"/>
     </condition>
-    <condition property="_std-test-jvmargs17" value="${_jvm17_test_arg_items_concat}" else=" ">
+    <condition property="_std-test-jvmargs" value="${_jvm17_test_arg_items_concat}">
         <equals arg1="${ant.java.version}" arg2="17"/>
     </condition>
 
     <!-- needed to compile org.apache.cassandra.utils.JMXServerUtils -->
     <!-- needed to compile org.apache.cassandra.distributed.impl.Instance-->
-    <condition property="jdk11plus-javac-exports" value="--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED --add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED" else="">
-        <not>
-            <equals arg1="${ant.java.version}" arg2="1.8"/>
-        </not>
-    </condition>
-    <condition property="jdk11plus-javadoc-exports" value="${jdk11plus-javac-exports} --frames" else="">
-        <not>
-            <equals arg1="${ant.java.version}" arg2="1.8"/>
-        </not>
-    </condition>
-    <condition property="checkstyle.version" value="8.45.1" else="10.8.1">
-        <equals arg1="${ant.java.version}" arg2="1.8"/>
-    </condition>
+    <!-- needed to compile org.apache.cassandra.utils.memory.BufferPool -->
+    <property name="jdk11plus-javac-exports" value="--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED --add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED --add-exports java.base/jdk.internal.ref=ALL-UNNAMED --add-exports java.base/sun.nio.ch=ALL-UNNAMED" />
 
     <!--
          Add all the dependencies.
@@ -355,7 +335,7 @@
         windowtitle="${ant.project.name} API" classpathref="cassandra.classpath"
         bottom="Copyright &amp;copy; 2009- The Apache Software Foundation"
         useexternalfile="yes" encoding="UTF-8" failonerror="false"
-        maxmemory="256m" additionalparam="${jdk11plus-javadoc-exports}">
+        maxmemory="256m" additionalparam="${jdk11plus-javac-exports}">
         <filesets/>
       </javadoc>
       <fail message="javadoc failed">
@@ -385,11 +365,18 @@
         <mkdir dir="${jacoco.partials.dir}"/>
 
         <!-- Set up jdk specific properties -->
-        <javac includes="**/JdkProperties.java" srcdir="test/anttasks" destdir="${test.classes}" includeantruntime="true" source="${java.default}" target="${java.default}">
+        <javac includes="**/JdkProperties.java,**/SetSystemProperty.java" srcdir="test/anttasks" destdir="${test.classes}" includeantruntime="true" source="${java.default}" target="${java.default}">
           <compilerarg value="-Xlint:-options"/>
         </javac>
         <taskdef name="JdkProperties" classname="org.apache.cassandra.anttasks.JdkProperties" classpath="${test.classes}"/>
+        <taskdef name="SetSystemProperty" classname="org.apache.cassandra.anttasks.SetSystemProperty" classpath="${test.classes}"/>
+
         <JdkProperties/>
+
+        <!-- https://issues.apache.org/jira/browse/CASSANDRA-16391?focusedCommentId=17310803&page=com.atlassian.jira.plugin.system.issuetabpanels%3Acomment-tabpanel#comment-17310803 -->
+        <SetSystemProperty name="jmc5.path" value="/tmp"/>
+        <SetSystemProperty name="jmc6.path" value="/tmp"/>
+        <SetSystemProperty name="visualvm.path" value="/tmp"/>
     </target>
 
     <target name="clean" description="Remove all locally created artifacts">
@@ -469,7 +456,7 @@
     </target>
 
     <!-- create properties file with C version -->
-    <target name="createVersionPropFile" depends="get-git-sha">
+    <target name="_createVersionPropFile" depends="_get-git-sha">
       <taskdef name="propertyfile" classname="org.apache.tools.ant.taskdefs.optional.PropertyFile"/>
       <mkdir dir="${version.properties.dir}"/>
       <propertyfile file="${version.properties.dir}/version.properties">
@@ -487,18 +474,16 @@
         </classpath>
         <jvmarg value="-Dstorage-config=${test.conf}"/>
         <jvmarg value="-Dcassandra.reads.thresholds.coordinator.defensive_checks_enabled=true" /> <!-- enable defensive checks -->
-        <jvmarg value="-javaagent:${build.lib}/jamm-${jamm.version}.jar" />
+        <jvmarg value="-javaagent:${build.dir.lib}/jars/jamm-${jamm.version}.jar" />
         <jvmarg value="-ea"/>
-        <jvmarg line="${java11-jvmargs}"/>
-        <jvmarg line="${java17-jvmargs}"/>
+        <jvmarg line="${java-jvmargs}"/>
       </java>
     </target>
 
     <!--
         The build target builds all the .class files
     -->
-    <target name="build" depends="resolver-retrieve-build,build-project,checkstyle" description="Compile Cassandra classes"/>
-    <target name="_build_unsafe" depends="resolver-retrieve-build,build-project" description="Compile Cassandra classes without checks"/>
+    <target name="build" depends="resolver-retrieve-build,build-project" description="Compile Cassandra classes"/>
     <target name="codecoverage" depends="jacoco-run,jacoco-report" description="Create code coverage report"/>
 
     <target name="_build_java">
@@ -518,16 +503,22 @@
         </javac>
     </target>
 
-    <target depends="init,gen-cql3-grammar,generate-cql-html,generate-jflex-java,rat-check,get-git-sha"
+    <target depends="init,gen-cql3-grammar,generate-cql-html,generate-jflex-java"
             name="build-project">
         <echo message="${ant.project.name}: ${ant.file}"/>
         <!-- Order matters! -->
         <antcall target="_build_java"/>
-        <antcall target="createVersionPropFile"/>
+        <antcall target="_createVersionPropFile"/>
         <copy todir="${build.classes.main}">
             <fileset dir="${build.src.resources}" />
         </copy>
         <copy todir="${basedir}/conf" file="${build.classes.main}/META-INF/hotspot_compiler"/>
+    </target>
+
+    <target name="check" depends="_main-jar,build-test" description="Verifies the source code and dependencies. This task is intended to run on pre-commit and locally. It should verify mostly modified files compared to the upstream base branch." unless="check.skip">
+        <antcall target="rat-check" inheritrefs="true"/>
+        <antcall target="checkstyle" inheritrefs="true"/>
+        <antcall target="checkstyle-test" inheritrefs="true"/>
     </target>
 
     <!-- Stress build file -->
@@ -579,10 +570,9 @@
       ant stress-test-some -Dtest.name=org.apache.cassandra.stress.generate.DistributionGaussianTest -Dtest.methods=simpleGaussian
     -->
     <target name="stress-test-some" depends="maybe-build-test" description="Runs stress tests">
-        <testmacro inputdir="${stress.test.src}"
-                       timeout="${test.timeout}">
-          <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}" outfile="build/test/output/TEST-${test.name}-${test.methods}"/>
-          <test if:blank="${test.methods}" name="${test.name}" outfile="build/test/output/TEST-${test.name}"/>
+        <testmacro inputdir="${stress.test.src}" timeout="${test.timeout}">
+          <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}" todir="${build.test.dir}/output/" outfile="TEST-${test.name}-${test.methods}"/>
+          <test if:blank="${test.methods}" name="${test.name}" todir="${build.test.dir}/output/" outfile="TEST-${test.name}"/>
         </testmacro>
     </target>
 
@@ -640,11 +630,11 @@
     <property name="simulator-bootstrap.build.classes" value="${build.classes}/simulator-bootstrap" />
     <property name="simulator-bootstrap.manifest" value="${simulator-bootstrap.build.classes}/MANIFEST.MF" />
 
-    <target name="simulator-asm-build" depends="_build_unsafe" description="build simulator-asm">
+    <target name="simulator-asm-build" depends="build" description="build simulator-asm">
         <antcall target="_simulator-asm_build"/>
     </target>
 
-    <target name="simulator-bootstrap-build" depends="_build_unsafe" description="build simulator-bootstrap">
+    <target name="simulator-bootstrap-build" depends="build" description="build simulator-bootstrap">
         <antcall target="_simulator-bootstrap_build"/>
     </target>
 
@@ -885,8 +875,8 @@
     </target>
 
     <!-- creates release tarballs -->
-    <target name="artifacts" depends="_artifacts-init,gen-doc,sources-jar"
-            description="Create Cassandra release artifacts">
+    <target name="artifacts" depends="_artifacts-init,check,gen-doc,sources-jar"
+            description="Create Cassandra tarball and maven artifacts">
       <tar compression="gzip" longfile="gnu"
         destfile="${build.dir}/${final.name}-bin.tar.gz">
 
@@ -1009,10 +999,10 @@
     <antcall target="build-test" inheritRefs="true"/>
   </target>
 
-  <target name="build-test" depends="_main-jar,stress-build-test,fqltool-build,resolver-dist-lib,simulator-jars,checkstyle-test"
+  <target name="build-test" depends="_main-jar,stress-build-test,fqltool-build,resolver-dist-lib,simulator-jars"
           description="Compile test classes">
     <antcall target="_build-test"/>
-    <checktestnameshelper/>
+    <antcall target="_check-test-names"/>
   </target>
 
   <target name="_build-test">
@@ -1030,6 +1020,8 @@
         <pathelement location="${fqltool.build.classes}"/>
      </classpath>
      <compilerarg value="-XDignore.symbol.file"/>
+     <!-- needed to compile org.apache.cassandra.utils.memory.BufferPoolTest -->
+     <compilerarg line="${jdk11plus-javac-exports}"/>
      <src path="${test.anttasks.src}"/>
      <src path="${test.unit.src}"/>
      <src path="${test.long.src}"/>
@@ -1050,17 +1042,19 @@
     </copy>
   </target>
 
-  <macrodef name="checktestnameshelper">
-    <sequential>
-      <taskdef name="test-name-check_" classname="org.apache.cassandra.anttasks.TestNameCheckTask" classpath="${test.classes}">
-        <classpath>
-          <path refid="cassandra.classpath.test"/>
-          <path location="${fqltool.build.classes}"/>
-        </classpath>
-      </taskdef>
-      <test-name-check_/>
-    </sequential>
-  </macrodef>
+  <target name="_check-test-names">
+    <java taskname="check-test-names" fork="true" failonerror="yes" classname="org.apache.cassandra.anttasks.TestNameCheckTask" classpath="${test.classes}">
+      <classpath>
+        <path refid="cassandra.classpath" />
+        <pathelement location="${test.classes}"/>
+        <pathelement location="${fqltool.build.classes}" />
+        <fileset dir="${test.lib}">
+          <include name="**/*.jar" />
+        </fileset>
+      </classpath>
+      <jvmarg line="${java-jvmargs}"/>
+    </java>
+  </target>
 
   <!-- Run tests separately and report errors after and generate a junit report -->
   <macrodef name="testhelper">
@@ -1102,6 +1096,9 @@
     <attribute name="showoutput" default="false"/>
 
     <sequential>
+      <fail message="testing with build.test.dir (${build.test.dir}) not pointing to 'build/test/' will fail, test configurations are hardcoded.">
+        <condition><not><equals arg1="${build.test.dir}" arg2="${basedir}/build/test"/></not></condition>
+      </fail>
       <condition property="additionalagent"
                  value="-javaagent:${build.dir.lib}/jars/jacocoagent.jar=destfile=${jacoco.partialexecfile}"
                  else="">
@@ -1121,7 +1118,7 @@
         <jvmarg value="-Dstorage-config=${test.conf}"/>
         <jvmarg value="-Djava.awt.headless=true"/>
         <!-- Cassandra 3.0+ needs <jvmarg line="... ${additionalagent}" /> here! (not value=) -->
-        <jvmarg line="-javaagent:${build.lib}/jamm-${jamm.version}.jar ${additionalagent}" />
+        <jvmarg line="-javaagent:${build.dir.lib}/jars/jamm-${jamm.version}.jar ${additionalagent}" />
         <jvmarg value="-ea"/>
         <jvmarg value="-Djava.io.tmpdir=${tmp.dir}"/>
         <jvmarg value="-Dcassandra.debugrefcount=true"/>
@@ -1133,7 +1130,7 @@
         -->
         <jvmarg value="-XX:SoftRefLRUPolicyMSPerMB=0" />
         <jvmarg value="-XX:ActiveProcessorCount=${cassandra.test.processorCount}" />
-        <jvmarg value="-XX:HeapDumpPath=build/test" />
+        <jvmarg value="-XX:HeapDumpPath=${build.test.dir}" />
         <jvmarg value="-Dcassandra.test.driver.connection_timeout_ms=${test.driver.connection_timeout_ms}"/>
         <jvmarg value="-Dcassandra.test.driver.read_timeout_ms=${test.driver.read_timeout_ms}"/>
         <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
@@ -1141,19 +1138,17 @@
         <jvmarg value="-Dcassandra.test.sstableformatdevelopment=true"/>
         <!-- The first time SecureRandom initializes can be slow if it blocks on /dev/random -->
         <jvmarg value="-Djava.security.egd=file:/dev/urandom" />
-        <jvmarg value="-Dcassandra.testtag=@{testtag}.jdk${ant.java.version}"/>
+        <jvmarg value="-Dcassandra.testtag=@{testtag}.jdk${ant.java.version}${testtag.extra}"/>
         <jvmarg value="-Dcassandra.keepBriefBrief=${cassandra.keepBriefBrief}" />
         <jvmarg value="-Dcassandra.strict.runtime.checks=true" />
         <jvmarg value="-Dcassandra.reads.thresholds.coordinator.defensive_checks_enabled=true" /> <!-- enable defensive checks -->
         <jvmarg value="-Dcassandra.test.flush_local_schema_changes=${cassandra.test.flush_local_schema_changes}"/>
         <jvmarg value="-Dcassandra.test.messagingService.nonGracefulShutdown=${cassandra.test.messagingService.nonGracefulShutdown}"/>
         <jvmarg value="-Dcassandra.use_nix_recursive_delete=${cassandra.use_nix_recursive_delete}"/>
-        <jvmarg line="${java11-jvmargs}"/>
-        <jvmarg line="${java17-jvmargs}"/>
+        <jvmarg line="${java-jvmargs}"/>
         <!-- disable shrinks in quicktheories CASSANDRA-15554 -->
         <jvmarg value="-DQT_SHRINKS=0"/>
-        <jvmarg line="${_std-test-jvmargs11}" />
-        <jvmarg line="${_std-test-jvmargs17}" />
+        <jvmarg line="${_std-test-jvmargs} " />
         <jvmarg line="${test.jvm.args}" />
         <optjvmargs/>
         <!-- Uncomment to debug unittest, attach debugger to port 1416 -->
@@ -1359,8 +1354,8 @@
       </and>
     </condition>
     <testmacro inputdir="${test.unit.src}" timeout="${test.timeout}">
-      <test if="withMethods" name="${test.name}" methods="${test.methods}" outfile="build/test/output/TEST-${test.name}-${test.methods}"/>
-      <test if="withoutMethods" name="${test.name}" outfile="build/test/output/TEST-${test.name}"/>
+      <test if="withMethods" name="${test.name}" methods="${test.methods}" todir="${build.test.dir}/output/" outfile="TEST-${test.name}-${test.methods}"/>
+      <test if="withoutMethods" name="${test.name}" todir="${build.test.dir}/output/" outfile="TEST-${test.name}"/>
       <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
       <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
       <jvmarg value="-Dcassandra.ring_delay_ms=1000"/>
@@ -1491,7 +1486,7 @@
         <formatter type="brief" usefile="false"/>
         <jvmarg value="-Dstorage-config=${test.conf}"/>
         <jvmarg value="-Djava.awt.headless=true"/>
-        <jvmarg value="-javaagent:${build.lib}/jamm-${jamm.version}.jar" />
+        <jvmarg value="-javaagent:${build.dir.lib}/jars/jamm-${jamm.version}.jar" />
         <jvmarg value="-ea"/>
         <jvmarg value="${jvm_xss}"/>
         <jvmarg value="-Dcassandra.memtable_row_overhead_computation_step=100"/>
@@ -1537,7 +1532,7 @@
         <formatter type="brief" usefile="false"/>
         <jvmarg value="-Dstorage-config=${test.conf}"/>
         <jvmarg value="-Djava.awt.headless=true"/>
-        <jvmarg value="-javaagent:${build.lib}/jamm-${jamm.version}.jar" />
+        <jvmarg value="-javaagent:${build.dir.lib}/jars/jamm-${jamm.version}.jar" />
         <jvmarg value="-ea"/>
         <jvmarg value="${jvm_xss}"/>
         <jvmarg value="-Dcassandra.test.use_prepared=${cassandra.test.use_prepared}"/>
@@ -1640,7 +1635,7 @@
     </sequential>
   </macrodef>
 
-  <target name="test" depends="eclipse-warnings,maybe-build-test" description="Test Runner">
+  <target name="test" depends="maybe-build-test" description="Test Runner">
     <path id="all-test-classes-path">
       <fileset dir="${test.unit.src}" includes="**/${test.name}.java" excludes="**/distributed/test/UpgradeTest*.java" />
     </path>
@@ -1718,14 +1713,32 @@
   </target>
 
   <target name="dtest-jar" depends="build-test, build" description="Create dtest-compatible jar, including all dependencies">
-      <jar jarfile="${build.dir}/dtest-${base.version}.jar" duplicate="preserve">
-          <fileset dir="${build.classes.main}"/>
-          <fileset dir="${test.classes}"/>
-          <fileset dir="${test.conf}" />
-          <zipgroupfileset dir="${build.lib}" includes="*.jar" excludes="META-INF/*.SF"/>
-          <zipgroupfileset dir="${test.lib}/jars" includes="jimfs-1.1.jar,dtest-api-*.jar,asm-*.jar,javassist-*.jar,reflections-*.jar,semver4j-*.jar" excludes="META-INF/*.SF"/>
-          <zipgroupfileset dir="${build.dir.lib}/jars" includes="asm-*.jar" excludes="META-INF/*.SF"/>
-      </jar>
+    <delete dir="${build.dir}/dtest/**" quiet="true"/>
+
+    <copy todir="${build.dir}/dtest" quiet="true" overwrite="false">
+      <fileset dir="${build.classes.main}"/>
+      <fileset dir="${test.classes}"/>
+      <fileset dir="${test.conf}"/>
+    </copy>
+    <unzip dest="${build.dir}/dtest" overwrite="false">
+      <fileset dir="${test.lib}/jars" includes="jimfs-1.1.jar,dtest-api-*.jar,asm-*.jar,javassist-*.jar,reflections-*.jar,semver4j-*.jar"/>
+      <patternset excludes="META-INF/license/**"/>
+    </unzip>
+    <unzip dest="${build.dir}/dtest" overwrite="false">
+      <fileset dir="${build.dir.lib}/jars" includes="*.jar"/>
+      <patternset excludes="META-INF/license/**"/>
+    </unzip>
+
+    <jar jarfile="${build.dir}/dtest-${base.version}.jar" duplicate="preserve">
+      <fileset dir="${build.dir}/dtest">
+        <exclude name="META-INF/*.SF"/>
+        <exclude name="META-INF/*.DSA"/>
+        <exclude name="META-INF/*.RSA"/>
+        <exclude name="META-INF/license/**"/>
+      </fileset>
+    </jar>
+
+    <delete dir="${build.dir}/dtest" quiet="true"/>
   </target>
 
   <target name="test-jvm-dtest" depends="maybe-build-test" description="Execute in-jvm dtests">
@@ -1779,13 +1792,38 @@
     -->
   <target name="test-jvm-dtest-some" depends="maybe-build-test" description="Execute some in-jvm dtests">
     <testmacro inputdir="${test.distributed.src}" timeout="${test.distributed.timeout}" forkmode="once" showoutput="true">
-      <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}" outfile="build/test/output/TEST-${test.name}-${test.methods}"/>
-      <test if:blank="${test.methods}" name="${test.name}" outfile="build/test/output/TEST-${test.name}"/>
+      <test unless:blank="${test.methods}" name="${test.name}" methods="${test.methods}" todir="${build.test.dir}/output/" outfile="TEST-${test.name}-${test.methods}"/>
+      <test if:blank="${test.methods}" name="${test.name}" todir="${build.test.dir}/output/" outfile="TEST-${test.name}"/>
       <jvmarg value="-Dlogback.configurationFile=test/conf/logback-dtest.xml"/>
       <jvmarg value="-Dcassandra.ring_delay_ms=10000"/>
       <jvmarg value="-Dcassandra.tolerate_sstable_size=true"/>
       <jvmarg value="-Dcassandra.skip_sync=true" />
     </testmacro>
+  </target>
+
+  <target name="generate-unified-test-report" description="Merge all unit xml files into one, generate html pages, and print summary test numbers">
+      <junitreport todir="${build.dir}">
+          <fileset dir="${build.test.dir}/output">
+              <include name="**/TEST*.xml"/>
+              <include name="**/cqlshlib.xml"/>
+              <include name="**/nosetests.xml"/>
+          </fileset>
+          <!-- FIXME this can easily OOM, need a workaround-->
+          <report todir="${build.test.dir}/html" />
+      </junitreport>
+      <!-- concat the report through a filter chain to extract what you want -->
+      <concat>
+          <fileset file="${build.test.dir}/html/overview-summary.html" />
+          <filterchain>
+              <linecontainsregexp>
+                  <regexp pattern='title="Display all tests"' />
+              </linecontainsregexp>
+              <tokenfilter>
+                  <!-- escaped values of < and > are "&gt;" and "&lt;" -->
+                  <replaceregex pattern='.*all tests.*&gt;(\d+)&lt;.*all failures.*&gt;(\d+)&lt;.*all errors.*&gt;(\d+)&lt;.*all skipped test.*&gt;(\d+)&lt;.*$' replace="[Test Summary] Run: \1, Failed: \2, Errors: \3, Skipped: \4" />
+              </tokenfilter>
+          </filterchain>
+      </concat>
   </target>
 
   <!-- run microbenchmarks suite -->
@@ -1809,6 +1847,9 @@
           <arg value="${build.test.dir}/jmh-result.json"/>
           <arg value="-v"/>
           <arg value="EXTRA"/>
+          <jvmarg line="${java-jvmargs}"/>
+          <jvmarg line="${_std-test-jvmargs}"/>
+          <jvmarg line="${test.jvm.args}"/>
 
           <!-- Broken: ZeroCopyStreamingBench,MutationBench,FastThreadLocalBench  (FIXME) -->
           <arg value="-e"/><arg value="ZeroCopyStreamingBench|MutationBench|FastThreadLocalBench"/>
@@ -1842,44 +1883,30 @@
       </java>
   </target>
 
-  <target name="_maybe_update_idea_to_java11" depends="init" if="java.version.11">
-    <replace file="${eclipse.project.name}.iml" token="JDK_1_8" value="JDK_11"/>
-    <replace file=".idea/misc.xml" token="JDK_1_8" value="JDK_11"/>
-    <replace file=".idea/misc.xml" token="1.8" value="11"/>
+  <target name="_maybe_update_idea_to_java11plus" depends="init">
+    <replace file="${eclipse.project.name}.iml" token="JDK_11" value="JDK_${ant.java.version}"/>
+    <replace file=".idea/misc.xml" token="JDK_11" value="JDK_${ant.java.version}"/>
+    <replace file=".idea/misc.xml" token="11" value="${ant.java.version}"/>
     <replaceregexp file=".idea/workspace.xml"
                    match="name=&quot;VM_PARAMETERS&quot; value=&quot;(.*)"
-                   replace="name=&quot;VM_PARAMETERS&quot; value=&quot;\1 ${java11-jvmargs}"
+                   replace="name=&quot;VM_PARAMETERS&quot; value=&quot;\1 ${java-jvmargs} ${_std-test-jvmargs}"
                    byline="true"/>
 
       <echo file=".idea/compiler.xml"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="JavacSettings">
-    <option name="ADDITIONAL_OPTIONS_STRING" value="--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED --add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED" />
+    <option name="ADDITIONAL_OPTIONS_STRING" value="--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED
+                                                    --add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED
+                                                    --add-exports java.base/jdk.internal.ref=ALL-UNNAMED
+                                                    --add-exports java.base/sun.nio.ch=ALL-UNNAMED" />
   </component>
 </project>]]></echo>
-      <echo>"IDE configuration updated for use with JDK11"</echo>
   </target>
 
-  <target name="_maybe_update_idea_to_java17" depends="init" if="java.version.17">
-        <replace file="${eclipse.project.name}.iml" token="JDK_1_8" value="JDK_17"/>
-        <replace file=".idea/misc.xml" token="JDK_1_8" value="JDK_17"/>
-        <replace file=".idea/misc.xml" token="1.8" value="17"/>
-        <replaceregexp file=".idea/workspace.xml"
-                       match="name=&quot;VM_PARAMETERS&quot; value=&quot;(.*)"
-                       replace="name=&quot;VM_PARAMETERS&quot; value=&quot;\1 ${java17-jvmargs}"
-                       byline="true"/>
-
-        <echo file=".idea/compiler.xml"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
-<project version="4">
-  <component name="JavacSettings">
-    <option name="ADDITIONAL_OPTIONS_STRING" value="--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED --add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED" />
-  </component>
-</project>]]></echo>
-        <echo>"IDE configuration updated for use with JDK17"</echo>
-    </target>
-
   <!-- Generate IDEA project description files -->
-  <target name="generate-idea-files" depends="init,resolver-dist-lib,gen-cql3-grammar,generate-jflex-java,createVersionPropFile" description="Generate IDEA files">
+  <target name="generate-idea-files" depends="init,resolver-dist-lib,gen-cql3-grammar,generate-jflex-java,_createVersionPropFile" description="Generate IDEA files">
+    <delete dir=".idea"/>
+    <delete file="${eclipse.project.name}.iml"/>
     <mkdir dir=".idea"/>
     <mkdir dir=".idea/libraries"/>
     <copy todir=".idea" overwrite="true">
@@ -1897,8 +1924,13 @@
     </modules>
   </component>
 </project>]]></echo>
-      <antcall target="_maybe_update_idea_to_java11"/>
-      <antcall target="_maybe_update_idea_to_java17"/>
+      <antcall target="_maybe_update_idea_to_java11plus"/>
+      <echo>
+      IDE configuration in .idea/ updated for use with JDK${ant.java.version}.
+
+      In IntelliJ verify that the SDK is ${ant.java.version}, and its path is valid.
+      This can be verified in 'Project Structure/Project Setting/Project' and 'Project Structure/Platform Setting/SDKs'.
+      </echo>
   </target>
 
   <!-- Generate Eclipse project description files -->
@@ -1923,10 +1955,10 @@
         <fileset dir="lib">
             <include name="**/*.jar" />
         </fileset>
-        <fileset dir="build/lib/jars">
+        <fileset dir="${build.dir.lib}/jars">
             <include name="**/*.jar" />
         </fileset>
-        <fileset dir="build/test/lib/jars">
+        <fileset dir="${test.lib}/jars">
             <include name="**/*.jar" />
         </fileset>
     </path>
@@ -1942,12 +1974,12 @@
   <classpathentry kind="src" path="src/resources"/>
   <classpathentry kind="src" path="src/gen-java"/>
   <classpathentry kind="src" path="conf" including="hotspot_compiler"/>
-  <classpathentry kind="src" output="build/test/classes" path="test/unit"/>
-  <classpathentry kind="src" output="build/test/classes" path="test/long"/>
-  <classpathentry kind="src" output="build/test/classes" path="test/distributed"/>
-  <classpathentry kind="src" output="build/test/classes" path="test/simulator/asm"/>
-  <classpathentry kind="src" output="build/test/classes" path="test/simulator/main"/>
-  <classpathentry kind="src" output="build/test/classes" path="test/resources" />
+  <classpathentry kind="src" output="${test.classes}" path="test/unit"/>
+  <classpathentry kind="src" output="${test.classes}" path="test/long"/>
+  <classpathentry kind="src" output="${test.classes}" path="test/distributed"/>
+  <classpathentry kind="src" output="${test.classes}" path="test/simulator/asm"/>
+  <classpathentry kind="src" output="${test.classes}" path="test/simulator/main"/>
+  <classpathentry kind="src" output="${test.classes}" path="test/resources" />
   <classpathentry kind="src" path="tools/stress/src"/>
   <classpathentry kind="src" path="tools/fqltool/src"/>
   <classpathentry kind="src" output="build/test/stress-classes" path="tools/stress/test/unit" />
@@ -1983,77 +2015,9 @@
   	<delete dir="build/eclipse-classes" />
   </target>
 
-  <!-- ECJ 4.6.1 in standalone mode does not work with JPMS, so we skip this target for Java 11 -->
-  <target name="eclipse-warnings" depends="build, _assert_rat_output" description="Run eclipse compiler code analysis" if="java.version.8">
-        <property name="ecj.log.dir" value="${build.dir}/ecj" />
-        <property name="ecj.warnings.file" value="${ecj.log.dir}/eclipse_compiler_checks.txt"/>
-        <mkdir  dir="${ecj.log.dir}" />
-
-        <property name="ecj.properties" value="${basedir}/eclipse_compiler.properties" />
-
-        <echo message="Running Eclipse Code Analysis.  Output logged to ${ecj.warnings.file}" />
-
-	<java
-	    jar="${build.dir.lib}/jars/ecj-${ecj.version}.jar"
-            fork="true"
-	    failonerror="true"
-            maxmemory="512m">
-            <arg value="-source"/>
-	    <arg value="${java.default}" />
-	    <arg value="-target"/>
-	    <arg value="${ant.java.version}" />
-	    <arg value="-d" />
-            <arg value="none" />
-	    <arg value="-proc:none" />
-            <arg value="-log" />
-            <arg value="${ecj.warnings.file}" />
-            <arg value="-properties" />
-            <arg value="${ecj.properties}" />
-            <arg value="-cp" />
-            <arg value="${toString:cassandra.classpath}" />
-            <arg value="${build.src.java}" />
-        </java>
-  </target>
-
-  <target name="init-checkstyle" depends="resolver-retrieve-build,build-project" unless="no-checkstyle">
-      <echo message="checkstyle.version=${checkstyle.version}"/>
-      <!-- Sevntu custom checks are retrieved by Ivy into lib folder
-         and will be accessible to checkstyle-->
-      <taskdef resource="com/puppycrawl/tools/checkstyle/ant/checkstyle-ant-task.properties"
-               classpathref="checkstyle.classpath"/>
-  </target>
-
-  <target name="checkstyle" depends="init-checkstyle,build-project" description="Run custom checkstyle code analysis" if="java.version.8" unless="no-checkstyle">
-      <property name="checkstyle.log.dir" value="${build.dir}/checkstyle" />
-      <property name="checkstyle.report.file" value="${checkstyle.log.dir}/checkstyle_report.xml"/>
-      <mkdir  dir="${checkstyle.log.dir}" />
-
-      <property name="checkstyle.properties" value="${build.helpers.dir}/checkstyle.xml" />
-      <property name="checkstyle.suppressions" value="${build.helpers.dir}/checkstyle_suppressions.xml" />
-      <checkstyle config="${checkstyle.properties}"
-                  failureProperty="checkstyle.failure"
-                  failOnViolation="true">
-          <formatter type="plain"/>
-          <formatter type="xml" tofile="${checkstyle.report.file}"/>
-          <fileset dir="${build.src.java}" includes="**/*.java"/>
-      </checkstyle>
-  </target>
-
-  <target name="checkstyle-test" depends="init-checkstyle,resolver-retrieve-build,build-project" description="Run custom checkstyle code analysis on tests" if="java.version.8" unless="no-checkstyle">
-      <property name="checkstyle.log.dir" value="${build.dir}/checkstyle" />
-      <property name="checkstyle_test.report.file" value="${checkstyle.log.dir}/checkstyle_report_test.xml"/>
-      <mkdir  dir="${checkstyle.log.dir}" />
-
-      <property name="checkstyle_test.properties" value="${build.helpers.dir}/checkstyle_test.xml" />
-      <property name="checkstyle.suppressions" value="${build.helpers.dir}/checkstyle_suppressions.xml" />
-      <checkstyle config="${checkstyle_test.properties}"
-                  failureProperty="checkstyle.failure"
-                  failOnViolation="true">
-          <formatter type="plain"/>
-          <formatter type="xml" tofile="${checkstyle_test.report.file}"/>
-          <fileset dir="${test.dir}" includes="**/*.java"/>
-      </checkstyle>
-  </target>
+  <!-- Empty fake task until we remove it from Jenkins. eclipse-warnings removed in favor of using CheckerFramework
+      For more information - CASSANDRA-18190 and CASSANDDRA-18239-->
+  <target name="eclipse-warnings" depends="build" description="Run eclipse compiler code analysis" if="java.version.8">  </target>
 
   <!-- Installs artifacts to local Maven repository -->
   <target name="mvn-install"
@@ -2106,4 +2070,5 @@
   <import file="${build.helpers.dir}/build-rat.xml"/>
   <import file="${build.helpers.dir}/build-owasp.xml"/>
   <import file="${build.helpers.dir}/build-git.xml"/>
+  <import file="${build.helpers.dir}/build-checkstyle.xml"/>
 </project>

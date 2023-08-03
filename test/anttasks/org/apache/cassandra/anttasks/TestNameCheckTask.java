@@ -45,6 +45,11 @@ public class TestNameCheckTask extends Task
     {
     }
 
+    public static void main(String[] args)
+    {
+        new TestNameCheckTask().execute();
+    }
+    
     @Override
     public void execute() throws BuildException
     {

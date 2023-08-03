@@ -101,8 +101,8 @@ public class TableStatsTest extends CQLTester
                         "            bloom_filter_off_heap_memory_used, bloom_filter_space_used,\n" + 
                         "            compacted_partition_maximum_bytes, compacted_partition_mean_bytes,\n" + 
                         "            compacted_partition_minimum_bytes,\n" + 
-                        "            compression_metadata_off_heap_memory_used, dropped_mutations,\n" + 
-                        "            full_name, index_summary_off_heap_memory_used, local_read_count,\n" + 
+                        "            compression_metadata_off_heap_memory_used, full_name,\n" +
+                        "            index_summary_off_heap_memory_used, local_read_count,\n" +
                         "            local_read_latency_ms, local_write_latency_ms,\n" + 
                         "            maximum_live_cells_per_slice_last_five_minutes,\n" + 
                         "            maximum_tombstones_per_slice_last_five_minutes, memtable_cell_count,\n" + 

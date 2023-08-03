@@ -18,7 +18,8 @@
 -->
 <project basedir="." name="apache-cassandra-git-tasks"
          xmlns:if="ant:if">
-    <target name="get-git-sha">
+
+    <target name="_get-git-sha">
         <exec executable="git" osfamily="unix" dir="${basedir}" logError="false" failonerror="false" failifexecutionfails="false" resultproperty="git.is-available.exit-code">
             <arg value="rev-parse"/>
             <arg value="--is-inside-work-tree"/>

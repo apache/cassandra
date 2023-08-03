@@ -123,8 +123,8 @@ public class IndexSummaryBuilder implements AutoCloseable
 
         // for initializing data structures, adjust our estimates based on the sampling level
         maxExpectedEntries = Math.max(1, (maxExpectedEntries * samplingLevel) / BASE_SAMPLING_LEVEL);
-        offsets = new SafeMemoryWriter(4 * maxExpectedEntries).order(ByteOrder.nativeOrder());
-        entries = new SafeMemoryWriter(expectedEntrySize * maxExpectedEntries).order(ByteOrder.nativeOrder());
+        offsets = new SafeMemoryWriter(4 * maxExpectedEntries).order(ByteOrder.LITTLE_ENDIAN);
+        entries = new SafeMemoryWriter(expectedEntrySize * maxExpectedEntries).order(ByteOrder.LITTLE_ENDIAN);
 
         // the summary will always contain the first index entry (downsampling will never remove it)
         nextSamplePosition = 0;

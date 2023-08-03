@@ -52,7 +52,6 @@ public class BufferPools
                     prettyPrintMemory(NETWORKING_MEMORY_USAGE_THRESHOLD),
                     NETWORKING_POOL.name);
 
-        CHUNK_CACHE_POOL.metrics().register3xAlias();
     }
     /**
      * Long-lived buffers used for chunk cache and other disk access

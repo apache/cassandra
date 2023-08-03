@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.config;
 
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.net.MalformedURLException;
@@ -26,6 +27,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Predicate;
 
 import com.google.common.collect.ImmutableMap;
@@ -41,6 +43,7 @@ import static org.apache.cassandra.config.YamlConfigurationLoader.SYSTEM_PROPERT
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 
@@ -355,6 +358,27 @@ public class YamlConfigurationLoaderTest
         // NEGATIVE_MEBIBYTES_DATA_STORAGE_INT
         assertThat(from("sstable_preemptive_open_interval_in_mb", "1").sstable_preemptive_open_interval.toMebibytes()).isEqualTo(1);
         assertThat(from("sstable_preemptive_open_interval_in_mb", -2).sstable_preemptive_open_interval).isNull();
+
+        // LONG_BYTES_DATASTORAGE_MEBIBYTES_INT
+        assertThat(from("compaction_large_partition_warning_threshold_mb", "42").partition_size_warn_threshold.toMebibytesInt()).isEqualTo(42);
+        assertThatThrownBy(() -> from("compaction_large_partition_warning_threshold_mb", -1).partition_size_warn_threshold.toMebibytesInt())
+        .hasRootCauseInstanceOf(IllegalArgumentException.class)
+        .hasRootCauseMessage("Invalid data storage: value must be non-negative");
+
+        // LONG_BYTES_DATASTORAGE_MEBIBYTES_DATASTORAGE
+        assertThat(from("compaction_large_partition_warning_threshold", "42MiB").partition_size_warn_threshold.toMebibytesInt()).isEqualTo(42);
+        assertThat(from("compaction_large_partition_warning_threshold", "42GiB").partition_size_warn_threshold.toMebibytesInt()).isEqualTo(42 * 1024);
+        assertThatThrownBy(() -> from("compaction_large_partition_warning_threshold", "42B").partition_size_warn_threshold.toBytes())
+        .hasRootCauseInstanceOf(IllegalArgumentException.class)
+        .hasRootCauseMessage("Invalid data storage: 42B Accepted units:[MEBIBYTES, GIBIBYTES]");
+        assertThatThrownBy(() -> from("compaction_large_partition_warning_threshold", -1).partition_size_warn_threshold.toMebibytesInt())
+        .hasRootCauseInstanceOf(IllegalArgumentException.class)
+        .hasRootCauseMessage("Invalid data storage: -1 Accepted units:[MEBIBYTES, GIBIBYTES] where case matters and only non-negative values are accepted");
+
+        // IDENTITY
+        assertThat(from("compaction_tombstone_warning_threshold", "42").partition_tombstones_warn_threshold).isEqualTo(42);
+        assertThat(from("compaction_tombstone_warning_threshold", "-1").partition_tombstones_warn_threshold).isEqualTo(-1);
+        assertThat(from("compaction_tombstone_warning_threshold", "0").partition_tombstones_warn_threshold).isEqualTo(0);
     }
 
     private static Config from(Object... values)
@@ -366,7 +390,41 @@ public class YamlConfigurationLoaderTest
         return YamlConfigurationLoader.fromMap(builder.build(), Config.class);
     }
 
-    private static Config load(String path)
+    @Test
+    public void testBackwardCompatibilityOfInternodeAuthenticatorPropertyAsMap()
+    {
+        Config config = load("cassandra-mtls.yaml");
+        assertEquals(config.internode_authenticator.class_name, "org.apache.cassandra.auth.MutualTlsInternodeAuthenticator");
+        assertFalse(config.internode_authenticator.parameters.isEmpty());
+        assertEquals(config.internode_authenticator.parameters.get("validator_class_name"), "org.apache.cassandra.auth.SpiffeCertificateValidator");
+    }
+
+    @Test
+    public void testBackwardCompatibilityOfInternodeAuthenticatorPropertyAsString()
+    {
+        Config config = load("cassandra-mtls-backward-compatibility.yaml");
+        assertEquals(config.internode_authenticator.class_name, "org.apache.cassandra.auth.AllowAllInternodeAuthenticator");
+        assertTrue(config.internode_authenticator.parameters.isEmpty());
+    }
+
+    @Test
+    public void testBackwardCompatibilityOfAuthenticatorPropertyAsMap()
+    {
+        Config config = load("cassandra-mtls.yaml");
+        assertEquals(config.authenticator.class_name, "org.apache.cassandra.auth.MutualTlsAuthenticator");
+        assertFalse(config.authenticator.parameters.isEmpty());
+        assertEquals(config.authenticator.parameters.get("validator_class_name"), "org.apache.cassandra.auth.SpiffeCertificateValidator");
+    }
+
+    @Test
+    public void testBackwardCompatibilityOfAuthenticatorPropertyAsString() throws IOException, TimeoutException
+    {
+        Config config = load("cassandra-mtls-backward-compatibility.yaml");
+        assertEquals(config.authenticator.class_name, "org.apache.cassandra.auth.AllowAllAuthenticator");
+        assertTrue(config.authenticator.parameters.isEmpty());
+    }
+
+    public static Config load(String path)
     {
         URL url = YamlConfigurationLoaderTest.class.getClassLoader().getResource(path);
         if (url == null)
