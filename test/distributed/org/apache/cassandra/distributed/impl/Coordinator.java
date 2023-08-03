@@ -136,7 +136,7 @@ public class Coordinator implements ICoordinator
 
             return RowUtil.toQueryResult(res);
         }
-        catch (Exception | Error e)
+        catch (RuntimeException | Error e)
         {
             CoordinatorWarnings.done();
             throw e;

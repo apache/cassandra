@@ -277,8 +277,11 @@ public final class Throwables
      * return its argument untouched.
      * <p>
      * We call a "wrapping" exception in the context of that method an exception whose only purpose is to wrap another
-     * exception, and currently this method recognize only 2 exception as "wrapping" ones: {@link ExecutionException}
-     * and {@link CompletionException}.
+     * exception, and currently this method recognize only 3 exception as "wrapping" ones: {@link ExecutionException},
+     * {@link CompletionException}, and {@link InvocationTargetException}.
+     * <p>
+     * Note that this method will also add the provided throwable as a suppressed the returned one, so that the original
+     * stacktrace will be available for debugging.
      */
     public static Throwable unwrapped(Throwable t)
     {
@@ -288,12 +291,14 @@ public final class Throwables
                unwrapped instanceof InvocationTargetException)
             unwrapped = unwrapped.getCause();
 
-        // I don't think it make sense for those 2 exception classes to ever be used with null causes, but no point
-        // in failing here if this happen. We still wrap the original exception if that happen so we get a sign
-        // that the assumption of this method is wrong.
-        return unwrapped == null
-               ? new RuntimeException("Got wrapping exception not wrapping anything", t)
-               : unwrapped;
+        if (unwrapped == null)
+            throw new RuntimeException("Got wrapping exception not wrapping anything", t);
+
+        Throwable source = new Throwable(t.getClass().getName() + ": " + t.getMessage());
+        source.setStackTrace(t.getStackTrace());
+        unwrapped.addSuppressed(source);
+
+        return unwrapped;
     }
 
     /**
