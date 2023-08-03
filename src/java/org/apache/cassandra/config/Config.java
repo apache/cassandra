@@ -753,6 +753,9 @@ public class Config
     // and good defaults if no replication factor is provided by the user
     public volatile int default_keyspace_rf = 1;
 
+    // set this to true will disable the trace functionality regardless other client/server settings relate to trace
+    public boolean force_disable_trace = false;
+
     /**
      * flags for enabling tracking repaired state of data during reads
      * separate flags for range & single partition reads as single partition reads are only tracked

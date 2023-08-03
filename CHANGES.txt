@@ -176,6 +176,7 @@ Merged from 3.0:
  * Remove unused suppressions (CASSANDRA-18724)
 
 Unreleased
+ * [SO-22847] Add ability to disable tracing on server side
  * [SO-22598] Bug fix for system_throttle and system_monitor keyspaces so table id won't change
  * [SO-21049] Add a metric to indicate the running status of cleanup tasks in cassandra binary
  * [SO-20918] Add coordinator metrics and consistency level metrics with keyspace

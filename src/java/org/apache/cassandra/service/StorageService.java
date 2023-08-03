@@ -1973,6 +1973,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         DatabaseDescriptor.setIncrementalBackupsEnabled(value);
     }
 
+    public boolean getForceDisableTrace()
+    {
+        return DatabaseDescriptor.getForceDisableTrace();
+    }
+
+    public void setForceDisableTrace(boolean disabled)
+    {
+        DatabaseDescriptor.setForceDisableTrace(disabled);
+    }
+
     @VisibleForTesting // only used by test
     public void setMovingModeUnsafe()
     {

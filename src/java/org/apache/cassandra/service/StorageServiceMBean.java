@@ -734,6 +734,9 @@ public interface StorageServiceMBean extends NotificationEmitter
     public boolean isIncrementalBackupsEnabled();
     public void setIncrementalBackupsEnabled(boolean value);
 
+    public boolean getForceDisableTrace();
+    public void setForceDisableTrace(boolean disabled);
+
     /**
      * Initiate a process of streaming data for which we are responsible from other nodes. It is similar to bootstrap
      * except meant to be used on a node which is already in the cluster (typically containing no data) as an

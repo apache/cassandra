@@ -3745,6 +3745,16 @@ public class DatabaseDescriptor
         return arch.contains("64") || arch.contains("sparcv9");
     }
 
+    public static void setForceDisableTrace(boolean disabled)
+    {
+        conf.force_disable_trace = disabled;
+    }
+
+    public static boolean getForceDisableTrace()
+    {
+        return conf.force_disable_trace;
+    }
+
     public static int getTracetypeRepairTTL()
     {
         return conf.trace_type_repair_ttl.toSeconds();

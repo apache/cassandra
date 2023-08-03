@@ -32,6 +32,7 @@ import io.netty.channel.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.*;
@@ -277,7 +278,7 @@ public abstract class Message
 
         boolean isTracingRequested()
         {
-            return tracingRequested;
+            return tracingRequested && !DatabaseDescriptor.getForceDisableTrace();
         }
     }
 

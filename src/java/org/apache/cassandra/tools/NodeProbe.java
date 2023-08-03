@@ -975,6 +975,14 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.isIncrementalBackupsEnabled();
     }
 
+    public void setForceDisableTrace(boolean disabled) {
+        ssProxy.setForceDisableTrace(disabled);
+    }
+
+    public boolean getForceDisableTrace() {
+        return ssProxy.getForceDisableTrace();
+    }
+
     public void setCacheCapacities(int keyCacheCapacity, int rowCacheCapacity, int counterCacheCapacity)
     {
         CacheServiceMBean cacheMBean = getCacheServiceMBean();
