@@ -21,7 +21,9 @@ package org.apache.cassandra.distributed.test.log;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.TimeUnit;
 
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.Cluster;
@@ -29,14 +31,21 @@ import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
+import org.apache.cassandra.distributed.api.IMessageFilters;
 import org.apache.cassandra.distributed.api.TokenSupplier;
+import org.apache.cassandra.distributed.impl.Instance;
+import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.net.Message;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.log.Replication;
+import org.apache.cassandra.tcm.transformations.SealPeriod;
 
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -250,5 +259,84 @@ public class FetchLogFromPeersTest extends TestBaseImpl
             cluster.coordinator(4).execute(withKeyspace("select * from %s.tbl where id = 55"), ConsistencyLevel.QUORUM);
             assertTrue(fetchedFromPeer.get() > before);
         }
+    }
+
+    @Test
+    public void catchupWithSnapshot() throws Exception
+    {
+        try (Cluster cluster = init(builder().withNodes(4)
+                                             .start()))
+        {
+            cluster.schemaChange(withKeyspace("create table %s.tbl (id int primary key)"));
+            executeAlters(cluster);
+
+            cluster.filters().inbound().to(2).messagesMatching((from, to, message) ->
+                cluster.get(2).callOnInstance(() -> {
+                    Message<?> decoded = Instance.deserializeMessage(message);
+                    if (decoded.payload instanceof Replication)
+                    {
+                        Replication rep = (Replication) decoded.payload;
+                        // drop every other replication message to make sure pending buffer is non-consecutive
+                        if (decoded.epoch().getEpoch() % 2 == 0 &&
+                            rep.entries().stream().noneMatch((e) -> e.transform instanceof SealPeriod))
+                            return false;
+                    }
+                    return true;
+                })
+            ).drop();
+            executeAlters(cluster);
+            cluster.get(1).runOnInstance(() -> ClusterMetadataService.instance().sealPeriod());
+            executeAlters(cluster);
+            cluster.filters().reset();
+
+            long epoch = cluster.get(1).callOnInstance(() -> ClusterMetadata.current().epoch.getEpoch());
+            cluster.get(2).runOnInstance(() -> ClusterMetadataService.instance().fetchLogFromPeerAsync(InetAddressAndPort.getByNameUnchecked("127.0.0.1"), Epoch.create(epoch)));
+
+            long epochNode2 = 0;
+            while (epochNode2 < epoch)
+            {
+                epochNode2 = cluster.get(2).callOnInstance(() -> ClusterMetadata.current().epoch.getEpoch());
+                if (epochNode2 < epoch)
+                    Uninterruptibles.sleepUninterruptibly(10, TimeUnit.MILLISECONDS);
+            }
+        }
+    }
+
+    @Test
+    public void skipEntryAndCatchupWithSnapshot() throws Exception
+    {
+        try (Cluster cluster = init(builder().withNodes(2)
+                                             .start()))
+        {
+            cluster.schemaChange(withKeyspace("create table %s.tbl (id int primary key)"));
+
+            IMessageFilters.Filter filter = cluster.filters().inbound().to(2).drop();
+            cluster.coordinator(1).execute(withKeyspace("alter table %s.tbl with comment='"+UUID.randomUUID()+"'"), ConsistencyLevel.QUORUM);
+            filter.off();
+
+            filter = cluster.filters().inbound().to(2).verbs(Verb.TCM_FETCH_PEER_LOG_RSP.id, Verb.TCM_FETCH_CMS_LOG_REQ.id).drop();
+            executeAlters(cluster);
+            cluster.get(1).runOnInstance(() -> ClusterMetadataService.instance().sealPeriod());
+            executeAlters(cluster);
+            filter.off();
+
+            try
+            {
+                // Trigger a single read to make sure fetch or CMS logs can be fetched
+                cluster.coordinator(2).execute(withKeyspace("select * from %s.tbl"), ConsistencyLevel.ALL);
+            }
+            catch (Throwable t)
+            {
+                // ignore coordinator behind
+            }
+            ClusterUtils.waitForCMSToQuiesce(cluster, cluster.get(1));
+        }
+    }
+
+
+    private static void executeAlters(Cluster cluster)
+    {
+        for (int i = 0; i < 10; i++)
+            cluster.coordinator(1).execute(withKeyspace("alter table %s.tbl with comment='"+UUID.randomUUID()+"'"), ConsistencyLevel.QUORUM);
     }
 }

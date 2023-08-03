@@ -18,7 +18,9 @@
 
 package org.apache.cassandra.tcm.log;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
@@ -35,10 +37,14 @@ import org.junit.Test;
 
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.marshal.IntegerType;
+import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.transformations.CustomTransformation;
+import org.apache.cassandra.tcm.transformations.ForceSnapshot;
+import org.apache.cassandra.tcm.transformations.SealPeriod;
 import org.apache.cassandra.utils.concurrent.CountDownLatch;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
@@ -75,6 +81,60 @@ public class LocalLogTest
         log.append(e1);
         tail = log.waitForHighestConsecutive().epoch;
         assertEquals(e3.epoch, tail);
+    }
+
+    @Test
+    public void sealPeriodForceSnapshotCollisionWithGap()
+    {
+        LocalLog log = LocalLog.sync(cm(), LogStorage.None, false);
+
+        List<Entry> entries =new ArrayList<>();
+        for (int i = 1; i <= 9; i++)
+            entries.add(entry(i));
+        entries.add(new Entry(Entry.Id.NONE,
+                              Epoch.create(11),
+                              SealPeriod.instance));
+
+        entries.add(new Entry(Entry.Id.NONE,
+                              Epoch.create(11),
+                              new ForceSnapshot(new ClusterMetadata(new LocalPartitioner(IntegerType.instance)).forceEpoch(Epoch.create(11)))));
+        Collections.shuffle(entries);
+        log.append(entries);
+
+        ClusterMetadata tail = log.waitForHighestConsecutive();
+
+        assertEquals(11, tail.epoch.getEpoch());
+    }
+
+
+    @Test
+    public void multipleSnapshotEntries()
+    {
+        LocalLog log = LocalLog.sync(cm(), LogStorage.None, false);
+
+        List<Entry> entries =new ArrayList<>();
+        for (int i = 1; i <= 9; i++)
+            entries.add(entry(i));
+        entries.add(new Entry(Entry.Id.NONE,
+                              Epoch.create(11),
+                              SealPeriod.instance));
+
+        entries.add(new Entry(Entry.Id.NONE,
+                              Epoch.create(11),
+                              new ForceSnapshot(new ClusterMetadata(new LocalPartitioner(IntegerType.instance)).forceEpoch(Epoch.create(11)))));
+        entries.add(new Entry(Entry.Id.NONE,
+                              Epoch.create(21),
+                              new ForceSnapshot(new ClusterMetadata(new LocalPartitioner(IntegerType.instance)).forceEpoch(Epoch.create(21)))));
+        entries.add(new Entry(Entry.Id.NONE,
+                              Epoch.create(31),
+                              new ForceSnapshot(new ClusterMetadata(new LocalPartitioner(IntegerType.instance)).forceEpoch(Epoch.create(31)))));
+
+        Collections.shuffle(entries);
+        log.append(entries);
+
+        ClusterMetadata tail = log.waitForHighestConsecutive();
+
+        assertEquals(31, tail.epoch.getEpoch());
     }
 
     @Test

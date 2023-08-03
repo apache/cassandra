@@ -78,7 +78,26 @@ public abstract class LocalLog implements Closeable
     private static final Logger logger = LoggerFactory.getLogger(LocalLog.class);
 
     protected final AtomicReference<ClusterMetadata> committed;
-    protected final ConcurrentSkipListSet<Entry> pending = new ConcurrentSkipListSet<>(Entry::compareTo);
+
+    /**
+     * Custom comparator for pending entries. In general, we would like entries in the pending set to be ordered by epoch,
+     * from smallest to highest, so that `#first()` call would return the smallest entry.
+     *
+     * However, snapshots should be applied out of order, and snapshots with higher epoch should be applied before snapshots
+     * with a lower epoch in cases when there are multiple snapshots present.
+     */
+    protected final ConcurrentSkipListSet<Entry> pending = new ConcurrentSkipListSet<>((Entry e1, Entry e2) -> {
+        if (e1.transform.kind() == Transformation.Kind.FORCE_SNAPSHOT && e2.transform.kind() == Transformation.Kind.FORCE_SNAPSHOT)
+            return e2.epoch.compareTo(e1.epoch);
+
+        if (e1.transform.kind() == Transformation.Kind.FORCE_SNAPSHOT)
+            return -1;
+
+        if (e2.transform.kind() == Transformation.Kind.FORCE_SNAPSHOT)
+            return 1;
+
+        return e1.epoch.compareTo(e2.epoch);
+    });
     protected final LogStorage persistence;
     protected final Set<LogListener> listeners;
     protected final Set<ChangeListener> cmListeners;
@@ -218,6 +237,7 @@ public abstract class LocalLog implements Closeable
      */
     public void append(LogState logState)
     {
+        logger.debug("Appending log state with snapshot to the pending buffer: {}", logState);
         // If we receive a base state (snapshot), we need to construct a synthetic ForceSnapshot transformation that will serve as
         // a base for application of the rest of the entries. If the log state contains any additional transformations that follow
         // the base state, we can simply apply them to the log after.
@@ -228,14 +248,15 @@ public abstract class LocalLog implements Closeable
             // Create a synthetic "force snapshot" transformation to instruct the log to pick up given metadata
             ForceSnapshot transformation = new ForceSnapshot(logState.baseState);
             Entry newEntry = new Entry(Entry.Id.NONE, epoch, transformation);
-            append(newEntry);
+            pending.add(newEntry);
         }
 
         // Finally, append any additional transformations in the snapshot. Some or all of these could be earlier than the
         // currently enacted epoch (if we'd already moved on beyond the epoch of the base state for instance, or if newer
         // entries have been received via normal replication), but this is fine as entries will be put in the reorder
         // log, and duplicates will be dropped.
-        append(logState.transformations.entries());
+        pending.addAll(logState.transformations.entries());
+        processPending();
     }
 
     public abstract ClusterMetadata awaitAtLeast(Epoch epoch) throws InterruptedException, TimeoutException;
@@ -277,6 +298,11 @@ public abstract class LocalLog implements Closeable
      * at a time, as we are making calls to pre- and post- commit hooks. In other words, this method should be called
      * _exclusively_ from the implementation, outside of it there's no way to ensure mutual exclusion without
      * additional guards.
+     *
+     * Please note that we are using a custom comparator for pending entries, which ensures that FORCE_SNAPSHOT entries
+     * are going to be prioritised over other entry kinds. After application of the snapshot entry, any entry with epoch
+     * lower than the one that snapshot has enacted, are simply going to be dropped. The rest of entries (i.e. ones
+     * that have epoch higher than the snapshot entry), are going to be processed in a regular fashion.
      */
     void processPendingInternal()
     {
