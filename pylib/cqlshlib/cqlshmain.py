@@ -99,10 +99,6 @@ if readline is not None and readline.__doc__ is not None and 'libedit' in readli
 else:
     DEFAULT_COMPLETEKEY = 'tab'
 
-cqldocs = None
-cqlruleset = None
-CASSANDRA_CQL_HTML = None
-
 epilog = """Connects to %(DEFAULT_HOST)s:%(DEFAULT_PORT)d by default. These
 defaults can be changed by setting $CQLSH_HOST and/or $CQLSH_PORT. When a
 host (and optional port number) are given on the command line, they take
@@ -2223,12 +2219,19 @@ def setup_docspath(path):
     CASSANDRA_CQL_HTML_FALLBACK = 'https://cassandra.apache.org/doc/latest/cassandra/cql/cql_singlefile.html'
     #
     # default location of local CQL.html
-    if os.path.exists(path + '/doc/cql3/CQL.html'):
+    if os.path.exists(path + '/dox/cql3/CQL.html'):
         # default location of local CQL.html
         CASSANDRA_CQL_HTML = 'file://' + path + '/doc/cql3/CQL.html'
     elif os.path.exists('/usr/share/doc/cassandra/CQL.html'):
         # fallback to package file
         CASSANDRA_CQL_HTML = 'file:///usr/share/doc/cassandra/CQL.html'
+    elif sys.version_info >= (3, 7):
+        import base64
+        import importlib
+        with importlib.resources.open_text('doc', 'cql.html') as file:
+            help_contents = base64.b64encode(file.read().encode()).decode()
+            url = "data:text/html;base64," + str(help_contents)
+        webbrowser.open(url)
     else:
         # fallback to online version
         CASSANDRA_CQL_HTML = CASSANDRA_CQL_HTML_FALLBACK

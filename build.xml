@@ -829,6 +829,15 @@
       </jar>
     </target>
 
+    <target name="docs"> 
+      <copy todir="${dist.dir}/pylib/doc" failonerror="false">
+        <fileset dir="doc/cql3">
+          <include name="CQL.html" />
+        </fileset>
+      </copy>
+      <touch file="${dist.dir}/pylib/doc/__init__.py" />
+    </target>
+
     <target name="_artifacts-init" depends="jar">
       <mkdir dir="${dist.dir}"/>
       <!-- fix the control linefeed so that builds on windows works on linux -->
