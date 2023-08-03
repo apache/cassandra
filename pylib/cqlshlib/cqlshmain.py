@@ -2219,7 +2219,7 @@ def setup_docspath(path):
     CASSANDRA_CQL_HTML_FALLBACK = 'https://cassandra.apache.org/doc/latest/cassandra/cql/cql_singlefile.html'
     #
     # default location of local CQL.html
-    if os.path.exists(path + '/dox/cql3/CQL.html'):
+    if os.path.exists(path + '/doc/cql3/CQL.html'):
         # default location of local CQL.html
         CASSANDRA_CQL_HTML = 'file://' + path + '/doc/cql3/CQL.html'
     elif os.path.exists('/usr/share/doc/cassandra/CQL.html'):
