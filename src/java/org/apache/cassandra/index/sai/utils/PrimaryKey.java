@@ -116,9 +116,8 @@ public interface PrimaryKey extends Comparable<PrimaryKey>, ByteComparable
                 int cmp = token().compareTo(o.token());
 
                 // If the tokens don't match then we don't need to compare any more of the key.
-                // Otherwise, if it's partition key is null or the other partition key is null
-                // then one or both of the keys are token only so we can only compare tokens
-                if ((cmp != 0) || (partitionKey() == null) || o.partitionKey() == null)
+                // Otherwise, if either of the keys are token only we can only compare tokens
+                if ((cmp != 0) || isTokenOnly() || o.isTokenOnly())
                     return cmp;
 
                 // Next compare the partition keys. If they are not equal or
@@ -184,14 +183,14 @@ public interface PrimaryKey extends Comparable<PrimaryKey>, ByteComparable
             @Override
             public DecoratedKey partitionKey()
             {
-                return null;
+                throw new UnsupportedOperationException();
             }
 
             @Nullable
             @Override
             public Clustering<?> clustering()
             {
-                return null;
+                throw new UnsupportedOperationException();
             }
         }
 
@@ -206,12 +205,6 @@ public interface PrimaryKey extends Comparable<PrimaryKey>, ByteComparable
                 this.token = partitionKey.getToken();
                 this.partitionKey = partitionKey;
                 this.clustering = clustering;
-            }
-
-            @Override
-            public boolean isTokenOnly()
-            {
-                return false;
             }
 
             @Override
@@ -249,12 +242,6 @@ public interface PrimaryKey extends Comparable<PrimaryKey>, ByteComparable
             }
 
             @Override
-            public boolean isTokenOnly()
-            {
-                return false;
-            }
-
-            @Override
             public Token token()
             {
                 return token;
@@ -287,7 +274,10 @@ public interface PrimaryKey extends Comparable<PrimaryKey>, ByteComparable
         }
     }
 
-    boolean isTokenOnly();
+    default boolean isTokenOnly()
+    {
+        return false;
+    }
 
     Token token();
 

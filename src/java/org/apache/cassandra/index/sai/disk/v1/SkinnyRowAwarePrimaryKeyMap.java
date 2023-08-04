@@ -26,6 +26,7 @@ import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.bitpack.BlockPackedReader;
+import org.apache.cassandra.index.sai.disk.v1.bitpack.MonotonicBlockPackedReader;
 import org.apache.cassandra.index.sai.disk.v1.bitpack.NumericValuesMeta;
 import org.apache.cassandra.index.sai.disk.v1.sortedterms.SortedTermsMeta;
 import org.apache.cassandra.index.sai.disk.v1.sortedterms.SortedTermsReader;
@@ -52,8 +53,8 @@ import java.util.Arrays;
  *     <li>Block-packed structure for rowId to token lookups using {@link BlockPackedReader}.
  *     Uses component {@link IndexComponent#TOKEN_VALUES} </li>
  *     <li>A sorted-terms structure for rowId to {@link PrimaryKey} and {@link PrimaryKey} to rowId lookups using
- *     {@link SortedTermsReader}. Uses components {@link IndexComponent#PRIMARY_KEY_BLOCKS} and
- *     {@link IndexComponent#PRIMARY_KEY_BLOCK_OFFSETS}</li>
+ *     {@link SortedTermsReader}. Uses components {@link IndexComponent#PARTITION_KEY_BLOCKS} and
+ *     {@link IndexComponent#PARTITION_KEY_BLOCK_OFFSETS}</li>
  * </ul>
  *
  * While the {@link SkinnyRowAwarePrimaryKeyMapFactory} is threadsafe, individual instances of the {@link SkinnyRowAwarePrimaryKeyMap}
@@ -67,13 +68,16 @@ public class SkinnyRowAwarePrimaryKeyMap implements PrimaryKeyMap
     {
         protected final MetadataSource metadataSource;
         protected final LongArray.Factory tokenReaderFactory;
-        protected final SortedTermsReader sortedTermsReader;
-        protected final SortedTermsMeta sortedTermsMeta;
-        protected FileHandle tokensFile = null;
-        protected FileHandle primaryKeyBlockOffsetsFile = null;
-        protected FileHandle primaryKeyBlocksFile = null;
+        protected final LongArray.Factory partitionReaderFactory;
+        protected final SortedTermsReader partitionKeyReader;
+        protected final SortedTermsMeta partitionKeysMeta;
         protected final IPartitioner partitioner;
         protected final PrimaryKey.Factory primaryKeyFactory;
+
+        protected FileHandle tokensFile;
+        protected FileHandle partitionsFile;
+        protected FileHandle partitionKeyBlockOffsetsFile;
+        protected FileHandle partitionKeyBlocksFile;
 
         public SkinnyRowAwarePrimaryKeyMapFactory(IndexDescriptor indexDescriptor, SSTableReader sstable)
         {
@@ -81,19 +85,22 @@ public class SkinnyRowAwarePrimaryKeyMap implements PrimaryKeyMap
             {
                 this.metadataSource = MetadataSource.loadGroupMetadata(indexDescriptor);
                 NumericValuesMeta tokensMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.TOKEN_VALUES)));
-                NumericValuesMeta blockOffsetsMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS)));
-                this.sortedTermsMeta = new SortedTermsMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PRIMARY_KEY_BLOCKS)));
                 this.tokensFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.TOKEN_VALUES);
                 this.tokenReaderFactory = new BlockPackedReader(tokensFile, tokensMeta);
-                this.primaryKeyBlockOffsetsFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS);
-                this.primaryKeyBlocksFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PRIMARY_KEY_BLOCKS);
-                this.sortedTermsReader = new SortedTermsReader(primaryKeyBlocksFile, primaryKeyBlockOffsetsFile, sortedTermsMeta, blockOffsetsMeta);
+                NumericValuesMeta partitionsMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_SIZES)));
+                this.partitionsFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_SIZES);
+                this.partitionReaderFactory = new MonotonicBlockPackedReader(partitionsFile, partitionsMeta);
+                NumericValuesMeta partitionKeyBlockOffsetsMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCK_OFFSETS)));
+                this.partitionKeysMeta = new SortedTermsMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCKS)));
+                this.partitionKeyBlockOffsetsFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_KEY_BLOCK_OFFSETS);
+                this.partitionKeyBlocksFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_KEY_BLOCKS);
+                this.partitionKeyReader = new SortedTermsReader(partitionKeyBlocksFile, partitionKeyBlockOffsetsFile, partitionKeysMeta, partitionKeyBlockOffsetsMeta);
                 this.partitioner = sstable.metadata().partitioner;
                 this.primaryKeyFactory = indexDescriptor.primaryKeyFactory;
             }
             catch (Throwable t)
             {
-                throw Throwables.unchecked(Throwables.close(t, Arrays.asList(tokensFile, primaryKeyBlocksFile, primaryKeyBlockOffsetsFile)));
+                throw Throwables.unchecked(Throwables.close(t, Arrays.asList(tokensFile, partitionsFile, partitionKeyBlocksFile, partitionKeyBlockOffsetsFile)));
             }
         }
 
@@ -102,8 +109,10 @@ public class SkinnyRowAwarePrimaryKeyMap implements PrimaryKeyMap
         public PrimaryKeyMap newPerSSTablePrimaryKeyMap() throws IOException
         {
             LongArray rowIdToToken = new LongArray.DeferredLongArray(tokenReaderFactory::open);
+            LongArray rowIdToPartitionId = new LongArray.DeferredLongArray(partitionReaderFactory::open);
             return new SkinnyRowAwarePrimaryKeyMap(rowIdToToken,
-                                                   sortedTermsReader.openCursor(),
+                                                   rowIdToPartitionId,
+                                                   partitionKeyReader.openCursor(),
                                                    partitioner,
                                                    primaryKeyFactory);
         }
@@ -111,23 +120,26 @@ public class SkinnyRowAwarePrimaryKeyMap implements PrimaryKeyMap
         @Override
         public void close()
         {
-            FileUtils.closeQuietly(Arrays.asList(tokensFile, primaryKeyBlocksFile, primaryKeyBlockOffsetsFile));
+            FileUtils.closeQuietly(Arrays.asList(tokensFile, partitionsFile, partitionKeyBlocksFile, partitionKeyBlockOffsetsFile));
         }
     }
 
     protected final LongArray tokenArray;
-    protected final SortedTermsReader.Cursor cursor;
+    protected final LongArray partitionArray;
+    protected final SortedTermsReader.Cursor partitionKeyCursor;
     protected final IPartitioner partitioner;
     protected final PrimaryKey.Factory primaryKeyFactory;
     protected final ByteBuffer tokenBuffer = ByteBuffer.allocate(Long.BYTES);
 
     protected SkinnyRowAwarePrimaryKeyMap(LongArray tokenArray,
-                                          SortedTermsReader.Cursor cursor,
+                                          LongArray partitionArray,
+                                          SortedTermsReader.Cursor partitionKeyCursor,
                                           IPartitioner partitioner,
                                           PrimaryKey.Factory primaryKeyFactory)
     {
         this.tokenArray = tokenArray;
-        this.cursor = cursor;
+        this.partitionArray = partitionArray;
+        this.partitionKeyCursor = partitionKeyCursor;
         this.partitioner = partitioner;
         this.primaryKeyFactory = primaryKeyFactory;
     }
@@ -149,20 +161,24 @@ public class SkinnyRowAwarePrimaryKeyMap implements PrimaryKeyMap
     @Override
     public void close()
     {
-        FileUtils.closeQuietly(Arrays.asList(cursor, tokenArray));
+        FileUtils.closeQuietly(Arrays.asList(partitionKeyCursor, tokenArray, partitionArray));
     }
 
     protected PrimaryKey supplier(long sstableRowId)
     {
-        ByteSource.Peekable peekable = ByteSource.peekable(cursor.seekForwardToPointId(sstableRowId).asComparableBytes(ByteComparable.Version.OSS50));
+        return primaryKeyFactory.create(readPartitionKey(sstableRowId), Clustering.EMPTY);
+    }
+
+    protected DecoratedKey readPartitionKey(long sstableRowId)
+    {
+        long partitionId = partitionArray.get(sstableRowId);
+        ByteSource.Peekable peekable = ByteSource.peekable(partitionKeyCursor.seekForwardToPointId(partitionId).asComparableBytes(ByteComparable.Version.OSS50));
 
         byte[] keyBytes = ByteSourceInverse.getUnescapedBytes(peekable);
 
         assert keyBytes != null : "Primary key from map did not contain a partition key";
 
         ByteBuffer decoratedKey = ByteBuffer.wrap(keyBytes);
-        DecoratedKey partitionKey = new BufferDecoratedKey(partitioner.getToken(decoratedKey), decoratedKey);
-
-        return primaryKeyFactory.create(partitionKey, Clustering.EMPTY);
+        return new BufferDecoratedKey(partitioner.getToken(decoratedKey), decoratedKey);
     }
 }

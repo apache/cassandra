@@ -143,7 +143,7 @@ public class SortedTermsBench
             if (lastKey == null || lastKey.compareTo(primaryKey.partitionKey()) < 0)
             {
                 lastKey = primaryKey.partitionKey();
-                writer.startPartition();
+                writer.startPartition(lastKey);
             }
             writer.nextRow(primaryKey);
         }

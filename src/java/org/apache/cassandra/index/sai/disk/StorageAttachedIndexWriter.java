@@ -106,7 +106,15 @@ public class StorageAttachedIndexWriter implements SSTableFlushObserver
         
         currentKey = key;
 
-        perSSTableWriter.startPartition();
+        try
+        {
+            perSSTableWriter.startPartition(key);
+        }
+        catch (Throwable t)
+        {
+            logger.error(indexDescriptor.logMessage("Failed to record a partition during an index build"), t);
+            abort(t, true);
+        }
     }
 
     @Override

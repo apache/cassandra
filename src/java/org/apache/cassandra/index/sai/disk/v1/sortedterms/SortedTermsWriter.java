@@ -23,6 +23,7 @@ import org.apache.cassandra.index.sai.disk.v1.MetadataWriter;
 import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
 import org.apache.cassandra.index.sai.disk.v1.bitpack.NumericValuesWriter;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.lucene.store.IndexOutput;
@@ -134,20 +135,28 @@ public class SortedTermsWriter implements Closeable
         }
         else
         {
-            int prefixLength = StringHelper.bytesDifference(prevTerm.get(), term);
-            int suffixLength = term.length - prefixLength;
-            assert suffixLength > 0: "terms must be unique";
+            int prefixLength = 0;
+            int suffixLength = 0;
 
+            if (compareTerms(prevTerm.get(), term) != 0)
+            {
+                prefixLength = StringHelper.bytesDifference(prevTerm.get(), term);
+                suffixLength = term.length - prefixLength;
+            }
             // The prefix and suffix lengths are written as a byte followed by up to 2 vints. An attempt is
-            // made to compress the lengths into the byte (if prefix length < 15 and/or suffix length < 16).
+            // made to compress the lengths into the byte (if prefix length < 15 and/or suffix length < 15).
             // If either length exceeds the compressed byte maximum, it is written as a vint following the byte.
-            termsOutput.writeByte((byte) (Math.min(prefixLength, 15) | (Math.min(15, suffixLength - 1) << 4)));
-            if (prefixLength >= 15)
-                termsOutput.writeVInt(prefixLength - 15);
-            if (suffixLength >= 16)
-                termsOutput.writeVInt(suffixLength - 16);
+            termsOutput.writeByte((byte) (Math.min(prefixLength, 15) | (Math.min(15, suffixLength) << 4)));
 
-            termsOutput.writeBytes(term.bytes, term.offset + prefixLength, term.length - prefixLength);
+            if (prefixLength + suffixLength > 0)
+            {
+                if (prefixLength >= 15)
+                    termsOutput.writeVInt(prefixLength - 15);
+                if (suffixLength >= 15)
+                    termsOutput.writeVInt(suffixLength - 15);
+
+                termsOutput.writeBytes(term.bytes, term.offset + prefixLength, term.length - prefixLength);
+            }
         }
     }
 
@@ -171,6 +180,12 @@ public class SortedTermsWriter implements Closeable
         {
             FileUtils.closeQuietly(termsOutput);
         }
+    }
+
+    private int compareTerms(BytesRef left, BytesRef right)
+    {
+        return FastByteOperations.compareUnsigned(left.bytes, left.offset, left.offset + left.length,
+                                                  right.bytes, right.offset, right.offset + right.length);
     }
 
     private void copyBytes(ByteComparable source, BytesRefBuilder dest)

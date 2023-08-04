@@ -30,13 +30,12 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.index.sai.SAITester;
+import org.apache.cassandra.index.sai.disk.io.IndexFileUtils;
 import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
-import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.SequentialWriterOption;
 import org.apache.cassandra.schema.TableMetadata;
 
 import static org.junit.Assert.assertEquals;
@@ -71,36 +70,17 @@ public class SAIRandomizedTester extends SAITester
                                                                         randomSimpleString(3, 17),
                                                                         new SequenceBasedSSTableId(getRandom().nextIntBetween(0, 128))),
                                                          metadata,
-                                                         SequentialWriterOption.newBuilder()
-                                                                               .bufferSize(getRandom().nextIntBetween(17, 1 << 13))
-                                                                               .bufferType(getRandom().nextBoolean() ? BufferType.ON_HEAP : BufferType.OFF_HEAP)
-                                                                               .trickleFsync(getRandom().nextBoolean())
-                                                                               .trickleFsyncByteInterval(nextInt(1 << 10, 1 << 16))
-                                                                               .finishOnClose(true)
-                                                                               .build());
+                                                         IndexFileUtils.DEFAULT_WRITER_OPTION);
     }
 
-    public static IndexDescriptor newClusteringIndexDescriptor() throws IOException
+    public static IndexDescriptor newClusteringIndexDescriptor(TableMetadata metadata) throws IOException
     {
-        String keyspace = randomSimpleString(5, 13);
-        String table = randomSimpleString(3, 17);
-        TableMetadata metadata = TableMetadata.builder(keyspace, table)
-                                              .addPartitionKeyColumn(randomSimpleString(3, 15), Int32Type.instance)
-                                              .addClusteringColumn(randomSimpleString(3,25), Int32Type.instance)
-                                              .partitioner(Murmur3Partitioner.instance)
-                                              .build();
         return indexInputLeakDetector.newIndexDescriptor(new Descriptor(new File(temporaryFolder.newFolder()),
                                                                         randomSimpleString(5, 13),
                                                                         randomSimpleString(3, 17),
                                                                         new SequenceBasedSSTableId(getRandom().nextIntBetween(0, 128))),
                                                          metadata,
-                                                         SequentialWriterOption.newBuilder()
-                                                                               .bufferSize(getRandom().nextIntBetween(17, 1 << 13))
-                                                                               .bufferType(getRandom().nextBoolean() ? BufferType.ON_HEAP : BufferType.OFF_HEAP)
-                                                                               .trickleFsync(getRandom().nextBoolean())
-                                                                               .trickleFsyncByteInterval(nextInt(1 << 10, 1 << 16))
-                                                                               .finishOnClose(true)
-                                                                               .build());
+                                                         IndexFileUtils.DEFAULT_WRITER_OPTION);
     }
 
     public String newIndex()

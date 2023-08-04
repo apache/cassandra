@@ -23,6 +23,7 @@ import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.index.sai.disk.PerSSTableIndexWriter;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
@@ -30,7 +31,8 @@ import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
 import org.apache.cassandra.index.sai.disk.v1.bitpack.NumericValuesWriter;
 import org.apache.cassandra.index.sai.disk.v1.sortedterms.SortedTermsWriter;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
-import org.apache.lucene.util.IOUtils;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
 public class SSTableComponentsWriter implements PerSSTableIndexWriter
 {
@@ -38,9 +40,11 @@ public class SSTableComponentsWriter implements PerSSTableIndexWriter
 
     private final IndexDescriptor indexDescriptor;
     private final MetadataWriter metadataWriter;
-    private final NumericValuesWriter partitionWriter;
+    private final NumericValuesWriter partitionSizeWriter;
     private final NumericValuesWriter tokenWriter;
-    private final SortedTermsWriter sortedTermsWriter;
+    private final SortedTermsWriter partitionKeysWriter;
+    private final SortedTermsWriter clusteringKeysWriter;
+
     private long partitionId = -1;
 
     @SuppressWarnings({"resource", "RedundantSuppression"})
@@ -49,28 +53,42 @@ public class SSTableComponentsWriter implements PerSSTableIndexWriter
         this.indexDescriptor = indexDescriptor;
         this.metadataWriter = new MetadataWriter(indexDescriptor.openPerSSTableOutput(IndexComponent.GROUP_META));
         this.tokenWriter = NumericValuesWriter.create(indexDescriptor, IndexComponent.TOKEN_VALUES, metadataWriter, false);
-        this.partitionWriter = indexDescriptor.hasClustering() ? NumericValuesWriter.create(indexDescriptor, IndexComponent.PARTITION_SIZES, metadataWriter, true)
-                                                               : NumericValuesWriter.NOOP_WRITER;
-        IndexOutputWriter primaryKeyBlocksWriter = indexDescriptor.openPerSSTableOutput(IndexComponent.PRIMARY_KEY_BLOCKS);
-        NumericValuesWriter primaryKeyBlockOffsetWriter = NumericValuesWriter.create(indexDescriptor, IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS, metadataWriter, true);
-        this.sortedTermsWriter = new SortedTermsWriter(indexDescriptor.componentName(IndexComponent.PRIMARY_KEY_BLOCKS),
-                                                       metadataWriter,
-                                                       primaryKeyBlocksWriter,
-                                                       primaryKeyBlockOffsetWriter);
+        this.partitionSizeWriter = NumericValuesWriter.create(indexDescriptor, IndexComponent.PARTITION_SIZES, metadataWriter, true);
+        IndexOutputWriter partitionKeyBlocksWriter = indexDescriptor.openPerSSTableOutput(IndexComponent.PARTITION_KEY_BLOCKS);
+        NumericValuesWriter partitionKeyBlockOffsetWriter = NumericValuesWriter.create(indexDescriptor, IndexComponent.PARTITION_KEY_BLOCK_OFFSETS, metadataWriter, true);
+        this.partitionKeysWriter = new SortedTermsWriter(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCKS),
+                                                         metadataWriter,
+                                                         partitionKeyBlocksWriter,
+                                                         partitionKeyBlockOffsetWriter);
+        if (indexDescriptor.hasClustering())
+        {
+            IndexOutputWriter clusteringKeyBlocksWriter = indexDescriptor.openPerSSTableOutput(IndexComponent.CLUSTERING_KEY_BLOCKS);
+            NumericValuesWriter clusteringKeyBlockOffsetWriter = NumericValuesWriter.create(indexDescriptor, IndexComponent.CLUSTERING_KEY_BLOCK_OFFSETS, metadataWriter, true);
+            this.clusteringKeysWriter = new SortedTermsWriter(indexDescriptor.componentName(IndexComponent.CLUSTERING_KEY_BLOCKS),
+                                                             metadataWriter,
+                                                             clusteringKeyBlocksWriter,
+                                                             clusteringKeyBlockOffsetWriter);
+        }
+        else
+        {
+            this.clusteringKeysWriter = null;
+        }
     }
 
     @Override
-    public void startPartition()
+    public void startPartition(DecoratedKey partitionKey) throws IOException
     {
         partitionId++;
+        partitionKeysWriter.add(v -> ByteSource.of(partitionKey.getKey(), v));
     }
 
     @Override
     public void nextRow(PrimaryKey primaryKey) throws IOException
     {
         tokenWriter.add(primaryKey.token().getLongValue());
-        sortedTermsWriter.add(primaryKey);
-        partitionWriter.add(partitionId);
+        partitionSizeWriter.add(partitionId);
+        if (indexDescriptor.hasClustering())
+            clusteringKeysWriter.add(indexDescriptor.clusteringComparator.asByteComparable(primaryKey.clustering()));
     }
 
     @Override
@@ -82,7 +100,7 @@ public class SSTableComponentsWriter implements PerSSTableIndexWriter
         }
         finally
         {
-            IOUtils.close(tokenWriter, partitionWriter, sortedTermsWriter, metadataWriter);
+            FileUtils.close(tokenWriter, partitionSizeWriter, partitionKeysWriter, clusteringKeysWriter, metadataWriter);
         }
     }
 

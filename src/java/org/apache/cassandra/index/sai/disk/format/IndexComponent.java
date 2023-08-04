@@ -75,12 +75,16 @@ public enum IndexComponent
     /**
      * Prefix-compressed blocks of primary keys used for rowId to partition key lookups
      */
-    PRIMARY_KEY_BLOCKS("PrimaryKeyBlocks"),
+    PARTITION_KEY_BLOCKS("PartitionKeyBlocks"),
 
     /**
      * Encoded sequence of offsets to primary key blocks
      */
-    PRIMARY_KEY_BLOCK_OFFSETS("PrimaryKeyBlockOffsets"),
+    PARTITION_KEY_BLOCK_OFFSETS("PartitionKeyBlockOffsets"),
+
+    CLUSTERING_KEY_BLOCKS("ClusteringKeyBlocks"),
+
+    CLUSTERING_KEY_BLOCK_OFFSETS("ClusteringKeyBlockOffsets"),
 
     /**
      * Metadata for per-SSTable on-disk components.

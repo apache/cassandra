@@ -847,7 +847,9 @@ public class StorageAttachedIndexDDLTest extends SAITester
         // that are encryptable unless they have been removed because encrypted components aren't
         // checksum validated.
 
-        if (component == IndexComponent.PARTITION_SIZES || component == IndexComponent.PRIMARY_KEY_BLOCKS || component == IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS)
+        if (component == IndexComponent.PARTITION_SIZES || component == IndexComponent.PARTITION_KEY_BLOCKS ||
+            component == IndexComponent.PARTITION_KEY_BLOCK_OFFSETS || component == IndexComponent.CLUSTERING_KEY_BLOCKS ||
+            component == IndexComponent.CLUSTERING_KEY_BLOCK_OFFSETS)
             return;
 
         if (((component == IndexComponent.GROUP_COMPLETION_MARKER) ||

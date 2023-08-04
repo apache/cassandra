@@ -38,7 +38,7 @@ public class WideRowPrimaryKeyTest extends AbstractPrimaryKeyTester
     @Test
     public void randomTest() throws Throwable
     {
-        IndexDescriptor indexDescriptor = newClusteringIndexDescriptor();
+        IndexDescriptor indexDescriptor = newClusteringIndexDescriptor(compositePartitionMultipleClusteringAsc);
 
         SSTableComponentsWriter writer = new SSTableComponentsWriter(indexDescriptor);
 
@@ -72,7 +72,7 @@ public class WideRowPrimaryKeyTest extends AbstractPrimaryKeyTester
             if (lastKey == null || lastKey.compareTo(primaryKey.partitionKey()) < 0)
             {
                 lastKey = primaryKey.partitionKey();
-                writer.startPartition();
+                writer.startPartition(lastKey);
             }
             writer.nextRow(primaryKey);
         }

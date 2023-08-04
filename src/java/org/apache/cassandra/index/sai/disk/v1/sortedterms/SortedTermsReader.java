@@ -324,18 +324,21 @@ public class SortedTermsReader
                     // following vints are added.
                     int compressedLengths = Byte.toUnsignedInt(termsInput.readByte());
                     prefixLength = compressedLengths & 0x0F;
-                    suffixLength = 1 + (compressedLengths >>> 4);
+                    suffixLength = compressedLengths >>> 4;
                     if (prefixLength == 15)
                         prefixLength += termsInput.readVInt();
-                    if (suffixLength == 16)
+                    if (suffixLength == 15)
                         suffixLength += termsInput.readVInt();
                 }
 
                 assert prefixLength + suffixLength <= meta.maxTermLength;
-                term.length = prefixLength + suffixLength;
-                // The currentTerm is appended to as the suffix for the current term is
-                // added to the existing prefix.
-                termsInput.readBytes(term.bytes, prefixLength, suffixLength);
+                if (prefixLength + suffixLength > 0)
+                {
+                    term.length = prefixLength + suffixLength;
+                    // The currentTerm is appended to as the suffix for the current term is
+                    // added to the existing prefix.
+                    termsInput.readBytes(term.bytes, prefixLength, suffixLength);
+                }
             }
             catch (IOException e)
             {

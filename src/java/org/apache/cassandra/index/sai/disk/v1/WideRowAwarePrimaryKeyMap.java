@@ -18,10 +18,8 @@
 
 package org.apache.cassandra.index.sai.disk.v1;
 
-import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringComparator;
-import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
@@ -29,6 +27,7 @@ import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.bitpack.MonotonicBlockPackedReader;
 import org.apache.cassandra.index.sai.disk.v1.bitpack.NumericValuesMeta;
+import org.apache.cassandra.index.sai.disk.v1.sortedterms.SortedTermsMeta;
 import org.apache.cassandra.index.sai.disk.v1.sortedterms.SortedTermsReader;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -37,12 +36,11 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
-import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.IOException;
-import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 /**
  * An extension of the {@link SkinnyRowAwarePrimaryKeyMap} for wide tables (those with clustering columns).
@@ -58,7 +56,12 @@ public class WideRowAwarePrimaryKeyMap extends SkinnyRowAwarePrimaryKeyMap
     {
         private final ClusteringComparator clusteringComparator;
         protected final LongArray.Factory partitionReaderFactory;
+        protected final SortedTermsReader clusteringKeyReader;
+        protected final SortedTermsMeta clusteringKeyMeta;
+
         protected FileHandle partitionsFile;
+        protected FileHandle clusteringKeyBlockOffsetsFile;
+        protected FileHandle clustingingKeyBlocksFile;
 
         public WideRowAwarePrimaryKeyMapFactory(IndexDescriptor indexDescriptor, SSTableReader sstable)
         {
@@ -67,13 +70,18 @@ public class WideRowAwarePrimaryKeyMap extends SkinnyRowAwarePrimaryKeyMap
             try
             {
                 this.clusteringComparator = indexDescriptor.clusteringComparator;
-                NumericValuesMeta partitionsMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_SIZES)));
                 this.partitionsFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_SIZES);
+                this.clusteringKeyBlockOffsetsFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.CLUSTERING_KEY_BLOCK_OFFSETS);
+                this.clustingingKeyBlocksFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.CLUSTERING_KEY_BLOCKS);
+                NumericValuesMeta partitionsMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_SIZES)));
                 this.partitionReaderFactory = new MonotonicBlockPackedReader(partitionsFile, partitionsMeta);
+                NumericValuesMeta clusteringKeyBlockOffsetsMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.CLUSTERING_KEY_BLOCK_OFFSETS)));
+                this.clusteringKeyMeta = new SortedTermsMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.CLUSTERING_KEY_BLOCKS)));
+                this.clusteringKeyReader = new SortedTermsReader(clustingingKeyBlocksFile, clusteringKeyBlockOffsetsFile, clusteringKeyMeta, clusteringKeyBlockOffsetsMeta);
             }
             catch (Throwable t)
             {
-                throw Throwables.unchecked(Throwables.close(t, partitionsFile));
+                throw Throwables.unchecked(Throwables.close(t, partitionsFile, clustingingKeyBlocksFile, clusteringKeyBlockOffsetsFile));
             }
         }
 
@@ -86,7 +94,8 @@ public class WideRowAwarePrimaryKeyMap extends SkinnyRowAwarePrimaryKeyMap
 
             return new WideRowAwarePrimaryKeyMap(rowIdToToken,
                                                  partitionIdToToken,
-                                                 sortedTermsReader.openCursor(),
+                                                 partitionKeyReader.openCursor(),
+                                                 clusteringKeyReader.openCursor(),
                                                  partitioner,
                                                  primaryKeyFactory,
                                                  clusteringComparator);
@@ -96,65 +105,65 @@ public class WideRowAwarePrimaryKeyMap extends SkinnyRowAwarePrimaryKeyMap
         public void close()
         {
             super.close();
-            FileUtils.closeQuietly(partitionsFile);
+            FileUtils.closeQuietly(Arrays.asList(partitionsFile, clustingingKeyBlocksFile, clusteringKeyBlockOffsetsFile));
         }
     }
 
     private final ClusteringComparator clusteringComparator;
-    private final LongArray partitionArray;
+    private final SortedTermsReader.Cursor clusteringKeyCursor;
 
     private WideRowAwarePrimaryKeyMap(LongArray tokenArray,
                                       LongArray partitionArray,
-                                      SortedTermsReader.Cursor cursor,
+                                      SortedTermsReader.Cursor partitionKeyCursor,
+                                      SortedTermsReader.Cursor clusteringKeyCursor,
                                       IPartitioner partitioner,
                                       PrimaryKey.Factory primaryKeyFactory,
                                       ClusteringComparator clusteringComparator)
     {
-        super(tokenArray, cursor, partitioner, primaryKeyFactory);
+        super(tokenArray, partitionArray, partitionKeyCursor, partitioner, primaryKeyFactory);
 
         this.clusteringComparator = clusteringComparator;
-        this.partitionArray = partitionArray;
+        this.clusteringKeyCursor = clusteringKeyCursor;
     }
 
     @Override
-    public long rowIdFromPrimaryKey(PrimaryKey key)
+    public long rowIdFromPrimaryKey(PrimaryKey primaryKey)
     {
-        long rowId = tokenArray.indexOf(key.token().getLongValue());
+        long rowId = tokenArray.indexOf(primaryKey.token().getLongValue());
+
         // If the key only has a token (initial range skip in the query), the token is out of range,
         // or we have skipped a token, return the rowId from the token array.
-        if (key.isTokenOnly() || rowId < 0 || tokenArray.get(rowId) != key.token().getLongValue())
+        if (primaryKey.isTokenOnly() || rowId < 0 || tokenArray.get(rowId) != primaryKey.token().getLongValue())
             return rowId;
 
         // Search the sorted terms for the key in the same partition
-        return cursor.partitionedSeekToTerm(key, rowId, startOfNextPartition(rowId));
+        return clusteringKeyCursor.partitionedSeekToTerm(clusteringComparator.asByteComparable(primaryKey.clustering()), rowId, startOfNextPartition(rowId));
     }
 
     @Override
     public void close()
     {
         super.close();
-        FileUtils.closeQuietly(partitionArray);
+        FileUtils.closeQuietly(Arrays.asList(partitionArray, clusteringKeyCursor));
     }
 
     @Override
     protected PrimaryKey supplier(long sstableRowId)
     {
-        ByteSource.Peekable peekable = ByteSource.peekable(cursor.seekForwardToPointId(sstableRowId).asComparableBytes(ByteComparable.Version.OSS50));
+        return primaryKeyFactory.create(readPartitionKey(sstableRowId), readClusteringKey(sstableRowId));
+    }
 
-        byte[] keyBytes = ByteSourceInverse.getUnescapedBytes(ByteSourceInverse.nextComponentSource(peekable));
+    private Clustering<?> readClusteringKey(long sstableRowId)
+    {
+        ByteSource.Peekable peekable = ByteSource.peekable(clusteringKeyCursor.seekForwardToPointId(sstableRowId)
+                                                                              .asComparableBytes(ByteComparable.Version.OSS50));
 
-        assert keyBytes != null;
-
-        ByteBuffer decoratedKey = ByteBuffer.wrap(keyBytes);
-        DecoratedKey partitionKey = new BufferDecoratedKey(partitioner.getToken(decoratedKey), decoratedKey);
-
-        Clustering<?> clustering = clusteringComparator.clusteringFromByteComparable(ByteBufferAccessor.instance,
-                                                                                     v -> ByteSourceInverse.nextComponentSource(peekable));
+        Clustering<?> clustering = clusteringComparator.clusteringFromByteComparable(ByteBufferAccessor.instance, v -> peekable);
 
         if (clustering == null)
             clustering = Clustering.EMPTY;
 
-        return primaryKeyFactory.create(partitionKey, clustering);
+        return clustering;
     }
 
     // Returns the rowId of the next partition or the number of rows if supplied rowId is in the last partition
