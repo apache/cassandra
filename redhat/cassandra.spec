@@ -46,7 +46,7 @@ BuildRoot:     %{_tmppath}/%{relname}root-%(%{__id_u} -n)
 BuildRequires: ant >= 1.9
 BuildRequires: ant-junit >= 1.9
 
-Requires:      (jre-1.8.0 or jre-11)
+Requires:      (jre-1.8.0 or jre-11 or java-1.8.0 or java-11)
 Requires:      python(abi) >= 3.6
 Requires:      procps-ng >= 3.3
 Requires(pre): user(cassandra)
@@ -168,10 +168,19 @@ exit 0
 %{python_sitelib}/cassandra_pylib*.egg-info
 
 %post
+target=$(python3 -m site | grep /usr/lib/python3 | cut -d "'" -f2 | head -n1)
+cqlshlib_dir=$(find /usr/lib/python3* -type d -name cqlshlib | sort | head -n1)
+if [ ${cqlshlib_dir} != $target/cqlshlib ]; then
+  if [ ! -d $target/cqlshlib ]; then
+    ln -s ${cqlshlib_dir} $target/cqlshlib
+  fi
+fi
 alternatives --install /%{_sysconfdir}/%{username}/conf %{username} /%{_sysconfdir}/%{username}/default.conf/ 0
 exit 0
 
 %preun
+$cqlshliblink="$(python3 -m site | grep /usr/lib/python3 | cut -d "'" -f2 | head -n1)"/cqlshlib
+if [ -e $cqlshlink ]; then rm $cqlshliblink; fi
 # only delete alternative on removal, not upgrade
 if [ "$1" = "0" ]; then
     alternatives --remove %{username} /%{_sysconfdir}/%{username}/default.conf/
