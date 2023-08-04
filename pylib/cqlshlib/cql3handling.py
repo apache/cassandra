@@ -23,8 +23,6 @@ simple_cql_types = {'ascii', 'bigint', 'blob', 'boolean', 'counter', 'date', 'de
                     'varint'}
 simple_cql_types.difference_update(('set', 'map', 'list'))
 
-cqldocs = helptopics.CQL3HelpTopics()
-
 
 class UnexpectedTableStructure(UserWarning):
 

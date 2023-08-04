@@ -31,6 +31,8 @@ from contextlib import contextmanager
 from io import StringIO
 from uuid import UUID
 
+from cqlshlib.helptopics import get_html_anchor, get_html_topics
+
 UTF8 = 'utf-8'
 
 description = "CQL Shell for Apache Cassandra"
@@ -1795,6 +1797,9 @@ class Shell(cmd.Cmd):
         pdb.set_trace()
 
     def get_help_topics(self):
+        """
+        List of 'do_' methods having method comments
+        """
         topics = [t[3:] for t in dir(self) if t.startswith('do_') and getattr(self, t, None).__doc__]
         for hide_from_help in ('quit',):
             topics.remove(hide_from_help)
@@ -1815,15 +1820,15 @@ class Shell(cmd.Cmd):
         if not topics:
             shell_topics = [t.upper() for t in self.get_help_topics()]
             self.print_topics("\nDocumented shell commands:", shell_topics, 15, 80)
-            cql_topics = [t.upper() for t in cqldocs.get_help_topics()]
+            cql_topics = [t.upper() for t in get_html_topics()]
             self.print_topics("CQL help topics:", cql_topics, 15, 80)
             return
         for t in topics:
             if t.lower() in self.get_help_topics():
                 doc = getattr(self, 'do_' + t.lower()).__doc__
                 self.stdout.write(doc + "\n")
-            elif t.lower() in cqldocs.get_help_topics():
-                urlpart = cqldocs.get_help_topic(t)
+            elif t.lower() in get_html_topics():
+                urlpart = get_html_anchor(t)
                 if urlpart is not None:
                     url = "%s#%s" % (CASSANDRA_CQL_HTML, urlpart)
                     if self.browser is not None:
@@ -2217,11 +2222,6 @@ def setup_cqlruleset(cqlmodule):
     cqlruleset.commands_end_with_newline.update(cqlshhandling.my_commands_ending_with_newline)
 
 
-def setup_cqldocs(cqlmodule):
-    global cqldocs
-    cqldocs = cqlmodule.cqldocs
-
-
 def setup_docspath(path):
     global CASSANDRA_CQL_HTML
     CASSANDRA_CQL_HTML_FALLBACK = 'https://cassandra.apache.org/doc/latest/cql/index.html'
@@ -2269,7 +2269,6 @@ def main(cmdline, pkgpath):
 
     setup_docspath(pkgpath)
     setup_cqlruleset(options.cqlmodule)
-    setup_cqldocs(options.cqlmodule)
     csv.field_size_limit(options.field_size_limit)
 
     if options.file is None:
