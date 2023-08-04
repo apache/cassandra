@@ -322,8 +322,24 @@ public abstract class LocalLog implements Closeable
             {
                 try
                 {
-                    Transformation.Result transformed = pendingEntry.transform.execute(prev);
-                    assert transformed.isSuccess();
+                    Transformation.Result transformed;
+
+                    try
+                    {
+                        transformed = pendingEntry.transform.execute(prev);
+                    }
+                    catch (Throwable t)
+                    {
+                        logger.error(String.format("Caught an exception while processing entry %s. This can mean that this node is configured differently from CMS.", prev), t);
+                        throw new StopProcessingException(t);
+                    }
+
+                    if (!transformed.isSuccess())
+                    {
+                        logger.error("Error while processing entry {}. Transformation returned result of {}. This can mean that this node is configured differently from CMS.", prev, transformed.rejected());
+                        throw new StopProcessingException();
+                    }
+
                     ClusterMetadata next = transformed.success().metadata;
                     assert pendingEntry.epoch.is(next.epoch) :
                     String.format("Entry epoch %s does not match metadata epoch %s", pendingEntry.epoch, next.epoch);
@@ -654,5 +670,18 @@ public abstract class LocalLog implements Closeable
                     ScheduledExecutors.nonPeriodicTasks.submit(() -> ClusterMetadataService.instance().sealPeriod());
             }
         };
+    }
+
+    private static class StopProcessingException extends RuntimeException
+    {
+        private StopProcessingException()
+        {
+            super();
+        }
+
+        private StopProcessingException(Throwable cause)
+        {
+            super(cause);
+        }
     }
 }
