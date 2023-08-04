@@ -62,7 +62,7 @@
 
         <macrodef name="resolve">
             <!--
-              maven-resolver-ant-tasks's resolve logic doesn't have retry logic and does not respect settings.xml, 
+              maven-resolver-ant-tasks's resolve logic doesn't have retry logic and does not respect settings.xml,
               this causes issues when overriding maven central is required (such as when behind a corporate firewall);
               it is critical to always provide the 'all' remoterepos to override resolve's default hard coded logic.
 
@@ -229,7 +229,7 @@
             <url url="${lib.download.base.url}/lib/sigar-bin/sigar-x86-winnt.dll"/>
             <url url="${lib.download.base.url}/lib/sigar-bin/sigar-x86-winnt.lib"/>
         </get>
-        
+
         <copy todir="${build.lib}" quiet="true">
             <file file="${local.repository}/org/apache/cassandra/deps/futures-2.1.6-py2.py3-none-any.zip"/>
             <file file="${local.repository}/org/apache/cassandra/deps/six-1.12.0-py2.py3-none-any.zip"/>
