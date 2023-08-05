@@ -74,7 +74,8 @@ except ImportError:
 CQL_LIB_PREFIX = 'cassandra-driver-internal-only-'
 
 CASSANDRA_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
-CASSANDRA_CQL_HTML_FALLBACK = 'https://cassandra.apache.org/doc/cql3/CQL-3.2.html'
+CASSANDRA_CQL_HTML_FALLBACK = 'https://cassandra.apache.org/doc/{buildVersion}/cql'
+CASSANDRA_NEW_DOC_FORMAT = False
 
 # default location of local CQL.html
 if os.path.exists(CASSANDRA_PATH + '/doc/cql3/CQL.html'):
@@ -86,6 +87,7 @@ elif os.path.exists('/usr/share/doc/cassandra/CQL.html'):
 else:
     # fallback to online version
     CASSANDRA_CQL_HTML = CASSANDRA_CQL_HTML_FALLBACK
+    CASSANDRA_NEW_DOC_FORMAT = True
 
 # On Linux, the Python webbrowser module uses the 'xdg-open' executable
 # to open a file/URL. But that only works, if the current session has been
@@ -2039,6 +2041,7 @@ class Shell(cmd.Cmd):
             cql_topics = [t.upper() for t in cqldocs.get_help_topics()]
             self.print_topics("CQL help topics:", cql_topics, 15, 80)
             return
+        separator = '/' if CASSANDRA_NEW_DOC_FORMAT else '#'
         for t in topics:
             if t.lower() in self.get_help_topics():
                 doc = getattr(self, 'do_' + t.lower()).__doc__
@@ -2046,7 +2049,7 @@ class Shell(cmd.Cmd):
             elif t.lower() in cqldocs.get_help_topics():
                 urlpart = cqldocs.get_help_topic(t)
                 if urlpart is not None:
-                    url = "%s#%s" % (CASSANDRA_CQL_HTML, urlpart)
+                    url = "%s%s%s" % (CASSANDRA_CQL_HTML, separator, urlpart)
                     if len(webbrowser._tryorder) == 0:
                         self.printerr("*** No browser to display CQL help. URL for help topic %s : %s" % (t, url))
                     elif self.browser is not None:
@@ -2334,6 +2337,7 @@ def setup_cqlruleset(cqlmodule):
 def setup_cqldocs(cqlmodule):
     global cqldocs
     cqldocs = cqlmodule.cqldocs
+    cqlmodule.helptopics.CASSANDRA_NEW_DOC_FORMAT = CASSANDRA_NEW_DOC_FORMAT
 
 
 def init_history():
@@ -2442,6 +2446,11 @@ def main(options, hostname, port):
         sys.exit('Unsupported CQL version: %s' % (e,))
     if options.debug:
         shell.debug = True
+
+    # format the docs url with the 'major' version i.e. 3.11, 4.0,...
+    global CASSANDRA_CQL_HTML
+    majorCassVersion = '.'.join((shell.connection_versions['build'].split('.'))[0:2]);
+    CASSANDRA_CQL_HTML = CASSANDRA_CQL_HTML.format(buildVersion = majorCassVersion)
 
     shell.cmdloop()
     save_history()

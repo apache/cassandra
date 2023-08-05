@@ -267,7 +267,7 @@ Compact Storage (only when upgrading from 3.X or any version lower than 3.0.15)
       'ALTER ... DROP COMPACT STORAGE' statement makes Compact Tables CQL-compatible,
       exposing internal structure of Thrift/Compact Tables. You can find more details
       on exposed internal structure under: 
-      http://cassandra.apache.org/doc/latest/cql/appendices.html#appendix-c-dropping-compact-storage
+      http://cassandra.apache.org/doc/3.11/cql/appendices.html#appendix-c-dropping-compact-storage
 
       For uninterrupted cluster upgrades, drivers now support 'NO_COMPACT' startup option.
       Supplying this flag will have same effect as 'DROP COMPACT STORAGE', but only for the
@@ -1267,7 +1267,7 @@ Upgrading
     - NaN and Infinity are new valid floating point constants in CQL3 and are now reserved
       keywords. In the unlikely case you were using one of them as an identifier (for a
       column, a keyspace or a table), you will now have to double-quote them (see
-      http://cassandra.apache.org/doc/cql3/CQL.html#identifiers for "quoted identifiers").
+      http://cassandra.apache.org/doc/old/CQL-3.0.html#identifiers for "quoted identifiers").
     - The IEndpointStateChangeSubscriber has a new method, beforeChange, that
       any custom implemenations using the class will need to implement.
 
@@ -1328,7 +1328,7 @@ Upgrading
       but it has been completely removed in 2.0. Please use 'authorizer' option.
     - ASSUME command has been removed from cqlsh. Use CQL3 blobAsType() and
       typeAsBlob() conversion functions instead.
-      See https://cassandra.apache.org/doc/cql3/CQL.html#blobFun for details.
+      See https://cassandra.apache.org/doc/old/CQL-3.0.html#blobFun for details.
     - Inputting blobs as string constants is now fully deprecated in
       favor of blob constants. Make sure to update your applications to use
       the new syntax while you are still on 1.2 (which supports both string
@@ -1352,7 +1352,7 @@ Operations
       has been deprecated, instead, use the nodetool commands 'disableautocompaction'
       and 'enableautocompaction' or set the compaction strategy option enabled = false
     - ALTER TABLE DROP has been reenabled for CQL3 tables and has new semantics now.
-      See https://cassandra.apache.org/doc/cql3/CQL.html#alterTableStmt and
+      See https://cassandra.apache.org/doc/old/CQL-3.0.html#alterTableStmt and
       https://issues.apache.org/jira/browse/CASSANDRA-3919 for details.
     - CAS uses gc_grace_seconds to determine how long to keep unused paxos
       state around for, or a minimum of three hours.
@@ -1372,7 +1372,7 @@ Features
     - Lightweight transactions
       (http://www.datastax.com/dev/blog/lightweight-transactions-in-cassandra-2-0)
     - Alias support has been added to CQL3 SELECT statement. Refer to
-      CQL3 documentation (http://cassandra.apache.org/doc/cql3/CQL.html) for details.
+      CQL3 documentation (http://cassandra.apache.org/doc/old/CQL-3.0.html) for details.
     - JEMalloc support (see memory_allocator in cassandra.yaml)
     - Experimental triggers support.  See examples/ for how to use.  "Experimental"
       means "tied closely to internal data structures; we plan to decouple this in
@@ -1442,7 +1442,7 @@ Upgrading
 Features
 --------
     - Custom secondary index support has been added to CQL3. Refer to
-      CQL3 documentation (http://cassandra.apache.org/doc/cql3/CQL.html)
+      CQL3 documentation (http://cassandra.apache.org/doc/old/CQL-3.0.html)
       for details and examples.
 
 Upgrading
@@ -1490,7 +1490,7 @@ Upgrading
 ---------
     - CQL3 type validation for constants has been fixed, which may require
       fixing queries that were relying on the previous loose validation. Please
-      refer to the CQL3 documentation (http://cassandra.apache.org/doc/cql3/CQL.html)
+      refer to the CQL3 documentation (http://cassandra.apache.org/doc/old/CQL-3.0.html)
       and in particular the changelog section for more details. Please note in
       particular that inputing blobs as strings constants is now deprecated (in
       favor of blob constants) and its support will be removed in a future
@@ -1525,7 +1525,7 @@ Upgrading
       introduced to make working on timeuuid from date string easy. cqlsh also
       does not display timeuuid as date string (since this is a lossy
       representation), but the new dateOf method can be used instead. Please
-      refer to the reference documentation (http://cassandra.apache.org/doc/cql3/CQL.html)
+      refer to the reference documentation (http://cassandra.apache.org/doc/old/CQL-3.0.html)
       for more detail.
     - For client implementors: CQL3 client using the thrift interface should
       use the new execute_cql3_query, prepare_cql3_query and execute_prepared_cql3_query
@@ -1617,7 +1617,7 @@ Upgrading
                                                 'replication_factor' : 2 };
       Also, the consistency level cannot be set in the language anymore, but is
       at the protocol level.
-      Please refer to the CQL3 documentation (http://cassandra.apache.org/doc/cql3/CQL.html)
+      Please refer to the CQL3 documentation (http://cassandra.apache.org/doc/old/CQL-3.0.html)
       for details.
     - In CQL3, the DROP behavior from ALTER TABLE has currently been removed
       (because it was not correctly implemented). We hope to add it back soon
