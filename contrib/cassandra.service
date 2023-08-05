@@ -1,0 +1,25 @@
+# /usr/lib/systemd/system/cassandra.service
+
+[Unit]
+Description= Apache Cassandra service
+Documentation=http://cassandra.apache.org/doc/latest/
+After=syslog.target network.target
+
+[Service]
+Environment="CASSANDRA_HOME=/usr/share/cassandra"
+Environment="CASSANDRA_CONF=/etc/cassandra/conf"
+Environment="CASSANDRA_INCLUDE=/usr/share/cassandra/cassandra.in.sh"
+EnvironmentFile=-/etc/default/cassandra
+Type=forking
+PIDFile=/run/cassandra/cassandra.pid
+User=cassandra
+Group=cassandra
+ExecStart=/usr/sbin/cassandra -p /run/cassandra/cassandra.pid
+ExecStop=/bin/kill -s 15 $MAINPID
+StandardOutput=journal
+StandardError=journal
+TimeoutStopSec=25
+SuccessExitStatus=0 143
+
+[Install]
+WantedBy=multi-user.target

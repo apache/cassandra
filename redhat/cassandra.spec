@@ -44,8 +44,9 @@ BuildRoot:     %{_tmppath}/%{relname}root-%(%{__id_u} -n)
 
 BuildRequires: ant >= 1.9
 BuildRequires: ant-junit >= 1.9
+BuildRequires: java-devel >= 1.8.0
 
-Requires:      jre >= 1.8.0
+Requires:      jre-headless >= 1.8.0
 Requires:      python(abi) >= 2.7
 Requires:      procps-ng >= 3.3
 Requires(pre): user(cassandra)
@@ -117,6 +118,12 @@ cp -p redhat/%{username} %{buildroot}/%{_sysconfdir}/rc.d/init.d/%{username}
 cp -p redhat/%{username}.conf %{buildroot}/%{_sysconfdir}/security/limits.d/
 cp -p redhat/default %{buildroot}/%{_sysconfdir}/default/%{username}
 
+# install systemd unit file
+mkdir -p %{buildroot}/usr/lib/systemd/system
+mkdir -p %{buildroot}/usr/lib/tmpfiles.d
+install -pm 0644 contrib/%{username}.service %{buildroot}/usr/lib/systemd/system/%{username}.service
+install -pm 0644 contrib/%{username}-tmpfile.conf %{buildroot}/usr/lib/tmpfiles.d/%{username}.conf
+
 # copy cassandra bundled libs
 cp -pr lib/* %{buildroot}/usr/share/%{username}/lib/
 
@@ -156,6 +163,8 @@ exit 0
 %attr(755,root,root) %{_bindir}/sstableverify
 %attr(755,root,root) %{_bindir}/stop-server
 %attr(755,root,root) %{_sbindir}/cassandra
+/usr/lib/systemd/system/%{username}.service
+/usr/lib/tmpfiles.d/%{username}.conf
 %attr(755,root,root) /%{_sysconfdir}/rc.d/init.d/%{username}
 %{_sysconfdir}/default/%{username}
 %{_sysconfdir}/security/limits.d/%{username}.conf
