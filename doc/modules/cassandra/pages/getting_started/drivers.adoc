@@ -33,6 +33,7 @@ functionality supported by a specific driver.
 
 == PHP
 
+* https://github.com/uri2x/php-cql[Native connector for PHP based on the CQL binary protocol]
 * http://code.google.com/a/apache-extras.org/p/cassandra-pdo[CQL | PHP]
 * https://github.com/datastax/php-driver/[Datastax PHP driver]
 * https://github.com/aparkhomenko/php-cassandra[PHP-Cassandra]
