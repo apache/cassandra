@@ -35,6 +35,7 @@ import com.google.common.collect.ImmutableSet;
 import org.junit.After;
 import org.junit.BeforeClass;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.distributed.Cluster;
@@ -61,6 +62,7 @@ public class TestBaseImpl extends DistributedTestBase
     public static void beforeClass() throws Throwable
     {
         ICluster.setup();
+        CassandraRelevantProperties.IO_NETTY_TRANSPORT_NO_NATIVE.setBoolean(false);
     }
 
     @Override
