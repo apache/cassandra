@@ -892,6 +892,8 @@ public class Config
     public volatile int items_per_collection_fail_threshold = -1;
     public volatile int fields_per_udt_warn_threshold = -1;
     public volatile int fields_per_udt_fail_threshold = -1;
+    public volatile int vector_dimensions_warn_threshold = -1;
+    public volatile int vector_dimensions_fail_threshold = -1;
     public volatile int data_disk_usage_percentage_warn_threshold = -1;
     public volatile int data_disk_usage_percentage_fail_threshold = -1;
     public volatile DataStorageSpec.LongBytesBound data_disk_usage_max_disk_size = null;

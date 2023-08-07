@@ -598,6 +598,22 @@ public interface GuardrailsMBean
     void setFieldsPerUDTThreshold(int warn, int fail);
 
     /**
+     * @return The threshold to warn when creating a vector with more dimensions than threshold.
+     */
+    int getVectorDimensionsWarnThreshold();
+
+    /**
+     * @return The threshold to fail when creating a vector with more dimensions than threshold.
+     */
+    int getVectorDimensionsFailThreshold();
+
+    /**
+     * @param warn The threshold to warn when creating a vector with more dimensions than threshold.
+     * @param fail The threshold to prevent creating a vector with more dimensions than threshold.
+     */
+    void setVectorDimensionsThreshold(int warn, int fail);
+
+    /**
      * @return The threshold to warn when local data disk usage percentage exceeds that threshold.
      * Allowed values are in the range {@code [1, 100]}, and -1 means disabled.
      */

@@ -267,6 +267,13 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             this.ifColumnNotExists = ifColumnNotExists;
         }
 
+        @Override
+        public void validate(ClientState state)
+        {
+            super.validate(state);
+            newColumns.forEach(c -> c.type.validate(state, "Column " + c.name));
+        }
+
         public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)
         {
             Guardrails.alterTableEnabled.ensureEnabled("ALTER TABLE changing columns", state);
