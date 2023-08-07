@@ -2186,10 +2186,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
             assert !endpoint.equals(getBroadcastAddressAndPort()) || epstate.getHeartBeatState().getGeneration() > 0 :
                    "We should not update epstates with generation = 0 for the local host";
             EndpointState old = endpointStateMap.get(endpoint);
-            if (old == null)
-                endpointStateMap.put(endpoint, epstate);
-            else
-                old.addApplicationStates(epstate.states());
+            StorageService.updateIndexStatus(endpoint, epstate.getApplicationState(ApplicationState.INDEX_STATUS));
 
             if (!getBroadcastAddressAndPort().equals(endpoint))
             {

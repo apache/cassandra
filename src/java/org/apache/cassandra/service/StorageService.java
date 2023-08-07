@@ -2132,7 +2132,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return value.value.split(VersionedValue.DELIMITER_STR, -1);
     }
 
-    private void updateIndexStatus(InetAddressAndPort endpoint, VersionedValue versionedValue)
+    public static void updateIndexStatus(InetAddressAndPort endpoint, VersionedValue versionedValue)
     {
         IndexStatusManager.instance.receivePeerIndexStatus(endpoint, versionedValue);
     }
