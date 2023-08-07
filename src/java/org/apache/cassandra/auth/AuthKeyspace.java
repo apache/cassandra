@@ -80,13 +80,15 @@ public final class AuthKeyspace
               "role definitions",
               ROLES_CQL);
 
+    public static String IDENTITY_TO_ROLES_CQL = "CREATE TABLE IF NOT EXISTS %s ("
+                                                 + "identity text," // opaque identity string for use by role authenticators
+                                                 + "role text,"
+                                                 + "PRIMARY KEY(identity))";
+
     private static final TableMetadata IdentityToRoles =
         parse(IDENTITY_TO_ROLES,
               "mtls authorized identities lookup table",
-              "CREATE TABLE %s ("
-              + "identity text," // opaque identity string for use by role authenticators
-              + "role text,"
-              + "PRIMARY KEY(identity))"
+              IDENTITY_TO_ROLES_CQL
           );
 
     public static String ROLE_MEMBERS_CQL = "CREATE TABLE IF NOT EXISTS %s ("
@@ -126,26 +128,25 @@ public final class AuthKeyspace
               "user network permissions",
               NETWORK_PERMISSIONS_CQL);
 
-    public static final String CIDR_PERMISSIONS_TBL_ROLE_COL_NAME = "role";
-    public static final String CIDR_PERMISSIONS_TBL_CIDR_GROUPS_COL_NAME = "cidr_groups";
+    public static String CIDR_PERMISSIONS_CQL = "CREATE TABLE %s ("
+                                                + "role text, "
+                                                + "cidr_groups frozen<set<text>>, "
+                                                + "PRIMARY KEY(role))";
+
     private static final TableMetadata CIDRPermissions =
     parse(CIDR_PERMISSIONS,
           "user cidr permissions",
-          "CREATE TABLE %s ("
-          + CIDR_PERMISSIONS_TBL_ROLE_COL_NAME + " text, "
-          + CIDR_PERMISSIONS_TBL_CIDR_GROUPS_COL_NAME + " frozen<set<text>>, "
-          + "PRIMARY KEY(" + CIDR_PERMISSIONS_TBL_ROLE_COL_NAME + "))"
+          CIDR_PERMISSIONS_CQL
     );
 
-    public static final String CIDR_GROUPS_TBL_CIDR_GROUP_COL_NAME = "cidr_group";
-    public static final String CIDR_GROUPS_TBL_CIDRS_COL_NAME = "cidrs";
+    public static String CIDR_GROUPS_CQL = "CREATE TABLE %s ("
+                                           + "cidr_group text, "
+                                           + "cidrs frozen<set<tuple<inet, smallint>>>, "
+                                           + "PRIMARY KEY(cidr_group))";
     private static final TableMetadata CIDRGroups =
     parse(CIDR_GROUPS,
           "cidr groups to cidrs mapping",
-          "CREATE TABLE %s ("
-          + CIDR_GROUPS_TBL_CIDR_GROUP_COL_NAME + " text, "
-          + CIDR_GROUPS_TBL_CIDRS_COL_NAME + " frozen<set<tuple<inet, smallint>>>, "
-          + "PRIMARY KEY(" + CIDR_GROUPS_TBL_CIDR_GROUP_COL_NAME + "))"
+          CIDR_GROUPS_CQL
     );
 
     private static TableMetadata parse(String name, String description, String cql)

@@ -113,7 +113,10 @@ public class Initialize extends ForceSnapshot
                                                SchemaTransformations.fromCql(String.format(AuthKeyspace.ROLE_MEMBERS_CQL, SchemaConstants.AUTH_KEYSPACE_NAME + "." + AuthKeyspace.ROLE_MEMBERS)),
                                                SchemaTransformations.fromCql(String.format(AuthKeyspace.ROLE_PERMISSIONS_CQL, SchemaConstants.AUTH_KEYSPACE_NAME + "." + AuthKeyspace.ROLE_PERMISSIONS)),
                                                SchemaTransformations.fromCql(String.format(AuthKeyspace.RESOURCE_ROLE_INDEX_CQL, SchemaConstants.AUTH_KEYSPACE_NAME + "." + AuthKeyspace.RESOURCE_ROLE_INDEX)),
-                                               SchemaTransformations.fromCql(String.format(AuthKeyspace.NETWORK_PERMISSIONS_CQL, SchemaConstants.AUTH_KEYSPACE_NAME + "." + AuthKeyspace.NETWORK_PERMISSIONS))));
+                                               SchemaTransformations.fromCql(String.format(AuthKeyspace.NETWORK_PERMISSIONS_CQL, SchemaConstants.AUTH_KEYSPACE_NAME + "." + AuthKeyspace.NETWORK_PERMISSIONS)),
+                                               SchemaTransformations.fromCql(String.format(AuthKeyspace.IDENTITY_TO_ROLES_CQL, SchemaConstants.AUTH_KEYSPACE_NAME + "." + AuthKeyspace.IDENTITY_TO_ROLES)),
+                                               SchemaTransformations.fromCql(String.format(AuthKeyspace.CIDR_GROUPS_CQL, SchemaConstants.AUTH_KEYSPACE_NAME + "." + AuthKeyspace.CIDR_GROUPS)),
+                                               SchemaTransformations.fromCql(String.format(AuthKeyspace.CIDR_PERMISSIONS_CQL, SchemaConstants.AUTH_KEYSPACE_NAME + "." + AuthKeyspace.CIDR_PERMISSIONS))));
 
     public Keyspaces setUpDistributedSystemKeyspaces(ClusterMetadata metadata)
     {
