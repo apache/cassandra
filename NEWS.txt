@@ -116,6 +116,7 @@ New features
       - Column value size
       - Partition size
       - Partition tombstones
+      - Vector dimensions
     - It is possible to list ephemeral snapshots by nodetool listsnaphots command when flag "-e" is specified.
     - Added a new flag to `nodetool profileload` and JMX endpoint to set up recurring profile load generation on specified
       intervals (see CASSANDRA-17821)
