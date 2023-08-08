@@ -178,6 +178,9 @@ Merged from 4.1:
  * Skip ColumnFamilyStore#topPartitions initialization when client or tool mode (CASSANDRA-18697)
 Merged from 4.0:
  * Partial compaction can resurrect deleted data (CASSANDRA-18507)
+Merged from 3.11:
+Merged from 3.0:
+ * Remove unused suppressions (CASSANDRA-18724)
 
 
 4.1.4
