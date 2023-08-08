@@ -73,7 +73,7 @@ public class QueryInfoTrackerTest extends CQLTester
     public void testSimpleQueryTracing()
     {
         int keys = 4;
-        int clustering = 4;
+        int clustering = 7;
         String table = KEYSPACE + ".qit_simple";
         session.execute("CREATE TABLE " + table + "(k int, c int, v int, PRIMARY KEY (k, c))");
         for (int k = 0; k < keys; k++)
@@ -111,6 +111,56 @@ public class QueryInfoTrackerTest extends CQLTester
         assertEquals(expectedRows, tracker.writtenRows.get());
         assertEquals(0, tracker.loggedWrites.get());
     }
+
+    @Test
+    public void testReadQueryTracingWithStaticRows()
+    {
+        int keys = 4;
+        int clustering = 3;
+        String table = KEYSPACE + ".qit_read_static";
+        session.execute("CREATE TABLE " + table + "(k int, c int, v int, sv int static, PRIMARY KEY (k, c))");
+        for (int k = 0; k < keys; k++)
+        {
+            for (int c = 0; c < clustering; c++)
+            {
+                session.execute("INSERT INTO " + table + "(k, c, v, sv) values (?, ?, ?, ?)", k, c, k, k * 77);
+            }
+        }
+
+        assertEquals(0, tracker.reads.get());
+        session.execute("SELECT * FROM " + table + " WHERE k = ?", 0);
+        assertEquals(1, tracker.reads.get());
+        assertEquals(1 + clustering, tracker.readRows.get());
+        assertEquals(1, tracker.readPartitions.get());
+        assertEquals(1, tracker.replicaPlans.get());
+    }
+
+    @Test
+    public void testRangeReadQueryTracingWithStaticRows()
+    {
+        int keys = 5;
+        int clustering = 3;
+        String table = KEYSPACE + ".qit_range_read_static";
+        session.execute("CREATE TABLE " + table + "(k int, c int, v int, sv int static, PRIMARY KEY (k, c))");
+        for (int k = 0; k < keys; k++)
+        {
+            for (int c = 0; c < clustering; c++)
+            {
+                if (k % 2 == 1)
+                    session.execute("INSERT INTO " + table + "(k, c, v, sv) values (?, ?, ?, ?)", k, c, k, k * 77);
+                else
+                    session.execute("INSERT INTO " + table + "(k, c, v) values (?, ?, ?)", k, c, k);
+            }
+        }
+
+        assertEquals(0, tracker.rangeReads.get());
+        session.execute("SELECT * FROM " + table);
+        assertEquals(1, tracker.rangeReads.get());
+        assertEquals(keys / 2 + keys * clustering, tracker.readRows.get());
+        assertEquals(keys, tracker.readPartitions.get());
+        assertEquals(1, tracker.replicaPlans.get());
+    }
+
 
     @Test
     public void testLoggedBatchQueryTracing()
