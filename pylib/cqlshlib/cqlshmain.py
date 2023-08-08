@@ -426,7 +426,6 @@ class Shell(cmd.Cmd):
 
         self.statement = StringIO()
         self.lineno = 1
-        self.in_comment = False
 
         self.prompt = ''
         if stdin is None:
@@ -798,23 +797,6 @@ class Shell(cmd.Cmd):
                 except KeyboardInterrupt:
                     self.reset_statement()
                     print('')
-
-    def strip_comment_blocks(self, statementtext):
-        comment_block_in_literal_string = re.search('["].*[/][*].*[*][/].*["]', statementtext)
-        if not comment_block_in_literal_string:
-            result = re.sub('[/][*].*[*][/]', "", statementtext)
-            if '*/' in result and '/*' not in result and not self.in_comment:
-                raise SyntaxError("Encountered comment block terminator without being in comment block")
-            if '/*' in result:
-                result = re.sub('[/][*].*', "", result)
-                self.in_comment = True
-            if '*/' in result:
-                result = re.sub('.*[*][/]', "", result)
-                self.in_comment = False
-            if self.in_comment and not re.findall('[/][*]|[*][/]', statementtext):
-                result = ''
-            return result
-        return statementtext
 
     def onecmd(self, statementtext):
         """
