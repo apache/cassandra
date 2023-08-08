@@ -88,7 +88,8 @@ public class SortedTermsTest extends SAIRandomizedTester
             try (SortedTermsWriter writer = new SortedTermsWriter(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCKS),
                                                                   metadataWriter,
                                                                   bytesWriter,
-                                                                  blockFPWriter))
+                                                                  blockFPWriter,
+                                                                  4))
             {
                 primaryKeys.forEach(primaryKey -> {
                     try
@@ -329,7 +330,8 @@ public class SortedTermsTest extends SAIRandomizedTester
             try (SortedTermsWriter writer = new SortedTermsWriter(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCKS),
                                                                   metadataWriter,
                                                                   bytesWriter,
-                                                                  blockFPWriter))
+                                                                  blockFPWriter,
+                                                                  4))
             {
                 testCode.accept(writer);
             }

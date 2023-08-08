@@ -83,16 +83,18 @@ public class SortedTermsWriter implements Closeable
      * @param metadataWriter the {@link MetadataWriter} for storing the {@link SortedTermsMeta}
      * @param termsOutput where to write the prefix-compressed terms data
      * @param termsDataBlockOffsets  where to write the offsets of each block of terms data
+     * @param blockShift the block shift that is used to determine the block size
      */
     public SortedTermsWriter(String componentName,
                              MetadataWriter metadataWriter,
                              IndexOutput termsOutput,
-                             NumericValuesWriter termsDataBlockOffsets) throws IOException
+                             NumericValuesWriter termsDataBlockOffsets,
+                             int blockShift) throws IOException
     {
         this.componentName = componentName;
         this.metadataWriter = metadataWriter;
         SAICodecUtils.writeHeader(termsOutput);
-        this.blockShift = CassandraRelevantProperties.SAI_SORTED_TERMS_BLOCK_SHIFT.getInt();
+        this.blockShift = blockShift;
         this.blockMask = (1 << this.blockShift) - 1;
         this.termsOutput = termsOutput;
         this.termsOutput.writeVInt(blockShift);
@@ -138,6 +140,8 @@ public class SortedTermsWriter implements Closeable
             int prefixLength = 0;
             int suffixLength = 0;
 
+            // If the term is the same as the previous term then we use prefix and suffix lengths of 0.
+            // This means that we store a byte of 0 and don't write any data for the term.
             if (compareTerms(prevTerm.get(), term) != 0)
             {
                 prefixLength = StringHelper.bytesDifference(prevTerm.get(), term);

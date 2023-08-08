@@ -23,6 +23,7 @@ import java.io.IOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.index.sai.disk.PerSSTableIndexWriter;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
@@ -59,15 +60,17 @@ public class SSTableComponentsWriter implements PerSSTableIndexWriter
         this.partitionKeysWriter = new SortedTermsWriter(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCKS),
                                                          metadataWriter,
                                                          partitionKeyBlocksWriter,
-                                                         partitionKeyBlockOffsetWriter);
+                                                         partitionKeyBlockOffsetWriter,
+                                                         CassandraRelevantProperties.SAI_SORTED_TERMS_PARTITION_BLOCK_SHIFT.getInt());
         if (indexDescriptor.hasClustering())
         {
             IndexOutputWriter clusteringKeyBlocksWriter = indexDescriptor.openPerSSTableOutput(IndexComponent.CLUSTERING_KEY_BLOCKS);
             NumericValuesWriter clusteringKeyBlockOffsetWriter = NumericValuesWriter.create(indexDescriptor, IndexComponent.CLUSTERING_KEY_BLOCK_OFFSETS, metadataWriter, true);
             this.clusteringKeysWriter = new SortedTermsWriter(indexDescriptor.componentName(IndexComponent.CLUSTERING_KEY_BLOCKS),
-                                                             metadataWriter,
-                                                             clusteringKeyBlocksWriter,
-                                                             clusteringKeyBlockOffsetWriter);
+                                                              metadataWriter,
+                                                              clusteringKeyBlocksWriter,
+                                                              clusteringKeyBlockOffsetWriter,
+                                                              CassandraRelevantProperties.SAI_SORTED_TERMS_CLUSTERING_BLOCK_SHIFT.getInt());
         }
         else
         {

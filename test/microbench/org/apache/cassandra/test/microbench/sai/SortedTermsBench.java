@@ -84,11 +84,17 @@ public class SortedTermsBench
 
     private PrimaryKey primaryKey;
 
-    @Param({"3", "4", "5", "6"})
-    private int blockShift;
+    @Param({"3", "4", "5"})
+    private int partitionBlockShift;
+
+    @Param({"3", "4", "5"})
+    private int clusteringBlockShift;
 
     @Param({"10", "100", "1000", "10000"})
     private int partitionSize;
+
+    @Param({"true", "false"})
+    private boolean randomClustering;
 
     @Setup(Level.Trial)
     public void trialSetup() throws Exception
@@ -111,7 +117,8 @@ public class SortedTermsBench
 
         indexDescriptor = IndexDescriptor.create(descriptor, metadata.comparator);
 
-        CassandraRelevantProperties.SAI_SORTED_TERMS_BLOCK_SHIFT.setInt(blockShift);
+        CassandraRelevantProperties.SAI_SORTED_TERMS_PARTITION_BLOCK_SHIFT.setInt(partitionBlockShift);
+        CassandraRelevantProperties.SAI_SORTED_TERMS_CLUSTERING_BLOCK_SHIFT.setInt(clusteringBlockShift);
         SSTableComponentsWriter writer = new SSTableComponentsWriter(indexDescriptor);
 
         PrimaryKey.Factory factory = new PrimaryKey.Factory(metadata.comparator);
@@ -123,10 +130,7 @@ public class SortedTermsBench
         int partitionCounter = 0;
         for (int index = 0; index < rows; index++)
         {
-            primaryKeys[index] = factory.create(makeKey(metadata, (long) partition, (long) partition),
-                                                makeClustering(metadata,
-                                                               getRandom().nextTextString(10, 100),
-                                                               getRandom().nextTextString(10, 100)));
+            primaryKeys[index] = factory.create(makeKey(metadata, (long) partition, (long) partition), makeClustering(metadata));
             partitionCounter++;
             if (partitionCounter == partitionSize)
             {
@@ -176,18 +180,26 @@ public class SortedTermsBench
         return table.partitioner.decorateKey(key);
     }
 
-    protected Clustering<?> makeClustering(TableMetadata table, String...clusteringKeys)
+    protected Clustering<?> makeClustering(TableMetadata table)
     {
         Clustering<?> clustering;
         if (table.comparator.size() == 0)
             clustering = Clustering.EMPTY;
         else
         {
-            ByteBuffer[] values = new ByteBuffer[clusteringKeys.length];
+            ByteBuffer[] values = new ByteBuffer[table.comparator.size()];
             for (int index = 0; index < table.comparator.size(); index++)
-                values[index] = table.comparator.subtype(index).fromString(clusteringKeys[index]);
+                values[index] = table.comparator.subtype(index).fromString(makeClusteringString());
             clustering = Clustering.make(values);
         }
         return clustering;
+    }
+
+    private String makeClusteringString()
+    {
+        if (randomClustering)
+            return getRandom().nextTextString(10, 100);
+        else
+            return String.format("%08d", getRandom().nextIntBetween(0, partitionSize));
     }
 }
