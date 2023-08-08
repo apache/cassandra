@@ -18,9 +18,13 @@
 
 package org.apache.cassandra.index.sai.disk.v1;
 
+import java.io.IOException;
+import java.util.Arrays;
+import javax.annotation.concurrent.NotThreadSafe;
+import javax.annotation.concurrent.ThreadSafe;
+
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringComparator;
-import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
@@ -33,13 +37,6 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Throwables;
-import org.apache.cassandra.utils.bytecomparable.ByteComparable;
-import org.apache.cassandra.utils.bytecomparable.ByteSource;
-
-import javax.annotation.concurrent.NotThreadSafe;
-import javax.annotation.concurrent.ThreadSafe;
-import java.io.IOException;
-import java.util.Arrays;
 
 /**
  * An extension of the {@link SkinnyPrimaryKeyMap} for wide tables (those with clustering columns).
@@ -126,13 +123,19 @@ public class WidePrimaryKeyMap extends SkinnyPrimaryKeyMap
     }
 
     @Override
+    public PrimaryKey primaryKeyFromRowId(long sstableRowId)
+    {
+        return primaryKeyFactory.create(readPartitionKey(sstableRowId), readClusteringKey(sstableRowId));
+    }
+
+    @Override
     public long rowIdFromPrimaryKey(PrimaryKey primaryKey)
     {
         long rowId = tokenArray.indexOf(primaryKey.token().getLongValue());
 
         // If the key only has a token (initial range skip in the query), the token is out of range,
         // or we have skipped a token, return the rowId from the token array.
-        if (primaryKey.isTokenOnly() || rowId < 0 || tokenArray.get(rowId) != primaryKey.token().getLongValue())
+        if (primaryKey.kind() == PrimaryKey.Kind.TOKEN || rowId < 0 || tokenArray.get(rowId) != primaryKey.token().getLongValue())
             return rowId;
 
         rowId = tokenCollisionDetection(primaryKey, rowId);
@@ -148,23 +151,9 @@ public class WidePrimaryKeyMap extends SkinnyPrimaryKeyMap
         FileUtils.closeQuietly(clusteringKeyCursor);
     }
 
-    @Override
-    protected PrimaryKey supplier(long sstableRowId)
-    {
-        return primaryKeyFactory.create(readPartitionKey(sstableRowId), readClusteringKey(sstableRowId));
-    }
-
     private Clustering<?> readClusteringKey(long sstableRowId)
     {
-        ByteSource.Peekable peekable = ByteSource.peekable(clusteringKeyCursor.seekToPointId(sstableRowId)
-                                                                              .asComparableBytes(ByteComparable.Version.OSS50));
-
-        Clustering<?> clustering = clusteringComparator.clusteringFromByteComparable(ByteBufferAccessor.instance, v -> peekable);
-
-        if (clustering == null)
-            clustering = Clustering.EMPTY;
-
-        return clustering;
+        return primaryKeyFactory.clusteringFromByteComparable(clusteringKeyCursor.seekToPointId(sstableRowId));
     }
 
     // Returns the rowId of the next partition or the number of rows if supplied rowId is in the last partition
