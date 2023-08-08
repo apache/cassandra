@@ -39,6 +39,7 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
@@ -54,6 +55,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 import static org.apache.cassandra.Util.dk;
@@ -75,6 +77,8 @@ public class SegmentFlushTest
     public static void init()
     {
         DatabaseDescriptor.daemonInitialization();
+        DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
+        StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
     }
 
     @After
@@ -106,6 +110,7 @@ public class SegmentFlushTest
     {
         Path tmpDir = Files.createTempDirectory("SegmentFlushTest");
         IndexDescriptor indexDescriptor = IndexDescriptor.create(new Descriptor(new File(tmpDir.toFile()), "ks", "cf", new SequenceBasedSSTableId(1)),
+                                                                 Murmur3Partitioner.instance,
                                                                  SAITester.EMPTY_COMPARATOR);
 
         ColumnMetadata column = ColumnMetadata.regularColumn("sai", "internal", "column", UTF8Type.instance);
@@ -114,6 +119,7 @@ public class SegmentFlushTest
         IndexContext indexContext = new IndexContext("ks",
                                                      "cf",
                                                      UTF8Type.instance,
+                                                     Murmur3Partitioner.instance,
                                                      new ClusteringComparator(),
                                                      column,
                                                      IndexTarget.Type.SIMPLE,
@@ -127,13 +133,13 @@ public class SegmentFlushTest
         DecoratedKey key1 = keys.get(0);
         ByteBuffer term1 = UTF8Type.instance.decompose("a");
         Row row1 = createRow(column, term1);
-        writer.addRow(SAITester.TEST_FACTORY.create(key1, Clustering.EMPTY), row1, sstableRowId1);
+        writer.addRow(SAITester.TEST_FACTORY.create(key1), row1, sstableRowId1);
 
         // expect a flush if exceed max rowId per segment
         DecoratedKey key2 = keys.get(1);
         ByteBuffer term2 = UTF8Type.instance.decompose("b");
         Row row2 = createRow(column, term2);
-        writer.addRow(SAITester.TEST_FACTORY.create(key2, Clustering.EMPTY), row2, sstableRowId2);
+        writer.addRow(SAITester.TEST_FACTORY.create(key2), row2, sstableRowId2);
 
         writer.complete(Stopwatch.createStarted());
 
@@ -147,8 +153,8 @@ public class SegmentFlushTest
         segmentRowIdOffset = sstableRowId1;
         posting1 = 0;
         posting2 = segments == 1 ? (int) (sstableRowId2 - segmentRowIdOffset) : 0;
-        minKey = SAITester.TEST_FACTORY.createTokenOnly(key1.getToken());
-        maxKey = segments == 1 ? SAITester.TEST_FACTORY.createTokenOnly(key2.getToken()) : minKey;
+        minKey = SAITester.TEST_FACTORY.create(key1.getToken());
+        maxKey = segments == 1 ? SAITester.TEST_FACTORY.create(key2.getToken()) : minKey;
         minTerm = term1;
         maxTerm = segments == 1 ? term2 : term1;
         numRows = segments == 1 ? 2 : 1;
@@ -160,7 +166,7 @@ public class SegmentFlushTest
             segmentRowIdOffset = sstableRowId2;
             posting1 = 0;
             posting2 = 0;
-            minKey = SAITester.TEST_FACTORY.createTokenOnly(key2.getToken());
+            minKey = SAITester.TEST_FACTORY.create(key2.getToken());
             maxKey = minKey;
             minTerm = term2;
             maxTerm = term2;

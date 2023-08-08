@@ -23,17 +23,18 @@ import java.util.Arrays;
 import org.junit.Test;
 
 import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 
 public class PrimaryKeyTest extends AbstractPrimaryKeyTester
 {
     @Test
     public void singlePartitionTest()
     {
-        PrimaryKey.Factory factory = new PrimaryKey.Factory(simplePartition.comparator);
+        PrimaryKey.Factory factory = new PrimaryKey.Factory(Murmur3Partitioner.instance, simplePartition.comparator);
         int rows = nextInt(10, 100);
         PrimaryKey[] keys = new PrimaryKey[rows];
         for (int index = 0; index < rows; index++)
-            keys[index] = factory.create(makeKey(simplePartition, index), Clustering.EMPTY);
+            keys[index] = factory.create(makeKey(simplePartition, index));
 
         Arrays.sort(keys);
 
@@ -43,11 +44,11 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
     @Test
     public void compositePartitionTest()
     {
-        PrimaryKey.Factory factory = new PrimaryKey.Factory(compositePartition.comparator);
+        PrimaryKey.Factory factory = new PrimaryKey.Factory(Murmur3Partitioner.instance, compositePartition.comparator);
         int rows = nextInt(10, 100);
         PrimaryKey[] keys = new PrimaryKey[rows];
         for (int index = 0; index < rows; index++)
-            keys[index] = factory.create(makeKey(compositePartition, index, index + 1), Clustering.EMPTY);
+            keys[index] = factory.create(makeKey(compositePartition, index, index + 1));
 
         Arrays.sort(keys);
 
@@ -57,7 +58,7 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
     @Test
     public void simplePartitonSingleClusteringAscTest()
     {
-        PrimaryKey.Factory factory = new PrimaryKey.Factory(simplePartitionSingleClusteringAsc.comparator);
+        PrimaryKey.Factory factory = new PrimaryKey.Factory(Murmur3Partitioner.instance, simplePartitionSingleClusteringAsc.comparator);
         int rows = nextInt(10, 100);
         PrimaryKey[] keys = new PrimaryKey[rows];
         int partition = 0;
@@ -79,9 +80,39 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
     }
 
     @Test
+    public void simplePartitonStaticAndSingleClusteringAscTest()
+    {
+        PrimaryKey.Factory factory = new PrimaryKey.Factory(Murmur3Partitioner.instance, simplePartitionStaticAndSingleClusteringAsc.comparator);
+        int rows = nextInt(10, 100);
+        PrimaryKey[] keys = new PrimaryKey[rows];
+        int partition = 0;
+        int clustering = 0;
+        for (int index = 0; index < rows; index++)
+        {
+            if (clustering == 0)
+            {
+                keys[index] = factory.create(makeKey(simplePartitionSingleClusteringAsc, partition), Clustering.STATIC_CLUSTERING);
+                clustering++;
+            }
+            else
+                keys[index] = factory.create(makeKey(simplePartitionSingleClusteringAsc, partition),
+                                             makeClustering(simplePartitionSingleClusteringAsc, Integer.toString(clustering++)));
+            if (clustering == 5)
+            {
+                clustering = 0;
+                partition++;
+            }
+        }
+
+        Arrays.sort(keys);
+
+        compareToAndEqualsTests(factory, keys);
+    }
+
+    @Test
     public void simplePartitionMultipleClusteringAscTest()
     {
-        PrimaryKey.Factory factory = new PrimaryKey.Factory(simplePartitionMultipleClusteringAsc.comparator);
+        PrimaryKey.Factory factory = new PrimaryKey.Factory(Murmur3Partitioner.instance, simplePartitionMultipleClusteringAsc.comparator);
         int rows = nextInt(100, 1000);
         PrimaryKey[] keys = new PrimaryKey[rows];
         int partition = 0;
@@ -111,7 +142,7 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
     @Test
     public void simplePartitonSingleClusteringDescTest()
     {
-        PrimaryKey.Factory factory = new PrimaryKey.Factory(simplePartitionSingleClusteringDesc.comparator);
+        PrimaryKey.Factory factory = new PrimaryKey.Factory(Murmur3Partitioner.instance, simplePartitionSingleClusteringDesc.comparator);
         int rows = nextInt(10, 100);
         PrimaryKey[] keys = new PrimaryKey[rows];
         int partition = 0;
@@ -135,7 +166,7 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
     @Test
     public void simplePartitionMultipleClusteringDescTest()
     {
-        PrimaryKey.Factory factory = new PrimaryKey.Factory(simplePartitionMultipleClusteringDesc.comparator);
+        PrimaryKey.Factory factory = new PrimaryKey.Factory(Murmur3Partitioner.instance, simplePartitionMultipleClusteringDesc.comparator);
         int rows = nextInt(100, 1000);
         PrimaryKey[] keys = new PrimaryKey[rows];
         int partition = 0;
@@ -165,7 +196,7 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
     @Test
     public void compositePartitionSingleClusteringAscTest()
     {
-        PrimaryKey.Factory factory = new PrimaryKey.Factory(compositePartitionSingleClusteringAsc.comparator);
+        PrimaryKey.Factory factory = new PrimaryKey.Factory(Murmur3Partitioner.instance, compositePartitionSingleClusteringAsc.comparator);
         int rows = nextInt(10, 100);
         PrimaryKey[] keys = new PrimaryKey[rows];
         int partition = 0;
@@ -189,7 +220,7 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
     @Test
     public void compositePartitionMultipleClusteringAscTest()
     {
-        PrimaryKey.Factory factory = new PrimaryKey.Factory(compositePartitionMultipleClusteringAsc.comparator);
+        PrimaryKey.Factory factory = new PrimaryKey.Factory(Murmur3Partitioner.instance, compositePartitionMultipleClusteringAsc.comparator);
         int rows = nextInt(100, 1000);
         PrimaryKey[] keys = new PrimaryKey[rows];
         int partition = 0;
@@ -219,7 +250,7 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
     @Test
     public void compositePartitionSingleClusteringDescTest()
     {
-        PrimaryKey.Factory factory = new PrimaryKey.Factory(compositePartitionSingleClusteringDesc.comparator);
+        PrimaryKey.Factory factory = new PrimaryKey.Factory(Murmur3Partitioner.instance, compositePartitionSingleClusteringDesc.comparator);
         int rows = nextInt(10, 100);
         PrimaryKey[] keys = new PrimaryKey[rows];
         int partition = 0;
@@ -243,7 +274,7 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
     @Test
     public void compositePartitionMultipleClusteringDescTest()
     {
-        PrimaryKey.Factory factory = new PrimaryKey.Factory(compositePartitionMultipleClusteringDesc.comparator);
+        PrimaryKey.Factory factory = new PrimaryKey.Factory(Murmur3Partitioner.instance, compositePartitionMultipleClusteringDesc.comparator);
         int rows = nextInt(100, 1000);
         PrimaryKey[] keys = new PrimaryKey[rows];
         int partition = 0;
@@ -273,7 +304,7 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
     @Test
     public void simplePartitionMultipleClusteringMixedTest()
     {
-        PrimaryKey.Factory factory = new PrimaryKey.Factory(simplePartitionMultipleClusteringMixed.comparator);
+        PrimaryKey.Factory factory = new PrimaryKey.Factory(Murmur3Partitioner.instance, simplePartitionMultipleClusteringMixed.comparator);
         int rows = nextInt(100, 1000);
         PrimaryKey[] keys = new PrimaryKey[rows];
         int partition = 0;
@@ -303,7 +334,7 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
     @Test
     public void compositePartitionMultipleClusteringMixedTest()
     {
-        PrimaryKey.Factory factory = new PrimaryKey.Factory(compositePartitionMultipleClusteringMixed.comparator);
+        PrimaryKey.Factory factory = new PrimaryKey.Factory(Murmur3Partitioner.instance, compositePartitionMultipleClusteringMixed.comparator);
         int rows = nextInt(100, 1000);
         PrimaryKey[] keys = new PrimaryKey[rows];
         int partition = 0;
@@ -335,7 +366,7 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
         for (int index = 0; index < keys.length - 1; index++)
         {
             PrimaryKey key = keys[index];
-            PrimaryKey tokenOnlyKey = factory.createTokenOnly(key.token());
+            PrimaryKey tokenOnlyKey = factory.create(key.token());
 
             assertCompareToAndEquals(tokenOnlyKey, key, 0);
             assertCompareToAndEquals(key, key, 0);

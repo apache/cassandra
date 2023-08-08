@@ -31,6 +31,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.IndexValidation;
 import org.apache.cassandra.index.sai.SSTableContext;
@@ -74,17 +75,17 @@ public class IndexDescriptor
     public final ClusteringComparator clusteringComparator;
     public final PrimaryKey.Factory primaryKeyFactory;
 
-    private IndexDescriptor(Version version, Descriptor sstableDescriptor, ClusteringComparator clusteringComparator)
+    private IndexDescriptor(Version version, Descriptor sstableDescriptor, IPartitioner partitioner, ClusteringComparator clusteringComparator)
     {
         this.version = version;
         this.sstableDescriptor = sstableDescriptor;
         this.clusteringComparator = clusteringComparator;
-        this.primaryKeyFactory = new PrimaryKey.Factory(clusteringComparator);
+        this.primaryKeyFactory = new PrimaryKey.Factory(partitioner, clusteringComparator);
     }
 
-    public static IndexDescriptor create(Descriptor descriptor, ClusteringComparator clusteringComparator)
+    public static IndexDescriptor create(Descriptor descriptor, IPartitioner partitioner, ClusteringComparator clusteringComparator)
     {
-        return new IndexDescriptor(Version.LATEST, descriptor, clusteringComparator);
+        return new IndexDescriptor(Version.LATEST, descriptor, partitioner, clusteringComparator);
     }
 
     public static IndexDescriptor create(SSTableReader sstable)
@@ -93,6 +94,7 @@ public class IndexDescriptor
         {
             IndexDescriptor indexDescriptor = new IndexDescriptor(version,
                                                                   sstable.descriptor,
+                                                                  sstable.getPartitioner(),
                                                                   sstable.metadata().comparator);
 
             if (version.onDiskFormat().isPerSSTableIndexBuildComplete(indexDescriptor))
@@ -102,6 +104,7 @@ public class IndexDescriptor
         }
         return new IndexDescriptor(Version.LATEST,
                                    sstable.descriptor,
+                                   sstable.getPartitioner(),
                                    sstable.metadata().comparator);
     }
 
