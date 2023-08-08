@@ -117,13 +117,13 @@ public class KeyLookupBench
                                                metadata.name,
                                                Util.newUUIDGen().get());
 
-        indexDescriptor = IndexDescriptor.create(descriptor, metadata.comparator);
+        indexDescriptor = IndexDescriptor.create(descriptor, metadata.partitioner, metadata.comparator);
 
         CassandraRelevantProperties.SAI_SORTED_TERMS_PARTITION_BLOCK_SHIFT.setInt(partitionBlockShift);
         CassandraRelevantProperties.SAI_SORTED_TERMS_CLUSTERING_BLOCK_SHIFT.setInt(clusteringBlockShift);
         SSTableComponentsWriter writer = new SSTableComponentsWriter(indexDescriptor);
 
-        PrimaryKey.Factory factory = new PrimaryKey.Factory(metadata.comparator);
+        PrimaryKey.Factory factory = new PrimaryKey.Factory(metadata.partitioner, metadata.comparator);
 
         PrimaryKey[] primaryKeys = new PrimaryKey[rows];
         int partition = 0;

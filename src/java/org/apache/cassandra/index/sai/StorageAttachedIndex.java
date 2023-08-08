@@ -178,6 +178,7 @@ public class StorageAttachedIndex implements Index
         this.indexContext = new IndexContext(tableMetadata.keyspace,
                                              tableMetadata.name,
                                              tableMetadata.partitionKeyType,
+                                             tableMetadata.partitioner,
                                              tableMetadata.comparator,
                                              target.left,
                                              target.right,
