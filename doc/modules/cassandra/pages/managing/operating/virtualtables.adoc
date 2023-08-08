@@ -20,8 +20,7 @@ Virtual keyspaces and tables are quite different from regular tables and keyspac
 * Consistency level of the queries sent to virtual tables are ignored.
 * All existing virtual tables use `LocalPartitioner`. 
 Since a virtual table is not replicated the partitioner sorts in order of partition keys instead of by their hash.
-* Making advanced queries using `ALLOW FILTERING` and aggregation functions can be executed in virtual tables, even though in normal tables we do not recommend it.
-From https://issues.apache.org/jira/browse/CASSANDRA-18238[CASSANDRA-18238], it is not necessary to specify `ALLOW FILTERING` when a query would normally require that, except when querying the table `system_views.system_logs`.
+* Making advanced queries using `ALLOW FILTERING` and aggregation functions can be executed in virtual tables, even though it is not recommended in normal tables.
 
 == Virtual Keyspaces
 
