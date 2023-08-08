@@ -70,6 +70,24 @@ class ReadTrackingTransformation extends Transformation<UnfilteredRowIterator>
     }
 
     @Override
+    protected Row applyToStatic(Row row)
+    {
+        try
+        {
+            if (!row.isEmpty())
+            {
+                readTracker.onRow(row);
+            }
+        }
+        catch (Exception exc)
+        {
+            NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 60, TimeUnit.SECONDS,
+                             "Tracking callback for read rows failed", exc);
+        }
+        return super.applyToRow(row);
+    }
+
+    @Override
     protected DecoratedKey applyToPartitionKey(DecoratedKey key)
     {
         try
