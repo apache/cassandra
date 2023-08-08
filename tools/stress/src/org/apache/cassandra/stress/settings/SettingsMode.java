@@ -22,6 +22,7 @@ package org.apache.cassandra.stress.settings;
 
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -159,14 +160,25 @@ public class SettingsMode implements Serializable
     public static SettingsMode get(Map<String, String[]> clArgs, SettingsCredentials credentials)
     {
         String[] params = clArgs.remove("-mode");
+        List<String> paramList = new ArrayList<>();
         if (params == null)
         {
             Cql3Options opts = new Cql3Options();
             opts.accept("prepared");
             return new SettingsMode(opts, credentials);
         }
+        for (String item : params){
+            // Warn on obsolete arguments, to be removed in future release
+            if (item.equals("cql3") || item.equals("native")) {
+                System.out.println("Warning ignoring deprecated parameter: " + item);
+            }
+            else {
+                paramList.add(item);
+            }
+        }
+        String[] updated = paramList.toArray(new String[paramList.size()]);
         GroupedOptions options = new Cql3Options();
-        GroupedOptions.select(params, options);
+        GroupedOptions.select(updated, options);
         return new SettingsMode(options, credentials);
     }
 
