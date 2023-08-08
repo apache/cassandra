@@ -33,8 +33,8 @@ import static org.junit.Assert.assertTrue;
 public class KeyRangeConcatIteratorTest extends AbstractKeyRangeIteratorTester
 {
     private static final String MUST_BE_SORTED_ERROR = "RangeIterator must be sorted, previous max: PrimaryKey: " +
-                                                       "{ token: %d, partition: null, clustering: null:null} , " +
-                                                       "next min: PrimaryKey: { token: %d, partition: null, clustering: null:null} ";
+                                                       "{ token: %d }, " +
+                                                       "next min: PrimaryKey: { token: %d }";
     @Test
     public void testValidation()
     {

@@ -148,13 +148,14 @@ public interface PrimaryKey extends Comparable<PrimaryKey>, ByteComparable
             @SuppressWarnings("ConstantConditions")
             public String toString()
             {
-                return String.format("PrimaryKey: { token: %s, partition: %s, clustering: %s:%s} ",
-                                     token(),
-                                     partitionKey(),
-                                     clustering() == null ? null : clustering().kind(),
-                                     clustering() == null ? null : Arrays.stream(clustering().getBufferArray())
-                                                                         .map(ByteBufferUtil::bytesToHex)
-                                                                         .collect(Collectors.joining(", ")));
+                return isTokenOnly() ? String.format("PrimaryKey: { token: %s }", token())
+                                     : String.format("PrimaryKey: { token: %s, partition: %s, clustering: %s:%s } ",
+                                                     token(),
+                                                     partitionKey(),
+                                                     clustering() == null ? null : clustering().kind(),
+                                                     clustering() == null ? null : Arrays.stream(clustering().getBufferArray())
+                                                                                         .map(ByteBufferUtil::bytesToHex)
+                                                                                         .collect(Collectors.joining(", ")));
             }
         }
 

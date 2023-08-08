@@ -61,6 +61,7 @@ public class V1OnDiskFormat implements OnDiskFormat
     public static final Set<IndexComponent> SKINNY_PER_SSTABLE_COMPONENTS = EnumSet.of(IndexComponent.GROUP_COMPLETION_MARKER,
                                                                                        IndexComponent.GROUP_META,
                                                                                        IndexComponent.TOKEN_VALUES,
+                                                                                       IndexComponent.PARTITION_SIZES,
                                                                                        IndexComponent.PARTITION_KEY_BLOCKS,
                                                                                        IndexComponent.PARTITION_KEY_BLOCK_OFFSETS);
 
@@ -249,11 +250,12 @@ public class V1OnDiskFormat implements OnDiskFormat
     @Override
     public int openFilesPerSSTableIndex(boolean hasClustering)
     {
-        // For the V1 format the number of files depends on whether the table has clustering. The partition sizes index
-        // is only built for clustering columns so the number of files will be 6 per SSTable - token values, partition sizes index,
-        // partition key blocks, partition key block offsets, clustering key blocks & clustering key block offsets for wide tables
-        // and 3 per SSTable - token values, primary key blocks & primary key block offsets for skinny tables.
-        return hasClustering ? 6 : 3;
+        // For the V1 format the number of open files depends on whether the table has clustering. For wide tables
+        // the number of open files will be 6 per SSTable - token values, partition sizes index, partition key blocks,
+        // partition key block offsets, clustering key blocks & clustering key block offsets and for skinny tables
+        // the number of files will be 4 per SSTable - token values, partition key sizes, partition key blocks &
+        // partition key block offsets.
+        return hasClustering ? 6 : 4;
     }
 
     @Override
