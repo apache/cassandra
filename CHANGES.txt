@@ -5,6 +5,7 @@
 Merged from 3.11:
  * Moved jflex from runtime to build dependencies (CASSANDRA-18664)
 Merged from 3.0:
+ * Remove unused suppressions (CASSANDRA-18724)
 
 
 4.0.11
