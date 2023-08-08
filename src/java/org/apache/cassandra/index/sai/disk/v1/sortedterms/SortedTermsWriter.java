@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.index.sai.disk.v1.sortedterms;
 
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.index.sai.disk.v1.MetadataWriter;
 import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
 import org.apache.cassandra.index.sai.disk.v1.bitpack.NumericValuesWriter;
