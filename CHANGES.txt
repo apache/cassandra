@@ -6,6 +6,7 @@ Merged from 4.0:
  * Migrate Python optparse to argparse (CASSANDRA-17914)
 Merged from 3.11:
 Merged from 3.0:
+ * Remove unused suppressions (CASSANDRA-18724)
 
 
 4.1.3
