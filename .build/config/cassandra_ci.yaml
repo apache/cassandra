@@ -1,0 +1,342 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+#
+# Contains definitions of all pipelines and jobs (test suites) in Apache Cassandra's CI.
+#
+
+# We have 2 concepts in CI:
+#   1. Pipelines: a collection of test suites to be run
+#   2. Jobs: a set of tests to be run with a corresponding command that executes said testing
+#
+# We also have a variety of parameterizable settings in tests that need to be exercised to confirm different configurations
+# both work in isolation and work when combined with other params.
+
+
+#-----------------------------------------------------------------------------
+# PIPELINES
+#-----------------------------------------------------------------------------
+pipelines:
+  # All jobs in the pre-commit pipeline must run within constraints and pass
+  # before a commit is merged upstream. Committers are expected to validate
+  # and sign off on this if using non-reference CI environments.
+  #
+  # Failure to do so will lead to commits being reverted.
+  - name: pre-commit
+    jobs:
+      - unit
+      - jvm-dtest
+      - jvm-dtest-upgrade
+      - dtest
+      - dtest-large
+      - dtest-upgrade
+      - dtest-upgrade-large
+      - long-test
+      - cqlsh-test
+
+  # The post-commit pipeline is a larger set of tests that will be matrixed
+  # across other configuration axes (see parameters below) where we expect
+  # different implementations or configurations to only fail rarely if at all.
+  # Failures in tests here will be made visible on JIRA tickets shortly after
+  # test run on reference CI and committers are expected to prioritize
+  # rectifying any failures introduced by their work.
+  - name: post-commit
+    jobs:
+      - unit
+      - cdc
+      - compression
+      - test-oa
+      - test-system-keyspace-directory
+      - test-tries
+      - jvm-dtest
+      - jvm-dtest-upgrade
+      - dtest
+      - dtest-novnode
+      - dtest-offheap
+      - dtest-large
+      - dtest-large-novnode
+      - dtest-upgrade
+      - dtest-upgrade-large
+      - long-test
+      - cqlsh-test
+
+  # These are longer-term, much more rarely changing pieces of infrastructure or
+  # testing. We expect these to fail even more rarely than post-commit.
+  - name: nightly
+    jobs:
+      - stress-test
+      - fqltool-test
+      - test-burn
+
+#-----------------------------------------------------------------------------
+# JOBS
+#
+# Parameters:
+#   job: the name
+#   runtime_env: which runtime_env above to base self off
+#   description: text description of the job
+#   cmd: command to run in shell to execute tests
+#   testlist: command to run in shell to generate full list of tests to run. Expected to output filename value to TESTLIST= env var.
+#   test_timeout: timeout for the test in ms
+#   multiplex: Number of times to multiplex a test of the given suite on addition or change
+#
+# Required env vars:
+#   DIST_DIR=<C*/build dir>
+#   CASSANDRA_DIR=<C* dir>
+#   TESTLIST=<populated by testlist: tag entry on a given job>
+#   JOB=<populated by job: tag entry on a given job>
+#
+# Jobs can replace any base params defined in their resource class, and map
+# types will append new or overwriting keys.
+#
+#-----------------------------------------------------------------------------
+# RUNTIME ENVIRONMENTS
+# i.e. common resource classes
+#-----------------------------------------------------------------------------
+runtime_env:
+  - type: jvm
+    resources: {cpu=4, memory=4g, storage=25g}
+    env:
+      ANT_TEST_OPTS: "-Dno-build-test=true"
+    testlist: find test/unit -name '*Test.java' | sed "s;^test/unit/;;g" | sort
+    test_timeout: 480000
+    multiplex: 500
+
+  - type: jvm-dtest
+    resources: {cpu=4, memory=16g, storage=25g}
+    env:
+      ANT_TEST_OPTS: "-Dno-build-test=true"
+    test_timeout: 900000
+    multiplex: 500
+
+  - type: python
+    resources: {cpu=4, memory=6g, storage=50g}
+    testlist: echo "WARNING! You have to define a testlist entry for this job." && exit 1
+    test_timeout: 900000
+    multiplex: 500
+    cmd: pytest ${PYTEST_OPTS} --cassandra-dir=${CASSANDRA_DIR} --keep-failed-test-dir ${DTEST_ARGS} ${TESTLIST}
+    env:
+      PYTHONIOENCODING: "utf-8"
+      PYTHONUNBUFFERED: true
+      CASS_DRIVER_NO_EXTENSIONS: true
+      CASS_DRIVER_NO_CYTHON: true
+      CCM_MAX_HEAP_SIZE: "1024M"
+      CCM_HEAP_NEWSIZE: "512M"
+      CCM_CONFIG_DIR: ${DIST_DIR}/.ccm
+      NUM_TOKENS: "16"
+      CASSANDRA_SKIP_SYNC: true
+      TMPDIR: "$(mktemp -d /tmp/run-python-dtest.XXXXXX)"
+      DTEST_ARGS: "--use-vnodes --num-tokens=${NUM_TOKENS} --skip-resource-intensive-tests"
+      # TODO: Confirm usage of --junit-prefix; see if we can just use the job name below or if these are specific (i.e. logging or control)
+      PYTEST_OPTS: "-vv --log-cli-level=DEBUG --junit-xml=${DIST_DIR}/test/output/nosetests.xml --junit-prefix=${JOB} -s"
+
+
+#-----------------------------------------------------------------------------
+# JVM based single node tests
+#-----------------------------------------------------------------------------
+test_suites:
+  - job: unit
+    runtime_env: jvm
+    description: Runs unit tests with default configuration
+    cmd: ant testclasslist ${TESTLIST}
+
+  - job: cdc
+    runtime_env: jvm
+    description: Runs test suites with CDC enabled
+    cmd: ant testclasslist-cdc ${TESTLIST}
+
+  - job: compression
+    runtime_env: jvm
+    description: Runs test suites with SSTable compression enabled
+    cmd: ant testclasslist-compression ${TESTLIST}
+
+  - job: test-oa
+    runtime_env: jvm
+    description: Tests oa sstable format
+    cmd: ant testclasslist-oa ${TESTLIST}
+
+  - job: test-system-keyspace-directory
+    runtime_env: jvm
+    description: Execute unit tests with a system keyspaces directory configured
+
+  - job: test-tries
+    runtime_env: jvm
+    description: Execute unit tests with trie memtables
+    cmd: ant testclasslist-trie ${TESTLIST}
+
+
+  #-----------------------------------------------------------------------------
+  # JVM based multi-node tests
+  #-----------------------------------------------------------------------------
+  - job: jvm-dtest
+    runtime_env: jvm-dtest
+    description: Execute in-jvm dtests excepting upgrade tests
+    testlist: find test/distributed -name '*Test.java' | sed "s;^test/distributed/;;g" | grep -v "upgrade" sort
+    cmd: ant testclasslist -Dtest.classlistprefix=distributed -Dtest.timeout=${test_timeout} -Dtest.classlistfile=${testlist} ${ANT_TEST_OPTS}
+    multiplex: 500
+    test_timeout: 900000
+
+  - job: jvm-dtest-upgrade
+    runtime_env: jvm-dtest
+    description: Execute upgrade in-jvm dtests
+    testlist: find test/distributed -name '*Test.java' | sed "s;^test/distributed/;;g" | grep "upgrade" sort
+    multiplex: 100
+    cmd: ant test-jvm-upgrade-dtest ${ANT_TEST_OPTS}
+
+
+  #-----------------------------------------------------------------------------
+  # Python based tests
+  #-----------------------------------------------------------------------------
+  - job: dtest
+    type: python
+    description: Python based multi-node distributed tests with default configuration
+
+  - job: dtest-novnode
+    runtime_env: python
+    description: Python based multi-node distributed tests without vnodes
+    env:
+      DTEST_ARGS: "--skip-resource-intensive-tests --keep-failed-test-dir"
+
+  - job: dtest-offheap
+    runtime_env: python
+    description: Python based multi-node distributed tests with off-heap memtables
+    env:
+      DTEST_ARGS: "--skip-resource-intensive-tests --keep-failed-test-dir"
+
+  - job: dtest-large
+    runtime_env: python
+    resources: {cpu=4, memory=16g, storage=32g}
+    description: Python based multi-node distributed tests with tests flagged as too large for the regular suite
+    env:
+      DTEST_ARGS: "--use-vnodes --num-tokens=${NUM_TOKENS} --only-resource-intensive-tests --force-resource-intensive-tests"
+  
+  - job: dtest-large-novnode
+    runtime_env: python
+    description: Python based multi-node distributed tests with tests flagged as too large for the regular suite with vnodes disabled
+    env:
+      DTEST_ARGS: "--only-resource-intensive-tests --force-resource-intensive-tests"
+  
+  - job: dtest-upgrade
+    parent: dtest
+    description: Python based multi-node distributed upgrade tests
+    multiplex: 25
+    env:
+      DTEST_ARGS: "--use-vnodes --num-tokens=${NUM_TOKENS} --execute-upgrade-tests --execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all"
+  
+  - job: dtest-upgrade-large
+    parent: dtest
+    description: Python based multi-node distributed upgrade tests flagged as too large for the regular upgrade suite
+    env:
+      DTEST_ARGS: "--use-vnodes --num-tokens=${NUM_TOKENS} --execute-upgrade-tests --execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all --only-resource-intensive-tests --force-resource-intensive-tests"
+  
+  #-----------------------------------------------------------------------------
+  # Longer running soak / burn / benchmarking tests
+  #-----------------------------------------------------------------------------
+  - job: stress-test
+    runtime_env: jvm
+    resources: {cpu=4, memory=1g, storage=5g}
+    description: Runs stress tests
+
+  - job: fqltool-test
+    runtime_env: jvm
+    resources: {cpu=4, memory=1g, storage=5g}
+    description: Tests to ensure cassandra-stress is operating correctly
+  
+  - job: microbench
+    runtime_env: jvm
+    resources: {cpu=4, memory=1g, storage=5g}
+    description: Microbenchmarks executing specific portions of the codebase
+  
+  - job: test-burn
+    runtime_env: jvm
+    resources: {cpu=4, memory=16g, storage=5g}
+    description: Long running and fuzz tests
+    test_timeout: 60000000
+
+  - job: long-test
+    runtime_env: jvm
+    resources: {cpu=4, memory=6g, storage=10g}
+    description: Execute long-running tests that are beyond the normal suite timeout
+    test_timeout: 600000
+    multiplex: 100
+
+  - job: cqlsh-test
+    runtime_env: jvm
+    resources: {cpu=4, memory=1g, storage=5g}
+    description: Subset of tests exercising cqlsh only
+    cmd: ./pylib/cassandra-cqlsh-tests.sh $(pwd)
+
+#-----------------------------------------------------------------------------
+# PARAMETERS
+#-----------------------------------------------------------------------------
+# Since JVM tests are generally quicker, we can afford to multiplex across more params
+jdk_parameters:
+  - param: number
+    values:
+      - 11
+      - 17
+  - param: offheap
+    values:
+      - none
+      - objects
+      - all
+  - param: compression
+    values:
+      - on
+      - off
+  - param: memtables
+    values:
+      - trie
+      - btree
+  - param: sstables
+    values:
+      - bigtable
+      - tries
+
+# We can't afford to re-run all the python dtests across all the different
+# possible combinations above. We stick with just JDK as defined above and
+# vnode vs. novnode.
+python_parameters:
+  - params: num_tokens
+    values:
+      - 0
+      - 16
+
+#-----------------------------------------------------------------------------
+# Commands that can be pulled and run in pipelines
+#-----------------------------------------------------------------------------
+commands:
+  - name: Log Environment Information
+    command: |
+      echo '*** id ***'
+      id
+      echo '*** cat /proc/cpuinfo ***'
+      cat /proc/cpuinfo
+      echo '*** free -m ***'
+      free -m
+      echo '*** df -m ***'
+      df -m
+      echo '*** ifconfig -a ***'
+      ifconfig -a
+      echo '*** uname -a ***'
+      uname -a
+      echo '*** mount ***'
+      mount
+      echo '*** env ***'
+      env
+      echo '*** java ***'
+      which java
+      java -version

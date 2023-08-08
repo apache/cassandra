@@ -19,13 +19,18 @@
 
 . functions.sh
 
+# This script relies on yq: https://github.com/mikefarah/yq
+# License: MIT: https://github.com/jmckenzie-dev/yq/blob/master/LICENSE
+# Plain binary install: wget https://github.com/mikefarah/yq/releases/download/${VERSION}/${BINARY} -O /usr/bin/yq &&\ chmod +x /usr/bin/yq
+# Brew install: "brew install yq"
+
 # Text array of all known pipelines found in processed config file
 export pipelines=()
 
 # Text array of all known jobs found in the jobs config
 export pipeline_jobs=()
 
-# The keys for various properties as defined in the test jobs.cfg file
+# The keys for various properties as defined in the test jobs.yaml file
 KEY_PARENT="parent"
 KEY_CMD="cmd"
 KEY_ENV="env"
@@ -47,7 +52,7 @@ clear_job_params() {
 # Do an initial call so the variables are all cleared out
 clear_job_params
 
-# See pipelines.cfg for format reference
+# See cassandra_ci.yaml for format reference
 populate_pipelines() {
     check_argument "${FUNCNAME[0]} requires a primary argument of a filename containing pipeline names", "$1"
     debug_log "Populating pipelines from file: $1"
@@ -64,7 +69,7 @@ populate_pipelines() {
 }
 
 # Name of contained jobs for given pipeline are stored in pipeline_jobs
-# $1: filename containing pipelines; see pipelines.cfg
+# $1: filename containing pipelines; see cassandra_ci.yaml
 # $2: name of pipeline to parse params into current_pipeline array
 populate_jobs() {
     check_argument "${FUNCNAME[0]} requires a primary argument of a filename with pipelines defined", "$1"

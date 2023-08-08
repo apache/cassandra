@@ -10,14 +10,14 @@ Concepts
 ---------------------
 
 ### Pipeline
-A [pipeline](pipelines.cfg) is a collection of jobs. For a given pipeline to be considered 
+A [pipeline](cassandra_ci.yaml) is a collection of jobs. For a given pipeline to be considered 
 successful,
 all
 jobs listed in the pipeline must run to completion without error using the constraints, commands,
 and environment specified for the job in the config.
 
 ### Job
-A [job](jobs.cfg) contains a collection of parameters that inform a CI system on both what needs to 
+A [job](jobs.yaml) contains a collection of parameters that inform a CI system on both what needs to 
 run, how to run it, and the constraints of the environment in which it should execute. We 
 provide these limits to reflect what's available in our reference ASF CI implementation so other 
 CI environments are able to limit themselves to our resourcing upstream and thus not destabilize 
@@ -46,9 +46,9 @@ orchestraed.
 Configuration Files
 ---------------------
 
-[pipelines.cfg](./pipelines.cfg): Contains pipelines for CI jobs for Apache Cassandra
+[pipelines.cfg](./cassandra_ci.yaml): Contains pipelines for CI jobs for Apache Cassandra
 
-[jobs.cfg](./jobs.cfg): Contains reference CI jobs for Apache Cassandra
+[jobs.cfg](./jobs.yaml): Contains reference CI jobs for Apache Cassandra
 
 Existing Pipelines
 ---------------------
@@ -68,7 +68,7 @@ To add a new job to CI, you need to do 2 things:
 1. Determine which pipeline it will be a part of. Add the job name to that pipeline (or create a
 new pipeline with that job)
 
-2. Add a new entry to [jobs.cfg](./jobs.cfg). For example:
+2. Add a new entry to [jobs.cfg](./jobs.yaml). For example:
 ```
 job:my-new-job
     parent:base
@@ -113,7 +113,7 @@ The workflow for building CI programmatically from the config might look somethi
       2. Write out the current job's params in whatever CI config format you're using in your 
          env (circle, jenkinsfile, etc)
 
-As new entries are added to [pipelines.cfg](./pipelines.cfg) and [jobs.cfg](./jobs.cfg), your 
+As new entries are added to [pipelines.cfg](./cassandra_ci.yaml) and [jobs.cfg](./jobs.yaml), your 
 scripts should pick those up and integrate them into your configuration environment.
 
 Testing the in-tree config parsing scripts

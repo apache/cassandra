@@ -14,36 +14,48 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-job:base
-    memory:10
-    cpu:10
-    storage:10
-    env:ENV_ONE=TEN
-    testlist:echo "TEN; base testlist command"
-    cmd:echo "TEN; base job command"
+pipelines:
+  - name: test_one
+    jobs:
+    - job1
+    - job2
+    - job8
+    - job12
 
-job:job1
-    parent:base
-    memory:1
-    cpu:1
-    storage:1
-    env:ENV_ONE=ONE
-    testlist:echo "find test_one tests"
-    cmd:echo "execute job1 cmd"
+  - name: test_two
+    jobs:
+    - job1
+    - job2
+    - job3
+    - job5
+    - job7
+    - job10
 
-job:job2
-    parent:job1
-    memory:2
-    cpu:1
-    storage:2
-    env:ENV_ONE=TWO ENV_TWO=TWO
-    testlist:echo "find test_two tests"
+runtime_env:
+  - type: env_one
+    resources: {cpu=1, memory=1g, storage=1g}
+    env:
+      TEST_NAME: "env_one"
 
- job:job3
-     parent:job2
-     memory:3
-     cpu:3
-     storage:3
-     env:ENV_ONE=THREE ENV_TWO=THREE ENV_THREE=THREE
-     testlist:echo "find test_three tests"
+  - type: env_two
+    resources: { cpu=2, memory=2g, storage=2g }
+    env:
+      TEST_TWO: "populated"
 
+jobs:
+  - job: job1
+    testlist: echo "find test_one tests"
+    cmd: echo "execute job1 cmd"
+
+  - job: job2
+    env:
+      JOB_TWO_ENV: SET
+      TEST_NAME: "job2"
+    testlist: echo "find test_two tests"
+
+  - job: job3
+    resources: {cpu=3, memory=3g, storage=3g}
+    env:
+      JOB_THREE_ENV: SET
+      TEST_NAME: "job3"
+    testlist: echo "find test_three tests"

@@ -14,16 +14,3 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-pipeline:test_one
-    job1
-    job2
-    job8
-    job12
-
-pipeline:test_two
-    job1
-    job2
-    job3
-    job5
-    job7
-    job10

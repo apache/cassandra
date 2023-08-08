@@ -32,7 +32,7 @@ _test_job_parse() {
     cmd=$7
 
     debug_log "Parsing params for job: $TEST_JOB"
-    parse_job_params "test_jobs.cfg" $TEST_JOB
+    parse_job_params "test_jobs.yaml" $TEST_JOB
     failed=0
     if ! assert_equals "$mem" "$JOB_MEM" "Got unexpected memory on job parse for $TEST_JOB"; then failed=1; fi
     if ! assert_equals "$cpu" "$JOB_CPU" "Got unexpected cpu on job parse for $TEST_JOB"; then failed=1; fi
@@ -54,7 +54,7 @@ _main() {
 
     # Confirm pipeline name parsing works as expected
     log_header "Testing pipeline name parsing"
-    populate_pipelines test_pipelines.cfg
+    populate_pipelines "test_pipelines.yaml"
     if ! assert_equals 2 ${#pipelines[@]} "Mismatch in size of pipelines"; then
         echo "Current contents of pipelines:"
         printf '[%s]\n' "${pipelines[@]}"
@@ -69,7 +69,7 @@ _main() {
     clear_job_params
     log_header "Testing job name parsing"
     TEST_PIPELINE="test_one"
-    populate_jobs "test_pipelines.cfg" $TEST_PIPELINE
+    populate_jobs "test_pipelines.yaml" $TEST_PIPELINE
     if ! assert_equals 4 ${#pipeline_jobs[@]} "Mismatch in number of jobs in pipeline $TEST_PIPELINE"; then
         echo "Current contents of pipeline_jobs:"
         printf '[%s]\n' "${pipeline_jobs[@]}"
