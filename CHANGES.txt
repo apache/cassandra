@@ -1,4 +1,5 @@
 3.0.30
+ * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
  * Upgrade OWASP to 8.3.1 (CASSANDRA-18650)
  * Suppress CVE-2023-34462 (CASSANDRA-18649)
