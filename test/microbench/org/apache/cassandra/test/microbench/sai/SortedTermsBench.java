@@ -62,8 +62,8 @@ import static org.mockito.Mockito.when;
 
 @BenchmarkMode({Mode.Throughput})
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
-@Warmup(iterations = 5, time = 1)
-@Measurement(iterations = 5, time = 10)
+@Warmup(iterations = 3, time = 1)
+@Measurement(iterations = 3, time = 5)
 @Fork(value = 1, jvmArgsAppend = "-Xmx512M")
 @Threads(1)
 @State(Scope.Benchmark)
