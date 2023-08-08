@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -518,5 +519,14 @@ public class StreamingMultiplexedChannel
         threadToChannelMap.values().forEach(StreamingChannel::close);
         threadToChannelMap.clear();
         fileTransferExecutor.shutdownNow();
+    }
+
+    /** For testing only -- close the control handle for testing streaming exception handling.
+     */
+    @VisibleForTesting
+    public void unsafeCloseControlChannel()
+    {
+        logger.warn("Unsafe close of control channel");
+        controlChannel.close().awaitUninterruptibly();
     }
 }
