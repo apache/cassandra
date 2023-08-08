@@ -63,49 +63,12 @@
         <cve>CVE-2023-34462</cve>
     </suppress>
 
-    <!-- https://issues.apache.org/jira/browse/CASSANDRA-14183 -->
-    <suppress>
-        <packageUrl regex="true">^pkg:maven/ch\.qos\.logback/logback\-core@.*$</packageUrl>
-        <cve>CVE-2017-5929</cve>
-    </suppress>
-    <suppress>
-        <packageUrl regex="true">^pkg:maven/ch\.qos\.logback/logback\-classic@.*$</packageUrl>
-        <cve>CVE-2017-5929</cve>
-    </suppress>
-
-    <!-- this was fixed in 3.0.22 -->
-    <suppress>
-        <packageUrl regex="true">^pkg:maven/com\.datastax\.cassandra/cassandra\-driver\-core@.*$</packageUrl>
-        <cve>CVE-2019-2684</cve>
-        <cve>CVE-2020-13946</cve>
-        <cve>CVE-2020-17516</cve>
-        <cve>CVE-2021-44521</cve>
-    </suppress>
-
     <!-- https://issues.apache.org/jira/browse/CASSANDRA-14760 -->
     <suppress>
         <packageUrl regex="true">^pkg:maven/com\.google\.guava/guava@.*$</packageUrl>
         <cve>CVE-2018-10237</cve>
         <cve>CVE-2020-8908</cve>
         <cve>CVE-2023-2976</cve>
-    </suppress>
-
-    <!-- https://issues.apache.org/jira/browse/CASSANDRA-18146 -->
-    <suppress>
-        <packageUrl regex="true">^pkg:maven/org\.apache\.commons.*$</packageUrl>
-        <cve>CVE-2021-37533</cve>
-    </suppress>
-    <suppress>
-        <packageUrl regex="true">^pkg:maven/commons-io/.*$</packageUrl>
-        <cve>CVE-2021-37533</cve>
-    </suppress>
-    <suppress>
-        <packageUrl regex="true">^pkg:maven/commons-cli/.*$</packageUrl>
-        <cve>CVE-2021-37533</cve>
-    </suppress>
-    <suppress>
-        <packageUrl regex="true">^pkg:maven/commons-codec/.*$</packageUrl>
-        <cve>CVE-2021-37533</cve>
     </suppress>
 
     <!-- https://issues.apache.org/jira/browse/CASSANDRA-16606 -->
@@ -134,12 +97,6 @@
         <cve>CVE-2023-35116</cve>
 	<cve>CVE-2022-42003</cve>
 	<cve>CVE-2022-42004</cve>
-    </suppress>
-
-    <!-- https://issues.apache.org/jira/browse/CASSANDRA-18643 -->
-    <suppress>
-        <packageUrl regex="true">^pkg:maven/com\.fasterxml\.jackson\.core/jackson\-core@.*$</packageUrl>
-        <cve>CVE-2022-45688</cve>
     </suppress>
 
 </suppressions>
