@@ -33,7 +33,7 @@
 +cassandra_storagedir=/var/lib/cassandra
  
  # JAVA_HOME can optionally be set here
- #JAVA_HOME=/usr/local/jdk6
+ #JAVA_HOME=/usr/local/jdk11
 @@ -47,6 +47,10 @@ for jar in "$CASSANDRA_HOME"/lib/*.jar; do
      CLASSPATH="$CLASSPATH:$jar"
  done
@@ -45,3 +45,55 @@
  CLASSPATH="$CLASSPATH:$EXTRA_CLASSPATH"
  
  # JSR223 - collect all JSR223 engines' jars
+ #
+ # Java executable and per-Java version JVM settings
+ #
+
+ # Use JAVA_HOME if set, otherwise look for java in PATH
+ if [ -n "$JAVA_HOME" ]; then
+     # Why we can't have nice things: Solaris combines x86 and x86_64
+     # installations in the same tree, using an unconventional path for the
+     # 64bit JVM.  Since we prefer 64bit, search the alternate path first,
+     # (see https://issues.apache.org/jira/browse/CASSANDRA-4638).
+     for java in "$JAVA_HOME"/bin/amd64/java "$JAVA_HOME"/bin/java; do
+         if [ -x "$java" ]; then
+             JAVA="$java"
+             break
+         fi
+     done
+ else
+     JAVA=`command -v java 2> /dev/null`
+ fi
+
+ if [ -z $JAVA ] ; then
+     echo Unable to find java executable. Check JAVA_HOME and PATH environment variables. >&2
+     exit 1;
+ fi
+
+ # Matches variable 'java.supported' in build.xml
++java_versions_supported=11,17
+ # Determine the sort of JVM we'll be running on.
+ java_ver_output=`"${JAVA:-java}" -version 2>&1`
+ jvmver=`echo "$java_ver_output" | grep '[openjdk|java] version' | awk -F'"' 'NR==1 {print $2}' | cut -d\- -f1`
+ JVM_VERSION=${jvmver%_*}
+ short=$(echo "${jvmver}" | cut -c1-2)
+
+# Unsupported JDKs below the upper supported version are not allowed
++if [ "$short" != "$(echo "$java_versions_supported" | cut -d, -f1)" ] && [ "$JVM_VERSION" \< "$(echo "$java_versions_supported" | cut -d, -f2)" ] ; then
++    echo "Unsupported Java $JVM_VERSION. Supported are $java_versions_supported"
+     exit 1;
+ fi
+# Allow execution of supported Java versions, and newer if CASSANDRA_JDK_UNSUPPORTED is set
++is_supported_version=$(echo "$java_versions_supported" | tr "," '\n' | grep -F -x "$short")
++if [ -z "$is_supported_version" ] ; then
++    if [ -z "$CASSANDRA_JDK_UNSUPPORTED" ] ; then
++        echo "Unsupported Java $JVM_VERSION. Supported are $java_versions_supported"
++        echo "If you would like to test with newer Java versions set CASSANDRA_JDK_UNSUPPORTED to any value (for example, CASSANDRA_JDK_UNSUPPORTED=true). Unset the parameter for default behavior"
++        exit 1;
++    else
++        echo "######################################################################"
++        echo "Warning! You are using JDK$short. This Cassandra version only supports $java_versions_supported."
++        echo "######################################################################"
++    fi
++fi
++JAVA_VERSION=$short
