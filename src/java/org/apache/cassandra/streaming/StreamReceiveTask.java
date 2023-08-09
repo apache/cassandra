@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.audit.AuditLogEntry;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.audit.AuditLogManager;
+import org.apache.cassandra.metrics.StreamingMetrics;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.schema.TableId;
@@ -169,20 +170,28 @@ public class StreamReceiveTask extends StreamTask
                 task.session.taskCompleted(task);
 
                 // We only want to auditLog streaming event if its triggered by SSTABLELOADER
-                if (isStreamingBulkLoad() && auditLogManager.isEnabled())
+                if (isStreamingBulkLoad())
                 {
-                    AuditLogEntry auditEntry = getSstableLoaderAuditLogEntry(cfs);
-                    auditLogManager.log(auditEntry);
+                    if (auditLogManager.isEnabled())
+                    {
+                        AuditLogEntry auditEntry = getSstableLoaderAuditLogEntry(cfs);
+                        auditLogManager.log(auditEntry);
+                    }
+                    StreamingMetrics.bulkLoadTaskCompleted.inc();
                 }
             }
             catch (Throwable t)
             {
                 JVMStabilityInspector.inspectThrowable(t);
                 task.session.onError(t);
-                if (isStreamingBulkLoad() && auditLogManager.isEnabled())
+                if (isStreamingBulkLoad())
                 {
-                    AuditLogEntry auditEntry = getSstableLoaderAuditLogEntry(cfs);
-                    auditLogManager.logsstableloadfailure(auditEntry, t);
+                    if (auditLogManager.isEnabled())
+                    {
+                        AuditLogEntry auditEntry = getSstableLoaderAuditLogEntry(cfs);
+                        auditLogManager.logsstableloadfailure(auditEntry, t);
+                    }
+                    StreamingMetrics.bulkLoadTaskFailed.inc();
                 }
             }
             finally

@@ -43,6 +43,8 @@ public class StreamingMetrics
     public static final Counter totalOutgoingBytes = Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "TotalOutgoingBytes", null));
     public static final Counter totalOutgoingRepairBytes = Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "TotalOutgoingRepairBytes", null));
     public static final Counter totalOutgoingRepairSSTables = Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "TotalOutgoingRepairSSTables", null));
+    public static final Counter bulkLoadTaskCompleted = Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "BulkLoadTaskCompleted", null));
+    public static final Counter bulkLoadTaskFailed = Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "BulkLoadTaskFailed", null));
     public final Counter incomingBytes;
     public final Counter outgoingBytes;
     /* Measures the time taken for processing the incoming stream message after being deserialized, including the time to flush to disk. */

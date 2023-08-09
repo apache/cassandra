@@ -33,6 +33,7 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.metrics.StreamingMetrics;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.Schema;
@@ -143,6 +144,10 @@ public class SSTableLoaderTest
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
         Util.flush(cfs); // wait for sstables to be on disk else we won't be able to stream them
 
+        // metric test
+        long bulkLoadCompletedBefore = StreamingMetrics.bulkLoadTaskCompleted.getCount();
+        long bulkLoadFailedBefore = StreamingMetrics.bulkLoadTaskFailed.getCount();
+
         final CountDownLatch latch = new CountDownLatch(1);
         SSTableLoader loader = new SSTableLoader(dataDir, new TestClient(), new OutputHandler.SystemOutput(false, false));
         loader.stream(Collections.emptySet(), completionStreamListener(latch)).get();
@@ -159,6 +164,13 @@ public class SSTableLoaderTest
         // The stream future is signalled when the work is complete but before releasing references. Wait for release
         // before cleanup (CASSANDRA-10118).
         latch.await();
+
+        long bulkLoadCompletedafter = StreamingMetrics.bulkLoadTaskCompleted.getCount();
+        long bulkLoadFailedAfter = StreamingMetrics.bulkLoadTaskFailed.getCount();
+
+        // bulk load succeeded
+        assertEquals(1, bulkLoadCompletedafter - bulkLoadCompletedBefore);
+        assertEquals(0, bulkLoadFailedAfter - bulkLoadFailedBefore);
     }
 
     @Test
