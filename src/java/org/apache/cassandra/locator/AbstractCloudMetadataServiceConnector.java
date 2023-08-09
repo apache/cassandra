@@ -22,30 +22,79 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.exceptions.ConfigurationException;
+
+import static java.lang.String.format;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 abstract class AbstractCloudMetadataServiceConnector
 {
+    static final String METADATA_URL_PROPERTY = "metadata_url";
+    static final String METADATA_REQUEST_TIMEOUT_PROPERTY = "metadata_request_timeout";
+    static final String DEFAULT_METADATA_REQUEST_TIMEOUT = "30s";
+
     protected final String metadataServiceUrl;
+    protected final int requestTimeoutMs;
 
-    protected AbstractCloudMetadataServiceConnector(String metadataServiceUrl)
+    private final SnitchProperties properties;
+
+    public AbstractCloudMetadataServiceConnector(SnitchProperties snitchProperties)
     {
-        this.metadataServiceUrl = metadataServiceUrl;
+        this.properties = snitchProperties;
+        String parsedMetadataServiceUrl = properties.get(METADATA_URL_PROPERTY, null);
+
+        try
+        {
+            URL url = new URL(parsedMetadataServiceUrl);
+            url.toURI();
+
+            this.metadataServiceUrl = parsedMetadataServiceUrl;
+        }
+        catch (MalformedURLException | IllegalArgumentException | URISyntaxException ex)
+        {
+            throw new ConfigurationException(format("Snitch metadata service URL '%s' is invalid. Please review snitch properties " +
+                                                    "defined in the configured '%s' configuration file.",
+                                                    parsedMetadataServiceUrl,
+                                                    CassandraRelevantProperties.CASSANDRA_RACKDC_PROPERTIES.getKey()),
+                                             ex);
+        }
+
+        String metadataRequestTimeout = properties.get(METADATA_REQUEST_TIMEOUT_PROPERTY, DEFAULT_METADATA_REQUEST_TIMEOUT);
+
+        try
+        {
+            this.requestTimeoutMs = new DurationSpec.IntMillisecondsBound(metadataRequestTimeout).toMilliseconds();
+        }
+        catch (IllegalArgumentException ex)
+        {
+            throw new ConfigurationException(format("%s as value of %s is invalid duration! " + ex.getMessage(),
+                                                    metadataRequestTimeout,
+                                                    METADATA_REQUEST_TIMEOUT_PROPERTY));
+        }
     }
 
-    public String apiCall(String query) throws IOException
+    public SnitchProperties getProperties()
     {
-        return apiCall(metadataServiceUrl, query, 200);
+        return properties;
     }
 
-    public String apiCall(String url, String query, int expectedResponseCode) throws IOException
+    public final String apiCall(String query) throws IOException
     {
-        return apiCall(url, query, "GET", ImmutableMap.of(), expectedResponseCode);
+        return apiCall(metadataServiceUrl, query, "GET", ImmutableMap.of(), 200);
+    }
+
+    public final String apiCall(String query, Map<String, String> extraHeaders) throws IOException
+    {
+        return apiCall(metadataServiceUrl, query, "GET", extraHeaders, 200);
     }
 
     public String apiCall(String url,
@@ -61,6 +110,7 @@ abstract class AbstractCloudMetadataServiceConnector
             conn = (HttpURLConnection) new URL(url + query).openConnection();
             extraHeaders.forEach(conn::setRequestProperty);
             conn.setRequestMethod(method);
+            conn.setConnectTimeout(requestTimeoutMs);
             if (conn.getResponseCode() != expectedResponseCode)
                 throw new HttpException(conn.getResponseCode(), conn.getResponseMessage());
 
@@ -84,6 +134,14 @@ abstract class AbstractCloudMetadataServiceConnector
         }
     }
 
+    @Override
+    public String toString()
+    {
+        return format("%s{%s=%s,%s=%s}", getClass().getName(),
+                      METADATA_URL_PROPERTY, metadataServiceUrl,
+                      METADATA_REQUEST_TIMEOUT_PROPERTY, requestTimeoutMs);
+    }
+
     public static final class HttpException extends IOException
     {
         public final int responseCode;
@@ -94,6 +152,14 @@ abstract class AbstractCloudMetadataServiceConnector
             super("HTTP response code: " + responseCode + " (" + responseMessage + ')');
             this.responseCode = responseCode;
             this.responseMessage = responseMessage;
+        }
+    }
+
+    public static class DefaultCloudMetadataServiceConnector extends AbstractCloudMetadataServiceConnector
+    {
+        public DefaultCloudMetadataServiceConnector(SnitchProperties properties)
+        {
+            super(properties);
         }
     }
 }

@@ -38,6 +38,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.fql.FullQueryLoggerOptions;
+import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.service.StartupChecks.StartupCheckType;
 import org.apache.cassandra.utils.StorageCompatibilityMode;
@@ -49,7 +50,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.SKIP_PAXOS
 
 /**
  * A class that contains configuration properties for the cassandra node it runs within.
- *
+ * <p>
  * Properties declared as volatile can be mutated via JMX.
  */
 public class Config
@@ -76,10 +77,13 @@ public class Config
     public static final String PROPERTY_PREFIX = "cassandra.";
 
     public String cluster_name = "Test Cluster";
-    public String authenticator;
+    public ParameterizedClass authenticator;
     public String authorizer;
     public String role_manager;
+    public ParameterizedClass crypto_provider;
     public String network_authorizer;
+    public ParameterizedClass cidr_authorizer;
+
     @Replaces(oldName = "permissions_validity_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
     public volatile DurationSpec.IntMillisecondsBound permissions_validity = new DurationSpec.IntMillisecondsBound("2s");
     public volatile int permissions_cache_max_entries = 1000;
@@ -211,7 +215,7 @@ public class Config
     public boolean listen_interface_prefer_ipv6 = false;
     public String broadcast_address;
     public boolean listen_on_broadcast_address = false;
-    public String internode_authenticator;
+    public ParameterizedClass internode_authenticator;
 
     public boolean traverse_auth_from_root = false;
 
@@ -777,6 +781,8 @@ public class Config
      */
     public volatile double range_tombstone_list_growth_factor = 1.5;
 
+    public StorageAttachedIndexOptions sai_options = new StorageAttachedIndexOptions();
+
     /**
      * @deprecated migrate to {@link DatabaseDescriptor#isClientInitialized()}
      */
@@ -826,18 +832,15 @@ public class Config
         isClientMode = clientMode;
     }
 
-    @Deprecated // this warning threshold will be replaced by an equivalent guardrail
-    public volatile int table_count_warn_threshold = 150;
-    @Deprecated // this warning threshold will be replaced by an equivalent guardrail
-    public volatile int keyspace_count_warn_threshold = 40;
-
     public volatile int consecutive_message_errors_threshold = 1;
 
     public volatile SubnetGroups client_error_reporting_exclusions = new SubnetGroups();
     public volatile SubnetGroups internode_error_reporting_exclusions = new SubnetGroups();
 
+    @Replaces(oldName = "keyspace_count_warn_threshold", converter = Converters.KEYSPACE_COUNT_THRESHOLD_TO_GUARDRAIL, deprecated = true)
     public volatile int keyspaces_warn_threshold = -1;
     public volatile int keyspaces_fail_threshold = -1;
+    @Replaces(oldName = "table_count_warn_threshold", converter = Converters.TABLE_COUNT_THRESHOLD_TO_GUARDRAIL, deprecated = true)
     public volatile int tables_warn_threshold = -1;
     public volatile int tables_fail_threshold = -1;
     public volatile int columns_per_table_warn_threshold = -1;
@@ -865,6 +868,10 @@ public class Config
     public volatile boolean drop_truncate_table_enabled = true;
     public volatile boolean drop_keyspace_enabled = true;
     public volatile boolean secondary_indexes_enabled = true;
+
+    public volatile String default_secondary_index = CassandraIndex.NAME;
+    public volatile boolean default_secondary_index_enabled = true;
+
     public volatile boolean uncompressed_tables_enabled = true;
     public volatile boolean compact_tables_enabled = true;
     public volatile boolean read_before_write_list_operations_enabled = true;
@@ -874,7 +881,7 @@ public class Config
     @Replaces(oldName = "compaction_large_partition_warning_threshold", converter = Converters.LONG_BYTES_DATASTORAGE_MEBIBYTES_DATASTORAGE, deprecated = true)
     public volatile DataStorageSpec.LongBytesBound partition_size_warn_threshold = null;
     public volatile DataStorageSpec.LongBytesBound partition_size_fail_threshold = null;
-    @Replaces(oldName = "compaction_tombstone_warning_threshold", converter = Converters.IDENTITY, deprecated = true)
+    @Replaces(oldName = "compaction_tombstone_warning_threshold", converter = Converters.INTEGER_PRIMITIVE_LONG, deprecated = true)
     public volatile long partition_tombstones_warn_threshold = -1;
     public volatile long partition_tombstones_fail_threshold = -1;
     public volatile DataStorageSpec.LongBytesBound column_value_size_warn_threshold = null;
@@ -885,6 +892,8 @@ public class Config
     public volatile int items_per_collection_fail_threshold = -1;
     public volatile int fields_per_udt_warn_threshold = -1;
     public volatile int fields_per_udt_fail_threshold = -1;
+    public volatile int vector_dimensions_warn_threshold = -1;
+    public volatile int vector_dimensions_fail_threshold = -1;
     public volatile int data_disk_usage_percentage_warn_threshold = -1;
     public volatile int data_disk_usage_percentage_fail_threshold = -1;
     public volatile DataStorageSpec.LongBytesBound data_disk_usage_max_disk_size = null;
@@ -1100,6 +1109,11 @@ public class Config
     public volatile DataStorageSpec.LongBytesBound min_tracked_partition_size = new DataStorageSpec.LongBytesBound("1MiB");
     public volatile long min_tracked_partition_tombstone_count = 5000;
     public volatile boolean top_partitions_enabled = true;
+
+    /**
+     * Default compaction configuration, used if a table does not specify any.
+     */
+    public ParameterizedClass default_compaction = null;
 
     public static Supplier<Config> getOverrideLoadConfig()
     {

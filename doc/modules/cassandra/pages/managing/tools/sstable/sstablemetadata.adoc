@@ -16,7 +16,12 @@ sstablemetadata <options> <sstable filename(s)>
 
 [cols=",",]
 |===
+|--colors                 |Use ANSI color sequences
 |--gc_grace_seconds <arg> |The gc_grace_seconds to use when calculating
+|--help                   |Help
+|--scan                   |Full sstable scan for additional details. Only available in 3.0+ sstables. Defaults: false
+|--timestamp_unit <arg>   |Time unit that cell timestamps are written with
+|--unicode                |Use unicode to draw histograms and progress bars
 droppable tombstones
 |===
 
@@ -28,29 +33,34 @@ necessary, find the__Data.db file(s) using sstableutil.
 Example:
 
 ....
-sstableutil keyspace1 standard1 | grep Data
+$ sstableutil keyspace1 standard1 | grep Data
 /var/lib/cassandra/data/keyspace1/standard1-f6845640a6cb11e8b6836d2c86545d91/mc-1-big-Data.db
 
-sstablemetadata /var/lib/cassandra/data/keyspace1/standard1-f6845640a6cb11e8b6836d2c86545d91/mc-1-big-Data.db
+$ sstablemetadata /var/lib/cassandra/data/keyspace1/standard1-f6845640a6cb11e8b6836d2c86545d91/mc-1-big-Data.db
 
 SSTable: /var/lib/cassandra/data/keyspace1/standard1-f6845640a6cb11e8b6836d2c86545d91/mc-1-big
 Partitioner: org.apache.cassandra.dht.Murmur3Partitioner
 Bloom Filter FP chance: 0.010000
-Minimum timestamp: 1535025576141000
-Maximum timestamp: 1535025604309000
-SSTable min local deletion time: 2147483647
-SSTable max local deletion time: 2147483647
+Minimum timestamp: 07/08/2023 09:11:52 (1688800312685792)
+Maximum timestamp: 07/08/2023 09:12:03 (1688800323542149)
+Duration: Days: 0 Hours: 0 Minutes: 0 Seconds: 10
+SSTable min local deletion time: 07/08/2023 09:11:52 (1688800312)
+SSTable max local deletion time: 07/08/2023 09:12:03 (1688800323)
 Compressor: org.apache.cassandra.io.compress.LZ4Compressor
+Compression ratio: 0.553999337227618
 TTL min: 86400
 TTL max: 86400
 First token: -9223004712949498654 (key=39373333373831303130)
 Last token: 9222554117157811897 (key=4f3438394e39374d3730)
+Covered clusterings: ALL
 Estimated droppable tombstones: 0.9188263888888889
 SSTable Level: 0
 Repaired at: 0
+Originating host id: badfcb83-a283-402b-818e-78ede00aa3c4
+Pending repair: --
 Replay positions covered: {CommitLogPosition(segmentId=1535025390651, position=226400)=CommitLogPosition(segmentId=1535025390651, position=6849139)}
-totalColumnsSet: 100000
-totalRows: 20000
+Total Column Cells: 72918
+Total Rows: 24306
 Estimated tombstone drop times:
 1535039100:     80390
 1535039160:      5645
@@ -214,6 +224,7 @@ KeyType: org.apache.cassandra.db.marshal.BytesType
 ClusteringTypes: [org.apache.cassandra.db.marshal.UTF8Type]
 StaticColumns: {C3:org.apache.cassandra.db.marshal.BytesType, C4:org.apache.cassandra.db.marshal.BytesType, C0:org.apache.cassandra.db.marshal.BytesType, C1:org.apache.cassandra.db.marshal.BytesType, C2:org.apache.cassandra.db.marshal.BytesType}
 RegularColumns: {}
+IsTransient: false
 ....
 
 == Specify gc grace seconds
@@ -231,26 +242,52 @@ ref: https://issues.apache.org/jira/browse/CASSANDRA-12208
 Example:
 
 ....
-sstablemetadata /var/lib/cassandra/data/keyspace1/standard1-41b52700b4ed11e896476d2c86545d91/mc-12-big-Data.db | grep "Estimated tombstone drop times" -A4
+$ sstablemetadata /var/lib/cassandra/data/keyspace1/standard1-41b52700b4ed11e896476d2c86545d91/mc-12-big-Data.db | grep "Estimated tombstone drop times" -A4
 Estimated tombstone drop times:
 1536599100:         1
 1536599640:         1
 1536599700:         2
 
-echo $(date +%s)
+$ echo $(date +%s)
 1536602005
 
 # if gc_grace_seconds was configured at 100, all of the tombstones would be currently droppable 
-sstablemetadata --gc_grace_seconds 100 /var/lib/cassandra/data/keyspace1/standard1-41b52700b4ed11e896476d2c86545d91/mc-12-big-Data.db | grep "Estimated droppable tombstones"
+$ sstablemetadata --gc_grace_seconds 100 /var/lib/cassandra/data/keyspace1/standard1-41b52700b4ed11e896476d2c86545d91/mc-12-big-Data.db | grep "Estimated droppable tombstones"
 Estimated droppable tombstones: 4.0E-5
 
 # if gc_grace_seconds was configured at 4700, some of the tombstones would be currently droppable 
-sstablemetadata --gc_grace_seconds 4700 /var/lib/cassandra/data/keyspace1/standard1-41b52700b4ed11e896476d2c86545d91/mc-12-big-Data.db | grep "Estimated droppable tombstones"
+$ sstablemetadata --gc_grace_seconds 4700 /var/lib/cassandra/data/keyspace1/standard1-41b52700b4ed11e896476d2c86545d91/mc-12-big-Data.db | grep "Estimated droppable tombstones"
 Estimated droppable tombstones: 9.61111111111111E-6
 
 # if gc_grace_seconds was configured at 100, none of the tombstones would be currently droppable 
-sstablemetadata --gc_grace_seconds 5000 /var/lib/cassandra/data/keyspace1/standard1-41b52700b4ed11e896476d2c86545d91/mc-12-big-Data.db | grep "Estimated droppable tombstones"
+$ sstablemetadata --gc_grace_seconds 5000 /var/lib/cassandra/data/keyspace1/standard1-41b52700b4ed11e896476d2c86545d91/mc-12-big-Data.db | grep "Estimated droppable tombstones"
 Estimated droppable tombstones: 0.0
+....
+
+== Scanning of a table
+
+It is possible to specify `--scan` option to get additional statistics about a table which might be time-consuming.
+
+Example
+
+....
+sstablemetadata -s /var/lib/cassandra/data/data/ks/tb-dbead8501c9511ee805bb3deafc4499b/nc-1-big-Data.db
+....
+
+This gives you statistics such as:
+
+....
+Size: 120
+Partitions: 2
+Rows: 5
+Tombstones: 0
+Cells: 5
+Widest Partitions:
+  [2] 3
+  [1] 2
+Largest Partitions:
+  [2] 147 (147 B)
+  [1] 98 (98 B)
 ....
 
 == Explanation of each value printed above
@@ -268,7 +305,8 @@ in reads; defined in the table definition
 timestamp of any entry in this sstable, in epoch microseconds 
 |Maximum
 timestamp |maximum timestamp of any entry in this sstable, in epoch
-microseconds 
+microseconds
+|Duration |Difference between Maximum timestamp and Minimum timestamp
 |SSTable min local deletion time |minimum timestamp of
 deletion date, based on TTL, in epoch seconds 
 |SSTable max local deletion
@@ -290,10 +328,9 @@ sstable, if leveled compaction (LCS) is used
 this sstable was marked as repaired via sstablerepairedset, in epoch
 milliseconds 
 |Replay positions covered |the interval of time and commitlog
-positions related to this sstable 
-|totalColumnsSet |number of cells in the
-table 
-|totalRows |number of rows in the table 
+positions related to this sstable
+|totalColumnsSet |number of cells in the table
+|totalRows |number of rows in the table
 |Estimated tombstone drop
 times |approximate number of rows that will expire, ordered by epoch
 seconds 

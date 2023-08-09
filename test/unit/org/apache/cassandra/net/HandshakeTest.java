@@ -22,38 +22,40 @@ import java.nio.channels.ClosedChannelException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import com.google.common.net.InetAddresses;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.config.ParameterizedClass;
-import org.apache.cassandra.gms.GossipDigestSyn;
-import org.apache.cassandra.security.DefaultSslContextFactory;
-import org.apache.cassandra.utils.concurrent.AsyncPromise;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
-import io.netty.channel.EventLoop;
-import io.netty.util.concurrent.Future;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.gms.GossipDigestSyn;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.OutboundConnectionInitiator.Result.MessagingSuccess;
+import org.apache.cassandra.security.DefaultSslContextFactory;
+import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
-import static org.apache.cassandra.net.MessagingService.VERSION_30;
-import static org.apache.cassandra.net.MessagingService.VERSION_3014;
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
+import io.netty.channel.EventLoop;
+import io.netty.util.concurrent.Future;
+
 import static org.apache.cassandra.net.MessagingService.current_version;
 import static org.apache.cassandra.net.MessagingService.minimum_version;
 import static org.apache.cassandra.net.ConnectionType.SMALL_MESSAGES;
 import static org.apache.cassandra.net.OutboundConnectionInitiator.*;
+
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertNull;
 
 // TODO: test failure due to exception, timeout, etc
 public class HandshakeTest
@@ -61,6 +63,7 @@ public class HandshakeTest
     private static final SocketFactory factory = new SocketFactory();
     static final InetAddressAndPort TO_ADDR = InetAddressAndPort.getByAddressOverrideDefaults(InetAddresses.forString("127.0.0.2"), 7012);
     static final InetAddressAndPort FROM_ADDR = InetAddressAndPort.getByAddressOverrideDefaults(InetAddresses.forString("127.0.0.1"), 7012);
+    private volatile Throwable handshakeEx;
 
     @BeforeClass
     public static void startup()
@@ -75,15 +78,21 @@ public class HandshakeTest
         factory.shutdownNow();
     }
 
-    private Result handshake(int req, int outMin, int outMax) throws ExecutionException, InterruptedException
+    @Before
+    public void setup()
     {
-        return handshake(req, new AcceptVersions(outMin, outMax), null);
+        handshakeEx = null;
     }
-    private Result handshake(int req, int outMin, int outMax, int inMin, int inMax) throws ExecutionException, InterruptedException
+
+    private Result handshake(int outMin, int outMax) throws ExecutionException, InterruptedException
     {
-        return handshake(req, new AcceptVersions(outMin, outMax), new AcceptVersions(inMin, inMax));
+        return handshake(new AcceptVersions(outMin, outMax), null);
     }
-    private Result handshake(int req, AcceptVersions acceptOutbound, AcceptVersions acceptInbound) throws ExecutionException, InterruptedException
+    private Result handshake(int outMin, int outMax, int inMin, int inMax) throws ExecutionException, InterruptedException
+    {
+        return handshake(new AcceptVersions(outMin, outMax), new AcceptVersions(inMin, inMax));
+    }
+    private Result handshake(AcceptVersions acceptOutbound, AcceptVersions acceptInbound) throws ExecutionException, InterruptedException
     {
         InboundSockets inbound = new InboundSockets(new InboundConnectionSettings().withAcceptMessaging(acceptInbound));
         try
@@ -98,7 +107,7 @@ public class HandshakeTest
                               new OutboundConnectionSettings(endpoint)
                                                     .withAcceptVersions(acceptOutbound)
                                                     .withDefaults(ConnectionCategory.MESSAGING),
-                              req, AsyncPromise.withExecutor(eventLoop));
+                              AsyncPromise.withExecutor(eventLoop));
             return future.get();
         }
         finally
@@ -111,7 +120,7 @@ public class HandshakeTest
     @Test
     public void testBothCurrentVersion() throws InterruptedException, ExecutionException
     {
-        Result result = handshake(current_version, minimum_version, current_version);
+        Result result = handshake(minimum_version, current_version);
         Assert.assertEquals(Result.Outcome.SUCCESS, result.outcome);
         result.success().channel.close();
     }
@@ -119,7 +128,7 @@ public class HandshakeTest
     @Test
     public void testSendCompatibleOldVersion() throws InterruptedException, ExecutionException
     {
-        Result result = handshake(current_version, current_version, current_version + 1, current_version +1, current_version + 2);
+        Result result = handshake(current_version, current_version + 1, current_version +1, current_version + 2);
         Assert.assertEquals(Result.Outcome.SUCCESS, result.outcome);
         Assert.assertEquals(current_version + 1, result.success().messagingVersion);
         result.success().channel.close();
@@ -128,7 +137,7 @@ public class HandshakeTest
     @Test
     public void testSendCompatibleFutureVersion() throws InterruptedException, ExecutionException
     {
-        Result result = handshake(current_version + 1, current_version - 1, current_version + 1);
+        Result result = handshake(MessagingService.minimum_version, current_version + 1);
         Assert.assertEquals(Result.Outcome.SUCCESS, result.outcome);
         Assert.assertEquals(current_version, result.success().messagingVersion);
         result.success().channel.close();
@@ -137,7 +146,7 @@ public class HandshakeTest
     @Test
     public void testSendIncompatibleFutureVersion() throws InterruptedException, ExecutionException
     {
-        Result result = handshake(current_version + 1, current_version + 1, current_version + 1);
+        Result result = handshake(current_version + 1, current_version + 1);
         Assert.assertEquals(Result.Outcome.INCOMPATIBLE, result.outcome);
         Assert.assertEquals(current_version, result.incompatible().closestSupportedVersion);
         Assert.assertEquals(current_version, result.incompatible().maxMessagingVersion);
@@ -146,94 +155,38 @@ public class HandshakeTest
     @Test
     public void testSendIncompatibleOldVersion() throws InterruptedException, ExecutionException
     {
-        Result result = handshake(current_version + 1, current_version + 1, current_version + 1, current_version + 2, current_version + 3);
+        Result result = handshake(current_version + 1, current_version + 1, current_version + 2, current_version + 3);
         Assert.assertEquals(Result.Outcome.INCOMPATIBLE, result.outcome);
         Assert.assertEquals(current_version + 2, result.incompatible().closestSupportedVersion);
         Assert.assertEquals(current_version + 3, result.incompatible().maxMessagingVersion);
     }
 
     @Test
-    public void testSendCompatibleMaxVersionPre40() throws InterruptedException, ExecutionException
+    public void testSendAllSupported() throws InterruptedException, ExecutionException
     {
-        Result result = handshake(VERSION_3014, VERSION_30, VERSION_3014, VERSION_30, VERSION_3014);
-        Assert.assertEquals(Result.Outcome.SUCCESS, result.outcome);
-        Assert.assertEquals(VERSION_3014, result.success().messagingVersion);
-        result.success().channel.close();
-    }
+        List<MessagingService.Version> supportedVersions = MessagingService.Version.supportedVersions();
+        for (MessagingService.Version outMin : supportedVersions)
+            for (MessagingService.Version outMax : supportedVersions)
+                if (outMin.value <= outMax.value)
+                    for (MessagingService.Version inMin : supportedVersions)
+                        for (MessagingService.Version inMax : supportedVersions)
+                            if (inMin.value <= inMax.value)
+                            {
+                                Result result = handshake(outMin.value, outMax.value, inMin.value, inMax.value);
+                                // expect success if out and in have a version in common
+                                boolean expectSuccess = outMin.value <= inMax.value && inMin.value <= outMax.value;
 
-    @Test
-    public void testSendCompatibleFutureVersionPre40() throws InterruptedException, ExecutionException
-    {
-        Result result = handshake(VERSION_3014, VERSION_30, VERSION_3014, VERSION_30, VERSION_30);
-        Assert.assertEquals(Result.Outcome.RETRY, result.outcome);
-        Assert.assertEquals(VERSION_30, result.retry().withMessagingVersion);
-    }
+                                Assert.assertEquals(String.format("wrong result outcome for outMin %s outMax %s inMin %s inMax %s", outMin.value, outMax.value, inMin.value, inMax.value),
+                                                expectSuccess ? Result.Outcome.SUCCESS : Result.Outcome.INCOMPATIBLE, result.outcome);
 
-    @Test
-    public void testSendIncompatibleFutureVersionPre40() throws InterruptedException, ExecutionException
-    {
-        Result result = handshake(VERSION_3014, VERSION_3014, VERSION_3014, VERSION_30, VERSION_30);
-        Assert.assertEquals(Result.Outcome.INCOMPATIBLE, result.outcome);
-        Assert.assertEquals(-1, result.incompatible().closestSupportedVersion);
-        Assert.assertEquals(VERSION_30, result.incompatible().maxMessagingVersion);
-    }
-
-    @Test
-    public void testSendCompatibleOldVersionPre40() throws InterruptedException
-    {
-        try
-        {
-            handshake(VERSION_30, VERSION_30, VERSION_3014, VERSION_3014, VERSION_3014);
-            Assert.fail("Should have thrown");
+                                if (expectSuccess)
+                                {
+                                    Assert.assertEquals(String.format("wrong agreed messagingVersion for outMin %s outMax %s inMin %s inMax %s", outMin.value, outMax.value, inMin.value, inMax.value),
+                                                    Math.min(outMax.value, inMax.value), result.success().messagingVersion);
+                                    result.success().channel.close();
+                                }
+                            }
         }
-        catch (ExecutionException e)
-        {
-            assertTrue(e.getCause() instanceof ClosedChannelException);
-        }
-    }
-
-    @Test
-    public void testSendIncompatibleOldVersionPre40() throws InterruptedException
-    {
-        try
-        {
-            handshake(VERSION_30, VERSION_30, VERSION_30, VERSION_3014, VERSION_3014);
-            Assert.fail("Should have thrown");
-        }
-        catch (ExecutionException e)
-        {
-            assertTrue(e.getCause() instanceof ClosedChannelException);
-        }
-    }
-
-    @Test
-    public void testSendCompatibleOldVersion40() throws InterruptedException, ExecutionException
-    {
-        Result result = handshake(VERSION_30, VERSION_30, VERSION_30, VERSION_30, current_version);
-        Assert.assertEquals(Result.Outcome.SUCCESS, result.outcome);
-        Assert.assertEquals(VERSION_30, result.success().messagingVersion);
-    }
-
-    @Test
-    public void testSendIncompatibleOldVersion40() throws InterruptedException
-    {
-        try
-        {
-            Assert.fail(Objects.toString(handshake(VERSION_30, VERSION_30, VERSION_30, current_version, current_version)));
-        }
-        catch (ExecutionException e)
-        {
-            assertTrue(e.getCause() instanceof ClosedChannelException);
-        }
-    }
-
-    @Test // fairly contrived case, but since we introduced logic for testing we need to be careful it doesn't make us worse
-    public void testSendToFuturePost40BelievedToBePre40() throws InterruptedException, ExecutionException
-    {
-        Result result = handshake(VERSION_30, VERSION_30, current_version, VERSION_30, current_version + 1);
-        Assert.assertEquals(Result.Outcome.SUCCESS, result.outcome);
-        Assert.assertEquals(VERSION_30, result.success().messagingVersion);
-    }
 
     @Test
     public void testOutboundConnectionfFallbackDuringUpgrades() throws ClosedChannelException, InterruptedException
@@ -356,13 +309,13 @@ public class HandshakeTest
         .withAcceptVersions(new AcceptVersions(minimum_version, current_version))
         .withDefaults(ConnectionCategory.MESSAGING)
         .withEncryption(getServerEncryptionOptions(connectionType, optional))
+        .withDebugCallbacks(new HandshakeAcknowledgeChecker(t -> handshakeEx = t))
         .withFrom(FROM_ADDR);
         OutboundConnections outboundConnections = OutboundConnections.tryRegister(new ConcurrentHashMap<>(), TO_ADDR, settings);
         GossipDigestSyn syn = new GossipDigestSyn("cluster", "partitioner", new ArrayList<>(0));
         Message<GossipDigestSyn> message = Message.out(Verb.GOSSIP_DIGEST_SYN, syn);
         OutboundConnection outboundConnection = outboundConnections.connectionFor(message);
         outboundConnection.enqueue(message);
-        outboundConnection.initiate();
         return outboundConnection;
     }
 
@@ -380,6 +333,7 @@ public class HandshakeTest
             OutboundConnection outboundConnection = initiateOutbound(endpoint, fromConnectionType, fromOptional);
             waitForConnection(outboundConnection);
             assertTrue(outboundConnection.isConnected());
+            assertNull(handshakeEx);
         }
         finally
         {
@@ -393,6 +347,39 @@ public class HandshakeTest
         while (!outboundConnection.isConnected() && System.currentTimeMillis() - startTime < 60000)
         {
             Thread.sleep(1000);
+        }
+    }
+
+    private static class HandshakeAcknowledgeChecker implements OutboundDebugCallbacks
+    {
+        private final AtomicInteger acks = new AtomicInteger(0);
+        private final Consumer<Throwable> fail;
+
+        private HandshakeAcknowledgeChecker(Consumer<Throwable> fail)
+        {
+            this.fail = fail;
+        }
+
+        @Override
+        public void onSendSmallFrame(int messageCount, int payloadSizeInBytes)
+        {
+        }
+
+        @Override
+        public void onSentSmallFrame(int messageCount, int payloadSizeInBytes)
+        {
+        }
+
+        @Override
+        public void onFailedSmallFrame(int messageCount, int payloadSizeInBytes)
+        {
+        }
+
+        @Override
+        public void onConnect(int messagingVersion, OutboundConnectionSettings settings)
+        {
+            if (acks.incrementAndGet() > 1)
+                fail.accept(new AssertionError("Handshake was acknowledged more than once"));
         }
     }
 }

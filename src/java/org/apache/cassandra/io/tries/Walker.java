@@ -17,9 +17,10 @@
  */
 package org.apache.cassandra.io.tries;
 
+import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.ByteBuffer;
-
+import java.util.Arrays;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import org.apache.cassandra.io.sstable.format.Version;
@@ -28,6 +29,7 @@ import org.apache.cassandra.io.util.Rebufferer;
 import org.apache.cassandra.io.util.Rebufferer.BufferHolder;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
+import org.apache.lucene.util.ArrayUtil;
 
 /**
  * Thread-unsafe trie walking helper. This is analogous to {@link org.apache.cassandra.io.util.RandomAccessReader} for
@@ -109,6 +111,11 @@ public class Walker<CONCRETE extends Walker<CONCRETE>> implements AutoCloseable
         return nodeType.payloadFlags(buf, offset);
     }
 
+    protected final boolean hasPayload()
+    {
+        return payloadFlags() != 0;
+    }
+
     protected final int payloadPosition()
     {
         return nodeType.payloadPosition(buf, offset);
@@ -184,7 +191,7 @@ public class Walker<CONCRETE extends Walker<CONCRETE>> implements AutoCloseable
 
     public interface Extractor<RESULT, VALUE>
     {
-        RESULT extract(VALUE walker, int payloadPosition, int payloadFlags);
+        RESULT extract(VALUE walker, int payloadPosition, int payloadFlags) throws IOException;
     }
 
     /**
@@ -268,9 +275,10 @@ public class Walker<CONCRETE extends Walker<CONCRETE>> implements AutoCloseable
      * is in the trie when looking for 'abc' or 'ac', but accepted when looking for 'aa').
      * In order to not have to go back to data that may have exited cache, payloads are extracted when the node is
      * visited (instead of saving the node's position), which requires an extractor to be passed as parameter.
+     * @throws IOException 
      */
     @SuppressWarnings("unchecked")
-    public <RESULT> RESULT prefix(ByteComparable key, Extractor<RESULT, CONCRETE> extractor)
+    public <RESULT> RESULT prefix(ByteComparable key, Extractor<RESULT, CONCRETE> extractor) throws IOException
     {
         RESULT payload = null;
 
@@ -304,9 +312,10 @@ public class Walker<CONCRETE extends Walker<CONCRETE>> implements AutoCloseable
      * does not take that into account. E.g. if trie contains "abba", "as" and "ask", looking for "asking" will find
      * "ask" as the match, but max(lesserBranch) will point to "abba" instead of the correct "as". This problem can
      * only occur if there is a valid prefix match.
+     * @throws IOException 
      */
     @SuppressWarnings("unchecked")
-    public <RESULT> RESULT prefixAndNeighbours(ByteComparable key, Extractor<RESULT, CONCRETE> extractor)
+    public <RESULT> RESULT prefixAndNeighbours(ByteComparable key, Extractor<RESULT, CONCRETE> extractor) throws IOException
     {
         RESULT payload = null;
         greaterBranch = NONE;
@@ -340,6 +349,38 @@ public class Walker<CONCRETE extends Walker<CONCRETE>> implements AutoCloseable
         }
     }
 
+    public ByteComparable getMaxTerm()
+    {
+        TransitionBytesCollector collector = new TransitionBytesCollector();
+        go(root);
+        while (true)
+        {
+            int lastIdx = transitionRange() - 1;
+            long lastChild = transition(lastIdx);
+            if (lastIdx < 0)
+            {
+                return collector.toByteComparable();
+            }
+            collector.add(transitionByte(lastIdx));
+            go(lastChild);
+        }
+    }
+
+    public ByteComparable getMinTerm()
+    {
+        TransitionBytesCollector collector = new TransitionBytesCollector();
+        go(root);
+        while (true)
+        {
+            if (hasPayload())
+            {
+                return collector.toByteComparable();
+            }
+            collector.add(transitionByte(0));
+            go(transition(0));
+        }
+    }
+
     /**
      * To be used only in analysis.
      */
@@ -358,16 +399,16 @@ public class Walker<CONCRETE extends Walker<CONCRETE>> implements AutoCloseable
 
     public interface PayloadToString
     {
-        String payloadAsString(ByteBuffer buf, int payloadPos, int payloadFlags, Version version);
+        String payloadAsString(ByteBuffer buf, int payloadPos, int payloadFlags, Version version) throws IOException;
     }
 
-    public void dumpTrie(PrintStream out, PayloadToString payloadReader, Version version)
+    public void dumpTrie(PrintStream out, PayloadToString payloadReader, Version version) throws IOException
     {
         out.print("ROOT");
         dumpTrie(out, payloadReader, root, "", version);
     }
 
-    private void dumpTrie(PrintStream out, PayloadToString payloadReader, long node, String indent, Version version)
+    private void dumpTrie(PrintStream out, PayloadToString payloadReader, long node, String indent, Version version) throws IOException
     {
         go(node);
         int bits = payloadFlags();
@@ -389,5 +430,41 @@ public class Walker<CONCRETE extends Walker<CONCRETE>> implements AutoCloseable
     {
         return String.format("[Trie Walker - NodeType: %s, source: %s, buffer: %s, buffer file offset: %d, Node buffer offset: %d, Node file position: %d]",
                              nodeType, source, buf, bh.offset(), offset, position);
+    }
+
+    public static class TransitionBytesCollector
+    {
+        protected byte[] bytes = new byte[32];
+        protected int pos = 0;
+
+        public void add(int b)
+        {
+            if (pos == bytes.length)
+            {
+                bytes = ArrayUtil.grow(bytes, pos + 1);
+            }
+            bytes[pos++] = (byte) b;
+        }
+
+        public void pop()
+        {
+            assert pos >= 0;
+            pos--;
+        }
+
+        public ByteComparable toByteComparable()
+        {
+            if (pos <= 0)
+                return null;
+            byte[] value = new byte[pos];
+            System.arraycopy(bytes, 0, value, 0, pos);
+            return v -> ByteSource.fixedLength(value, 0, value.length);
+        }
+
+        @Override
+        public String toString()
+        {
+            return String.format("[Bytes %s, pos %d]", Arrays.toString(bytes), pos);
+        }
     }
 }

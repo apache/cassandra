@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.function.LongPredicate;
 
 import com.google.common.base.Throwables;
@@ -64,8 +64,8 @@ public class Upgrader
         this.controller = new UpgradeController(cfs);
 
         this.strategyManager = cfs.getCompactionStrategyManager();
-        long estimatedTotalKeys = Math.max(cfs.metadata().params.minIndexInterval, SSTableReader.getApproximateKeyCount(Arrays.asList(this.sstable)));
-        long estimatedSSTables = Math.max(1, SSTableReader.getTotalBytes(Arrays.asList(this.sstable)) / strategyManager.getMaxSSTableBytes());
+        long estimatedTotalKeys = Math.max(cfs.metadata().params.minIndexInterval, SSTableReader.getApproximateKeyCount(Collections.singletonList(this.sstable)));
+        long estimatedSSTables = Math.max(1, SSTableReader.getTotalBytes(Collections.singletonList(this.sstable)) / strategyManager.getMaxSSTableBytes());
         this.estimatedRows = (long) Math.ceil((double) estimatedTotalKeys / estimatedSSTables);
     }
 
@@ -83,8 +83,8 @@ public class Upgrader
                          .setTableMetadataRef(cfs.metadata)
                          .setMetadataCollector(sstableMetadataCollector)
                          .setSerializationHeader(SerializationHeader.make(cfs.metadata(), Sets.newHashSet(sstable)))
-                         .addDefaultComponents()
-                         .addFlushObserversForSecondaryIndexes(cfs.indexManager.listIndexes(), transaction.opType())
+                         .addDefaultComponents(cfs.indexManager.listIndexGroups())
+                         .addFlushObserversForSecondaryIndexes(cfs.indexManager.listIndexGroups(), transaction, cfs.metadata.get())
                          .build(transaction, cfs);
     }
 

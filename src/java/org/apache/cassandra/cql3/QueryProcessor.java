@@ -82,8 +82,6 @@ public class QueryProcessor implements QueryHandler
     public static final CassandraVersion CQL_VERSION = new CassandraVersion("3.4.7");
 
     // See comments on QueryProcessor #prepare
-    public static final CassandraVersion NEW_PREPARED_STATEMENT_BEHAVIOUR_SINCE_30 = new CassandraVersion("3.0.26");
-    public static final CassandraVersion NEW_PREPARED_STATEMENT_BEHAVIOUR_SINCE_3X = new CassandraVersion("3.11.12");
     public static final CassandraVersion NEW_PREPARED_STATEMENT_BEHAVIOUR_SINCE_40 = new CassandraVersion("4.0.2");
 
     public static final QueryProcessor instance = new QueryProcessor();
@@ -644,10 +642,7 @@ public class QueryProcessor implements QueryHandler
         synchronized (this)
         {
             CassandraVersion minVersion = Gossiper.instance.getMinVersion(DatabaseDescriptor.getWriteRpcTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
-            if (minVersion != null &&
-                ((minVersion.major == 3 && minVersion.minor == 0 && minVersion.compareTo(NEW_PREPARED_STATEMENT_BEHAVIOUR_SINCE_30) >= 0) ||
-                 (minVersion.major == 3 && minVersion.minor > 0 && minVersion.compareTo(NEW_PREPARED_STATEMENT_BEHAVIOUR_SINCE_3X) >= 0) ||
-                 (minVersion.compareTo(NEW_PREPARED_STATEMENT_BEHAVIOUR_SINCE_40, true) >= 0)))
+            if (minVersion != null && minVersion.compareTo(NEW_PREPARED_STATEMENT_BEHAVIOUR_SINCE_40, true) >= 0)
             {
                 logger.info("Fully upgraded to at least {}", minVersion);
                 newPreparedStatementBehaviour = true;
@@ -661,17 +656,17 @@ public class QueryProcessor implements QueryHandler
      * This method got slightly out of hand, but this is with best intentions: to allow users to be upgraded from any
      * prior version, and help implementers avoid previous mistakes by clearly separating fully qualified and non-fully
      * qualified statement behaviour.
-     *
+     * <p>
      * Basically we need to handle 4 different hashes here;
      * 1. fully qualified query with keyspace
      * 2. fully qualified query without keyspace
      * 3. unqualified query with keyspace
      * 4. unqualified query without keyspace
-     *
-     * The correct combination to return is 2/3 - the problem is during upgrades (assuming upgrading from < 3.0.26)
+     * <p>
+     * The correct combination to return is 2/3 - the problem is during upgrades (assuming upgrading from < 4.0.2)
      * - Existing clients have hash 1 or 3
-     * - Query prepared on a 3.0.26/3.11.12/4.0.2 instance needs to return hash 1/3 to be able to execute it on a 3.0.25 instance
-     * - This is handled by the useNewPreparedStatementBehaviour flag - while there still are 3.0.25 instances in
+     * - Query prepared on a post-4.0.2 instance needs to return hash 1/3 to be able to execute it on a pre-4.0.2 instance
+     * - This is handled by the useNewPreparedStatementBehaviour flag - while there still are pre-4.0.2 instances in
      *   the cluster we always return hash 1/3
      * - Once fully upgraded we start returning hash 2/3, this will cause a prepared statement id mismatch for existing
      *   clients, but they will be able to continue using the old prepared statement id after that exception since we

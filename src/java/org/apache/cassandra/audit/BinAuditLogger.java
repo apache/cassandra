@@ -98,6 +98,11 @@ public class BinAuditLogger implements IAuditLogger
     @VisibleForTesting
     public static class Message extends BinLog.ReleaseableWriteMarshallable implements WeightedQueue.Weighable
     {
+        /**
+         * The shallow size of a {@code Message} object.
+         */
+        private static final long EMPTY_SIZE = ObjectSizes.measure(new Message(""));
+
         private final String message;
 
         public Message(String message)
@@ -130,7 +135,7 @@ public class BinAuditLogger implements IAuditLogger
         @Override
         public int weight()
         {
-            return Ints.checkedCast(ObjectSizes.sizeOf(message));
+            return Ints.checkedCast(EMPTY_SIZE + ObjectSizes.sizeOf(message));
         }
     }
 }

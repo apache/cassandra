@@ -55,12 +55,12 @@ public class Ec2MultiRegionSnitch extends Ec2Snitch
 
     public Ec2MultiRegionSnitch(SnitchProperties props) throws IOException, ConfigurationException
     {
-        this(props, Ec2MetadataServiceConnector.create(props));
+        this(Ec2MetadataServiceConnector.create(props));
     }
 
-    Ec2MultiRegionSnitch(SnitchProperties props, Ec2MetadataServiceConnector connector) throws IOException
+    Ec2MultiRegionSnitch(AbstractCloudMetadataServiceConnector connector) throws IOException
     {
-        super(props, connector);
+        super(connector);
         InetAddress localPublicAddress = InetAddress.getByName(connector.apiCall(PUBLIC_IP_QUERY));
         logger.info("EC2Snitch using publicIP as identifier: {}", localPublicAddress);
         localPrivateAddress = connector.apiCall(PRIVATE_IP_QUERY);
@@ -88,6 +88,6 @@ public class Ec2MultiRegionSnitch extends Ec2Snitch
         }
         Gossiper.instance.addLocalApplicationState(ApplicationState.INTERNAL_ADDRESS_AND_PORT, StorageService.instance.valueFactory.internalAddressAndPort(address));
         Gossiper.instance.addLocalApplicationState(ApplicationState.INTERNAL_IP, StorageService.instance.valueFactory.internalIP(address.getAddress()));
-        Gossiper.instance.register(new ReconnectableSnitchHelper(this, ec2region, true));
+        Gossiper.instance.register(new ReconnectableSnitchHelper(this, getLocalDatacenter(), true));
     }
 }

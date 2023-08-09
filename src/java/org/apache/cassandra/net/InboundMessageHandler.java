@@ -125,7 +125,7 @@ public class InboundMessageHandler extends AbstractMessageHandler
         long currentTimeNanos = approxTime.now();
         Header header = serializer.extractHeader(buf, peer, currentTimeNanos, version);
         long timeElapsed = currentTimeNanos - header.createdAtNanos;
-        int size = serializer.inferMessageSize(buf, buf.position(), buf.limit(), version);
+        int size = serializer.inferMessageSize(buf, buf.position(), buf.limit());
 
         if (approxTime.isAfter(currentTimeNanos, header.expiresAtNanos))
         {
@@ -211,7 +211,7 @@ public class InboundMessageHandler extends AbstractMessageHandler
 
         long currentTimeNanos = approxTime.now();
         Header header = serializer.extractHeader(buf, peer, currentTimeNanos, version);
-        int size = serializer.inferMessageSize(buf, buf.position(), buf.limit(), version);
+        int size = serializer.inferMessageSize(buf, buf.position(), buf.limit());
 
         boolean expired = approxTime.isAfter(currentTimeNanos, header.expiresAtNanos);
         if (!expired && !acquireCapacity(endpointReserve, globalReserve, size, currentTimeNanos, header.expiresAtNanos))

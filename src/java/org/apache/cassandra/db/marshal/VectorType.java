@@ -84,7 +84,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
     {
         super(ComparisonType.CUSTOM);
         if (dimension <= 0)
-            throw new InvalidRequestException(String.format("vectors may only have positive dimentions; given %d", dimension));
+            throw new InvalidRequestException(String.format("vectors may only have positive dimensions; given %d", dimension));
         this.elementType = elementType;
         this.dimension = dimension;
         this.elementSerializer = elementType.getSerializer();
@@ -352,10 +352,11 @@ public final class VectorType<T> extends AbstractType<List<T>>
         }
     }
 
-    private static  <V> void checkConsumedFully(V buffer, ValueAccessor<V> accessor, int offset)
+    private <V> void checkConsumedFully(V buffer, ValueAccessor<V> accessor, int offset)
     {
-        if (!accessor.isEmptyFromOffset(buffer, offset))
-            throw new MarshalException("Unexpected extraneous bytes after vector value");
+        int remaining = accessor.sizeFromOffset(buffer, offset);
+        if (remaining > 0)
+            throw new MarshalException("Unexpected " + remaining + " extraneous bytes after " + asCQL3Type() + " value");
     }
 
     public abstract class VectorSerializer extends TypeSerializer<List<T>>
@@ -494,6 +495,11 @@ public final class VectorType<T> extends AbstractType<List<T>>
                 return;
             int offset = 0;
             int elementSize = elementType.valueLengthIfFixed();
+
+            int expectedSize = elementSize * dimension;
+            if (accessor.size(input) < expectedSize)
+                throw new MarshalException("Not enough bytes to read a " + asCQL3Type());
+
             for (int i = 0; i < dimension; i++)
             {
                 V bb = accessor.slice(input, offset, elementSize);
@@ -628,6 +634,9 @@ public final class VectorType<T> extends AbstractType<List<T>>
             int offset = 0;
             for (int i = 0; i < dimension; i++)
             {
+                if (offset >= accessor.size(input))
+                    throw new MarshalException("Not enough bytes to read a " + asCQL3Type());
+
                 V bb = readValue(input, accessor, offset);
                 offset += sizeOf(bb, accessor);
                 elementSerializer.validate(bb, accessor);

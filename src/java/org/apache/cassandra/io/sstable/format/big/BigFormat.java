@@ -40,11 +40,11 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.GaugeProvider;
 import org.apache.cassandra.io.sstable.IScrubber;
 import org.apache.cassandra.io.sstable.MetricsProviders;
-import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.filter.BloomFilterMetrics;
 import org.apache.cassandra.io.sstable.format.AbstractSSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
@@ -83,9 +83,9 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         public static class Types extends SSTableFormat.Components.Types
         {
             // index of the row keys with pointers to their positions in the data file
-            public static final Component.Type PRIMARY_INDEX = Component.Type.createSingleton("PRIMARY_INDEX", "Index.db", BigFormat.class);
+            public static final Component.Type PRIMARY_INDEX = Component.Type.createSingleton("PRIMARY_INDEX", "Index.db", true, BigFormat.class);
             // holds SSTable Index Summary (sampling of Index component)
-            public static final Component.Type SUMMARY = Component.Type.createSingleton("SUMMARY", "Summary.db", BigFormat.class);
+            public static final Component.Type SUMMARY = Component.Type.createSingleton("SUMMARY", "Summary.db", true, BigFormat.class);
         }
 
         public final static Component PRIMARY_INDEX = Types.PRIMARY_INDEX.getSingleton();
@@ -110,16 +110,6 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
                                                                                 SUMMARY,
                                                                                 COMPRESSION_INFO,
                                                                                 STATS);
-
-        private static final Set<Component> STREAM_COMPONENTS = ImmutableSet.of(DATA,
-                                                                                PRIMARY_INDEX,
-                                                                                STATS,
-                                                                                COMPRESSION_INFO,
-                                                                                FILTER,
-                                                                                SUMMARY,
-                                                                                DIGEST,
-                                                                                CRC);
-
         private static final Set<Component> ALL_COMPONENTS = ImmutableSet.of(DATA,
                                                                              PRIMARY_INDEX,
                                                                              STATS,
@@ -179,12 +169,6 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
     public Set<Component> allComponents()
     {
         return Components.ALL_COMPONENTS;
-    }
-
-    @Override
-    public Set<Component> streamingComponents()
-    {
-        return Components.STREAM_COMPONENTS;
     }
 
     @Override
@@ -367,6 +351,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         // nb (4.0.0): originating host id
         // nc (4.1): improved min/max, partition level deletion presence marker, key range (CASSANDRA-18134)
         // oa (5.0): Long deletionTime to prevent TTL overflow
+        //           token space coverage
         //
         // NOTE: When adding a new version:
         //  - Please add it to LegacySSTableTest
@@ -387,6 +372,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         private final boolean hasPartitionLevelDeletionPresenceMarker;
         private final boolean hasKeyRange;
         private final boolean hasUintDeletionTime;
+        private final boolean hasTokenSpaceCoverage;
 
         /**
          * CASSANDRA-9067: 4.0 bloom filter representation changed (two longs just swapped)
@@ -416,6 +402,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
             hasPartitionLevelDeletionPresenceMarker = version.compareTo("nc") >= 0;
             hasKeyRange = version.compareTo("nc") >= 0;
             hasUintDeletionTime = version.compareTo("oa") >= 0;
+            hasTokenSpaceCoverage = version.compareTo("oa") >= 0;
         }
 
         @Override
@@ -494,6 +481,12 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         public boolean hasImprovedMinMax()
         {
             return hasImprovedMinMax;
+        }
+
+        @Override
+        public boolean hasTokenSpaceCoverage()
+        {
+            return hasTokenSpaceCoverage;
         }
 
         @Override

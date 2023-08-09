@@ -252,7 +252,7 @@ public class CompactionTask extends AbstractCompactionTask
             for (int i = 0; i < mergedRowCounts.length; i++)
                 totalSourceRows += mergedRowCounts[i] * (i + 1);
 
-            String mergeSummary = updateCompactionHistory(taskId, cfs.keyspace.getName(), cfs.getTableName(), mergedRowCounts, startsize, endsize,
+            String mergeSummary = updateCompactionHistory(taskId, cfs.getKeyspaceName(), cfs.getTableName(), mergedRowCounts, startsize, endsize,
                                                           ImmutableMap.of(COMPACTION_TYPE_PROPERTY, compactionType.type));
 
             logger.info(String.format("Compacted (%s) %d sstables to [%s] to level=%d.  %s to %s (~%d%% of original) in %,dms.  Read Throughput = %s, Write Throughput = %s, Row Throughput = ~%,d/s.  %,d total partitions merged to %,d.  Partition merge counts were {%s}. Time spent writing keys = %,dms",
@@ -417,7 +417,7 @@ public class CompactionTask extends AbstractCompactionTask
 
                 String msg = String.format("Not enough space for compaction (%s) of %s.%s, estimated sstables = %d, expected write size = %d",
                                            taskId,
-                                           cfs.keyspace.getName(),
+                                           cfs.getKeyspaceName(),
                                            cfs.name,
                                            Math.max(1, writeSize / strategy.getMaxSSTableBytes()),
                                            writeSize);

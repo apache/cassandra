@@ -4,6 +4,7 @@ The following describes the changes in each version of CQL.
 
 == 3.4.7
 
+* Add vector similarity functions (`18640`)
 * Remove deprecated functions `dateOf` and `unixTimestampOf`, replaced by `toTimestamp` and `toUnixTimestamp` (`18328`)
 * Added support for attaching masking functions to table columns (`18068`)
 * Add UNMASK permission (`18069`)

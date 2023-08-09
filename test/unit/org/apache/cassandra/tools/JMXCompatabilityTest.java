@@ -97,6 +97,7 @@ public class JMXCompatabilityTest extends CQLTester
     {
         List<String> excludeObjects = newArrayList("org.apache.cassandra.metrics:type=ThreadPools.*",
                                                    "org.apache.cassandra.internal:.*",
+                                                   "org.apache.cassandra.metrics:type=BufferPool,name=(Misses|Size)", // removed in CASSANDRA-18313
                                                    "org.apache.cassandra.metrics:type=DroppedMessage.*",
                                                    "org.apache.cassandra.metrics:type=ClientRequest,scope=CASRead,name=ConditionNotMet",
                                                    "org.apache.cassandra.metrics:type=Client,name=connectedThriftClients", // removed in CASSANDRA-11115
@@ -133,6 +134,7 @@ public class JMXCompatabilityTest extends CQLTester
     {
         List<String> excludeObjects = newArrayList("org.apache.cassandra.metrics:type=ThreadPools.*", //lazy initialization in 4.0
                                                    "org.apache.cassandra.internal:.*",
+                                                   "org.apache.cassandra.metrics:type=BufferPool,name=(Misses|Size)", // removed in CASSANDRA-18313
                                                    "org.apache.cassandra.metrics:type=DroppedMessage,scope=PAGED_RANGE.*", //it was deprecated in the previous major version
                                                    "org.apache.cassandra.metrics:type=Client,name=connectedThriftClients", // removed in CASSANDRA-11115
                                                    "org.apache.cassandra.request:type=ReadRepairStage", // removed in CASSANDRA-13910
@@ -169,7 +171,8 @@ public class JMXCompatabilityTest extends CQLTester
     @Test
     public void diff40() throws Throwable
     {
-        List<String> excludeObjects = newArrayList();
+        List<String> excludeObjects = newArrayList("org.apache.cassandra.metrics:type=BufferPool,name=(Misses|Size)" // removed in CASSANDRA-18313
+                );
         List<String> excludeAttributes = newArrayList();
         List<String> excludeOperations = newArrayList();
 
@@ -185,7 +188,8 @@ public class JMXCompatabilityTest extends CQLTester
     @Test
     public void diff41() throws Throwable
     {
-        List<String> excludeObjects = newArrayList();
+        List<String> excludeObjects = newArrayList("org.apache.cassandra.metrics:type=BufferPool,name=(Misses|Size)" // removed in CASSANDRA-18313
+        );
         List<String> excludeAttributes = newArrayList();
         List<String> excludeOperations = newArrayList();
 

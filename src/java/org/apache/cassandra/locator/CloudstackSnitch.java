@@ -17,140 +17,71 @@
  */
 package org.apache.cassandra.locator;
 
-import java.io.DataInputStream;
-import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
-import java.util.Map;
-import java.util.regex.Pattern;
+import java.util.Properties;
 import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileReader;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.gms.EndpointState;
-import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector.DefaultCloudMetadataServiceConnector;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.Pair;
+
+import static org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector.METADATA_URL_PROPERTY;
 
 /**
- * {@code
  * A snitch that assumes a Cloudstack Zone follows the typical convention
- * <country>-<location>-<availability zone> and uses the country/location
+ * {@code country-location-availability zone} and uses the country/location
  * tuple as a datacenter and the availability zone as a rack
- * }
+ *
+ * This snitch is deprecated, and it is eligible for the removal in the next major release of Cassandra.
  */
-
-public class CloudstackSnitch extends AbstractNetworkTopologySnitch
+@Deprecated
+public class CloudstackSnitch extends AbstractCloudMetadataServiceSnitch
 {
-    protected static final Logger logger = LoggerFactory.getLogger(CloudstackSnitch.class);
-    protected static final String ZONE_NAME_QUERY_URI = "/latest/meta-data/availability-zone";
+    static final String ZONE_NAME_QUERY_URI = "/latest/meta-data/availability-zone";
 
-    private Map<InetAddressAndPort, Map<String, String>> savedEndpoints;
-
-    private static final String DEFAULT_DC = "UNKNOWN-DC";
-    private static final String DEFAULT_RACK = "UNKNOWN-RACK";
     private static final String[] LEASE_FILES =
     {
-        "file:///var/lib/dhcp/dhclient.eth0.leases",
-        "file:///var/lib/dhclient/dhclient.eth0.leases"
+    "file:///var/lib/dhcp/dhclient.eth0.leases",
+    "file:///var/lib/dhclient/dhclient.eth0.leases"
     };
 
-    protected String csZoneDc;
-    protected String csZoneRack;
-
-    public CloudstackSnitch() throws IOException, ConfigurationException
+    public CloudstackSnitch() throws IOException
     {
-        String endpoint = csMetadataEndpoint();
-        String zone = csQueryMetadata(endpoint + ZONE_NAME_QUERY_URI);
-        String zone_parts[] = zone.split("-");
+        this(new SnitchProperties(new Properties()));
+    }
 
-        if (zone_parts.length != 3)
-        {
+    public CloudstackSnitch(SnitchProperties snitchProperties) throws IOException
+    {
+        this(new DefaultCloudMetadataServiceConnector(snitchProperties.putIfAbsent(METADATA_URL_PROPERTY, csMetadataEndpoint())));
+    }
+
+    public CloudstackSnitch(AbstractCloudMetadataServiceConnector connector) throws IOException
+    {
+        super(connector, resolveDcAndRack(connector));
+        logger.warn("{} is deprecated and not actively maintained. It will be removed in the next " +
+                    "major version of Cassandra.", CloudstackSnitch.class.getName());
+    }
+
+    private static Pair<String, String> resolveDcAndRack(AbstractCloudMetadataServiceConnector connector) throws IOException
+    {
+        String zone = connector.apiCall(ZONE_NAME_QUERY_URI);
+        String[] zoneParts = zone.split("-");
+
+        if (zoneParts.length != 3)
             throw new ConfigurationException("CloudstackSnitch cannot handle invalid zone format: " + zone);
-        }
-        csZoneDc = zone_parts[0] + "-" + zone_parts[1];
-        csZoneRack = zone_parts[2];
+
+        return Pair.create(zoneParts[0] + '-' + zoneParts[1], zoneParts[2]);
     }
 
-    public String getRack(InetAddressAndPort endpoint)
+    private static String csMetadataEndpoint() throws ConfigurationException
     {
-        if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
-            return csZoneRack;
-        EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
-        if (state == null || state.getApplicationState(ApplicationState.RACK) == null)
-        {
-            if (savedEndpoints == null)
-                savedEndpoints = SystemKeyspace.loadDcRackInfo();
-            if (savedEndpoints.containsKey(endpoint))
-                return savedEndpoints.get(endpoint).get("rack");
-            return DEFAULT_RACK;
-        }
-        return state.getApplicationState(ApplicationState.RACK).value;
-    }
-
-    public String getDatacenter(InetAddressAndPort endpoint)
-    {
-        if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
-            return csZoneDc;
-        EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
-        if (state == null || state.getApplicationState(ApplicationState.DC) == null)
-        {
-            if (savedEndpoints == null)
-                savedEndpoints = SystemKeyspace.loadDcRackInfo();
-            if (savedEndpoints.containsKey(endpoint))
-                return savedEndpoints.get(endpoint).get("data_center");
-            return DEFAULT_DC;
-        }
-        return state.getApplicationState(ApplicationState.DC).value;
-    }
-
-    String csQueryMetadata(String url) throws ConfigurationException, IOException
-    {
-        HttpURLConnection conn = null;
-        DataInputStream is = null;
-
-        try
-        {
-            conn = (HttpURLConnection) new URL(url).openConnection();
-        }
-        catch (Exception e)
-        {
-            throw new ConfigurationException("CloudstackSnitch cannot query wrong metadata URL: " + url);
-        }
-        try
-        {
-            conn.setRequestMethod("GET");
-            if (conn.getResponseCode() != 200)
-            {
-                throw new ConfigurationException("CloudstackSnitch was unable to query metadata.");
-            }
-
-            int cl = conn.getContentLength();
-            byte[] b = new byte[cl];
-            is = new DataInputStream(new BufferedInputStream(conn.getInputStream()));
-            is.readFully(b);
-            return new String(b, StandardCharsets.UTF_8);
-        }
-        finally
-        {
-            FileUtils.close(is);
-            conn.disconnect();
-        }
-    }
-
-    String csMetadataEndpoint() throws ConfigurationException
-    {
-        for (String lease_uri: LEASE_FILES)
+        for (String lease_uri : LEASE_FILES)
         {
             try
             {
@@ -163,15 +94,13 @@ public class CloudstackSnitch extends AbstractNetworkTopologySnitch
             catch (Exception e)
             {
                 JVMStabilityInspector.inspectThrowable(e);
-                continue;
             }
-
         }
 
         throw new ConfigurationException("No valid DHCP lease file could be found.");
     }
 
-    String csEndpointFromLease(File lease) throws ConfigurationException
+    private static String csEndpointFromLease(File lease) throws ConfigurationException
     {
         String line;
         String endpoint = null;

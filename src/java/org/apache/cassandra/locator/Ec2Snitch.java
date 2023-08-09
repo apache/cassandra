@@ -18,19 +18,12 @@
 package org.apache.cassandra.locator;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.gms.EndpointState;
-import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 /**
  * A snitch that assumes an EC2 region is a DC and an EC2 availability_zone
@@ -52,10 +45,8 @@ import org.apache.cassandra.utils.FBUtilities;
  * which is by default set to {@link Ec2MetadataServiceConnector.V2Connector#MAX_TOKEN_TIME_IN_SECONDS}. TTL has
  * to be an integer from the range [30, 21600].
  */
-public class Ec2Snitch extends AbstractNetworkTopologySnitch
+public class Ec2Snitch extends AbstractCloudMetadataServiceSnitch
 {
-    protected static final Logger logger = LoggerFactory.getLogger(Ec2Snitch.class);
-
     private static final String SNITCH_PROP_NAMING_SCHEME = "ec2_naming_scheme";
     static final String EC2_NAMING_LEGACY = "legacy";
     private static final String EC2_NAMING_STANDARD = "standard";
@@ -63,16 +54,7 @@ public class Ec2Snitch extends AbstractNetworkTopologySnitch
     @VisibleForTesting
     public static final String ZONE_NAME_QUERY = "/latest/meta-data/placement/availability-zone";
 
-    private static final String DEFAULT_DC = "UNKNOWN-DC";
-    private static final String DEFAULT_RACK = "UNKNOWN-RACK";
-
-    final String ec2region;
-    private final String ec2zone;
     private final boolean usingLegacyNaming;
-
-    private Map<InetAddressAndPort, Map<String, String>> savedEndpoints;
-
-    protected final Ec2MetadataServiceConnector connector;
 
     public Ec2Snitch() throws IOException, ConfigurationException
     {
@@ -81,23 +63,30 @@ public class Ec2Snitch extends AbstractNetworkTopologySnitch
 
     public Ec2Snitch(SnitchProperties props) throws IOException, ConfigurationException
     {
-        this(props, Ec2MetadataServiceConnector.create(props));
+        this(Ec2MetadataServiceConnector.create(props));
     }
 
-    Ec2Snitch(SnitchProperties props, Ec2MetadataServiceConnector connector) throws IOException
+    Ec2Snitch(AbstractCloudMetadataServiceConnector connector) throws IOException
     {
-        this.connector = connector;
+        super(connector, getDcAndRack(connector));
+        usingLegacyNaming = isUsingLegacyNaming(connector.getProperties());
+    }
+
+    private static Pair<String, String> getDcAndRack(AbstractCloudMetadataServiceConnector connector) throws IOException
+    {
         String az = connector.apiCall(ZONE_NAME_QUERY);
 
         // if using the full naming scheme, region name is created by removing letters from the
         // end of the availability zone and zone is the full zone name
-        usingLegacyNaming = isUsingLegacyNaming(props);
+        boolean usingLegacyNaming = isUsingLegacyNaming(connector.getProperties());
         String region;
+        String localDc;
+        String localRack;
         if (usingLegacyNaming)
         {
             // Split "us-east-1a" or "asia-1a" into "us-east"/"1a" and "asia"/"1a".
             String[] splits = az.split("-");
-            ec2zone = splits[splits.length - 1];
+            localRack = splits[splits.length - 1];
 
             // hack for CASSANDRA-4026
             region = az.substring(0, az.length() - 1);
@@ -109,49 +98,17 @@ public class Ec2Snitch extends AbstractNetworkTopologySnitch
             // grab the region name, which is embedded in the availability zone name.
             // thus an AZ of "us-east-1a" yields the region name "us-east-1"
             region = az.replaceFirst("[a-z]+$","");
-            ec2zone = az;
+            localRack = az;
         }
 
-        String datacenterSuffix = props.get("dc_suffix", "");
-        ec2region = region.concat(datacenterSuffix);
-        logger.info("EC2Snitch using region: {}, zone: {}, properties: {}", ec2region, ec2zone, connector);
+        localDc = region.concat(connector.getProperties().getDcSuffix());
+
+        return Pair.create(localDc, localRack);
     }
 
     private static boolean isUsingLegacyNaming(SnitchProperties props)
     {
         return props.get(SNITCH_PROP_NAMING_SCHEME, EC2_NAMING_STANDARD).equalsIgnoreCase(EC2_NAMING_LEGACY);
-    }
-
-    public String getRack(InetAddressAndPort endpoint)
-    {
-        if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
-            return ec2zone;
-        EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
-        if (state == null || state.getApplicationState(ApplicationState.RACK) == null)
-        {
-            if (savedEndpoints == null)
-                savedEndpoints = SystemKeyspace.loadDcRackInfo();
-            if (savedEndpoints.containsKey(endpoint))
-                return savedEndpoints.get(endpoint).get("rack");
-            return DEFAULT_RACK;
-        }
-        return state.getApplicationState(ApplicationState.RACK).value;
-    }
-
-    public String getDatacenter(InetAddressAndPort endpoint)
-    {
-        if (endpoint.equals(FBUtilities.getBroadcastAddressAndPort()))
-            return ec2region;
-        EndpointState state = Gossiper.instance.getEndpointStateForEndpoint(endpoint);
-        if (state == null || state.getApplicationState(ApplicationState.DC) == null)
-        {
-            if (savedEndpoints == null)
-                savedEndpoints = SystemKeyspace.loadDcRackInfo();
-            if (savedEndpoints.containsKey(endpoint))
-                return savedEndpoints.get(endpoint).get("data_center");
-            return DEFAULT_DC;
-        }
-        return state.getApplicationState(ApplicationState.DC).value;
     }
 
     @Override
@@ -179,7 +136,10 @@ public class Ec2Snitch extends AbstractNetworkTopologySnitch
             // We can still identify as legacy the dc names without a number as a suffix like us-east"
             boolean dcUsesLegacyFormat = dc.matches("^[a-z]+-[a-z]+$");
             if (dcUsesLegacyFormat && !usingLegacyNaming)
+            {
                 valid = false;
+                break;
+            }
         }
 
         for (String rack : racks)
@@ -190,7 +150,10 @@ public class Ec2Snitch extends AbstractNetworkTopologySnitch
             // NOTE: the allowed custom suffix only applies to datacenter (region) names, not availability zones.
             boolean rackUsesLegacyFormat = rack.matches("[\\d][a-z]");
             if (rackUsesLegacyFormat != usingLegacyNaming)
+            {
                 valid = false;
+                break;
+            }
         }
 
         if (!valid)
