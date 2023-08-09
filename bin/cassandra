@@ -214,7 +214,7 @@ launch_service()
 }
 
 # Parse any command line options.
-args=`getopt vRfhp:bD:H:E: "$@"`
+args=`getopt vRJfhp:bD:H:E: "$@"`
 eval set -- "$args"
 
 classname="org.apache.cassandra.service.CassandraDaemon"
@@ -240,6 +240,10 @@ while true; do
         -R)
             allow_root="yes"
             shift
+        ;;
+	-J)
+           allow_experimental_java_ver="yes"
+           shift
         ;;
         -D)
             properties="$properties -D$2"
@@ -274,6 +278,19 @@ if [ "x$allow_root" != "xyes" ] ; then
         echo "If you really want to force running Cassandra as root, use -R command line option."
         exit 1
     fi
+fi
+
+if  [ "$short" \< "11" ];then
+    echo "Cassandra 5.0 requires Java 11 or Java 17."
+    exit 1;
+fi
+
+java_versions_supported=11,17
+supported=$(echo "$java_versions_supported" | tr "," '\n' | grep -F -x "$short")
+if [ "x$allow_experimental_java_ver" != "xyes" ] && [ "x$supported" = "x" ] ; then
+    echo "Experimental Java version not allowed: Cassandra 5.0 requires Java 11 or Java 17."
+    echo "If you would like to test with this version, use -J command line option"
+    exit 1;
 fi
 
 # Start up the service
