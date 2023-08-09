@@ -1711,7 +1711,7 @@ public class ClusteringColumnRestrictionsTest
             columnMetadatas.add(getClusteringColumnDefinition(tableMetadata, firstIndex + i));
             terms.add(toMultiItemTerminal(values[i].toArray(new ByteBuffer[0])));
         }
-        return new MultiColumnRestriction.INRestriction(columnMetadatas, MarkerOrList.list(terms));
+        return new MultiColumnRestriction.INRestriction(columnMetadatas, new MarkerOrTerms.Terms(terms));
     }
 
     /**
@@ -1725,7 +1725,7 @@ public class ClusteringColumnRestrictionsTest
     private static Restriction newSingleIN(TableMetadata tableMetadata, int index, ByteBuffer... values)
     {
         ColumnMetadata columnDef = getClusteringColumnDefinition(tableMetadata, index);
-        return new SingleColumnRestriction.INRestriction(columnDef, MarkerOrList.list(toTerms(values)));
+        return new SingleColumnRestriction.INRestriction(columnDef, new MarkerOrTerms.Terms(toTerms(values)));
     }
 
     /**

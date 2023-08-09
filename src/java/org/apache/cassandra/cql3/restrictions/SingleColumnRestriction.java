@@ -197,9 +197,9 @@ public abstract class SingleColumnRestriction implements SingleRestriction
 
     public static class INRestriction extends SingleColumnRestriction
     {
-        protected final MarkerOrList values;
+        protected final MarkerOrTerms values;
 
-        public INRestriction(ColumnMetadata columnDef, MarkerOrList values)
+        public INRestriction(ColumnMetadata columnDef, MarkerOrTerms values)
         {
             super(columnDef);
             this.values = values;
@@ -268,9 +268,9 @@ public abstract class SingleColumnRestriction implements SingleRestriction
     public static class SliceRestriction extends SingleColumnRestriction
     {
         private final TermSlice slice;
-        private final List<MarkerOrList> skippedValues; // values passed in NOT IN
+        private final List<MarkerOrTerms> skippedValues; // values passed in NOT IN
 
-        private SliceRestriction(ColumnMetadata columnDef, TermSlice slice, List<MarkerOrList> skippedValues)
+        private SliceRestriction(ColumnMetadata columnDef, TermSlice slice, List<MarkerOrTerms> skippedValues)
         {
             super(columnDef);
             assert slice != null;
@@ -285,7 +285,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
             return new SliceRestriction(columnDef, slice, Collections.emptyList());
         }
 
-        public static SliceRestriction fromSkippedValues(ColumnMetadata columnDef, MarkerOrList skippedValues)
+        public static SliceRestriction fromSkippedValues(ColumnMetadata columnDef, MarkerOrTerms skippedValues)
         {
             return new SliceRestriction(columnDef, TermSlice.UNBOUNDED, Collections.singletonList(skippedValues));
         }
@@ -337,9 +337,9 @@ public abstract class SingleColumnRestriction implements SingleRestriction
                 toAdd.add(bound.isStart() ? MultiCBuilder.Element.BOTTOM : MultiCBuilder.Element.TOP);
             }
 
-            for (MarkerOrList markerOrList: skippedValues)
+            for (MarkerOrTerms markerOrTerms : skippedValues)
             {
-                for (ByteBuffer value: markerOrList.bindAndGet(options, columnDef.name))
+                for (ByteBuffer value: markerOrTerms.bindAndGet(options, columnDef.name))
                 {
                     checkBindValueSet(value, "Invalid unset value for column %s", columnDef.name);
                     toAdd.add(MultiCBuilder.Element.bound(value, bound, false));
@@ -369,7 +369,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
             checkFalse(hasBound(Bound.END) && otherSlice.hasBound(Bound.END),
                        "More than one restriction was found for the end bound on %s", columnDef.name);
 
-            List<MarkerOrList> newSkippedValues = new ArrayList<>(skippedValues.size() + otherSlice.skippedValues.size());
+            List<MarkerOrTerms> newSkippedValues = new ArrayList<>(skippedValues.size() + otherSlice.skippedValues.size());
             newSkippedValues.addAll(skippedValues);
             newSkippedValues.addAll(otherSlice.skippedValues);
             return new SliceRestriction(columnDef,  slice.merge(otherSlice.slice), newSkippedValues);
@@ -382,9 +382,9 @@ public abstract class SingleColumnRestriction implements SingleRestriction
                 if (hasBound(b))
                     filter.add(columnDef, slice.getIndexOperator(b), slice.bound(b).bindAndGet(options));
 
-            for (MarkerOrList markerOrList: skippedValues)
+            for (MarkerOrTerms markerOrTerms : skippedValues)
             {
-                for (ByteBuffer value : markerOrList.bindAndGet(options, columnDef.name))
+                for (ByteBuffer value : markerOrTerms.bindAndGet(options, columnDef.name))
                    filter.add(columnDef, Operator.NEQ, value);
             }
         }

@@ -164,7 +164,7 @@ public class MultiColumnRelation extends Relation
     {
         List<ColumnMetadata> receivers = receivers(table);
         Term term = toTerm(receivers, getValue(), table.keyspace, boundNames);
-        MarkerOrList skippedValues = MarkerOrList.list(Collections.singletonList(term));
+        MarkerOrTerms skippedValues = new MarkerOrTerms.Terms(Collections.singletonList(term));
         return MultiColumnRestriction.SliceRestriction.fromSkippedValues(receivers, skippedValues);
     }
 
@@ -176,13 +176,13 @@ public class MultiColumnRelation extends Relation
         if (terms == null)
         {
             Term term = toTerm(receivers, getValue(), table.keyspace, boundNames);
-            return new MultiColumnRestriction.INRestriction(receivers, MarkerOrList.marker((AbstractMarker) term));
+            return new MultiColumnRestriction.INRestriction(receivers, new MarkerOrTerms.Marker((AbstractMarker) term));
         }
 
         if (terms.size() == 1)
             return new MultiColumnRestriction.EQRestriction(receivers, terms.get(0));
 
-        return new MultiColumnRestriction.INRestriction(receivers, MarkerOrList.list(terms));
+        return new MultiColumnRestriction.INRestriction(receivers, new MarkerOrTerms.Terms(terms));
     }
 
     @Override
@@ -190,15 +190,15 @@ public class MultiColumnRelation extends Relation
     {
         List<ColumnMetadata> receivers = receivers(table);
         List<Term> terms = toTerms(receivers, inValues, table.keyspace, boundNames);
-        MarkerOrList values;
+        MarkerOrTerms values;
         if (terms == null)
         {
             Term term = toTerm(receivers, getValue(), table.keyspace, boundNames);
-            values = MarkerOrList.marker((AbstractMarker) term);
+            values = new MarkerOrTerms.Marker((AbstractMarker) term);
         }
         else
         {
-            values = MarkerOrList.list(terms);
+            values = new MarkerOrTerms.Terms(terms);
         }
 
         return MultiColumnRestriction.SliceRestriction.fromSkippedValues(receivers, values);
