@@ -163,7 +163,6 @@ public class SettingsMode implements Serializable
     {
         String[] params = clArgs.remove("-mode");
         List<String> paramList = new ArrayList<>();
-
         if (params == null)
         {
             Cql3Options opts = new Cql3Options();
