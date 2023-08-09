@@ -38,8 +38,6 @@ Commands:::
     Print help for a command or option
   print:;;
     Inspect the output of a distribution definition
-  legacy:;;
-    Legacy support mode
 Primary Options:::
   -pop:;;
     Population distribution and intra-partition visit order
@@ -52,7 +50,8 @@ Primary Options:::
   -rate:;;
     Thread count, rate limit or automatic mode (default is auto)
   -mode:;;
-    Thrift or CQL with options
+    Additional options for authentication and connection properties. Also,
+    "simplenative" can be selected as an alternative to the standalone Java driver
   -errors:;;
     How to handle errors when encountered during stress
   -sample:;;

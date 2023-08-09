@@ -165,8 +165,6 @@ public class StressSettings implements Serializable
     {
         args = repairParams(args);
         final Map<String, String[]> clArgs = parseMap(args);
-        if (clArgs.containsKey("legacy"))
-            return Legacy.build(Arrays.copyOfRange(args, 1, args.length));
         if (SettingsMisc.maybeDoSpecial(clArgs))
             return null;
         return get(clArgs);
