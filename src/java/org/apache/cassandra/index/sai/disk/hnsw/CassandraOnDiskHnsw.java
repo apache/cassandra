@@ -25,6 +25,8 @@ import java.util.PrimitiveIterator;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
+import javax.annotation.concurrent.NotThreadSafe;
+
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
@@ -171,6 +173,7 @@ public class CassandraOnDiskHnsw implements AutoCloseable
         return ordinalsMap.getOrdinalsView();
     }
 
+    @NotThreadSafe
     class OnDiskVectors implements RandomAccessVectorValues<float[]>, AutoCloseable
     {
         private final RandomAccessReader reader;
