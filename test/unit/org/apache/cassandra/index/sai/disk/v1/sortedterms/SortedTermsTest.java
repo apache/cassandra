@@ -84,7 +84,7 @@ public class SortedTermsTest extends SAIRandomizedTester
         try (MetadataWriter metadataWriter = new MetadataWriter(indexDescriptor.openPerSSTableOutput(IndexComponent.GROUP_META)))
         {
             IndexOutputWriter bytesWriter = indexDescriptor.openPerSSTableOutput(IndexComponent.PARTITION_KEY_BLOCKS);
-            NumericValuesWriter blockFPWriter = NumericValuesWriter.create(indexDescriptor, IndexComponent.PARTITION_KEY_BLOCK_OFFSETS, metadataWriter, true);
+            NumericValuesWriter blockFPWriter = new NumericValuesWriter(indexDescriptor, IndexComponent.PARTITION_KEY_BLOCK_OFFSETS, metadataWriter, true);
             try (SortedTermsWriter writer = new SortedTermsWriter(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCKS),
                                                                   metadataWriter,
                                                                   bytesWriter,
@@ -326,7 +326,7 @@ public class SortedTermsTest extends SAIRandomizedTester
         try (MetadataWriter metadataWriter = new MetadataWriter(indexDescriptor.openPerSSTableOutput(IndexComponent.GROUP_META)))
         {
             IndexOutputWriter bytesWriter = indexDescriptor.openPerSSTableOutput(IndexComponent.PARTITION_KEY_BLOCKS);
-            NumericValuesWriter blockFPWriter = NumericValuesWriter.create(indexDescriptor, IndexComponent.PARTITION_KEY_BLOCK_OFFSETS, metadataWriter, true);
+            NumericValuesWriter blockFPWriter = new NumericValuesWriter(indexDescriptor, IndexComponent.PARTITION_KEY_BLOCK_OFFSETS, metadataWriter, true);
             try (SortedTermsWriter writer = new SortedTermsWriter(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCKS),
                                                                   metadataWriter,
                                                                   bytesWriter,

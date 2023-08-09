@@ -150,11 +150,11 @@ public class AbstractPrimaryKeyTester extends SAIRandomizedTester
         if (TypeUtil.isComposite(table.partitionKeyType))
             key = ((CompositeType)table.partitionKeyType).decompose(partitionKeys);
         else
-            key = table.partitionKeyType.fromString((String)partitionKeys[0]);
+            key = table.partitionKeyType.decomposeUntyped(partitionKeys[0]);
         return table.partitioner.decorateKey(key);
     }
 
-    protected Clustering<?> makeClustering(TableMetadata table, String...clusteringKeys)
+    protected Clustering<?> makeClustering(TableMetadata table, Object...clusteringKeys)
     {
         Clustering<?> clustering;
         if (table.comparator.size() == 0)
@@ -163,7 +163,7 @@ public class AbstractPrimaryKeyTester extends SAIRandomizedTester
         {
             ByteBuffer[] values = new ByteBuffer[clusteringKeys.length];
             for (int index = 0; index < table.comparator.size(); index++)
-                values[index] = table.comparator.subtype(index).fromString(clusteringKeys[index]);
+                values[index] = table.comparator.subtype(index).decomposeUntyped(clusteringKeys[index]);
             clustering = Clustering.make(values);
         }
         return clustering;

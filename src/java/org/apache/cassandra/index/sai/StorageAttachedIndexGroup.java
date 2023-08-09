@@ -219,7 +219,7 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
         return getComponents(indexes);
     }
 
-    Set<Component> getComponents(Collection<StorageAttachedIndex> indices)
+    private Set<Component> getComponents(Collection<StorageAttachedIndex> indices)
     {
         Set<Component> components = Version.LATEST.onDiskFormat()
                                                   .perSSTableIndexComponents(baseCfs.metadata.get().comparator.size() > 0)

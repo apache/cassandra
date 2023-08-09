@@ -73,17 +73,23 @@ public enum IndexComponent
     PARTITION_SIZES("PartitionSizes"),
 
     /**
-     * Prefix-compressed blocks of primary keys used for rowId to partition key lookups
+     * Prefix-compressed blocks of partition keys used for rowId to partition key lookups
      */
     PARTITION_KEY_BLOCKS("PartitionKeyBlocks"),
 
     /**
-     * Encoded sequence of offsets to primary key blocks
+     * Encoded sequence of offsets to partition key blocks
      */
     PARTITION_KEY_BLOCK_OFFSETS("PartitionKeyBlockOffsets"),
 
+    /**
+     * Prefix-compressed blocks of clustering keys used for rowId to clustering key lookups
+     */
     CLUSTERING_KEY_BLOCKS("ClusteringKeyBlocks"),
 
+    /**
+     * Encoded sequence of offsets to clustering key blocks
+     */
     CLUSTERING_KEY_BLOCK_OFFSETS("ClusteringKeyBlockOffsets"),
 
     /**

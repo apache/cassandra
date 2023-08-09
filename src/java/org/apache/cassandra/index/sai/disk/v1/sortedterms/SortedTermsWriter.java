@@ -43,7 +43,7 @@ import java.io.IOException;
  * <p>
  * For documentation of the underlying on-disk data structures, see the package documentation.
  * <p>
- * The {@code cassandra.sai.sorted_terms_block_shift} property is used to quickly determine the id of the current block
+ * The {@link #blockShift} field is used to quickly determine the id of the current block
  * based on a point id or to check if we are exactly at the beginning of the block.
  * Terms data are organized in blocks of (2 ^ {@link #blockShift}) terms.
  * The blocks should not be too small because they allow prefix compression of

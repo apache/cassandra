@@ -39,6 +39,7 @@ public interface LongArray extends Closeable
 
     /**
      * Using the given value returns the first index corresponding to the value.
+     *
      * @param value Value to lookup, and it must not be smaller than previous value
      * @return The index of the given value or negative value if target value is greater than all values
      */

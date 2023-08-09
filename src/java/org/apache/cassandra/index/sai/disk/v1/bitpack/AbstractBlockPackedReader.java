@@ -34,7 +34,7 @@ public abstract class AbstractBlockPackedReader implements LongArray
     private final byte[] blockBitsPerValue;
     private final SeekingRandomAccessInput input;
 
-    private long prevTokenValue = Long.MIN_VALUE;
+    private long previousValue = Long.MIN_VALUE;
     private long lastIndex; // the last index visited by token -> row ID searches
 
     AbstractBlockPackedReader(IndexInput indexInput, byte[] blockBitsPerValue, int blockShift, int blockMask, long valueCount)
@@ -79,9 +79,9 @@ public abstract class AbstractBlockPackedReader implements LongArray
 
         // We keep track previous returned value in lastIndex, so searching backward will not return correct result.
         // Also it's logically wrong to search backward during token iteration in PostingListRangeIterator.
-        if (value < prevTokenValue)
-            throw new IllegalArgumentException(String.format("%d is smaller than prev token value %d", value, prevTokenValue));
-        prevTokenValue = value;
+        if (value < previousValue)
+            throw new IllegalArgumentException(String.format("%d is smaller than prev token value %d", value, previousValue));
+        previousValue = value;
 
         int blockIndex = binarySearchBlockMinValues(value);
 

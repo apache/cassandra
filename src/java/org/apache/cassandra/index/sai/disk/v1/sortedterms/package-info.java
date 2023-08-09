@@ -47,6 +47,6 @@
  * </p>
  * <p>
  * The sorted terms data structure is used for the storage and reading of {@link org.apache.cassandra.index.sai.utils.PrimaryKey}s
- * by the {@link org.apache.cassandra.index.sai.disk.v1.SkinnyRowAwarePrimaryKeyMap} and {@link org.apache.cassandra.index.sai.disk.v1.WideRowAwarePrimaryKeyMap}.
+ * by the {@link org.apache.cassandra.index.sai.disk.v1.SkinnyPrimaryKeyMap} and {@link org.apache.cassandra.index.sai.disk.v1.WidePrimaryKeyMap}.
  */
 package org.apache.cassandra.index.sai.disk.v1.sortedterms;

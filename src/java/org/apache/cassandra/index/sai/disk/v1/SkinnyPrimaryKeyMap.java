@@ -50,36 +50,37 @@ import java.util.Arrays;
  * <p>
  * This uses the following on-disk structures:
  * <ul>
- *     <li>Block-packed structure for rowId to token lookups using {@link BlockPackedReader}.
- *     Uses component {@link IndexComponent#TOKEN_VALUES} </li>
- *     <li>A sorted-terms structure for rowId to {@link PrimaryKey} and {@link PrimaryKey} to rowId lookups using
- *     {@link SortedTermsReader}. Uses components {@link IndexComponent#PARTITION_KEY_BLOCKS} and
- *     {@link IndexComponent#PARTITION_KEY_BLOCK_OFFSETS}</li>
+ *     <li>A block-packed structure for rowId to token lookups using {@link BlockPackedReader}.
+ *     Uses the {@link IndexComponent#TOKEN_VALUES} component</li>
+ *     <li>A monotonic block packed structure for rowId to partitionId lookups using {@link MonotonicBlockPackedReader}.
+ *     Uses the {@link IndexComponent#PARTITION_SIZES} component</li>
+ *     <li>A sorted terms structure for rowId to {@link PrimaryKey} and {@link PrimaryKey} to rowId lookups using
+ *     {@link SortedTermsReader}. Uses the {@link IndexComponent#PARTITION_KEY_BLOCKS} and
+ *     {@link IndexComponent#PARTITION_KEY_BLOCK_OFFSETS} components</li>
  * </ul>
  *
- * While the {@link SkinnyRowAwarePrimaryKeyMapFactory} is threadsafe, individual instances of the {@link SkinnyRowAwarePrimaryKeyMap}
+ * While the {@link Factory} is threadsafe, individual instances of the {@link SkinnyPrimaryKeyMap}
  * are not.
  */
 @NotThreadSafe
-public class SkinnyRowAwarePrimaryKeyMap implements PrimaryKeyMap
+public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
 {
     @ThreadSafe
-    public static class SkinnyRowAwarePrimaryKeyMapFactory implements Factory
+    public static class Factory implements PrimaryKeyMap.Factory
     {
         protected final MetadataSource metadataSource;
         protected final LongArray.Factory tokenReaderFactory;
         protected final LongArray.Factory partitionReaderFactory;
         protected final SortedTermsReader partitionKeyReader;
-        protected final SortedTermsMeta partitionKeysMeta;
         protected final IPartitioner partitioner;
         protected final PrimaryKey.Factory primaryKeyFactory;
 
-        protected FileHandle tokensFile;
-        protected FileHandle partitionsFile;
-        protected FileHandle partitionKeyBlockOffsetsFile;
-        protected FileHandle partitionKeyBlocksFile;
+        private FileHandle tokensFile;
+        private FileHandle partitionsFile;
+        private FileHandle partitionKeyBlockOffsetsFile;
+        private FileHandle partitionKeyBlocksFile;
 
-        public SkinnyRowAwarePrimaryKeyMapFactory(IndexDescriptor indexDescriptor, SSTableReader sstable)
+        public Factory(IndexDescriptor indexDescriptor, SSTableReader sstable)
         {
             try
             {
@@ -91,7 +92,7 @@ public class SkinnyRowAwarePrimaryKeyMap implements PrimaryKeyMap
                 this.partitionsFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_SIZES);
                 this.partitionReaderFactory = new MonotonicBlockPackedReader(partitionsFile, partitionsMeta);
                 NumericValuesMeta partitionKeyBlockOffsetsMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCK_OFFSETS)));
-                this.partitionKeysMeta = new SortedTermsMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCKS)));
+                SortedTermsMeta partitionKeysMeta = new SortedTermsMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCKS)));
                 this.partitionKeyBlockOffsetsFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_KEY_BLOCK_OFFSETS);
                 this.partitionKeyBlocksFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_KEY_BLOCKS);
                 this.partitionKeyReader = new SortedTermsReader(partitionKeyBlocksFile, partitionKeyBlockOffsetsFile, partitionKeysMeta, partitionKeyBlockOffsetsMeta);
@@ -110,11 +111,11 @@ public class SkinnyRowAwarePrimaryKeyMap implements PrimaryKeyMap
         {
             LongArray rowIdToToken = new LongArray.DeferredLongArray(tokenReaderFactory::open);
             LongArray rowIdToPartitionId = new LongArray.DeferredLongArray(partitionReaderFactory::open);
-            return new SkinnyRowAwarePrimaryKeyMap(rowIdToToken,
-                                                   rowIdToPartitionId,
-                                                   partitionKeyReader.openCursor(),
-                                                   partitioner,
-                                                   primaryKeyFactory);
+            return new SkinnyPrimaryKeyMap(rowIdToToken,
+                                           rowIdToPartitionId,
+                                           partitionKeyReader.openCursor(),
+                                           partitioner,
+                                           primaryKeyFactory);
         }
 
         @Override
@@ -131,11 +132,11 @@ public class SkinnyRowAwarePrimaryKeyMap implements PrimaryKeyMap
     protected final PrimaryKey.Factory primaryKeyFactory;
     protected final ByteBuffer tokenBuffer = ByteBuffer.allocate(Long.BYTES);
 
-    protected SkinnyRowAwarePrimaryKeyMap(LongArray tokenArray,
-                                          LongArray partitionArray,
-                                          SortedTermsReader.Cursor partitionKeyCursor,
-                                          IPartitioner partitioner,
-                                          PrimaryKey.Factory primaryKeyFactory)
+    protected SkinnyPrimaryKeyMap(LongArray tokenArray,
+                                  LongArray partitionArray,
+                                  SortedTermsReader.Cursor partitionKeyCursor,
+                                  IPartitioner partitioner,
+                                  PrimaryKey.Factory primaryKeyFactory)
     {
         this.tokenArray = tokenArray;
         this.partitionArray = partitionArray;

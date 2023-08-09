@@ -53,10 +53,10 @@ public class SSTableComponentsWriter implements PerSSTableIndexWriter
     {
         this.indexDescriptor = indexDescriptor;
         this.metadataWriter = new MetadataWriter(indexDescriptor.openPerSSTableOutput(IndexComponent.GROUP_META));
-        this.tokenWriter = NumericValuesWriter.create(indexDescriptor, IndexComponent.TOKEN_VALUES, metadataWriter, false);
-        this.partitionSizeWriter = NumericValuesWriter.create(indexDescriptor, IndexComponent.PARTITION_SIZES, metadataWriter, true);
+        this.tokenWriter = new NumericValuesWriter(indexDescriptor, IndexComponent.TOKEN_VALUES, metadataWriter, false);
+        this.partitionSizeWriter = new NumericValuesWriter(indexDescriptor, IndexComponent.PARTITION_SIZES, metadataWriter, true);
         IndexOutputWriter partitionKeyBlocksWriter = indexDescriptor.openPerSSTableOutput(IndexComponent.PARTITION_KEY_BLOCKS);
-        NumericValuesWriter partitionKeyBlockOffsetWriter = NumericValuesWriter.create(indexDescriptor, IndexComponent.PARTITION_KEY_BLOCK_OFFSETS, metadataWriter, true);
+        NumericValuesWriter partitionKeyBlockOffsetWriter = new NumericValuesWriter(indexDescriptor, IndexComponent.PARTITION_KEY_BLOCK_OFFSETS, metadataWriter, true);
         this.partitionKeysWriter = new SortedTermsWriter(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCKS),
                                                          metadataWriter,
                                                          partitionKeyBlocksWriter,
@@ -65,7 +65,7 @@ public class SSTableComponentsWriter implements PerSSTableIndexWriter
         if (indexDescriptor.hasClustering())
         {
             IndexOutputWriter clusteringKeyBlocksWriter = indexDescriptor.openPerSSTableOutput(IndexComponent.CLUSTERING_KEY_BLOCKS);
-            NumericValuesWriter clusteringKeyBlockOffsetWriter = NumericValuesWriter.create(indexDescriptor, IndexComponent.CLUSTERING_KEY_BLOCK_OFFSETS, metadataWriter, true);
+            NumericValuesWriter clusteringKeyBlockOffsetWriter = new NumericValuesWriter(indexDescriptor, IndexComponent.CLUSTERING_KEY_BLOCK_OFFSETS, metadataWriter, true);
             this.clusteringKeysWriter = new SortedTermsWriter(indexDescriptor.componentName(IndexComponent.CLUSTERING_KEY_BLOCKS),
                                                               metadataWriter,
                                                               clusteringKeyBlocksWriter,

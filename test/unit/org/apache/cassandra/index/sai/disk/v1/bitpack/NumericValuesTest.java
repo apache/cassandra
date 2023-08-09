@@ -82,7 +82,7 @@ public class NumericValuesTest extends SAIRandomizedTester
     {
         final long[] array = new long[64_000];
         final IndexDescriptor indexDescriptor = newIndexDescriptor();
-        writeTokens(monotonic, indexDescriptor, array, prev -> monotonic ? prev + nextInt(100) : nextInt(100));
+        writeTokens(monotonic, indexDescriptor, array, prev -> monotonic ? prev + nextInt(100) : nextLong(0, Long.MAX_VALUE));
 
         final MetadataSource source = MetadataSource.loadGroupMetadata(indexDescriptor);
         NumericValuesMeta tokensMeta = new NumericValuesMeta(source.get(indexDescriptor.componentName(IndexComponent.TOKEN_VALUES)));
@@ -106,11 +106,11 @@ public class NumericValuesTest extends SAIRandomizedTester
 
         long current = 0;
         try (MetadataWriter metadataWriter = new MetadataWriter(indexDescriptor.openPerSSTableOutput(IndexComponent.GROUP_META));
-             final NumericValuesWriter numericWriter = NumericValuesWriter.create(indexDescriptor,
-                                                                                  IndexComponent.TOKEN_VALUES,
-                                                                                  metadataWriter,
-                                                                                  monotonic,
-                                                                                  blockSize))
+             final NumericValuesWriter numericWriter = new NumericValuesWriter(indexDescriptor,
+                                                                               IndexComponent.TOKEN_VALUES,
+                                                                               metadataWriter,
+                                                                               monotonic,
+                                                                               blockSize))
         {
             for (int x = 0; x < array.length; x++)
             {

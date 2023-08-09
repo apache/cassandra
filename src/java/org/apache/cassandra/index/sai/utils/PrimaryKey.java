@@ -180,16 +180,20 @@ public interface PrimaryKey extends Comparable<PrimaryKey>, ByteComparable
                 return token;
             }
 
-            @Nullable
             @Override
             public DecoratedKey partitionKey()
             {
                 throw new UnsupportedOperationException();
             }
 
-            @Nullable
             @Override
             public Clustering<?> clustering()
+            {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public ByteSource asComparableBytes(Version version)
             {
                 throw new UnsupportedOperationException();
             }

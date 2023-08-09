@@ -22,6 +22,9 @@ import java.util.stream.IntStream;
 
 import org.junit.Test;
 
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
+
 import static org.apache.cassandra.index.sai.iterators.LongIterator.convert;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
@@ -32,26 +35,24 @@ import static org.junit.Assert.assertTrue;
 
 public class KeyRangeConcatIteratorTest extends AbstractKeyRangeIteratorTester
 {
-    private static final String MUST_BE_SORTED_ERROR = "RangeIterator must be sorted, previous max: PrimaryKey: " +
-                                                       "{ token: %d }, " +
-                                                       "next min: PrimaryKey: { token: %d }";
+    PrimaryKey.Factory primaryKeyFactory = new PrimaryKey.Factory(null);
     @Test
     public void testValidation()
     {
         // Iterators being merged via concatanation must not include each other
         assertThatThrownBy(() -> buildConcat(build(1L, 4L), build(2L, 3L))).isInstanceOf(IllegalArgumentException.class)
-                                                                           .hasMessage(MUST_BE_SORTED_ERROR, 4, 2);
+                                                                           .hasMessage(createErrorMessage(4, 2));
 
         // Iterators being merged via concatanation must not overlap
         assertThatThrownBy(() -> buildConcat(build(1L, 4L), build(2L, 5L))).isInstanceOf(IllegalArgumentException.class)
-                                                                           .hasMessage(MUST_BE_SORTED_ERROR, 4, 2);
+                                                                           .hasMessage(createErrorMessage(4, 2));
 
         assertThatThrownBy(() -> buildConcat(build(1L, 4L), build(0L, 3L))).isInstanceOf(IllegalArgumentException.class)
-                                                                           .hasMessage(MUST_BE_SORTED_ERROR, 4, 0);
+                                                                           .hasMessage(createErrorMessage(4, 0));
 
         // Iterators being merged via concatanation must be sorted
         assertThatThrownBy(() -> buildConcat(build(2L, 4L), build(0L, 1L))).isInstanceOf(IllegalArgumentException.class)
-                                                                           .hasMessage(MUST_BE_SORTED_ERROR, 4, 0);
+                                                                           .hasMessage(createErrorMessage(4, 0));
 
         // allow min boundary included
         KeyRangeIterator concat = buildConcat(build(1L, 4L), build(4L, 5L));
@@ -421,5 +422,12 @@ public class KeyRangeConcatIteratorTest extends AbstractKeyRangeIteratorTester
     private KeyRangeIterator.Builder getConcatBuilder()
     {
         return KeyRangeConcatIterator.builder(16);
+    }
+
+    private String createErrorMessage(int max, int min)
+    {
+        return String.format(KeyRangeConcatIterator.MUST_BE_SORTED_ERROR,
+                             primaryKeyFactory.createTokenOnly(new Murmur3Partitioner.LongToken(max)),
+                             primaryKeyFactory.createTokenOnly(new Murmur3Partitioner.LongToken(min)));
     }
 }

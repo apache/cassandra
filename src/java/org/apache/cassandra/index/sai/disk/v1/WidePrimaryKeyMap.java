@@ -25,7 +25,6 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
-import org.apache.cassandra.index.sai.disk.v1.bitpack.MonotonicBlockPackedReader;
 import org.apache.cassandra.index.sai.disk.v1.bitpack.NumericValuesMeta;
 import org.apache.cassandra.index.sai.disk.v1.sortedterms.SortedTermsMeta;
 import org.apache.cassandra.index.sai.disk.v1.sortedterms.SortedTermsReader;
@@ -43,45 +42,45 @@ import java.io.IOException;
 import java.util.Arrays;
 
 /**
- * An extension of the {@link SkinnyRowAwarePrimaryKeyMap} for wide tables (those with clustering columns).
+ * An extension of the {@link SkinnyPrimaryKeyMap} for wide tables (those with clustering columns).
  * <p>
- * While the {@link WideRowAwarePrimaryKeyMapFactory} is threadsafe, individual instances of the {@link WideRowAwarePrimaryKeyMap}
+ * This used the following additional on-disk structures to the {@link SkinnyPrimaryKeyMap}
+ * <ul>
+ *     <li>A sorted terms structure for rowId to {@link Clustering} and {@link Clustering} to rowId lookups using
+ *     {@link SortedTermsReader}. Uses the {@link IndexComponent#CLUSTERING_KEY_BLOCKS} and
+ *     {@link IndexComponent#CLUSTERING_KEY_BLOCK_OFFSETS} components</li>
+ * </ul>
+ * While the {@link Factory} is threadsafe, individual instances of the {@link WidePrimaryKeyMap}
  * are not.
  */
 @NotThreadSafe
-public class WideRowAwarePrimaryKeyMap extends SkinnyRowAwarePrimaryKeyMap
+public class WidePrimaryKeyMap extends SkinnyPrimaryKeyMap
 {
     @ThreadSafe
-    public static class WideRowAwarePrimaryKeyMapFactory extends SkinnyRowAwarePrimaryKeyMapFactory
+    public static class Factory extends SkinnyPrimaryKeyMap.Factory
     {
         private final ClusteringComparator clusteringComparator;
-        protected final LongArray.Factory partitionReaderFactory;
-        protected final SortedTermsReader clusteringKeyReader;
-        protected final SortedTermsMeta clusteringKeyMeta;
+        private final SortedTermsReader clusteringKeyReader;
 
-        protected FileHandle partitionsFile;
-        protected FileHandle clusteringKeyBlockOffsetsFile;
-        protected FileHandle clustingingKeyBlocksFile;
+        private FileHandle clusteringKeyBlockOffsetsFile;
+        private FileHandle clustingingKeyBlocksFile;
 
-        public WideRowAwarePrimaryKeyMapFactory(IndexDescriptor indexDescriptor, SSTableReader sstable)
+        public Factory(IndexDescriptor indexDescriptor, SSTableReader sstable)
         {
             super(indexDescriptor, sstable);
 
             try
             {
                 this.clusteringComparator = indexDescriptor.clusteringComparator;
-                this.partitionsFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_SIZES);
                 this.clusteringKeyBlockOffsetsFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.CLUSTERING_KEY_BLOCK_OFFSETS);
                 this.clustingingKeyBlocksFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.CLUSTERING_KEY_BLOCKS);
-                NumericValuesMeta partitionsMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_SIZES)));
-                this.partitionReaderFactory = new MonotonicBlockPackedReader(partitionsFile, partitionsMeta);
                 NumericValuesMeta clusteringKeyBlockOffsetsMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.CLUSTERING_KEY_BLOCK_OFFSETS)));
-                this.clusteringKeyMeta = new SortedTermsMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.CLUSTERING_KEY_BLOCKS)));
+                SortedTermsMeta clusteringKeyMeta = new SortedTermsMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.CLUSTERING_KEY_BLOCKS)));
                 this.clusteringKeyReader = new SortedTermsReader(clustingingKeyBlocksFile, clusteringKeyBlockOffsetsFile, clusteringKeyMeta, clusteringKeyBlockOffsetsMeta);
             }
             catch (Throwable t)
             {
-                throw Throwables.unchecked(Throwables.close(t, partitionsFile, clustingingKeyBlocksFile, clusteringKeyBlockOffsetsFile));
+                throw Throwables.unchecked(Throwables.close(t, clustingingKeyBlocksFile, clusteringKeyBlockOffsetsFile));
             }
         }
 
@@ -92,33 +91,33 @@ public class WideRowAwarePrimaryKeyMap extends SkinnyRowAwarePrimaryKeyMap
             LongArray rowIdToToken = new LongArray.DeferredLongArray(tokenReaderFactory::open);
             LongArray partitionIdToToken = new LongArray.DeferredLongArray(partitionReaderFactory::open);
 
-            return new WideRowAwarePrimaryKeyMap(rowIdToToken,
-                                                 partitionIdToToken,
-                                                 partitionKeyReader.openCursor(),
-                                                 clusteringKeyReader.openCursor(),
-                                                 partitioner,
-                                                 primaryKeyFactory,
-                                                 clusteringComparator);
+            return new WidePrimaryKeyMap(rowIdToToken,
+                                         partitionIdToToken,
+                                         partitionKeyReader.openCursor(),
+                                         clusteringKeyReader.openCursor(),
+                                         partitioner,
+                                         primaryKeyFactory,
+                                         clusteringComparator);
         }
 
         @Override
         public void close()
         {
             super.close();
-            FileUtils.closeQuietly(Arrays.asList(partitionsFile, clustingingKeyBlocksFile, clusteringKeyBlockOffsetsFile));
+            FileUtils.closeQuietly(Arrays.asList(clustingingKeyBlocksFile, clusteringKeyBlockOffsetsFile));
         }
     }
 
     private final ClusteringComparator clusteringComparator;
     private final SortedTermsReader.Cursor clusteringKeyCursor;
 
-    private WideRowAwarePrimaryKeyMap(LongArray tokenArray,
-                                      LongArray partitionArray,
-                                      SortedTermsReader.Cursor partitionKeyCursor,
-                                      SortedTermsReader.Cursor clusteringKeyCursor,
-                                      IPartitioner partitioner,
-                                      PrimaryKey.Factory primaryKeyFactory,
-                                      ClusteringComparator clusteringComparator)
+    private WidePrimaryKeyMap(LongArray tokenArray,
+                              LongArray partitionArray,
+                              SortedTermsReader.Cursor partitionKeyCursor,
+                              SortedTermsReader.Cursor clusteringKeyCursor,
+                              IPartitioner partitioner,
+                              PrimaryKey.Factory primaryKeyFactory,
+                              ClusteringComparator clusteringComparator)
     {
         super(tokenArray, partitionArray, partitionKeyCursor, partitioner, primaryKeyFactory);
 
@@ -144,7 +143,7 @@ public class WideRowAwarePrimaryKeyMap extends SkinnyRowAwarePrimaryKeyMap
     public void close()
     {
         super.close();
-        FileUtils.closeQuietly(Arrays.asList(partitionArray, clusteringKeyCursor));
+        FileUtils.closeQuietly(clusteringKeyCursor);
     }
 
     @Override

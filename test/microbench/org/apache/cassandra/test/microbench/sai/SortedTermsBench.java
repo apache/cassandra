@@ -35,7 +35,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.SSTableComponentsWriter;
-import org.apache.cassandra.index.sai.disk.v1.WideRowAwarePrimaryKeyMap;
+import org.apache.cassandra.index.sai.disk.v1.WidePrimaryKeyMap;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -69,6 +69,8 @@ import static org.mockito.Mockito.when;
 @State(Scope.Benchmark)
 public class SortedTermsBench
 {
+    private static final int rows = 1_000_000;
+
     static
     {
         DatabaseDescriptor.toolInitialization();
@@ -85,16 +87,16 @@ public class SortedTermsBench
     private PrimaryKey primaryKey;
 
     @Param({"3", "4", "5"})
-    private int partitionBlockShift;
+    public int partitionBlockShift;
 
     @Param({"3", "4", "5"})
-    private int clusteringBlockShift;
+    public int clusteringBlockShift;
 
     @Param({"10", "100", "1000", "10000"})
-    private int partitionSize;
+    public int partitionSize;
 
     @Param({"true", "false"})
-    private boolean randomClustering;
+    public boolean randomClustering;
 
     @Setup(Level.Trial)
     public void trialSetup() throws Exception
@@ -123,19 +125,17 @@ public class SortedTermsBench
 
         PrimaryKey.Factory factory = new PrimaryKey.Factory(metadata.comparator);
 
-        int rows = 1000000;
-
         PrimaryKey[] primaryKeys = new PrimaryKey[rows];
         int partition = 0;
-        int partitionCounter = 0;
+        int partitionRowCounter = 0;
         for (int index = 0; index < rows; index++)
         {
             primaryKeys[index] = factory.create(makeKey(metadata, (long) partition, (long) partition), makeClustering(metadata));
-            partitionCounter++;
-            if (partitionCounter == partitionSize)
+            partitionRowCounter++;
+            if (partitionRowCounter == partitionSize)
             {
                 partition++;
-                partitionCounter = 0;
+                partitionRowCounter = 0;
             }
         }
 
@@ -157,7 +157,7 @@ public class SortedTermsBench
         SSTableReader sstableReader = mock(SSTableReader.class);
         when(sstableReader.metadata()).thenReturn(metadata);
 
-        PrimaryKeyMap.Factory mapFactory = new WideRowAwarePrimaryKeyMap.WideRowAwarePrimaryKeyMapFactory(indexDescriptor, sstableReader);
+        PrimaryKeyMap.Factory mapFactory = new WidePrimaryKeyMap.Factory(indexDescriptor, sstableReader);
 
         primaryKeyMap = mapFactory.newPerSSTablePrimaryKeyMap();
 
@@ -170,7 +170,7 @@ public class SortedTermsBench
         return primaryKeyMap.rowIdFromPrimaryKey(primaryKey);
     }
 
-    protected DecoratedKey makeKey(TableMetadata table, Object...partitionKeys)
+    private static DecoratedKey makeKey(TableMetadata table, Object...partitionKeys)
     {
         ByteBuffer key;
         if (TypeUtil.isComposite(table.partitionKeyType))
@@ -180,7 +180,7 @@ public class SortedTermsBench
         return table.partitioner.decorateKey(key);
     }
 
-    protected Clustering<?> makeClustering(TableMetadata table)
+    private Clustering<?> makeClustering(TableMetadata table)
     {
         Clustering<?> clustering;
         if (table.comparator.size() == 0)

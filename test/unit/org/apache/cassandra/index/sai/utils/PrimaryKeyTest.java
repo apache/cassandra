@@ -33,7 +33,7 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
         int rows = nextInt(10, 100);
         PrimaryKey[] keys = new PrimaryKey[rows];
         for (int index = 0; index < rows; index++)
-            keys[index] = factory.create(makeKey(simplePartition, Integer.toString(index)), Clustering.EMPTY);
+            keys[index] = factory.create(makeKey(simplePartition, index), Clustering.EMPTY);
 
         Arrays.sort(keys);
 
@@ -64,7 +64,7 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
         int clustering = 0;
         for (int index = 0; index < rows; index++)
         {
-            keys[index] = factory.create(makeKey(simplePartitionSingleClusteringAsc, Integer.toString(partition)),
+            keys[index] = factory.create(makeKey(simplePartitionSingleClusteringAsc, partition),
                                          makeClustering(simplePartitionSingleClusteringAsc, Integer.toString(clustering++)));
             if (clustering == 5)
             {
@@ -89,7 +89,7 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
         int clustering2 = 0;
         for (int index = 0; index < rows; index++)
         {
-            keys[index] = factory.create(makeKey(simplePartitionMultipleClusteringAsc, Integer.toString(partition)),
+            keys[index] = factory.create(makeKey(simplePartitionMultipleClusteringAsc, partition),
                                          makeClustering(simplePartitionMultipleClusteringAsc, Integer.toString(clustering1), Integer.toString(clustering2++)));
             if (clustering2 == 5)
             {
@@ -118,7 +118,7 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
         int clustering = 0;
         for (int index = 0; index < rows; index++)
         {
-            keys[index] = factory.create(makeKey(simplePartitionSingleClusteringDesc, Integer.toString(partition)),
+            keys[index] = factory.create(makeKey(simplePartitionSingleClusteringDesc, partition),
                                          makeClustering(simplePartitionSingleClusteringDesc, Integer.toString(clustering++)));
             if (clustering == 5)
             {
@@ -143,7 +143,7 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
         int clustering2 = 0;
         for (int index = 0; index < rows; index++)
         {
-            keys[index] = factory.create(makeKey(simplePartitionMultipleClusteringDesc, Integer.toString(partition)),
+            keys[index] = factory.create(makeKey(simplePartitionMultipleClusteringDesc, partition),
                                          makeClustering(simplePartitionMultipleClusteringDesc, Integer.toString(clustering1), Integer.toString(clustering2++)));
             if (clustering2 == 5)
             {
@@ -281,7 +281,7 @@ public class PrimaryKeyTest extends AbstractPrimaryKeyTester
         int clustering2 = 0;
         for (int index = 0; index < rows; index++)
         {
-            keys[index] = factory.create(makeKey(simplePartitionMultipleClusteringMixed, Integer.toString(partition)),
+            keys[index] = factory.create(makeKey(simplePartitionMultipleClusteringMixed, partition),
                                          makeClustering(simplePartitionMultipleClusteringMixed, Integer.toString(clustering1), Integer.toString(clustering2++)));
             if (clustering2 == 5)
             {

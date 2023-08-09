@@ -82,7 +82,7 @@ public class WideRowPrimaryKeyTest extends AbstractPrimaryKeyTester
         SSTableReader sstableReader = mock(SSTableReader.class);
         when(sstableReader.metadata()).thenReturn(compositePartitionMultipleClusteringAsc);
 
-        try (PrimaryKeyMap.Factory mapFactory = new WideRowAwarePrimaryKeyMap.WideRowAwarePrimaryKeyMapFactory(indexDescriptor, sstableReader);
+        try (PrimaryKeyMap.Factory mapFactory = new WidePrimaryKeyMap.Factory(indexDescriptor, sstableReader);
              PrimaryKeyMap primaryKeyMap = mapFactory.newPerSSTablePrimaryKeyMap())
         {
             for (int key = 0; key < rows; key++)
