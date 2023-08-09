@@ -1,8 +1,8 @@
-cassandra (3.11.16) UNRELEASED; urgency=medium
+cassandra (3.11.16) unstable; urgency=medium
 
   * New release
 
- -- Brandon Williams <brandonwilliams@apache.org>  Fri, 05 May 2023 05:56:38 -0500
+ -- Stefan Miklosovic <smiklosovic@apache.org>  Wed, 09 Aug 2023 23:42:00 +0200
 
 cassandra (3.11.15) unstable; urgency=medium
 
