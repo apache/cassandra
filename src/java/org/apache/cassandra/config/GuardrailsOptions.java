@@ -82,6 +82,7 @@ public class GuardrailsOptions implements GuardrailsConfig
         validateSizeThreshold(config.collection_size_warn_threshold, config.collection_size_fail_threshold, false, "collection_size");
         validateMaxIntThreshold(config.items_per_collection_warn_threshold, config.items_per_collection_fail_threshold, "items_per_collection");
         validateMaxIntThreshold(config.fields_per_udt_warn_threshold, config.fields_per_udt_fail_threshold, "fields_per_udt");
+        validateMaxIntThreshold(config.vector_dimensions_warn_threshold, config.vector_dimensions_fail_threshold, "vector_dimensions");
         validatePercentageThreshold(config.data_disk_usage_percentage_warn_threshold, config.data_disk_usage_percentage_fail_threshold, "data_disk_usage_percentage");
         validateDataDiskUsageMaxDiskSize(config.data_disk_usage_max_disk_size);
         validateMinRFThreshold(config.minimum_replication_factor_warn_threshold, config.minimum_replication_factor_fail_threshold);
@@ -695,6 +696,31 @@ public class GuardrailsOptions implements GuardrailsConfig
                                   fail,
                                   () -> config.fields_per_udt_fail_threshold,
                                   x -> config.fields_per_udt_fail_threshold = x);
+    }
+
+    @Override
+    public int getVectorDimensionsWarnThreshold()
+    {
+        return config.vector_dimensions_warn_threshold;
+    }
+
+    @Override
+    public int getVectorDimensionsFailThreshold()
+    {
+        return config.vector_dimensions_fail_threshold;
+    }
+
+    public void setVectorDimensionsThreshold(int warn, int fail)
+    {
+        validateMaxIntThreshold(warn, fail, "vector_dimensions");
+        updatePropertyWithLogging("vector_dimensions_warn_threshold",
+                                  warn,
+                                  () -> config.vector_dimensions_warn_threshold,
+                                  x -> config.vector_dimensions_warn_threshold = x);
+        updatePropertyWithLogging("vector_dimensions_fail_threshold",
+                                  fail,
+                                  () -> config.vector_dimensions_fail_threshold,
+                                  x -> config.vector_dimensions_fail_threshold = x);
     }
 
     public int getDataDiskUsagePercentageWarnThreshold()
