@@ -383,7 +383,12 @@
             <exclusion groupId="org.hamcrest" artifactId="hamcrest-core"/>
           </dependency>
 	  <dependency groupId="org.mockito" artifactId="mockito-core" version="3.2.4" scope="test"/>
+<<<<<<< HEAD
           <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.16" scope="test"/>
+=======
+	  <!-- TODO: Remove SNAPSHOT once dtest-api is released -->
+          <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.16-f3a3b98-SNAPSHOT" scope="test"/>
+>>>>>>> ca8c3b66c2 (DO NOT COMMIT - Allow SNAPSHOT builds for PRs)
           <dependency groupId="org.reflections" artifactId="reflections" version="0.10.2" scope="test"/>
           <dependency groupId="org.quicktheories" artifactId="quicktheories" version="0.25" scope="test"/>
           <dependency groupId="org.apache.hadoop" artifactId="hadoop-core" version="1.0.3" scope="provided">

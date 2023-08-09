@@ -52,7 +52,11 @@
             <remoterepo id="resolver-central" url="${artifact.remoteRepository.central}"/>
             <remoterepo id="resolver-apache" url="${artifact.remoteRepository.apache}"/>
             <!-- Only needed for PR builds - remove before commit -->
-            <!-- <remoterepo id="resolver-apache-snapshot" url="https://repository.apache.org/content/repositories/snapshots" releases="false" snapshots="true" updates="always" checksums="fail" /> -->
+<<<<<<< HEAD
+<!--        <remoterepo id="resolver-apache-snapshot" url="https://repository.apache.org/content/repositories/snapshots" releases="false" snapshots="true" updates="always" checksums="fail" />-->
+=======
+            <remoterepo id="resolver-apache-snapshot" url="https://repository.apache.org/content/repositories/snapshots" releases="false" snapshots="true" updates="always" checksums="fail" />
+>>>>>>> ca8c3b66c2 (DO NOT COMMIT - Allow SNAPSHOT builds for PRs)
         </resolver:remoterepos>
 
         <resolver:resolve>

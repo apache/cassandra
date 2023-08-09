@@ -18,14 +18,13 @@
 
 package org.apache.cassandra.distributed.impl;
 
-import java.lang.reflect.Field;
+import java.io.IOException;
 import java.net.InetAddress;
-import java.net.MalformedURLException;
 import java.util.HashMap;
-import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import javax.management.remote.JMXConnector;
-import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXConnectorServer;
 import javax.management.remote.JMXServiceURL;
 import javax.management.remote.rmi.RMIConnectorServer;
@@ -34,6 +33,8 @@ import javax.management.remote.rmi.RMIJRMPServerImpl;
 import org.slf4j.Logger;
 
 import org.apache.cassandra.distributed.api.IInstanceConfig;
+import org.apache.cassandra.distributed.shared.JMXUtil;
+import org.apache.cassandra.distributed.shared.Uninterruptibles;
 import org.apache.cassandra.utils.JMXServerUtils;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.RMIClientSocketFactoryImpl;
@@ -41,6 +42,7 @@ import sun.rmi.transport.tcp.TCPEndpoint;
 
 import static org.apache.cassandra.distributed.api.Feature.JMX;
 import static org.apache.cassandra.utils.MBeanWrapper.IS_DISABLED_MBEAN_REGISTRATION;
+import static org.apache.cassandra.utils.ReflectionUtils.clearMapField;
 
 public class IsolatedJmx
 {
@@ -48,7 +50,8 @@ public class IsolatedJmx
     private static final String SUN_RMI_TRANSPORT_TCP_THREADKEEPALIVETIME = "sun.rmi.transport.tcp.threadKeepAliveTime";
     /** Controls the distributed garbage collector lease time for JMX objects. */
     private static final String JAVA_RMI_DGC_LEASE_VALUE_IN_JVM_DTEST ="java.rmi.dgc.leaseValue";
-    private static final int RMI_KEEPALIVE_TIME = 1000;
+    public static final int RMI_KEEPALIVE_TIME = 1000;
+    public static final String UNKNOWN_JMX_CONNECTION_ERROR = "Could not connect to JMX due to an unknown error";
 
     private JMXConnectorServer jmxConnectorServer;
     private JMXServerUtils.JmxRegistry registry;
@@ -59,7 +62,8 @@ public class IsolatedJmx
     private Logger inInstancelogger;
     private IInstanceConfig config;
 
-    public IsolatedJmx(Instance instance, Logger inInstancelogger) {
+    public IsolatedJmx(Instance instance, Logger inInstancelogger)
+    {
         this.inInstancelogger = inInstancelogger;
         config = instance.config();
     }
@@ -127,45 +131,29 @@ public class IsolatedJmx
 
             registry.setRemoteServerStub(jmxRmiServer.toStub());
             JMXServerUtils.logJmxServiceUrl(addr, jmxPort);
-            waitForJmxAvailability(hostname, jmxPort, env);
+            waitForJmxAvailability(env);
         }
-        catch (Throwable e)
+        catch (Throwable t)
         {
-            throw new RuntimeException("Feature.JMX was enabled but could not be started.", e);
+            throw new RuntimeException("Feature.JMX was enabled but could not be started.", t);
         }
     }
 
-
-    private void waitForJmxAvailability(String hostname, int rmiPort, Map<String, Object> env) throws InterruptedException, MalformedURLException
+    private void waitForJmxAvailability(Map<String, ?> env)
     {
-        String url = String.format("service:jmx:rmi:///jndi/rmi://%s:%d/jmxrmi", hostname, rmiPort);
-        JMXServiceURL serviceURL = new JMXServiceURL(url);
-        int attempts = 0;
-        Throwable lastThrown = null;
-        while (attempts < 20)
+        try (JMXConnector ignored = JMXUtil.getJmxConnector(config, 20, env))
         {
-            attempts++;
-            try (JMXConnector ignored = JMXConnectorFactory.connect(serviceURL, env))
-            {
-                inInstancelogger.info("Connected to JMX server at {} after {} attempt(s)",
-                                      url, attempts);
-                return;
-            }
-            catch (MalformedURLException e)
-            {
-                throw new RuntimeException(e);
-            }
-            catch (Throwable thrown)
-            {
-                lastThrown = thrown;
-            }
-            inInstancelogger.info("Could not connect to JMX on {} after {} attempts. Will retry.", url, attempts);
-            Thread.sleep(1000);
+            // Do nothing - JMXUtil now retries
         }
-        throw new RuntimeException("Could not start JMX - unreachable after 20 attempts", lastThrown);
+        catch (IOException iex)
+        {
+            // If we land here, there's something more than a timeout
+            inInstancelogger.error(UNKNOWN_JMX_CONNECTION_ERROR, iex);
+            throw new RuntimeException(UNKNOWN_JMX_CONNECTION_ERROR, iex);
+        }
     }
 
-    public void stopJmx() throws IllegalAccessException, NoSuchFieldException, InterruptedException
+    public void stopJmx()
     {
         if (!config.has(JMX))
             return;
@@ -199,6 +187,14 @@ public class IsolatedJmx
         }
         try
         {
+            clientSocketFactory.close();
+        }
+        catch (Throwable e)
+        {
+            inInstancelogger.warn("failed to close clientSocketFactory.", e);
+        }
+        try
+        {
             serverSocketFactory.close();
         }
         catch (Throwable e)
@@ -207,25 +203,18 @@ public class IsolatedJmx
         }
         // The TCPEndpoint class holds references to a class in the in-jvm dtest framework
         // which transitively has a reference to the InstanceClassLoader, so we need to
-        // make sure to remove the reference to them when the instance is shutting down
-        clearMapField(TCPEndpoint.class, null, "localEndpoints");
-        Thread.sleep(2 * RMI_KEEPALIVE_TIME); // Double the keep-alive time to give Distributed GC some time to clean up
+        // make sure to remove the reference to them when the instance is shutting down.
+        // Additionally, we must make sure to only clear endpoints created by this instance
+        // As clearning the entire map can cause issues with starting and stopping nodes mid-test.
+        clearMapField(TCPEndpoint.class, null, "localEndpoints", this::endpointCreateByThisInstance);
+        Uninterruptibles.sleepUninterruptibly(2 * RMI_KEEPALIVE_TIME, TimeUnit.MILLISECONDS); // Double the keep-alive time to give Distributed GC some time to clean up
     }
 
-    private <K, V> void clearMapField(Class<?> clazz, Object instance, String mapName)
-    throws IllegalAccessException, NoSuchFieldException {
-        Field mapField = clazz.getDeclaredField(mapName);
-        mapField.setAccessible(true);
-        Map<K, V> map = (Map<K, V>) mapField.get(instance);
-        // Because multiple instances can be shutting down at once,
-        // synchronize on the map to avoid ConcurrentModificationException
-        synchronized (map)
-        {
-            for (Iterator<Map.Entry<K, V>> it = map.entrySet().iterator(); it.hasNext(); )
-            {
-                it.next();
-                it.remove();
-            }
-        }
+    private boolean endpointCreateByThisInstance(Map.Entry<Object, LinkedList<TCPEndpoint>> entry)
+    {
+        return entry.getValue()
+                    .stream()
+                    .anyMatch(ep -> ep.getServerSocketFactory() == this.serverSocketFactory &&
+                                    ep.getClientSocketFactory() == this.clientSocketFactory);
     }
 }
