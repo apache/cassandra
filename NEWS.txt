@@ -220,6 +220,7 @@ Upgrading
       and no installation of DefaultCryptoProvider installing Amazon Corretto Crypto Provider will be conducted. 
       You need to explicitly add this section to the old yaml if it does not contain it yet to enable Amazon Corretto Crypto Provider for such node. 
       New deployments have `crypto_provider` uncommented with DefaultCryptoProvider hence Corretto provider will be installed automatically for corresponding architecture.
+    - `commitlog_sync_batch_window_in_ms` configuration property in cassandra.yaml was removed. Please ensure your configuration is not using this property.
 
 
 Deprecation
