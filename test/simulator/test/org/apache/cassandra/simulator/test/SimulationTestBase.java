@@ -187,9 +187,9 @@ public class SimulationTestBase
                                                        Consumer<ClusterSimulation.Builder<T>> configure) throws IOException
     {
         SimulationRunner.beforeAll();
-        //long seed = System.currentTimeMillis();
+        long seed = System.currentTimeMillis();
         // Development seed:
-        long seed = 1687184561194L;
+        //long seed = 1687184561194L;
         System.out.println("Simulation seed: " + seed + "L");
         configure.accept(factory);
         try (ClusterSimulation<?> cluster = factory.create(seed))

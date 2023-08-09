@@ -92,6 +92,12 @@ public class HarrySimulatorTest
 {
     private static final Logger logger = LoggerFactory.getLogger(HarrySimulatorTest.class);
 
+    public static void main(String... args) throws Throwable
+    {
+        new HarrySimulatorTest().harryTest();
+        System.exit(0);
+    }
+
     @Test
     public void harryTest() throws Exception
     {
@@ -170,9 +176,10 @@ public class HarrySimulatorTest
                          if (!shouldBootstrap && bootstrappedNodes.isEmpty())
                              shouldBootstrap = true;
 
+                         int node;
                          if (shouldBootstrap)
                          {
-                             int node = registeredNodes.remove(0);
+                             node = registeredNodes.remove(0);
                              long token = simulation.simulated.random.uniform(Long.MIN_VALUE, Long.MAX_VALUE);
                              work.add(work(addToCMS(simulation.simulated, simulation.cluster, node)));
                              work.add(work(ActionList.of(bootstrap(simulation.simulated, simulation.cluster, token, node)),
@@ -183,13 +190,12 @@ public class HarrySimulatorTest
                              });
                              work.add(work(run(() -> simulation.nodeState.bootstrap(node, token))));
                              work.add(work(assertNodeState(simulation.simulated, simulation.cluster, node,NodeState.JOINED)));
-                             work.add(work(lazy(() -> validateAllLocal(simulation, simulation.nodeState.ring, rf))));
                              bootstrappedNodes.add(node);
                          }
                          else
                          {
                              assert !bootstrappedNodes.isEmpty();
-                             int node = bootstrappedNodes.remove(0);
+                             node = bootstrappedNodes.remove(0);
                              work.add(work(ActionList.of(decommission(simulation.simulated, simulation.cluster, node)),
                                            generate(rowsPerPhase, simulation, cl)
                              ));
@@ -198,10 +204,12 @@ public class HarrySimulatorTest
                              });
                              work.add(work(run(() -> simulation.nodeState.decommission(node))));
                              work.add(work(assertNodeState(simulation.simulated, simulation.cluster, node,NodeState.LEFT)));
-                             work.add(work(lazy(() -> validateAllLocal(simulation, simulation.nodeState.ring, rf))));
                          }
-                         work.add(work(run(() -> System.out.println("Finished!"))));
+                         work.add(work(lazy(() -> validateAllLocal(simulation, simulation.nodeState.ring, rf))));
+                         boolean tmp = shouldBootstrap;
+                         work.add(work(run(() -> System.out.printf("Finished %s of %d and data validation!\n", tmp ? "bootstrap" : "decomission", node))));
                      }
+                     work.add(work(run(() -> System.out.println("Finished!"))));
 
                      return arr(work.toArray(new ActionSchedule.Work[0]));
                  },
