@@ -1989,6 +1989,11 @@ drop_compact_storage_enabled: false
 # fields_per_udt_warn_threshold: -1
 # fields_per_udt_fail_threshold: -1
 #
+# Guardrail to warn or fail when creating a vector column with more dimensions than threshold.
+# Default -1 to disable.
+# vector_dimensions_warn_threshold: -1
+# vector_dimensions_fail_threshold: -1
+#
 # Guardrail to indicate whether or not users are allowed to use ALTER TABLE commands to make column changes to tables
 # alter_table_enabled: true
 #

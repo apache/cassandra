@@ -386,6 +386,18 @@ public final class Guardrails implements GuardrailsMBean
                                         threshold, value, what));
 
     /**
+     * Guardrail on the number of dimensions of vector columns.
+     */
+    public static final MaxThreshold vectorDimensions =
+    new MaxThreshold("vector_dimensions",
+                     null,
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getVectorDimensionsWarnThreshold(),
+                     state -> CONFIG_PROVIDER.getOrCreate(state).getVectorDimensionsFailThreshold(),
+                     (isWarning, what, value, threshold) ->
+                     format("%s has a vector of %s dimensions, this exceeds the %s threshold of %s.",
+                            what, value, isWarning ? "warning" : "failure", threshold));
+
+    /**
      * Guardrail on the data disk usage on the local node, used by a periodic task to calculate and propagate that status.
      * See {@link org.apache.cassandra.service.disk.usage.DiskUsageMonitor} and {@link DiskUsageBroadcaster}.
      */
@@ -1041,6 +1053,24 @@ public final class Guardrails implements GuardrailsMBean
     public void setFieldsPerUDTThreshold(int warn, int fail)
     {
         DEFAULT_CONFIG.setFieldsPerUDTThreshold(warn, fail);
+    }
+
+    @Override
+    public int getVectorDimensionsWarnThreshold()
+    {
+        return DEFAULT_CONFIG.getVectorDimensionsWarnThreshold();
+    }
+
+    @Override
+    public int getVectorDimensionsFailThreshold()
+    {
+        return DEFAULT_CONFIG.getVectorDimensionsFailThreshold();
+    }
+
+    @Override
+    public void setVectorDimensionsThreshold(int warn, int fail)
+    {
+        DEFAULT_CONFIG.setVectorDimensionsThreshold(warn, fail);
     }
 
     @Override

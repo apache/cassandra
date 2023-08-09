@@ -152,12 +152,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
 
         validateDefaultTimeToLive(attrs.asNewTableParams());
 
-        // Verify that dynamic data masking is enabled if there are masked columns
-        for (ColumnProperties.Raw raw : rawColumns.values())
-        {
-            if (raw.rawMask != null)
-                ColumnMask.ensureEnabled();
-        }
+        rawColumns.forEach((name, raw) -> raw.validate(state, name));
     }
 
     SchemaChange schemaChangeEvent(KeyspacesDiff diff)
@@ -602,6 +597,14 @@ public final class CreateTableStatement extends AlterSchemaStatement
             {
                 this.rawType = rawType;
                 this.rawMask = rawMask;
+            }
+
+            public void validate(ClientState state, ColumnIdentifier name)
+            {
+                rawType.validate(state, "Column " + name);
+
+                if (rawMask != null)
+                    ColumnMask.ensureEnabled();
             }
 
             public ColumnProperties prepare(String keyspace, String table, ColumnIdentifier column, Types udts)

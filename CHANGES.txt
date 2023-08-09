@@ -1,3 +1,14 @@
+5.1
+Merged from 5.0:
+ * Add guardrail for vector dimensions (CASSANDRA-18730)
+Merged from 4.1:
+Merged from 4.0:
+Merged from 3.11:
+Merged from 3.0:
+ * Fix CQLSH online help topic link (CASSANDRA-17534)
+ * Remove unused suppressions (CASSANDRA-18724)
+
+
 5.0
  * Upgraded Netty to 4.1.96, added BouncyCastle dependency (CASSANDRA-17992)
  * Fix for (unsupported) big endian unaligned architecture, eg s390x (CASSANDRA-17723)
@@ -180,8 +191,6 @@ Merged from 4.0:
  * Partial compaction can resurrect deleted data (CASSANDRA-18507)
 Merged from 3.11:
 Merged from 3.0:
- * Fix CQLSH online help topic link (CASSANDRA-17534)
- * Remove unused suppressions (CASSANDRA-18724)
 
 
 4.1.4
