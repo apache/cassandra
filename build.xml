@@ -1898,6 +1898,7 @@
 <project version="4">
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_STRING" value="--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED
+                                                    --add-exports java.rmi/sun.rmi.transport=ALL-UNNAMED
                                                     --add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED
                                                     --add-exports java.base/jdk.internal.ref=ALL-UNNAMED
                                                     --add-exports java.base/sun.nio.ch=ALL-UNNAMED" />
