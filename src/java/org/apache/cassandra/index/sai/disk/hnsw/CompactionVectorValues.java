@@ -27,6 +27,9 @@ import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 
+/**
+ * NOT threadsafe, assumes compaction is single-threaded
+ */
 public class CompactionVectorValues implements RamAwareVectorValues
 {
     private final int dimension;
@@ -60,9 +63,10 @@ public class CompactionVectorValues implements RamAwareVectorValues
     /** return approximate bytes used by the new vector */
     public long add(int ordinal, ByteBuffer value)
     {
-        while (ordinal >= values.size())
-            values.add(null);
-        values.set(ordinal, value);
+        if (ordinal != values.size())
+            throw new IllegalArgumentException(String.format("CVV requires vectors to be added in ordinal order (%d given, expected %d)",
+                                                             ordinal, values.size()));
+        values.add(value);
         return RamEstimation.concurrentHashMapRamUsed(1) + oneVectorBytesUsed();
     }
 
