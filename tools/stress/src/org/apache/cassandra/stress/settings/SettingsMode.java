@@ -178,7 +178,7 @@ public class SettingsMode implements Serializable
                 paramList.add(item);
             }
         }
-        if (paramList.contains("prepared") && paramList.contains("unprepared")){
+        if (paramList.containsAll(List.of("prepared","unprepared"))){
             System.out.println("Warning can't specify both prepared and unprepared, using prepared");
             paramList.remove("unprepared");
         }
