@@ -115,13 +115,14 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
     }
 
     /**
-     * Check if this deletion time is valid - markedForDeleteAt can only negative if the deletion is LIVE.
-     * localDeletionTime is not checked as it is stored as an unsigned int and cannot be negative.
+     * Check if this deletion time is valid. This is always true, because
+     * - as we permit negative timestamps, markedForDeleteAt can be negative.
+     * - localDeletionTime is stored as an unsigned int and cannot be negative.
      * @return true if it is valid
      */
     public boolean validate()
     {
-        return markedForDeleteAt >= 0 || isLive();
+        return true;
     }
 
     @Override
