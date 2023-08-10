@@ -221,8 +221,12 @@ public class SortedTermsTest extends SAIRandomizedTester
         }, false);
 
         withSortedTermsCursor(cursor -> {
-            assertThatThrownBy(() -> cursor.seekForwardToPointId(-2)).isInstanceOf(IndexOutOfBoundsException.class);
-            assertThatThrownBy(() -> cursor.seekForwardToPointId(Long.MAX_VALUE)).isInstanceOf(IndexOutOfBoundsException.class);
+            assertThatThrownBy(() -> cursor.seekForwardToPointId(-2)).isInstanceOf(IndexOutOfBoundsException.class)
+                                                                     .hasMessage(String.format(SortedTermsReader.INDEX_OUT_OF_BOUNDS, -2, 4000));
+            assertThatThrownBy(() -> cursor.seekForwardToPointId(Long.MAX_VALUE)).isInstanceOf(IndexOutOfBoundsException.class)
+                                                                                 .hasMessage(String.format(SortedTermsReader.INDEX_OUT_OF_BOUNDS, Long.MAX_VALUE, 4000));
+            assertThatThrownBy(() -> cursor.seekForwardToPointId(4000)).isInstanceOf(IndexOutOfBoundsException.class)
+                                                                       .hasMessage(String.format(SortedTermsReader.INDEX_OUT_OF_BOUNDS, 4000, 4000));
         });
     }
 

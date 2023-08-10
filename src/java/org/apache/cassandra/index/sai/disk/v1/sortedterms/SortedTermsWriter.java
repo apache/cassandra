@@ -18,6 +18,11 @@
 
 package org.apache.cassandra.index.sai.disk.v1.sortedterms;
 
+import java.io.Closeable;
+import java.io.IOException;
+import javax.annotation.Nonnull;
+import javax.annotation.concurrent.NotThreadSafe;
+
 import org.apache.cassandra.index.sai.disk.v1.MetadataWriter;
 import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
 import org.apache.cassandra.index.sai.disk.v1.bitpack.NumericValuesWriter;
@@ -29,11 +34,6 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.StringHelper;
-
-import javax.annotation.Nonnull;
-import javax.annotation.concurrent.NotThreadSafe;
-import java.io.Closeable;
-import java.io.IOException;
 
 /**
  * Writes a sequence of terms for use with {@link SortedTermsReader}.
@@ -204,13 +204,10 @@ public class SortedTermsWriter implements Closeable
         {
             SAICodecUtils.writeFooter(termsOutput);
             SortedTermsMeta.write(output, pointId, maxTermLength);
-            // Don't close the offsets writer quietly because of the work it does
-            // during its close. We need to propagate the error.
-            offsetsWriter.close();
         }
         finally
         {
-            FileUtils.closeQuietly(termsOutput);
+            FileUtils.close(offsetsWriter, termsOutput);
         }
     }
 

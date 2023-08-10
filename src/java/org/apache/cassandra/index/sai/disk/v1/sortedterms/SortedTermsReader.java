@@ -59,6 +59,8 @@ import org.apache.lucene.util.BytesRefBuilder;
 @NotThreadSafe
 public class SortedTermsReader
 {
+    public static final String INDEX_OUT_OF_BOUNDS = "The target point id [%d] cannot be less than 0 or greater than or equal to the term count [%d]";
+
     private final FileHandle termsData;
     private final SortedTermsMeta meta;
     private final LongArray.Factory blockOffsetsFactory;
@@ -144,30 +146,31 @@ public class SortedTermsReader
          * It is allowed to position the cursor before the first item or after the last item;
          * in these cases the internal buffer is cleared.
          *
-         * @param nextPointId point id to lookup
+         * @param pointId point id to lookup
          * @return The {@link ByteComparable} containing the term
          * @throws IndexOutOfBoundsException if the target point id is less than -1 or greater than the number of terms
          */
-        public @Nonnull ByteComparable seekForwardToPointId(long nextPointId)
+        public @Nonnull ByteComparable seekForwardToPointId(long pointId)
         {
-            if (nextPointId < 0 || nextPointId > meta.termCount)
-                throw new IndexOutOfBoundsException(String.format("The target point id [%s] cannot be less than 0 or " +
-                                                                  "greater than the term count [%s]", nextPointId, meta.termCount));
-            assert nextPointId >= currentPointId : "Attempt to seek backwards in seekForwardsToPointId. Next pointId was "
-                                                   + nextPointId + " while current pointId is " + currentPointId;
-            if (nextPointId != currentPointId)
+            if (pointId < 0 || pointId >= meta.termCount)
+                throw new IndexOutOfBoundsException(String.format(INDEX_OUT_OF_BOUNDS, pointId, meta.termCount));
+
+            assert pointId >= currentPointId : "Attempt to seek backwards in seekForwardsToPointId. Next pointId was "
+                                               + pointId + " while current pointId is " + currentPointId;
+            if (pointId != currentPointId)
             {
-                long blockIndex = nextPointId >>> blockShift;
+                long blockIndex = pointId >>> blockShift;
                 if (blockIndex != currentBlockIndex)
                 {
                     currentBlockIndex = blockIndex;
-                    resetPosition();
+                    resetToCurrentBlock();
                 }
             }
-            while (currentPointId < nextPointId)
+            while (currentPointId < pointId)
             {
-                readTerm(++currentPointId, currentTerm);
-                currentBlockIndex = currentPointId >>> blockShift;
+                currentPointId++;
+                readCurrentTerm();
+                updateCurrentBlockIndex(currentPointId);
             }
 
             return ByteComparable.fixedLength(currentTerm.bytes, currentTerm.offset, currentTerm.length);
@@ -180,15 +183,22 @@ public class SortedTermsReader
          * If the term is not in the block containing the start of the range a binary search is done to find
          * the block containing the search. That block is then searched to return the pointId that corresponds
          * to the term that either equal to or next highest to the term.
+         *
+         * @param term The term to seek for with the partition
+         * @param startingPointId the inclusive starting point for the partition
+         * @param endingPointId the exclusive ending point for the partition.
+         *                      Note: this can be equal to the number of terms if this is the last partition
+         * @return a {@code long} representing the pointId of the term that is >= to the term passed to the method, or
+         *         -1 if the term passed is > all the terms.
          */
         public long partitionedSeekToTerm(ByteComparable term, long startingPointId, long endingPointId)
         {
             assert partitioned : "Cannot do a partitioned seek to term on non-partitioned terms";
 
-            BytesRef skipTerm = readBytes(term);
+            BytesRef skipTerm = asBytesRef(term);
 
-            currentBlockIndex = startingPointId >>> blockShift;
-            resetPosition();
+            updateCurrentBlockIndex(startingPointId);
+            resetToCurrentBlock();
 
             if (compareTerms(currentTerm, skipTerm) == 0)
                 return startingPointId;
@@ -199,13 +209,13 @@ public class SortedTermsReader
                 long splitPointId = startingPointId;
                 while (split > 0)
                 {
-                    currentBlockIndex = Math.min((splitPointId >>> blockShift) + split, blockOffsets.length() - 1);
-                    resetPosition();
+                    updateCurrentBlockIndex(Math.min((splitPointId >>> blockShift) + split, blockOffsets.length() - 1));
+                    resetToCurrentBlock();
 
                     if (currentPointId >= endingPointId)
                     {
-                        currentBlockIndex = (endingPointId - 1) >>> blockShift;
-                        resetPosition();
+                        updateCurrentBlockIndex((endingPointId - 1));
+                        resetToCurrentBlock();
                     }
 
                     int cmp = compareTerms(currentTerm, skipTerm);
@@ -219,11 +229,11 @@ public class SortedTermsReader
                     split /= 2;
                 }
                 // After we finish the binary search we need to move the block back till we hit a block that has
-                // a starting term that is less than or equals to the skip term
+                // a starting term that is less than or equal to the skip term
                 while (currentBlockIndex > 0 && compareTerms(currentTerm, skipTerm) > 0)
                 {
                     currentBlockIndex--;
-                    resetPosition();
+                    resetToCurrentBlock();
                 }
             }
 
@@ -231,8 +241,8 @@ public class SortedTermsReader
             while (currentPointId < startingPointId)
             {
                 currentPointId++;
-                readTerm(currentPointId, currentTerm);
-                currentBlockIndex = currentPointId >>> blockShift;
+                readCurrentTerm();
+                updateCurrentBlockIndex(currentPointId);
             }
 
             // Move forward to the ending point ID, returning the point ID if we find our term
@@ -243,8 +253,8 @@ public class SortedTermsReader
                 currentPointId++;
                 if (currentPointId == meta.termCount)
                     return -1;
-                readTerm(currentPointId, currentTerm);
-                currentBlockIndex = currentPointId >>> blockShift;
+                readCurrentTerm();
+                updateCurrentBlockIndex(currentPointId);
             }
             return endingPointId < meta.termCount ? endingPointId : -1;
         }
@@ -255,7 +265,7 @@ public class SortedTermsReader
             currentPointId = 0;
             currentBlockIndex = 0;
             termsInput.seek(termsDataFp);
-            readTerm(currentPointId, currentTerm);
+            readCurrentTerm();
         }
 
 
@@ -265,12 +275,22 @@ public class SortedTermsReader
             termsInput.close();
         }
 
+        private void updateCurrentBlockIndex(long pointId)
+        {
+            currentBlockIndex = pointId >>> blockShift;
+        }
+
         private boolean notInCurrentBlock(long pointId, BytesRef term)
         {
-            if (inLastBlock(pointId) || !peekNextBlock(pointId))
+            if (inLastBlock(pointId))
                 return false;
 
-            resetPosition();
+            // Load the starting value of the next block into nextBlockTerm.
+            long blockIndex = (pointId >>> blockShift) + 1;
+            long currentFp = termsInput.getFilePointer();
+            termsInput.seek(blockOffsets.get(blockIndex) + termsDataFp);
+            readTerm(blockIndex << blockShift, nextBlockTerm);
+            termsInput.seek(currentFp);
 
             return compareTerms(term, nextBlockTerm) >= 0;
         }
@@ -280,27 +300,17 @@ public class SortedTermsReader
             return pointId >>> blockShift == blockOffsets.length() - 1;
         }
 
-        // Tries to load the starting value of the next block into nextBlockTerm. This will return false
-        // if the pointId is in the last block.
-        private boolean peekNextBlock(long pointId)
-        {
-            long blockIndex = (pointId >>> blockShift) + 1;
-
-            if (blockIndex >= blockOffsets.length())
-                return false;
-
-            termsInput.seek(blockOffsets.get(blockIndex) + termsDataFp);
-            readTerm(blockIndex << blockShift, nextBlockTerm);
-
-            return true;
-        }
-
         // Reset currentPointId and currentTerm to be at the start of the block
         // pointed to by currentBlockIndex.
-        private void resetPosition()
+        private void resetToCurrentBlock()
         {
             termsInput.seek(blockOffsets.get(currentBlockIndex) + termsDataFp);
             currentPointId = currentBlockIndex << blockShift;
+            readCurrentTerm();
+        }
+
+        private void readCurrentTerm()
+        {
             readTerm(currentPointId, currentTerm);
         }
 
@@ -356,7 +366,7 @@ public class SortedTermsReader
                                                       right.bytes, right.offset, right.offset + right.length);
         }
 
-        private BytesRef readBytes(ByteComparable source)
+        private BytesRef asBytesRef(ByteComparable source)
         {
             BytesRefBuilder builder = new BytesRefBuilder();
 
