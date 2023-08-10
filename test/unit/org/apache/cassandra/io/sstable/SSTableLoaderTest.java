@@ -98,6 +98,25 @@ public class SSTableLoaderTest
     {
         try
         {
+            for (String[] keyspaceTable : new String[][] { {KEYSPACE1, CF_STANDARD1},
+                    {KEYSPACE1, CF_STANDARD2},
+                    {KEYSPACE1, CF_BACKUPS},
+                    {KEYSPACE1, CF_SNAPSHOTS},
+                    {KEYSPACE2, CF_STANDARD2}})
+            {
+                Keyspace keyspace = Keyspace.open(keyspaceTable[0]);
+                ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(keyspaceTable[1]);
+                cfs.truncateBlocking();
+                StorageService.instance.truncate(keyspaceTable[0], keyspaceTable[1]);
+            }
+        }
+        catch (Exception ex)
+        {
+            throw new RuntimeException("Unable to truncate table!", ex);
+        }
+
+        try
+        {
             tmpdir.deleteRecursive();
         }
         catch (FSWriteError e)
@@ -109,20 +128,6 @@ public class SSTableLoaderTest
              */
             System.gc();
             tmpdir.deleteRecursive();
-        }
-
-        try
-        {
-            for (String[] keyspaceTable : new String[][] { {KEYSPACE1, CF_STANDARD1},
-                                                           {KEYSPACE1, CF_STANDARD2},
-                                                           {KEYSPACE1, CF_BACKUPS},
-                                                           {KEYSPACE2, CF_STANDARD1},
-                                                           {KEYSPACE2, CF_STANDARD2}})
-            StorageService.instance.truncate(keyspaceTable[0], keyspaceTable[1]);
-        }
-        catch (Exception ex)
-        {
-            throw new RuntimeException("Unable to truncate table!", ex);
         }
     }
 
