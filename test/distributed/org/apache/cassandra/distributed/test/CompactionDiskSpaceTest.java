@@ -113,7 +113,7 @@ public class CompactionDiskSpaceTest extends TestBaseImpl
         public static void install(ClassLoader cl, Integer node)
         {
             new ByteBuddy().rebase(ActiveCompactions.class)
-                           .method(named("estimatedRemainingWriteBytes"))
+                           .method(named("estimatedRemainingWriteToDiskBytes"))
                            .intercept(MethodDelegation.to(BB.class))
                            .make()
                            .load(cl, ClassLoadingStrategy.Default.INJECTION);
@@ -125,7 +125,7 @@ public class CompactionDiskSpaceTest extends TestBaseImpl
                            .load(cl, ClassLoadingStrategy.Default.INJECTION);
         }
 
-        public static Map<File, Long> estimatedRemainingWriteBytes()
+        public static Map<File, Long> estimatedRemainingWriteToDiskBytes()
         {
             if (sstableDir != null)
                 return ImmutableMap.of(sstableDir, estimatedRemaining.get());

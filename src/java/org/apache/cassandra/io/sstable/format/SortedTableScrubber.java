@@ -382,6 +382,7 @@ public abstract class SortedTableScrubber<R extends SSTableReaderWithFilter> imp
                                           OperationType.SCRUB,
                                           dataFile.getFilePointer(),
                                           dataFile.length(),
+                                          sstable.onDiskLength(),
                                           scrubCompactionId,
                                           ImmutableSet.of(sstable),
                                           File.getPath(sstable.getFilename()).getParent().toString());

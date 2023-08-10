@@ -406,7 +406,7 @@ public class CompactionTask extends AbstractCompactionTask
                 for (File directory : newCompactionDatadirs)
                     expectedNewWriteSize.put(directory, writeSizePerOutputDatadir);
 
-                Map<File, Long> expectedWriteSize = CompactionManager.instance.active.estimatedRemainingWriteBytes();
+                Map<File, Long> expectedWriteSize = CompactionManager.instance.active.estimatedRemainingWriteToDiskBytes();
 
                 // todo: abort streams if they block compactions
                 if (cfs.getDirectories().hasDiskSpaceForCompactionsAndStreams(expectedNewWriteSize, expectedWriteSize))

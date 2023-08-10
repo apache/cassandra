@@ -609,7 +609,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
         {
             public CompactionInfo getCompactionInfo()
             {
-                return new CompactionInfo(cfs.metadata(), OperationType.ANTICOMPACTION, 0, 1000, nextTimeUUID(), compacting);
+                return new CompactionInfo(cfs.metadata(), OperationType.ANTICOMPACTION, 0, 1000, 1000, nextTimeUUID(), compacting);
             }
 
             public boolean isGlobal()
@@ -650,7 +650,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
         {
             public CompactionInfo getCompactionInfo()
             {
-                return new CompactionInfo(cfs.metadata(), OperationType.ANTICOMPACTION, 0, 0, nextTimeUUID(), cfs.getLiveSSTables());
+                return new CompactionInfo(cfs.metadata(), OperationType.ANTICOMPACTION, 0, 0, 0, nextTimeUUID(), cfs.getLiveSSTables());
             }
 
             public boolean isGlobal()
@@ -703,7 +703,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
         {
             public CompactionInfo getCompactionInfo()
             {
-                return new CompactionInfo(cfs.metadata(), OperationType.ANTICOMPACTION, 0, 0, nextTimeUUID(), cfs.getLiveSSTables());
+                return new CompactionInfo(cfs.metadata(), OperationType.ANTICOMPACTION, 0, 0, 0, nextTimeUUID(), cfs.getLiveSSTables());
             }
 
             public boolean isGlobal()
