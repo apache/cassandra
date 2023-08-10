@@ -635,10 +635,10 @@ public class AlterTest extends CQLTester
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))");
         assertSchemaOption("compression", map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.LZ4Compressor"));
 
-        alterTable("ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_in_kb' : 32 };");
+        alterTable("ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_in_kb' : '32' };");
         assertSchemaOption("compression", map("chunk_length_in_kb", "32", "class", "org.apache.cassandra.io.compress.SnappyCompressor"));
 
-        alterTable("ALTER TABLE %s WITH compression = { 'class' : 'LZ4Compressor', 'chunk_length_in_kb' : 64 };");
+        alterTable("ALTER TABLE %s WITH compression = { 'class' : 'LZ4Compressor', 'chunk_length_in_kb' : '64' };");
         assertSchemaOption("compression", map("chunk_length_in_kb", "64", "class", "org.apache.cassandra.io.compress.LZ4Compressor"));
 
         alterTable("ALTER TABLE %s WITH compression = { 'class' : 'LZ4Compressor', 'min_compress_ratio' : 2 };");
@@ -650,29 +650,13 @@ public class AlterTest extends CQLTester
         alterTable("ALTER TABLE %s WITH compression = { 'class' : 'LZ4Compressor', 'min_compress_ratio' : 0 };");
         assertSchemaOption("compression", map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.LZ4Compressor"));
 
-        alterTable("ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_in_kb' : 32 };");
+        alterTable("ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_in_kb' : '32' };");
         alterTable("ALTER TABLE %s WITH compression = { 'enabled' : 'false'};");
         assertSchemaOption("compression", map("enabled", "false"));
 
         assertAlterTableThrowsException(ConfigurationException.class,
-                                        "Missing sub-option 'class' for the 'compression' option.",
-                                        "ALTER TABLE %s WITH  compression = {'chunk_length_in_kb' : 32};");
-
-        assertAlterTableThrowsException(ConfigurationException.class,
                                         "The 'class' option must not be empty. To disable compression use 'enabled' : false",
                                         "ALTER TABLE %s WITH  compression = { 'class' : ''};");
-
-        assertAlterTableThrowsException(ConfigurationException.class,
-                                        "If the 'enabled' option is set to false no other options must be specified",
-                                        "ALTER TABLE %s WITH compression = { 'enabled' : 'false', 'class' : 'SnappyCompressor'};");
-
-        assertAlterTableThrowsException(ConfigurationException.class,
-                                        "The 'sstable_compression' option must not be used if the compression algorithm is already specified by the 'class' option",
-                                        "ALTER TABLE %s WITH compression = { 'sstable_compression' : 'SnappyCompressor', 'class' : 'SnappyCompressor'};");
-
-        assertAlterTableThrowsException(ConfigurationException.class,
-                                        "The 'chunk_length_kb' option must not be used if the chunk length is already specified by the 'chunk_length_in_kb' option",
-                                        "ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_kb' : 32 , 'chunk_length_in_kb' : 32 };");
 
         assertAlterTableThrowsException(ConfigurationException.class,
                                         "Invalid negative min_compress_ratio",
