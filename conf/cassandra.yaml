@@ -1462,6 +1462,12 @@ enable_drop_compact_storage: false
   # Default -1 to disable, may differ if emulate_dbaas_defaults is enabled
   # fields_per_udt_failure_threshold: -1
 
+  # Guardrail to warn or fail when creating a vector column with more dimensions than threshold.
+  # Default vector_dimensions_warn_threshold is -1 to disable, may differ if emulate_dbaas_defaults is enabled
+  # Default vector_dimensions_failure_threshold is 8192, may differ if emulate_dbaas_defaults is enabled
+  # vector_dimensions_warn_threshold: -1
+  # vector_dimensions_failure_threshold: 8192
+
   # Warning threshold to warn when encountering larger size of collection data than threshold.
   # Default -1 to disable, may differ if emulate_dbaas_defaults is enabled
   # collection_size_warn_threshold_in_kb: -1

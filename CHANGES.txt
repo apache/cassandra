@@ -1,6 +1,7 @@
 Future version (tbd)
  * Require only MODIFY permission on base when updating table with MV (STAR-564)
 Merged from 5.0:
+ * Add guardrail for vector dimensions (CASSANDRA-18730)
  * Add support for CQL functions on collections, tuples and UDTs (CASSANDRA-17811)
 
 4.1

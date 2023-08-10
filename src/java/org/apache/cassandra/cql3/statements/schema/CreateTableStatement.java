@@ -125,6 +125,8 @@ public final class CreateTableStatement extends AlterSchemaStatement
                                                      .sum();
                 Guardrails.tablesLimit.guard(totalUserTables + 1, tableName, false, state);
             }
+
+            rawColumns.forEach((name, raw) -> raw.validate(state, "Column " + name));
         }
     }
 
