@@ -1170,7 +1170,8 @@ public class StreamSession
     {
         try
         {
-            state(State.WAIT_COMPLETE);
+            if (state != State.COMPLETE) // mark as waiting to complete while closeSession futures run.
+                state(State.WAIT_COMPLETE);
             closeSession(State.COMPLETE);
         }
         finally
