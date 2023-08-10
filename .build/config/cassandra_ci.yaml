@@ -44,8 +44,8 @@ repos:
     branch: trunk
     sha: HEAD
   python_dtest:
-    url: https://github.com/apache/cassandra-dtest
-    branch: trunk
+    url: &python_dtest_url https://github.com/apache/cassandra-dtest
+    branch: &python_dtest_branch trunk
     sha: HEAD
   cassandra-harry:
     url: https://github.com/apache/cassandra-harry
@@ -302,8 +302,8 @@ jobs:
       <<: *default_env_vars
       <<: *required_env_vars
       NUM_TOKENS: "16"
-      DTEST_REPO: "https://github.com/apache/cassandra-dtest.git"
-      DTEST_BRANCH: trunk
+      DTEST_REPO: *python_dtest_url
+      DTEST_BRANCH: *python_dtest_branch
       DTEST_TARGET: dtest
       # Should not be changed for a given job tag downstream
       DTEST_ARGS: "--use-vnodes --num-tokens=${NUM_TOKENS} --skip-resource-intensive-tests"
