@@ -23,12 +23,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import com.google.common.base.Supplier;
+import com.google.common.base.Suppliers;
+
 import com.datastax.driver.core.DataType;
 import com.datastax.driver.core.TupleType;
 import com.datastax.driver.core.TupleValue;
 import com.datastax.driver.core.TypeCodec;
 import com.datastax.driver.core.UDTValue;
 import com.datastax.driver.core.UserType;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.schema.CQLTypeParser;
@@ -40,19 +44,25 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  */
 public final class UDFContextImpl implements UDFContext
 {
-    private final KeyspaceMetadata keyspaceMetadata;
     private final Map<String, TypeCodec<Object>> byName = new HashMap<>();
     private final TypeCodec<Object>[] argCodecs;
     private final TypeCodec<Object> returnCodec;
+    private final String keyspace;
 
-    UDFContextImpl(List<ColumnIdentifier> argNames, TypeCodec<Object>[] argCodecs, TypeCodec<Object> returnCodec,
-                   KeyspaceMetadata keyspaceMetadata)
+    /*
+        metadata can not be retrieved within the constructor as the keyspace itself may be being
+        constructed and an NPE will result.
+     */
+    private final Supplier<KeyspaceMetadata> metadata;
+
+    UDFContextImpl(List<ColumnIdentifier> argNames, TypeCodec<Object>[] argCodecs, TypeCodec<Object> returnCodec, String keyspace)
     {
         for (int i = 0; i < argNames.size(); i++)
             byName.put(argNames.get(i).toString(), argCodecs[i]);
         this.argCodecs = argCodecs;
         this.returnCodec = returnCodec;
-        this.keyspaceMetadata = keyspaceMetadata;
+        this.keyspace = keyspace;
+        this.metadata = Suppliers.memoize(() -> Schema.instance.getKSMetaData(keyspace));
     }
 
     public UDTValue newArgUDTValue(String argName)
@@ -72,9 +82,9 @@ public final class UDFContextImpl implements UDFContext
 
     public UDTValue newUDTValue(String udtName)
     {
-        Optional<org.apache.cassandra.db.marshal.UserType> udtType = keyspaceMetadata.types.get(ByteBufferUtil.bytes(udtName));
+        Optional<org.apache.cassandra.db.marshal.UserType> udtType = metadata.get().types.get(ByteBufferUtil.bytes(udtName));
         DataType dataType = UDHelper.driverType(udtType.orElseThrow(
-                () -> new IllegalArgumentException("No UDT named " + udtName + " in keyspace " + keyspaceMetadata.name)
+                () -> new IllegalArgumentException("No UDT named " + udtName + " in keyspace " + keyspace)
             ));
         return newUDTValue(dataType);
     }
@@ -96,7 +106,7 @@ public final class UDFContextImpl implements UDFContext
 
     public TupleValue newTupleValue(String cqlDefinition)
     {
-        AbstractType<?> abstractType = CQLTypeParser.parse(keyspaceMetadata.name, cqlDefinition, keyspaceMetadata.types);
+        AbstractType<?> abstractType = CQLTypeParser.parse(keyspace, cqlDefinition, metadata.get().types);
         DataType dataType = UDHelper.driverType(abstractType);
         return newTupleValue(dataType);
     }
