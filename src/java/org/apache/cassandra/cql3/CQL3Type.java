@@ -25,6 +25,7 @@ import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.guardrails.Guardrails;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.marshal.CollectionType.Kind;
@@ -35,6 +36,7 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -519,6 +521,11 @@ public interface CQL3Type
             this.type = VectorType.getInstance(type, dimensions);
         }
 
+        public boolean isVector()
+        {
+            return true;
+        }
+
         @Override
         public VectorType<?> getType()
         {
@@ -610,6 +617,8 @@ public interface CQL3Type
             throw new InvalidRequestException(message);
         }
 
+        public abstract void validate(QueryState state, String name);
+
         public CQL3Type prepare(String keyspace)
         {
             KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(keyspace);
@@ -673,6 +682,16 @@ public interface CQL3Type
             {
                 super(frozen);
                 this.type = type;
+            }
+
+            @Override
+            public void validate(QueryState state, String name)
+            {
+                if (type.isVector())
+                {
+                    int dimensions = ((Vector) type).getType().dimension;
+                    Guardrails.vectorDimensions.guard(dimensions, name, false, state);
+                }
             }
 
             public CQL3Type prepare(String keyspace, Types udts) throws InvalidRequestException
@@ -746,6 +765,16 @@ public interface CQL3Type
             public boolean isCollection()
             {
                 return true;
+            }
+
+            @Override
+            public void validate(QueryState state, String name)
+            {
+                if (keys != null)
+                    keys.validate(state, name);
+
+                if (values != null)
+                    values.validate(state, name);
             }
 
             public CQL3Type prepare(String keyspace, Types udts) throws InvalidRequestException
@@ -862,6 +891,12 @@ public interface CQL3Type
                 return new RawUT(name, true);
             }
 
+            @Override
+            public void validate(QueryState state, String name)
+            {
+                // nothing to do here
+            }
+
             public CQL3Type prepare(String keyspace, Types udts) throws InvalidRequestException
             {
                 if (name.hasKeyspace())
@@ -935,6 +970,13 @@ public interface CQL3Type
                 return this;
             }
 
+            @Override
+            public void validate(QueryState state, String name)
+            {
+                for (CQL3Type.Raw t : types)
+                    t.validate(state, name);
+            }
+
             public CQL3Type prepare(String keyspace, Types udts) throws InvalidRequestException
             {
                 List<AbstractType<?>> ts = new ArrayList<>(types.size());
@@ -983,13 +1025,13 @@ public interface CQL3Type
         private static class RawVector extends Raw
         {
             private final CQL3Type.Raw element;
-            private final int dimention;
+            private final int dimensions;
 
-            private RawVector(Raw element, int dimention)
+            private RawVector(Raw element, int dimensions)
             {
                 super(true);
                 this.element = element;
-                this.dimention = dimention;
+                this.dimensions = dimensions;
             }
 
             @Override
@@ -1023,10 +1065,16 @@ public interface CQL3Type
             }
 
             @Override
+            public void validate(QueryState state, String name)
+            {
+                Guardrails.vectorDimensions.guard(dimensions, name, false, state);
+            }
+
+            @Override
             public CQL3Type prepare(String keyspace, Types udts) throws InvalidRequestException
             {
                 CQL3Type type = element.prepare(keyspace, udts);
-                return new Vector(type.getType(), dimention);
+                return new Vector(type.getType(), dimensions);
             }
         }
     }

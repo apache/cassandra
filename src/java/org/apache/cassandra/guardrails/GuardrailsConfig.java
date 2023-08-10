@@ -79,6 +79,8 @@ public class GuardrailsConfig
     public volatile Long collection_size_warn_threshold_in_kb;
     public volatile Long items_per_collection_warn_threshold;
     public volatile Boolean read_before_write_list_operations_enabled;
+    public volatile Integer vector_dimensions_warn_threshold;
+    public volatile Integer vector_dimensions_failure_threshold;
 
     // Legacy 2i guardrail
     public volatile Integer secondary_index_per_table_failure_threshold;
@@ -182,6 +184,9 @@ public class GuardrailsConfig
         enforceDefault(collection_size_warn_threshold_in_kb, v -> collection_size_warn_threshold_in_kb = v, -1L, 5 * 1024L);
         enforceDefault(items_per_collection_warn_threshold, v -> items_per_collection_warn_threshold = v, -1L, 20L);
 
+        enforceDefault(vector_dimensions_warn_threshold, v -> vector_dimensions_warn_threshold = v, -1, -1);
+        enforceDefault(vector_dimensions_failure_threshold, v -> vector_dimensions_failure_threshold = v, 8192, 8192);
+
         enforceDefault(columns_per_table_failure_threshold, v -> columns_per_table_failure_threshold = v, -1L, 50L);
         enforceDefault(secondary_index_per_table_failure_threshold, v -> secondary_index_per_table_failure_threshold = v, NO_LIMIT, 1);
         enforceDefault(sasi_indexes_per_table_failure_threshold, v -> sasi_indexes_per_table_failure_threshold = v, NO_LIMIT, 0);
@@ -245,6 +250,10 @@ public class GuardrailsConfig
 
         validateStrictlyPositiveInteger(items_per_collection_warn_threshold,
                                         "items_per_collection_warn_threshold");
+
+        validateStrictlyPositiveInteger(vector_dimensions_warn_threshold, "vector_dimensions_warn_threshold");
+        validateStrictlyPositiveInteger(vector_dimensions_failure_threshold, "vector_dimensions_failure_threshold");
+        validateWarnLowerThanFail(vector_dimensions_warn_threshold, vector_dimensions_failure_threshold, "vector_dimensions");
 
         validateStrictlyPositiveInteger(tables_warn_threshold, "tables_warn_threshold");
         validateStrictlyPositiveInteger(tables_failure_threshold, "tables_failure_threshold");

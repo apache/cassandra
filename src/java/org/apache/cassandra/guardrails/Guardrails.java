@@ -109,6 +109,17 @@ public abstract class Guardrails
                                                                     what, v, t))
                                .setMinNotifyIntervalInMs(TimeUnit.MINUTES.toMillis(30));
 
+    /**
+     * Guardrail on the number of dimensions of vector columns.
+     */
+    public static final Threshold vectorDimensions =
+            factory.threshold("vector_dimensions",
+                    () -> config.vector_dimensions_warn_threshold,
+                    () -> config.vector_dimensions_failure_threshold,
+                    (isWarning, what, value, threshold) ->
+                    format("%s has a vector of %s dimensions, this exceeds the %s threshold of %s.",
+                          what, value, isWarning ? "warning" : "failure", threshold));
+
     public static final DisableFlag readBeforeWriteListOperationsEnabled =
             factory.disableFlag("read_before_write_list_operations",
                             () -> !config.read_before_write_list_operations_enabled,

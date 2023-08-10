@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableSet;
@@ -180,6 +182,13 @@ public abstract class GuardrailTester extends CQLTester
         assertValidProperty(setter, 1);
         assertValidProperty(setter, 2);
         assertValidProperty(setter, Integer.MAX_VALUE);
+    }
+
+    @SafeVarargs
+    protected final void testExcludedUsers(Supplier<String>... queries) throws Throwable
+    {
+        assertSuperuserIsExcluded(Stream.of(queries).map(Supplier::get).toArray(String[]::new));
+        assertInternalQueriesAreExcluded(Stream.of(queries).map(Supplier::get).toArray(String[]::new));
     }
 
     protected void testExcludedUsers(String... queries) throws Throwable
