@@ -98,6 +98,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     private final long nowInSec;
     private final TimeUUID compactionId;
     private final long totalBytes;
+    private final long totalCompressedBytes;
     private long bytesRead;
     private long totalSourceCQLRows;
 
@@ -135,9 +136,14 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         this.bytesRead = 0;
 
         long bytes = 0;
+        long compressedBytes = 0;
         for (ISSTableScanner scanner : scanners)
+        {
             bytes += scanner.getLengthInBytes();
+            compressedBytes += scanner.getCompressedLengthInBytes();
+        }
         this.totalBytes = bytes;
+        this.totalCompressedBytes = compressedBytes;
         this.mergeCounters = new long[scanners.size()];
         // note that we leak `this` from the constructor when calling beginCompaction below, this means we have to get the sstables before
         // calling that to avoid a NPE.
@@ -170,6 +176,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                                   type,
                                   bytesRead,
                                   totalBytes,
+                                  totalCompressedBytes,
                                   compactionId,
                                   sstables,
                                   targetDirectory);

@@ -52,6 +52,8 @@ public class CompactionMetrics
     public final Meter totalCompactionsCompleted;
     /** Total number of bytes compacted since server [re]start */
     public final Counter bytesCompacted;
+    /** Estimated compressed bytes compacted since server [re]start, computed by scaling uncompressed bytes by the compression ratio */
+    public final Counter compressedBytesCompacted;
     /** Time spent redistributing index summaries */
     public final Timer indexSummaryRedistributionTime;
 
@@ -146,6 +148,7 @@ public class CompactionMetrics
         });
         totalCompactionsCompleted = Metrics.meter(factory.createMetricName("TotalCompactionsCompleted"));
         bytesCompacted = Metrics.counter(factory.createMetricName("BytesCompacted"));
+        compressedBytesCompacted = Metrics.counter(factory.createMetricName("CompressedBytesCompacted"));
 
         // compaction failure metrics
         compactionsReduced = Metrics.counter(factory.createMetricName("CompactionsReduced"));

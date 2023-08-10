@@ -69,6 +69,7 @@ public class SSTableTasksTableTest extends CQLTester
 
         long bytesCompacted = 123;
         long bytesTotal = 123456;
+        long totalCompressedBytes = 112233;
         TimeUUID compactionId = nextTimeUUID();
         List<SSTableReader> sstables = IntStream.range(0, 10)
                 .mapToObj(i -> MockSchema.sstable(i, i * 10L, i * 10L + 9, cfs))
@@ -80,7 +81,7 @@ public class SSTableTasksTableTest extends CQLTester
         {
             public CompactionInfo getCompactionInfo()
             {
-                return new CompactionInfo(cfs.metadata(), OperationType.COMPACTION, bytesCompacted, bytesTotal, compactionId, sstables, directory);
+                return new CompactionInfo(cfs.metadata(), OperationType.COMPACTION, bytesCompacted, bytesTotal, totalCompressedBytes, compactionId, sstables, directory);
             }
 
             public boolean isGlobal()
@@ -93,7 +94,7 @@ public class SSTableTasksTableTest extends CQLTester
         UntypedResultSet result = execute("SELECT * FROM vts.sstable_tasks");
         assertRows(result, row(CQLTester.KEYSPACE, currentTable(), compactionId, 1.0 * bytesCompacted / bytesTotal,
                 OperationType.COMPACTION.toString().toLowerCase(), bytesCompacted, sstables.size(),
-                directory, bytesTotal, CompactionInfo.Unit.BYTES.toString()));
+                directory, bytesTotal, totalCompressedBytes, CompactionInfo.Unit.BYTES.toString()));
 
         CompactionManager.instance.active.finishCompaction(compactionHolder);
         result = execute("SELECT * FROM vts.sstable_tasks");

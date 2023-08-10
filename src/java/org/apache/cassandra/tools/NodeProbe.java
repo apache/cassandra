@@ -2090,6 +2090,7 @@ public class NodeProbe implements AutoCloseable
             switch(metricName)
             {
                 case "BytesCompacted":
+                case "CompressedBytesCompacted":
                 case "CompactionsAborted":
                 case "CompactionsReduced":
                 case "SSTablesDroppedFromCompaction":

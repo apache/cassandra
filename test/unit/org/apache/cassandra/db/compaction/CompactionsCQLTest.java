@@ -83,7 +83,7 @@ public class CompactionsCQLTest extends CQLTester
     public void before() throws IOException
     {
         strategy = DatabaseDescriptor.getCorruptedTombstoneStrategy();
-        
+
         CommitLog.instance.resetUnsafe(true);
     }
 
@@ -872,7 +872,9 @@ public class CompactionsCQLTest extends CQLTester
             execute("insert into %s (id, i) values (?,?)", i, i);
             getCurrentColumnFamilyStore().forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
         }
-        CompactionInfo.Holder holder = holder(OperationType.COMPACTION);
+        // When we have an existing compaction with sstables of total size more than double the available space,
+        // we should not be able to then run a major compaction
+        CompactionInfo.Holder holder = holder(OperationType.COMPACTION, 2);
         CompactionManager.instance.active.beginCompaction(holder);
         try
         {
@@ -888,7 +890,19 @@ public class CompactionsCQLTest extends CQLTester
             CompactionManager.instance.active.finishCompaction(holder);
         }
         // don't block compactions if there is a huge validation
-        holder = holder(OperationType.VALIDATION);
+        holder = holder(OperationType.VALIDATION, 2);
+        CompactionManager.instance.active.beginCompaction(holder);
+        try
+        {
+            getCurrentColumnFamilyStore().forceMajorCompaction();
+        }
+        finally
+        {
+            CompactionManager.instance.active.finishCompaction(holder);
+        }
+
+        // Should be able to run when the sstables in question are 90% of the total available space
+        holder = holder(OperationType.COMPACTION, 0.9);
         CompactionManager.instance.active.beginCompaction(holder);
         try
         {
@@ -900,7 +914,7 @@ public class CompactionsCQLTest extends CQLTester
         }
     }
 
-    private CompactionInfo.Holder holder(OperationType opType)
+    private CompactionInfo.Holder holder(OperationType opType, double availableSpaceMultiplier)
     {
         CompactionInfo.Holder holder = new CompactionInfo.Holder()
         {
@@ -910,12 +924,17 @@ public class CompactionsCQLTest extends CQLTester
                 for (File f : getCurrentColumnFamilyStore().getDirectories().getCFDirectories())
                     availableSpace += PathUtils.tryGetSpace(f.toPath(), FileStore::getUsableSpace);
 
+                Set<SSTableReader> liveSSTables = getCurrentColumnFamilyStore().getLiveSSTables();
+                long totalDiskUsage = (long)(availableSpace * availableSpaceMultiplier);
+                // Arbitrary compression ratio of 3.4
+                long totalUncompressedSize = (long) ((double) totalDiskUsage * 3.4);
                 return new CompactionInfo(getCurrentColumnFamilyStore().metadata(),
                                           opType,
                                           +0,
-                                          +availableSpace * 2,
+                                          totalUncompressedSize,
+                                          totalDiskUsage,
                                           nextTimeUUID(),
-                                          getCurrentColumnFamilyStore().getLiveSSTables());
+                                          liveSSTables);
             }
 
             public boolean isGlobal()

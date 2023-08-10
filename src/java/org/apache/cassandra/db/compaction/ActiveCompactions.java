@@ -49,13 +49,14 @@ public class ActiveCompactions implements ActiveCompactionsTracker
     {
         compactions.remove(ci);
         CompactionManager.instance.getMetrics().bytesCompacted.inc(ci.getCompactionInfo().getTotal());
+        CompactionManager.instance.getMetrics().compressedBytesCompacted.inc(ci.getCompactionInfo().getTotalCompressed());
         CompactionManager.instance.getMetrics().totalCompactionsCompleted.mark();
     }
 
     /**
      * Get the estimated number of bytes remaining to write per sstable directory
      */
-    public Map<File, Long> estimatedRemainingWriteBytes()
+    public Map<File, Long> estimatedRemainingWriteToDiskBytes()
     {
         synchronized (compactions)
         {
@@ -66,7 +67,7 @@ public class ActiveCompactions implements ActiveCompactionsTracker
                 List<File> directories = compactionInfo.getTargetDirectories();
                 if (directories == null || directories.isEmpty())
                     continue;
-                long remainingWriteBytesPerDataDir = compactionInfo.estimatedRemainingWriteBytes() / directories.size();
+                long remainingWriteBytesPerDataDir = compactionInfo.estimatedRemainingWriteToDiskBytes() / directories.size();
                 for (File directory : directories)
                     writeBytesPerSSTableDir.merge(directory, remainingWriteBytesPerDataDir, Long::sum);
             }
