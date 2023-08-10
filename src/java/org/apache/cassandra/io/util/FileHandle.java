@@ -27,6 +27,7 @@ import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.compress.CompressionMetadata;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Ref;
@@ -252,6 +253,7 @@ public class FileHandle extends SharedCloseableImpl
         public final File file;
 
         private CompressionMetadata compressionMetadata;
+        private TableMetadataRef tableMetadataRef;
         private ChunkCache chunkCache;
         private int bufferSize = RandomAccessReader.DEFAULT_BUFFER_SIZE;
         private BufferType bufferType = BufferType.OFF_HEAP;
@@ -288,6 +290,12 @@ public class FileHandle extends SharedCloseableImpl
         public Builder withCompressionMetadata(CompressionMetadata metadata)
         {
             this.compressionMetadata = metadata;
+            return this;
+        }
+
+        public Builder withTableMetadataRef(TableMetadataRef tableMetadataRef)
+        {
+            this.tableMetadataRef = tableMetadataRef;
             return this;
         }
 
@@ -386,7 +394,7 @@ public class FileHandle extends SharedCloseableImpl
                     {
                         regions = mmappedRegionsCache != null ? mmappedRegionsCache.getOrCreate(channel, compressionMetadata)
                                                               : MmappedRegions.map(channel, compressionMetadata);
-                        rebuffererFactory = maybeCached(new CompressedChunkReader.Mmap(channel, compressionMetadata, regions));
+                        rebuffererFactory = maybeCached(new CompressedChunkReader.Mmap(channel, compressionMetadata, regions, tableMetadataRef));
                     }
                     else
                     {
@@ -399,7 +407,7 @@ public class FileHandle extends SharedCloseableImpl
                 {
                     if (compressionMetadata != null)
                     {
-                        rebuffererFactory = maybeCached(new CompressedChunkReader.Standard(channel, compressionMetadata));
+                        rebuffererFactory = maybeCached(new CompressedChunkReader.Standard(channel, compressionMetadata, tableMetadataRef));
                     }
                     else
                     {

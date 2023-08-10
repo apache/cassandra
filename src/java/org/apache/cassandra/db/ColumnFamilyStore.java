@@ -2968,6 +2968,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             for (ColumnFamilyStore cfs : concatWithIndexes())
             {
                 cfs.crcCheckChance.set(crcCheckChance);
+
+                TableParams.Builder unbuiltTableParams = cfs.metadata.getLocal().params.unbuild();
+                TableParams buildTableParams = unbuiltTableParams.crcCheckChance(crcCheckChance).build();
+
+                TableMetadata.Builder unbuiltTableMetadata = cfs.metadata.getLocal().unbuild();
+                TableMetadata builtTableMetadata = unbuiltTableMetadata.params(buildTableParams).build();
+
+                cfs.metadata.setLocalOverrides(builtTableMetadata);
+
                 for (SSTableReader sstable : cfs.getSSTables(SSTableSet.LIVE))
                     sstable.setCrcCheckChance(crcCheckChance);
             }

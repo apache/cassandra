@@ -33,7 +33,6 @@ public final class TableMetadataRef
 
     private volatile TableMetadata metadata;
     private volatile TableMetadata localTableMetadata;
-    private volatile CompressionParams localCompressionParams;
 
     TableMetadataRef(TableMetadata metadata)
     {

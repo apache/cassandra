@@ -20,6 +20,7 @@ package org.apache.cassandra.io.util;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.concurrent.ThreadLocalRandom;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
@@ -28,30 +29,35 @@ import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.compress.CorruptBlockException;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.ChecksumType;
 
 public abstract class CompressedChunkReader extends AbstractReaderFileProxy implements ChunkReader
 {
     final CompressionMetadata metadata;
+    final TableMetadataRef tableMetadataRef;
     final int maxCompressedLength;
 
-    protected CompressedChunkReader(ChannelProxy channel, CompressionMetadata metadata)
+    protected CompressedChunkReader(ChannelProxy channel, CompressionMetadata metadata, TableMetadataRef tableMetadataRef)
     {
         super(channel, metadata.dataLength);
         this.metadata = metadata;
         this.maxCompressedLength = metadata.maxCompressedLength();
+        this.tableMetadataRef = tableMetadataRef;
         assert Integer.bitCount(metadata.chunkLength()) == 1; //must be a power of two
     }
 
     @VisibleForTesting
     public double getCrcCheckChance()
     {
-        return metadata.parameters.getCrcCheckChance();
+        return tableMetadataRef.getLocal().params.crcCheckChance;
     }
 
     boolean shouldCheckCrc()
     {
-        return metadata.parameters.shouldCheckCrc();
+        double checkChance = getCrcCheckChance();
+        return checkChance >= 1d ||
+               (checkChance > 0d && checkChance > ThreadLocalRandom.current().nextDouble());
     }
 
     @Override
@@ -88,9 +94,9 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
         // we read the raw compressed bytes into this buffer, then uncompressed them into the provided one.
         private final ThreadLocalByteBufferHolder bufferHolder;
 
-        public Standard(ChannelProxy channel, CompressionMetadata metadata)
+        public Standard(ChannelProxy channel, CompressionMetadata metadata, TableMetadataRef tableMetadataRef)
         {
-            super(channel, metadata);
+            super(channel, metadata, tableMetadataRef);
             bufferHolder = new ThreadLocalByteBufferHolder(metadata.compressor().preferredBufferType());
         }
 
@@ -172,9 +178,9 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
     {
         protected final MmappedRegions regions;
 
-        public Mmap(ChannelProxy channel, CompressionMetadata metadata, MmappedRegions regions)
+        public Mmap(ChannelProxy channel, CompressionMetadata metadata, MmappedRegions regions, TableMetadataRef tableMetadataRef)
         {
-            super(channel, metadata);
+            super(channel, metadata, tableMetadataRef);
             this.regions = regions;
         }
 

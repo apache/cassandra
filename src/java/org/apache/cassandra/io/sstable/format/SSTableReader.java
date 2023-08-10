@@ -878,7 +878,6 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     public void setCrcCheckChance(double crcCheckChance)
     {
         this.crcCheckChance = crcCheckChance;
-        dfile.compressionMetadata().ifPresent(metadata -> metadata.parameters.setCrcCheckChance(crcCheckChance));
     }
 
     /**

@@ -83,6 +83,7 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter> ex
     private DecoratedKey lastWrittenKey;
     private DataPosition dataMark;
     private long lastEarlyOpenLength;
+    private TableMetadataRef tableMetadataRef;
 
     public SortedTableWriter(Builder<P, ?, ?> builder, LifecycleNewTracker lifecycleNewTracker, SSTable.Owner owner)
     {
@@ -90,6 +91,7 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter> ex
         checkNotNull(builder.getDataWriter());
         checkNotNull(builder.getPartitionWriter());
 
+        this.tableMetadataRef = builder.getTableMetadataRef();
         this.dataWriter = builder.getDataWriter();
         this.partitionWriter = builder.getPartitionWriter();
     }
@@ -303,6 +305,7 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter> ex
                                       .withMmappedRegionsCache(mmappedRegionsCache)
                                       .withChunkCache(chunkCache)
                                       .withCompressionMetadata(compressionMetadata)
+                                      .withTableMetadataRef(tableMetadataRef)
                                       .bufferSize(dataBufferSize)
                                       .withLengthOverride(lengthOverride)
                                       .complete();

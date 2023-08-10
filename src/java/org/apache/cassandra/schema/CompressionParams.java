@@ -23,16 +23,12 @@ import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ThreadLocalRandom;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.commons.lang3.builder.HashCodeBuilder;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.ParameterizedClass;
@@ -48,12 +44,6 @@ import static java.lang.String.format;
 
 public final class CompressionParams
 {
-    private static final Logger logger = LoggerFactory.getLogger(CompressionParams.class);
-
-    private static volatile boolean hasLoggedSsTableCompressionWarning;
-    private static volatile boolean hasLoggedChunkLengthWarning;
-    private static volatile boolean hasLoggedCrcCheckChanceWarning;
-
     public static final int DEFAULT_CHUNK_LENGTH = 1024 * 16;
     public static final double DEFAULT_MIN_COMPRESS_RATIO = 0.0;        // Since pre-4.0 versions do not understand the
                                                                         // new compression parameter we can't use a
@@ -80,21 +70,11 @@ public final class CompressionParams
                                                                        DEFAULT_MIN_COMPRESS_RATIO,
                                                                        Collections.emptyMap());
 
-    private static final String CRC_CHECK_CHANCE_WARNING = "The option crc_check_chance was deprecated as a compression option. " +
-                                                           "You should specify it as a top-level table option instead";
-
-    @Deprecated public static final String SSTABLE_COMPRESSION = "sstable_compression";
-    @Deprecated public static final String CHUNK_LENGTH_KB = "chunk_length_kb";
-    @Deprecated public static final String CRC_CHECK_CHANCE = "crc_check_chance";
-
     private final ICompressor sstableCompressor;
     private final int chunkLength;
     private final int maxCompressedLength;  // In content we store max length to avoid rounding errors causing compress/decompress mismatch.
     private final double minCompressRatio;  // In configuration we store min ratio, the input parameter.
     private final ImmutableMap<String, String> otherOptions; // Unrecognized options, can be used by the compressor
-
-    // TODO: deprecated, should now be carefully removed. Doesn't affect schema code as it isn't included in equals() and hashCode()
-    private volatile double crcCheckChance = 1.0;
 
     public static CompressionParams fromMap(Map<String, String> opts)
     {
@@ -133,7 +113,7 @@ public final class CompressionParams
 
     public static CompressionParams noCompression()
     {
-        return new CompressionParams((ICompressor) null, DEFAULT_CHUNK_LENGTH, Integer.MAX_VALUE, 0.0, Collections.emptyMap());
+        return new CompressionParams(null, DEFAULT_CHUNK_LENGTH, Integer.MAX_VALUE, 0.0, Collections.emptyMap());
     }
 
     // The shorthand methods below are only used for tests. They are a little inconsistent in their choice of
@@ -299,16 +279,6 @@ public final class CompressionParams
             return null;
         }
 
-        if (compressionOptions.containsKey(CRC_CHECK_CHANCE))
-        {
-            if (!hasLoggedCrcCheckChanceWarning)
-            {
-                logger.warn(CRC_CHECK_CHANCE_WARNING);
-                hasLoggedCrcCheckChanceWarning = true;
-            }
-            compressionOptions.remove(CRC_CHECK_CHANCE);
-        }
-
         try
         {
             Method method = compressorClass.getMethod("create", Map.class);
@@ -403,27 +373,7 @@ public final class CompressionParams
     {
         if (options.containsKey(CHUNK_LENGTH_IN_KB))
         {
-            if (options.containsKey(CHUNK_LENGTH_KB))
-            {
-                throw new ConfigurationException(format("The '%s' option must not be used if the chunk length is already specified by the '%s' option",
-                                                        CHUNK_LENGTH_KB,
-                                                        CHUNK_LENGTH_IN_KB));
-            }
-
             return parseChunkLength(options.remove(CHUNK_LENGTH_IN_KB));
-        }
-
-        if (options.containsKey(CHUNK_LENGTH_KB))
-        {
-            if (!hasLoggedChunkLengthWarning)
-            {
-                hasLoggedChunkLengthWarning = true;
-                logger.warn("The {} option has been deprecated. You should use {} instead",
-                                   CHUNK_LENGTH_KB,
-                                   CHUNK_LENGTH_IN_KB);
-            }
-
-            return parseChunkLength(options.remove(CHUNK_LENGTH_KB));
         }
 
         return DEFAULT_CHUNK_LENGTH;
@@ -455,7 +405,7 @@ public final class CompressionParams
      */
     public static boolean containsSstableCompressionClass(Map<String, String> options)
     {
-        return options.containsKey(CLASS) || options.containsKey(SSTABLE_COMPRESSION);
+        return options.containsKey(CLASS);
     }
 
     /**
@@ -468,27 +418,13 @@ public final class CompressionParams
     {
         if (options.containsKey(CLASS))
         {
-            if (options.containsKey(SSTABLE_COMPRESSION))
-                throw new ConfigurationException(format("The '%s' option must not be used if the compression algorithm is already specified by the '%s' option",
-                                                        SSTABLE_COMPRESSION,
-                                                        CLASS));
-
             String clazz = options.remove(CLASS);
-            if (clazz.isEmpty())
+
+            if (clazz == null || clazz.isEmpty())
                 throw new ConfigurationException(format("The '%s' option must not be empty. To disable compression use 'enabled' : false", CLASS));
-
-            return clazz;
         }
 
-        if (options.containsKey(SSTABLE_COMPRESSION) && !hasLoggedSsTableCompressionWarning)
-        {
-            hasLoggedSsTableCompressionWarning = true;
-            logger.warn("The {} option has been deprecated. You should use {} instead",
-                               SSTABLE_COMPRESSION,
-                               CLASS);
-        }
-
-        return options.remove(SSTABLE_COMPRESSION);
+        return null;
     }
 
     /**
@@ -553,23 +489,6 @@ public final class CompressionParams
     public String chunkLengthInKB()
     {
         return String.valueOf(chunkLength() / 1024);
-    }
-
-    public void setCrcCheckChance(double crcCheckChance)
-    {
-        this.crcCheckChance = crcCheckChance;
-    }
-
-    public double getCrcCheckChance()
-    {
-        return crcCheckChance;
-    }
-
-    public boolean shouldCheckCrc()
-    {
-        double checkChance = getCrcCheckChance();
-        return checkChance >= 1d ||
-               (checkChance > 0d && checkChance > ThreadLocalRandom.current().nextDouble());
     }
 
     @Override
