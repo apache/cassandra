@@ -1,7 +1,7 @@
 Declarative Test Suite Configuration
 -------------------------------------------
 
-Pipeline and test wuite configurations are declarative so other CI implementations can build 
+Pipeline and test suite configurations are declarative so other CI implementations can build 
 durable, reactive systems based on changes to the upstream OSS C* CI. Additions to `jobs.cfg` and 
 `pipelines.cfg` can be picked up programmatically by CI implementations 
 without requiring human intervention.
