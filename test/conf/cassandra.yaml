@@ -56,7 +56,7 @@ full_query_logging_options:
 auto_hints_cleanup_enabled: true
 
 heap_dump_path: build/test
-dump_heap_on_uncaught_exception: true
+dump_heap_on_uncaught_exception: false
 
 read_thresholds_enabled: true
 coordinator_read_size_warn_threshold: 1024KiB
