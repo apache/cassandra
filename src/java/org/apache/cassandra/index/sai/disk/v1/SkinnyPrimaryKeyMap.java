@@ -75,26 +75,27 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
         protected final IPartitioner partitioner;
         protected final PrimaryKey.Factory primaryKeyFactory;
 
-        private FileHandle tokensFile;
-        private FileHandle partitionsFile;
-        private FileHandle partitionKeyBlockOffsetsFile;
-        private FileHandle partitionKeyBlocksFile;
+        private final FileHandle tokensFile;
+        private final FileHandle partitionsFile;
+        private final FileHandle partitionKeyBlockOffsetsFile;
+        private final FileHandle partitionKeyBlocksFile;
 
         public Factory(IndexDescriptor indexDescriptor, SSTableReader sstable)
         {
+            this.tokensFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.TOKEN_VALUES);
+            this.partitionsFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_SIZES);
+            this.partitionKeyBlockOffsetsFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_KEY_BLOCK_OFFSETS);
+            this.partitionKeyBlocksFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_KEY_BLOCKS);
+
             try
             {
                 this.metadataSource = MetadataSource.loadGroupMetadata(indexDescriptor);
                 NumericValuesMeta tokensMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.TOKEN_VALUES)));
-                this.tokensFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.TOKEN_VALUES);
                 this.tokenReaderFactory = new BlockPackedReader(tokensFile, tokensMeta);
                 NumericValuesMeta partitionsMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_SIZES)));
-                this.partitionsFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_SIZES);
                 this.partitionReaderFactory = new MonotonicBlockPackedReader(partitionsFile, partitionsMeta);
                 NumericValuesMeta partitionKeyBlockOffsetsMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCK_OFFSETS)));
                 SortedTermsMeta partitionKeysMeta = new SortedTermsMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCKS)));
-                this.partitionKeyBlockOffsetsFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_KEY_BLOCK_OFFSETS);
-                this.partitionKeyBlocksFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_KEY_BLOCKS);
                 this.partitionKeyReader = new SortedTermsReader(partitionKeyBlocksFile, partitionKeyBlockOffsetsFile, partitionKeysMeta, partitionKeyBlockOffsetsMeta);
                 this.partitioner = sstable.metadata().partitioner;
                 this.primaryKeyFactory = indexDescriptor.primaryKeyFactory;

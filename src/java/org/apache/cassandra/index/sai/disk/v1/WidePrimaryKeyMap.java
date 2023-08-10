@@ -61,19 +61,19 @@ public class WidePrimaryKeyMap extends SkinnyPrimaryKeyMap
     {
         private final ClusteringComparator clusteringComparator;
         private final SortedTermsReader clusteringKeyReader;
-
-        private FileHandle clusteringKeyBlockOffsetsFile;
-        private FileHandle clustingingKeyBlocksFile;
+        private final FileHandle clusteringKeyBlockOffsetsFile;
+        private final FileHandle clustingingKeyBlocksFile;
 
         public Factory(IndexDescriptor indexDescriptor, SSTableReader sstable)
         {
             super(indexDescriptor, sstable);
 
+            this.clusteringKeyBlockOffsetsFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.CLUSTERING_KEY_BLOCK_OFFSETS);
+            this.clustingingKeyBlocksFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.CLUSTERING_KEY_BLOCKS);
+
             try
             {
                 this.clusteringComparator = indexDescriptor.clusteringComparator;
-                this.clusteringKeyBlockOffsetsFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.CLUSTERING_KEY_BLOCK_OFFSETS);
-                this.clustingingKeyBlocksFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.CLUSTERING_KEY_BLOCKS);
                 NumericValuesMeta clusteringKeyBlockOffsetsMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.CLUSTERING_KEY_BLOCK_OFFSETS)));
                 SortedTermsMeta clusteringKeyMeta = new SortedTermsMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.CLUSTERING_KEY_BLOCKS)));
                 this.clusteringKeyReader = new SortedTermsReader(clustingingKeyBlocksFile, clusteringKeyBlockOffsetsFile, clusteringKeyMeta, clusteringKeyBlockOffsetsMeta);
