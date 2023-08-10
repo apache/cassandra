@@ -19,8 +19,8 @@
 package org.apache.cassandra.service.throttler.dynamic;
 
 import java.text.DecimalFormat;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
@@ -62,12 +62,12 @@ public class CassandraResourceUtilization
     public ResourcesStats resourcesStats;
     public ThrottlingOptions throttlingOptions;
     public ThrottlingMetrics throttlingMetrics;
-    public volatile long lastThrottlingCheckPointTimeInMS = 0;
-    public volatile long lastThrottlingIndicatorTimeInMS = 0;
-    public volatile double throttlingPercentageCur = 0.1;
-    public volatile Set readAggressiveThorttlingKeyspaces = new HashSet<>();
-    public volatile Set mutationAggressiveThorttlingKeyspaces = new HashSet<>();
+    public long lastThrottlingCheckPointTimeInMS = 0;
+    public long lastThrottlingIndicatorTimeInMS = 0;
+    public Map<String, Boolean> readAggressiveThorttlingKeyspaces = new ConcurrentHashMap<>();
+    public Map<String, Boolean> mutationAggressiveThorttlingKeyspaces = new ConcurrentHashMap<>();
     public volatile boolean shouldThrottle = false;
+    public volatile double throttlingPercentageCur = 0.1;
 
     public void setup(boolean continuousHealthCheck)
     {
@@ -111,14 +111,14 @@ public class CassandraResourceUtilization
         }
         nrThrottled2Prev = nrThrottled2Now;
 
-        shouldThrottle();
+        checkSignals();
         adjustThrottling();
 
         // TODO: Eventually, change this to Debug to avoid log flooding
         logger.info("CassandraResourceUtilization {}", this);
     }
 
-    public void shouldThrottle()
+    public void checkSignals()
     {
         boolean cpuUtilSignal1 = false;
         if (resourcesStats.getCpuUtil1Cur() >= throttlingOptions.cpu_threshold_cur && resourcesStats.getCpuUtil1OneMinute() >= throttlingOptions.cpu_threshold_one_minute)
@@ -261,18 +261,18 @@ public class CassandraResourceUtilization
     public boolean decideThrottling(String ksName, KeyspaceMetrics metrics, boolean reads, KeyspaceThrottlingMetrics ksThrottlingMetrics)
     {
         if (throttlingPercentageCur < MAX_THROTTLING &&
-            ((reads && !readAggressiveThorttlingKeyspaces.contains(ksName.toLowerCase())) || (!reads && !mutationAggressiveThorttlingKeyspaces.contains(ksName.toLowerCase()))))
+            ((reads && !readAggressiveThorttlingKeyspaces.containsKey(ksName.toLowerCase())) || (!reads && !mutationAggressiveThorttlingKeyspaces.containsKey(ksName.toLowerCase()))))
         {
             if (spikeInRequestRate(ksName, metrics, reads, ksThrottlingMetrics) || spikeInLatency(ksName, metrics, reads, ksThrottlingMetrics))
             {
                 // if we find that there is a keyspace, which is the root cause, then throttle it more aggressively
                 if (reads)
                 {
-                    readAggressiveThorttlingKeyspaces.add(ksName.toLowerCase());
+                    readAggressiveThorttlingKeyspaces.put(ksName.toLowerCase(), true);
                 }
                 else
                 {
-                    mutationAggressiveThorttlingKeyspaces.add(ksName.toLowerCase());
+                    mutationAggressiveThorttlingKeyspaces.put(ksName.toLowerCase(), true);
                 }
                 ksThrottlingMetrics.addKSForThrottling.inc();
                 return true;
