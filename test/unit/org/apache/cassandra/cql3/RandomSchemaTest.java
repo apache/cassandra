@@ -128,18 +128,18 @@ public class RandomSchemaTest extends CQLTester.InMemory
                 {
                     ByteBuffer[] partitionKeys = Arrays.copyOf(expected, partitionColumnCount);
                     ByteBuffer[] rowKey = Arrays.copyOf(expected, primaryColumnCount);
-                    execute(insertStmt, expected);
+                    execute(insertStmt, (Object[]) expected);
                     // check memtable
-                    assertRows(execute(selectStmt, rowKey), expected);
-                    assertRows(execute(tokenStmt, partitionKeys), partitionKeys);
-                    assertRowsNet(executeNet(selectStmt, rowKey), expected);
+                    assertRows(execute(selectStmt, (Object[]) rowKey), expected);
+                    assertRows(execute(tokenStmt, (Object[]) partitionKeys), partitionKeys);
+                    assertRowsNet(executeNet(selectStmt, (Object[]) rowKey), expected);
 
                     // check sstable
                     flush(KEYSPACE, metadata.name);
                     compact(KEYSPACE, metadata.name);
-                    assertRows(execute(selectStmt, rowKey), expected);
-                    assertRows(execute(tokenStmt, partitionKeys), partitionKeys);
-                    assertRowsNet(executeNet(selectStmt, rowKey), expected);
+                    assertRows(execute(selectStmt, (Object[]) rowKey), expected);
+                    assertRows(execute(tokenStmt, (Object[]) partitionKeys), partitionKeys);
+                    assertRowsNet(executeNet(selectStmt, (Object[]) rowKey), expected);
 
                     execute("TRUNCATE " + metadata);
                 }
@@ -202,7 +202,7 @@ public class RandomSchemaTest extends CQLTester.InMemory
         List<String> binds = columns.stream().map(ignore -> "?").collect(Collectors.toList());
         sb.append("SELECT ").append(String.join(", ", columns));
         sb.append(" FROM ").append(metadata);
-        sb.append(" WHERE token(").append(String.join(", ", columns)).append(") = token(").append(String.join(", ", binds)).append(")");
+        sb.append(" WHERE token(").append(String.join(", ", columns)).append(") = token(").append(String.join(", ", binds)).append(')');
         return sb.toString();
     }
 
@@ -236,7 +236,7 @@ public class RandomSchemaTest extends CQLTester.InMemory
                 sb.append(", ");
             sb.append('?');
         }
-        sb.append(")");
+        sb.append(')');
         return sb.toString();
     }
 
