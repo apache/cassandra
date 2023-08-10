@@ -589,7 +589,6 @@ public class UnfilteredSerializer
             if (hasTimestamp)
             {
                 long timestamp = header.readTimestamp(in);
-                assert timestamp >= 0 : "Invalid negative timestamp " + timestamp;
                 int ttl = hasTTL ? header.readTTL(in) : LivenessInfo.NO_TTL;
                 assert ttl >= 0 : "Invalid TTL " + ttl;
                 long localDeletionTime = hasTTL ? header.readLocalDeletionTime(in) : LivenessInfo.NO_EXPIRATION_TIME;
