@@ -17,18 +17,16 @@
  */
 
 /**
- * Space-efficient on-disk data structure for storing a sorted sequence of terms.
- * Provides efficient lookup of terms by their point id, as well as locating them by contents.
+ * Space-efficient on-disk data structure for storing a sequence of terms.
+ * <p>
+ * Terms can be added in any order for lookup by point id, or they can be grouped into partitions in lexographical
+ * order to allow them to be located by their value within a partition.
  * <p>
  * All the code in the package uses the following teminology:
  * <ul>
  *     <li>Term: arbitrary data provided by the user as a bunch of bytes. Terms can be of variable length.</li>
  *     <li>Point id: the ordinal position of a term in the sequence, 0-based.</li>
  * </ul>
- *
- * Terms are stored in <code>ByteComparable</code> strictly ascending order.
- * Duplicates are not allowed.
- *
  * <p>
  * The structure is immutable, i.e. cannot be modified nor appended after writing to disk is completed.
  * You build it by adding terms in the ascending order using

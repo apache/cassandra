@@ -38,7 +38,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 
 /**
- * Provides read access to a sorted on-disk sequence of terms written by {@link SortedTermsWriter}.
+ * Provides read access to an on-disk sequence of terms written by {@link SortedTermsWriter}.
  * <p>
  * Allows constant-time look up of the term at a given point id.
  * <p>
@@ -110,6 +110,7 @@ public class SortedTermsReader
         private final IndexInputReader termsInput;
         private final int blockShift;
         private final int blockMask;
+        private final boolean partitioned;
         private final long termsDataFp;
         private final LongArray blockOffsets;
 
@@ -128,6 +129,7 @@ public class SortedTermsReader
             SAICodecUtils.validate(this.termsInput);
             this.blockShift = this.termsInput.readVInt();
             this.blockMask = (1 << this.blockShift) - 1;
+            this.partitioned = this.termsInput.readByte() == 1;
             this.termsDataFp = this.termsInput.getFilePointer();
             this.blockOffsets = new LongArray.DeferredLongArray(blockOffsetsFactory::open);
             this.currentTerm = new BytesRef(meta.maxTermLength);
@@ -173,7 +175,7 @@ public class SortedTermsReader
 
         /**
          * Finds the pointId for a term within a range of pointIds. The start and end of the range must not
-         * exceed the number of terms available.
+         * exceed the number of terms available. The terms within the range are expected to be in lexographical order.
          * <p>
          * If the term is not in the block containing the start of the range a binary search is done to find
          * the block containing the search. That block is then searched to return the pointId that corresponds
@@ -181,6 +183,8 @@ public class SortedTermsReader
          */
         public long partitionedSeekToTerm(ByteComparable term, long startingPointId, long endingPointId)
         {
+            assert partitioned : "Cannot do a partitioned seek to term on non-partitioned terms";
+
             BytesRef skipTerm = readBytes(term);
 
             currentBlockIndex = startingPointId >>> blockShift;

@@ -36,10 +36,18 @@ import java.io.Closeable;
 import java.io.IOException;
 
 /**
- * Writes an ordered sequence of terms for use with {@link SortedTermsReader}.
+ * Writes a sequence of terms for use with {@link SortedTermsReader}.
  * <p>
- * Terms must be added in lexicographical ascending order.
- * Terms can be of varying lengths.
+ * Terms can be written in two distinct way
+ * <ul>
+ *     <li>
+ *         Non-partitioned - terms can be written in any order
+ *     </li>
+ *     <li>
+ *         Partitioned - terms added between calls to {@link #startPartition()} must be in lexographical order
+ *     </li>
+ * </ul>
+ * In both cases terms can be of varying lengths.
  * <p>
  * For documentation of the underlying on-disk data structures, see the package documentation.
  * <p>
@@ -59,6 +67,7 @@ public class SortedTermsWriter implements Closeable
 {
     private final int blockShift;
     private final int blockMask;
+    private final boolean partitioned;
     private final IndexOutput termsOutput;
     private final NumericValuesWriter offsetsWriter;
     private final String componentName;
@@ -69,6 +78,7 @@ public class SortedTermsWriter implements Closeable
 
     private final long bytesStartFP;
 
+    private boolean inPartition = false;
     private int maxTermLength = -1;
     private long pointId = 0;
 
@@ -83,22 +93,33 @@ public class SortedTermsWriter implements Closeable
      * @param termsOutput where to write the prefix-compressed terms data
      * @param termsDataBlockOffsets  where to write the offsets of each block of terms data
      * @param blockShift the block shift that is used to determine the block size
+     * @param partitioned determines whether the terms will be written as ordered partitions
      */
     public SortedTermsWriter(String componentName,
                              MetadataWriter metadataWriter,
                              IndexOutput termsOutput,
                              NumericValuesWriter termsDataBlockOffsets,
-                             int blockShift) throws IOException
+                             int blockShift,
+                             boolean partitioned) throws IOException
     {
         this.componentName = componentName;
         this.metadataWriter = metadataWriter;
         SAICodecUtils.writeHeader(termsOutput);
         this.blockShift = blockShift;
         this.blockMask = (1 << this.blockShift) - 1;
+        this.partitioned = partitioned;
         this.termsOutput = termsOutput;
         this.termsOutput.writeVInt(blockShift);
+        this.termsOutput.writeByte((byte ) (partitioned ? 1 : 0));
         this.bytesStartFP = termsOutput.getFilePointer();
         this.offsetsWriter = termsDataBlockOffsets;
+    }
+
+    public void startPartition()
+    {
+        assert partitioned : "Cannot start a partition on un-partitioned sorted terms";
+
+        inPartition = false;
     }
 
     /**
@@ -113,6 +134,14 @@ public class SortedTermsWriter implements Closeable
         copyBytes(term, tempTerm);
 
         BytesRef termRef = tempTerm.get();
+
+        if (partitioned && inPartition)
+        {
+            if (compareTerms(termRef, prevTerm.get()) <= 0)
+                throw new IllegalArgumentException("Partitioned terms must be in ascending lexographical order");
+        }
+
+        inPartition = true;
 
         writeTermData(termRef);
 

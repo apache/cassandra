@@ -89,7 +89,8 @@ public class SortedTermsTest extends SAIRandomizedTester
                                                                   metadataWriter,
                                                                   bytesWriter,
                                                                   blockFPWriter,
-                                                                  4))
+                                                                  4,
+                                                                  false))
             {
                 primaryKeys.forEach(primaryKey -> {
                     try
@@ -113,8 +114,7 @@ public class SortedTermsTest extends SAIRandomizedTester
     public void testLongPrefixesAndSuffixes() throws Exception
     {
         List<byte[]> terms = new ArrayList<>();
-        writeTerms(writer ->
-        {
+        writeTerms(writer ->  {
             // The following writes a set of terms that cover the following conditions:
 
             // Start value 0
@@ -161,7 +161,7 @@ public class SortedTermsTest extends SAIRandomizedTester
             Arrays.fill(bytes, 0, 32, (byte)1);
             terms.add(bytes);
             writer.add(ByteComparable.fixedLength(bytes));
-        });
+        }, false);
 
         doTestSortedTerms(terms);
     }
@@ -171,8 +171,7 @@ public class SortedTermsTest extends SAIRandomizedTester
     {
         List<byte[]> terms = new ArrayList<>();
 
-        writeTerms(writer ->
-        {
+        writeTerms(writer ->  {
             for (int x = 0; x < 4000; x++)
             {
                 ByteBuffer buffer = Int32Type.instance.decompose(5000);
@@ -182,7 +181,7 @@ public class SortedTermsTest extends SAIRandomizedTester
 
                 writer.add(ByteComparable.fixedLength(bytes));
             }
-        });
+        }, false);
 
         doTestSortedTerms(terms);
     }
@@ -192,8 +191,7 @@ public class SortedTermsTest extends SAIRandomizedTester
     {
         List<byte[]> terms = new ArrayList<>();
 
-        writeTerms(writer ->
-        {
+        writeTerms(writer -> {
             for (int x = 0; x < 4000; x++)
             {
                 ByteBuffer buffer = Int32Type.instance.decompose(x);
@@ -203,7 +201,7 @@ public class SortedTermsTest extends SAIRandomizedTester
 
                 writer.add(ByteComparable.fixedLength(bytes));
             }
-        });
+        }, false);
 
         doTestSortedTerms(terms);
     }
@@ -211,8 +209,7 @@ public class SortedTermsTest extends SAIRandomizedTester
     @Test
     public void testSeekToPointIdOutOfRange() throws Exception
     {
-        writeTerms(writer ->
-        {
+        writeTerms(writer -> {
             for (int x = 0; x < 4000; x++)
             {
                 ByteBuffer buffer = Int32Type.instance.decompose(x);
@@ -221,10 +218,9 @@ public class SortedTermsTest extends SAIRandomizedTester
 
                 writer.add(ByteComparable.fixedLength(bytes));
             }
-        });
+        }, false);
 
-        withSortedTermsCursor(cursor ->
-        {
+        withSortedTermsCursor(cursor -> {
             assertThatThrownBy(() -> cursor.seekForwardToPointId(-2)).isInstanceOf(IndexOutOfBoundsException.class);
             assertThatThrownBy(() -> cursor.seekForwardToPointId(Long.MAX_VALUE)).isInstanceOf(IndexOutOfBoundsException.class);
         });
@@ -235,8 +231,7 @@ public class SortedTermsTest extends SAIRandomizedTester
     {
         Map<Long, byte[]> terms = new HashMap<>();
 
-        writeTerms(writer ->
-        {
+        writeTerms(writer -> {
             long pointId = 0;
             for (int x = 0; x < 4000; x += 4)
             {
@@ -245,10 +240,9 @@ public class SortedTermsTest extends SAIRandomizedTester
 
                 writer.add(ByteComparable.fixedLength(term));
             }
-        });
+        }, true);
 
-        withSortedTermsCursor(cursor ->
-        {
+        withSortedTermsCursor(cursor -> {
             assertEquals(0L, cursor.partitionedSeekToTerm(ByteComparable.fixedLength(terms.get(0L)), 0L, 10L));
             cursor.reset();
             assertEquals(160L, cursor.partitionedSeekToTerm(ByteComparable.fixedLength(terms.get(160L)), 160L, 170L));
@@ -271,7 +265,39 @@ public class SortedTermsTest extends SAIRandomizedTester
             cursor.reset();
             assertEquals(999L, cursor.partitionedSeekToTerm(ByteComparable.fixedLength(terms.get(999L)), 0L, 1000L));
         });
+    }
 
+    @Test
+    public void seekToTermOnNonPartitionedTest() throws Throwable
+    {
+        Map<Long, byte[]> terms = new HashMap<>();
+
+        writeTerms(writer -> {
+            long pointId = 0;
+            for (int x = 0; x < 16; x += 4)
+            {
+                byte[] term = makeTerm(x);
+                terms.put(pointId++, term);
+
+                writer.add(ByteComparable.fixedLength(term));
+            }
+        }, false);
+
+        withSortedTermsCursor(cursor -> assertThatThrownBy(() -> cursor.partitionedSeekToTerm(ByteComparable.fixedLength(terms.get(0L)), 0L, 10L))
+                                        .isInstanceOf(AssertionError.class));
+    }
+
+    @Test
+    public void partitionedTermsMustBeInOrderInPartitions() throws Throwable
+    {
+        writeTerms(writer -> {
+            writer.startPartition();
+            writer.add(ByteComparable.fixedLength(makeTerm(0)));
+            writer.add(ByteComparable.fixedLength(makeTerm(10)));
+            assertThatThrownBy(() -> writer.add(ByteComparable.fixedLength(makeTerm(9)))).isInstanceOf(IllegalArgumentException.class);
+            writer.startPartition();
+            writer.add(ByteComparable.fixedLength(makeTerm(9)));
+        },true);
     }
 
     private byte[] makeTerm(int value)
@@ -284,8 +310,7 @@ public class SortedTermsTest extends SAIRandomizedTester
     private void doTestSortedTerms(List<byte[]> terms) throws Exception
     {
         // iterate ascending
-        withSortedTermsCursor(cursor ->
-        {
+        withSortedTermsCursor(cursor -> {
             for (int x = 0; x < terms.size(); x++)
             {
                 ByteComparable term = cursor.seekForwardToPointId(x);
@@ -297,8 +322,7 @@ public class SortedTermsTest extends SAIRandomizedTester
         });
 
         // iterate ascending skipping blocks
-        withSortedTermsCursor(cursor ->
-        {
+        withSortedTermsCursor(cursor -> {
             for (int x = 0; x < terms.size(); x += 17)
             {
                 ByteComparable term = cursor.seekForwardToPointId(x);
@@ -309,8 +333,7 @@ public class SortedTermsTest extends SAIRandomizedTester
             }
         });
 
-        withSortedTermsCursor(cursor ->
-        {
+        withSortedTermsCursor(cursor -> {
             ByteComparable term = cursor.seekForwardToPointId(7);
             byte[] bytes = ByteSourceInverse.readBytes(term.asComparableBytes(ByteComparable.Version.OSS50));
             assertArrayEquals(terms.get(7), bytes);
@@ -321,7 +344,7 @@ public class SortedTermsTest extends SAIRandomizedTester
         });
     }
 
-    protected void writeTerms(ThrowingConsumer<SortedTermsWriter> testCode) throws IOException
+    protected void writeTerms(ThrowingConsumer<SortedTermsWriter> testCode, boolean partitioned) throws IOException
     {
         try (MetadataWriter metadataWriter = new MetadataWriter(indexDescriptor.openPerSSTableOutput(IndexComponent.GROUP_META)))
         {
@@ -331,7 +354,8 @@ public class SortedTermsTest extends SAIRandomizedTester
                                                                   metadataWriter,
                                                                   bytesWriter,
                                                                   blockFPWriter,
-                                                                  4))
+                                                                  4,
+                                                                  partitioned))
             {
                 testCode.accept(writer);
             }
@@ -359,8 +383,7 @@ public class SortedTermsTest extends SAIRandomizedTester
 
     private void withSortedTermsCursor(ThrowingConsumer<SortedTermsReader.Cursor> testCode) throws IOException
     {
-        withSortedTermsReader(reader ->
-        {
+        withSortedTermsReader(reader -> {
             try (SortedTermsReader.Cursor cursor = reader.openCursor())
             {
                 testCode.accept(cursor);

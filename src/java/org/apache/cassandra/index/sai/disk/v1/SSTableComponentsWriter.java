@@ -61,7 +61,8 @@ public class SSTableComponentsWriter implements PerSSTableIndexWriter
                                                          metadataWriter,
                                                          partitionKeyBlocksWriter,
                                                          partitionKeyBlockOffsetWriter,
-                                                         CassandraRelevantProperties.SAI_SORTED_TERMS_PARTITION_BLOCK_SHIFT.getInt());
+                                                         CassandraRelevantProperties.SAI_SORTED_TERMS_PARTITION_BLOCK_SHIFT.getInt(),
+                                                         false);
         if (indexDescriptor.hasClustering())
         {
             IndexOutputWriter clusteringKeyBlocksWriter = indexDescriptor.openPerSSTableOutput(IndexComponent.CLUSTERING_KEY_BLOCKS);
@@ -70,7 +71,8 @@ public class SSTableComponentsWriter implements PerSSTableIndexWriter
                                                               metadataWriter,
                                                               clusteringKeyBlocksWriter,
                                                               clusteringKeyBlockOffsetWriter,
-                                                              CassandraRelevantProperties.SAI_SORTED_TERMS_CLUSTERING_BLOCK_SHIFT.getInt());
+                                                              CassandraRelevantProperties.SAI_SORTED_TERMS_CLUSTERING_BLOCK_SHIFT.getInt(),
+                                                              true);
         }
         else
         {
@@ -83,6 +85,8 @@ public class SSTableComponentsWriter implements PerSSTableIndexWriter
     {
         partitionId++;
         partitionKeysWriter.add(v -> ByteSource.of(partitionKey.getKey(), v));
+        if (indexDescriptor.hasClustering())
+            clusteringKeysWriter.startPartition();
     }
 
     @Override
