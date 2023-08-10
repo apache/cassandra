@@ -969,7 +969,7 @@ public class StreamSession
             for (FileStore fs : allWriteableFileStores)
                 newStreamBytesToWritePerFileStore.merge(fs, totalBytesInPerFileStore, Long::sum);
         }
-        Map<FileStore, Long> totalCompactionWriteRemaining = Directories.perFileStore(CompactionManager.instance.active.estimatedRemainingWriteBytes(),
+        Map<FileStore, Long> totalCompactionWriteRemaining = Directories.perFileStore(CompactionManager.instance.active.estimatedRemainingWriteToDiskBytes(),
                                                                                       fileStoreMapper);
         long totalStreamRemaining = StreamManager.instance.getTotalRemainingOngoingBytes();
         long totalBytesStreamRemainingPerFileStore = totalStreamRemaining / Math.max(1, allFileStores.size());

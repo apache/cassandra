@@ -57,6 +57,7 @@ public class RouteSecondaryIndexBuilder extends SecondaryIndexBuilder
     private final boolean isFullRebuild;
     private final boolean isInitialBuild;
     private final long totalSizeInBytes;
+    private final long totalCompressedSizeInBytes;
     private long bytesProcessed = 0;
 
     public RouteSecondaryIndexBuilder(RouteJournalIndex index,
@@ -72,7 +73,15 @@ public class RouteSecondaryIndexBuilder extends SecondaryIndexBuilder
         this.sstables = sstables;
         this.isFullRebuild = isFullRebuild;
         this.isInitialBuild = isInitialBuild;
-        this.totalSizeInBytes = sstables.stream().mapToLong(SSTableReader::uncompressedLength).sum();
+        long uncompressedSum = 0L;
+        long compressedSum = 0L;
+        for (SSTableReader sstable : sstables)
+        {
+            uncompressedSum += sstable.uncompressedLength();
+            compressedSum += sstable.onDiskLength();
+        }
+        this.totalSizeInBytes = uncompressedSum;
+        this.totalCompressedSizeInBytes = compressedSum;
     }
 
     @Override
@@ -82,6 +91,7 @@ public class RouteSecondaryIndexBuilder extends SecondaryIndexBuilder
                                   OperationType.INDEX_BUILD,
                                   bytesProcessed,
                                   totalSizeInBytes,
+                                  totalCompressedSizeInBytes,
                                   compactionId,
                                   sstables);
     }
