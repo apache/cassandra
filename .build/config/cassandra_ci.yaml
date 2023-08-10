@@ -14,14 +14,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#
 # Contains definitions of all pipelines and jobs (test suites) in Apache Cassandra's CI.
-#
 
 # CI consists of:
 #   1. job: a set of commands to run against a list of files containing tests
 #   2. pipeline: a list of jobs that can be run in arbitrary order
 #       pipelines contain a list of JDK's they have to be run across to certify correctness
+
+#-----------------------------------------------------------------------------
+# IMPLEMENTATION REQUIRED PARAMETERS:
+#-----------------------------------------------------------------------------
+# We do not provide a mechanism to transform the contents of $TEST_LIST_FILE into $TEST_SPLIT_FILE. Implementations
+# must provide that mechanism and set that environment variable or "job->run:" operations will fail, unable to find a test split.
+#
+# EXPECTED FLOW ON AN AGENT:
+# 1. Populate contents of $TEST_LIST_FILE for a given job using "job->test_list_cmd:" piped through "job->TEST_FILTER:"
+# 2. Split up $TEST_LIST_FILE using "job->num_split_cmd:"
+# 3. Populate $TEST_SPLIT_FILE with a given split (CI implementation specific)
+# 3. Execute "job->run:" to run the given $TEST_SPLIT_FILE
 
 #-----------------------------------------------------------------------------
 # SOURCES
@@ -41,6 +51,7 @@ repos:
     url: https://github.com/apache/cassandra-harry
     branch: trunk
     sha: HEAD
+
 
 #-----------------------------------------------------------------------------
 # PIPELINES
@@ -121,7 +132,7 @@ repeat_less: &repeat_moderate 100
 repeat_tiny: &repeat_few 25
 
 # Default to at least one split
-default_splits: &default_splits let NUM_SPLITS=$(( $(wc -l < "$TEST_LIST") / $SPLIT_SIZE )); if [ "$NUM_SPLITS" -eq 0 ]; then NUM_SPLITS=1; fi
+default_split_num: &default_split_num let NUM_SPLITS=$(( $(wc -l < "$TEST_LIST_FILE") / $SPLIT_SIZE )); if [ "$NUM_SPLITS" -eq 0 ]; then NUM_SPLITS=1; fi
 
 # These env vars are required for tests to complete successfully given the run: commands, however downstream implementations
 # are welcome to change them as needed to setup their env
@@ -156,7 +167,7 @@ required_env_vars: &required_env_vars
 #-----------------------------------------------------------------------------
 # JOBS
 #
-# By convention, anything in caps in the .yaml should be exported to an env var during the test run cycle
+# By convention, anything in caps in the .yaml should be exported to an env var during the test run cycle.
 #
 # Parameters:
 #   job: the name
@@ -164,10 +175,10 @@ required_env_vars: &required_env_vars
 #   SPLIT_SIZE: This indicates how many tests to include in a given split. Can raise or lower as needed in your env.
 #   REPEAT_COUNT: Number of times to repeat a test when multiplexing. *Do not lower below upstream config default.*
 #   env:
-#     TYPE: The type of test; this should translate into tests found under ${CASSANDRA_DIR}/test/${type} in test_list
-#     TEST_FILTER: filter to run after test_list to narrow down tests (splits, upgrade vs. non, etc)
-#   TEST_LIST: command to run in shell to generate full list of tests to run.
-#   NUM_SPLITS: How many test splits to create (ideal value will vary based on implementation, local resources, etc)
+#     TYPE: The type of test; this should translate into tests found under ${CASSANDRA_DIR}/test/${type} in $TEST_SPLIT_FILE
+#     TEST_FILTER: filter to run after test_list_cmd to narrow down tests (splits, upgrade vs. non, etc)
+#   test_list_cmd: command to run in shell to generate full list of tests to run. By default, randomizes test list by file name
+#   num_split_cmd: Calculation that populates NUM_SPLITS based on suite, count, weighting.
 #     *If you make changes to this value, they must be >= the default value*
 #   run: command to run in shell to execute tests
 #
@@ -189,9 +200,10 @@ jobs:
       # type lines up with the various targets in build.xml for usage by the <testclasslist> target
       TYPE: unit
       TEST_FILTER: ""
-    TEST_LIST: find "test/${type}" -name "*Test.java" ${TEST_FILTER:-} | sed "s;^test/${type}/;;" | sort
-    NUM_SPLITS: *default_splits
-    run: ant testclasslist -Dtest.classlistprefix=${type} -Dtest.timeout=${TEST_TIMEOUT} -Dtest.classlistfile=${TEST_LIST} ${ANT_TEST_OPTS}
+    TEST_LIST_FILE: ${DIST_DIR}/test_list.txt
+    test_list_cmd: find "test/${type}" -name "*Test.java" ${TEST_FILTER:-} | sed "s;^test/${type}/;;" | sort -R > ${TEST_LIST_FILE}
+    num_split_cmd: *default_split_num
+    run: ant testclasslist -Dtest.classlistprefix=${type} -Dtest.timeout=${TEST_TIMEOUT} -Dtest.classlistfile=${TEST_SPLIT_FILE} ${ANT_TEST_OPTS}
 
   - <<: *job_unit
     name: test-cdc
@@ -295,8 +307,10 @@ jobs:
       DTEST_TARGET: dtest
       # Should not be changed for a given job tag downstream
       DTEST_ARGS: "--use-vnodes --num-tokens=${NUM_TOKENS} --skip-resource-intensive-tests"
-    NUM_SPLITS: *default_splits
-    run: pytest ${PYTEST_OPTS} --cassandra-dir=${CASSANDRA_DIR} --keep-failed-test-dir ${DTEST_ARGS} ${SPLIT_TESTS} 2>&1 | tee -a ${DIST_DIR}/test_stdout.txt
+    TEST_LIST_FILE: ${DIST_DIR}/test_list.txt
+    test_list_cmd: ./run_dtests.py --cassandra-dir=${CASSANDRA_DIR} ${DTEST_ARGS} --dtest-print-tests-only --dtest-print-tests-output=${TEST_LIST_FILE} 2>&1 > ${DIST_DIR}/test_stdout.txt
+    num_split_cmd: *default_split_num
+    run: pytest ${PYTEST_OPTS} --cassandra-dir=${CASSANDRA_DIR} --keep-failed-test-dir ${DTEST_ARGS} ${TEST_SPLIT_FILE} 2>&1 | tee -a ${DIST_DIR}/test_stdout.txt
 
   - <<: *python_dtest
     name: dtest-novnode
