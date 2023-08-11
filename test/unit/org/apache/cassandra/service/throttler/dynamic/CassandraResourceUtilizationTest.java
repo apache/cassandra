@@ -25,6 +25,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.metrics.KeyspaceMetrics;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.throttler.dynamic.metrics.KeyspaceThrottlingMetrics;
 import org.apache.cassandra.service.throttler.dynamic.metrics.ThrottlingMetrics;
 import org.apache.cassandra.SchemaLoader;
@@ -600,6 +601,23 @@ public class CassandraResourceUtilizationTest extends CQLTester
         Assert.assertFalse(cassandraResourceUtilization.spikeInLatency(KEYSPACE_THROTTLE, keyspaceMetrics, true, ksThrottlingMetrics));
         Assert.assertFalse(cassandraResourceUtilization.spikeInLatency(KEYSPACE_THROTTLE, keyspaceMetrics, false, ksThrottlingMetrics));
     }
+
+    @Test
+    public void testCassandraIsNotNormal()
+    {
+        CassandraResourceUtilization cassandraResourceUtilization = new CassandraResourceUtilization();
+        Assert.assertFalse(cassandraResourceUtilization.shouldThrottle);
+        cassandraResourceUtilization.setup(false);
+        cassandraResourceUtilization.uTestCassandraStateNormal = false;
+        cassandraResourceUtilization.fetchCurrentHealth();
+        Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.doesNotNeedThrottling.getCount());
+        Assert.assertFalse(cassandraResourceUtilization.shouldThrottle);
+
+        cassandraResourceUtilization.uTestCassandraStateNormal = true;
+        cassandraResourceUtilization.fetchCurrentHealth();
+        Assert.assertEquals(1, cassandraResourceUtilization.throttlingMetrics.doesNotNeedThrottling.getCount());
+    }
+
 
     private ResourcesStats getResourceStats()
     {

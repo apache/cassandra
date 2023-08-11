@@ -24,6 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,6 +33,7 @@ import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.SharedExecutorPool;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.metrics.KeyspaceMetrics;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.throttler.dynamic.metrics.KeyspaceThrottlingMetrics;
 import org.apache.cassandra.service.throttler.dynamic.metrics.ThrottlingMetrics;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -69,6 +71,11 @@ public class CassandraResourceUtilization
     public volatile boolean shouldThrottle = false;
     public volatile double throttlingPercentageCur = 0.1;
 
+    //  Unfortunately, we cannot add test cases for !StorageService.instance.isNormal() because it is a global state, and all the JUnit test cases share the state.
+    // so this variable is mainly added for unit test purposes
+    @VisibleForTesting
+    public boolean uTestCassandraStateNormal = true;
+
     public void setup(boolean continuousHealthCheck)
     {
         resourcesStats = new ResourcesStats();
@@ -82,40 +89,53 @@ public class CassandraResourceUtilization
         }
     }
 
+    public boolean isuTestCassandraStateNormal()
+    {
+        return uTestCassandraStateNormal && StorageService.instance.isNormal();
+    }
+
     public void fetchCurrentHealth()
     {
-        resourcesStats.setCpuUtil1(resourceUtilzation.getCurrentCpuUtil1());
-        resourcesStats.setCpuUtil2(resourceUtilzation.getCurrentCpuUtil2());
-
-        SEPExecutor readSEPTP = SharedExecutorPool.SHARED.getExecutor(READ_THREAD_POOL);
-        if (readSEPTP != null)
+        // make throttling decisions only when Cassandra is normal
+        if (isuTestCassandraStateNormal())
         {
-            resourcesStats.setPendingReads(readSEPTP.getPendingTaskCount());
-        }
-        SEPExecutor mutationSEPTP = SharedExecutorPool.SHARED.getExecutor(MUTATION_THREAD_POOL);
-        if (mutationSEPTP != null)
-        {
-            resourcesStats.setPendingMutations(mutationSEPTP.getPendingTaskCount());
-        }
-        long nrThrottled1Now = resourceUtilzation.getCpuNRThrottled1();
-        if (nrThrottled1Prev != -1)
-        {
-            resourcesStats.setNrThrottled1(nrThrottled1Now - nrThrottled1Prev);
-        }
-        nrThrottled1Prev = nrThrottled1Now;
+            resourcesStats.setCpuUtil1(resourceUtilzation.getCurrentCpuUtil1());
+            resourcesStats.setCpuUtil2(resourceUtilzation.getCurrentCpuUtil2());
 
-        long nrThrottled2Now = resourceUtilzation.getCpuNRThrottled2();
-        if (nrThrottled2Prev != -1)
-        {
-            resourcesStats.setNrThrottled2(nrThrottled2Now - nrThrottled2Prev);
+            SEPExecutor readSEPTP = SharedExecutorPool.SHARED.getExecutor(READ_THREAD_POOL);
+            if (readSEPTP != null)
+            {
+                resourcesStats.setPendingReads(readSEPTP.getPendingTaskCount());
+            }
+            SEPExecutor mutationSEPTP = SharedExecutorPool.SHARED.getExecutor(MUTATION_THREAD_POOL);
+            if (mutationSEPTP != null)
+            {
+                resourcesStats.setPendingMutations(mutationSEPTP.getPendingTaskCount());
+            }
+            long nrThrottled1Now = resourceUtilzation.getCpuNRThrottled1();
+            if (nrThrottled1Prev != -1)
+            {
+                resourcesStats.setNrThrottled1(nrThrottled1Now - nrThrottled1Prev);
+            }
+            nrThrottled1Prev = nrThrottled1Now;
+
+            long nrThrottled2Now = resourceUtilzation.getCpuNRThrottled2();
+            if (nrThrottled2Prev != -1)
+            {
+                resourcesStats.setNrThrottled2(nrThrottled2Now - nrThrottled2Prev);
+            }
+            nrThrottled2Prev = nrThrottled2Now;
+
+            checkSignals();
+            adjustThrottling();
+
+            // TODO: Eventually, change this to Debug to avoid log flooding
+            logger.info("CassandraResourceUtilization {}", this);
         }
-        nrThrottled2Prev = nrThrottled2Now;
-
-        checkSignals();
-        adjustThrottling();
-
-        // TODO: Eventually, change this to Debug to avoid log flooding
-        logger.info("CassandraResourceUtilization {}", this);
+        else
+        {
+            resetThrottlingParams();
+        }
     }
 
     public void checkSignals()
@@ -163,21 +183,26 @@ public class CassandraResourceUtilization
         }
     }
 
+    private void resetThrottlingParams()
+    {
+        throttlingMetrics.resetThrottling.inc();
+        logger.info("Reset everything....");
+        // reset everything as the system seems to have recovered
+        lastThrottlingCheckPointTimeInMS = 0;
+        lastThrottlingIndicatorTimeInMS = 0;
+        throttlingPercentageCur = throttlingOptions.percentage_of_traffice_to_throttling;
+        readAggressiveThorttlingKeyspaces.clear();
+        mutationAggressiveThorttlingKeyspaces.clear();
+        shouldThrottle = false;
+    }
+
     public void adjustThrottling()
     {
         if (lastThrottlingCheckPointTimeInMS != 0 && MILLISECONDS.toSeconds(System.currentTimeMillis() - lastThrottlingCheckPointTimeInMS) >= throttlingOptions.more_aggressive_throttling_after_in_sec)
         {
             if (MILLISECONDS.toSeconds(System.currentTimeMillis() - lastThrottlingCheckPointTimeInMS) >= throttlingOptions.reset_after_no_throttling_seen_in_sec)
             {
-                throttlingMetrics.resetThrottling.inc();
-                logger.info("Reset everything....");
-                // reset everything as the system seems to have recovered
-                lastThrottlingCheckPointTimeInMS = 0;
-                lastThrottlingIndicatorTimeInMS = 0;
-                throttlingPercentageCur = throttlingOptions.percentage_of_traffice_to_throttling;
-                readAggressiveThorttlingKeyspaces.clear();
-                mutationAggressiveThorttlingKeyspaces.clear();
-                shouldThrottle = false;
+                resetThrottlingParams();
             }
             else if (lastThrottlingIndicatorTimeInMS != 0)
             {
