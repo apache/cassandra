@@ -37,6 +37,7 @@ import org.slf4j.LoggerFactory;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
+import jdk.internal.ref.Cleaner;
 import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -48,6 +49,7 @@ import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Shared;
+import sun.nio.ch.DirectBuffer;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
@@ -55,6 +57,7 @@ import static java.util.Collections.emptyList;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe.UNSAFE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_DEBUG_REF_COUNT;
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 import static org.apache.cassandra.utils.Throwables.maybeFail;
 import static org.apache.cassandra.utils.Throwables.merge;
@@ -93,7 +96,7 @@ import static org.apache.cassandra.utils.Throwables.merge;
 public final class Ref<T> implements RefCounted<T>
 {
     static final Logger logger = LoggerFactory.getLogger(Ref.class);
-    public static final boolean DEBUG_ENABLED = System.getProperty("cassandra.debugrefcount", "false").equalsIgnoreCase("true");
+    public static final boolean DEBUG_ENABLED = TEST_DEBUG_REF_COUNT.getBoolean();
     static OnLeak ON_LEAK;
 
     @Shared(scope = SIMULATION)
@@ -737,5 +740,58 @@ public final class Ref<T> implements RefCounted<T>
     public static void shutdownReferenceReaper(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
         ExecutorUtils.shutdownNowAndWait(timeout, unit, EXEC, STRONG_LEAK_DETECTOR);
+    }
+
+    /**
+     * A version of {@link Ref} for objects that implement {@link DirectBuffer}.
+     */
+    public static final class DirectBufferRef<T extends DirectBuffer> implements RefCounted<T>, DirectBuffer
+    {
+        private final Ref<T> wrappedRef;
+        
+        public DirectBufferRef(T referent, Tidy tidy)
+        {
+            wrappedRef = new Ref<>(referent, tidy);
+        }
+
+        @Override
+        public long address()
+        {
+            return wrappedRef.referent != null ? wrappedRef.referent.address() : 0;
+        }
+
+        @Override
+        public Object attachment()
+        {
+            return wrappedRef.referent != null ? wrappedRef.referent.attachment() : null;
+        }
+
+        @Override
+        public Cleaner cleaner()
+        {
+            return wrappedRef.referent != null ? wrappedRef.referent.cleaner() : null;
+        }
+
+        @Override
+        public Ref<T> tryRef()
+        {
+            return wrappedRef.tryRef();
+        }
+
+        @Override
+        public Ref<T> ref()
+        {
+            return wrappedRef.ref();
+        }
+
+        public void release()
+        {
+            wrappedRef.release();
+        }
+
+        public T get()
+        {
+            return wrappedRef.get();
+        }
     }
 }

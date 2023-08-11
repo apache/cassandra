@@ -23,10 +23,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Callable;
 
+import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.DiskBoundaries;
@@ -40,7 +42,6 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
-import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -57,6 +58,12 @@ public class Flushing
                                                      Memtable memtable,
                                                      LifecycleTransaction txn)
     {
+        LifecycleTransaction ongoingFlushTransaction = memtable.setFlushTransaction(txn);
+        Preconditions.checkState(ongoingFlushTransaction == null,
+                                 "Attempted to flush Memtable more than once on %s.%s",
+                                 cfs.keyspace.getName(),
+                                 cfs.name);
+
         DiskBoundaries diskBoundaries = cfs.getDiskBoundaries();
         List<PartitionPosition> boundaries = diskBoundaries.positions;
         List<Directories.DataDirectory> locations = diskBoundaries.directories;
@@ -97,12 +104,12 @@ public class Flushing
                                        Directories.DataDirectory flushLocation)
     {
         Memtable.FlushablePartitionSet<?> flushSet = memtable.getFlushSet(from, to);
-        SSTableFormat.Type formatType = SSTableFormat.Type.current();
-        long estimatedSize = formatType.info.getWriterFactory().estimateSize(flushSet);
+        SSTableFormat<?, ?> format = DatabaseDescriptor.getSelectedSSTableFormat();
+        long estimatedSize = format.getWriterFactory().estimateSize(flushSet);
 
         Descriptor descriptor = flushLocation == null
-                                ? cfs.newSSTableDescriptor(cfs.getDirectories().getWriteableLocationAsFile(estimatedSize), formatType)
-                                : cfs.newSSTableDescriptor(cfs.getDirectories().getLocationForDisk(flushLocation), formatType);
+                                ? cfs.newSSTableDescriptor(cfs.getDirectories().getWriteableLocationAsFile(estimatedSize), format)
+                                : cfs.newSSTableDescriptor(cfs.getDirectories().getLocationForDisk(flushLocation), format);
 
         SSTableMultiWriter writer = createFlushWriter(cfs,
                                                       flushSet,
@@ -169,7 +176,7 @@ public class Flushing
 
             if (logCompletion)
             {
-                long bytesFlushed = writer.getFilePointer();
+                long bytesFlushed = writer.getBytesWritten();
                 logger.info("Completed flushing {} ({}) for commitlog position {}",
                             writer.getFilename(),
                             FBUtilities.prettyPrintMemory(bytesFlushed),
@@ -200,16 +207,13 @@ public class Flushing
                                                        Descriptor descriptor,
                                                        long partitionCount)
     {
-        MetadataCollector sstableMetadataCollector = new MetadataCollector(flushSet.metadata().comparator)
-                                                     .commitLogIntervals(new IntervalSet<>(flushSet.commitLogLowerBound(),
-                                                                                           flushSet.commitLogUpperBound()));
-
         return cfs.createSSTableMultiWriter(descriptor,
                                             partitionCount,
                                             ActiveRepairService.UNREPAIRED_SSTABLE,
                                             ActiveRepairService.NO_PENDING_REPAIR,
                                             false,
-                                            sstableMetadataCollector,
+                                            new IntervalSet<>(flushSet.commitLogLowerBound(),
+                                                              flushSet.commitLogUpperBound()),
                                             new SerializationHeader(true,
                                                                     flushSet.metadata(),
                                                                     flushSet.columns(),

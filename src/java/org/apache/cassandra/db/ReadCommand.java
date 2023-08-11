@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.LongPredicate;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
@@ -30,6 +31,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,6 +40,7 @@ import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.exceptions.QueryCancelledException;
 import org.apache.cassandra.net.MessageFlag;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.db.partitions.*;
@@ -49,8 +52,6 @@ import org.apache.cassandra.db.transform.StoppingTransformation;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.exceptions.UnknownIndexException;
 import org.apache.cassandra.index.Index;
-import org.apache.cassandra.index.IndexNotAvailableException;
-import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -67,6 +68,7 @@ import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.CassandraUInt;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.TimeUUID;
@@ -85,7 +87,7 @@ import static org.apache.cassandra.db.partitions.UnfilteredPartitionIterators.Me
  */
 public abstract class ReadCommand extends AbstractReadQuery
 {
-    private static final int TEST_ITERATION_DELAY_MILLIS = Integer.parseInt(System.getProperty("cassandra.test.read_iteration_delay_ms", "0"));
+    private static final int TEST_ITERATION_DELAY_MILLIS = CassandraRelevantProperties.TEST_READ_ITERATION_DELAY_MS.getInt();
 
     protected static final Logger logger = LoggerFactory.getLogger(ReadCommand.class);
     public static final IVersionedSerializer<ReadCommand> serializer = new Serializer();
@@ -104,7 +106,7 @@ public abstract class ReadCommand extends AbstractReadQuery
     private boolean trackWarnings;
 
     @Nullable
-    private final IndexMetadata index;
+    private final Index.QueryPlan indexQueryPlan;
 
     protected static abstract class SelectionDeserializer
     {
@@ -114,11 +116,11 @@ public abstract class ReadCommand extends AbstractReadQuery
                                                 int digestVersion,
                                                 boolean acceptsTransient,
                                                 TableMetadata metadata,
-                                                int nowInSec,
+                                                long nowInSec,
                                                 ColumnFilter columnFilter,
                                                 RowFilter rowFilter,
                                                 DataLimits limits,
-                                                IndexMetadata index) throws IOException;
+                                                Index.QueryPlan indexQueryPlan) throws IOException;
     }
 
     protected enum Kind
@@ -139,11 +141,11 @@ public abstract class ReadCommand extends AbstractReadQuery
                           int digestVersion,
                           boolean acceptsTransient,
                           TableMetadata metadata,
-                          int nowInSec,
+                          long nowInSec,
                           ColumnFilter columnFilter,
                           RowFilter rowFilter,
                           DataLimits limits,
-                          IndexMetadata index,
+                          Index.QueryPlan indexQueryPlan,
                           boolean trackWarnings)
     {
         super(metadata, nowInSec, columnFilter, rowFilter, limits);
@@ -154,7 +156,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         this.isDigestQuery = isDigestQuery;
         this.digestVersion = digestVersion;
         this.acceptsTransient = acceptsTransient;
-        this.index = index;
+        this.indexQueryPlan = indexQueryPlan;
         this.trackWarnings = trackWarnings;
     }
 
@@ -242,14 +244,20 @@ public abstract class ReadCommand extends AbstractReadQuery
     }
 
     /**
-     * Index (metadata) chosen for this query. Can be null.
+     * Index query plan chosen for this query. Can be null.
      *
-     * @return index (metadata) chosen for this query
+     * @return index query plan chosen for this query
      */
     @Nullable
-    public IndexMetadata indexMetadata()
+    public Index.QueryPlan indexQueryPlan()
     {
-        return index;
+        return indexQueryPlan;
+    }
+
+    @VisibleForTesting
+    public Index.Searcher indexSearcher()
+    {
+        return indexQueryPlan == null ? null : indexQueryPlan.searcherFor(this);
     }
 
     /**
@@ -350,30 +358,19 @@ public abstract class ReadCommand extends AbstractReadQuery
 
     long indexSerializedSize(int version)
     {
-        return null != index
-             ? IndexMetadata.serializer.serializedSize(index, version)
+        return null != indexQueryPlan
+             ? IndexMetadata.serializer.serializedSize(indexQueryPlan.getFirst().getIndexMetadata(), version)
              : 0;
     }
 
-    public Index getIndex(ColumnFamilyStore cfs)
-    {
-        return null != index
-             ? cfs.indexManager.getIndex(index)
-             : null;
-    }
-
-    static IndexMetadata findIndex(TableMetadata table, RowFilter rowFilter)
+    static Index.QueryPlan findIndexQueryPlan(TableMetadata table, RowFilter rowFilter)
     {
         if (table.indexes.isEmpty() || rowFilter.isEmpty())
             return null;
 
         ColumnFamilyStore cfs = Keyspace.openAndGetStore(table);
 
-        Index index = cfs.indexManager.getBestIndexFor(rowFilter);
-
-        return null != index
-             ? index.getIndexMetadata()
-             : null;
+        return cfs.indexManager.getBestIndexQueryPlanFor(rowFilter);
     }
 
     /**
@@ -384,8 +381,10 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public void maybeValidateIndex()
     {
-        if (null != index)
-            IndexRegistry.obtain(metadata()).getIndex(index).validate(this);
+        if (null != indexQueryPlan)
+        {
+            indexQueryPlan.validate(this);
+        }
     }
 
     /**
@@ -405,16 +404,22 @@ public abstract class ReadCommand extends AbstractReadQuery
         try
         {
             ColumnFamilyStore cfs = Keyspace.openAndGetStore(metadata());
-            Index index = getIndex(cfs);
+            Index.QueryPlan indexQueryPlan = indexQueryPlan();
 
             Index.Searcher searcher = null;
-            if (index != null)
+            if (indexQueryPlan != null)
             {
-                if (!cfs.indexManager.isIndexQueryable(index))
-                    throw new IndexNotAvailableException(index);
+                cfs.indexManager.checkQueryability(indexQueryPlan);
 
-                searcher = index.searcherFor(this);
-                Tracing.trace("Executing read on {}.{} using index {}", cfs.metadata.keyspace, cfs.metadata.name, index.getIndexMetadata().name);
+                searcher = indexQueryPlan.searcherFor(this);
+                Tracing.trace("Executing read on {}.{} using index{} {}",
+                              cfs.metadata.keyspace,
+                              cfs.metadata.name,
+                              indexQueryPlan.getIndexes().size() == 1 ? "" : "es",
+                              indexQueryPlan.getIndexes()
+                                            .stream()
+                                            .map(i -> i.getIndexMetadata().name)
+                                            .collect(Collectors.joining(",")));
             }
 
             UnfilteredPartitionIterator iterator = (null == searcher) ? queryStorage(cfs, executionController) : searcher.search(executionController);
@@ -430,7 +435,7 @@ public abstract class ReadCommand extends AbstractReadQuery
 
                 // If we've used a 2ndary index, we know the result already satisfy the primary expression used, so
                 // no point in checking it again.
-                RowFilter filter = (null == searcher) ? rowFilter() : index.getPostIndexQueryFilter(rowFilter());
+                RowFilter filter = (null == searcher) ? rowFilter() : indexQueryPlan.postIndexQueryFilter();
 
                 /*
                  * TODO: We'll currently do filtering by the rowFilter here because it's convenient. However,
@@ -942,7 +947,7 @@ public abstract class ReadCommand extends AbstractReadQuery
         }
 
         @SuppressWarnings("resource") // the returned iterators are closed by the caller
-        List<T> finalizeIterators(ColumnFamilyStore cfs, int nowInSec, int oldestUnrepairedTombstone)
+        List<T> finalizeIterators(ColumnFamilyStore cfs, long nowInSec, long oldestUnrepairedTombstone)
         {
             if (repairedIters.isEmpty())
                 return unrepairedIters;
@@ -1064,18 +1069,21 @@ public abstract class ReadCommand extends AbstractReadQuery
             out.writeByte(command.kind.ordinal());
             out.writeByte(
                     digestFlag(command.isDigestQuery())
-                    | indexFlag(null != command.indexMetadata())
+                    | indexFlag(null != command.indexQueryPlan())
                     | acceptsTransientFlag(command.acceptsTransient())
             );
             if (command.isDigestQuery())
                 out.writeUnsignedVInt32(command.digestVersion());
             command.metadata().id.serialize(out);
-            out.writeInt(command.nowInSec());
+            out.writeInt(version >= MessagingService.VERSION_50 ? CassandraUInt.fromLong(command.nowInSec()) : (int) command.nowInSec());
             ColumnFilter.serializer.serialize(command.columnFilter(), out, version);
             RowFilter.serializer.serialize(command.rowFilter(), out, version);
             DataLimits.serializer.serialize(command.limits(), out, version, command.metadata().comparator);
-            if (null != command.index)
-                IndexMetadata.serializer.serialize(command.index, out, version);
+            // Using the name of one of the indexes in the plan to identify the index group because we want
+            // to keep compatibility with legacy nodes. Each replica can create its own different index query plan
+            // from the index name.
+            if (null != command.indexQueryPlan)
+                IndexMetadata.serializer.serialize(command.indexQueryPlan.getFirst().getIndexMetadata(), out, version);
 
             command.serializeSelection(out, version);
         }
@@ -1097,13 +1105,21 @@ public abstract class ReadCommand extends AbstractReadQuery
             boolean hasIndex = hasIndex(flags);
             int digestVersion = isDigest ? in.readUnsignedVInt32() : 0;
             TableMetadata metadata = schema.getExistingTableMetadata(TableId.deserialize(in));
-            int nowInSec = in.readInt();
+            long nowInSec = version >= MessagingService.VERSION_50 ? CassandraUInt.toLong(in.readInt()) : in.readInt();
             ColumnFilter columnFilter = ColumnFilter.serializer.deserialize(in, version, metadata);
             RowFilter rowFilter = RowFilter.serializer.deserialize(in, version, metadata);
             DataLimits limits = DataLimits.serializer.deserialize(in, version,  metadata);
-            IndexMetadata index = hasIndex ? deserializeIndexMetadata(in, version, metadata) : null;
 
-            return kind.selectionDeserializer.deserialize(in, version, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, index);
+            Index.QueryPlan indexQueryPlan = null;
+            if (hasIndex)
+            {
+                IndexMetadata index = deserializeIndexMetadata(in, version, metadata);
+                Index.Group indexGroup =  Keyspace.openAndGetStore(metadata).indexManager.getIndexGroup(index);
+                if (indexGroup != null)
+                    indexQueryPlan = indexGroup.queryPlanFor(rowFilter);
+            }
+
+            return kind.selectionDeserializer.deserialize(in, version, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan);
         }
 
         private IndexMetadata deserializeIndexMetadata(DataInputPlus in, int version, TableMetadata metadata) throws IOException
@@ -1128,7 +1144,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             return 2 // kind + flags
                    + (command.isDigestQuery() ? TypeSizes.sizeofUnsignedVInt(command.digestVersion()) : 0)
                    + command.metadata().id.serializedSize()
-                   + TypeSizes.sizeof(command.nowInSec())
+                   + TypeSizes.INT_SIZE // command.nowInSec() is serialized as uint
                    + ColumnFilter.serializer.serializedSize(command.columnFilter(), version)
                    + RowFilter.serializer.serializedSize(command.rowFilter(), version)
                    + DataLimits.serializer.serializedSize(command.limits(), version, command.metadata().comparator)

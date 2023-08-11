@@ -21,44 +21,32 @@ package org.apache.cassandra.io.sstable;
 import java.util.HashSet;
 import java.util.function.Function;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.junit.Test;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.io.sstable.Component.Type;
-import org.apache.cassandra.io.sstable.format.AbstractSSTableFormat;
+import org.apache.cassandra.io.sstable.SSTableFormatTest.Format1;
+import org.apache.cassandra.io.sstable.SSTableFormatTest.Format2;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.mockito.Mockito;
 
+import static org.apache.cassandra.io.sstable.SSTableFormatTest.factory;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 public class ComponentTest
 {
-    public static abstract class Format1 extends AbstractSSTableFormat<SSTableReader, SSTableWriter>
-    {
-        public final static Format1 instance = Mockito.spy(Format1.class);
-    }
-
-    public static abstract class Format2 extends AbstractSSTableFormat<SSTableReader, SSTableWriter>
-    {
-        public final static Format2 instance = Mockito.spy(Format2.class);
-    }
+    private static final String SECOND = "second";
+    private static final String FIRST = "first";
 
     static
     {
         DatabaseDescriptor.daemonInitialization(() -> {
             Config config = DatabaseDescriptor.loadConfig();
-            config.sstable_formats = Lists.newArrayList(config.sstable_formats);
-            config.sstable_formats.add(new ParameterizedClass(Format1.class.getName(), ImmutableMap.of(Config.SSTABLE_FORMAT_ID, "11", Config.SSTABLE_FORMAT_NAME, "first")));
-            config.sstable_formats.add(new ParameterizedClass(Format2.class.getName(), ImmutableMap.of(Config.SSTABLE_FORMAT_ID, "12", Config.SSTABLE_FORMAT_NAME, "second")));
+            SSTableFormatTest.configure(new Config.SSTableConfig(), new BigFormat.BigFormatFactory(), factory("first", Format1.class), factory("second", Format2.class));
             return config;
         });
     }
@@ -69,33 +57,33 @@ public class ComponentTest
         Function<Type, Component> componentFactory = Mockito.mock(Function.class);
 
         // do not allow to define a type with the same name or repr as the existing type for this or parent format
-        assertThatExceptionOfType(AssertionError.class).isThrownBy(() -> Type.createSingleton(Components.Types.TOC.name, Components.Types.TOC.repr + "x", Format1.class));
-        assertThatExceptionOfType(AssertionError.class).isThrownBy(() -> Type.createSingleton(Components.Types.TOC.name + "x", Components.Types.TOC.repr, Format2.class));
+        assertThatExceptionOfType(AssertionError.class).isThrownBy(() -> Type.createSingleton(Components.Types.TOC.name, Components.Types.TOC.repr + "x", true, Format1.class));
+        assertThatExceptionOfType(AssertionError.class).isThrownBy(() -> Type.createSingleton(Components.Types.TOC.name + "x", Components.Types.TOC.repr, true, Format2.class));
 
         // allow to define a format with other name and repr
-        Type t1 = Type.createSingleton("ONE", "One.db", Format1.class);
+        Type t1 = Type.createSingleton("ONE", "One.db", true, Format1.class);
 
         // allow to define a format with the same name and repr for two different formats
-        Type t2f1 = Type.createSingleton("TWO", "Two.db", Format1.class);
-        Type t2f2 = Type.createSingleton("TWO", "Two.db", Format2.class);
+        Type t2f1 = Type.createSingleton("TWO", "Two.db", true, Format1.class);
+        Type t2f2 = Type.createSingleton("TWO", "Two.db", true, Format2.class);
         assertThat(t2f1).isNotEqualTo(t2f2);
 
-        assertThatExceptionOfType(NullPointerException.class).isThrownBy(() -> Type.createSingleton(null, "-Three.db", Format1.class));
+        assertThatExceptionOfType(NullPointerException.class).isThrownBy(() -> Type.createSingleton(null, "-Three.db", true, Format1.class));
 
-        assertThat(Type.fromRepresentation("should be custom", BigFormat.getInstance().getType())).isSameAs(Components.Types.CUSTOM);
-        assertThat(Type.fromRepresentation(Components.Types.TOC.repr, BigFormat.getInstance().getType())).isSameAs(Components.Types.TOC);
-        assertThat(Type.fromRepresentation(t1.repr, Format1.instance.getType())).isSameAs(t1);
-        assertThat(Type.fromRepresentation(t2f1.repr, Format1.instance.getType())).isSameAs(t2f1);
-        assertThat(Type.fromRepresentation(t2f2.repr, Format2.instance.getType())).isSameAs(t2f2);
+        assertThat(Type.fromRepresentation("should be custom", BigFormat.getInstance())).isSameAs(Components.Types.CUSTOM);
+        assertThat(Type.fromRepresentation(Components.Types.TOC.repr, BigFormat.getInstance())).isSameAs(Components.Types.TOC);
+        assertThat(Type.fromRepresentation(t1.repr, DatabaseDescriptor.getSSTableFormats().get(FIRST))).isSameAs(t1);
+        assertThat(Type.fromRepresentation(t2f1.repr, DatabaseDescriptor.getSSTableFormats().get(FIRST))).isSameAs(t2f1);
+        assertThat(Type.fromRepresentation(t2f2.repr, DatabaseDescriptor.getSSTableFormats().get(SECOND))).isSameAs(t2f2);
     }
 
     @Test
     public void testComponents()
     {
-        Type t3f1 = Type.createSingleton("THREE", "Three.db", Format1.class);
-        Type t3f2 = Type.createSingleton("THREE", "Three.db", Format2.class);
-        Type t4f1 = Type.create("FOUR", ".*-Four.db", Format1.class);
-        Type t4f2 = Type.create("FOUR", ".*-Four.db", Format2.class);
+        Type t3f1 = Type.createSingleton("THREE", "Three.db", true, Format1.class);
+        Type t3f2 = Type.createSingleton("THREE", "Three.db", true, Format2.class);
+        Type t4f1 = Type.create("FOUR", ".*-Four.db", true, Format1.class);
+        Type t4f2 = Type.create("FOUR", ".*-Four.db", true, Format2.class);
 
         Component c1 = t3f1.getSingleton();
         Component c2 = t3f2.getSingleton();
@@ -105,14 +93,14 @@ public class ComponentTest
         assertThatExceptionOfType(RuntimeException.class).isThrownBy(() -> t4f1.getSingleton());
         assertThatExceptionOfType(RuntimeException.class).isThrownBy(() -> t4f2.getSingleton());
 
-        assertThat(Component.parse(t3f1.repr, Format1.instance.getType())).isSameAs(c1);
-        assertThat(Component.parse(t3f2.repr, Format2.instance.getType())).isSameAs(c2);
+        assertThat(Component.parse(t3f1.repr, DatabaseDescriptor.getSSTableFormats().get(FIRST))).isSameAs(c1);
+        assertThat(Component.parse(t3f2.repr, DatabaseDescriptor.getSSTableFormats().get("second"))).isSameAs(c2);
         assertThat(c1).isNotEqualTo(c2);
         assertThat(c1.type).isSameAs(t3f1);
         assertThat(c2.type).isSameAs(t3f2);
 
-        Component c3 = Component.parse("abc-Four.db", Format1.instance.getType());
-        Component c4 = Component.parse("abc-Four.db", Format2.instance.getType());
+        Component c3 = Component.parse("abc-Four.db", DatabaseDescriptor.getSSTableFormats().get(FIRST));
+        Component c4 = Component.parse("abc-Four.db", DatabaseDescriptor.getSSTableFormats().get("second"));
         assertThat(c3.type).isSameAs(t4f1);
         assertThat(c4.type).isSameAs(t4f2);
         assertThat(c3.name).isEqualTo("abc-Four.db");
@@ -121,11 +109,11 @@ public class ComponentTest
         assertThat(c3).isNotEqualTo(c1);
         assertThat(c4).isNotEqualTo(c2);
 
-        Component c5 = Component.parse("abc-Five.db", Format1.instance.getType());
+        Component c5 = Component.parse("abc-Five.db", DatabaseDescriptor.getSSTableFormats().get(FIRST));
         assertThat(c5.type).isSameAs(Components.Types.CUSTOM);
         assertThat(c5.name).isEqualTo("abc-Five.db");
 
-        Component c6 = Component.parse("Data.db", Format2.instance.getType());
+        Component c6 = Component.parse("Data.db", DatabaseDescriptor.getSSTableFormats().get("second"));
         assertThat(c6.type).isSameAs(Components.Types.DATA);
         assertThat(c6).isSameAs(Components.DATA);
 
@@ -136,7 +124,7 @@ public class ComponentTest
         assertThat(s1).doesNotContain(c2);
         assertThat(s2).doesNotContain(c1);
 
-        assertThat(Sets.newHashSet(Component.getSingletonsFor(Format1.instance))).isEqualTo(s1);
-        assertThat(Sets.newHashSet(Component.getSingletonsFor(Format2.instance))).isEqualTo(s2);
+        assertThat(Sets.newHashSet(Component.getSingletonsFor(DatabaseDescriptor.getSSTableFormats().get(FIRST)))).isEqualTo(s1);
+        assertThat(Sets.newHashSet(Component.getSingletonsFor(DatabaseDescriptor.getSSTableFormats().get("second")))).isEqualTo(s2);
     }
 }

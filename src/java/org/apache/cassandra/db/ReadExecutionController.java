@@ -47,7 +47,7 @@ public class ReadExecutionController implements AutoCloseable
     private final long createdAtNanos; // Only used while sampling
 
     private final RepairedDataInfo repairedDataInfo;
-    private int oldestUnrepairedTombstone = Integer.MAX_VALUE;
+    private long oldestUnrepairedTombstone = Long.MAX_VALUE;
 
     ReadExecutionController(ReadCommand command,
                             OpOrder.Group baseOp,
@@ -91,12 +91,12 @@ public class ReadExecutionController implements AutoCloseable
         return writeContext;
     }
 
-    int oldestUnrepairedTombstone()
+    long oldestUnrepairedTombstone()
     {
         return oldestUnrepairedTombstone;
     }
     
-    void updateMinOldestUnrepairedTombstone(int candidate)
+    void updateMinOldestUnrepairedTombstone(long candidate)
     {
         oldestUnrepairedTombstone = Math.min(oldestUnrepairedTombstone, candidate);
     }
@@ -124,7 +124,7 @@ public class ReadExecutionController implements AutoCloseable
     static ReadExecutionController forCommand(ReadCommand command, boolean trackRepairedStatus)
     {
         ColumnFamilyStore baseCfs = Keyspace.openAndGetStore(command.metadata());
-        ColumnFamilyStore indexCfs = maybeGetIndexCfs(baseCfs, command);
+        ColumnFamilyStore indexCfs = maybeGetIndexCfs(command);
 
         long createdAtNanos = baseCfs.metric.topLocalReadQueryTime.isEnabled() ? clock.now() : NO_SAMPLING;
 
@@ -165,10 +165,14 @@ public class ReadExecutionController implements AutoCloseable
         }
     }
 
-    private static ColumnFamilyStore maybeGetIndexCfs(ColumnFamilyStore baseCfs, ReadCommand command)
+    private static ColumnFamilyStore maybeGetIndexCfs(ReadCommand command)
     {
-        Index index = command.getIndex(baseCfs);
-        return index == null ? null : index.getBackingTable().orElse(null);
+        Index.QueryPlan queryPlan = command.indexQueryPlan();
+        if (queryPlan == null)
+            return null;
+
+        // only the index groups with a single member are allowed to have a backing table
+        return queryPlan.getFirst().getBackingTable().orElse(null);
     }
 
     public TableMetadata metadata()

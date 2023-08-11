@@ -48,7 +48,13 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell<?>>
 {
     static final Cell<?>[] NO_CELLS = new Cell<?>[0];
 
-    private static final long EMPTY_SIZE = ObjectSizes.measure(new ComplexColumnData(ColumnMetadata.regularColumn("", "", "", SetType.getInstance(ByteType.instance, true)), NO_CELLS, new DeletionTime(0, 0)));
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new ComplexColumnData(ColumnMetadata.regularColumn("",
+                                                                                                                  "",
+                                                                                                                  "",
+                                                                                                                  SetType.getInstance(ByteType.instance,
+                                                                                                                                      true)),
+                                                                                     NO_CELLS,
+                                                                                     DeletionTime.build(0, 0)));
 
     // The cells for 'column' sorted by cell path.
     private final Object[] cells;
@@ -203,7 +209,7 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell<?>>
         });
     }
 
-    public ComplexColumnData purge(DeletionPurger purger, int nowInSec)
+    public ComplexColumnData purge(DeletionPurger purger, long nowInSec)
     {
         DeletionTime newDeletion = complexDeletion.isLive() || purger.shouldPurge(complexDeletion) ? DeletionTime.LIVE : complexDeletion;
         return transformAndFilter(newDeletion, (cell) -> cell.purge(purger, nowInSec));
@@ -254,7 +260,7 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell<?>>
 
     public ComplexColumnData updateAllTimestamp(long newTimestamp)
     {
-        DeletionTime newDeletion = complexDeletion.isLive() ? complexDeletion : new DeletionTime(newTimestamp - 1, complexDeletion.localDeletionTime());
+        DeletionTime newDeletion = complexDeletion.isLive() ? complexDeletion : DeletionTime.build(newTimestamp - 1, complexDeletion.localDeletionTime());
         return transformAndFilter(newDeletion, (cell) -> (Cell<?>) cell.updateAllTimestamp(newTimestamp));
     }
 

@@ -81,7 +81,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
 
     @Override
     @SuppressWarnings("resource") // transaction is closed by AbstractCompactionTask::execute
-    public AbstractCompactionTask getNextBackgroundTask(int gcBefore)
+    public AbstractCompactionTask getNextBackgroundTask(long gcBefore)
     {
         List<SSTableReader> previousCandidate = null;
         while (true)
@@ -113,7 +113,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
      * @param gcBefore
      * @return
      */
-    private synchronized List<SSTableReader> getNextBackgroundSSTables(final int gcBefore)
+    private synchronized List<SSTableReader> getNextBackgroundSSTables(final long gcBefore)
     {
         if (Iterables.isEmpty(cfs.getSSTables(SSTableSet.LIVE)))
             return Collections.emptyList();
@@ -147,7 +147,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
         return compactionCandidates;
     }
 
-    private List<SSTableReader> getNextNonExpiredSSTables(Iterable<SSTableReader> nonExpiringSSTables, final int gcBefore)
+    private List<SSTableReader> getNextNonExpiredSSTables(Iterable<SSTableReader> nonExpiringSSTables, final long gcBefore)
     {
         List<SSTableReader> mostInteresting = getCompactionCandidates(nonExpiringSSTables);
 
@@ -381,7 +381,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
 
     @Override
     @SuppressWarnings("resource") // transaction is closed by AbstractCompactionTask::execute
-    public synchronized Collection<AbstractCompactionTask> getMaximalTask(int gcBefore, boolean splitOutput)
+    public synchronized Collection<AbstractCompactionTask> getMaximalTask(long gcBefore, boolean splitOutput)
     {
         Iterable<SSTableReader> filteredSSTables = filterSuspectSSTables(sstables);
         if (Iterables.isEmpty(filteredSSTables))
@@ -408,7 +408,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
 
     @Override
     @SuppressWarnings("resource") // transaction is closed by AbstractCompactionTask::execute
-    public synchronized AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, int gcBefore)
+    public synchronized AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, long gcBefore)
     {
         assert !sstables.isEmpty(); // checked for by CM.submitUserDefined
 

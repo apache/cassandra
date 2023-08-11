@@ -21,10 +21,12 @@ import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -33,12 +35,11 @@ import com.google.common.base.Predicates;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
@@ -65,11 +66,9 @@ import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABL
  */
 public abstract class SSTable
 {
-    static final Logger logger = LoggerFactory.getLogger(SSTable.class);
-
     public static final int TOMBSTONE_HISTOGRAM_BIN_SIZE = 100;
     public static final int TOMBSTONE_HISTOGRAM_SPOOL_SIZE = 100000;
-    public static final int TOMBSTONE_HISTOGRAM_TTL_ROUND_SECONDS = CassandraRelevantProperties.TOMBSTONE_HISTOGRAM_TTL_ROUND_SECONDS.getInt();
+    public static final int TOMBSTONE_HISTOGRAM_TTL_ROUND_SECONDS = CassandraRelevantProperties.STREAMING_HISTOGRAM_ROUND_SECONDS.getInt();
 
     public final Descriptor descriptor;
     protected final Set<Component> components;
@@ -162,6 +161,16 @@ public abstract class SSTable
     public Set<Component> getComponents()
     {
         return ImmutableSet.copyOf(components);
+    }
+
+    /**
+     * Returns all SSTable components that should be streamed.
+     */
+    public Set<Component> getStreamingComponents()
+    {
+        return components.stream()
+                         .filter(c -> c.type.streamable)
+                         .collect(Collectors.toSet());
     }
 
     public TableMetadata metadata()
@@ -290,7 +299,7 @@ public abstract class SSTable
     @Override
     public String toString()
     {
-        return String.format("%s:%s(path='%s')", getClass().getSimpleName(), descriptor.formatType.name, getFilename());
+        return String.format("%s:%s(path='%s')", getClass().getSimpleName(), descriptor.version.format.name(), getFilename());
     }
 
     public static void validateRepairedMetadata(long repairedAt, TimeUUID pendingRepair, boolean isTransient)
@@ -313,6 +322,44 @@ public abstract class SSTable
         Collection<Component> componentsToAdd = Collections2.filter(newComponents, Predicates.not(Predicates.in(components)));
         TOCComponent.appendTOC(descriptor, componentsToAdd);
         components.addAll(componentsToAdd);
+    }
+
+    /**
+     * Registers new custom components into sstable and update size tracking
+     * @param newComponents collection of components to be added
+     * @param tracker used to update on-disk size metrics
+     */
+    public synchronized void registerComponents(Collection<Component> newComponents, Tracker tracker)
+    {
+        Collection<Component> componentsToAdd = new HashSet<>(Collections2.filter(newComponents, x -> !components.contains(x)));
+        TOCComponent.appendTOC(descriptor, componentsToAdd);
+        components.addAll(componentsToAdd);
+
+        for (Component component : componentsToAdd)
+        {
+            File file = descriptor.fileFor(component);
+            if (file.exists())
+                tracker.updateLiveDiskSpaceUsed(file.length());
+        }
+    }
+
+    /**
+     * Unregisters custom components from sstable and update size tracking
+     * @param removeComponents collection of components to be remove
+     * @param tracker used to update on-disk size metrics
+     */
+    public synchronized void unregisterComponents(Collection<Component> removeComponents, Tracker tracker)
+    {
+        Collection<Component> componentsToRemove = new HashSet<>(Collections2.filter(removeComponents, components::contains));
+        components.removeAll(componentsToRemove);
+        TOCComponent.rewriteTOC(descriptor, components);
+
+        for (Component component : componentsToRemove)
+        {
+            File file = descriptor.fileFor(component);
+            if (file.exists())
+                tracker.updateLiveDiskSpaceUsed(-file.length());
+        }
     }
 
     public interface Owner
@@ -349,7 +396,7 @@ public abstract class SSTable
         {
             if (components != null)
             {
-                components.forEach(c -> Preconditions.checkState(c.isValidFor(descriptor), "Invalid component type for sstable format " + descriptor.formatType.name));
+                components.forEach(c -> Preconditions.checkState(c.isValidFor(descriptor), "Invalid component type for sstable format " + descriptor.version.format.name()));
                 this.components = ImmutableSet.copyOf(components);
             }
             else

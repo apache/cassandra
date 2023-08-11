@@ -22,6 +22,7 @@ import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.ThreadPoolExecutorBase;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.UDF_EXECUTOR_THREAD_KEEPALIVE_MS;
 import static org.apache.cassandra.utils.FBUtilities.getAvailableProcessors;
 import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 
@@ -33,7 +34,7 @@ import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQu
  */
 final class UDFExecutorService extends ThreadPoolExecutorBase
 {
-    private static final int KEEPALIVE = Integer.getInteger("cassandra.udf_executor_thread_keepalive_ms", 30000);
+    private static final int KEEPALIVE = UDF_EXECUTOR_THREAD_KEEPALIVE_MS.getInt();
 
     public UDFExecutorService(NamedThreadFactory threadFactory, String jmxPath)
     {

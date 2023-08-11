@@ -56,7 +56,7 @@ import org.apache.cassandra.schema.TableMetadataRef;
 
 public class SerializationHeaderTest
 {
-    private static String KEYSPACE = "SerializationHeaderTest";
+    private static final String KEYSPACE = "SerializationHeaderTest";
 
     static
     {
@@ -66,7 +66,7 @@ public class SerializationHeaderTest
     @Test
     public void testWrittenAsDifferentKind() throws Exception
     {
-        SSTableFormat<?, ?> format = SSTableFormat.Type.current().info;
+        SSTableFormat<?, ?> format = DatabaseDescriptor.getSelectedSSTableFormat();
         final String tableName = "testWrittenAsDifferentKind";
         ColumnIdentifier v = ColumnIdentifier.getInterned("v", false);
         TableMetadata schemaWithStatic = TableMetadata.builder(KEYSPACE, tableName)
@@ -91,7 +91,7 @@ public class SerializationHeaderTest
         try
         {
             BiFunction<TableMetadata, Function<ByteBuffer, Clustering<?>>, Callable<Descriptor>> writer = (schema, clusteringFunction) -> () -> {
-                Descriptor descriptor = new Descriptor(format.getLatestVersion(), dir, schema.keyspace, schema.name, id.get(), format.getType());
+                Descriptor descriptor = new Descriptor(format.getLatestVersion(), dir, schema.keyspace, schema.name, id.get());
 
                 SerializationHeader header = SerializationHeader.makeWithoutStats(schema);
                 try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.WRITE);
@@ -102,7 +102,7 @@ public class SerializationHeaderTest
                                                              .setSerializationHeader(header)
                                                              .setFlushObservers(Collections.emptyList())
                                                              .setMetadataCollector(new MetadataCollector(schema.comparator))
-                                                             .addDefaultComponents()
+                                                             .addDefaultComponents(Collections.emptySet())
                                                              .build(txn, null))
                 {
                     ColumnMetadata cd = schema.getColumn(v);
@@ -139,7 +139,7 @@ public class SerializationHeaderTest
                 {
                     UnfilteredRowIterator partition = partitions.next();
                     long value = Int32Type.instance.compose(((Row)partition.next()).getCell(columnRegular).buffer());
-                    Assert.assertEquals(value, (long)i);
+                    Assert.assertEquals(value, i);
                     Assert.assertTrue(partition.staticRow().isEmpty());
                     Assert.assertFalse(partition.hasNext());
                 }

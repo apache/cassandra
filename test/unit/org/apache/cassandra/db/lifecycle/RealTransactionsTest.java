@@ -134,8 +134,8 @@ public class RealTransactionsTest extends SchemaLoader
 
         try (CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                        .inDirectory(cfs.getDirectories().getDirectoryForNewSSTables())
-                                                       .forTable(String.format(schema, cfs.keyspace.getName(), cfs.name))
-                                                       .using(String.format(query, cfs.keyspace.getName(), cfs.name))
+                                                       .forTable(String.format(schema, cfs.getKeyspaceName(), cfs.name))
+                                                       .using(String.format(query, cfs.getKeyspaceName(), cfs.name))
                                                        .build())
         {
             for (int j = 0; j < numPartitions; j ++)
@@ -148,7 +148,7 @@ public class RealTransactionsTest extends SchemaLoader
     private SSTableReader replaceSSTable(ColumnFamilyStore cfs, LifecycleTransaction txn, boolean fail)
     {
         List<SSTableReader> newsstables = null;
-        int nowInSec = FBUtilities.nowInSeconds();
+        long nowInSec = FBUtilities.nowInSeconds();
         try (CompactionController controller = new CompactionController(cfs, txn.originals(), cfs.gcBefore(FBUtilities.nowInSeconds())))
         {
             try (SSTableRewriter rewriter = SSTableRewriter.constructKeepingOriginals(txn, false, 1000);
@@ -163,9 +163,9 @@ public class RealTransactionsTest extends SchemaLoader
                 rewriter.switchWriter(desc.getFormat().getWriterFactory().builder(desc)
                                           .setTableMetadataRef(metadata)
                                           .setSerializationHeader(SerializationHeader.make(cfs.metadata(), txn.originals()))
-                                          .addFlushObserversForSecondaryIndexes(cfs.indexManager.listIndexes(), txn.opType())
+                                          .addFlushObserversForSecondaryIndexes(cfs.indexManager.listIndexGroups(), txn, metadata.get())
                                           .setMetadataCollector(new MetadataCollector(cfs.metadata().comparator))
-                                          .addDefaultComponents()
+                                          .addDefaultComponents(cfs.indexManager.listIndexGroups())
                                           .build(txn, cfs));
                 while (ci.hasNext())
                 {

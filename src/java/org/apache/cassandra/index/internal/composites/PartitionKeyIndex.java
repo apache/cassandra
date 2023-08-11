@@ -90,7 +90,7 @@ public class PartitionKeyIndex extends CassandraIndex
                               builder.build());
     }
 
-    public boolean isStale(Row data, ByteBuffer indexValue, int nowInSec)
+    public boolean isStale(Row data, ByteBuffer indexValue, long nowInSec)
     {
         return !data.hasLiveData(nowInSec, enforceStrictLiveness);
     }

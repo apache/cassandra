@@ -27,20 +27,27 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.distributed.shared.WithProperties;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
+import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_TCACTIVE_OPENSSL;
 
 public class PEMBasedSslContextFactoryConfigWithUnencryptedKeysTest
 {
+    static WithProperties properties;
+
     @BeforeClass
     public static void setupDatabaseDescriptor()
     {
-        System.setProperty("cassandra.config", "cassandra-pem-sslcontextfactory-unencryptedkeys.yaml");
-        System.setProperty("cassandra.disable_tcactive_openssl", "true");
+        properties = new WithProperties()
+                     .set(CASSANDRA_CONFIG, "cassandra-pem-sslcontextfactory-unencryptedkeys.yaml")
+                     .set(DISABLE_TCACTIVE_OPENSSL, true);
     }
 
     @AfterClass
     public static void tearDownDatabaseDescriptor()
     {
-        System.clearProperty("cassandra.config");
+        properties.close();
     }
 
     @Test

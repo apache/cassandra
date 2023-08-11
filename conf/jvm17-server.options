@@ -90,7 +90,6 @@
 --add-opens java.base/sun.nio.ch=ALL-UNNAMED
 # https://chronicle.software/chronicle-support-java-17/
 --add-opens java.base/java.io=ALL-UNNAMED
---add-opens java.base/java.nio=ALL-UNNAMED
 #to be addressed during jamm maintenance
 --add-opens java.base/java.util.concurrent=ALL-UNNAMED
 --add-opens java.base/java.util=ALL-UNNAMED
@@ -130,5 +129,9 @@
 # creation of direct buffers using Unsafe. Without it, this falls back to ByteBuffer.allocateDirect which has
 # inferior performance and risks exceeding MaxDirectMemory
 -Dio.netty.tryReflectionSetAccessible=true
+
+# Revert changes in defaults introduced in https://netty.io/news/2022/03/10/4-1-75-Final.html
+-Dio.netty.allocator.useCacheForAllThreads=true
+-Dio.netty.allocator.maxOrder=11
 
 # The newline in the end of file is intentional

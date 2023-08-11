@@ -136,7 +136,7 @@ public class ByteOrderedPartitioner implements IPartitioner
         }
 
         @Override
-        public Token increaseSlightly()
+        public Token nextValidToken()
         {
             throw new UnsupportedOperationException(String.format("Token type %s does not support token allocation.",
                                                                   getClass().getSimpleName()));
@@ -301,7 +301,7 @@ public class ByteOrderedPartitioner implements IPartitioner
         Token lastToken = sortedTokens.get(sortedTokens.size() - 1);
         for (Token node : sortedTokens)
         {
-            allTokens.put(node, new Float(0.0));
+            allTokens.put(node, 0.0F);
             sortedRanges.add(new Range<Token>(lastToken, node));
             lastToken = node;
         }
@@ -319,7 +319,7 @@ public class ByteOrderedPartitioner implements IPartitioner
         }
 
         // Sum every count up and divide count/total for the fractional ownership.
-        Float total = new Float(0.0);
+        Float total = 0.0F;
         for (Float f : allTokens.values())
             total += f;
         for (Map.Entry<Token, Float> row : allTokens.entrySet())

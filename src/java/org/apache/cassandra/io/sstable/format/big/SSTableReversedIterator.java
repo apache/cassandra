@@ -40,6 +40,7 @@ import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.io.sstable.AbstractSSTableIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.schema.TableMetadata;
@@ -68,7 +69,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator<RowIndexEnt
     }
 
     @SuppressWarnings("resource") // caller to close
-    protected Reader createReaderInternal(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
+    protected Reader createReaderInternal(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile, Version version)
     {
         return indexEntry.isIndexed()
              ? new ReverseIndexedReader(indexEntry, file, shouldCloseFile)

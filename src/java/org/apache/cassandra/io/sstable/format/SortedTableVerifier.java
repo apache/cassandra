@@ -18,11 +18,12 @@
 
 package org.apache.cassandra.io.sstable.format;
 
-import java.io.IOError;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -30,6 +31,7 @@ import java.util.function.Function;
 import java.util.function.LongPredicate;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,19 +40,25 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.compaction.CompactionController;
 import org.apache.cassandra.db.compaction.CompactionInfo;
+import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.IVerifier;
 import org.apache.cassandra.io.sstable.KeyIterator;
+import org.apache.cassandra.io.sstable.KeyReader;
+import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.util.DataIntegrityMetadata;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.IFilter;
 import org.apache.cassandra.utils.OutputHandler;
@@ -108,12 +116,6 @@ public abstract class SortedTableVerifier<R extends SSTableReaderWithFilter> imp
         return verifyInfo;
     }
 
-    protected static void throwIfFatal(Throwable th)
-    {
-        if (th instanceof Error && !(th instanceof AssertionError || th instanceof IOError))
-            throw (Error) th;
-    }
-
     protected void markAndThrow(Throwable cause)
     {
         markAndThrow(cause, true);
@@ -138,6 +140,33 @@ public abstract class SortedTableVerifier<R extends SSTableReaderWithFilter> imp
             throw new CorruptSSTableException(e, sstable.getFilename());
         else
             throw new RuntimeException(e);
+    }
+
+    public void verify()
+    {
+        verifySSTableVersion();
+
+        verifySSTableMetadata();
+
+        verifyIndex();
+
+        verifyBloomFilter();
+
+        if (options.checkOwnsTokens && !isOffline && !(cfs.getPartitioner() instanceof LocalPartitioner))
+        {
+            if (verifyOwnedRanges() == 0)
+                return;
+        }
+
+        if (options.quick)
+            return;
+
+        if (verifyDigest() && !options.extendedVerification)
+            return;
+
+        verifySSTable();
+
+        outputHandler.output("Verify of %s succeeded. All %d rows read successfully", sstable, goodRows);
     }
 
     protected void verifyBloomFilter()
@@ -233,6 +262,135 @@ public abstract class SortedTableVerifier<R extends SSTableReaderWithFilter> imp
             markAndThrow(e);
         }
         return passed;
+    }
+
+    protected void verifySSTable()
+    {
+        outputHandler.output("Extended Verify requested, proceeding to inspect values");
+
+        try (VerifyController verifyController = new VerifyController(cfs);
+             KeyReader indexIterator = sstable.keyReader())
+        {
+            if (indexIterator.dataPosition() != 0)
+                markAndThrow(new RuntimeException("First row position from index != 0: " + indexIterator.dataPosition()));
+
+            List<Range<Token>> ownedRanges = isOffline ? Collections.emptyList() : Range.normalize(tokenLookup.apply(cfs.metadata().keyspace));
+            RangeOwnHelper rangeOwnHelper = new RangeOwnHelper(ownedRanges);
+            DecoratedKey prevKey = null;
+
+            while (!dataFile.isEOF())
+            {
+
+                if (verifyInfo.isStopRequested())
+                    throw new CompactionInterruptedException(verifyInfo.getCompactionInfo());
+
+                long rowStart = dataFile.getFilePointer();
+                outputHandler.debug("Reading row at %d", rowStart);
+
+                DecoratedKey key = null;
+                try
+                {
+                    key = sstable.decorateKey(ByteBufferUtil.readWithShortLength(dataFile));
+                }
+                catch (Throwable th)
+                {
+                    markAndThrow(th);
+                }
+
+                if (options.checkOwnsTokens && ownedRanges.size() > 0 && !(cfs.getPartitioner() instanceof LocalPartitioner))
+                {
+                    try
+                    {
+                        rangeOwnHelper.validate(key);
+                    }
+                    catch (Throwable t)
+                    {
+                        outputHandler.warn(t, "Key %s in sstable %s not owned by local ranges %s", key, sstable, ownedRanges);
+                        markAndThrow(t);
+                    }
+                }
+
+                ByteBuffer currentIndexKey = indexIterator.key();
+                long nextRowPositionFromIndex = 0;
+                try
+                {
+                    nextRowPositionFromIndex = indexIterator.advance()
+                                               ? indexIterator.dataPosition()
+                                               : dataFile.length();
+                }
+                catch (Throwable th)
+                {
+                    markAndThrow(th);
+                }
+
+                long dataStart = dataFile.getFilePointer();
+                long dataStartFromIndex = currentIndexKey == null
+                                          ? -1
+                                          : rowStart + 2 + currentIndexKey.remaining();
+
+                long dataSize = nextRowPositionFromIndex - dataStartFromIndex;
+                // avoid an NPE if key is null
+                String keyName = key == null ? "(unreadable key)" : ByteBufferUtil.bytesToHex(key.getKey());
+                outputHandler.debug("row %s is %s", keyName, FBUtilities.prettyPrintMemory(dataSize));
+
+                try
+                {
+                    if (key == null || dataSize > dataFile.length())
+                        markAndThrow(new RuntimeException(String.format("key = %s, dataSize=%d, dataFile.length() = %d", key, dataSize, dataFile.length())));
+
+                    try (UnfilteredRowIterator iterator = SSTableIdentityIterator.create(sstable, dataFile, key))
+                    {
+                        verifyPartition(key, iterator);
+                    }
+
+                    if ((prevKey != null && prevKey.compareTo(key) > 0) || !key.getKey().equals(currentIndexKey) || dataStart != dataStartFromIndex)
+                        markAndThrow(new RuntimeException("Key out of order: previous = " + prevKey + " : current = " + key));
+
+                    goodRows++;
+                    prevKey = key;
+
+
+                    outputHandler.debug("Row %s at %s valid, moving to next row at %s ", goodRows, rowStart, nextRowPositionFromIndex);
+                    dataFile.seek(nextRowPositionFromIndex);
+                }
+                catch (Throwable th)
+                {
+                    markAndThrow(th);
+                }
+            }
+        }
+        catch (Throwable t)
+        {
+            Throwables.throwIfUnchecked(t);
+            throw new RuntimeException(t);
+        }
+    }
+
+    protected abstract void verifyPartition(DecoratedKey key, UnfilteredRowIterator iterator);
+
+    protected void verifyIndex()
+    {
+        try
+        {
+            outputHandler.debug("Deserializing index for %s", sstable);
+            deserializeIndex(sstable);
+        }
+        catch (Throwable t)
+        {
+            outputHandler.warn(t);
+            markAndThrow(t);
+        }
+    }
+
+    private void deserializeIndex(SSTableReader sstable) throws IOException
+    {
+        try (KeyReader it = sstable.keyReader())
+        {
+            ByteBuffer last = it.key();
+            while (it.advance()) last = it.key(); // no-op, just check if index is readable
+            if (!Objects.equals(last, sstable.getLast().getKey()))
+                throw new CorruptSSTableException(new IOException("Failed to read partition index"), it.toString());
+        }
     }
 
     @Override

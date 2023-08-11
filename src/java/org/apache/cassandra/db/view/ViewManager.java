@@ -36,6 +36,8 @@ import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.service.StorageService;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.MV_ENABLE_COORDINATOR_BATCHLOG;
+
 /**
  * Manages {@link View}'s for a single {@link ColumnFamilyStore}. All of the views for that table are created when this
  * manager is initialized.
@@ -57,7 +59,7 @@ public class ViewManager
 
     private static final Striped<Lock> LOCKS = Striped.lazyWeakLock(DatabaseDescriptor.getConcurrentViewWriters() * 1024);
 
-    private static final boolean enableCoordinatorBatchlog = Boolean.getBoolean("cassandra.mv_enable_coordinator_batchlog");
+    private static final boolean enableCoordinatorBatchlog = MV_ENABLE_COORDINATOR_BATCHLOG.getBoolean();
 
     private final ConcurrentMap<String, View> viewsByName = new ConcurrentHashMap<>();
     private final ConcurrentMap<TableId, TableViews> viewsByBaseTable = new ConcurrentHashMap<>();

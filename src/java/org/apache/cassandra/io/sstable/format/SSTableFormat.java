@@ -18,25 +18,15 @@
 package org.apache.cassandra.io.sstable.format;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.Set;
-import java.util.function.Supplier;
+import javax.annotation.Nonnull;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.CharMatcher;
-import com.google.common.collect.ImmutableList;
-
-import org.apache.cassandra.config.CassandraRelevantProperties;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -54,7 +44,6 @@ import org.apache.cassandra.utils.Pair;
  */
 public interface SSTableFormat<R extends SSTableReader, W extends SSTableWriter>
 {
-    int ordinal();
     String name();
 
     Version getLatestVersion();
@@ -70,7 +59,6 @@ public interface SSTableFormat<R extends SSTableReader, W extends SSTableWriter>
      */
     Set<Component> allComponents();
 
-    Set<Component> streamingComponents();
 
     Set<Component> primaryComponents();
 
@@ -105,17 +93,9 @@ public interface SSTableFormat<R extends SSTableReader, W extends SSTableWriter>
                           OutputHandler outputHandler,
                           IScrubber.Options options);
 
-    R cast(SSTableReader sstr);
-
-    W cast(SSTableWriter sstw);
-
     MetricsProviders getFormatSpecificMetricsProviders();
 
     void deleteOrphanedComponents(Descriptor descriptor, Set<Component> components);
-
-    void setup(int id, String name, Map<String, String> options);
-
-    Type getType();
 
     /**
      * Deletes the existing components of the sstables represented by the provided descriptor.
@@ -123,91 +103,6 @@ public interface SSTableFormat<R extends SSTableReader, W extends SSTableWriter>
      * sstables, such as row key cache entries.
      */
     void delete(Descriptor descriptor);
-
-    class Type
-    {
-        private final static ImmutableList<Type> types;
-        private final static Type[] typesById;
-
-        static
-        {
-            Pair<List<Type>, Type[]> factories = readFactories(DatabaseDescriptor.getSSTableFormatFactories());
-            types = ImmutableList.copyOf(factories.left);
-            typesById = factories.right;
-        }
-
-        @VisibleForTesting
-        public static Pair<List<Type>, Type[]> readFactories(Map<String, Supplier<SSTableFormat<?, ?>>> factories)
-        {
-            List<Type> typesList = new ArrayList<>(factories.size());
-            factories.forEach((key, factory) -> {
-                SSTableFormat<?, ?> format = factory.get();
-                typesList.add(new Type(format.ordinal(), format.name(), format));
-            });
-            List<Type> types = ImmutableList.copyOf(typesList);
-            int maxId = typesList.stream().mapToInt(t -> t.ordinal).max().getAsInt();
-            Type[] typesById = new Type[maxId + 1];
-            typesList.forEach(t -> typesById[t.ordinal] = t);
-            return Pair.create(types, typesById);
-        }
-
-        public final int ordinal;
-        public final SSTableFormat<?, ?> info;
-        public final String name;
-
-        private static Type currentType;
-
-        public static Type current()
-        {
-            if (currentType != null)
-                return currentType;
-
-            String name = CassandraRelevantProperties.SSTABLE_FORMAT_DEFAULT.getString();
-            if (name == null)
-                return types.get(0);
-
-            try
-            {
-                Type type = getByName(name);
-                currentType = type;
-                return type;
-            }
-            catch (RuntimeException ex)
-            {
-                throw new ConfigurationException("SSTable format " + name + " is not registered. Registered formats are: " + types);
-            }
-        }
-
-        private Type(int ordinal, String name, SSTableFormat<?, ?> info)
-        {
-            //Since format comes right after generation
-            //we disallow formats with numeric names
-            assert !CharMatcher.digit().matchesAllOf(name);
-            this.ordinal = ordinal;
-            this.name = name;
-            this.info = info;
-        }
-
-        public static Type getByName(String name)
-        {
-            for (int i = 0; i < types.size(); i++)
-                if (types.get(i).name.equals(name))
-                    return types.get(i);
-            throw new NoSuchElementException(name);
-        }
-
-        public static Type getByOrdinal(int ordinal)
-        {
-            if (ordinal < 0 || ordinal >= typesById.length || typesById[ordinal] == null)
-                throw new NoSuchElementException(String.valueOf(ordinal));
-            return typesById[ordinal];
-        }
-
-        public static Iterable<Type> values()
-        {
-            return types;
-        }
-    }
 
     interface SSTableReaderFactory<R extends SSTableReader, B extends SSTableReader.Builder<R, B>>
     {
@@ -260,23 +155,23 @@ public interface SSTableFormat<R extends SSTableReader, W extends SSTableWriter>
         {
             // the base data for an sstable: the remaining components can be regenerated
             // based on the data component
-            public static final Component.Type DATA = Component.Type.createSingleton("DATA", "Data.db", null);
+            public static final Component.Type DATA = Component.Type.createSingleton("DATA", "Data.db", true, null);
             // file to hold information about uncompressed data length, chunk offsets etc.
-            public static final Component.Type COMPRESSION_INFO = Component.Type.createSingleton("COMPRESSION_INFO", "CompressionInfo.db", null);
+            public static final Component.Type COMPRESSION_INFO = Component.Type.createSingleton("COMPRESSION_INFO", "CompressionInfo.db", true, null);
             // statistical metadata about the content of the sstable
-            public static final Component.Type STATS = Component.Type.createSingleton("STATS", "Statistics.db", null);
+            public static final Component.Type STATS = Component.Type.createSingleton("STATS", "Statistics.db", true, null);
             // serialized bloom filter for the row keys in the sstable
-            public static final Component.Type FILTER = Component.Type.createSingleton("FILTER", "Filter.db", null);
+            public static final Component.Type FILTER = Component.Type.createSingleton("FILTER", "Filter.db", true, null);
             // holds CRC32 checksum of the data file
-            public static final Component.Type DIGEST = Component.Type.createSingleton("DIGEST", "Digest.crc32", null);
+            public static final Component.Type DIGEST = Component.Type.createSingleton("DIGEST", "Digest.crc32", true, null);
             // holds the CRC32 for chunks in an uncompressed file.
-            public static final Component.Type CRC = Component.Type.createSingleton("CRC", "CRC.db", null);
+            public static final Component.Type CRC = Component.Type.createSingleton("CRC", "CRC.db", true, null);
             // table of contents, stores the list of all components for the sstable
-            public static final Component.Type TOC = Component.Type.createSingleton("TOC", "TOC.txt", null);
+            public static final Component.Type TOC = Component.Type.createSingleton("TOC", "TOC.txt", false, null);
             // built-in secondary index (may exist multiple per sstable)
-            public static final Component.Type SECONDARY_INDEX = Component.Type.create("SECONDARY_INDEX", "SI_.*.db", null);
+            public static final Component.Type SECONDARY_INDEX = Component.Type.create("SECONDARY_INDEX", "SI_.*.db", false, null);
             // custom component, used by e.g. custom compaction strategy
-            public static final Component.Type CUSTOM = Component.Type.create("CUSTOM", null, null);
+            public static final Component.Type CUSTOM = Component.Type.create("CUSTOM", null, true, null);
         }
 
         // singleton components for types that don't need ids
@@ -298,4 +193,21 @@ public interface SSTableFormat<R extends SSTableReader, W extends SSTableWriter>
         void serialize(T entry, DataOutputPlus output) throws IOException;
     }
 
+    interface Factory
+    {
+        /**
+         * Returns a name of the format. Format name must not be empty, must be unique and must consist only of lowercase letters.
+         */
+        String name();
+
+        /**
+         * Returns an instance of the sstable format configured with the provided options.
+         * <p/>
+         * The method is expected to validate the options, and throw
+         * {@link org.apache.cassandra.exceptions.ConfigurationException} if the validation fails.
+         *
+         * @param options    overrides for the default options, can be empty, cannot be null
+         */
+        SSTableFormat<?, ?> getInstance(@Nonnull Map<String, String> options);
+    }
 }

@@ -53,6 +53,9 @@ import org.apache.cassandra.service.paxos.PaxosRepairHistory;
 import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.FORCE_PAXOS_STATE_REBUILD;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SKIP_PAXOS_STATE_REBUILD;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TRUNCATE_BALLOT_METADATA;
 import static org.apache.cassandra.db.SystemKeyspace.PAXOS_REPAIR_HISTORY;
 import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
 
@@ -63,24 +66,20 @@ public class PaxosStateTracker
 {
     private static final Logger logger = LoggerFactory.getLogger(PaxosStateTracker.class);
 
-    // when starting with no data, skip rebuilding uncommitted data from the paxos table
-    static final String SKIP_REBUILD_PROP = "cassandra.skip_paxos_state_rebuild";
-    static final String FORCE_REBUILD_PROP = "cassandra.force_paxos_state_rebuild";
-    static final String TRUNCATE_BALLOT_METADATA_PROP = "cassandra.truncate_ballot_metadata";
-
+    /** when starting with no data, skip rebuilding uncommitted data from the paxos table. */
     private static boolean skipRebuild()
     {
-        return Boolean.getBoolean(SKIP_REBUILD_PROP);
+        return SKIP_PAXOS_STATE_REBUILD.getBoolean();
     }
 
     private static boolean forceRebuild()
     {
-        return Boolean.getBoolean(FORCE_REBUILD_PROP);
+        return FORCE_PAXOS_STATE_REBUILD.getBoolean();
     }
 
     private static boolean truncateBallotMetadata()
     {
-        return Boolean.getBoolean(TRUNCATE_BALLOT_METADATA_PROP);
+        return TRUNCATE_BALLOT_METADATA.getBoolean();
     }
 
     private static final String DIRECTORY = "system/" + SystemKeyspace.PAXOS_REPAIR_STATE;
@@ -130,8 +129,8 @@ public class PaxosStateTracker
         boolean rebuildNeeded = !hasExistingData || forceRebuild();
 
         if (truncateBallotMetadata() && !rebuildNeeded)
-            logger.warn("{} was set, but {} was not and no rebuild is required. Ballot data will not be truncated",
-                        TRUNCATE_BALLOT_METADATA_PROP, FORCE_REBUILD_PROP);
+            logger.warn("{} was set to true, but {} was not and no rebuild is required. Ballot data will not be truncated",
+                        TRUNCATE_BALLOT_METADATA.getKey(), FORCE_PAXOS_STATE_REBUILD.getKey());
 
         if (rebuildNeeded)
         {
@@ -164,7 +163,7 @@ public class PaxosStateTracker
     @SuppressWarnings("resource")
     private void rebuildUncommittedData() throws IOException
     {
-        logger.info("Beginning uncommitted paxos data rebuild. Set -Dcassandra.skip_paxos_state_rebuild=true and restart to skip");
+        logger.info("Beginning uncommitted paxos data rebuild. Set -D{}=true and restart to skip", SKIP_PAXOS_STATE_REBUILD.getKey());
 
         String queryStr = "SELECT * FROM " + SYSTEM_KEYSPACE_NAME + '.' + SystemKeyspace.PAXOS;
         SelectStatement stmt = (SelectStatement) QueryProcessor.parseStatement(queryStr).prepare(ClientState.forInternalCalls());

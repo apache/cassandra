@@ -65,7 +65,6 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.github.jamm.Unmetered;
 
@@ -1530,7 +1529,7 @@ public class TableMetadata implements SchemaElement
 
     private static String asCQLLiteral(AbstractType<?> type, ByteBuffer value)
     {
-        return type.asCQL3Type().toCQLLiteral(value, ProtocolVersion.CURRENT);
+        return type.asCQL3Type().toCQLLiteral(value);
     }
 
     public static class CompactTableMetadata extends TableMetadata

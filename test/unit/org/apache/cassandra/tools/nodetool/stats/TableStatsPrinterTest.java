@@ -22,13 +22,16 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 import org.junit.Test;
 
+import org.apache.cassandra.utils.JsonUtils;
 import org.assertj.core.api.Assertions;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 public class TableStatsPrinterTest extends TableStatsTestBase
 {
@@ -36,7 +39,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tTable: %s\n" +
         "\tSSTable count: 60000\n" +
         "\tOld SSTable count: 0\n" +
-        "\tMax SSTable size: 0.000KiB\n" +
+        "\tMax SSTable size: 0B\n" +
         "\tSpace used (live): 0\n" +
         "\tSpace used (total): 9001\n" +
         "\tSpace used by snapshots (total): 1111\n" +
@@ -52,9 +55,9 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal read/write ratio: 0.00000\n" +
         "\tPending flushes: 11111\n" +
         "\tPercent repaired: 100.0\n" +
-        "\tBytes repaired: 0.000KiB\n" +
-        "\tBytes unrepaired: 0.000KiB\n" +
-        "\tBytes pending repair: 0.000KiB\n" +
+        "\tBytes repaired: 0B\n" +
+        "\tBytes unrepaired: 0B\n" +
+        "\tBytes pending repair: 0B\n" +
         "\tBloom filter false positives: 30\n" +
         "\tBloom filter false ratio: 0.40000\n" +
         "\tBloom filter space used: 789\n" +
@@ -65,7 +68,6 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tMaximum live cells per slice (last five minutes): 6\n" +
         "\tAverage tombstones per slice (last five minutes): 5.0\n" +
         "\tMaximum tombstones per slice (last five minutes): 1\n" +
-        "\tDropped Mutations: 0\n" +
         "\tDroppable tombstone ratio: 0.00000\n" +
         "\n";
 
@@ -73,7 +75,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tTable: %s\n" +
         "\tSSTable count: 3000\n" +
         "\tOld SSTable count: 0\n" +
-        "\tMax SSTable size: 0.000KiB\n" +
+        "\tMax SSTable size: 0B\n" +
         "\tSpace used (live): 22\n" +
         "\tSpace used (total): 1024\n" +
         "\tSpace used by snapshots (total): 222\n" +
@@ -91,9 +93,9 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal read/write ratio: 0.00000\n" +
         "\tPending flushes: 222222\n" +
         "\tPercent repaired: 99.9\n" +
-        "\tBytes repaired: 0.000KiB\n" +
-        "\tBytes unrepaired: 0.000KiB\n" +
-        "\tBytes pending repair: 0.000KiB\n" +
+        "\tBytes repaired: 0B\n" +
+        "\tBytes unrepaired: 0B\n" +
+        "\tBytes pending repair: 0B\n" +
         "\tBloom filter false positives: 600\n" +
         "\tBloom filter false ratio: 0.01000\n" +
         "\tBloom filter space used: 161718\n" +
@@ -107,7 +109,6 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tMaximum live cells per slice (last five minutes): 5\n" +
         "\tAverage tombstones per slice (last five minutes): 4.001\n" +
         "\tMaximum tombstones per slice (last five minutes): 2\n" +
-        "\tDropped Mutations: 222\n" +
         "\tDroppable tombstone ratio: 0.22222\n" +
         "\n";
 
@@ -115,7 +116,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tTable: %s\n" +
         "\tSSTable count: 50000\n" +
         "\tOld SSTable count: 0\n" +
-        "\tMax SSTable size: 0.000KiB\n" +
+        "\tMax SSTable size: 0B\n" +
         "\tSpace used (live): 0\n" +
         "\tSpace used (total): 512\n" +
         "\tSpace used by snapshots (total): 0\n" +
@@ -131,9 +132,9 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal read/write ratio: 0.00000\n" +
         "\tPending flushes: 333\n" +
         "\tPercent repaired: 99.8\n" +
-        "\tBytes repaired: 0.000KiB\n" +
-        "\tBytes unrepaired: 0.000KiB\n" +
-        "\tBytes pending repair: 0.000KiB\n" +
+        "\tBytes repaired: 0B\n" +
+        "\tBytes unrepaired: 0B\n" +
+        "\tBytes pending repair: 0B\n" +
         "\tBloom filter false positives: 20\n" +
         "\tBloom filter false ratio: 0.50000\n" +
         "\tBloom filter space used: 456\n" +
@@ -144,7 +145,6 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tMaximum live cells per slice (last five minutes): 5\n" +
         "\tAverage tombstones per slice (last five minutes): NaN\n" +
         "\tMaximum tombstones per slice (last five minutes): 3\n" +
-        "\tDropped Mutations: 33333\n" +
         "\tDroppable tombstone ratio: 0.33333\n" +
         "\n";
 
@@ -152,7 +152,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tTable: %s\n" +
         "\tSSTable count: 2000\n" +
         "\tOld SSTable count: 0\n" +
-        "\tMax SSTable size: 0.000KiB\n" +
+        "\tMax SSTable size: 0B\n" +
         "\tSpace used (live): 4444\n" +
         "\tSpace used (total): 256\n" +
         "\tSpace used by snapshots (total): 44\n" +
@@ -170,9 +170,9 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal read/write ratio: 0.00000\n" +
         "\tPending flushes: 4444\n" +
         "\tPercent repaired: 50.0\n" +
-        "\tBytes repaired: 0.000KiB\n" +
-        "\tBytes unrepaired: 0.000KiB\n" +
-        "\tBytes pending repair: 0.000KiB\n" +
+        "\tBytes repaired: 0B\n" +
+        "\tBytes unrepaired: 0B\n" +
+        "\tBytes pending repair: 0B\n" +
         "\tBloom filter false positives: 500\n" +
         "\tBloom filter false ratio: 0.02000\n" +
         "\tBloom filter space used: 131415\n" +
@@ -186,7 +186,6 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tMaximum live cells per slice (last five minutes): 3\n" +
         "\tAverage tombstones per slice (last five minutes): 0.0\n" +
         "\tMaximum tombstones per slice (last five minutes): 3\n" +
-        "\tDropped Mutations: 4444\n" +
         "\tDroppable tombstone ratio: 0.44444\n" +
         "\n";
 
@@ -194,7 +193,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tTable: %s\n" +
         "\tSSTable count: 40000\n" +
         "\tOld SSTable count: 0\n" +
-        "\tMax SSTable size: 0.000KiB\n" +
+        "\tMax SSTable size: 0B\n" +
         "\tSpace used (live): 55555\n" +
         "\tSpace used (total): 64\n" +
         "\tSpace used by snapshots (total): 55555\n" +
@@ -210,9 +209,9 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal read/write ratio: 0.00000\n" +
         "\tPending flushes: 5\n" +
         "\tPercent repaired: 93.0\n" +
-        "\tBytes repaired: 0.000KiB\n" +
-        "\tBytes unrepaired: 0.000KiB\n" +
-        "\tBytes pending repair: 0.000KiB\n" +
+        "\tBytes repaired: 0B\n" +
+        "\tBytes unrepaired: 0B\n" +
+        "\tBytes pending repair: 0B\n" +
         "\tBloom filter false positives: 10\n" +
         "\tBloom filter false ratio: 0.60000\n" +
         "\tBloom filter space used: 123\n" +
@@ -223,7 +222,6 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tMaximum live cells per slice (last five minutes): 3\n" +
         "\tAverage tombstones per slice (last five minutes): 4.01\n" +
         "\tMaximum tombstones per slice (last five minutes): 5\n" +
-        "\tDropped Mutations: 0\n" +
         "\tDroppable tombstone ratio: 0.55556\n" +
         "\n";
 
@@ -231,7 +229,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tTable: %s\n" +
         "\tSSTable count: 1000\n" +
         "\tOld SSTable count: 0\n" +
-        "\tMax SSTable size: 0.000KiB\n" +
+        "\tMax SSTable size: 0B\n" +
         "\tSpace used (live): 666666\n" +
         "\tSpace used (total): 0\n" +
         "\tSpace used by snapshots (total): 0\n" +
@@ -249,9 +247,9 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tLocal read/write ratio: 0.00000\n" +
         "\tPending flushes: 66\n" +
         "\tPercent repaired: 0.0\n" +
-        "\tBytes repaired: 0.000KiB\n" +
-        "\tBytes unrepaired: 0.000KiB\n" +
-        "\tBytes pending repair: 0.000KiB\n" +
+        "\tBytes repaired: 0B\n" +
+        "\tBytes unrepaired: 0B\n" +
+        "\tBytes pending repair: 0B\n" +
         "\tBloom filter false positives: 400\n" +
         "\tBloom filter false ratio: 0.03000\n" +
         "\tBloom filter space used: 101112\n" +
@@ -265,7 +263,6 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tMaximum live cells per slice (last five minutes): 2\n" +
         "\tAverage tombstones per slice (last five minutes): 6.0\n" +
         "\tMaximum tombstones per slice (last five minutes): 6\n" +
-        "\tDropped Mutations: 666666\n" +
         "\tDroppable tombstone ratio: 0.66667\n" +
         "\n";
 
@@ -406,7 +403,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
             Assertions.assertThat(byteStream.toString())
                       .isEqualTo("{\n" +
                                  "  \"keyspace3\" : {\n" +
-                                 "    \"write_latency_ms\" : \"NaN\",\n" +
+                                 "    \"write_latency_ms\" : null,\n" +
                                  "    \"tables\" : {\n" +
                                  "      \"table6\" : {\n" +
                                  "        \"average_tombstones_per_slice_last_five_minutes\" : 6.0,\n" +
@@ -427,7 +424,6 @@ public class TableStatsPrinterTest extends TableStatsTestBase
                                  "        \"local_read_count\" : 5,\n" +
                                  "        \"sstable_compression_ratio\" : 0.68,\n" +
                                  "        \"max_sstable_size\" : 0,\n" +
-                                 "        \"dropped_mutations\" : \"666666\",\n" +
                                  "        \"top_size_partitions\" : null,\n" +
                                  "        \"bloom_filter_false_positives\" : 400,\n" +
                                  "        \"off_heap_memory_used_total\" : \"162470810\",\n" +
@@ -496,7 +492,6 @@ public class TableStatsPrinterTest extends TableStatsTestBase
                                  "      local_read_count: 5\n" +
                                  "      sstable_compression_ratio: 0.68\n" +
                                  "      max_sstable_size: 0\n" +
-                                 "      dropped_mutations: '666666'\n" +
                                  "      top_size_partitions: null\n" +
                                  "      bloom_filter_false_positives: 400\n" +
                                  "      off_heap_memory_used_total: '162470810'\n" +
@@ -531,6 +526,61 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         }
     }
 
+    @Test
+    public void testJsonPrinter2() throws Exception
+    {
+        final StatsPrinter<StatsHolder> printer = TableStatsPrinter.from("json", false);
+        StatsHolder holder = new TestTableStatsHolder(testKeyspaces, "reads", 0);
+        try (ByteArrayOutputStream byteStream = new ByteArrayOutputStream())
+        {
+            printer.print(holder, new PrintStream(byteStream));
+            byte[] json = byteStream.toByteArray();
+            Map<String, Object> result = JsonUtils.fromJsonMap(json);
+            assertEquals(0, result.remove("total_number_of_tables"));
+            assertEquals(6, result.size());
+
+            // One relatively easy way to verify serialization is to check converted-to-Map
+            // intermediate form and round-trip (serialize-deserialize) for equivalence.
+            // But there are couple of minor gotchas to consider
+
+            Map<String, Object> expectedData = holder.convert2Map();
+            expectedData.remove("total_number_of_tables");
+            assertEquals(6, expectedData.size());
+
+            for (Map.Entry<String, Object> entry : result.entrySet())
+            {
+                Map<String, Object> expTable = (Map<String, Object>) expectedData.get(entry.getKey());
+                Map<String, Object> actualTable = (Map<String, Object>) entry.getValue();
+
+                assertEquals(expTable.size(), actualTable.size());
+
+                for (Map.Entry<String, Object> tableEntry : actualTable.entrySet())
+                {
+                    Object expValue = expTable.get(tableEntry.getKey());
+                    Object actualValue = tableEntry.getValue();
+
+                    // Some differences to expect: Long that fits in Integer may get deserialized as latter:
+                    if (expValue instanceof Long && actualValue instanceof Integer)
+                    {
+                        actualValue = ((Number) actualValue).longValue();
+                    }
+
+                    // And then a bit more exotic case: Not-a-Numbers should be coerced into nulls
+                    // (existing behavior as of 4.0.0)
+                    if (expValue instanceof Double && !Double.isFinite((Double) expValue))
+                    {
+                        assertNull("Entry '" + tableEntry.getKey() + "' of table '" + entry.getKey() + "' should be coerced from NaN to null:",
+                                   actualValue);
+                        continue;
+                    }
+                    assertEquals("Entry '" + tableEntry.getKey() + "' of table '" + entry.getKey() + "' does not match",
+                                 expValue, actualValue);
+                }
+            }
+        }
+    }
+
+
     /**
      * A test version of TableStatsHolder to hold a test vector instead of gathering stats from a live cluster.
      */
@@ -550,5 +600,4 @@ public class TableStatsPrinterTest extends TableStatsTestBase
             return true;
         }
     }
-
 }

@@ -100,6 +100,7 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.hints.Hint;
 import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -309,7 +310,7 @@ public class StorageProxy implements StorageProxyMBean
                                   ConsistencyLevel consistencyForPaxos,
                                   ConsistencyLevel consistencyForCommit,
                                   ClientState clientState,
-                                  int nowInSeconds,
+                                  long nowInSeconds,
                                   long queryStartNanoTime)
     throws UnavailableException, IsBootstrappingException, RequestFailureException, RequestTimeoutException, InvalidRequestException, CasWriteUnknownResultException
     {
@@ -332,7 +333,7 @@ public class StorageProxy implements StorageProxyMBean
                                         ConsistencyLevel consistencyForPaxos,
                                         ConsistencyLevel consistencyForCommit,
                                         ClientState clientState,
-                                        int nowInSeconds,
+                                        long nowInSeconds,
                                         long queryStartNanoTime)
     throws UnavailableException, IsBootstrappingException, RequestFailureException, RequestTimeoutException, InvalidRequestException
     {
@@ -1598,7 +1599,7 @@ public class StorageProxy implements StorageProxyMBean
 
         if (targets.size() > 1)
         {
-            target = targets.get(ThreadLocalRandom.current().nextInt(0, targets.size()));
+            target = pickReplica(targets);
             EndpointsForToken forwardToReplicas = targets.filter(r -> r != target, targets.size());
 
             for (Replica replica : forwardToReplicas)
@@ -1618,8 +1619,16 @@ public class StorageProxy implements StorageProxyMBean
             target = targets.get(0);
         }
 
+        Tracing.trace("Sending mutation to remote replica {}", target);
         MessagingService.instance().sendWriteWithCallback(message, target, handler);
         logger.trace("Sending message to {}@{}", message.id(), target);
+    }
+
+    private static Replica pickReplica(EndpointsForToken targets)
+    {
+        EndpointsForToken healthy = targets.filter(r -> DynamicEndpointSnitch.getSeverity(r.endpoint()) == 0);
+        EndpointsForToken select = healthy.isEmpty() ? targets : healthy;
+        return select.get(ThreadLocalRandom.current().nextInt(0, select.size()));
     }
 
     private static void performLocally(Stage stage, Replica localReplica, final Runnable runnable, String description)

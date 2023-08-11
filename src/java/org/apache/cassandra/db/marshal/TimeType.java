@@ -23,6 +23,7 @@ import java.time.ZoneOffset;
 
 import org.apache.cassandra.cql3.Constants;
 import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.functions.ArgumentDeserializer;
 import org.apache.cassandra.serializers.TimeSerializer;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.serializers.TypeSerializer;
@@ -40,8 +41,17 @@ public class TimeType extends TemporalType<Long>
 {
     public static final TimeType instance = new TimeType();
 
+    private static final ArgumentDeserializer ARGUMENT_DESERIALIZER = new DefaultArgumentDeserializer(instance);
+
     private static final ByteBuffer DEFAULT_MASKED_VALUE = instance.decompose(0L);
+
     private TimeType() {super(ComparisonType.BYTE_ORDER);} // singleton
+
+    @Override
+    public boolean allowsEmpty()
+    {
+        return false;
+    }
 
     public ByteBuffer fromString(String source) throws MarshalException
     {
@@ -93,9 +103,16 @@ public class TimeType extends TemporalType<Long>
         return CQL3Type.Native.TIME;
     }
 
+    @Override
     public TypeSerializer<Long> getSerializer()
     {
         return TimeSerializer.instance;
+    }
+
+    @Override
+    public ArgumentDeserializer getArgumentDeserializer()
+    {
+        return ARGUMENT_DESERIALIZER;
     }
 
     @Override

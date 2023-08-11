@@ -64,6 +64,7 @@ import org.apache.cassandra.stress.generate.SeedManager;
 import org.apache.cassandra.stress.operations.userdefined.SchemaInsert;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.tools.nodetool.CompactionStats;
+import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -274,7 +275,7 @@ public abstract class CompactionStress implements Runnable
     {
         System.out.println("========");
         System.out.println(String.format("Pending compactions: %d\n", CompactionManager.instance.getPendingTasks()));
-        CompactionStats.reportCompactionTable(CompactionManager.instance.getCompactions(), 0, true, System.out);
+        CompactionStats.reportCompactionTable(CompactionManager.instance.getCompactions(), 0, true, System.out, new TableBuilder());
     }
 
 

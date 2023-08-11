@@ -28,6 +28,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.Duration;
@@ -61,6 +62,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
     @Parameterized.Parameters(name = "{index}: clusterMinVersion={0}")
     public static Collection<Object[]> data()
     {
+        ServerTestUtils.daemonInitialization();
         return Arrays.asList(new Object[]{ "3.0", (Runnable) () -> {
                                  Pair<Boolean, CassandraVersion> res = Gossiper.instance.isUpgradingFromVersionLowerThanC17653(new CassandraVersion("3.11"));
                                  assertTrue(debugMsgCASSANDRA17653(res), res.left);
@@ -463,8 +465,6 @@ public class InsertUpdateIfConditionTest extends CQLTester
 
         // create and confirm
         createIndex("CREATE INDEX IF NOT EXISTS myindex ON %s (value1)");
-
-        assertTrue(waitForIndex(KEYSPACE, tableName, "myindex"));
 
         // unsuccessful create since it's already there
         execute("CREATE INDEX IF NOT EXISTS myindex ON %s (value1)");

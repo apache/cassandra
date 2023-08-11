@@ -42,7 +42,7 @@ final class PartitionKeySingleRestrictionSet extends RestrictionSetWrapper imple
     /**
      * The composite type.
      */
-    protected final ClusteringComparator comparator;
+    private final ClusteringComparator comparator;
 
     public PartitionKeySingleRestrictionSet(ClusteringComparator comparator)
     {
@@ -61,7 +61,12 @@ final class PartitionKeySingleRestrictionSet extends RestrictionSetWrapper imple
     {
         List<ByteBuffer> l = new ArrayList<>(clusterings.size());
         for (ClusteringPrefix clustering : clusterings)
+        {
+            // Can not use QueryProcessor.validateKey here to validate each column as that validates that empty are not allowed
+            // but composite partition keys actually allow empty!
+            clustering.validate();
             l.add(clustering.serializeAsPartitionKey());
+        }
         return l;
     }
 
@@ -126,13 +131,13 @@ final class PartitionKeySingleRestrictionSet extends RestrictionSetWrapper imple
     }
 
     @Override
-    public void addRowFilterTo(RowFilter filter,
+    public void addToRowFilter(RowFilter filter,
                                IndexRegistry indexRegistry,
                                QueryOptions options)
     {
         for (SingleRestriction restriction : restrictions)
         {
-             restriction.addRowFilterTo(filter, indexRegistry, options);
+             restriction.addToRowFilter(filter, indexRegistry, options);
         }
     }
 

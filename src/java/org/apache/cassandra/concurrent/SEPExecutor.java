@@ -70,7 +70,7 @@ public class SEPExecutor implements LocalAwareExecutorPlus, SEPExecutorMBean
     SEPExecutor(SharedExecutorPool pool, int maximumPoolSize, MaximumPoolSizeListener maximumPoolSizeListener, String jmxPath, String name)
     {
         this.pool = pool;
-        this.name = name;
+        this.name = NamedThreadFactory.globalPrefix() + name;
         this.mbeanName = "org.apache.cassandra." + jmxPath + ":type=" + name;
         this.maximumPoolSize = new AtomicInteger(maximumPoolSize);
         this.maximumPoolSizeListener = maximumPoolSizeListener;

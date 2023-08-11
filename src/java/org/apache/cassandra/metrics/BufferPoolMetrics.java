@@ -31,6 +31,9 @@ public class BufferPoolMetrics
     /** Total number of misses */
     public final Meter misses;
 
+    /** Total threshold for a certain type of buffer pool*/
+    public final Gauge<Long> capacity;
+
     /** Total size of buffer pools, in bytes, including overflow allocation */
     public final Gauge<Long> size;
 
@@ -52,6 +55,8 @@ public class BufferPoolMetrics
 
         misses = Metrics.meter(factory.createMetricName("Misses"));
 
+        capacity = Metrics.register(factory.createMetricName("Capacity"), bufferPool::memoryUsageThreshold);
+
         overflowSize = Metrics.register(factory.createMetricName("OverflowSize"), bufferPool::overflowMemoryInBytes);
 
         usedSize = Metrics.register(factory.createMetricName("UsedSize"), bufferPool::usedSizeInBytes);
@@ -59,13 +64,4 @@ public class BufferPoolMetrics
         size = Metrics.register(factory.createMetricName("Size"), bufferPool::sizeInBytes);
     }
 
-    /**
-     * used to register alias for 3.0/3.11 compatibility
-     */
-    public void register3xAlias()
-    {
-        MetricNameFactory legacyFactory = new DefaultNameFactory("BufferPool");
-        Metrics.registerMBean(misses, legacyFactory.createMetricName("Misses").getMBeanName());
-        Metrics.registerMBean(size, legacyFactory.createMetricName("Size").getMBeanName());
-    }
 }

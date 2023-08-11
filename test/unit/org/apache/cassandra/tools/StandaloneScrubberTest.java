@@ -20,8 +20,6 @@ package org.apache.cassandra.tools;
 
 import java.util.Arrays;
 
-import org.apache.commons.lang3.tuple.Pair;
-
 import org.junit.Test;
 
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
@@ -30,7 +28,6 @@ import org.hamcrest.CoreMatchers;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
 
 /*
  * We are testing cmd line params here.
@@ -53,22 +50,22 @@ public class StandaloneScrubberTest extends OfflineToolUtils
                        "    --debug                     display stack traces\n" + 
                        " -e,--header-fix <arg>          Option whether and how to perform a check of the sstable serialization-headers and fix\n" + 
                        "                                known, fixable issues.\n" + 
-                       "                                Possible argument values:\n" + 
-                       "                                - validate-only: validate the serialization-headers, but do not fix those. Do not continue with scrub - i.e. only\n" + 
-                       "                                validate the header (dry-run of fix-only).\n" + 
-                       "                                - validate: (default) validate the serialization-headers, but do not fix those and only continue with scrub if no error\n" + 
-                       "                                were detected.\n" + 
-                       "                                - fix-only: validate and fix the serialization-headers, don't continue with scrub.\n" + 
-                       "                                - fix: validate and fix the serialization-headers, do not fix and do not continue with scrub if the serialization-header\n" + 
-                       "                                check encountered errors.\n" + 
+                       "                                Possible argument values:\n" +
+                       "                                - validate-only: validate the serialization-headers, but do not fix those. Do not\n" +
+                       "                                continue with scrub - i.e. only validate the header (dry-run of fix-only).\n" +
+                       "                                - validate: (default) validate the serialization-headers, but do not fix those and only\n" +
+                       "                                continue with scrub if no error were detected.\n" +
+                       "                                - fix-only: validate and fix the serialization-headers, don't continue with scrub.\n" +
+                       "                                - fix: validate and fix the serialization-headers, do not fix and do not continue with\n" +
+                       "                                scrub if the serialization-header check encountered errors.\n" +
                        "                                - off: don't perform the serialization-header checks.\n" + 
                        " -h,--help                      display this help message\n" + 
                        " -m,--manifest-check            only check and repair the leveled manifest, without actually scrubbing the sstables\n" + 
                        " -n,--no-validate               do not validate columns using column validator\n" + 
-                       " -r,--reinsert-overflowed-ttl   Rewrites rows with overflowed expiration date affected by CASSANDRA-14092 with the\n" + 
-                       "                                maximum supported expiration date of 2038-01-19T03:14:06+00:00. The rows are rewritten with the original timestamp\n" + 
-                       "                                incremented by one millisecond to override/supersede any potential tombstone that may have been generated during\n" + 
-                       "                                compaction of the affected rows.\n" + 
+                       " -r,--reinsert-overflowed-ttl   Rewrites rows with overflowed expiration date affected by CASSANDRA-14092 with the\n" +
+                       "                                maximum supported expiration date of 2038-01-19T03:14:06+00:00. The rows are rewritten\n" +
+                       "                                with the original timestamp incremented by one millisecond to override/supersede any\n" +
+                       "                                potential tombstone that may have been generated during compaction of the affected rows.\n" +
                        " -s,--skip-corrupted            skip corrupt rows in counter tables\n" + 
                        " -v,--verbose                   verbose output\n";
         Assertions.assertThat(tool.getStdout()).isEqualTo(help);
@@ -134,41 +131,14 @@ public class StandaloneScrubberTest extends OfflineToolUtils
     @Test
     public void testHeaderFixArg()
     {
-        Arrays.asList(Pair.of("-e", ""),
-                      Pair.of("-e", "wrong"),
-                      Pair.of("--header-fix", ""),
-                      Pair.of("--header-fix", "wrong"))
-              .forEach(arg -> {
-                  ToolResult tool = ToolRunner.invokeClass(StandaloneScrubber.class,
-                                                                  arg.getLeft(),
-                                                                  arg.getRight(),
-                                                                  "system_schema",
-                                                                  "tables");
-                  assertThat("Arg: [" + arg + "]", tool.getStdout(), CoreMatchers.containsStringIgnoringCase("usage:"));
-                  assertTrue("Arg: [" + arg + "]\n" + tool.getCleanedStderr(), tool.getCleanedStderr().contains("Invalid argument value"));
-                  assertEquals(1, tool.getExitCode());
-              });
-
-        Arrays.asList(Pair.of("-e", "validate-only"),
-                      Pair.of("-e", "validate"),
-                      Pair.of("-e", "fix-only"),
-                      Pair.of("-e", "fix"),
-                      Pair.of("-e", "off"),
-                      Pair.of("--header-fix", "validate-only"),
-                      Pair.of("--header-fix", "validate"),
-                      Pair.of("--header-fix", "fix-only"),
-                      Pair.of("--header-fix", "fix"),
-                      Pair.of("--header-fix", "off"))
-              .forEach(arg -> {
-                  ToolResult tool = ToolRunner.invokeClass(StandaloneScrubber.class,
-                                                                  arg.getLeft(),
-                                                                  arg.getRight(),
-                                                                  "system_schema",
-                                                                  "tables");
-                  assertThat("Arg: [" + arg + "]", tool.getStdout(), CoreMatchers.containsStringIgnoringCase("Pre-scrub sstables snapshotted into snapshot"));
-                  Assertions.assertThat(tool.getCleanedStderr()).as("Arg: [%s]", arg).isEmpty();
-                  tool.assertOnExitCode();
-                  assertCorrectEnvPostTest();
-              });
+        Arrays.asList("-e", "--header-fix").forEach(arg -> {
+            ToolResult tool = ToolRunner.invokeClass(StandaloneScrubber.class,
+                                                     arg,
+                                                     "doesntmatter",
+                                                     "system_schema",
+                                                     "tables");
+            Assertions.assertThat(tool.getCleanedStderr().trim()).isEqualTo("Option header-fix is deprecated and no longer functional");
+            Assertions.assertThat(tool.getExitCode()).isEqualTo(0);
+        });
     }
 }

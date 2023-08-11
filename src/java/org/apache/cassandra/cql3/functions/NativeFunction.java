@@ -22,6 +22,7 @@ import java.util.Arrays;
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
  * Base class for our native/hardcoded functions.
@@ -59,4 +60,11 @@ public abstract class NativeFunction extends AbstractFunction
     {
         return null;
     }
+
+    @Override
+    public Arguments newArguments(ProtocolVersion version)
+    {
+        return FunctionArguments.newInstanceForNativeFunction(version, argTypes);
+    }
+
 }

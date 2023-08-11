@@ -42,6 +42,7 @@ import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.Timer;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
@@ -57,6 +58,8 @@ import org.apache.cassandra.metrics.Sampler.SamplerType;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.utils.EstimatedHistogram;
+import org.apache.cassandra.utils.ExpMovingAverage;
+import org.apache.cassandra.utils.MovingAverage;
 import org.apache.cassandra.utils.Pair;
 
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
@@ -118,6 +121,8 @@ public class TableMetrics
     public final Counter pendingFlushes;
     /** Total number of bytes flushed since server [re]start */
     public final Counter bytesFlushed;
+    /** The average on-disk flushed size for sstables. */
+    public final MovingAverage flushSizeOnDisk;
     /** Total number of bytes written by compaction since server [re]start */
     public final Counter compactionBytesWritten;
     /** Estimate of number of pending compactios for this table */
@@ -207,12 +212,6 @@ public class TableMetrics
     public final Timer coordinatorScanLatency;
     public final SnapshottingTimer coordinatorWriteLatency;
 
-    /** Time spent waiting for free memtable space, either on- or off-heap */
-    public final Histogram waitingOnFreeMemtableSpace;
-
-    @Deprecated
-    public final Counter droppedMutations;
-
     private final MetricNameFactory factory;
     private final MetricNameFactory aliasFactory;
 
@@ -278,7 +277,7 @@ public class TableMetrics
     public final TableMeter rowIndexSizeAborts;
     public final TableHistogram rowIndexSize;
 
-    public final ImmutableMap<SSTableFormat.Type, ImmutableMap<String, Gauge<? extends Number>>> formatSpecificGauges;
+    public final ImmutableMap<SSTableFormat<?, ?>, ImmutableMap<String, Gauge<? extends Number>>> formatSpecificGauges;
 
     private static Pair<Long, Long> totalNonSystemTablesSize(Predicate<SSTableReader> predicate)
     {
@@ -622,6 +621,7 @@ public class TableMetrics
         rangeLatency = createLatencyMetrics("Range", cfs.keyspace.metric.rangeLatency, GLOBAL_RANGE_LATENCY);
         pendingFlushes = createTableCounter("PendingFlushes");
         bytesFlushed = createTableCounter("BytesFlushed");
+        flushSizeOnDisk = ExpMovingAverage.decayBy1000();
 
         compactionBytesWritten = createTableCounter("CompactionBytesWritten");
         pendingCompactions = createTableGauge("PendingCompactions", () -> cfs.getCompactionStrategyManager().getEstimatedRemainingTasks());
@@ -773,7 +773,6 @@ public class TableMetrics
         coordinatorReadLatency = createTableTimer("CoordinatorReadLatency");
         coordinatorScanLatency = createTableTimer("CoordinatorScanLatency");
         coordinatorWriteLatency = createTableTimer("CoordinatorWriteLatency");
-        waitingOnFreeMemtableSpace = createTableHistogram("WaitingOnFreeMemtableSpace", false);
 
         // We do not want to capture view mutation specific metrics for a view
         // They only makes sense to capture on the base table
@@ -795,8 +794,6 @@ public class TableMetrics
 
         tombstoneFailures = createTableCounter("TombstoneFailures");
         tombstoneWarnings = createTableCounter("TombstoneWarnings");
-
-        droppedMutations = createTableCounter("DroppedMutations");
 
         casPrepare = createLatencyMetrics("CasPrepare", cfs.keyspace.metric.casPrepare);
         casPropose = createLatencyMetrics("CasPropose", cfs.keyspace.metric.casPropose);
@@ -891,18 +888,18 @@ public class TableMetrics
         }
     }
 
-    private ImmutableMap<SSTableFormat.Type, ImmutableMap<String, Gauge<? extends Number>>> createFormatSpecificGauges(ColumnFamilyStore cfs)
+    private ImmutableMap<SSTableFormat<?, ?>, ImmutableMap<String, Gauge<? extends Number>>> createFormatSpecificGauges(ColumnFamilyStore cfs)
     {
-        ImmutableMap.Builder<SSTableFormat.Type, ImmutableMap<String, Gauge<? extends Number>>> builder = ImmutableMap.builder();
-        for (SSTableFormat.Type formatType : SSTableFormat.Type.values())
+        ImmutableMap.Builder<SSTableFormat<?, ?>, ImmutableMap<String, Gauge<? extends Number>>> builder = ImmutableMap.builder();
+        for (SSTableFormat<?, ?> format : DatabaseDescriptor.getSSTableFormats().values())
         {
             ImmutableMap.Builder<String, Gauge<? extends Number>> gauges = ImmutableMap.builder();
-            for (GaugeProvider<?> gaugeProvider : formatType.info.getFormatSpecificMetricsProviders().getGaugeProviders())
+            for (GaugeProvider<?> gaugeProvider : format.getFormatSpecificMetricsProviders().getGaugeProviders())
             {
                 Gauge<? extends Number> gauge = createTableGauge(gaugeProvider.name, gaugeProvider.getTableGauge(cfs), gaugeProvider.getGlobalGauge());
                 gauges.put(gaugeProvider.name, gauge);
             }
-            builder.put(formatType, gauges.build());
+            builder.put(format, gauges.build());
         }
         return builder.build();
     }
@@ -1259,7 +1256,7 @@ public class TableMetrics
 
         TableMetricNameFactory(ColumnFamilyStore cfs, String type)
         {
-            this.keyspaceName = cfs.keyspace.getName();
+            this.keyspaceName = cfs.getKeyspaceName();
             this.tableName = cfs.name;
             this.isIndex = cfs.isIndex();
             this.type = type;

@@ -26,7 +26,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.CqlBuilder;
-import org.apache.cassandra.cql3.functions.types.TypeCodec;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -47,9 +46,9 @@ public class UDAggregate extends UserFunction implements AggregateFunction
 {
     protected static final Logger logger = LoggerFactory.getLogger(UDAggregate.class);
 
-    private final AbstractType<?> stateType;
-    private final TypeCodec stateTypeCodec;
-    private final TypeCodec returnTypeCodec;
+    private final UDFDataType stateType;
+    private final List<UDFDataType> argumentTypes;
+    private final UDFDataType resultType;
     protected final ByteBuffer initcond;
     private final ScalarFunction stateFunction;
     private final ScalarFunction finalFunction;
@@ -64,9 +63,9 @@ public class UDAggregate extends UserFunction implements AggregateFunction
         super(name, argTypes, returnType);
         this.stateFunction = stateFunc;
         this.finalFunction = finalFunc;
-        this.stateType = stateFunc.returnType();
-        this.stateTypeCodec = UDHelper.codecFor(UDHelper.driverType(stateType));
-        this.returnTypeCodec = UDHelper.codecFor(UDHelper.driverType(returnType));
+        this.argumentTypes = UDFDataType.wrap(argTypes, false);
+        this.resultType = UDFDataType.wrap(returnType, false);
+        this.stateType = stateFunc != null ? UDFDataType.wrap(stateFunc.returnType(), false) : null;
         this.initcond = initcond;
     }
 
@@ -105,6 +104,12 @@ public class UDAggregate extends UserFunction implements AggregateFunction
         return false;
     }
 
+    @Override
+    public Arguments newArguments(ProtocolVersion version)
+    {
+        return FunctionArguments.newInstanceForUdf(version, argumentTypes);
+    }
+
     public boolean hasReferenceTo(Function function)
     {
         return stateFunction == function || finalFunction == function;
@@ -115,7 +120,7 @@ public class UDAggregate extends UserFunction implements AggregateFunction
     {
         return any(argTypes(), t -> t.referencesUserType(name))
             || returnType.referencesUserType(name)
-            || (null != stateType && stateType.referencesUserType(name))
+            || (null != stateType && stateType.toAbstractType().referencesUserType(name))
             || stateFunction.referencesUserType(name)
             || (null != finalFunction && finalFunction.referencesUserType(name));
     }
@@ -166,7 +171,7 @@ public class UDAggregate extends UserFunction implements AggregateFunction
 
     public AbstractType<?> stateType()
     {
-        return stateType;
+        return stateType == null ? null : stateType.toAbstractType();
     }
 
     public Aggregate newAggregate() throws InvalidRequestException
@@ -179,17 +184,18 @@ public class UDAggregate extends UserFunction implements AggregateFunction
             private Object state;
             private boolean needsInit = true;
 
-            public void addInput(ProtocolVersion protocolVersion, List<ByteBuffer> values) throws InvalidRequestException
+            @Override
+            public void addInput(Arguments arguments) throws InvalidRequestException
             {
-                maybeInit(protocolVersion);
+                maybeInit(arguments.getProtocolVersion());
 
                 long startTime = nanoTime();
                 stateFunctionCount++;
                 if (stateFunction instanceof UDFunction)
                 {
                     UDFunction udf = (UDFunction)stateFunction;
-                    if (udf.isCallableWrtNullable(values))
-                        state = udf.executeForAggregate(protocolVersion, state, values);
+                    if (udf.isCallableWrtNullable(arguments))
+                        state = udf.executeForAggregate(state, arguments);
                 }
                 else
                 {
@@ -202,7 +208,7 @@ public class UDAggregate extends UserFunction implements AggregateFunction
             {
                 if (needsInit)
                 {
-                    state = initcond != null ? UDHelper.deserialize(stateTypeCodec, protocolVersion, initcond.duplicate()) : null;
+                    state = initcond != null ? stateType.compose(protocolVersion, initcond.duplicate()) : null;
                     stateFunctionDuration = 0;
                     stateFunctionCount = 0;
                     needsInit = false;
@@ -216,13 +222,13 @@ public class UDAggregate extends UserFunction implements AggregateFunction
                 // final function is traced in UDFunction
                 Tracing.trace("Executed UDA {}: {} call(s) to state function {} in {}\u03bcs", name(), stateFunctionCount, stateFunction.name(), stateFunctionDuration);
                 if (finalFunction == null)
-                    return UDFunction.decompose(stateTypeCodec, protocolVersion, state);
+                    return stateType.decompose(protocolVersion, state);
 
                 if (finalFunction instanceof UDFunction)
                 {
                     UDFunction udf = (UDFunction)finalFunction;
-                    Object result = udf.executeForAggregate(protocolVersion, state, Collections.emptyList());
-                    return UDFunction.decompose(returnTypeCodec, protocolVersion, result);
+                    Object result = udf.executeForAggregate(state, FunctionArguments.emptyInstance(protocolVersion));
+                    return resultType.decompose(protocolVersion, result);
                 }
                 throw new UnsupportedOperationException("UDAs only support UDFs");
             }
@@ -281,7 +287,8 @@ public class UDAggregate extends UserFunction implements AggregateFunction
 
         if (null != stateType && !stateType.equals(other.stateType))
         {
-            if (stateType.asCQL3Type().toString().equals(other.stateType.asCQL3Type().toString()))
+            if (stateType.toAbstractType().asCQL3Type().toString()
+                         .equals(other.stateType.toAbstractType().asCQL3Type().toString()))
                 differsDeeply = true;
             else
                 return Optional.of(Difference.SHALLOW);
@@ -350,7 +357,7 @@ public class UDAggregate extends UserFunction implements AggregateFunction
                .newLine()
                .increaseIndent()
                .append("SFUNC ")
-               .append(stateFunction().name().name)
+               .appendQuotingIfNeeded(stateFunction().name().name)
                .newLine()
                .append("STYPE ")
                .append(toCqlString(stateType()));
@@ -358,12 +365,12 @@ public class UDAggregate extends UserFunction implements AggregateFunction
         if (finalFunction() != null)
             builder.newLine()
                    .append("FINALFUNC ")
-                   .append(finalFunction().name().name);
+                   .appendQuotingIfNeeded(finalFunction().name().name);
 
         if (initialCondition() != null)
             builder.newLine()
                    .append("INITCOND ")
-                   .append(stateType().asCQL3Type().toCQLLiteral(initialCondition(), ProtocolVersion.CURRENT));
+                   .append(stateType().asCQL3Type().toCQLLiteral(initialCondition()));
 
         return builder.append(";")
                       .toString();

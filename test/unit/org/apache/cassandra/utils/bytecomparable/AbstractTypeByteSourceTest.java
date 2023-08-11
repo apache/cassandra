@@ -68,7 +68,7 @@ public class AbstractTypeByteSourceTest
     @Parameterized.Parameters(name = "version={0}")
     public static Iterable<ByteComparable.Version> versions()
     {
-        return ImmutableList.of(ByteComparable.Version.OSS42);
+        return ImmutableList.of(ByteComparable.Version.OSS50);
     }
 
     private final ByteComparable.Version version;
@@ -687,7 +687,7 @@ public class AbstractTypeByteSourceTest
         );
         for (IPartitioner partitioner : partitioners)
         {
-            AbstractType<?> partitionOrdering = partitioner.partitionOrdering();
+            AbstractType<?> partitionOrdering = partitioner.partitionOrdering(null);
             Assert.assertTrue(partitionOrdering instanceof PartitionerDefinedOrder);
             for (ByteBuffer input : byteBuffers)
             {
@@ -709,7 +709,7 @@ public class AbstractTypeByteSourceTest
         // Test how ReversedType handles null ByteSource.Peekable - here the choice of base type is important, as
         // the base type should also be able to handle null ByteSource.Peekable.
         ReversedType<BigInteger> reversedVarintType = ReversedType.getInstance(IntegerType.instance);
-        ByteBuffer decodedNull = reversedVarintType.fromComparableBytes(null, ByteComparable.Version.OSS42);
+        ByteBuffer decodedNull = reversedVarintType.fromComparableBytes(null, ByteComparable.Version.OSS50);
         Assert.assertEquals(ByteBufferUtil.EMPTY_BYTE_BUFFER, decodedNull);
 
         // Test how ReversedType handles random data with some common and important base types.
@@ -751,8 +751,8 @@ public class AbstractTypeByteSourceTest
                 for (int i = 0; i < 100; ++i)
                 {
                     ByteBuffer initial = entry.getValue().apply(prng, length);
-                    ByteSource.Peekable reversedPeekable = ByteSource.peekable(reversedType.asComparableBytes(initial, ByteComparable.Version.OSS42));
-                    ByteBuffer decoded = reversedType.fromComparableBytes(reversedPeekable, ByteComparable.Version.OSS42);
+                    ByteSource.Peekable reversedPeekable = ByteSource.peekable(reversedType.asComparableBytes(initial, ByteComparable.Version.OSS50));
+                    ByteBuffer decoded = reversedType.fromComparableBytes(reversedPeekable, ByteComparable.Version.OSS50);
                     Assert.assertEquals(initial, decoded);
                 }
             }

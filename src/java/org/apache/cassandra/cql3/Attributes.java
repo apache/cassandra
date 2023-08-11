@@ -128,7 +128,7 @@ public class Attributes
         }
         catch (MarshalException e)
         {
-            throw new InvalidRequestException("Invalid timestamp value: " + tval);
+            throw new InvalidRequestException("Invalid TTL value: " + tval);
         }
 
         int ttl = Int32Type.instance.compose(tval);

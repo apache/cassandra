@@ -136,15 +136,15 @@ public class LengthPartitioner implements IPartitioner
     public Map<Token, Float> describeOwnership(List<Token> sortedTokens)
     {
         // allTokens will contain the count and be returned, sorted_ranges is shorthand for token<->token math.
-        Map<Token, Float> allTokens = new HashMap<Token, Float>();
-        List<Range<Token>> sortedRanges = new ArrayList<Range<Token>>();
+        Map<Token, Float> allTokens = new HashMap<>();
+        List<Range<Token>> sortedRanges = new ArrayList<>();
 
         // this initializes the counts to 0 and calcs the ranges in order.
         Token lastToken = sortedTokens.get(sortedTokens.size() - 1);
         for (Token node : sortedTokens)
         {
-            allTokens.put(node, new Float(0.0));
-            sortedRanges.add(new Range<Token>(lastToken, node));
+            allTokens.put(node, 0.0F);
+            sortedRanges.add(new Range<>(lastToken, node));
             lastToken = node;
         }
 
@@ -161,7 +161,7 @@ public class LengthPartitioner implements IPartitioner
         }
 
         // Sum every count up and divide count/total for the fractional ownership.
-        Float total = new Float(0.0);
+        Float total = 0.0F;
         for (Float f : allTokens.values())
             total += f;
         for (Map.Entry<Token, Float> row : allTokens.entrySet())
@@ -178,5 +178,10 @@ public class LengthPartitioner implements IPartitioner
     public AbstractType<?> partitionOrdering()
     {
         return new PartitionerDefinedOrder(this);
+    }
+
+    public AbstractType<?> partitionOrdering(AbstractType<?> partitionKeyType)
+    {
+        return new PartitionerDefinedOrder(this, partitionKeyType);
     }
 }

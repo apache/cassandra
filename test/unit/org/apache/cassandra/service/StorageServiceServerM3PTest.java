@@ -26,13 +26,13 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.PropertyFileSnitch;
 
 import static org.apache.cassandra.ServerTestUtils.cleanup;
 import static org.apache.cassandra.ServerTestUtils.mkdirs;
+import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIP_DISABLE_THREAD_VALIDATION;
 import static org.junit.Assert.assertTrue;
 
 public class StorageServiceServerM3PTest
@@ -40,7 +40,7 @@ public class StorageServiceServerM3PTest
     @BeforeClass
     public static void setUp() throws ConfigurationException
     {
-        System.setProperty(Gossiper.Props.DISABLE_THREAD_VALIDATION, "true");
+        GOSSIP_DISABLE_THREAD_VALIDATION.setBoolean(true);
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
         IEndpointSnitch snitch = new PropertyFileSnitch();

@@ -90,7 +90,7 @@ public class LocalSessionTest extends AbstractRepairTest
         builder.withRanges(Sets.newHashSet(RANGE1, RANGE2, RANGE3));
         builder.withParticipants(Sets.newHashSet(PARTICIPANT1, PARTICIPANT2, PARTICIPANT3));
 
-        int now = FBUtilities.nowInSeconds();
+        long now = FBUtilities.nowInSeconds();
         builder.withStartedAt(now);
         builder.withLastUpdate(now);
 
@@ -947,7 +947,7 @@ public class LocalSessionTest extends AbstractRepairTest
         assertTrue(res.isEmpty());
     }
 
-    private static LocalSession sessionWithTime(int started, int updated)
+    private static LocalSession sessionWithTime(long started, long updated)
     {
         LocalSession.Builder builder = createBuilder();
         builder.withStartedAt(started);
@@ -965,7 +965,7 @@ public class LocalSessionTest extends AbstractRepairTest
         LocalSessions sessions = new LocalSessions();
         sessions.start();
 
-        int time = FBUtilities.nowInSeconds() - LocalSessions.AUTO_FAIL_TIMEOUT + 60;
+        long time = FBUtilities.nowInSeconds() - LocalSessions.AUTO_FAIL_TIMEOUT + 60;
         LocalSession session = sessionWithTime(time - 1, time);
 
         sessions.putSessionUnsafe(session);
@@ -985,7 +985,7 @@ public class LocalSessionTest extends AbstractRepairTest
         LocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
 
-        int time = FBUtilities.nowInSeconds() - LocalSessions.AUTO_FAIL_TIMEOUT - 1;
+        long time = FBUtilities.nowInSeconds() - LocalSessions.AUTO_FAIL_TIMEOUT - 1;
         LocalSession session = sessionWithTime(time - 1, time);
         session.setState(REPAIRING);
 
@@ -1008,7 +1008,7 @@ public class LocalSessionTest extends AbstractRepairTest
         LocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
 
-        int time = FBUtilities.nowInSeconds() - LocalSessions.AUTO_FAIL_TIMEOUT - 1;
+        long time = FBUtilities.nowInSeconds() - LocalSessions.AUTO_FAIL_TIMEOUT - 1;
         LocalSession failed = sessionWithTime(time - 1, time);
         failed.setState(FAILED);
 
@@ -1053,7 +1053,7 @@ public class LocalSessionTest extends AbstractRepairTest
         InstrumentedLocalSessions sessions = new InstrumentedLocalSessions();
         sessions.start();
 
-        int time = FBUtilities.nowInSeconds() - LocalSessions.AUTO_FAIL_TIMEOUT - 1;
+        long time = FBUtilities.nowInSeconds() - LocalSessions.AUTO_FAIL_TIMEOUT - 1;
         LocalSession failed = sessionWithTime(time - 1, time);
         failed.setState(FAILED);
 
@@ -1091,7 +1091,7 @@ public class LocalSessionTest extends AbstractRepairTest
         };
         sessions.start();
 
-        int time = FBUtilities.nowInSeconds() - LocalSessions.CHECK_STATUS_TIMEOUT - 1;
+        long time = FBUtilities.nowInSeconds() - LocalSessions.CHECK_STATUS_TIMEOUT - 1;
         LocalSession session = sessionWithTime(time - 1, time);
         session.setState(REPAIRING);
 

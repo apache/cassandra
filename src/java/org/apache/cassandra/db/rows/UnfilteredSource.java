@@ -65,5 +65,5 @@ public interface UnfilteredSource
     long getMinTimestamp();
 
     /** Minimum local deletion time in the memtable */
-    int getMinLocalDeletionTime();
+    long getMinLocalDeletionTime();
 }

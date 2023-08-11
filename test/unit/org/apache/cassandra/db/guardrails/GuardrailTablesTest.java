@@ -20,7 +20,9 @@ package org.apache.cassandra.db.guardrails;
 
 import org.junit.Test;
 
+import org.apache.cassandra.config.Converters;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.schema.Schema;
 
 import static java.lang.String.format;
 
@@ -45,11 +47,26 @@ public class GuardrailTablesTest extends ThresholdTester
     @Override
     protected long currentValue()
     {
-        return Keyspace.open(keyspace()).getColumnFamilyStores().size();
+        return Keyspace.open(KEYSPACE_PER_TEST).getColumnFamilyStores().size();
     }
 
     @Test
-    public void testCreateTable() throws Throwable
+    public void testCreateTableWithGuardrailThreshold() throws Throwable
+    {
+        assertCreateTable();
+    }
+    
+    @Test
+    public void testCreateTableWithDeprecatedTableCountThreshold() throws Throwable
+    {
+        // Convert and set a deprecated threshold value based on the total number of tables, not just user tables
+        int convertedValue = (int) Converters.TABLE_COUNT_THRESHOLD_TO_GUARDRAIL.convert(Schema.instance.getNumberOfTables());
+        Guardrails.instance.setTablesThreshold(convertedValue + 1, TABLES_LIMIT_FAIL_THRESHOLD);
+
+        assertCreateTable();
+    }
+
+    private void assertCreateTable() throws Throwable
     {
         // create tables until hitting the two warn/fail thresholds
         String t1 = assertCreateTableValid();
@@ -77,7 +94,7 @@ public class GuardrailTablesTest extends ThresholdTester
     @Override
     protected void dropTable(String tableName)
     {
-        dropFormattedTable(format("DROP TABLE %s.%s", keyspace(), tableName));
+        super.dropTable(format("DROP TABLE %s.%s", KEYSPACE_PER_TEST, tableName));
     }
 
     private String assertCreateTableValid() throws Throwable
@@ -111,6 +128,6 @@ public class GuardrailTablesTest extends ThresholdTester
 
     private String createTableQuery(String tableName)
     {
-        return format("CREATE TABLE %s.%s (k1 int, v int, PRIMARY KEY((k1)))", keyspace(), tableName);
+        return format("CREATE TABLE %s.%s (k1 int, v int, PRIMARY KEY((k1)))", KEYSPACE_PER_TEST, tableName);
     }
 }

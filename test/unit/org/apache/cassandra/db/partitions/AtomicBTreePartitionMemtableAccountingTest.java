@@ -87,9 +87,9 @@ public class AtomicBTreePartitionMemtableAccountingTest
     public static final int EARLIER_TS = 1000;
     public static final int LATER_TS = 3000;
 
-    public static final int NOW_LDT = FBUtilities.nowInSeconds();
-    public static final int LATER_LDT = NOW_LDT + 1000;
-    public static final int EARLIER_LDT = NOW_LDT - 1000;
+    public static final long NOW_LDT = FBUtilities.nowInSeconds();
+    public static final long LATER_LDT = NOW_LDT + 1000;
+    public static final long EARLIER_LDT = NOW_LDT - 1000;
 
     public static final int EXPIRED_TTL = 1;
     public static final int EXPIRING_TTL = 10000;
@@ -137,7 +137,7 @@ public class AtomicBTreePartitionMemtableAccountingTest
     @Test
     public void repro() // For running in the IDE, update with failing testCase parameters to run
     {
-        new TestCase(INITIAL_TS, Cell.NO_TTL, Cell.NO_DELETION_TIME, new DeletionTime(EARLIER_TS, EARLIER_LDT), 1,
+        new TestCase(INITIAL_TS, Cell.NO_TTL, Cell.NO_DELETION_TIME, DeletionTime.build(EARLIER_TS, EARLIER_LDT), 1,
                      EARLIER_TS, Cell.NO_TTL, Cell.NO_DELETION_TIME, DeletionTime.LIVE, 3).execute();
     }
 
@@ -148,25 +148,25 @@ public class AtomicBTreePartitionMemtableAccountingTest
         List<Integer> ttls = Arrays.asList(Cell.NO_TTL, EXPIRING_TTL, EXPIRED_TTL);
 
         // Initital local deleted times - a live cell, and a tombstone from now
-        List<Integer> initialLDTs = Arrays.asList(Cell.NO_DELETION_TIME, NOW_LDT);
+        List<Long> initialLDTs = Arrays.asList(Cell.NO_DELETION_TIME, NOW_LDT);
 
         // Initial complex deletion time for c2 - no deletion, earlier than c2 elements, or concurrent with c2 elements
         List<DeletionTime> initialComplexDeletionTimes = Arrays.asList(DeletionTime.LIVE,
-                                                                       new DeletionTime(EARLIER_TS, EARLIER_LDT),
-                                                                       new DeletionTime(INITIAL_TS, NOW_LDT));
+                                                                       DeletionTime.build(EARLIER_TS, EARLIER_LDT),
+                                                                       DeletionTime.build(INITIAL_TS, NOW_LDT));
 
         // Update timestamps - earlier - ignore update, same as initial, after initial - supercedes
         List<Integer> updateTimestamps = Arrays.asList(EARLIER_TS, INITIAL_TS, LATER_TS);
 
         // Update local deleted times - live cell, earlier tombstone, concurrent tombstone, or future deletion
-        List<Integer> updateLDTs = Arrays.asList(Cell.NO_DELETION_TIME, EARLIER_LDT, NOW_LDT, LATER_LDT);
+        List<Long> updateLDTs = Arrays.asList(Cell.NO_DELETION_TIME, EARLIER_LDT, NOW_LDT, LATER_LDT);
 
         // Update complex deletion time for c2 - no deletion, earlier than c2 elements,
         // or concurrent with c2 elements, after c2 elements
         List<DeletionTime> updateComplexDeletionTimes = Arrays.asList(DeletionTime.LIVE,
-                                                                      new DeletionTime(EARLIER_TS, EARLIER_LDT),
-                                                                      new DeletionTime(INITIAL_TS, NOW_LDT),
-                                                                      new DeletionTime(LATER_TS, LATER_LDT));
+                                                                      DeletionTime.build(EARLIER_TS, EARLIER_LDT),
+                                                                      DeletionTime.build(INITIAL_TS, NOW_LDT),
+                                                                      DeletionTime.build(LATER_TS, LATER_LDT));
 
         // Number of cells to put in the update collection - overlapping by one cell
         List<Integer> initialComplexCellCount = Arrays.asList(3, 1);
@@ -198,17 +198,17 @@ public class AtomicBTreePartitionMemtableAccountingTest
     {
         int initialTS;
         int initialTTL;
-        int initialLDT;
+        long initialLDT;
         DeletionTime initialCDT;
         int numC2InitialCells;
         int updateTS;
         int updateTTL;
-        int updateLDT;
+        long updateLDT;
         DeletionTime updateCDT;
         Integer numC2UpdateCells;
 
-        public TestCase(int initialTS, int initialTTL, int initialLDT, DeletionTime initialCDT, int numC2InitialCells,
-                        int updateTS, int updateTTL, int updateLDT, DeletionTime updateCDT, Integer numC2UpdateCells)
+        public TestCase(int initialTS, int initialTTL, long initialLDT, DeletionTime initialCDT, int numC2InitialCells,
+                        int updateTS, int updateTTL, long updateLDT, DeletionTime updateCDT, Integer numC2UpdateCells)
         {
             this.initialTS = initialTS;
             this.initialTTL = initialTTL;
@@ -274,7 +274,7 @@ public class AtomicBTreePartitionMemtableAccountingTest
             return Pair.create(initialRow, updateRow);
         }
 
-        Cell<?> makeCell(ColumnMetadata column, long timestamp, int ttl, int localDeletionTime, ByteBuffer value, CellPath path)
+        Cell<?> makeCell(ColumnMetadata column, long timestamp, int ttl, long localDeletionTime, ByteBuffer value, CellPath path)
         {
             if (localDeletionTime != Cell.NO_DELETION_TIME) // never a ttl for a tombstone
             {

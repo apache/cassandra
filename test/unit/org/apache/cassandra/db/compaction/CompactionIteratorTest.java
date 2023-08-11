@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db.compaction;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.DIAGNOSTIC_SNAPSHOT_INTERVAL_NANOS;
 import static org.apache.cassandra.db.transform.DuplicateRowCheckerTest.assertCommandIssued;
 import static org.apache.cassandra.db.transform.DuplicateRowCheckerTest.makeRow;
 import static org.apache.cassandra.db.transform.DuplicateRowCheckerTest.partition;
@@ -255,7 +256,7 @@ public class CompactionIteratorTest extends CQLTester
             int del = Integer.parseInt(m.group(1));
             input = input.substring(m.end());
             List<Unfiltered> list = generator.parse(input, NOW - 1);
-            deletionTimes.put(list, new DeletionTime(del, del));
+            deletionTimes.put(list, DeletionTime.build(del, del));
             return list;
         }
         else
@@ -385,7 +386,7 @@ public class CompactionIteratorTest extends CQLTester
     {
         private final Map<DecoratedKey, Iterable<UnfilteredRowIterator>> tombstoneSources;
 
-        public Controller(ColumnFamilyStore cfs, Map<DecoratedKey, Iterable<UnfilteredRowIterator>> tombstoneSources, int gcBefore)
+        public Controller(ColumnFamilyStore cfs, Map<DecoratedKey, Iterable<UnfilteredRowIterator>> tombstoneSources, long gcBefore)
         {
             super(cfs, Collections.emptySet(), gcBefore);
             this.tombstoneSources = tombstoneSources;
@@ -460,7 +461,7 @@ public class CompactionIteratorTest extends CQLTester
     @Test
     public void duplicateRowsTest() throws Throwable
     {
-        System.setProperty("cassandra.diagnostic_snapshot_interval_nanos", "0");
+        DIAGNOSTIC_SNAPSHOT_INTERVAL_NANOS.setLong(0);
         // Create a table and insert some data. The actual rows read in the test will be synthetic
         // but this creates an sstable on disk to be snapshotted.
         createTable("CREATE TABLE %s (pk text, ck1 int, ck2 int, v int, PRIMARY KEY (pk, ck1, ck2))");

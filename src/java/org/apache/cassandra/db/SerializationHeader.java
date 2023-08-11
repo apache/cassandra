@@ -167,9 +167,9 @@ public class SerializationHeader
         out.writeUnsignedVInt(timestamp - stats.minTimestamp);
     }
 
-    public void writeLocalDeletionTime(int localDeletionTime, DataOutputPlus out) throws IOException
+    public void writeLocalDeletionTime(long localDeletionTime, DataOutputPlus out) throws IOException
     {
-        out.writeUnsignedVInt32(localDeletionTime - stats.minLocalDeletionTime);
+        out.writeUnsignedVInt32((int) (localDeletionTime - stats.minLocalDeletionTime));
     }
 
     public void writeTTL(int ttl, DataOutputPlus out) throws IOException
@@ -188,7 +188,7 @@ public class SerializationHeader
         return in.readUnsignedVInt() + stats.minTimestamp;
     }
 
-    public int readLocalDeletionTime(DataInputPlus in) throws IOException
+    public long readLocalDeletionTime(DataInputPlus in) throws IOException
     {
         return in.readUnsignedVInt32() + stats.minLocalDeletionTime;
     }
@@ -201,8 +201,8 @@ public class SerializationHeader
     public DeletionTime readDeletionTime(DataInputPlus in) throws IOException
     {
         long markedAt = readTimestamp(in);
-        int localDeletionTime = readLocalDeletionTime(in);
-        return new DeletionTime(markedAt, localDeletionTime);
+        long localDeletionTime = readLocalDeletionTime(in);
+        return DeletionTime.build(markedAt, localDeletionTime);
     }
 
     public long timestampSerializedSize(long timestamp)
@@ -210,7 +210,7 @@ public class SerializationHeader
         return TypeSizes.sizeofUnsignedVInt(timestamp - stats.minTimestamp);
     }
 
-    public long localDeletionTimeSerializedSize(int localDeletionTime)
+    public long localDeletionTimeSerializedSize(long localDeletionTime)
     {
         return TypeSizes.sizeofUnsignedVInt(localDeletionTime - stats.minLocalDeletionTime);
     }
@@ -287,18 +287,6 @@ public class SerializationHeader
             this.staticColumns = staticColumns;
             this.regularColumns = regularColumns;
             this.stats = stats;
-        }
-
-        /**
-         * <em>Only</em> exposed for {@link org.apache.cassandra.io.sstable.SSTableHeaderFix}.
-         */
-        public static Component buildComponentForTools(AbstractType<?> keyType,
-                                                       List<AbstractType<?>> clusteringTypes,
-                                                       Map<ByteBuffer, AbstractType<?>> staticColumns,
-                                                       Map<ByteBuffer, AbstractType<?>> regularColumns,
-                                                       EncodingStats stats)
-        {
-            return new Component(keyType, clusteringTypes, staticColumns, regularColumns, stats);
         }
 
         public MetadataType getType()

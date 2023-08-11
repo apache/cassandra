@@ -22,7 +22,6 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
-import org.apache.cassandra.cql3.Json;
 import org.apache.cassandra.cql3.Sets;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.db.rows.Cell;
@@ -31,6 +30,7 @@ import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.SetSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
 
@@ -50,7 +50,7 @@ public class SetType<T> extends CollectionType<Set<T>>
         if (l.size() != 1)
             throw new ConfigurationException("SetType takes exactly 1 type parameter");
 
-        return getInstance(l.get(0), true);
+        return getInstance(l.get(0).freeze(), true);
     }
 
     public static <T> SetType<T> getInstance(AbstractType<T> elements, boolean isMultiCell)
@@ -117,10 +117,14 @@ public class SetType<T> extends CollectionType<Set<T>>
     @Override
     public AbstractType<?> freeze()
     {
-        if (isMultiCell)
-            return getInstance(this.elements, false);
-        else
-            return this;
+        // freeze elements to match org.apache.cassandra.cql3.CQL3Type.Raw.RawCollection.freeze
+        return isMultiCell ? getInstance(this.elements.freeze(), false) : this;
+    }
+
+    @Override
+    public AbstractType<?> unfreeze()
+    {
+        return isMultiCell ? this : getInstance(this.elements, true);
     }
 
     @Override
@@ -204,7 +208,7 @@ public class SetType<T> extends CollectionType<Set<T>>
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
         if (parsed instanceof String)
-            parsed = Json.decodeJson((String) parsed);
+            parsed = JsonUtils.decodeJson((String) parsed);
 
         if (!(parsed instanceof List))
             throw new MarshalException(String.format(

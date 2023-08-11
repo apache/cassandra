@@ -69,7 +69,7 @@ public interface KeyCacheSupport<T extends SSTableReader & KeyCacheSupport<T>>
     {
         KeyCache keyCache = getKeyCache();
         AbstractRowIndexEntry cachedEntry = keyCache.get(key, updateStats);
-        assert cachedEntry == null || cachedEntry.getSSTableFormat() == ((T) this).descriptor.formatType.info;
+        assert cachedEntry == null || cachedEntry.getSSTableFormat() == ((T) this).descriptor.version.format;
 
         return cachedEntry;
     }
@@ -80,7 +80,7 @@ public interface KeyCacheSupport<T extends SSTableReader & KeyCacheSupport<T>>
     default void cacheKey(@Nonnull DecoratedKey key, @Nonnull AbstractRowIndexEntry info)
     {
         T reader = (T) this;
-        assert info.getSSTableFormat() == reader.descriptor.formatType.info;
+        assert info.getSSTableFormat() == reader.descriptor.version.format;
 
         KeyCacheKey cacheKey = getCacheKey(key);
         getKeyCache().put(cacheKey, info);
@@ -89,9 +89,9 @@ public interface KeyCacheSupport<T extends SSTableReader & KeyCacheSupport<T>>
     @Nonnull
     AbstractRowIndexEntry deserializeKeyCacheValue(@Nonnull DataInputPlus input) throws IOException;
 
-    static boolean isSupportedBy(SSTableFormat.Type formatType)
+    static boolean isSupportedBy(SSTableFormat<?, ?> format)
     {
-        return KeyCacheSupport.class.isAssignableFrom(formatType.info.getReaderFactory().getReaderClass());
+        return KeyCacheSupport.class.isAssignableFrom(format.getReaderFactory().getReaderClass());
     }
 
 }

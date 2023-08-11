@@ -3,67 +3,62 @@
 [CEP-17](https://cwiki.apache.org/confluence/display/CASSANDRA/CEP-17%3A+SSTable+format+API) 
 / [CASSANDRA-17056](https://issues.apache.org/jira/browse/CASSANDRA-17056)
 
+## SSTable format
+
+SSTable format is an implementation of the `SSTableFormat` interface. It is responsible for creating readers, writers,
+scrubbers, verifiers, and other components for processing the sstables. An SSTable format implementation comes with 
+a factory class implementing the `SSTableFormat.Factory` interface. The factory is required to provide a unique name 
+of the implementation and a method for creating the format instance.
+
 ## Configuration specification
 
-SSTable formats and options are specified under the `sstable_formats` key in the _cassandra.yaml_ configuration file.
-By default, the first sstable format implementation specified is the default one, which means that newly produced
-sstables will use that implementation. Other implementations are used to read the sstables.
+SSTable format factories are discovered using 
+[Java Service Loader](https://docs.oracle.com/javase/8/docs/api/java/util/ServiceLoader.html) mechanism. The loaded 
+format implementations can be used to read the existing sstables. The write format is chosen based on the configuration. 
+If it is not specified, `BigFormat` implementation is assumed. 
+
+Optional SSTable formats configuration can be supplied in the _cassandra.yaml_ file under the `sstable` key. 
 
 ```yaml
-sstable_formats:
-  - class_name: 〈class name of the default SSTableFormat implementation〉
-    parameters:
-      id: 〈unique integer identifier of the implementation〉
-      name: 〈unique string identifier of the implementation〉
+sstable:
+  selected_format: 〈name of the default SSTableFormat implementation〉
+  format:
+    〈format1 name〉:
       param1: 〈format specific parameter 1〉
       param2: 〈format specific parameter 2〉
       # ...
-  - class_name: 〈class name of additional SSTableFormat implementation〉
-    parameters:
-      id: 〈unique integer identifier of the implementation〉
-      name: 〈unique string identifier of the implementation〉
+    〈format2 name〉:
       param1: 〈format specific parameter 1〉
       param2: 〈format specific parameter 2〉
       # ...
-  # ...      
+    # ...      
 ```
 
-Each sstable format definition includes the class name of the class implementing [`SSTableFormat`](format/SSTableFormat.java)
-interface and a map of parameters. Two parameters are mandatory - _id_ and _name_, and they have to be unique across
-all the defined formats. Additionally, they need to obey the following rules:
-- _id_ must be an integer between 0 and 127
-- _name_ must contain only lowercase ASCII letters
+Each implementation must have a unique name that is used to unanonimously identify the format. The name must be 
+consistently returned by `name()` methods in the `SSTableFormat` and `SSTableFormat.Factory` implementations. It must 
+include only lowercase ASCII letters.
 
-The _name_ parameter is the string put in the sstable file name. Therefore, it is the way Cassandra chooses the sstable 
-format implementation when loading an sstable. The _id_ parameter is used in saved cache files. Both parameters should 
-remain the same for the same format when upgrading. In particular, previous Cassandra versions have only 
-[_big_ format](format/big/BigFormat.java) implementation, thus when upgrading from the old version, the configuration 
-should keep _id_ set to _0_ and _name_ set to _big_ for that implementation (this is the default configuration), and any 
-new implementations should use different values for those parameters.
+Parameters specified under the key named after the format name are passed to the factory method of the corresponding
+implementation. All of those parameters are optional and depend on the implementation.
 
-The remaining parameters are optional and passed as a map to the `setup` method of a class implementing `SSTableFormat`.
-
-Default configuration:
+The assumed default configuration - which is equivalent to empty configuration:
 ```yaml
-sstable_formats:
-  - class_name: org.apache.cassandra.io.sstable.format.big.BigFormat
-    parameters:
-      id: 0
-      name: big
+sstable:
+  selected_format: big
 ```
 
-Example configuration which uses `BtiFormat` as the default one keeping the right parameters for the `BigFormat` 
-implementation.
+Example configuration which uses `bti` as the default:
 ```yaml
-sstable_formats:
-  - class_name: org.apache.cassandra.io.sstable.format.bti.BtiFormat
-    parameters:
-      id: 1
-      name: bti
-  - class_name: org.apache.cassandra.io.sstable.format.big.BigFormat
-    parameters:
-      id: 0
-      name: big
+sstable:
+  selected_format: bti
+  format:
+    big:
+      param1: value1
+      param2: value2
+    bti:
+      param1: value1
+      param2: value2
+
 ```
 
 ## Components
@@ -82,19 +77,19 @@ Apart from the generic components, each sstable format implementation may descri
 For example, the _big table_ format describes additionally `PRIMARY_INDEX` and `SUMMARY` singleton types and 
 the corresponding singleton components (see [`BigFormat.Components`](format/big/BigFormat.java)).
 
-Custom types can be created with one of the `Component.Type.create(name, repr, formatClass)`,
-`Component.Type.createSingleton(name, repr, formatClass)` methods. Each created type is registered in a global types'
-registry. Types registry is hierarchical which means that an sstable implementation may use types defined for its
-format class and for all parent format classes (for example, the types defined for the `BigFormat` class extend the set
-of types defined for the `SSTableFormat` interface).
+Custom types can be created with one of the `Component.Type.create(name, repr, streamable, formatClass)`,
+`Component.Type.createSingleton(name, repr, streamable, formatClass)` methods. Each created type is registered in 
+a global types' registry. Types registry is hierarchical which means that an sstable implementation may use types 
+defined for its format class and for all parent format classes (for example, the types defined for the `BigFormat` class
+extend the set of types defined for the `SSTableFormat` interface).
 
 For example, types defined for `BigFormat`:
 
 ```java
 public static class Types extends SSTableFormat.Components.Types
 {
-    public static final Component.Type PRIMARY_INDEX = Component.Type.createSingleton("PRIMARY_INDEX", "Index.db", BigFormat.class);
-    public static final Component.Type SUMMARY = Component.Type.createSingleton("SUMMARY", "Summary.db", BigFormat.class);
+    public static final Component.Type PRIMARY_INDEX = Component.Type.createSingleton("PRIMARY_INDEX", "Index.db", true, BigFormat.class);
+    public static final Component.Type SUMMARY = Component.Type.createSingleton("SUMMARY", "Summary.db", true, BigFormat.class);
 }
 ```
 

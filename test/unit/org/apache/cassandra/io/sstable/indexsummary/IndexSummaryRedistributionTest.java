@@ -37,7 +37,6 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.RestorableMeter;
 import org.apache.cassandra.metrics.StorageMetrics;
@@ -57,7 +56,7 @@ public class IndexSummaryRedistributionTest<R extends SSTableReader & IndexSumma
     {
         DatabaseDescriptor.daemonInitialization();
         Assume.assumeTrue("This test make sense only if the default SSTable format support index summary",
-                          IndexSummarySupport.isSupportedBy(SSTableFormat.Type.current()));
+                          IndexSummarySupport.isSupportedBy(DatabaseDescriptor.getSelectedSSTableFormat()));
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),

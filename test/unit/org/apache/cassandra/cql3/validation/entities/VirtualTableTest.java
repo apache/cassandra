@@ -39,6 +39,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.datastax.driver.core.exceptions.InvalidQueryException;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -208,6 +209,8 @@ public class VirtualTableTest extends CQLTester
     @BeforeClass
     public static void setUpClass()
     {
+        ServerTestUtils.daemonInitialization();
+
         TableMetadata vt1Metadata = TableMetadata.builder(KS_NAME, VT1_NAME)
                 .kind(TableMetadata.Kind.VIRTUAL)
                 .addPartitionKeyColumn("pk", UTF8Type.instance)

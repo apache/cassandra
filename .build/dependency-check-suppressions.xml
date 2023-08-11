@@ -21,17 +21,9 @@
 -->
 <suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
     <suppress>
-        <!-- not applicable since 4.0 -->
-        <packageUrl regex="true">^pkg:maven/com\.datastax\.cassandra/cassandra\-driver\-core@.*$</packageUrl>
-        <cve>CVE-2018-8016</cve>
-        <cve>CVE-2019-2684</cve>
-        <cve>CVE-2020-13946</cve>
-        <cve>CVE-2020-17516</cve>
-        <cve>CVE-2021-44521</cve>
-    </suppress>
-    <suppress>
         <!--  https://issues.apache.org/jira/browse/CASSANDRA-17907 -->
         <packageUrl regex="true">^pkg:maven/org\.yaml/snakeyaml@.*$</packageUrl>
+        <cve>CVE-2023-2251</cve>
         <cve>CVE-2022-25857</cve>
         <cve>CVE-2022-38749</cve>
         <cve>CVE-2022-38750</cve>
@@ -43,56 +35,11 @@
         <cve>CVE-2021-4235</cve>
         <cve>CVE-2017-18640</cve>
     </suppress>
-    <suppress>
-        <!-- dependency checker identified this as a completely different package (wire) -->
-        <packageUrl regex="true">^pkg:maven/net\.openhft/chronicle\-wire@.*$</packageUrl>
-        <cpe>cpe:/a:wire:wire</cpe>
-    </suppress>
-    <suppress>
-        <!-- not applicable https://nvd.nist.gov/vuln/detail/CVE-2020-8908 -->
-        <packageUrl regex="true">^pkg:maven/com\.google\.guava/guava@.*$</packageUrl>
-        <cve>CVE-2020-8908</cve>
-    </suppress>
-    <!-- https://issues.apache.org/jira/browse/CASSANDRA-18146 -->
-    <suppress>
-        <packageUrl regex="true">^pkg:maven/org\.apache\.commons.*$</packageUrl>
-        <cve>CVE-2021-37533</cve>
-    </suppress>
-    <suppress>
-        <packageUrl regex="true">^pkg:maven/commons-io/.*$</packageUrl>
-        <cve>CVE-2021-37533</cve>
-    </suppress>
-    <suppress>
-        <packageUrl regex="true">^pkg:maven/commons-cli/.*$</packageUrl>
-        <cve>CVE-2021-37533</cve>
-    </suppress>
-    <suppress>
-        <packageUrl regex="true">^pkg:maven/commons-codec/.*$</packageUrl>
-        <cve>CVE-2021-37533</cve>
-    </suppress>
-    <!-- netty's http stuff is not applicable here -->
-    <suppress>
-        <packageUrl regex="true">^pkg:maven/io\.netty/netty\-all@.*$</packageUrl>
-        <cve>CVE-2021-21290</cve>
-        <cve>CVE-2021-21295</cve>
-        <cve>CVE-2021-21409</cve>
-        <cve>CVE-2021-37136</cve>
-        <cve>CVE-2021-37137</cve>
-        <cve>CVE-2021-43797</cve>
-        <cve>CVE-2022-24823</cve>
-        <cve>CVE-2022-41881</cve>
-        <cve>CVE-2022-41915</cve>
-    </suppress>
     <!-- https://issues.apache.org/jira/browse/CASSANDRA-17966 -->
     <suppress>
         <packageUrl regex="true">^pkg:maven/com\.fasterxml\.jackson\.core/jackson\-databind@.*$</packageUrl>
         <cve>CVE-2022-42003</cve>
         <cve>CVE-2022-42004</cve>
+        <cve>CVE-2023-35116</cve>
     </suppress>
-    <!-- https://issues.apache.org/jira/browse/CASSANDRA-18389 -->
-    <suppress>
-        <packageUrl regex="true">^pkg:maven/com\.fasterxml\.jackson\.core/jackson\-core.*$</packageUrl>
-        <cve>CVE-2022-45688</cve>
-    </suppress>
-
 </suppressions>

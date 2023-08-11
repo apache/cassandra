@@ -45,7 +45,7 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
     private final long repairedAt;
     private final TimeUUID pendingRepair;
     private final boolean isTransient;
-    private final SSTableFormat.Type format;
+    private final SSTableFormat<?, ?> format;
     private final SerializationHeader header;
     private final LifecycleNewTracker lifecycleNewTracker;
     private int currentIndex = -1;
@@ -54,7 +54,7 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
     private final List<SSTableReader> finishedReaders = new ArrayList<>();
     private SSTableMultiWriter currentWriter = null;
 
-    public RangeAwareSSTableWriter(ColumnFamilyStore cfs, long estimatedKeys, long repairedAt, TimeUUID pendingRepair, boolean isTransient, SSTableFormat.Type format, int sstableLevel, long totalSize, LifecycleNewTracker lifecycleNewTracker, SerializationHeader header) throws IOException
+    public RangeAwareSSTableWriter(ColumnFamilyStore cfs, long estimatedKeys, long repairedAt, TimeUUID pendingRepair, boolean isTransient, SSTableFormat<?, ?> format, int sstableLevel, long totalSize, LifecycleNewTracker lifecycleNewTracker, SerializationHeader header) throws IOException
     {
         DiskBoundaries db = cfs.getDiskBoundaries();
         directories = db.directories;
@@ -75,7 +75,7 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
                 throw new IOException(String.format("Insufficient disk space to store %s",
                                                     FBUtilities.prettyPrintMemory(totalSize)));
             Descriptor desc = cfs.newSSTableDescriptor(cfs.getDirectories().getLocationForDisk(localDir), format);
-            currentWriter = cfs.createSSTableMultiWriter(desc, estimatedKeys, repairedAt, pendingRepair, isTransient, sstableLevel, header, lifecycleNewTracker);
+            currentWriter = cfs.createSSTableMultiWriter(desc, estimatedKeys, repairedAt, pendingRepair, isTransient, null, sstableLevel, header, lifecycleNewTracker);
         }
     }
 
@@ -97,30 +97,14 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
                 finishedWriters.add(currentWriter);
 
             Descriptor desc = cfs.newSSTableDescriptor(cfs.getDirectories().getLocationForDisk(directories.get(currentIndex)), format);
-            currentWriter = cfs.createSSTableMultiWriter(desc, estimatedKeys, repairedAt, pendingRepair, isTransient, sstableLevel, header, lifecycleNewTracker);
+            currentWriter = cfs.createSSTableMultiWriter(desc, estimatedKeys, repairedAt, pendingRepair, isTransient, null, sstableLevel, header, lifecycleNewTracker);
         }
     }
 
-    public boolean append(UnfilteredRowIterator partition)
+    public void append(UnfilteredRowIterator partition)
     {
         maybeSwitchWriter(partition.partitionKey());
-        return currentWriter.append(partition);
-    }
-
-    @Override
-    public Collection<SSTableReader> finish(long repairedAt, long maxDataAge, boolean openResult)
-    {
-        if (currentWriter != null)
-            finishedWriters.add(currentWriter);
-        currentWriter = null;
-        for (SSTableMultiWriter writer : finishedWriters)
-        {
-            if (writer.getFilePointer() > 0)
-                finishedReaders.addAll(writer.finish(repairedAt, maxDataAge, openResult));
-            else
-                SSTableMultiWriter.abortOrDie(writer);
-        }
-        return finishedReaders;
+        currentWriter.append(partition);
     }
 
     @Override
@@ -131,7 +115,7 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
         currentWriter = null;
         for (SSTableMultiWriter writer : finishedWriters)
         {
-            if (writer.getFilePointer() > 0)
+            if (writer.getBytesWritten() > 0)
                 finishedReaders.addAll(writer.finish(openResult));
             else
                 SSTableMultiWriter.abortOrDie(writer);
@@ -155,13 +139,19 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
 
     public String getFilename()
     {
-        return String.join("/", cfs.keyspace.getName(), cfs.getTableName());
+        return String.join("/", cfs.getKeyspaceName(), cfs.getTableName());
     }
 
     @Override
-    public long getFilePointer()
+    public long getBytesWritten()
     {
-       return currentWriter != null ? currentWriter.getFilePointer() : 0L;
+       return currentWriter != null ? currentWriter.getBytesWritten() : 0L;
+    }
+
+    @Override
+    public long getOnDiskBytesWritten()
+    {
+        return currentWriter != null ? currentWriter.getOnDiskBytesWritten() : 0L;
     }
 
     @Override

@@ -20,6 +20,7 @@ package org.apache.cassandra.io.sstable.format;
 
 import java.io.IOException;
 import java.nio.BufferOverflowException;
+import java.util.Collection;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -27,11 +28,11 @@ import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionPurger;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.guardrails.Guardrails;
+import org.apache.cassandra.db.guardrails.Threshold;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.db.rows.PartitionSerializationException;
@@ -42,6 +43,7 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.CompressedSequentialWriter;
 import org.apache.cassandra.io.compress.CompressionMetadata;
@@ -213,8 +215,8 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter> ex
 
         long endPosition = dataWriter.position();
         long rowSize = endPosition - partitionWriter.getInitialPosition();
-        maybeLogLargePartitionWarning(key, rowSize);
-        maybeLogManyTombstonesWarning(key, metadataCollector.totalTombstones);
+        guardPartitionThreshold(Guardrails.partitionSize, key, rowSize);
+        guardPartitionThreshold(Guardrails.partitionTombstones, key, metadataCollector.totalTombstones);
         metadataCollector.addPartitionSizeInBytes(rowSize);
         metadataCollector.addKey(key.getKey());
         metadataCollector.addCellPerPartitionCount();
@@ -324,21 +326,16 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter> ex
         return dataFile;
     }
 
-    private void maybeLogLargePartitionWarning(DecoratedKey key, long rowSize)
+    private void guardPartitionThreshold(Threshold guardrail, DecoratedKey key, long size)
     {
-        if (rowSize > DatabaseDescriptor.getCompactionLargePartitionWarningThreshold())
+        if (guardrail.triggersOn(size, null))
         {
-            String keyString = metadata().partitionKeyType.getString(key.getKey());
-            logger.warn("Writing large partition {}/{}:{} ({}) to sstable {}", metadata.keyspace, metadata.name, keyString, FBUtilities.prettyPrintMemory(rowSize), getFilename());
-        }
-    }
-
-    private void maybeLogManyTombstonesWarning(DecoratedKey key, int tombstoneCount)
-    {
-        if (tombstoneCount > DatabaseDescriptor.getCompactionTombstoneWarningThreshold())
-        {
-            String keyString = metadata().partitionKeyType.getString(key.getKey());
-            logger.warn("Writing {} tombstones to {}/{}:{} in sstable {}", tombstoneCount, metadata.keyspace, metadata.name, keyString, getFilename());
+            String message = String.format("%s.%s:%s on sstable %s",
+                                           metadata.keyspace,
+                                           metadata.name,
+                                           metadata().partitionKeyType.getString(key.getKey()),
+                                           getFilename());
+            guardrail.guard(size, message, true, null);
         }
     }
 
@@ -441,9 +438,9 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter> ex
         }
 
         @Override
-        public B addDefaultComponents()
+        public B addDefaultComponents(Collection<Index.Group> indexGroups)
         {
-            super.addDefaultComponents();
+            super.addDefaultComponents(indexGroups);
 
             if (FilterComponent.shouldUseBloomFilter(getTableMetadataRef().getLocal().params.bloomFilterFpChance))
             {

@@ -137,7 +137,7 @@ public class EntireSSTableStreamingCorrectFilesCountTest
 
         int totalNumberOfFiles = session.transfers.get(store.metadata.id).getTotalNumberOfFiles();
 
-        assertEquals(ComponentManifest.create(sstable.descriptor).components().size(), totalNumberOfFiles);
+        assertEquals(ComponentManifest.create(sstable).components().size(), totalNumberOfFiles);
         assertEquals(streamEventHandler.fileNames.size(), totalNumberOfFiles);
     }
 

@@ -121,7 +121,7 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
                              prettyPrintMemory(bytesRead),
                              prettyPrintMemory(totalSize));
 
-                writer.writeComponent(component.type, in, length);
+                writer.writeComponent(component, in, length);
                 session.progress(writer.descriptor.fileFor(component).toString(), ProgressInfo.Direction.IN, length, length, length);
                 bytesRead += length;
 
@@ -178,7 +178,7 @@ public class CassandraEntireSSTableStreamReader implements IStreamReader
 
         LifecycleNewTracker lifecycleNewTracker = CassandraStreamReceiver.fromReceiver(session.getAggregator(tableId)).createLifecycleNewTracker();
 
-        Descriptor desc = cfs.newSSTableDescriptor(dataDir, header.version, header.format);
+        Descriptor desc = cfs.newSSTableDescriptor(dataDir, header.version);
 
         IOOptions ioOptions = new IOOptions(DatabaseDescriptor.getDiskOptimizationStrategy(),
                                             DatabaseDescriptor.getDiskAccessMode(),

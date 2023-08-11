@@ -19,29 +19,30 @@
 package org.apache.cassandra.cql3.validation.entities.udfverify;
 
 import java.nio.ByteBuffer;
-import java.util.List;
 
-import org.apache.cassandra.cql3.functions.types.TypeCodec;
+import org.apache.cassandra.cql3.functions.Arguments;
 import org.apache.cassandra.cql3.functions.JavaUDF;
 import org.apache.cassandra.cql3.functions.UDFContext;
-import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.cql3.functions.UDFDataType;
 
 /**
  * Used by {@link org.apache.cassandra.cql3.validation.entities.UFVerifierTest}.
  */
 public final class ClassWithStaticInnerClass extends JavaUDF
 {
-    public ClassWithStaticInnerClass(TypeCodec<Object> returnDataType, TypeCodec<Object>[] argDataTypes, UDFContext udfContext)
+    public ClassWithStaticInnerClass(UDFDataType returnType, UDFContext udfContext)
     {
-        super(returnDataType, argDataTypes, udfContext);
+        super(returnType, udfContext);
     }
 
-    protected Object executeAggregateImpl(ProtocolVersion protocolVersion, Object firstParam, List<ByteBuffer> params)
+    @Override
+    protected Object executeAggregateImpl(Object state, Arguments arguments)
     {
         throw new UnsupportedOperationException();
     }
 
-    protected ByteBuffer executeImpl(ProtocolVersion protocolVersion, List<ByteBuffer> params)
+    @Override
+    protected ByteBuffer executeImpl(Arguments arguments)
     {
         return null;
     }

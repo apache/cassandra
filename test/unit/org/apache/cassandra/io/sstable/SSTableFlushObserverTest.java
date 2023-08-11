@@ -94,13 +94,12 @@ public class SSTableFlushObserverTest
         if (!directory.exists() && !directory.tryCreateDirectories())
             throw new FSWriteError(new IOException("failed to create tmp directory"), directory.absolutePath());
 
-        SSTableFormat.Type sstableFormat = SSTableFormat.Type.current();
-        Descriptor descriptor = new Descriptor(sstableFormat.info.getLatestVersion(),
+        SSTableFormat<?, ?> sstableFormat = DatabaseDescriptor.getSelectedSSTableFormat();
+        Descriptor descriptor = new Descriptor(sstableFormat.getLatestVersion(),
                                                directory,
                                                cfm.keyspace,
                                                cfm.name,
-                                               new SequenceBasedSSTableId(0),
-                                               sstableFormat);
+                                               new SequenceBasedSSTableId(0));
 
         SSTableWriter writer = descriptor.getFormat().getWriterFactory().builder(descriptor)
                                          .setKeyCount(10)
@@ -108,10 +107,10 @@ public class SSTableFlushObserverTest
                                          .setMetadataCollector(new MetadataCollector(cfm.comparator).sstableLevel(0))
                                          .setSerializationHeader(new SerializationHeader(true, cfm, cfm.regularAndStaticColumns(), EncodingStats.NO_STATS))
                                          .setFlushObservers(Collections.singletonList(observer))
-                                         .addDefaultComponents()
+                                         .addDefaultComponents(Collections.emptySet())
                                          .build(transaction, null);
 
-        SSTableReader reader = null;
+        SSTableReader reader;
         Multimap<ByteBuffer, Cell<?>> expected = ArrayListMultimap.create();
 
         try
@@ -152,7 +151,6 @@ public class SSTableFlushObserverTest
         for (Triple<ByteBuffer, Long, Long> e : observer.rows.keySet())
         {
             ByteBuffer key = e.getLeft();
-            long dataPosition = e.getMiddle();
             long indexPosition = e.getRight();
 
             DecoratedKey indexKey = reader.keyAtPositionFromSecondaryIndex(indexPosition);

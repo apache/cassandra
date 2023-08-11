@@ -38,6 +38,7 @@ import org.apache.cassandra.db.EmptyIterators;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.transform.DuplicateRowChecker;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.PurgeFunction;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
@@ -50,10 +51,10 @@ import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.db.rows.WrappingUnfilteredRowIterator;
-import org.apache.cassandra.db.transform.DuplicateRowChecker;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.transactions.CompactionTransaction;
+import org.apache.cassandra.index.transactions.IndexTransaction;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.TopPartitionTracker;
@@ -94,14 +95,14 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     private final AbstractCompactionController controller;
     private final List<ISSTableScanner> scanners;
     private final ImmutableSet<SSTableReader> sstables;
-    private final int nowInSec;
+    private final long nowInSec;
     private final TimeUUID compactionId;
     private final long totalBytes;
     private long bytesRead;
     private long totalSourceCQLRows;
 
     // Keep targetDirectory for compactions, needed for `nodetool compactionstats`
-    private String targetDirectory;
+    private volatile String targetDirectory;
 
     /*
      * counters for merged rows.
@@ -113,7 +114,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     private final UnfilteredPartitionIterator compacted;
     private final ActiveCompactionsTracker activeCompactions;
 
-    public CompactionIterator(OperationType type, List<ISSTableScanner> scanners, AbstractCompactionController controller, int nowInSec, TimeUUID compactionId)
+    public CompactionIterator(OperationType type, List<ISSTableScanner> scanners, AbstractCompactionController controller, long nowInSec, TimeUUID compactionId)
     {
         this(type, scanners, controller, nowInSec, compactionId, ActiveCompactionsTracker.NOOP, null);
     }
@@ -122,7 +123,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     public CompactionIterator(OperationType type,
                               List<ISSTableScanner> scanners,
                               AbstractCompactionController controller,
-                              int nowInSec,
+                              long nowInSec,
                               TimeUUID compactionId,
                               ActiveCompactionsTracker activeCompactions,
                               TopPartitionTracker.Collector topPartitionCollector)
@@ -221,7 +222,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                 CompactionIterator.this.updateCounterFor(merged);
 
                 if ( (type != OperationType.COMPACTION && type != OperationType.MAJOR_COMPACTION) 
-                    || !controller.cfs.indexManager.hasIndexes() ) 
+                    || !controller.cfs.indexManager.handles(IndexTransaction.Type.COMPACTION) ) 
                 {
                     return null;
                 }
@@ -340,9 +341,9 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
         private long compactedUnfiltered;
 
-        private Purger(AbstractCompactionController controller, int nowInSec)
+        private Purger(AbstractCompactionController controller, long nowInSec)
         {
-            super(nowInSec, controller.gcBefore, controller.compactingRepaired() ? Integer.MAX_VALUE : Integer.MIN_VALUE,
+            super(nowInSec, controller.gcBefore, controller.compactingRepaired() ? Long.MAX_VALUE : Integer.MIN_VALUE,
                   controller.cfs.getCompactionStrategyManager().onlyPurgeRepairedTombstones(),
                   controller.cfs.metadata.get().enforceStrictLiveness());
             this.controller = controller;
@@ -743,6 +744,6 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
     private static boolean isPaxos(ColumnFamilyStore cfs)
     {
-        return cfs.name.equals(SystemKeyspace.PAXOS) && cfs.keyspace.getName().equals(SchemaConstants.SYSTEM_KEYSPACE_NAME);
+        return cfs.name.equals(SystemKeyspace.PAXOS) && cfs.getKeyspaceName().equals(SchemaConstants.SYSTEM_KEYSPACE_NAME);
     }
 }

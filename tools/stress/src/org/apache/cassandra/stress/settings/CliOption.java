@@ -37,8 +37,11 @@ public enum CliOption
     LOG("Where to log progress to, and the interval at which to do it", SettingsLog.helpPrinter()),
     TRANSPORT("Custom transport factories", SettingsTransport.helpPrinter()),
     PORT("The port to connect to cassandra nodes on", SettingsPort.helpPrinter()),
+    JMX("JMX credentials", SettingsJMX.helpPrinter()),
     GRAPH("-graph", "Graph recorded metrics", SettingsGraph.helpPrinter()),
-    TOKENRANGE("Token range settings", SettingsTokenRange.helpPrinter())
+    TOKENRANGE("Token range settings", SettingsTokenRange.helpPrinter()),
+    CREDENTIALS_FILE("Credentials file for CQL, JMX and transport", SettingsCredentials.helpPrinter()),
+    REPORTING("Frequency of printing statistics and header for stress output", SettingsReporting.helpPrinter());
     ;
 
     private static final Map<String, CliOption> LOOKUP;
@@ -63,11 +66,12 @@ public enum CliOption
     public final String description;
     private final Runnable helpPrinter;
 
-    private CliOption(String description, Runnable helpPrinter)
+    CliOption(String description, Runnable helpPrinter)
     {
         this(null, description, helpPrinter);
     }
-    private CliOption(String extraName, String description, Runnable helpPrinter)
+
+    CliOption(String extraName, String description, Runnable helpPrinter)
     {
         this.extraName = extraName;
         this.description = description;
@@ -79,4 +83,8 @@ public enum CliOption
         helpPrinter.run();
     }
 
+    public String toString()
+    {
+        return name().replaceAll("_", "-");
+    }
 }

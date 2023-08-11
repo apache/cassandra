@@ -47,7 +47,6 @@ import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 import org.apache.cassandra.schema.ColumnMetadata.ClusteringOrder;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Simulate;
@@ -57,6 +56,8 @@ import static java.lang.String.format;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORE_CORRUPTED_SCHEMA_TABLES;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_FLUSH_LOCAL_SCHEMA_CHANGES;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
 import static org.apache.cassandra.schema.SchemaKeyspaceTables.*;
@@ -77,8 +78,8 @@ public final class SchemaKeyspace
 
     private static final Logger logger = LoggerFactory.getLogger(SchemaKeyspace.class);
 
-    private static final boolean FLUSH_SCHEMA_TABLES = CassandraRelevantProperties.FLUSH_LOCAL_SCHEMA_CHANGES.getBoolean();
-    private static final boolean IGNORE_CORRUPTED_SCHEMA_TABLES = Boolean.parseBoolean(System.getProperty("cassandra.ignore_corrupted_schema_tables", "false"));
+    private static final boolean FLUSH_SCHEMA_TABLES = TEST_FLUSH_LOCAL_SCHEMA_CHANGES.getBoolean();
+    private static final boolean IGNORE_CORRUPTED_SCHEMA_TABLES_PROPERTY_VALUE = IGNORE_CORRUPTED_SCHEMA_TABLES.getBoolean();
 
     /**
      * The tables to which we added the cdc column. This is used in {@link #makeUpdateForSchema} below to make sure we skip that
@@ -911,7 +912,7 @@ public final class SchemaKeyspace
                .add("final_func", aggregate.finalFunction() != null ? aggregate.finalFunction().name().name : null)
                .add("initcond", aggregate.initialCondition() != null
                                 // must use the frozen state type here, as 'null' for unfrozen collections may mean 'empty'
-                                ? aggregate.stateType().freeze().asCQL3Type().toCQLLiteral(aggregate.initialCondition(), ProtocolVersion.CURRENT)
+                                ? aggregate.stateType().freeze().asCQL3Type().toCQLLiteral(aggregate.initialCondition())
                                 : null);
     }
 
@@ -1002,13 +1003,13 @@ public final class SchemaKeyspace
                                                 SchemaConstants.SCHEMA_KEYSPACE_NAME, COLUMNS, keyspaceName, tableName,
                                                 SchemaConstants.SCHEMA_KEYSPACE_NAME, COLUMNS);
 
-                if (IGNORE_CORRUPTED_SCHEMA_TABLES)
+                if (IGNORE_CORRUPTED_SCHEMA_TABLES_PROPERTY_VALUE)
                 {
                     logger.error(errorMsg, "", exc);
                 }
                 else
                 {
-                    logger.error(errorMsg, "restart cassandra with -Dcassandra.ignore_corrupted_schema_tables=true and ");
+                    logger.error(errorMsg, "restart cassandra with -D{}=true and ", IGNORE_CORRUPTED_SCHEMA_TABLES.getKey());
                     throw exc;
                 }
             }
@@ -1148,7 +1149,7 @@ public final class SchemaKeyspace
                     values[i] = argumentTypes.get(i + 1).fromString(valuesAsCQL.get(i));
             }
 
-            mask = ColumnMask.build((ScalarFunction) function, values);
+            mask = new ColumnMask((ScalarFunction) function, values);
         }
 
         return new ColumnMetadata(keyspace, table, name, type, position, kind, mask);

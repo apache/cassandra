@@ -27,9 +27,9 @@ import org.junit.Test;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.cql3.functions.UDHelper;
 import org.apache.cassandra.exceptions.FunctionExecutionException;
 import org.apache.cassandra.service.ClientWarn;
+import org.apache.cassandra.utils.JavaDriverUtils;
 
 public class UFSecurityTest extends CQLTester
 {
@@ -48,17 +48,17 @@ public class UFSecurityTest extends CQLTester
                                           "RETURNS NULL ON NULL INPUT " +
                                           "RETURNS double " +
                                           "LANGUAGE JAVA\n" +
-                                          "AS 'System.getProperty(\"foo.bar.baz\"); return 0d;';");
+                                          "AS 'System.getProperty(\"foo.bar.baz\"); return 0d;';"); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
             execute("SELECT " + fName + "(dval) FROM %s WHERE key=1");
             Assert.fail();
         }
         catch (FunctionExecutionException e)
         {
-            assertAccessControlException("System.getProperty(\"foo.bar.baz\"); return 0d;", e);
+            assertAccessControlException("System.getProperty(\"foo.bar.baz\"); return 0d;", e); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
         }
 
         String[] cfnSources =
-        { "try { Class.forName(\"" + UDHelper.class.getName() + "\"); } catch (Exception e) { throw new RuntimeException(e); } return 0d;",
+        { "try { Class.forName(\"" + JavaDriverUtils.class.getName() + "\"); } catch (Exception e) { throw new RuntimeException(e); } return 0d;",
           "try { Class.forName(\"sun.misc.Unsafe\"); } catch (Exception e) { throw new RuntimeException(e); } return 0d;" };
         for (String source : cfnSources)
         {
@@ -118,7 +118,13 @@ public class UFSecurityTest extends CQLTester
                                     "     java.lang.Runtime.getRuntime().exec(\"/tmp/foo\"); return 0d;" +
                                     "} catch (Exception t) {" +
                                     "     throw new RuntimeException(t);" +
-                                    '}'}
+                                    '}'},
+        {"org.apache.cassandra.utils.vint.VIntCoding",
+         "try {" +
+         "     org.apache.cassandra.utils.vint.VIntCoding.computeUnsignedVIntSize(0L); return 0d;" +
+         "} catch (Exception t) {" +
+         "     throw new RuntimeException(t);" +
+         '}'}
         };
 
         for (String[] typeAndSource : typesAndSources)

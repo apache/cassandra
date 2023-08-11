@@ -25,19 +25,21 @@ import java.nio.charset.StandardCharsets;
 
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.cql3.Constants;
-import org.apache.cassandra.cql3.Json;
 
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.functions.ArgumentDeserializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.AsciiSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.JsonUtils;
 
 public class AsciiType extends StringType
 {
     public static final AsciiType instance = new AsciiType();
+    private static final ArgumentDeserializer ARGUMENT_DESERIALIZER = new DefaultArgumentDeserializer(instance);
     private static final ByteBuffer MASKED_VALUE = instance.decompose("****");
 
     AsciiType() {super(ComparisonType.BYTE_ORDER);} // singleton
@@ -86,7 +88,7 @@ public class AsciiType extends StringType
     {
         try
         {
-            return '"' + Json.quoteAsJsonString(ByteBufferUtil.string(buffer, StandardCharsets.US_ASCII)) + '"';
+            return '"' + JsonUtils.quoteAsJsonString(ByteBufferUtil.string(buffer, StandardCharsets.US_ASCII)) + '"';
         }
         catch (CharacterCodingException exc)
         {
@@ -102,6 +104,12 @@ public class AsciiType extends StringType
     public TypeSerializer<String> getSerializer()
     {
         return AsciiSerializer.instance;
+    }
+
+    @Override
+    public ArgumentDeserializer getArgumentDeserializer()
+    {
+        return ARGUMENT_DESERIALIZER;
     }
 
     @Override

@@ -93,7 +93,7 @@ public class SSTableUtils
         File cfDir = new File(tempdir, keyspaceName + File.pathSeparator() + cfname);
         cfDir.tryCreateDirectories();
         cfDir.deleteOnExit();
-        File datafile = new Descriptor(cfDir, keyspaceName, cfname, id, BigFormat.getInstance().getType()).fileFor(Components.DATA);
+        File datafile = new Descriptor(cfDir, keyspaceName, cfname, id, BigFormat.getInstance()).fileFor(Components.DATA);
         if (!datafile.createFileIfNotExists())
             throw new IOException("unable to create file " + datafile);
         datafile.deleteOnExit();
@@ -233,7 +233,7 @@ public class SSTableUtils
             TableMetadata metadata = Schema.instance.getTableMetadata(ksname, cfname);
             ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(metadata.id);
             SerializationHeader header = appender.header();
-            SSTableTxnWriter writer = SSTableTxnWriter.create(cfs, Descriptor.fromFileWithComponent(datafile, false).left, expectedSize, UNREPAIRED_SSTABLE, NO_PENDING_REPAIR, false, 0, header);
+            SSTableTxnWriter writer = SSTableTxnWriter.create(cfs, Descriptor.fromFileWithComponent(datafile, false).left, expectedSize, UNREPAIRED_SSTABLE, NO_PENDING_REPAIR, false, header);
             while (appender.append(writer)) { /* pass */ }
             Collection<SSTableReader> readers = writer.finish(true);
 

@@ -75,6 +75,7 @@ import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
 import static com.google.common.collect.Iterables.all;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_STREAMING_DEBUG_STACKTRACE_LIMIT;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.locator.InetAddressAndPort.hostAddressAndPort;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
@@ -157,7 +158,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 public class StreamSession
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamSession.class);
-    private static final int DEBUG_STACKTRACE_LIMIT = Integer.parseInt(System.getProperty("cassandra.streaming.debug_stacktrace_limit", "2"));
+    private static final int DEBUG_STACKTRACE_LIMIT = CASSANDRA_STREAMING_DEBUG_STACKTRACE_LIMIT.getInt();
 
     public enum PrepareDirection { SEND, ACK }
 
@@ -880,7 +881,7 @@ public class StreamSession
             Set<FileStore> allWriteableFileStores = cfs.getDirectories().allFileStores(fileStoreMapper);
             if (allWriteableFileStores.isEmpty())
             {
-                logger.error("[Stream #{}] Could not get any writeable FileStores for {}.{}", planId, cfs.keyspace.getName(), cfs.getTableName());
+                logger.error("[Stream #{}] Could not get any writeable FileStores for {}.{}", planId, cfs.getKeyspaceName(), cfs.getTableName());
                 continue;
             }
             allFileStores.addAll(allWriteableFileStores);
@@ -905,7 +906,7 @@ public class StreamSession
                          newStreamBytesToWritePerFileStore,
                          perTableIdIncomingBytes.keySet().stream()
                                                 .map(ColumnFamilyStore::getIfExists).filter(Objects::nonNull)
-                                                .map(cfs -> cfs.keyspace.getName() + '.' + cfs.name)
+                                                .map(cfs -> cfs.getKeyspaceName() + '.' + cfs.name)
                                                 .collect(Collectors.joining(",")),
                          totalStreamRemaining,
                          totalCompactionWriteRemaining,
@@ -942,7 +943,7 @@ public class StreamSession
                     tasksStreamed = csm.getEstimatedRemainingTasks(perTableIdIncomingFiles.get(tableId),
                                                                    perTableIdIncomingBytes.get(tableId),
                                                                    isForIncremental);
-                    tables.add(String.format("%s.%s", cfs.keyspace.getName(), cfs.name));
+                    tables.add(String.format("%s.%s", cfs.getKeyspaceName(), cfs.name));
                 }
                 pendingCompactionsBeforeStreaming += tasksOther;
                 pendingCompactionsAfterStreaming += tasksStreamed;

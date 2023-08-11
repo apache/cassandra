@@ -50,6 +50,8 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
+
 /**
  * Export SSTables to JSON format.
  */
@@ -72,7 +74,7 @@ public class SSTableExport
 
     static
     {
-        DatabaseDescriptor.clientInitialization();
+        DatabaseDescriptor.toolInitialization(!TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST.getBoolean());
 
         Option optKey = new Option(KEY_OPTION, true, "List of included partition keys");
         // Number of times -k <key> can be passed on the command line.

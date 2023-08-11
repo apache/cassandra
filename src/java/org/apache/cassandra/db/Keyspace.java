@@ -40,6 +40,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
@@ -49,7 +50,6 @@ import org.apache.cassandra.db.view.ViewManager;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexManager;
-import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
@@ -66,7 +66,6 @@ import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -87,9 +86,9 @@ public class Keyspace
 {
     private static final Logger logger = LoggerFactory.getLogger(Keyspace.class);
 
-    private static final String TEST_FAIL_WRITES_KS = System.getProperty("cassandra.test.fail_writes_ks", "");
+    private static final String TEST_FAIL_WRITES_KS = CassandraRelevantProperties.TEST_FAIL_WRITES_KS.getString();
     private static final boolean TEST_FAIL_WRITES = !TEST_FAIL_WRITES_KS.isEmpty();
-    private static int TEST_FAIL_MV_LOCKS_COUNT = Integer.getInteger("cassandra.test.fail_mv_locks_count", 0);
+    private static int TEST_FAIL_MV_LOCKS_COUNT = CassandraRelevantProperties.TEST_FAIL_MV_LOCKS_COUNT.getInt();
 
     public final KeyspaceMetrics metric;
 
@@ -610,7 +609,6 @@ public class Keyspace
                     columnFamilyStores.get(tableId).metric.viewLockAcquireTime.update(acquireTime, MILLISECONDS);
             }
         }
-        int nowInSec = FBUtilities.nowInSeconds();
         try (WriteContext ctx = getWriteHandler().beginWrite(mutation, makeDurable))
         {
             for (PartitionUpdate upd : mutation.getPartitionUpdates())
@@ -639,10 +637,7 @@ public class Keyspace
                     }
                 }
 
-                UpdateTransaction indexTransaction = updateIndexes
-                                                     ? cfs.indexManager.newUpdateTransaction(upd, ctx, nowInSec)
-                                                     : UpdateTransaction.NO_OP;
-                cfs.getWriteHandler().write(upd, ctx, indexTransaction);
+                cfs.getWriteHandler().write(upd, ctx, updateIndexes);
 
                 if (requiresViewUpdate)
                     baseComplete.set(currentTimeMillis());

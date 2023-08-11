@@ -34,16 +34,15 @@ import com.google.common.collect.Sets;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
-import org.apache.cassandra.cql3.statements.schema.CreateTypeStatement;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UpdateParameters;
-import org.apache.cassandra.cql3.functions.UDHelper;
 import org.apache.cassandra.cql3.functions.types.TypeCodec;
 import org.apache.cassandra.cql3.functions.types.UserType;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
+import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
+import org.apache.cassandra.cql3.statements.schema.CreateTypeStatement;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.Slice;
 import org.apache.cassandra.db.Slices;
@@ -54,10 +53,21 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.schema.*;
+import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.SchemaTransformations;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.TableMetadataRef;
+import org.apache.cassandra.schema.Tables;
+import org.apache.cassandra.schema.Types;
+import org.apache.cassandra.schema.UserFunctions;
+import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.JavaDriverUtils;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
@@ -122,7 +132,7 @@ public class CQLSSTableWriter implements Closeable
         this.writer = writer;
         this.modificationStatement = modificationStatement;
         this.boundNames = boundNames;
-        this.typeCodecs = boundNames.stream().map(bn ->  UDHelper.codecFor(UDHelper.driverType(bn.type)))
+        this.typeCodecs = boundNames.stream().map(bn ->  JavaDriverUtils.codecFor(JavaDriverUtils.driverType(bn.type)))
                                              .collect(Collectors.toList());
     }
 
@@ -329,7 +339,7 @@ public class CQLSSTableWriter implements Closeable
     {
         KeyspaceMetadata ksm = Schema.instance.getKeyspaceMetadata(modificationStatement.keyspace());
         org.apache.cassandra.db.marshal.UserType userType = ksm.types.getNullable(ByteBufferUtil.bytes(dataType));
-        return (UserType) UDHelper.driverType(userType);
+        return (UserType) JavaDriverUtils.driverType(userType);
     }
 
     /**
@@ -366,7 +376,7 @@ public class CQLSSTableWriter implements Closeable
     {
         private File directory;
 
-        protected SSTableFormat.Type formatType = null;
+        protected SSTableFormat<?, ?> format = null;
 
         private CreateTableStatement.Raw schemaStatement;
         private final List<CreateTypeStatement.Raw> typeStatements;
@@ -587,8 +597,8 @@ public class CQLSSTableWriter implements Closeable
                                                      ? new SSTableSimpleWriter(directory, ref, preparedModificationStatement.updatedColumns())
                                                      : new SSTableSimpleUnsortedWriter(directory, ref, preparedModificationStatement.updatedColumns(), bufferSizeInMiB);
 
-                if (formatType != null)
-                    writer.setSSTableFormatType(formatType);
+                if (format != null)
+                    writer.setSSTableFormatType(format);
 
                 return new CQLSSTableWriter(writer, preparedModificationStatement, preparedModificationStatement.getBindVariables());
             }

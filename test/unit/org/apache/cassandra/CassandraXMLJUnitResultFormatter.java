@@ -50,6 +50,9 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Text;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_CASSANDRA_SUITENAME;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_CASSANDRA_TESTTAG;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SUN_JAVA_COMMAND;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 /**
@@ -73,7 +76,7 @@ public class CassandraXMLJUnitResultFormatter implements JUnitResultFormatter, X
         }
     }
 
-    private static final String tag = System.getProperty("cassandra.testtag", "");
+    private static final String tag = TEST_CASSANDRA_TESTTAG.getString();
 
     /*
      * Set the property for the test suite name so that log configuration can pick it up
@@ -81,9 +84,9 @@ public class CassandraXMLJUnitResultFormatter implements JUnitResultFormatter, X
      */
     static
     {
-        String command = System.getProperty("sun.java.command");
+        String command = SUN_JAVA_COMMAND.getString();
         String args[] = command.split(" ");
-        System.setProperty("suitename", args[1]);
+        TEST_CASSANDRA_SUITENAME.setString(args[1]);
     }
 
     /**

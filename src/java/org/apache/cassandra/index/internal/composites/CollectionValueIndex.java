@@ -99,7 +99,7 @@ public class CollectionValueIndex extends CassandraIndex
         return operator == Operator.CONTAINS && !(indexedColumn.type instanceof SetType);
     }
 
-    public boolean isStale(Row data, ByteBuffer indexValue, int nowInSec)
+    public boolean isStale(Row data, ByteBuffer indexValue, long nowInSec)
     {
         ColumnMetadata columnDef = indexedColumn;
         ComplexColumnData complexData = data.getComplexColumnData(columnDef);

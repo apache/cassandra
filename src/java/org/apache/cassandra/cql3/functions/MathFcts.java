@@ -21,10 +21,11 @@ package org.apache.cassandra.cql3.functions;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.BiFunction;
 
 import com.google.common.collect.ImmutableList;
 import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 
 public final class MathFcts
 {
@@ -47,83 +48,49 @@ public final class MathFcts
                                                log10Fct(t),
                                                roundFct(t)))
                      .flatMap(Collection::stream)
-                     .forEach(f -> functions.add(f));
+                     .forEach(functions::add);
     }
 
     public static NativeFunction absFct(final NumberType<?> type)
     {
-        return new NativeScalarFunction("abs", type, type)
-        {
-            @Override
-            public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
-            {
-                ByteBuffer bb = parameters.get(0);
-                if (bb == null)
-                    return null;
-                return type.abs(bb);
-            }
-        };
+        return mathFct("abs", type, NumberType::abs);
     }
 
     public static NativeFunction expFct(final NumberType<?> type)
     {
-        return new NativeScalarFunction("exp", type, type)
-        {
-            @Override
-            public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
-            {
-                ByteBuffer bb = parameters.get(0);
-                if (bb == null)
-                    return null;
-                return type.exp(bb);
-            }
-        };
+        return mathFct("exp", type, NumberType::exp);
     }
 
     public static NativeFunction logFct(final NumberType<?> type)
     {
-        return new NativeScalarFunction("log", type, type)
-        {
-            @Override
-            public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
-            {
-                ByteBuffer bb = parameters.get(0);
-                if (bb == null)
-                    return null;
-                return type.log(bb);
-
-            }
-        };
+        return mathFct("log", type, NumberType::log);
     }
 
     public static NativeFunction log10Fct(final NumberType<?> type)
     {
-        return new NativeScalarFunction("log10", type, type)
-        {
-            @Override
-            public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
-            {
-                ByteBuffer bb = parameters.get(0);
-                if (bb == null)
-                    return null;
-                return type.log10(bb);
-
-            }
-        };
+        return mathFct("log10", type, NumberType::log10);
     }
 
     public static NativeFunction roundFct(final NumberType<?> type)
     {
-        return new NativeScalarFunction("round", type, type)
+        return mathFct("round", type, NumberType::round);
+    }
+
+    private static NativeFunction mathFct(String name,
+                                          NumberType<?> type,
+                                          BiFunction<NumberType<?>, Number, ByteBuffer> f)
+    {
+        return new NativeScalarFunction(name, type, type)
         {
             @Override
-            public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+            public ByteBuffer execute(Arguments arguments) throws InvalidRequestException
             {
-                ByteBuffer bb = parameters.get(0);
-                if (bb == null)
-                    return null;
-                return type.round(bb);
+                Number number = arguments.get(0);
 
+                if (number == null)
+                    return null;
+
+                return f.apply(type, number);
             }
         };
     }

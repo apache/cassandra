@@ -30,12 +30,13 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import static org.apache.cassandra.concurrent.SEPExecutor.TakeTaskPermitResult.RETURNED_WORK_PERMIT;
 import static org.apache.cassandra.concurrent.SEPExecutor.TakeTaskPermitResult.TOOK_PERMIT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SET_SEP_THREAD_NAME;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnable
 {
     private static final Logger logger = LoggerFactory.getLogger(SEPWorker.class);
-    private static final boolean SET_THREAD_NAME = Boolean.parseBoolean(System.getProperty("cassandra.set_sep_thread_name", "true"));
+    private static final boolean SET_THREAD_NAME = SET_SEP_THREAD_NAME.getBoolean();
 
     final Long workerId;
     final Thread thread;

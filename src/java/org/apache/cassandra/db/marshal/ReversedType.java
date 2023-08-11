@@ -24,6 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.functions.ArgumentDeserializer;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
@@ -139,9 +140,16 @@ public class ReversedType<T> extends AbstractType<T>
         return baseType.asCQL3Type();
     }
 
+    @Override
     public TypeSerializer<T> getSerializer()
     {
         return baseType.getSerializer();
+    }
+
+    @Override
+    public ArgumentDeserializer getArgumentDeserializer()
+    {
+        return baseType.getArgumentDeserializer();
     }
 
     @Override

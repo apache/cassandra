@@ -247,6 +247,8 @@ cqlStatement returns [CQLStatement.Raw stmt]
     | st39=dropMaterializedViewStatement   { $stmt = st39; }
     | st40=alterMaterializedViewStatement  { $stmt = st40; }
     | st41=describeStatement               { $stmt = st41; }
+    | st42=addIdentityStatement            { $stmt = st42; }
+    | st43=dropIdentityStatement           { $stmt = st43; }
     ;
 
 /*
@@ -376,7 +378,7 @@ selectionTypeHint returns [Selectable.Raw s]
 
 selectionList returns [Selectable.Raw s]
     @init { List<Selectable.Raw> l = new ArrayList<>(); }
-    @after { $s = new Selectable.WithList.Raw(l); }
+    @after { $s = new Selectable.WithArrayLiteral.Raw(l); }
     : '[' ( t1=unaliasedSelector { l.add(t1); } ( ',' tn=unaliasedSelector { l.add(tn); } )* )? ']'
     ;
 
@@ -1202,7 +1204,7 @@ createUserStatement returns [CreateRoleStatement stmt]
         {
            throw new SyntaxException("Options 'password' and 'hashed password' are mutually exclusive");
         }
-        $stmt = new CreateRoleStatement(name, opts, DCPermissions.all(), ifNotExists); }
+        $stmt = new CreateRoleStatement(name, opts, DCPermissions.all(), CIDRPermissions.all(), ifNotExists); }
     ;
 
 /**
@@ -1223,7 +1225,7 @@ alterUserStatement returns [AlterRoleStatement stmt]
          {
             throw new SyntaxException("Options 'password' and 'hashed password' are mutually exclusive");
          }
-         $stmt = new AlterRoleStatement(name, opts, null, ifExists);
+         $stmt = new AlterRoleStatement(name, opts, null, null, ifExists);
       }
     ;
 
@@ -1237,6 +1239,28 @@ dropUserStatement returns [DropRoleStatement stmt]
     }
     : K_DROP K_USER (K_IF K_EXISTS { ifExists = true; })? u=username { name.setName($u.text, true); $stmt = new DropRoleStatement(name, ifExists); }
     ;
+/**
+ * ADD IDENTITY [IF NOT EXISTS] <identity> TO ROLE <role>
+ */
+addIdentityStatement returns [AddIdentityStatement stmt]
+    @init {
+        String identity = null;
+        String role = null;
+        boolean ifNotExists = false;
+    }
+    : K_ADD K_IDENTITY (K_IF K_NOT K_EXISTS { ifNotExists = true; })? u=identity { identity= $u.text; } K_TO K_ROLE r=identity { role=$r.text; $stmt = new AddIdentityStatement(identity, role, ifNotExists); }
+    ;
+
+/**
+ * DROP IDENTITY [IF EXISTS] <identity>
+ */
+ dropIdentityStatement returns [DropIdentityStatement stmt]
+      @init {
+          boolean ifExists = false;
+          String identity = null;
+      }
+      : K_DROP K_IDENTITY (K_IF K_EXISTS { ifExists = true; })? u=identity { identity= $u.text; $stmt = new DropIdentityStatement(identity, ifExists);}
+      ;
 
 /**
  * LIST USERS
@@ -1253,15 +1277,20 @@ listUsersStatement returns [ListRolesStatement stmt]
  *  SUPERUSER = (true|false)
  *  LOGIN = (true|false)
  *  OPTIONS = { 'k1':'v1', 'k2':'v2'}
+ *  ACCESS TO ALL DATACENTERS
+ *  ACCESS TO DATACENTERS { dcPermission (, dcPermission)* }
+ *  ACCESS FROM ALL CIDRS
+ *  ACCESS FROM CIDRS { cidrPermission (, cidrPermission)* }
  */
 createRoleStatement returns [CreateRoleStatement stmt]
     @init {
         RoleOptions opts = new RoleOptions();
         DCPermissions.Builder dcperms = DCPermissions.builder();
+        CIDRPermissions.Builder cidrperms = CIDRPermissions.builder();
         boolean ifNotExists = false;
     }
     : K_CREATE K_ROLE (K_IF K_NOT K_EXISTS { ifNotExists = true; })? name=userOrRoleName
-      ( K_WITH roleOptions[opts, dcperms] )?
+      ( K_WITH roleOptions[opts, dcperms, cidrperms] )?
       {
         // set defaults if they weren't explictly supplied
         if (!opts.getLogin().isPresent())
@@ -1276,7 +1305,7 @@ createRoleStatement returns [CreateRoleStatement stmt]
         {
             throw new SyntaxException("Options 'password' and 'hashed password' are mutually exclusive");
         }
-        $stmt = new CreateRoleStatement(name, opts, dcperms.build(), ifNotExists);
+        $stmt = new CreateRoleStatement(name, opts, dcperms.build(), cidrperms.build(), ifNotExists);
       }
     ;
 
@@ -1288,21 +1317,26 @@ createRoleStatement returns [CreateRoleStatement stmt]
  *  SUPERUSER = (true|false)
  *  LOGIN = (true|false)
  *  OPTIONS = { 'k1':'v1', 'k2':'v2'}
+ *  ACCESS TO ALL DATACENTERS
+ *  ACCESS TO DATACENTERS { dcPermission (, dcPermission)* }
+ *  ACCESS FROM ALL CIDRS
+ *  ACCESS FROM CIDRS { cidrPermission (, cidrPermission)* }
  */
 alterRoleStatement returns [AlterRoleStatement stmt]
     @init {
         RoleOptions opts = new RoleOptions();
         DCPermissions.Builder dcperms = DCPermissions.builder();
+        CIDRPermissions.Builder cidrperms = CIDRPermissions.builder();
         boolean ifExists = false;
     }
     : K_ALTER K_ROLE (K_IF K_EXISTS { ifExists = true; })? name=userOrRoleName
-      ( K_WITH roleOptions[opts, dcperms] )?
+      ( K_WITH roleOptions[opts, dcperms, cidrperms] )?
       {
          if (opts.getPassword().isPresent() && opts.getHashedPassword().isPresent())
          {
             throw new SyntaxException("Options 'password' and 'hashed password' are mutually exclusive");
          }
-         $stmt = new AlterRoleStatement(name, opts, dcperms.isModified() ? dcperms.build() : null, ifExists);
+         $stmt = new AlterRoleStatement(name, opts, dcperms.isModified() ? dcperms.build() : null, cidrperms.isModified() ? cidrperms.build() : null, ifExists);
       }
     ;
 
@@ -1331,11 +1365,11 @@ listRolesStatement returns [ListRolesStatement stmt]
       { $stmt = new ListRolesStatement(grantee, recursive); }
     ;
 
-roleOptions[RoleOptions opts, DCPermissions.Builder dcperms]
-    : roleOption[opts, dcperms] (K_AND roleOption[opts, dcperms])*
+roleOptions[RoleOptions opts, DCPermissions.Builder dcperms, CIDRPermissions.Builder cidrperms]
+    : roleOption[opts, dcperms, cidrperms] (K_AND roleOption[opts, dcperms, cidrperms])*
     ;
 
-roleOption[RoleOptions opts, DCPermissions.Builder dcperms]
+roleOption[RoleOptions opts, DCPermissions.Builder dcperms, CIDRPermissions.Builder cidrperms]
     :  K_PASSWORD '=' v=STRING_LITERAL { opts.setOption(IRoleManager.Option.PASSWORD, $v.text); }
     |  K_HASHED K_PASSWORD '=' v=STRING_LITERAL { opts.setOption(IRoleManager.Option.HASHED_PASSWORD, $v.text); }
     |  K_OPTIONS '=' m=fullMapLiteral { opts.setOption(IRoleManager.Option.OPTIONS, convertPropertyMap(m)); }
@@ -1343,10 +1377,16 @@ roleOption[RoleOptions opts, DCPermissions.Builder dcperms]
     |  K_LOGIN '=' b=BOOLEAN { opts.setOption(IRoleManager.Option.LOGIN, Boolean.valueOf($b.text)); }
     |  K_ACCESS K_TO K_ALL K_DATACENTERS { dcperms.all(); }
     |  K_ACCESS K_TO K_DATACENTERS '{' dcPermission[dcperms] (',' dcPermission[dcperms])* '}'
+    |  K_ACCESS K_FROM K_ALL K_CIDRS { cidrperms.all(); }
+    |  K_ACCESS K_FROM K_CIDRS '{' cidrPermission[cidrperms] (',' cidrPermission[cidrperms])* '}'
     ;
 
 dcPermission[DCPermissions.Builder builder]
     : dc=STRING_LITERAL { builder.add($dc.text); }
+    ;
+
+cidrPermission[CIDRPermissions.Builder builder]
+    : cidr=STRING_LITERAL { builder.add($cidr.text); }
     ;
 
 // for backwards compatibility in CREATE/ALTER USER, this has no '='
@@ -1525,8 +1565,8 @@ collectionLiteral returns [Term.Raw value]
 
 listLiteral returns [Term.Raw value]
     @init {List<Term.Raw> l = new ArrayList<Term.Raw>();}
-    @after {$value = new Lists.Literal(l);}
-    : '[' ( t1=term { l.add(t1); } ( ',' tn=term { l.add(tn); } )* )? ']' { $value = new Lists.Literal(l); }
+    @after {$value = new ArrayLiteral(l);}
+    : '[' ( t1=term { l.add(t1); } ( ',' tn=term { l.add(tn); } )* )? ']' { $value = new ArrayLiteral(l); }
     ;
 
 usertypeLiteral returns [UserTypes.Literal ut]
@@ -1802,6 +1842,7 @@ comparatorType returns [CQL3Type.Raw t]
     : n=native_type     { $t = CQL3Type.Raw.from(n); }
     | c=collection_type { $t = c; }
     | tt=tuple_type     { $t = tt; }
+    | vc=vector_type    { $t = vc; }
     | id=userTypeName   { $t = CQL3Type.Raw.userType(id); }
     | K_FROZEN '<' f=comparatorType '>'
       {
@@ -1866,10 +1907,21 @@ tuple_type returns [CQL3Type.Raw t]
     : K_TUPLE '<' t1=comparatorType { types.add(t1); } (',' tn=comparatorType { types.add(tn); })* '>'
     ;
 
+vector_type returns [CQL3Type.Raw vt]
+    : K_VECTOR '<' t1=comparatorType ','  d=INTEGER '>'
+        { $vt = CQL3Type.Raw.vector(t1, Integer.parseInt($d.text)); }
+    ;
+
 username
     : IDENT
     | STRING_LITERAL
     | QUOTED_NAME { addRecognitionError("Quoted strings are are not supported for user names and USER is deprecated, please use ROLE");}
+    ;
+
+identity
+    : IDENT
+    | STRING_LITERAL
+    | QUOTED_NAME { addRecognitionError("Quoted strings are are not supported for identity");}
     ;
 
 mbean
@@ -1917,6 +1969,7 @@ basic_unreserved_keyword returns [String str]
         | K_USERS
         | K_ROLE
         | K_ROLES
+        | K_IDENTITY
         | K_SUPERUSER
         | K_NOSUPERUSER
         | K_LOGIN
@@ -1950,6 +2003,7 @@ basic_unreserved_keyword returns [String str]
         | K_PARTITION
         | K_GROUP
         | K_DATACENTERS
+        | K_CIDRS
         | K_ACCESS
         | K_DEFAULT
         | K_MBEAN
@@ -1959,5 +2013,6 @@ basic_unreserved_keyword returns [String str]
         | K_MASKED
         | K_UNMASK
         | K_SELECT_MASKED
+        | K_VECTOR
         ) { $str = $k.text; }
     ;

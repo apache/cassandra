@@ -32,20 +32,28 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
+import org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector.DefaultCloudMetadataServiceConnector;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.ServerTestUtils.cleanup;
 import static org.apache.cassandra.ServerTestUtils.mkdirs;
+import static org.apache.cassandra.config.CassandraRelevantProperties.GOSSIP_DISABLE_THREAD_VALIDATION;
+import static org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector.METADATA_URL_PROPERTY;
+import static org.apache.cassandra.locator.AlibabaCloudSnitch.DEFAULT_METADATA_SERVICE_URL;
 import static org.junit.Assert.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
 
-public class AlibabaCloudSnitchTest 
+public class AlibabaCloudSnitchTest
 {
-    private static String az;
+    static String az;
 
     @BeforeClass
     public static void setup() throws Exception
     {
-        System.setProperty(Gossiper.Props.DISABLE_THREAD_VALIDATION, "true");
+        GOSSIP_DISABLE_THREAD_VALIDATION.setBoolean(true);
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
         CommitLog.instance.segmentManager.awaitManagementTasksCompletion();
@@ -55,25 +63,17 @@ public class AlibabaCloudSnitchTest
         StorageService.instance.initServer(0);
     }
 
-    private class TestAlibabaCloudSnitch extends AlibabaCloudSnitch
-    {
-        public TestAlibabaCloudSnitch() throws IOException, ConfigurationException
-        {
-            super();
-        }
-
-        @Override
-        String alibabaApiCall(String url) throws IOException, ConfigurationException
-        {
-            return az;
-        }
-    }
-
     @Test
     public void testRac() throws IOException, ConfigurationException
     {
         az = "cn-hangzhou-f";
-        AlibabaCloudSnitch snitch = new TestAlibabaCloudSnitch();
+
+        DefaultCloudMetadataServiceConnector spiedConnector = spy(new DefaultCloudMetadataServiceConnector(
+        new SnitchProperties(Pair.create(METADATA_URL_PROPERTY, DEFAULT_METADATA_SERVICE_URL))));
+
+        doReturn(az).when(spiedConnector).apiCall(any());
+
+        AlibabaCloudSnitch snitch = new AlibabaCloudSnitch(spiedConnector);
         InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
         InetAddressAndPort nonlocal = InetAddressAndPort.getByName("127.0.0.7");
 
@@ -89,12 +89,17 @@ public class AlibabaCloudSnitchTest
         assertEquals("cn-hangzhou", snitch.getDatacenter(local));
         assertEquals("f", snitch.getRack(local));
     }
-    
+
     @Test
     public void testNewRegions() throws IOException, ConfigurationException
     {
         az = "us-east-1a";
-        AlibabaCloudSnitch snitch = new TestAlibabaCloudSnitch();
+        DefaultCloudMetadataServiceConnector spiedConnector = spy(new DefaultCloudMetadataServiceConnector(
+        new SnitchProperties(Pair.create(METADATA_URL_PROPERTY, DEFAULT_METADATA_SERVICE_URL))));
+
+        doReturn(az).when(spiedConnector).apiCall(any());
+
+        AlibabaCloudSnitch snitch = new AlibabaCloudSnitch(spiedConnector);
         InetAddressAndPort local = InetAddressAndPort.getByName("127.0.0.1");
         assertEquals("us-east", snitch.getDatacenter(local));
         assertEquals("1a", snitch.getRack(local));
@@ -105,5 +110,4 @@ public class AlibabaCloudSnitchTest
     {
         StorageService.instance.stopClient();
     }
-    
 }

@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
@@ -33,7 +34,7 @@ public class LoadOldYAMLBackwardCompatibilityTest
     @BeforeClass
     public static void setupDatabaseDescriptor()
     {
-        System.setProperty("cassandra.config", "cassandra-old.yaml");
+        CASSANDRA_CONFIG.setString("cassandra-old.yaml");
         DatabaseDescriptor.daemonInitialization();
     }
 

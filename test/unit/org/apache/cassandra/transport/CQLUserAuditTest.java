@@ -49,6 +49,7 @@ import org.apache.cassandra.diag.DiagnosticEventService;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.SUPERUSER_SETUP_DELAY_MS;
 import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQueue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -63,14 +64,14 @@ public class CQLUserAuditTest
     public static void setup() throws Exception
     {
         OverrideConfigurationLoader.override((config) -> {
-            config.authenticator = "PasswordAuthenticator";
+            config.authenticator = new ParameterizedClass("PasswordAuthenticator");
             config.role_manager = "CassandraRoleManager";
             config.diagnostic_events_enabled = true;
             config.audit_logging_options.enabled = true;
             config.audit_logging_options.logger = new ParameterizedClass("DiagnosticEventAuditLogger", null);
         });
 
-        System.setProperty("cassandra.superuser_setup_delay_ms", "0");
+        SUPERUSER_SETUP_DELAY_MS.setLong(0);
 
         embedded = ServerTestUtils.startEmbeddedCassandraService();
 

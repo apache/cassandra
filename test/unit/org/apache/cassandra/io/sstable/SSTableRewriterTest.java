@@ -95,7 +95,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         Set<SSTableReader> sstables = new HashSet<>(cfs.getLiveSSTables());
         assertEquals(1, sstables.size());
         assertEquals(sstables.iterator().next().bytesOnDisk(), cfs.metric.liveDiskSpaceUsed.getCount());
-        int nowInSec = FBUtilities.nowInSeconds();
+        long nowInSec = FBUtilities.nowInSeconds();
         try (AbstractCompactionStrategy.ScannerList scanners = cfs.getCompactionStrategyManager().getScanners(sstables);
              LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN);
              SSTableRewriter writer = SSTableRewriter.constructKeepingOriginals(txn, false, 1000);
@@ -127,7 +127,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         Set<SSTableReader> sstables = new HashSet<>(cfs.getLiveSSTables());
         assertEquals(1, sstables.size());
 
-        int nowInSec = FBUtilities.nowInSeconds();
+        long nowInSec = FBUtilities.nowInSeconds();
         try (AbstractCompactionStrategy.ScannerList scanners = cfs.getCompactionStrategyManager().getScanners(sstables);
              LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN);
              SSTableRewriter writer = new SSTableRewriter(txn, 1000, 10000000, false, true);
@@ -159,7 +159,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         Set<SSTableReader> sstables = new HashSet<>(cfs.getLiveSSTables());
         assertEquals(1, sstables.size());
 
-        int nowInSec = FBUtilities.nowInSeconds();
+        long nowInSec = FBUtilities.nowInSeconds();
         boolean checked = false;
         try (AbstractCompactionStrategy.ScannerList scanners = cfs.getCompactionStrategyManager().getScanners(sstables);
              LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN);
@@ -426,8 +426,8 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         SSTableReader s = writeFile(cfs, 1000);
         cfs.addSSTable(s);
 
-        DecoratedKey origFirst = s.first;
-        DecoratedKey origLast = s.last;
+        DecoratedKey origFirst = s.getFirst();
+        DecoratedKey origLast = s.getLast();
         long startSize = cfs.metric.liveDiskSpaceUsed.getCount();
         Set<SSTableReader> compacting = Sets.newHashSet(s);
         try (ISSTableScanner scanner = s.getScanner();
@@ -444,8 +444,8 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         assertEquals(startSize, cfs.metric.liveDiskSpaceUsed.getCount());
         assertEquals(1, cfs.getLiveSSTables().size());
         assertFileCounts(s.descriptor.directory.tryListNames());
-        assertEquals(cfs.getLiveSSTables().iterator().next().first, origFirst);
-        assertEquals(cfs.getLiveSSTables().iterator().next().last, origLast);
+        assertEquals(cfs.getLiveSSTables().iterator().next().getFirst(), origFirst);
+        assertEquals(cfs.getLiveSSTables().iterator().next().getLast(), origLast);
         validateCFS(cfs);
     }
 
@@ -803,7 +803,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         cfs.addSSTable(s);
         Set<SSTableReader> sstables = Sets.newHashSet(s);
         assertEquals(1, sstables.size());
-        int nowInSec = FBUtilities.nowInSeconds();
+        long nowInSec = FBUtilities.nowInSeconds();
         try (AbstractCompactionStrategy.ScannerList scanners = cfs.getCompactionStrategyManager().getScanners(sstables);
              LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN);
              SSTableRewriter writer = SSTableRewriter.constructWithoutEarlyOpening(txn, false, 1000);
@@ -892,7 +892,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
             try
             {
                 UnfilteredRowIterator uri = mock(UnfilteredRowIterator.class);
-                when(uri.partitionLevelDeletion()).thenReturn(new DeletionTime(0, 0));
+                when(uri.partitionLevelDeletion()).thenReturn(DeletionTime.build(0, 0));
                 when(uri.partitionKey()).thenReturn(bopKeyFromInt(0));
                 // should not be able to append after buffer release on switch
                 firstWriter.append(uri);

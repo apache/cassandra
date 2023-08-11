@@ -50,6 +50,7 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.Nemesis;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_DISABLE_COORDINATOR_LOCKING;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.config.Config.PaxosStatePurging.gc_grace;
 import static org.apache.cassandra.config.Config.PaxosStatePurging.legacy;
@@ -66,7 +67,7 @@ import static org.apache.cassandra.service.paxos.Commit.isAfter;
  */
 public class PaxosState implements PaxosOperationLock
 {
-    private static volatile boolean DISABLE_COORDINATOR_LOCKING = Boolean.getBoolean("cassandra.paxos.disable_coordinator_locking");
+    private static volatile boolean DISABLE_COORDINATOR_LOCKING = PAXOS_DISABLE_COORDINATOR_LOCKING.getBoolean();
     public static final ConcurrentHashMap<Key, PaxosState> ACTIVE = new ConcurrentHashMap<>();
     public static final Map<Key, Snapshot> RECENT = Caffeine.newBuilder()
                                                             .maximumWeight(DatabaseDescriptor.getPaxosCacheSizeInMiB() << 20)
@@ -241,7 +242,7 @@ public class PaxosState implements PaxosOperationLock
             return new Snapshot(promised, promisedWrite, accepted, committed);
         }
 
-        Snapshot removeExpired(int nowInSec)
+        Snapshot removeExpired(long nowInSec)
         {
             boolean isAcceptedExpired = accepted != null && accepted.isExpired(nowInSec);
             boolean isCommittedExpired = committed.isExpired(nowInSec);
@@ -531,7 +532,7 @@ public class PaxosState implements PaxosOperationLock
         return current((int)ballot.unix(SECONDS));
     }
 
-    Snapshot current(int nowInSec)
+    Snapshot current(long nowInSec)
     {
         // CASSANDRA-12043 is not an issue for v2, as we perform Commit+Prepare and PrepareRefresh
         // which are able to make progress whether or not the old commit is shadowed by the TTL (since they
@@ -731,7 +732,7 @@ public class PaxosState implements PaxosOperationLock
                     // ignore nowInSec when merging as this can only be an issue during the transition period, so the unbounded
                     // problem of CASSANDRA-12043 is not an issue
                     Snapshot realBefore = unsafeState.current;
-                    Snapshot before = realBefore.removeExpired((int)toPrepare.ballot.unix(SECONDS));
+                    Snapshot before = realBefore.removeExpired(toPrepare.ballot.unix(SECONDS));
                     Ballot latest = before.latestWitnessedOrLowBound();
                     if (toPrepare.isAfter(latest))
                     {

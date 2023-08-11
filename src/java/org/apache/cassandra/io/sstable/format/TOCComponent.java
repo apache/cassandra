@@ -68,7 +68,7 @@ public class TOCComponent
         Set<Component> components = Sets.newHashSetWithExpectedSize(componentNames.size());
         for (String componentName : componentNames)
         {
-            Component component = Component.parse(componentName, descriptor.formatType);
+            Component component = Component.parse(componentName, descriptor.version.format);
             if (skipMissing && !descriptor.fileFor(component).exists())
                 logger.error("Missing component: {}", descriptor.fileFor(component));
             else
@@ -120,5 +120,16 @@ public class TOCComponent
         {
             throw new IOError(e);
         }
+    }
+
+    /**
+     * Rewrite TOC components by deleting existing TOC file and append new components
+     */
+    public static void rewriteTOC(Descriptor descriptor, Collection<Component> components)
+    {
+        File tocFile = descriptor.fileFor(Components.TOC);
+        if (!tocFile.tryDelete())
+            logger.error("Failed to delete TOC component for " + descriptor);
+        appendTOC(descriptor, components);
     }
 }

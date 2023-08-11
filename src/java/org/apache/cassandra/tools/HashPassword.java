@@ -57,7 +57,7 @@ public class HashPassword
             String password = null;
             if (cmd.hasOption(ENV_VAR))
             {
-                password = System.getenv(cmd.getOptionValue(ENV_VAR));
+                password = System.getenv(cmd.getOptionValue(ENV_VAR)); // checkstyle: suppress nearby 'blockSystemPropertyUsage'
                 if (password == null)
                 {
                     System.err.println(String.format("Environment variable '%s' is undefined.", cmd.getOptionValue(ENV_VAR)));

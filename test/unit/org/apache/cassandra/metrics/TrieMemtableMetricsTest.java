@@ -39,7 +39,6 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.OverrideConfigurationLoader;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.memtable.AbstractShardedMemtable;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 import org.apache.cassandra.service.StorageService;
@@ -47,6 +46,7 @@ import org.jboss.byteman.contrib.bmunit.BMRule;
 import org.jboss.byteman.contrib.bmunit.BMRules;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.MEMTABLE_SHARD_COUNT;
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
@@ -76,7 +76,7 @@ public class TrieMemtableMetricsTest extends SchemaLoader
         OverrideConfigurationLoader.override((config) -> {
             config.partitioner = "Murmur3Partitioner";
         });
-        System.setProperty(AbstractShardedMemtable.DEFAULT_SHARD_COUNT_PROPERTY, "" + NUM_SHARDS);
+        MEMTABLE_SHARD_COUNT.setInt(NUM_SHARDS);
 
         SchemaLoader.loadSchema();
 
@@ -180,7 +180,7 @@ public class TrieMemtableMetricsTest extends SchemaLoader
 
     private TrieMemtableMetricsView getMemtableMetrics(ColumnFamilyStore cfs)
     {
-        return new TrieMemtableMetricsView(cfs.keyspace.getName(), cfs.name);
+        return new TrieMemtableMetricsView(cfs.getKeyspaceName(), cfs.name);
     }
 
     private void writeAndFlush(int rows) throws IOException, ExecutionException, InterruptedException

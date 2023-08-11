@@ -28,6 +28,7 @@ import org.apache.cassandra.db.rows.RangeTombstoneMarker;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.io.sstable.AbstractSSTableIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileHandle;
 
@@ -53,7 +54,7 @@ public class SSTableIterator extends AbstractSSTableIterator<RowIndexEntry>
     }
 
     @SuppressWarnings("resource") // caller to close
-    protected Reader createReaderInternal(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
+    protected Reader createReaderInternal(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile, Version version)
     {
         return indexEntry.isIndexed()
              ? new ForwardIndexedReader(indexEntry, file, shouldCloseFile)

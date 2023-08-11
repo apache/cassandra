@@ -43,7 +43,6 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.cql3.functions.UDHelper;
 import org.apache.cassandra.cql3.functions.types.*;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -621,8 +620,8 @@ public class CQLSSTableWriterTest
         loadSSTables(dataDir, keyspace);
 
         UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + keyspace + "." + table);
-        TypeCodec collectionCodec = UDHelper.codecFor(DataType.CollectionType.list(tuple2Type));
-        TypeCodec tuple3Codec = UDHelper.codecFor(tuple3Type);
+        TypeCodec collectionCodec = JavaDriverUtils.codecFor(DataType.CollectionType.list(tuple2Type));
+        TypeCodec tuple3Codec = JavaDriverUtils.codecFor(tuple3Type);
 
         assertEquals(resultSet.size(), 100);
         int cnt = 0;
@@ -666,8 +665,8 @@ public class CQLSSTableWriterTest
 
         UserType tuple2Type = writer.getUDType("tuple2");
         UserType nestedTuple = writer.getUDType("nested_tuple");
-        TypeCodec tuple2Codec = UDHelper.codecFor(tuple2Type);
-        TypeCodec nestedTupleCodec = UDHelper.codecFor(nestedTuple);
+        TypeCodec tuple2Codec = JavaDriverUtils.codecFor(tuple2Type);
+        TypeCodec nestedTupleCodec = JavaDriverUtils.codecFor(nestedTuple);
 
         for (int i = 0; i < 100; i++)
         {

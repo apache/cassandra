@@ -4,29 +4,30 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.cql3.functions.JavaUDF;
+import org.apache.cassandra.cql3.functions.Arguments;
+import org.apache.cassandra.cql3.functions.UDFDataType;
 import org.apache.cassandra.cql3.functions.UDFContext;
 import org.apache.cassandra.transport.ProtocolVersion;
 
-import org.apache.cassandra.cql3.functions.types.TypeCodec;
 import org.apache.cassandra.cql3.functions.types.TupleValue;
 import org.apache.cassandra.cql3.functions.types.UDTValue;
 
 public final class #class_name# extends JavaUDF
 {
-    public #class_name#(TypeCodec<Object> returnCodec, TypeCodec<Object>[] argCodecs, UDFContext udfContext)
+    public #class_name#(UDFDataType returnType, UDFContext udfContext)
     {
-        super(returnCodec, argCodecs, udfContext);
+        super(returnType, udfContext);
     }
 
-    protected ByteBuffer executeImpl(ProtocolVersion protocolVersion, List<ByteBuffer> params)
+    protected ByteBuffer executeImpl(Arguments arguments)
     {
         #return_type# result = #execute_internal_name#(
-#arguments#
+        #arguments#
         );
-        return super.decompose(protocolVersion, result);
+        return decompose(arguments.getProtocolVersion(),  result);
     }
 
-    protected Object executeAggregateImpl(ProtocolVersion protocolVersion, Object firstParam, List<ByteBuffer> params)
+    protected Object executeAggregateImpl(Object state, Arguments arguments)
     {
         #return_type# result = #execute_internal_name#(
 #arguments_aggregate#

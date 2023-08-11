@@ -23,8 +23,6 @@ simple_cql_types = {'ascii', 'bigint', 'blob', 'boolean', 'counter', 'date', 'de
                     'varint'}
 simple_cql_types.difference_update(('set', 'map', 'list'))
 
-cqldocs = helptopics.CQL3HelpTopics()
-
 
 class UnexpectedTableStructure(UserWarning):
 
@@ -1498,6 +1496,8 @@ syntax_rules += r'''
                  | "LOGIN" "=" <boolean>
                  | "ACCESS" "TO" "DATACENTERS" <setLiteral>
                  | "ACCESS" "TO" "ALL" "DATACENTERS"
+                 | "ACCESS" "FROM" "CIDRS" <setLiteral>
+                 | "ACCESS" "FROM" "ALL" "CIDRS"
                  ;
 
 <dropRoleStatement> ::= "DROP" "ROLE" ("IF" "EXISTS")? <rolename>

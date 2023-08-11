@@ -18,9 +18,9 @@
 package org.apache.cassandra.cql3.functions;
 
 import java.nio.ByteBuffer;
-import java.util.List;
 
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.MarshalException;
@@ -41,9 +41,23 @@ public abstract class BytesConversionFcts
         }
     }
 
+    private static abstract class BytesConversionFct extends NativeScalarFunction
+    {
+        public BytesConversionFct(String name, AbstractType<?> returnType, AbstractType<?>... argsType)
+        {
+            super(name, returnType, argsType);
+        }
+
+        @Override
+        public Arguments newArguments(ProtocolVersion version)
+        {
+            return FunctionArguments.newNoopInstance(version, 1);
+        }
+    }
+
     // Most of the X_as_blob and blob_as_X functions are basically no-op since everything is
     // bytes internally. They only "trick" the type system.
-    public static class ToBlobFunction extends NativeScalarFunction
+    public static class ToBlobFunction extends BytesConversionFct
     {
         private final CQL3Type fromType;
 
@@ -61,9 +75,9 @@ public abstract class BytesConversionFcts
         }
 
         @Override
-        public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+        public ByteBuffer execute(Arguments arguments)
         {
-            return parameters.get(0);
+            return arguments.get(0);
         }
 
         @Override
@@ -73,7 +87,7 @@ public abstract class BytesConversionFcts
         }
     }
 
-    public static class FromBlobFunction extends NativeScalarFunction
+    public static class FromBlobFunction extends BytesConversionFct
     {
         private final CQL3Type toType;
 
@@ -91,9 +105,9 @@ public abstract class BytesConversionFcts
         }
 
         @Override
-        public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+        public ByteBuffer execute(Arguments arguments)
         {
-            ByteBuffer val = parameters.get(0);
+            ByteBuffer val = arguments.get(0);
 
             if (val != null)
             {

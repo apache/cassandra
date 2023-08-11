@@ -19,12 +19,14 @@ package org.apache.cassandra.io.sstable.format.big;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,6 +35,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -122,7 +125,8 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter>
                                                    partitionWriter.indexInfoSerializedSize(),
                                                    partitionWriter.indexSamples(),
                                                    partitionWriter.offsets(),
-                                                   rowIndexEntrySerializer.indexInfoSerializer());
+                                                   rowIndexEntrySerializer.indexInfoSerializer(),
+                                                   descriptor.version);
 
         indexWriter.append(key, entry, dataWriter.position(), partitionWriter.buffer());
 
@@ -141,7 +145,7 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter>
         return entry;
     }
 
-    @SuppressWarnings("resource")
+    @SuppressWarnings({"resource", "RedundantSuppression"})
     private BigTableReader openInternal(IndexSummaryBuilder.ReadableBoundary boundary, SSTableReader.OpenReason openReason)
     {
         assert boundary == null || (boundary.indexLength > 0 && boundary.dataLength > 0);
@@ -276,7 +280,7 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter>
             summary = new IndexSummaryBuilder(b.getKeyCount(), b.getTableMetadataRef().getLocal().params.minIndexInterval, Downsampling.BASE_SAMPLING_LEVEL);
             // register listeners to be alerted when the data files are flushed
             writer.setPostFlushListener(() -> summary.markIndexSynced(writer.getLastFlushOffset()));
-            @SuppressWarnings("resource")
+            @SuppressWarnings({"resource", "RedundantSuppression"})
             SequentialWriter dataWriter = b.getDataWriter();
             dataWriter.setPostFlushListener(() -> summary.markDataSynced(dataWriter.getLastFlushOffset()));
         }
@@ -382,9 +386,9 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter>
         }
 
         @Override
-        public Builder addDefaultComponents()
+        public Builder addDefaultComponents(Collection<Index.Group> indexGroups)
         {
-            super.addDefaultComponents();
+            super.addDefaultComponents(indexGroups);
 
             addComponents(ImmutableSet.of(Components.PRIMARY_INDEX, Components.SUMMARY));
 

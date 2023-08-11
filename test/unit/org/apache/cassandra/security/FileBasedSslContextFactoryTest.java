@@ -32,6 +32,9 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.distributed.shared.WithProperties;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
 
 public class FileBasedSslContextFactoryTest
 {
@@ -39,16 +42,19 @@ public class FileBasedSslContextFactoryTest
 
     private EncryptionOptions.ServerEncryptionOptions encryptionOptions;
 
+    static WithProperties properties;
+
     @BeforeClass
     public static void setupDatabaseDescriptor()
     {
-        System.setProperty("cassandra.config", "cassandra.yaml");
+        CASSANDRA_CONFIG.reset();
+        properties = new WithProperties();
     }
 
     @AfterClass
     public static void tearDownDatabaseDescriptor()
     {
-        System.clearProperty("cassandra.config");
+        properties.close();
     }
 
     @Before

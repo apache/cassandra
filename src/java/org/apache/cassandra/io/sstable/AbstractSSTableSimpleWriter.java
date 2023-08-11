@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.SerializationHeader;
@@ -45,7 +46,7 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
     protected final File directory;
     protected final TableMetadataRef metadata;
     protected final RegularAndStaticColumns columns;
-    protected SSTableFormat.Type formatType = SSTableFormat.Type.current();
+    protected SSTableFormat<?, ?> format = DatabaseDescriptor.getSelectedSSTableFormat();
     protected static final AtomicReference<SSTableId> id = new AtomicReference<>(SSTableIdFactory.instance.defaultBuilder().generator(Stream.empty()).get());
     protected boolean makeRangeAware = false;
 
@@ -56,9 +57,9 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
         this.columns = columns;
     }
 
-    protected void setSSTableFormatType(SSTableFormat.Type type)
+    protected void setSSTableFormatType(SSTableFormat<?, ?> type)
     {
-        this.formatType = type;
+        this.format = type;
     }
 
     protected void setRangeAwareWriting(boolean makeRangeAware)
@@ -71,21 +72,20 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
         SerializationHeader header = new SerializationHeader(true, metadata.get(), columns, EncodingStats.NO_STATS);
 
         if (makeRangeAware)
-            return SSTableTxnWriter.createRangeAware(metadata, 0,  ActiveRepairService.UNREPAIRED_SSTABLE, ActiveRepairService.NO_PENDING_REPAIR, false, formatType, 0, header);
+            return SSTableTxnWriter.createRangeAware(metadata, 0, ActiveRepairService.UNREPAIRED_SSTABLE, ActiveRepairService.NO_PENDING_REPAIR, false, format, header);
 
         return SSTableTxnWriter.create(metadata,
-                                       createDescriptor(directory, metadata.keyspace, metadata.name, formatType),
+                                       createDescriptor(directory, metadata.keyspace, metadata.name, format),
                                        0,
                                        ActiveRepairService.UNREPAIRED_SSTABLE,
                                        ActiveRepairService.NO_PENDING_REPAIR,
                                        false,
-                                       0,
                                        header,
                                        Collections.emptySet(),
                                        owner);
     }
 
-    private static Descriptor createDescriptor(File directory, final String keyspace, final String columnFamily, final SSTableFormat.Type fmt) throws IOException
+    private static Descriptor createDescriptor(File directory, final String keyspace, final String columnFamily, final SSTableFormat<?, ?> fmt) throws IOException
     {
         SSTableId nextGen = getNextId(directory, columnFamily);
         return new Descriptor(directory, keyspace, columnFamily, nextGen, fmt);

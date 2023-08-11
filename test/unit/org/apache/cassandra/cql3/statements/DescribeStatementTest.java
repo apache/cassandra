@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3.statements;
 
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Optional;
 
 import com.google.common.collect.ImmutableList;
@@ -34,9 +35,11 @@ import com.datastax.driver.core.exceptions.InvalidQueryException;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -600,6 +603,23 @@ public class DescribeStatementTest extends CQLTester
                           tableCreateStatementWithoutDroppedColumn));
     }
 
+    @Test
+    public void testDescribeMaterializedViewAsTable() throws Throwable
+    {
+        String table = createTable(KEYSPACE_PER_TEST, "CREATE TABLE IF NOT EXISTS %s (pk1 int, pk2 int, ck1 int, ck2 int, reg1 int, reg2 list<int>, reg3 int, PRIMARY KEY ((pk1, pk2), ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC, ck2 DESC);");
+
+        execute("CREATE MATERIALIZED VIEW IF NOT EXISTS " + KEYSPACE_PER_TEST + ".mv AS SELECT * FROM " + KEYSPACE_PER_TEST + '.' + table
+                + " WHERE pk2 IS NOT NULL AND pk1 IS NOT NULL AND ck2 IS NOT NULL AND ck1 IS NOT NULL PRIMARY KEY ((pk2, pk1), ck2, ck1)");
+        try
+        {
+            describeError(format("DESCRIBE TABLE %s.%s", KEYSPACE_PER_TEST, "mv"),
+                          format("Table '%s' not found in keyspace '%s'", "mv", KEYSPACE_PER_TEST));
+        }
+        finally
+        {
+            execute("DROP MATERIALIZED VIEW " + KEYSPACE_PER_TEST + ".mv");
+        }
+    }
     
     @Test
     public void testDescribeMissingKeyspace() throws Throwable
@@ -713,17 +733,49 @@ public class DescribeStatementTest extends CQLTester
             executeDescribeNet(KEYSPACE_PER_TEST, "DROP MATERIALIZED VIEW " + table + "_view");
             execute("DROP TABLE " + KEYSPACE_PER_TEST + "." + table);
 
+            String aggregationFunctionName = KEYSPACE_PER_TEST + ".\"token\"";
+            String aggregationName = KEYSPACE_PER_TEST + ".\"aggregate\"";
+            createFunction(KEYSPACE_PER_TEST,
+                           "int, int",
+                           "CREATE FUNCTION " + aggregationFunctionName + " (\"token\" int, add_to int) " +
+                           "CALLED ON NULL INPUT " +
+                           "RETURNS int " +
+                           "LANGUAGE java " +
+                           "AS 'return token + add_to;'");
+
+            createAggregate(KEYSPACE_PER_TEST,
+                            "int",
+                            format("CREATE AGGREGATE " + aggregationName + "(int) " +
+                                   "SFUNC %s " +
+                                   "STYPE int " +
+                                   "INITCOND 42",
+                                   shortFunctionName(aggregationFunctionName)));
+
+            String functionCreate = executeDescribeNet(KEYSPACE_PER_TEST, "DESCRIBE FUNCTION " + aggregationFunctionName).all().get(0).getString("create_statement");
+            String aggregateCreate = executeDescribeNet(KEYSPACE_PER_TEST, "DESCRIBE AGGREGATE " + aggregationName).all().get(0).getString("create_statement");
+
+            execute("DROP AGGREGATE " + aggregationName);
+            execute("DROP FUNCTION " + aggregationFunctionName);
+
             executeNet(output);
             executeNet(mvCreateView);
+            executeNet(functionCreate);
+            executeNet(aggregateCreate);
 
             String output2 = executeDescribeNet(KEYSPACE_PER_TEST, "DESCRIBE TABLE " + table + withInternals).all().get(0).getString("create_statement");
             String mvCreateView2 = executeDescribeNet(KEYSPACE_PER_TEST, "DESCRIBE MATERIALIZED VIEW " + table + "_view").all().get(0).getString("create_statement");
+            String functionCreate2 = executeDescribeNet(KEYSPACE_PER_TEST, "DESCRIBE FUNCTION " + aggregationFunctionName).all().get(0).getString("create_statement");
+            String aggregateCreate2 = executeDescribeNet(KEYSPACE_PER_TEST, "DESCRIBE AGGREGATE " + aggregationName).all().get(0).getString("create_statement");
 
             assertEquals(output, output2);
             assertEquals(mvCreateView, mvCreateView2);
+            assertEquals(functionCreate, functionCreate2);
+            assertEquals(aggregateCreate, aggregateCreate2);
 
             execute("INSERT INTO " + KEYSPACE_PER_TEST + "." + table + " (key) VALUES (1)");
             executeDescribeNet(KEYSPACE_PER_TEST, "DROP MATERIALIZED VIEW " + table + "_view");
+            executeDescribeNet(KEYSPACE_PER_TEST, "DROP AGGREGATE " + aggregationName);
+            executeDescribeNet(KEYSPACE_PER_TEST, "DROP FUNCTION " + aggregationFunctionName);
         }
     }
 
@@ -807,6 +859,104 @@ public class DescribeStatementTest extends CQLTester
                           "table",
                           table,
                           tableCreateStatement));
+    }
+
+    @Test
+    public void testUsingReservedInCreateType() throws Throwable
+    {
+        String type = createType(KEYSPACE_PER_TEST, "CREATE TYPE %s (\"token\" text, \"desc\" text);");
+        assertRowsNet(executeDescribeNet(KEYSPACE_PER_TEST, "DESCRIBE TYPE " + type),
+                      row(KEYSPACE_PER_TEST, "type", type, "CREATE TYPE " + KEYSPACE_PER_TEST + "." + type + " (\n" +
+                                                           "    \"token\" text,\n" +
+                                                           "    \"desc\" text\n" +
+                                                           ");"));
+    }
+
+    @Test
+    public void testDescMaterializedViewShouldNotOmitQuotations() throws Throwable
+    {
+        try{
+            execute("CREATE KEYSPACE testWithKeywords WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : 1};");
+            execute("CREATE TABLE testWithKeywords.users_mv (username varchar, password varchar, gender varchar, session_token varchar, " +
+                    "state varchar, birth_year bigint, \"token\" text, PRIMARY KEY (\"token\"));");
+            execute("CREATE MATERIALIZED VIEW testWithKeywords.users_by_state AS SELECT * FROM testWithKeywords.users_mv " +
+                    "WHERE STATE IS NOT NULL AND \"token\" IS NOT NULL PRIMARY KEY (state, \"token\")");
+
+            final String expectedOutput = "CREATE MATERIALIZED VIEW testwithkeywords.users_by_state AS\n" +
+                                          "    SELECT *\n" +
+                                          "    FROM testwithkeywords.users_mv\n" +
+                                          "    WHERE state IS NOT NULL AND \"token\" IS NOT NULL\n" +
+                                          "    PRIMARY KEY (state, \"token\")\n" +
+                                          " WITH CLUSTERING ORDER BY (\"token\" ASC)\n" +
+                                          "    AND " + mvParametersCql();
+
+            testDescribeMaterializedView("testWithKeywords", "users_by_state", row("testwithkeywords", "materialized_view", "users_by_state", expectedOutput));
+        }
+        finally
+        {
+            execute("DROP KEYSPACE IF EXISTS testWithKeywords");
+        }
+    }
+
+    @Test
+    public void testDescFunctionAndAggregateShouldNotOmitQuotations() throws Throwable
+    {
+
+        final String functionName = KEYSPACE_PER_TEST + ".\"token\"";
+
+        createFunctionOverload(functionName,
+                                             "int, ascii",
+                                             "CREATE FUNCTION " + functionName + " (\"token\" int, other_in ascii) " +
+                                             "RETURNS NULL ON NULL INPUT " +
+                                             "RETURNS text " +
+                                             "LANGUAGE java " +
+                                             "AS 'return \"Hello World\";'");
+
+        for (String describeKeyword : new String[]{"DESCRIBE", "DESC"})
+        {
+
+            assertRowsNet(executeDescribeNet(describeKeyword + " FUNCTION " + functionName),
+                          row(KEYSPACE_PER_TEST,
+                              "function",
+                              shortFunctionName(functionName) + "(int, ascii)",
+                              "CREATE FUNCTION " + functionName + "(\"token\" int, other_in ascii)\n" +
+                              "    RETURNS NULL ON NULL INPUT\n" +
+                              "    RETURNS text\n" +
+                              "    LANGUAGE java\n" +
+                              "    AS $$return \"Hello World\";$$;"));
+        }
+
+        final String aggregationFunctionName = KEYSPACE_PER_TEST + ".\"token\"";
+        final String aggregationName = KEYSPACE_PER_TEST + ".\"token\"";
+        createFunctionOverload(aggregationName,
+                                          "int, int",
+                                          "CREATE FUNCTION " + aggregationFunctionName + " (\"token\" int, add_to int) " +
+                                          "CALLED ON NULL INPUT " +
+                                          "RETURNS int " +
+                                          "LANGUAGE java " +
+                                          "AS 'return token + add_to;'");
+
+
+        String aggregate = createAggregate(KEYSPACE_PER_TEST,
+                                                   "int",
+                                                   format("CREATE AGGREGATE %%s(int) " +
+                                                          "SFUNC %s " +
+                                                          "STYPE int " +
+                                                          "INITCOND 42",
+                                                          shortFunctionName(aggregationFunctionName)));
+
+
+        for (String describeKeyword : new String[]{"DESCRIBE", "DESC"})
+        {
+            assertRowsNet(executeDescribeNet(describeKeyword + " AGGREGATE " + aggregate),
+                          row(KEYSPACE_PER_TEST,
+                              "aggregate",
+                              shortFunctionName(aggregate) + "(int)",
+                              "CREATE AGGREGATE " + aggregate + "(int)\n" +
+                              "    SFUNC " + shortFunctionName(aggregationName) + "\n" +
+                              "    STYPE int\n" +
+                              "    INITCOND 42;"));
+        }
     }
 
     private static String allTypesTable()
@@ -896,19 +1046,24 @@ public class DescribeStatementTest extends CQLTester
                "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
                "    AND cdc = false\n" +
                "    AND comment = ''\n" +
-               "    AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}\n" +
+               "    AND compaction = " + cqlQuoted(CompactionParams.DEFAULT.asMap()) + "\n" +
                "    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}\n" +
                "    AND memtable = 'default'\n" +
                "    AND crc_check_chance = 1.0\n" +
                "    AND default_time_to_live = 0\n" +
                "    AND extensions = {}\n" +
                "    AND gc_grace_seconds = 864000\n" +
-               "    AND incremental_backups = true\n" + 
+               "    AND incremental_backups = true\n" +
                "    AND max_index_interval = 2048\n" +
                "    AND memtable_flush_period_in_ms = 0\n" +
                "    AND min_index_interval = 128\n" +
                "    AND read_repair = 'BLOCKING'\n" +
                "    AND speculative_retry = '99p';";
+    }
+
+    private static String cqlQuoted(Map<String, String> map)
+    {
+        return new CqlBuilder().append(map).toString();
     }
 
     private static String mvParametersCql()
@@ -919,7 +1074,7 @@ public class DescribeStatementTest extends CQLTester
                "    AND caching = {'keys': 'ALL', 'rows_per_partition': 'NONE'}\n" +
                "    AND cdc = false\n" +
                "    AND comment = ''\n" +
-               "    AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}\n" +
+               "    AND compaction = " + cqlQuoted(CompactionParams.DEFAULT.asMap()) + "\n" +
                "    AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}\n" +
                "    AND memtable = 'default'\n" +
                "    AND crc_check_chance = 1.0\n" +

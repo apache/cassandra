@@ -6,7 +6,6 @@ cluster_name: Test Cluster
 # memtable_allocation_type: heap_buffers
 memtable_allocation_type: offheap_objects
 commitlog_sync: batch
-commitlog_sync_batch_window_in_ms: 1.0
 commitlog_segment_size: 5MiB
 commitlog_directory: build/test/cassandra/commitlog
 # commitlog_compression:
@@ -52,6 +51,8 @@ sasi_indexes_enabled: true
 materialized_views_enabled: true
 drop_compact_storage_enabled: true
 file_cache_enabled: true
+full_query_logging_options:
+  allow_nodetool_archive_command: true
 auto_hints_cleanup_enabled: true
 
 heap_dump_path: build/test

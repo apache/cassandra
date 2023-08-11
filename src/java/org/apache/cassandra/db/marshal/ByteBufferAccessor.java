@@ -104,6 +104,9 @@ public class ByteBufferAccessor implements ValueAccessor<ByteBuffer>
     @Override
     public ByteBuffer slice(ByteBuffer input, int offset, int length)
     {
+        int size = sizeFromOffset(input, offset);
+        if (size < length)
+            throw new IndexOutOfBoundsException(String.format("Attempted to read %d, but the size is %d", length, size));
         ByteBuffer copy = input.duplicate();
         copy.position(copy.position() + offset);
         copy.limit(copy.position() + length);
@@ -211,6 +214,18 @@ public class ByteBufferAccessor implements ValueAccessor<ByteBuffer>
     }
 
     @Override
+    public float getFloat(ByteBuffer value, int offset)
+    {
+        return value.getFloat(offset);
+    }
+
+    @Override
+    public double getDouble(ByteBuffer value, int offset)
+    {
+        return value.getDouble(offset);
+    }
+
+    @Override
     public long toLong(ByteBuffer value)
     {
         return ByteBufferUtil.toLong(value);
@@ -278,6 +293,13 @@ public class ByteBufferAccessor implements ValueAccessor<ByteBuffer>
     {
         dst.putLong(dst.position() + offset, value);
         return TypeSizes.LONG_SIZE;
+    }
+
+    @Override
+    public int putFloat(ByteBuffer dst, int offset, float value)
+    {
+        dst.putFloat(dst.position() + offset, value);
+        return TypeSizes.FLOAT_SIZE;
     }
 
     @Override

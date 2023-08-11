@@ -41,7 +41,7 @@ public class ComponentManifestTest
     public void testSerialization()
     {
         ComponentManifest expected = new ComponentManifest(new LinkedHashMap<Component, Long>() {{ put(Components.DATA, 100L); }});
-        SerializationUtils.assertSerializationCycle(expected, ComponentManifest.serializers.get(BigFormat.getInstance().getType()));
+        SerializationUtils.assertSerializationCycle(expected, ComponentManifest.serializers.get(BigFormat.getInstance().name()));
     }
 
     // Propose removing this test which now fails on VIntOutOfRange
@@ -51,7 +51,7 @@ public class ComponentManifestTest
 //    public void testSerialization_FailsOnBadBytes() throws IOException
 //    {
 //        ByteBuffer buf = ByteBuffer.allocate(512);
-//        ComponentManifest expected = new ComponentManifest(new LinkedHashMap<Component, Long>() {{ put(Component.DATA, 100L); }});
+//        ComponentManifest expected = new ComponentManifest(new LinkedHashMap<Component, Long>() {{ put(Components.DATA, 100L); }});
 //
 //        DataOutputBufferFixed out = new DataOutputBufferFixed(buf);
 //

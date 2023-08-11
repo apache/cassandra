@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.Map;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
@@ -29,7 +30,7 @@ import org.apache.cassandra.utils.MD5Digest;
 /**
  * Custom QueryHandler that sends custom request payloads back with the result.
  * Used to facilitate testing.
- * Enabled with system property cassandra.custom_query_handler_class.
+ * Enabled with system property {@link CassandraRelevantProperties#CUSTOM_QUERY_HANDLER_CLASS}.
  */
 public class CustomPayloadMirroringQueryHandler implements QueryHandler
 {

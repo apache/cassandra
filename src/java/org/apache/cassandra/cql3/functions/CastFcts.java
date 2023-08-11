@@ -120,7 +120,10 @@ public final class CastFcts
      */
     private static <I extends Number> java.util.function.Function<I, BigDecimal> getDecimalConversionFunction(AbstractType<? extends Number> inputType)
     {
-        if (inputType == FloatType.instance || inputType == DoubleType.instance)
+        if (inputType == FloatType.instance)
+            return p -> new BigDecimal(Float.toString(p.floatValue()));
+
+        if (inputType == DoubleType.instance)
             return p -> BigDecimal.valueOf(p.doubleValue());
 
         if (inputType == IntegerType.instance)
@@ -263,13 +266,13 @@ public final class CastFcts
             return new JavaFunctionWrapper<>(inputType(), outputType(), converter, true);
         }
 
-        public final ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+        @Override
+        public final ByteBuffer execute(Arguments arguments)
         {
-            ByteBuffer bb = parameters.get(0);
-            if (bb == null)
+            if (arguments.containsNulls())
                 return null;
 
-            return outputType().decompose(converter.apply(compose(bb)));
+            return outputType().decompose(converter.apply(arguments.get(0)));
         }
 
         protected I compose(ByteBuffer bb)
@@ -350,9 +353,10 @@ public final class CastFcts
             return new CassandraFunctionWrapper<>(inputType(), outputType(), delegate, true);
         }
 
-        public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+        @Override
+        public ByteBuffer execute(Arguments arguments)
         {
-            return delegate.execute(protocolVersion, parameters);
+            return delegate.execute(arguments);
         }
     }
 
@@ -381,13 +385,25 @@ public final class CastFcts
             return new CastAsTextFunction<>(inputType(), outputType(), true);
         }
 
-        public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+        @Override
+        public Arguments newArguments(ProtocolVersion version)
         {
-            ByteBuffer bb = parameters.get(0);
-            if (bb == null)
+            return new FunctionArguments(version, (protocolVersion, buffer) -> {
+                AbstractType<?> argType = argTypes.get(0);
+                if (buffer == null || (!buffer.hasRemaining() && argType.isEmptyValueMeaningless()))
+                    return null;
+
+                return argType.getSerializer().toCQLLiteralNoQuote(buffer);
+            });
+        }
+
+        @Override
+        public ByteBuffer execute(Arguments arguments)
+        {
+            if (arguments.containsNulls())
                 return null;
 
-            return outputType().decompose(inputType().getSerializer().toCQLLiteral(bb));
+            return outputType().decompose(arguments.get(0));
         }
     }
 

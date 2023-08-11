@@ -52,6 +52,7 @@ public class Component
         public final int id;
         public final String name;
         public final String repr;
+        public final boolean streamable;
         private final Component singleton;
 
         @SuppressWarnings("rawtypes")
@@ -60,31 +61,34 @@ public class Component
         /**
          * Creates a new non-singleton type and registers it a global type registry - see {@link #registerType(Type)}.
          *
-         * @param name        type name, must be unique for this and all parent formats
-         * @param repr        the regular expression to be used to recognize a name represents this type
-         * @param formatClass format class for which this type is defined for
+         * @param name         type name, must be unique for this and all parent formats
+         * @param repr         the regular expression to be used to recognize a name represents this type
+         * @param streamable   whether components of this type should be streamed to other nodes
+         * @param formatClass  format class for which this type is defined for
          */
-        public static Type create(String name, String repr, Class<? extends SSTableFormat<?, ?>> formatClass)
+        public static Type create(String name, String repr, boolean streamable, Class<? extends SSTableFormat<?, ?>> formatClass)
         {
-            return new Type(name, repr, false, formatClass);
+            return new Type(name, repr, false, streamable, formatClass);
         }
 
         /**
          * Creates a new singleton type and registers it in a global type registry - see {@link #registerType(Type)}.
          *
-         * @param name        type name, must be unique for this and all parent formats
-         * @param repr        the regular expression to be used to recognize a name represents this type
-         * @param formatClass format class for which this type is defined for
+         * @param name         type name, must be unique for this and all parent formats
+         * @param repr         the regular expression to be used to recognize a name represents this type
+         * @param streamable   whether components of this type should be streamed to other nodes
+         * @param formatClass  format class for which this type is defined for
          */
-        public static Type createSingleton(String name, String repr, Class<? extends SSTableFormat<?, ?>> formatClass)
+        public static Type createSingleton(String name, String repr, boolean streamable, Class<? extends SSTableFormat<?, ?>> formatClass)
         {
-            return new Type(name, repr, true, formatClass);
+            return new Type(name, repr, true, streamable, formatClass);
         }
 
-        private Type(String name, String repr, boolean isSingleton, Class<? extends SSTableFormat<?, ?>> formatClass)
+        private Type(String name, String repr, boolean isSingleton, boolean streamable, Class<? extends SSTableFormat<?, ?>> formatClass)
         {
             this.name = Objects.requireNonNull(name);
             this.repr = repr;
+            this.streamable = streamable;
             this.id = typesCollector.size();
             this.formatClass = formatClass == null ? SSTableFormat.class : formatClass;
             this.singleton = isSingleton ? new Component(this) : null;
@@ -114,19 +118,19 @@ public class Component
         }
 
         @VisibleForTesting
-        public static Type fromRepresentation(String repr, SSTableFormat.Type formatType)
+        public static Type fromRepresentation(String repr, SSTableFormat<?, ?> format)
         {
             for (Type type : Type.all)
             {
-                if (type.repr != null && Pattern.matches(type.repr, repr) && type.formatClass.isAssignableFrom(formatType.info.getClass()))
+                if (type.repr != null && Pattern.matches(type.repr, repr) && type.formatClass.isAssignableFrom(format.getClass()))
                     return type;
             }
             return Types.CUSTOM;
         }
 
-        public static Component createComponent(String repr, SSTableFormat.Type formatType)
+        public static Component createComponent(String repr, SSTableFormat<?, ?> format)
         {
-            Type type = fromRepresentation(repr, formatType);
+            Type type = fromRepresentation(repr, format);
             if (type.singleton != null)
                 return type.singleton;
             else
@@ -199,9 +203,9 @@ public class Component
      * @return the component corresponding to {@code name}. Note that this always return a component as an unrecognized
      * name is parsed into a CUSTOM component.
      */
-    public static Component parse(String name, SSTableFormat.Type formatType)
+    public static Component parse(String name, SSTableFormat<?, ?> format)
     {
-        return Type.createComponent(name, formatType);
+        return Type.createComponent(name, format);
     }
 
     public static Iterable<Component> getSingletonsFor(SSTableFormat<?, ?> format)
@@ -216,7 +220,7 @@ public class Component
 
     public boolean isValidFor(Descriptor descriptor)
     {
-        return type.formatClass.isAssignableFrom(descriptor.formatType.info.getClass());
+        return type.formatClass.isAssignableFrom(descriptor.version.format.getClass());
     }
 
     @Override

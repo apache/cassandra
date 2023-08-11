@@ -44,10 +44,6 @@ public abstract class MemoryUtil
     private static final long BYTE_BUFFER_HB_OFFSET;
     private static final long BYTE_ARRAY_BASE_OFFSET;
 
-    private static final boolean BIG_ENDIAN = ByteOrder.nativeOrder().equals(ByteOrder.BIG_ENDIAN);
-
-    public static final boolean INVERTED_ORDER = Architecture.IS_UNALIGNED && !BIG_ENDIAN;
-
     static
     {
         try
@@ -110,13 +106,13 @@ public abstract class MemoryUtil
 
     public static void setShort(long address, short s)
     {
-        unsafe.putShort(address, s);
+        unsafe.putShort(address, Architecture.BIG_ENDIAN ? Short.reverseBytes(s) : s);
     }
 
     public static void setInt(long address, int l)
     {
         if (Architecture.IS_UNALIGNED)
-            unsafe.putInt(address, l);
+            unsafe.putInt(address, Architecture.BIG_ENDIAN ? Integer.reverseBytes(l) : l);
         else
             putIntByByte(address, l);
     }
@@ -124,7 +120,7 @@ public abstract class MemoryUtil
     public static void setLong(long address, long l)
     {
         if (Architecture.IS_UNALIGNED)
-            unsafe.putLong(address, l);
+            unsafe.putLong(address, Architecture.BIG_ENDIAN ? Long.reverseBytes(l) : l);
         else
             putLongByByte(address, l);
     }
@@ -136,18 +132,27 @@ public abstract class MemoryUtil
 
     public static int getShort(long address)
     {
-        return (Architecture.IS_UNALIGNED ? unsafe.getShort(address) : getShortByByte(address)) & 0xffff;
-    }
+        if (Architecture.IS_UNALIGNED)
+            return (Architecture.BIG_ENDIAN ? Short.reverseBytes(unsafe.getShort(address)) : unsafe.getShort(address)) & 0xffff;
+        else
+            return getShortByByte(address) & 0xffff;
+	}
 
     public static int getInt(long address)
     {
-        return Architecture.IS_UNALIGNED ? unsafe.getInt(address) : getIntByByte(address);
-    }
+        if (Architecture.IS_UNALIGNED)
+            return Architecture.BIG_ENDIAN ? Integer.reverseBytes(unsafe.getInt(address)) : unsafe.getInt(address);
+        else
+            return getIntByByte(address);
+	}
 
     public static long getLong(long address)
     {
-        return Architecture.IS_UNALIGNED ? unsafe.getLong(address) : getLongByByte(address);
-    }
+        if (Architecture.IS_UNALIGNED)
+            return Architecture.BIG_ENDIAN ? Long.reverseBytes(unsafe.getLong(address)) : unsafe.getLong(address);
+        else
+            return getLongByByte(address);
+	}
 
     public static ByteBuffer getByteBuffer(long address, int length)
     {
@@ -207,6 +212,8 @@ public abstract class MemoryUtil
         return unsafe.getObject(instance, DIRECT_BYTE_BUFFER_ATTACHMENT_OFFSET);
     }
 
+    // Note: If encryption is used, the Object attached must implement sun.nio.ch.DirectBuffer
+    // @see CASSANDRA-18081
     public static void setAttachment(ByteBuffer instance, Object next)
     {
         assert instance.getClass() == DIRECT_BYTE_BUFFER_CLASS;
@@ -245,7 +252,7 @@ public abstract class MemoryUtil
 
     public static long getLongByByte(long address)
     {
-        if (BIG_ENDIAN)
+        if (Architecture.BIG_ENDIAN)
         {
             return  (((long) unsafe.getByte(address    )       ) << 56) |
                     (((long) unsafe.getByte(address + 1) & 0xff) << 48) |
@@ -271,7 +278,7 @@ public abstract class MemoryUtil
 
     public static int getIntByByte(long address)
     {
-        if (BIG_ENDIAN)
+        if (Architecture.BIG_ENDIAN)
         {
             return  (((int) unsafe.getByte(address    )       ) << 24) |
                     (((int) unsafe.getByte(address + 1) & 0xff) << 16) |
@@ -290,7 +297,7 @@ public abstract class MemoryUtil
 
     public static int getShortByByte(long address)
     {
-        if (BIG_ENDIAN)
+        if (Architecture.BIG_ENDIAN)
         {
             return  (((int) unsafe.getByte(address    )       ) << 8) |
                     (((int) unsafe.getByte(address + 1) & 0xff)     );
@@ -304,7 +311,7 @@ public abstract class MemoryUtil
 
     public static void putLongByByte(long address, long value)
     {
-        if (BIG_ENDIAN)
+        if (Architecture.BIG_ENDIAN)
         {
             unsafe.putByte(address, (byte) (value >> 56));
             unsafe.putByte(address + 1, (byte) (value >> 48));
@@ -330,7 +337,7 @@ public abstract class MemoryUtil
 
     public static void putIntByByte(long address, int value)
     {
-        if (BIG_ENDIAN)
+        if (Architecture.BIG_ENDIAN)
         {
             unsafe.putByte(address, (byte) (value >> 24));
             unsafe.putByte(address + 1, (byte) (value >> 16));

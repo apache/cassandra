@@ -26,10 +26,8 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.TimeUUID;
-import org.apache.cassandra.utils.UUIDGen;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
@@ -73,7 +71,7 @@ public abstract class TimeFcts
         }
 
         @Override
-        public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+        public ByteBuffer execute(Arguments arguments)
         {
             return type.now();
         }
@@ -92,9 +90,33 @@ public abstract class TimeFcts
         }
     }
 
+    public static abstract class TemporalConversionFunction extends NativeScalarFunction
+    {
+        protected TemporalConversionFunction(String name, AbstractType<?> returnType, AbstractType<?>... argsType)
+        {
+            super(name, returnType, argsType);
+        }
+
+        public ByteBuffer execute(Arguments arguments)
+        {
+            beforeExecution();
+
+            if (arguments.containsNulls())
+                return null;
+
+            return convertArgument(arguments.getAsLong(0));
+        }
+
+        protected void beforeExecution()
+        {
+        }
+
+        protected abstract ByteBuffer convertArgument(long timeInMillis);
+    }
+
     public static final NativeFunction minTimeuuidFct = new MinTimeuuidFunction(false);
 
-    private static final class MinTimeuuidFunction extends NativeScalarFunction
+    private static final class MinTimeuuidFunction extends TemporalConversionFunction
     {
         public MinTimeuuidFunction(boolean legacy)
         {
@@ -102,13 +124,9 @@ public abstract class TimeFcts
         }
 
         @Override
-        public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+        protected ByteBuffer convertArgument(long timeInMillis)
         {
-            ByteBuffer bb = parameters.get(0);
-            if (bb == null)
-                return null;
-
-            return TimeUUID.minAtUnixMillis(TimestampType.instance.compose(bb).getTime()).toBytes();
+            return TimeUUID.minAtUnixMillis(timeInMillis).toBytes();
         }
 
         @Override
@@ -120,7 +138,7 @@ public abstract class TimeFcts
 
     public static final NativeFunction maxTimeuuidFct = new MaxTimeuuidFunction(false);
 
-    private static final class MaxTimeuuidFunction extends NativeScalarFunction
+    private static final class MaxTimeuuidFunction extends TemporalConversionFunction
     {
         public MaxTimeuuidFunction(boolean legacy)
         {
@@ -128,13 +146,9 @@ public abstract class TimeFcts
         }
 
         @Override
-        public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+        protected ByteBuffer convertArgument(long timeInMillis)
         {
-            ByteBuffer bb = parameters.get(0);
-            if (bb == null)
-                return null;
-
-            return TimeUUID.maxAtUnixMillis(TimestampType.instance.compose(bb).getTime()).toBytes();
+            return TimeUUID.maxAtUnixMillis(timeInMillis).toBytes();
         }
 
         @Override
@@ -155,7 +169,7 @@ public abstract class TimeFcts
         return new ToDateFunction(type, false);
     }
 
-    private static class ToDateFunction extends NativeScalarFunction
+    private static class ToDateFunction extends TemporalConversionFunction
     {
         private final TemporalType<?> type;
 
@@ -166,14 +180,9 @@ public abstract class TimeFcts
         }
 
         @Override
-        public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+        protected ByteBuffer convertArgument(long timeInMillis)
         {
-            ByteBuffer bb = parameters.get(0);
-            if (bb == null || !bb.hasRemaining())
-                return null;
-
-            long millis = type.toTimeInMillis(bb);
-            return SimpleDateType.instance.fromTimeInMillis(millis);
+            return SimpleDateType.instance.fromTimeInMillis(timeInMillis);
         }
 
         @Override
@@ -200,7 +209,7 @@ public abstract class TimeFcts
         return new ToTimestampFunction(type, false);
     }
 
-    private static class ToTimestampFunction extends NativeScalarFunction
+    private static class ToTimestampFunction extends TemporalConversionFunction
     {
         private final TemporalType<?> type;
 
@@ -211,14 +220,9 @@ public abstract class TimeFcts
         }
 
         @Override
-        public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+        protected ByteBuffer convertArgument(long timeInMillis)
         {
-            ByteBuffer bb = parameters.get(0);
-            if (bb == null || !bb.hasRemaining())
-                return null;
-
-            long millis = type.toTimeInMillis(bb);
-            return TimestampType.instance.fromTimeInMillis(millis);
+            return TimestampType.instance.fromTimeInMillis(timeInMillis);
         }
 
         @Override
@@ -245,7 +249,7 @@ public abstract class TimeFcts
         return new ToUnixTimestampFunction(type, false);
     }
 
-    private static class ToUnixTimestampFunction extends NativeScalarFunction
+    private static class ToUnixTimestampFunction extends TemporalConversionFunction
     {
         private final TemporalType<?> type;
 
@@ -256,13 +260,9 @@ public abstract class TimeFcts
         }
 
         @Override
-        public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+        protected ByteBuffer convertArgument(long timeInMillis)
         {
-            ByteBuffer bb = parameters.get(0);
-            if (bb == null || !bb.hasRemaining())
-                return null;
-
-            return ByteBufferUtil.bytes(type.toTimeInMillis(bb));
+            return ByteBufferUtil.bytes(timeInMillis);
         }
 
         @Override
@@ -301,24 +301,16 @@ public abstract class TimeFcts
                      && (partialParameters.size() == 2 || partialParameters.get(2) != UNRESOLVED);
          }
 
-         public final ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+         @Override
+         public final ByteBuffer execute(Arguments arguments)
          {
-             ByteBuffer timeBuffer = parameters.get(0);
-             ByteBuffer durationBuffer = parameters.get(1);
-             Long startingTime = getStartingTime(parameters);
-
-             if (timeBuffer == null || durationBuffer == null || startingTime == null)
+             if (arguments.containsNulls())
                  return null;
 
-             Long time = toTimeInMillis(timeBuffer);
-             Duration duration = DurationType.instance.compose(durationBuffer);
-
-             if (time == null || duration == null)
-                 return null;
-
-
+             long time = arguments.getAsLong(0);
+             Duration duration = arguments.get(1);
+             long startingTime = getStartingTime(arguments);
              validateDuration(duration);
-
 
              long floor = Duration.floorTimestamp(time, duration, startingTime);
 
@@ -328,20 +320,13 @@ public abstract class TimeFcts
          /**
           * Returns the time to use as the starting time.
           *
-          * @param parameters the function parameters
+          * @param arguments the function arguments
           * @return the time to use as the starting time
           */
-         private Long getStartingTime(List<ByteBuffer> parameters)
+         private long getStartingTime(Arguments arguments)
          {
-             if (parameters.size() == 3)
-             {
-                 ByteBuffer startingTimeBuffer = parameters.get(2);
-
-                 if (startingTimeBuffer == null)
-                     return null;
-
-                 return toStartingTimeInMillis(startingTimeBuffer);
-             }
+             if (arguments.size() == 3)
+                 return arguments.getAsLong(2);
 
              return ZERO;
          }
@@ -363,22 +348,6 @@ public abstract class TimeFcts
           * @return the serialized time
           */
          protected abstract ByteBuffer fromTimeInMillis(long timeInMillis);
-
-         /**
-          * Deserializes the specified input time.
-          *
-          * @param bytes the serialized time
-          * @return the time in milliseconds
-          */
-         protected abstract Long toTimeInMillis(ByteBuffer bytes);
-
-         /**
-          * Deserializes the specified starting time.
-          *
-          * @param bytes the serialized starting time
-          * @return the starting time in milliseconds
-          */
-         protected abstract Long toStartingTimeInMillis(ByteBuffer bytes);
      }
 
     /**
@@ -411,16 +380,6 @@ public abstract class TimeFcts
          {
              return TimestampType.instance.fromTimeInMillis(timeInMillis);
          }
-
-         protected Long toStartingTimeInMillis(ByteBuffer bytes)
-         {
-             return TimestampType.instance.toTimeInMillis(bytes);
-         }
-
-         protected Long toTimeInMillis(ByteBuffer bytes)
-         {
-             return TimestampType.instance.toTimeInMillis(bytes);
-         }
      }
 
      /**
@@ -452,16 +411,6 @@ public abstract class TimeFcts
          protected ByteBuffer fromTimeInMillis(long timeInMillis)
          {
              return TimestampType.instance.fromTimeInMillis(timeInMillis);
-         }
-
-         protected Long toStartingTimeInMillis(ByteBuffer bytes)
-         {
-             return TimestampType.instance.toTimeInMillis(bytes);
-         }
-
-         protected Long toTimeInMillis(ByteBuffer bytes)
-         {
-             return UUIDGen.getAdjustedTimestamp(UUIDGen.getUUID(bytes));
          }
      }
 
@@ -496,16 +445,6 @@ public abstract class TimeFcts
              return SimpleDateType.instance.fromTimeInMillis(timeInMillis);
          }
 
-         protected Long toStartingTimeInMillis(ByteBuffer bytes)
-         {
-             return SimpleDateType.instance.toTimeInMillis(bytes);
-         }
-
-         protected Long toTimeInMillis(ByteBuffer bytes)
-         {
-             return SimpleDateType.instance.toTimeInMillis(bytes);
-         }
-
          @Override
          protected void validateDuration(Duration duration)
          {
@@ -527,19 +466,14 @@ public abstract class TimeFcts
              return partialParameters.get(0) == UNRESOLVED && partialParameters.get(1) != UNRESOLVED;
          }
 
-         public ByteBuffer execute(ProtocolVersion protocolVersion, List<ByteBuffer> parameters)
+         @Override
+         public ByteBuffer execute(Arguments arguments)
          {
-             ByteBuffer timeBuffer = parameters.get(0);
-             ByteBuffer durationBuffer = parameters.get(1);
-
-             if (timeBuffer == null || durationBuffer == null)
+             if (arguments.containsNulls())
                  return null;
 
-             Long time = TimeType.instance.compose(timeBuffer);
-             Duration duration = DurationType.instance.compose(durationBuffer);
-
-             if (time == null || duration == null)
-                 return null;
+             long time = arguments.getAsLong(0);
+             Duration duration = arguments.get(1);
 
              long floor = Duration.floorTime(time, duration);
 

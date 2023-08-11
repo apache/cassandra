@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3.statements.schema;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
@@ -33,7 +34,6 @@ import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.masking.ColumnMask;
 import org.apache.cassandra.db.Keyspace;
@@ -152,12 +152,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
 
         validateDefaultTimeToLive(attrs.asNewTableParams());
 
-        // Verify that dynamic data masking is enabled if there are masked columns
-        for (ColumnProperties.Raw raw : rawColumns.values())
-        {
-            if (raw.rawMask != null)
-                ColumnMask.ensureEnabled();
-        }
+        rawColumns.forEach((name, raw) -> raw.validate(state, name));
     }
 
     SchemaChange schemaChangeEvent(KeyspacesDiff diff)
@@ -260,8 +255,13 @@ public final class CreateTableStatement extends AlterSchemaStatement
             clusteringColumnProperties.add(reverse ? columnProperties.withReversedType() : columnProperties);
         });
 
-        if (clusteringOrder.size() > clusteringColumns.size())
-            throw ire("Only clustering columns can be defined in CLUSTERING ORDER directive");
+        List<ColumnIdentifier> nonClusterColumn = clusteringOrder.keySet().stream()
+                                                                 .filter((id) -> !clusteringColumns.contains(id))
+                                                                 .collect(Collectors.toList());
+        if (!nonClusterColumn.isEmpty())
+        {
+            throw ire("Only clustering key columns can be defined in CLUSTERING ORDER directive: " + nonClusterColumn + " are not clustering columns");
+        }
 
         int n = 0;
         for (ColumnIdentifier id : clusteringOrder.keySet())
@@ -418,22 +418,6 @@ public final class CreateTableStatement extends AlterSchemaStatement
             // that's the case, add it but with a specific EmptyType so we can recognize that case later
             builder.addRegularColumn(names.defaultCompactValueName(), EmptyType.instance);
         }
-    }
-
-    @Override
-    public Set<String> clientWarnings(KeyspacesDiff diff)
-    {
-        // this threshold is deprecated, it will be replaced by the guardrail used in #validate(ClientState)
-        int tableCount = Schema.instance.getNumberOfTables();
-        if (tableCount > DatabaseDescriptor.tableCountWarnThreshold())
-        {
-            String msg = String.format("Cluster already contains %d tables in %d keyspaces. Having a large number of tables will significantly slow down schema dependent cluster operations.",
-                                       tableCount,
-                                       Schema.instance.getKeyspaces().size());
-            logger.warn(msg);
-            return ImmutableSet.of(msg);
-        }
-        return ImmutableSet.of();
     }
 
     private static class DefaultNames
@@ -613,6 +597,14 @@ public final class CreateTableStatement extends AlterSchemaStatement
             {
                 this.rawType = rawType;
                 this.rawMask = rawMask;
+            }
+
+            public void validate(ClientState state, ColumnIdentifier name)
+            {
+                rawType.validate(state, "Column " + name);
+
+                if (rawMask != null)
+                    ColumnMask.ensureEnabled();
             }
 
             public ColumnProperties prepare(String keyspace, String table, ColumnIdentifier column, Types udts)

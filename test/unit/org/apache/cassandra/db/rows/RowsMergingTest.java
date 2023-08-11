@@ -26,12 +26,14 @@ import org.junit.Test;
 
 import com.google.common.base.Joiner;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.BTREE_BRANCH_SHIFT;
+
 public class RowsMergingTest extends CQLTester
 {
     @BeforeClass
     public static void setUpClass()
     {
-        System.setProperty("cassandra.btree.branchshift", "2");
+        BTREE_BRANCH_SHIFT.setInt(2);
         CQLTester.setUpClass();
     }
 

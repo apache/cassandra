@@ -48,7 +48,7 @@ public class CassandraTableRepairManager implements TableRepairManager
     }
 
     @Override
-    public ValidationPartitionIterator getValidationIterator(Collection<Range<Token>> ranges, TimeUUID parentId, TimeUUID sessionID, boolean isIncremental, int nowInSec, TopPartitionTracker.Collector topPartitionCollector) throws IOException, NoSuchRepairSessionException
+    public ValidationPartitionIterator getValidationIterator(Collection<Range<Token>> ranges, TimeUUID parentId, TimeUUID sessionID, boolean isIncremental, long nowInSec, TopPartitionTracker.Collector topPartitionCollector) throws IOException, NoSuchRepairSessionException
     {
         return new CassandraValidationIterator(cfs, ranges, parentId, sessionID, isIncremental, nowInSec, topPartitionCollector);
     }
@@ -79,7 +79,7 @@ public class CassandraTableRepairManager implements TableRepairManager
                         {
                             return sstable != null &&
                                    !sstable.metadata().isIndex() && // exclude SSTables from 2i
-                                   new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(ranges);
+                                   new Bounds<>(sstable.getFirst().getToken(), sstable.getLast().getToken()).intersects(ranges);
                         }
                     }, true, false); //ephemeral snapshot, if repair fails, it will be cleaned next startup
                 }

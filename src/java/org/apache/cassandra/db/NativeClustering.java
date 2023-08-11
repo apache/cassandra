@@ -23,6 +23,7 @@ import java.nio.ByteOrder;
 
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.HeapCloner;
@@ -45,7 +46,7 @@ public class NativeClustering implements Clustering<ByteBuffer>
         int bitmapSize = ((count + 7) >>> 3);
 
         assert count < 64 << 10;
-        assert dataSize < 64 << 10;
+        assert dataSize <= FBUtilities.MAX_UNSIGNED_SHORT : String.format("Data size %d >= %d", dataSize, FBUtilities.MAX_UNSIGNED_SHORT + 1);
 
         peer = allocator.allocate(metadataSize + dataSize + bitmapSize, writeOp);
         long bitmapStart = peer + metadataSize;

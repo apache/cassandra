@@ -114,7 +114,7 @@ public class Dump implements Runnable
               .append(generatedTimestamp)
               .append(System.lineSeparator());
 
-            int generatedNowInSeconds = wireIn.read(FullQueryLogger.GENERATED_NOW_IN_SECONDS).int32();
+            long generatedNowInSeconds = wireIn.read(FullQueryLogger.GENERATED_NOW_IN_SECONDS).int64();
             sb.append("Generated nowInSeconds:")
               .append(generatedNowInSeconds)
               .append(System.lineSeparator());

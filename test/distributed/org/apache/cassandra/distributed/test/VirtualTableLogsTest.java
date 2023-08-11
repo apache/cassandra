@@ -27,12 +27,15 @@ import ch.qos.logback.classic.Level;
 import org.apache.cassandra.db.virtual.LogMessagesTable;
 import org.apache.cassandra.db.virtual.LogMessagesTable.LogMessage;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.SimpleQueryResult;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.utils.logging.VirtualTableAppender;
 
 import static java.lang.String.format;
+import static org.apache.cassandra.config.CassandraRelevantProperties.LOGBACK_CONFIGURATION_FILE;
 import static org.apache.cassandra.db.virtual.LogMessagesTable.LEVEL_COLUMN_NAME;
 import static org.apache.cassandra.db.virtual.LogMessagesTable.LOGGER_COLUMN_NAME;
 import static org.apache.cassandra.db.virtual.LogMessagesTable.MESSAGE_COLUMN_NAME;
@@ -49,32 +52,34 @@ public class VirtualTableLogsTest extends TestBaseImpl
     @Test
     public void testVTableOutput() throws Throwable
     {
-        System.setProperty("logback.configurationFile", "test/conf/logback-dtest_with_vtable_appender.xml");
-
-        try (Cluster cluster = Cluster.build(1)
+        try (WithProperties properties = new WithProperties().set(LOGBACK_CONFIGURATION_FILE, "test/conf/logback-dtest_with_vtable_appender.xml");
+             Cluster cluster = Cluster.build(1)
                                       .withConfig(c -> c.with(Feature.values()))
-                                      .start())
+                                      .start();
+             )
         {
             List<TestingLogMessage> rows = getRows(cluster);
             assertFalse(rows.isEmpty());
 
             rows.forEach(message -> assertTrue(Level.toLevel(message.level).isGreaterOrEqual(Level.INFO)));
         }
-        finally
-        {
-            System.clearProperty("logback.configurationFile");
-        }
     }
 
     @Test
     public void testMultipleAppendersFailToStartNode() throws Throwable
     {
-        System.setProperty("logback.configurationFile", "test/conf/logback-dtest_with_vtable_appender_invalid.xml");
+        LOGBACK_CONFIGURATION_FILE.setString("test/conf/logback-dtest_with_vtable_appender_invalid.xml");
 
-        try (Cluster ignored = Cluster.build(1)
-                                      .withConfig(c -> c.with(Feature.values()))
-                                      .start())
+        // NOTE: Because cluster startup is expected to fail in this case, and can leave things in a weird state
+        // for the next state, create without starting, and set failure as shutdown to false,
+        // so the try-with-resources can close instances properly.
+        try (WithProperties properties = new WithProperties().set(LOGBACK_CONFIGURATION_FILE, "test/conf/logback-dtest_with_vtable_appender_invalid.xml");
+             Cluster cluster = Cluster.build(1)
+                                      .withConfig(c -> c.with(Feature.values())
+                                                        .set(Constants.KEY_DTEST_API_STARTUP_FAILURE_AS_SHUTDOWN, false))
+                                      .createWithoutStarting())
         {
+            cluster.startup();
             fail("Node should not start as there is supposed to be invalid logback configuration file.");
         }
         catch (IllegalStateException ex)
@@ -83,10 +88,6 @@ public class VirtualTableLogsTest extends TestBaseImpl
                                 "of names CQLLOG,CQLLOG2. There is only one appender of such class allowed.",
                                 VirtualTableAppender.class.getName()),
                          ex.getMessage());
-        }
-        finally
-        {
-            System.clearProperty("logback.configurationFile");
         }
     }
 

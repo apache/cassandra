@@ -52,11 +52,11 @@ public class MutableDeletionInfo implements DeletionInfo
      * @param localDeletionTime what time the deletion write was applied locally (for purposes of
      *                          purging the tombstone after gc_grace_seconds).
      */
-    public MutableDeletionInfo(long markedForDeleteAt, int localDeletionTime)
+    public MutableDeletionInfo(long markedForDeleteAt, long localDeletionTime)
     {
         // Pre-1.1 node may return MIN_VALUE for non-deleted container, but the new default is MAX_VALUE
         // (see CASSANDRA-3872)
-        this(new DeletionTime(markedForDeleteAt, localDeletionTime == Integer.MIN_VALUE ? Integer.MAX_VALUE : localDeletionTime));
+        this(DeletionTime.build(markedForDeleteAt, localDeletionTime == Integer.MIN_VALUE ? Long.MAX_VALUE : localDeletionTime));
     }
 
     public MutableDeletionInfo(DeletionTime partitionDeletion)
@@ -223,7 +223,7 @@ public class MutableDeletionInfo implements DeletionInfo
     public DeletionInfo updateAllTimestamp(long timestamp)
     {
         if (partitionDeletion.markedForDeleteAt() != Long.MIN_VALUE)
-            partitionDeletion = new DeletionTime(timestamp, partitionDeletion.localDeletionTime());
+            partitionDeletion = DeletionTime.build(timestamp, partitionDeletion.localDeletionTime());
 
         if (ranges != null)
             ranges.updateAllTimestamp(timestamp);

@@ -39,6 +39,7 @@ import org.apache.cassandra.exceptions.CasWriteTimeoutException;
 
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_USE_SELF_EXECUTION;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ANY;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.ONE;
 import static org.apache.cassandra.distributed.api.ConsistencyLevel.LOCAL_QUORUM;
@@ -76,7 +77,7 @@ public class CASTest extends CASCommonTestCases
     @BeforeClass
     public static void beforeClass() throws Throwable
     {
-        System.setProperty("cassandra.paxos.use_self_execution", "false");
+        PAXOS_USE_SELF_EXECUTION.setBoolean(false);
         TestBaseImpl.beforeClass();
         Consumer<IInstanceConfig> conf = config -> config
                                                    .set("paxos_variant", "v2")

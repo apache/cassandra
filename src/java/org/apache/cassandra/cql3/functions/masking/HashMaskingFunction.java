@@ -22,22 +22,25 @@ import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
-import java.util.function.Supplier;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Suppliers;
 
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.functions.ArgumentDeserializer;
+import org.apache.cassandra.cql3.functions.Arguments;
+import org.apache.cassandra.cql3.functions.FunctionArguments;
 import org.apache.cassandra.cql3.functions.FunctionFactory;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.FunctionParameter;
 import org.apache.cassandra.cql3.functions.NativeFunction;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.StringType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -50,61 +53,42 @@ public class HashMaskingFunction extends MaskingFunction
     public static final String NAME = "hash";
 
     /** The default hashing algorithm to be used if no other algorithm is specified in the call to the function. */
-    public static final String DEFAULT_ALGORITHM = "SHA-256";
+    public static final ByteBuffer DEFAULT_ALGORITHM = UTF8Type.instance.decompose("SHA-256");
 
-    // The default message digest is lazily built to prevent a failure during server startup if the algorithm is not
-    // available. That way, if the algorithm is not found only the calls to the function will fail.
-    private static final Supplier<MessageDigest> DEFAULT_DIGEST = Suppliers.memoize(() -> messageDigest(DEFAULT_ALGORITHM));
+    /**
+     * All the created digests that we use to generate the hash, so we don't need to get them on every call.
+     * We use the serialized algorithm as key, so we don't have to deserialize it for getting a cache hit.
+     */
+    private static final Map<ByteBuffer, MessageDigest> DIGESTS = new ConcurrentHashMap<>();
+
     private static final AbstractType<?>[] DEFAULT_ARGUMENTS = {};
+    private static final AbstractType<?>[] ARGUMENTS_WITH_ALGORITHM = new AbstractType<?>[]{ UTF8Type.instance };
 
-    /** The type of the supplied algorithm argument, {@code null} if that argument isn't supplied. */
-    @Nullable
-    private final StringType algorithmArgumentType;
-
-    private HashMaskingFunction(FunctionName name, AbstractType<?> inputType, @Nullable StringType algorithmArgumentType)
+    private HashMaskingFunction(FunctionName name, AbstractType<?> inputType, boolean hasAlgorithmArgument)
     {
-        super(name, BytesType.instance, inputType, argumentsType(algorithmArgumentType));
-        this.algorithmArgumentType = algorithmArgumentType;
-    }
-
-    private static AbstractType<?>[] argumentsType(@Nullable StringType algorithmArgumentType)
-    {
-        // the algorithm argument is optional, so we will have different signatures depending on whether that argument
-        // is supplied or not
-        return algorithmArgumentType == null
-               ? DEFAULT_ARGUMENTS
-               : new AbstractType<?>[]{ algorithmArgumentType };
+        super(name, BytesType.instance, inputType, hasAlgorithmArgument ? ARGUMENTS_WITH_ALGORITHM : DEFAULT_ARGUMENTS);
     }
 
     @Override
-    public Masker masker(ByteBuffer... parameters)
+    public Arguments newArguments(ProtocolVersion version)
     {
-        return new Masker(algorithmArgumentType, parameters);
+        return new FunctionArguments(version,
+                                     ArgumentDeserializer.NOOP_DESERIALIZER, // the value to be masked
+                                     (v, b) -> messageDigest(b)); // the algorithm, if any
     }
 
-    private static class Masker implements MaskingFunction.Masker
+    @Override
+    public ByteBuffer execute(Arguments arguments) throws InvalidRequestException
     {
-        private final MessageDigest digest;
+        ByteBuffer value = arguments.get(0);
+        if (value == null)
+            return null;
 
-        private Masker(StringType algorithmArgumentType, ByteBuffer... parameters)
-        {
-            if (algorithmArgumentType == null || parameters[0] == null)
-            {
-                digest = DEFAULT_DIGEST.get();
-            }
-            else
-            {
-                String algorithm = algorithmArgumentType.compose(parameters[0]);
-                digest = messageDigest(algorithm);
-            }
-        }
+        MessageDigest digest = arguments.get(1);
+        if (digest == null)
+            digest = messageDigest(DEFAULT_ALGORITHM);
 
-        @Override
-        public ByteBuffer mask(ByteBuffer value)
-        {
-            return HashMaskingFunction.hash(digest, value);
-        }
-
+        return HashMaskingFunction.hash(digest, value);
     }
 
     @VisibleForTesting
@@ -116,6 +100,19 @@ public class HashMaskingFunction extends MaskingFunction
 
         byte[] hash = digest.digest(ByteBufferUtil.getArray(value));
         return BytesType.instance.compose(ByteBuffer.wrap(hash));
+    }
+
+    @VisibleForTesting
+    static MessageDigest messageDigest(@Nullable ByteBuffer algorithm)
+    {
+        ByteBuffer cacheKey = algorithm == null ? DEFAULT_ALGORITHM : algorithm;
+        MessageDigest digest = DIGESTS.get(cacheKey);
+        if (digest == null)
+        {
+            digest = messageDigest(UTF8Type.instance.compose(cacheKey));
+            DIGESTS.put(cacheKey.duplicate(), digest);
+        }
+        return digest;
     }
 
     @VisibleForTesting
@@ -144,9 +141,9 @@ public class HashMaskingFunction extends MaskingFunction
                 switch (argTypes.size())
                 {
                     case 1:
-                        return new HashMaskingFunction(name, argTypes.get(0), null);
+                        return new HashMaskingFunction(name, argTypes.get(0), false);
                     case 2:
-                        return new HashMaskingFunction(name, argTypes.get(0), UTF8Type.instance);
+                        return new HashMaskingFunction(name, argTypes.get(0), true);
                     default:
                         throw invalidNumberOfArgumentsException();
                 }

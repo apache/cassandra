@@ -75,7 +75,7 @@ public class KeysIndex extends CassandraIndex
         return indexedColumn.type.compare(left, ByteBufferAccessor.instance, right.value(), right.accessor());
     }
 
-    public boolean isStale(Row row, ByteBuffer indexValue, int nowInSec)
+    public boolean isStale(Row row, ByteBuffer indexValue, long nowInSec)
     {
         if (row == null)
             return true;

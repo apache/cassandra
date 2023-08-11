@@ -63,7 +63,7 @@ public class Validator implements Runnable
 
     public final RepairJobDesc desc;
     public final InetAddressAndPort initiator;
-    public final int nowInSec;
+    public final long nowInSec;
     private final boolean evenTreeDistribution;
     public final boolean isIncremental;
 
@@ -81,17 +81,17 @@ public class Validator implements Runnable
     public final ValidationState state;
     public TopPartitionTracker.Collector topPartitionCollector;
 
-    public Validator(ValidationState state, int nowInSec, PreviewKind previewKind)
+    public Validator(ValidationState state, long nowInSec, PreviewKind previewKind)
     {
         this(state, nowInSec, false, false, previewKind);
     }
 
-    public Validator(ValidationState state, int nowInSec, boolean isIncremental, PreviewKind previewKind)
+    public Validator(ValidationState state, long nowInSec, boolean isIncremental, PreviewKind previewKind)
     {
         this(state, nowInSec, false, isIncremental, previewKind);
     }
 
-    public Validator(ValidationState state, int nowInSec, boolean evenTreeDistribution, boolean isIncremental, PreviewKind previewKind)
+    public Validator(ValidationState state, long nowInSec, boolean evenTreeDistribution, boolean isIncremental, PreviewKind previewKind)
     {
         this.state = state;
         this.desc = state.desc;

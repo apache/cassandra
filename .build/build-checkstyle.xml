@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  ~ Licensed to the Apache Software Foundation (ASF) under one
+  ~ or more contributor license agreements.  See the NOTICE file
+  ~ distributed with this work for additional information
+  ~ regarding copyright ownership.  The ASF licenses this file
+  ~ to you under the Apache License, Version 2.0 (the
+  ~ "License"); you may not use this file except in compliance
+  ~ with the License.  You may obtain a copy of the License at
+  ~
+  ~     http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  -->
+    <project basedir="." name="apache-cassandra-checkstyle"
+     xmlns:rat="antlib:org.apache.rat.anttasks">
+
+    <target name="init-checkstyle" depends="resolver-retrieve-build,build-project" unless="no-checkstyle">
+        <path id="checkstyle.lib.path">
+            <fileset dir="${test.lib}/jars" includes="*.jar"/>
+        </path>
+        <!-- Sevntu custom checks are retrieved by Ivy into lib folder
+           and will be accessible to checkstyle-->
+        <taskdef resource="com/puppycrawl/tools/checkstyle/ant/checkstyle-ant-task.properties"
+                 classpathref="checkstyle.lib.path"/>
+    </target>
+
+    <target name="checkstyle" depends="init-checkstyle,build-project" description="Run custom checkstyle code analysis" unless="no-checkstyle">
+        <property name="checkstyle.log.dir" value="${build.dir}/checkstyle" />
+        <property name="checkstyle.report.file" value="${checkstyle.log.dir}/checkstyle_report.xml"/>
+        <mkdir  dir="${checkstyle.log.dir}" />
+
+        <property name="checkstyle.properties" value="${build.helpers.dir}/checkstyle.xml" />
+        <property name="checkstyle.suppressions" value="${build.helpers.dir}/checkstyle_suppressions.xml" />
+        <checkstyle config="${checkstyle.properties}"
+                    failureProperty="checkstyle.failure"
+                    failOnViolation="true">
+            <formatter type="plain"/>
+            <formatter type="xml" tofile="${checkstyle.report.file}"/>
+            <fileset dir="${build.src.java}" includes="**/*.java"/>
+        </checkstyle>
+    </target>
+
+    <target name="checkstyle-test" depends="init-checkstyle,resolver-retrieve-build,build-project" description="Run custom checkstyle code analysis on tests" unless="no-checkstyle">
+        <property name="checkstyle.log.dir" value="${build.dir}/checkstyle" />
+        <property name="checkstyle_test.report.file" value="${checkstyle.log.dir}/checkstyle_report_test.xml"/>
+        <mkdir  dir="${checkstyle.log.dir}" />
+
+        <property name="checkstyle_test.properties" value="${build.helpers.dir}/checkstyle_test.xml" />
+        <property name="checkstyle.suppressions" value="${build.helpers.dir}/checkstyle_suppressions.xml" />
+        <checkstyle config="${checkstyle_test.properties}"
+                    failureProperty="checkstyle.failure"
+                    failOnViolation="true">
+            <formatter type="plain"/>
+            <formatter type="xml" tofile="${checkstyle_test.report.file}"/>
+            <fileset dir="${test.dir}" includes="**/*.java"/>
+        </checkstyle>
+    </target>
+
+</project>

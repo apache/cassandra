@@ -23,6 +23,7 @@ import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
@@ -100,6 +101,11 @@ public final class MemtableParams
         CONFIGURATION_DEFINITIONS = expandDefinitions(DatabaseDescriptor.getMemtableConfigurations());
     private static final Map<String, MemtableParams> CONFIGURATIONS = new HashMap<>();
     public static final MemtableParams DEFAULT = get(null);
+
+    public static Set<String> knownDefinitions()
+    {
+        return CONFIGURATION_DEFINITIONS.keySet();
+    }
 
     public static MemtableParams get(String key)
     {

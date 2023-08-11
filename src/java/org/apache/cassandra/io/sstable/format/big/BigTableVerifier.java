@@ -18,218 +18,64 @@
 package org.apache.cassandra.io.sstable.format.big;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.file.NoSuchFileException;
 import java.time.Instant;
-import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
-
-import com.google.common.base.Throwables;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
-import org.apache.cassandra.dht.LocalPartitioner;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.IVerifier;
-import org.apache.cassandra.io.sstable.SSTable;
-import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SortedTableVerifier;
 import org.apache.cassandra.io.sstable.format.big.BigFormat.Components;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.io.util.RandomAccessReader;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.OutputHandler;
 
 public class BigTableVerifier extends SortedTableVerifier<BigTableReader> implements IVerifier
 {
-    private final RandomAccessReader indexFile;
-    private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
-
     public BigTableVerifier(ColumnFamilyStore cfs, BigTableReader sstable, OutputHandler outputHandler, boolean isOffline, Options options)
     {
         super(cfs, sstable, outputHandler, isOffline, options);
-
-        this.rowIndexEntrySerializer = new RowIndexEntry.Serializer(sstable.descriptor.version, sstable.header, sstable.owner().map(SSTable.Owner::getMetrics).orElse(null));
-        this.indexFile = RandomAccessReader.open(sstable.descriptor.fileFor(Components.PRIMARY_INDEX));
     }
 
-    @Override
-    public void verify()
+    protected void verifyPartition(DecoratedKey key, UnfilteredRowIterator iterator)
     {
-        verifySSTableVersion();
-
-        verifySSTableMetadata();
-
-        verifyIndex();
-
-        verifyIndexSummary();
-
-        verifyBloomFilter();
-
-        if (options.checkOwnsTokens && !isOffline && !(cfs.getPartitioner() instanceof LocalPartitioner))
+        Row first = null;
+        int duplicateRows = 0;
+        long minTimestamp = Long.MAX_VALUE;
+        long maxTimestamp = Long.MIN_VALUE;
+        while (iterator.hasNext())
         {
-            if (verifyOwnedRanges() == 0)
-                return;
-        }
-
-        if (options.quick)
-            return;
-
-        if (verifyDigest() && !options.extendedVerification)
-            return;
-
-        verifySSTable();
-
-        outputHandler.output("Verify of %s succeeded. All %d rows read successfully", sstable, goodRows);
-    }
-
-    private void verifySSTable()
-    {
-        long rowStart;
-        outputHandler.output("Extended Verify requested, proceeding to inspect values");
-
-        try (VerifyController verifyController = new VerifyController(cfs))
-        {
-            ByteBuffer nextIndexKey = ByteBufferUtil.readWithShortLength(indexFile);
+            Unfiltered uf = iterator.next();
+            if (uf.isRow())
             {
-                long firstRowPositionFromIndex = rowIndexEntrySerializer.deserializePositionAndSkip(indexFile);
-                if (firstRowPositionFromIndex != 0)
-                    markAndThrow(new RuntimeException("firstRowPositionFromIndex != 0: " + firstRowPositionFromIndex));
-            }
-
-            List<Range<Token>> ownedRanges = isOffline ? Collections.emptyList() : Range.normalize(tokenLookup.apply(cfs.metadata().keyspace));
-            RangeOwnHelper rangeOwnHelper = new RangeOwnHelper(ownedRanges);
-            DecoratedKey prevKey = null;
-
-            while (!dataFile.isEOF())
-            {
-
-                if (verifyInfo.isStopRequested())
-                    throw new CompactionInterruptedException(verifyInfo.getCompactionInfo());
-
-                rowStart = dataFile.getFilePointer();
-                outputHandler.debug("Reading row at %d", rowStart);
-
-                DecoratedKey key = null;
-                try
+                Row row = (Row) uf;
+                if (first != null && first.clustering().equals(row.clustering()))
                 {
-                    key = sstable.decorateKey(ByteBufferUtil.readWithShortLength(dataFile));
-                }
-                catch (Throwable th)
-                {
-                    throwIfFatal(th);
-                    // check for null key below
-                }
-
-                if (options.checkOwnsTokens && ownedRanges.size() > 0 && !(cfs.getPartitioner() instanceof LocalPartitioner))
-                {
-                    try
+                    duplicateRows++;
+                    for (Cell cell : row.cells())
                     {
-                        rangeOwnHelper.validate(key);
-                    }
-                    catch (Throwable t)
-                    {
-                        outputHandler.warn(t, "Key %s in sstable %s not owned by local ranges %s", key, sstable, ownedRanges);
-                        markAndThrow(t);
+                        maxTimestamp = Math.max(cell.timestamp(), maxTimestamp);
+                        minTimestamp = Math.min(cell.timestamp(), minTimestamp);
                     }
                 }
-
-                ByteBuffer currentIndexKey = nextIndexKey;
-                long nextRowPositionFromIndex = 0;
-                try
+                else
                 {
-                    nextIndexKey = indexFile.isEOF() ? null : ByteBufferUtil.readWithShortLength(indexFile);
-                    nextRowPositionFromIndex = indexFile.isEOF()
-                                               ? dataFile.length()
-                                               : rowIndexEntrySerializer.deserializePositionAndSkip(indexFile);
-                }
-                catch (Throwable th)
-                {
-                    markAndThrow(th);
-                }
-
-                long dataStart = dataFile.getFilePointer();
-                long dataStartFromIndex = currentIndexKey == null
-                                          ? -1
-                                          : rowStart + 2 + currentIndexKey.remaining();
-
-                long dataSize = nextRowPositionFromIndex - dataStartFromIndex;
-                // avoid an NPE if key is null
-                String keyName = key == null ? "(unreadable key)" : ByteBufferUtil.bytesToHex(key.getKey());
-                outputHandler.debug("row %s is %s", keyName, FBUtilities.prettyPrintMemory(dataSize));
-
-                assert currentIndexKey != null || indexFile.isEOF();
-
-                try
-                {
-                    if (key == null || dataSize > dataFile.length())
-                        markAndThrow(new RuntimeException(String.format("key = %s, dataSize=%d, dataFile.length() = %d", key, dataSize, dataFile.length())));
-
-                    try (UnfilteredRowIterator iterator = SSTableIdentityIterator.create(sstable, dataFile, key))
-                    {
-                        Row first = null;
-                        int duplicateRows = 0;
-                        long minTimestamp = Long.MAX_VALUE;
-                        long maxTimestamp = Long.MIN_VALUE;
-                        while (iterator.hasNext())
-                        {
-                            Unfiltered uf = iterator.next();
-                            if (uf.isRow())
-                            {
-                                Row row = (Row) uf;
-                                if (first != null && first.clustering().equals(row.clustering()))
-                                {
-                                    duplicateRows++;
-                                    for (Cell cell : row.cells())
-                                    {
-                                        maxTimestamp = Math.max(cell.timestamp(), maxTimestamp);
-                                        minTimestamp = Math.min(cell.timestamp(), minTimestamp);
-                                    }
-                                }
-                                else
-                                {
-                                    if (duplicateRows > 0)
-                                        logDuplicates(key, first, duplicateRows, minTimestamp, maxTimestamp);
-                                    duplicateRows = 0;
-                                    first = row;
-                                    maxTimestamp = Long.MIN_VALUE;
-                                    minTimestamp = Long.MAX_VALUE;
-                                }
-                            }
-                        }
-                        if (duplicateRows > 0)
-                            logDuplicates(key, first, duplicateRows, minTimestamp, maxTimestamp);
-                    }
-
-                    if ((prevKey != null && prevKey.compareTo(key) > 0) || !key.getKey().equals(currentIndexKey) || dataStart != dataStartFromIndex)
-                        markAndThrow(new RuntimeException("Key out of order: previous = " + prevKey + " : current = " + key));
-                    goodRows++;
-                    prevKey = key;
-
-
-                    outputHandler.debug("Row %s at %s valid, moving to next row at %s ", goodRows, rowStart, nextRowPositionFromIndex);
-                    dataFile.seek(nextRowPositionFromIndex);
-                }
-                catch (Throwable th)
-                {
-                    markAndThrow(th);
+                    if (duplicateRows > 0)
+                        logDuplicates(key, first, duplicateRows, minTimestamp, maxTimestamp);
+                    duplicateRows = 0;
+                    first = row;
+                    maxTimestamp = Long.MIN_VALUE;
+                    minTimestamp = Long.MAX_VALUE;
                 }
             }
         }
-        catch (Throwable t)
-        {
-            Throwables.throwIfUnchecked(t);
-            throw new RuntimeException(t);
-        }
+        if (duplicateRows > 0)
+            logDuplicates(key, first, duplicateRows, minTimestamp, maxTimestamp);
     }
 
     private void verifyIndexSummary()
@@ -247,18 +93,10 @@ public class BigTableVerifier extends SortedTableVerifier<BigTableReader> implem
         }
     }
 
-    private void verifyIndex()
+    protected void verifyIndex()
     {
-        try
-        {
-            outputHandler.debug("Deserializing index for %s", sstable);
-            deserializeIndex(sstable);
-        }
-        catch (Throwable t)
-        {
-            outputHandler.warn(t);
-            markAndThrow(t);
-        }
+        verifyIndexSummary();
+        super.verifyIndex();
     }
 
     private void logDuplicates(DecoratedKey key, Row first, int duplicateRows, long minTimestamp, long maxTimestamp)
@@ -286,41 +124,11 @@ public class BigTableVerifier extends SortedTableVerifier<BigTableReader> implem
         return Instant.ofEpochMilli(TimeUnit.MICROSECONDS.toMillis(time)).toString();
     }
 
-
-    private void deserializeIndex(SSTableReader sstable) throws IOException
-    {
-        try (RandomAccessReader primaryIndex = RandomAccessReader.open(sstable.descriptor.fileFor(Components.PRIMARY_INDEX)))
-        {
-            long indexSize = primaryIndex.length();
-
-            while ((primaryIndex.getFilePointer()) != indexSize)
-            {
-                ByteBuffer key = ByteBufferUtil.readWithShortLength(primaryIndex);
-                RowIndexEntry.Serializer.skip(primaryIndex, sstable.descriptor.version);
-            }
-        }
-    }
-
     private void deserializeIndexSummary(SSTableReader sstable) throws IOException
     {
         IndexSummaryComponent summaryComponent = IndexSummaryComponent.load(sstable.descriptor.fileFor(Components.SUMMARY), cfs.metadata());
         if (summaryComponent == null)
             throw new NoSuchFileException("Index summary component of sstable " + sstable.descriptor + " is missing");
         FileUtils.closeQuietly(summaryComponent.indexSummary);
-    }
-
-    @Override
-    public void close()
-    {
-        fileAccessLock.writeLock().lock();
-        try
-        {
-            FileUtils.closeQuietly(indexFile);
-            super.close();
-        }
-        finally
-        {
-            fileAccessLock.writeLock().unlock();
-        }
     }
 }

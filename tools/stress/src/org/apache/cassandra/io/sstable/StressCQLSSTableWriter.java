@@ -21,30 +21,34 @@ import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.SortedSet;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.apache.commons.lang3.ArrayUtils;
 
 import org.antlr.runtime.RecognitionException;
-import org.apache.cassandra.cql3.CQLStatement;
-import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
-import org.apache.cassandra.cql3.statements.schema.CreateTypeStatement;
-import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.SchemaTransformations;
 import org.apache.cassandra.cql3.CQLFragmentParser;
+import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.CqlParser;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.UpdateParameters;
-import org.apache.cassandra.cql3.functions.UDHelper;
 import org.apache.cassandra.cql3.functions.types.TypeCodec;
 import org.apache.cassandra.cql3.statements.UpdateStatement;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
+import org.apache.cassandra.cql3.statements.schema.CreateTypeStatement;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -53,11 +57,16 @@ import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaTransformations;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.JavaDriverUtils;
 
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
@@ -123,7 +132,7 @@ public class StressCQLSSTableWriter implements Closeable
         this.writer = writer;
         this.insert = insert;
         this.boundNames = boundNames;
-        this.typeCodecs = boundNames.stream().map(bn ->  UDHelper.codecFor(UDHelper.driverType(bn.type)))
+        this.typeCodecs = boundNames.stream().map(bn ->  JavaDriverUtils.codecFor(JavaDriverUtils.driverType(bn.type)))
                                              .collect(Collectors.toList());
     }
 
@@ -345,7 +354,7 @@ public class StressCQLSSTableWriter implements Closeable
         private final List<File> directoryList;
         private ColumnFamilyStore cfs;
 
-        protected SSTableFormat.Type formatType = null;
+        protected SSTableFormat<?, ?> format = null;
 
         private Boolean makeRangeAware = false;
 
@@ -581,8 +590,8 @@ public class StressCQLSSTableWriter implements Closeable
                                                      ? new SSTableSimpleWriter(cfs.getDirectories().getDirectoryForNewSSTables(), cfs.metadata, preparedInsert.updatedColumns())
                                                      : new SSTableSimpleUnsortedWriter(cfs.getDirectories().getDirectoryForNewSSTables(), cfs.metadata, preparedInsert.updatedColumns(), bufferSizeInMiB);
 
-                if (formatType != null)
-                    writer.setSSTableFormatType(formatType);
+                if (format != null)
+                    writer.setSSTableFormatType(format);
 
                 writer.setRangeAwareWriting(makeRangeAware);
 

@@ -87,6 +87,8 @@ public class MapSerializer<K, V> extends AbstractMapSerializer<Map<K, V>>
     @Override
     public <T> void validate(T input, ValueAccessor<T> accessor)
     {
+        if (accessor.isEmpty(input))
+            throw new MarshalException("Not enough bytes to read a map");
         try
         {
             // Empty values are still valid.
@@ -96,11 +98,11 @@ public class MapSerializer<K, V> extends AbstractMapSerializer<Map<K, V>>
             int offset = sizeOfCollectionSize();
             for (int i = 0; i < n; i++)
             {
-                T key = readValue(input, accessor, offset);
+                T key = readNonNullValue(input, accessor, offset);
                 offset += sizeOfValue(key, accessor);
                 keys.validate(key, accessor);
 
-                T value = readValue(input, accessor, offset);
+                T value = readNonNullValue(input, accessor, offset);
                 offset += sizeOfValue(value, accessor);
                 values.validate(value, accessor);
             }
@@ -131,11 +133,11 @@ public class MapSerializer<K, V> extends AbstractMapSerializer<Map<K, V>>
             Map<K, V> m = new LinkedHashMap<>(Math.min(n, 256));
             for (int i = 0; i < n; i++)
             {
-                I key = readValue(input, accessor, offset);
+                I key = readNonNullValue(input, accessor, offset);
                 offset += sizeOfValue(key, accessor);
                 keys.validate(key, accessor);
 
-                I value = readValue(input, accessor, offset);
+                I value = readNonNullValue(input, accessor, offset);
                 offset += sizeOfValue(value, accessor);
                 values.validate(value, accessor);
 

@@ -209,11 +209,11 @@ public abstract class DataStorageSpec
         }
 
         /**
-         * @return the amount of data storage in mebibytes.
+         * @return the amount of data storage in mebibytes
          */
-        public long toMebibytes()
+        public int toMebibytesInt()
         {
-            return unit().toMebibytes(quantity());
+            return Ints.saturatedCast(unit().toMebibytes(quantity()));
         }
     }
 

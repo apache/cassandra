@@ -233,12 +233,55 @@
       <id>zznate</id>
       <name>Nate McCall</name>
     </developer>
+    <developer>
+      <id>smiklosovic</id>
+      <name>Stefan Miklosovic</name>
+    </developer>
   </developers>
   <scm>
     <connection>scm:https://gitbox.apache.org/repos/asf/cassandra.git</connection>
     <developerConnection>scm:https://gitbox.apache.org/repos/asf/cassandra.git</developerConnection>
     <url>https://gitbox.apache.org/repos/asf?p=cassandra.git;a=tree</url>
   </scm>
+
+  <profiles>
+    <profile>
+      <id>x86_64</id>
+      <activation>
+        <os>
+          <!-- we need something as a default even if it doesn't successfully load the .so files. -->
+          <arch>!aarch64</arch>
+        </os>
+      </activation>
+      <dependencies>
+        <dependency>
+          <groupId>software.amazon.cryptools</groupId>
+          <artifactId>AmazonCorrettoCryptoProvider</artifactId>
+          <classifier>linux-x86_64</classifier>
+          <version>2.2.0</version>
+          <scope>provided</scope>
+        </dependency>
+      </dependencies>
+    </profile>
+    <profile>
+      <id>aarch_64</id>
+      <activation>
+        <os>
+          <arch>aarch64</arch>
+        </os>
+      </activation>
+      <dependencies>
+        <dependency>
+          <groupId>software.amazon.cryptools</groupId>
+          <artifactId>AmazonCorrettoCryptoProvider</artifactId>
+          <classifier>linux-aarch_64</classifier>
+          <version>2.2.0</version>
+          <scope>provided</scope>
+        </dependency>
+      </dependencies>
+    </profile>
+  </profiles>
+
   <dependencyManagement>
     <!--
     Dependency metadata is specified here (version, scope, exclusions, etc.), then referenced in child POMs by groupId and
@@ -248,7 +291,7 @@
       <dependency>
         <groupId>org.xerial.snappy</groupId>
         <artifactId>snappy-java</artifactId>
-        <version>1.1.8.4</version>
+        <version>1.1.10.1</version>
       </dependency>
       <dependency>
         <groupId>org.lz4</groupId>
@@ -269,7 +312,7 @@
       <dependency>
         <groupId>com.google.guava</groupId>
         <artifactId>guava</artifactId>
-        <version>27.0-jre</version>
+        <version>32.0.1-jre</version>
         <exclusions>
           <exclusion>
             <artifactId>jsr305</artifactId>
@@ -281,10 +324,6 @@
           </exclusion>
           <exclusion>
             <artifactId>listenablefuture</artifactId>
-            <groupId>com.google.guava</groupId>
-          </exclusion>
-          <exclusion>
-            <artifactId>failureaccess</artifactId>
             <groupId>com.google.guava</groupId>
           </exclusion>
           <exclusion>
@@ -301,6 +340,12 @@
         <groupId>com.google.jimfs</groupId>
         <artifactId>jimfs</artifactId>
         <version>1.1</version>
+        <exclusions>
+          <exclusion>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+          </exclusion>
+        </exclusions>
       </dependency>
       <dependency>
         <groupId>org.hdrhistogram</groupId>
@@ -310,7 +355,7 @@
       <dependency>
         <groupId>commons-cli</groupId>
         <artifactId>commons-cli</artifactId>
-        <version>1.1</version>
+        <version>1.5.0</version>
       </dependency>
       <dependency>
         <groupId>commons-codec</groupId>
@@ -418,11 +463,6 @@
         </exclusions>
       </dependency>
       <dependency>
-        <groupId>com.googlecode.json-simple</groupId>
-        <artifactId>json-simple</artifactId>
-        <version>1.1</version>
-      </dependency>
-      <dependency>
         <groupId>com.boundary</groupId>
         <artifactId>high-scale-lib</artifactId>
         <version>1.0.6</version>
@@ -494,7 +534,19 @@
       <dependency>
         <groupId>org.apache.cassandra</groupId>
         <artifactId>dtest-api</artifactId>
-        <version>0.0.13</version>
+        <version>0.0.15</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>com.github.tomakehurst</groupId>
+        <artifactId>wiremock-jre8</artifactId>
+        <version>2.35.0</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>com.puppycrawl.tools</groupId>
+        <artifactId>checkstyle</artifactId>
+        <version>10.12.1</version>
         <scope>test</scope>
       </dependency>
       <dependency>
@@ -608,13 +660,13 @@
       <dependency>
         <groupId>org.openjdk.jmh</groupId>
         <artifactId>jmh-core</artifactId>
-        <version>1.21</version>
+        <version>1.36</version>
         <scope>test</scope>
       </dependency>
       <dependency>
         <groupId>org.openjdk.jmh</groupId>
         <artifactId>jmh-generator-annprocess</artifactId>
-        <version>1.21</version>
+        <version>1.36</version>
         <scope>test</scope>
       </dependency>
       <dependency>
@@ -673,19 +725,35 @@
       <dependency>
         <groupId>io.netty</groupId>
         <artifactId>netty-bom</artifactId>
-        <version>4.1.58.Final</version>
+        <version>4.1.96.Final</version>
         <type>pom</type>
         <scope>provided</scope>
       </dependency>
       <dependency>
         <groupId>io.netty</groupId>
         <artifactId>netty-all</artifactId>
-        <version>4.1.58.Final</version>
+        <version>4.1.96.Final</version>
       </dependency>
       <dependency>
         <groupId>io.netty</groupId>
         <artifactId>netty-tcnative-boringssl-static</artifactId>
-        <version>2.0.36.Final</version>
+        <version>2.0.61.Final</version>
+      </dependency>
+      <dependency>
+        <groupId>org.bouncycastle</groupId>
+        <artifactId>bcpkix-jdk15on</artifactId>
+        <version>1.70</version>
+      </dependency>
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-transport-native-epoll</artifactId>
+        <version>4.1.94.Final</version>
+      </dependency>
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-transport-native-epoll</artifactId>
+        <version>4.1.94.Final</version>
+        <classifier>linux-x86_64</classifier>
       </dependency>
 
       <!-- chronicle-queue deps -->
@@ -826,7 +894,7 @@
         </exclusions>
       </dependency>
       <dependency>
-        <groupId>org.eclipse.jdt.core.compiler</groupId>
+        <groupId>org.eclipse.jdt</groupId>
         <artifactId>ecj</artifactId>
         <version>${ecj.version}</version>
       </dependency>
@@ -878,11 +946,6 @@
             <groupId>org.apache.ant</groupId>
           </exclusion>
         </exclusions>
-      </dependency>
-      <dependency>
-        <groupId>com.github.rholder</groupId>
-        <artifactId>snowball-stemmer</artifactId>
-        <version>1.3.0.581.1</version>
       </dependency>
       <dependency>
         <groupId>com.googlecode.concurrent-trees</groupId>
@@ -1006,18 +1069,20 @@
         <artifactId>j2objc-annotations</artifactId>
         <version>1.3</version>
       </dependency>
+      <!-- adding this dependency is necessary for assertj. When updating assertj, need to also update the version of
+           this that the new assertj's `assertj-parent-pom` depends on. -->
       <dependency>
         <groupId>org.junit</groupId>
         <artifactId>junit-bom</artifactId>
-        <version>5.6.0</version>
+        <version>5.9.1</version>
         <type>pom</type>
         <scope>test</scope>
       </dependency>
       <dependency>
         <groupId>org.assertj</groupId>
         <artifactId>assertj-core</artifactId>
-        <version>3.15.0</version>
-        <scope>provided</scope>
+        <version>3.24.2</version>
+        <scope>test</scope>
       </dependency>
       <dependency>
         <groupId>org.awaitility</groupId>
@@ -1046,6 +1111,28 @@
         <groupId>org.agrona</groupId>
         <artifactId>agrona</artifactId>
         <version>1.17.1</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.lucene</groupId>
+        <artifactId>lucene-core</artifactId>
+        <version>9.7.0</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.lucene</groupId>
+        <artifactId>lucene-analysis-common</artifactId>
+        <version>9.7.0</version>
+      </dependency>
+      <dependency>
+        <groupId>com.carrotsearch.randomizedtesting</groupId>
+        <artifactId>randomizedtesting-runner</artifactId>
+        <version>2.1.2</version>
+        <scope>test</scope>
+        <exclusions>
+          <exclusion>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+          </exclusion>
+        </exclusions>
       </dependency>
       <dependency>
         <groupId>ch.obermuhlner</groupId>

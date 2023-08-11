@@ -50,6 +50,7 @@ import static java.lang.String.join;
 import static com.google.common.collect.Iterables.concat;
 import static com.google.common.collect.Iterables.filter;
 import static com.google.common.collect.Iterables.transform;
+import static org.apache.cassandra.config.CassandraRelevantProperties.MV_ALLOW_FILTERING_NONKEY_COLUMNS_UNSAFE;
 
 public final class CreateViewStatement extends AlterSchemaStatement
 {
@@ -294,7 +295,7 @@ public final class CreateViewStatement extends AlterSchemaStatement
 
         // See CASSANDRA-13798
         Set<ColumnMetadata> restrictedNonPrimaryKeyColumns = restrictions.nonPKRestrictedColumns(false);
-        if (!restrictedNonPrimaryKeyColumns.isEmpty() && !Boolean.getBoolean("cassandra.mv.allow_filtering_nonkey_columns_unsafe"))
+        if (!restrictedNonPrimaryKeyColumns.isEmpty() && !MV_ALLOW_FILTERING_NONKEY_COLUMNS_UNSAFE.getBoolean())
         {
             throw ire("Non-primary key columns can only be restricted with 'IS NOT NULL' (got: %s restricted illegally)",
                       join(",", transform(restrictedNonPrimaryKeyColumns, ColumnMetadata::toString)));

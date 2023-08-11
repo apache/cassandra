@@ -214,15 +214,15 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
-    protected long getPosition(PartitionPosition key, Operator op, boolean updateStats, boolean permitMatchPastLast, SSTableReadsListener listener)
+    protected long getPosition(PartitionPosition key, Operator op, boolean updateStats, SSTableReadsListener listener)
     {
-        return delegate.getPosition(key, op, updateStats, permitMatchPastLast, listener);
+        return delegate.getPosition(key, op, updateStats, listener);
     }
 
     @Override
-    protected AbstractRowIndexEntry getRowIndexEntry(PartitionPosition key, Operator op, boolean updateCacheAndStats, boolean permitMatchPastLast, SSTableReadsListener listener)
+    protected AbstractRowIndexEntry getRowIndexEntry(PartitionPosition key, Operator op, boolean updateCacheAndStats, SSTableReadsListener listener)
     {
-        return delegate.getRowIndexEntry(key, op, updateCacheAndStats, permitMatchPastLast, listener);
+        return delegate.getRowIndexEntry(key, op, updateCacheAndStats, listener);
     }
 
     @Override
@@ -418,13 +418,13 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
-    public double getEstimatedDroppableTombstoneRatio(int gcBefore)
+    public double getEstimatedDroppableTombstoneRatio(long gcBefore)
     {
         return delegate.getEstimatedDroppableTombstoneRatio(gcBefore);
     }
 
     @Override
-    public double getDroppableTombstonesBefore(int gcBefore)
+    public double getDroppableTombstonesBefore(long gcBefore)
     {
         return delegate.getDroppableTombstonesBefore(gcBefore);
     }
@@ -448,13 +448,13 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     }
 
     @Override
-    public int getMinLocalDeletionTime()
+    public long getMinLocalDeletionTime()
     {
         return delegate.getMinLocalDeletionTime();
     }
 
     @Override
-    public int getMaxLocalDeletionTime()
+    public long getMaxLocalDeletionTime()
     {
         return delegate.getMaxLocalDeletionTime();
     }
@@ -691,6 +691,12 @@ public abstract class ForwardingSSTableReader extends SSTableReader
     public AbstractBounds<Token> getBounds()
     {
         return delegate.getBounds();
+    }
+
+    @Override
+    public double tokenSpaceCoverage()
+    {
+        return delegate.tokenSpaceCoverage();
     }
 
     @Override

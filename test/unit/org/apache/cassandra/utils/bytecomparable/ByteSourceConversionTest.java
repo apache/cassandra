@@ -58,7 +58,7 @@ import static org.junit.Assert.assertEquals;
 public class ByteSourceConversionTest extends ByteSourceTestBase
 {
     private final static Logger logger = LoggerFactory.getLogger(ByteSourceConversionTest.class);
-    public static final Version VERSION = Version.OSS42;
+    public static final Version VERSION = Version.OSS50;
 
     @Rule
     public final ExpectedException expectedException = ExpectedException.none();

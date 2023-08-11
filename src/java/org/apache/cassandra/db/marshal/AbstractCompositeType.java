@@ -24,8 +24,6 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 import org.apache.cassandra.cql3.Term;
-import org.apache.cassandra.serializers.TypeSerializer;
-import org.apache.cassandra.serializers.BytesSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -232,6 +230,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
             part = p.getRemainingPart();
 
             ByteBuffer component = type.fromString(unescape(part));
+            type.validate(component);
             totalLength += p.getComparatorSerializedSize() + 2 + component.remaining() + 1;
             components.add(component);
             comparators.add(p);
@@ -266,6 +265,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
     @Override
     public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
+        // TODO: suport toJSONString (CASSANDRA-18177)
         throw new UnsupportedOperationException();
     }
 
@@ -289,7 +289,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
 
             if (accessor.sizeFromOffset(input, offset) < 2)
                 throw new MarshalException("Not enough bytes to read value size of component " + i);
-            int length = accessor.getShort(input, offset);
+            int length = accessor.getUnsignedShort(input, offset);
             offset += 2;
 
             if (accessor.sizeFromOffset(input, offset) < length)
@@ -311,11 +311,6 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
     }
 
     public abstract ByteBuffer decompose(Object... objects);
-
-    public TypeSerializer<ByteBuffer> getSerializer()
-    {
-        return BytesSerializer.instance;
-    }
 
     abstract protected <V> int getComparatorSize(int i, V value, ValueAccessor<V> accessor, int offset);
     /**

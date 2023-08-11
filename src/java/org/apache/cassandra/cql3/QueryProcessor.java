@@ -82,8 +82,6 @@ public class QueryProcessor implements QueryHandler
     public static final CassandraVersion CQL_VERSION = new CassandraVersion("3.4.7");
 
     // See comments on QueryProcessor #prepare
-    public static final CassandraVersion NEW_PREPARED_STATEMENT_BEHAVIOUR_SINCE_30 = new CassandraVersion("3.0.26");
-    public static final CassandraVersion NEW_PREPARED_STATEMENT_BEHAVIOUR_SINCE_3X = new CassandraVersion("3.11.12");
     public static final CassandraVersion NEW_PREPARED_STATEMENT_BEHAVIOUR_SINCE_40 = new CassandraVersion("4.0.2");
 
     public static final QueryProcessor instance = new QueryProcessor();
@@ -384,12 +382,12 @@ public class QueryProcessor implements QueryHandler
         return makeInternalOptionsWithNowInSec(prepared, FBUtilities.nowInSeconds(), values, cl);
     }
 
-    public static QueryOptions makeInternalOptionsWithNowInSec(CQLStatement prepared, int nowInSec, Object[] values)
+    public static QueryOptions makeInternalOptionsWithNowInSec(CQLStatement prepared, long nowInSec, Object[] values)
     {
         return makeInternalOptionsWithNowInSec(prepared, nowInSec, values, ConsistencyLevel.ONE);
     }
 
-    private static QueryOptions makeInternalOptionsWithNowInSec(CQLStatement prepared, int nowInSec, Object[] values, ConsistencyLevel cl)
+    private static QueryOptions makeInternalOptionsWithNowInSec(CQLStatement prepared, long nowInSec, Object[] values, ConsistencyLevel cl)
     {
         if (prepared.getBindVariables().size() != values.length)
             throw new IllegalArgumentException(String.format("Invalid number of values. Expecting %d but got %d", prepared.getBindVariables().size(), values.length));
@@ -454,7 +452,7 @@ public class QueryProcessor implements QueryHandler
     public static Future<UntypedResultSet> executeAsync(InetAddressAndPort address, String query, Object... values)
     {
         Prepared prepared = prepareInternal(query);
-        int nowInSec = FBUtilities.nowInSeconds();
+        long nowInSec = FBUtilities.nowInSeconds();
         QueryOptions options = makeInternalOptionsWithNowInSec(prepared.statement, nowInSec, values);
         if (prepared.statement instanceof SelectStatement)
         {
@@ -512,7 +510,7 @@ public class QueryProcessor implements QueryHandler
         return execute(query, cl, internalQueryState(), values);
     }
 
-    public static UntypedResultSet executeInternalWithNowInSec(String query, int nowInSec, Object... values)
+    public static UntypedResultSet executeInternalWithNowInSec(String query, long nowInSec, Object... values)
     {
         Prepared prepared = prepareInternal(query);
         ResultMessage result = prepared.statement.executeLocally(internalQueryState(), makeInternalOptionsWithNowInSec(prepared.statement, nowInSec, values));
@@ -547,7 +545,7 @@ public class QueryProcessor implements QueryHandler
             throw new IllegalArgumentException("Only SELECTs can be paged");
 
         SelectStatement select = (SelectStatement)prepared.statement;
-        int nowInSec = FBUtilities.nowInSeconds();
+        long nowInSec = FBUtilities.nowInSeconds();
         QueryPager pager = select.getQuery(makeInternalOptionsWithNowInSec(prepared.statement, nowInSec, values), nowInSec).getPager(null, ProtocolVersion.CURRENT);
         return UntypedResultSet.create(select, pager, pageSize);
     }
@@ -566,7 +564,7 @@ public class QueryProcessor implements QueryHandler
      * <p>This method ensure that the statement will not be cached in the prepared statement cache.</p>
      */
     @VisibleForTesting
-    public static UntypedResultSet executeOnceInternalWithNowAndTimestamp(int nowInSec, long timestamp, String query, Object... values)
+    public static UntypedResultSet executeOnceInternalWithNowAndTimestamp(long nowInSec, long timestamp, String query, Object... values)
     {
         QueryState queryState = new QueryState(InternalStateInstance.INSTANCE.clientState, timestamp, nowInSec);
         return executeOnceInternal(queryState, query, values);
@@ -588,7 +586,7 @@ public class QueryProcessor implements QueryHandler
      * Note that this only make sense for Selects so this only accept SELECT statements and is only useful in rare
      * cases.
      */
-    public static UntypedResultSet executeInternalWithNow(int nowInSec, long queryStartNanoTime, String query, Object... values)
+    public static UntypedResultSet executeInternalWithNow(long nowInSec, long queryStartNanoTime, String query, Object... values)
     {
         Prepared prepared = prepareInternal(query);
         assert prepared.statement instanceof SelectStatement;
@@ -603,7 +601,7 @@ public class QueryProcessor implements QueryHandler
      * Note that this only make sense for Selects so this only accept SELECT statements and is only useful in rare
      * cases.
      */
-    public static Map<DecoratedKey, List<Row>> executeInternalRawWithNow(int nowInSec, String query, Object... values)
+    public static Map<DecoratedKey, List<Row>> executeInternalRawWithNow(long nowInSec, String query, Object... values)
     {
         Prepared prepared = prepareInternal(query);
         assert prepared.statement instanceof SelectStatement;
@@ -644,10 +642,7 @@ public class QueryProcessor implements QueryHandler
         synchronized (this)
         {
             CassandraVersion minVersion = Gossiper.instance.getMinVersion(DatabaseDescriptor.getWriteRpcTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
-            if (minVersion != null &&
-                ((minVersion.major == 3 && minVersion.minor == 0 && minVersion.compareTo(NEW_PREPARED_STATEMENT_BEHAVIOUR_SINCE_30) >= 0) ||
-                 (minVersion.major == 3 && minVersion.minor > 0 && minVersion.compareTo(NEW_PREPARED_STATEMENT_BEHAVIOUR_SINCE_3X) >= 0) ||
-                 (minVersion.compareTo(NEW_PREPARED_STATEMENT_BEHAVIOUR_SINCE_40, true) >= 0)))
+            if (minVersion != null && minVersion.compareTo(NEW_PREPARED_STATEMENT_BEHAVIOUR_SINCE_40, true) >= 0)
             {
                 logger.info("Fully upgraded to at least {}", minVersion);
                 newPreparedStatementBehaviour = true;
@@ -661,17 +656,17 @@ public class QueryProcessor implements QueryHandler
      * This method got slightly out of hand, but this is with best intentions: to allow users to be upgraded from any
      * prior version, and help implementers avoid previous mistakes by clearly separating fully qualified and non-fully
      * qualified statement behaviour.
-     *
+     * <p>
      * Basically we need to handle 4 different hashes here;
      * 1. fully qualified query with keyspace
      * 2. fully qualified query without keyspace
      * 3. unqualified query with keyspace
      * 4. unqualified query without keyspace
-     *
-     * The correct combination to return is 2/3 - the problem is during upgrades (assuming upgrading from < 3.0.26)
+     * <p>
+     * The correct combination to return is 2/3 - the problem is during upgrades (assuming upgrading from < 4.0.2)
      * - Existing clients have hash 1 or 3
-     * - Query prepared on a 3.0.26/3.11.12/4.0.2 instance needs to return hash 1/3 to be able to execute it on a 3.0.25 instance
-     * - This is handled by the useNewPreparedStatementBehaviour flag - while there still are 3.0.25 instances in
+     * - Query prepared on a post-4.0.2 instance needs to return hash 1/3 to be able to execute it on a pre-4.0.2 instance
+     * - This is handled by the useNewPreparedStatementBehaviour flag - while there still are pre-4.0.2 instances in
      *   the cluster we always return hash 1/3
      * - Once fully upgraded we start returning hash 2/3, this will cause a prepared statement id mismatch for existing
      *   clients, but they will be able to continue using the old prepared statement id after that exception since we
@@ -758,7 +753,8 @@ public class QueryProcessor implements QueryHandler
             return null;
 
         checkTrue(queryString.equals(existing.rawCQLStatement),
-                String.format("MD5 hash collision: query with the same MD5 hash was already prepared. \n Existing: '%s'", existing.rawCQLStatement));
+                  "MD5 hash collision: query with the same MD5 hash was already prepared. \n Existing: '%s'",
+                  existing.rawCQLStatement);
 
         return createResultMessage(statementId, existing);
     }

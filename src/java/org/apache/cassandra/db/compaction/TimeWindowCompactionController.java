@@ -33,7 +33,7 @@ public class TimeWindowCompactionController extends CompactionController
 
     private final boolean ignoreOverlaps;
 
-    public TimeWindowCompactionController(ColumnFamilyStore cfs, Set<SSTableReader> compacting, int gcBefore, boolean ignoreOverlaps)
+    public TimeWindowCompactionController(ColumnFamilyStore cfs, Set<SSTableReader> compacting, long gcBefore, boolean ignoreOverlaps)
     {
         super(cfs, compacting, gcBefore);
         this.ignoreOverlaps = ignoreOverlaps;

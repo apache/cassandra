@@ -212,7 +212,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 
                 protected Row computeNext()
                 {
-                    int nowInSec = FBUtilities.nowInSeconds();
+                    long nowInSec = FBUtilities.nowInSeconds();
                     while (currentPage == null || !currentPage.hasNext())
                     {
                         if (pager.isExhausted())
@@ -278,7 +278,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 
                 protected Row computeNext()
                 {
-                    int nowInSec = FBUtilities.nowInSeconds();
+                    long nowInSec = FBUtilities.nowInSeconds();
                     while (currentPage == null || !currentPage.hasNext())
                     {
                         if (pager.isExhausted())
@@ -482,6 +482,12 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
         public Map<String, String> getFrozenTextMap(String column)
         {
             return getFrozenMap(column, UTF8Type.instance, UTF8Type.instance);
+        }
+
+        public <T> List<T> getVector(String column, AbstractType<T> elementType, int dimension)
+        {
+            ByteBuffer raw = data.get(column);
+            return raw == null ? null : VectorType.getInstance(elementType, dimension).compose(raw);
         }
 
         public List<ColumnSpecification> getColumns()

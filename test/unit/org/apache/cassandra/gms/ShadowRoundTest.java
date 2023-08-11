@@ -33,11 +33,11 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -49,6 +49,8 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.AUTO_BOOTSTRAP;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
 import static org.apache.cassandra.net.MockMessagingService.verb;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
@@ -61,7 +63,7 @@ public class ShadowRoundTest
     @BeforeClass
     public static void setUp() throws ConfigurationException
     {
-        System.setProperty("cassandra.config", "cassandra-seeds.yaml");
+        CASSANDRA_CONFIG.setString("cassandra-seeds.yaml");
 
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
@@ -171,8 +173,7 @@ public class ShadowRoundTest
                 }, 1);
 
 
-        System.setProperty(Config.PROPERTY_PREFIX + "auto_bootstrap", "false");
-        try
+        try (WithProperties properties = new WithProperties().set(AUTO_BOOTSTRAP, false))
         {
             StorageService.instance.checkForEndpointCollision(SystemKeyspace.getOrInitializeLocalHostId(), SystemKeyspace.loadHostIds().keySet());
         }
@@ -180,7 +181,6 @@ public class ShadowRoundTest
         {
             assertEquals("Unable to gossip with any peers", e.getMessage());
         }
-        System.clearProperty(Config.PROPERTY_PREFIX + "auto_bootstrap");
     }
 
     @Test
@@ -209,9 +209,10 @@ public class ShadowRoundTest
                 }, 1);
 
 
-        System.setProperty(Config.PROPERTY_PREFIX + "auto_bootstrap", "false");
-        StorageService.instance.checkForEndpointCollision(SystemKeyspace.getOrInitializeLocalHostId(), SystemKeyspace.loadHostIds().keySet());
-        System.clearProperty(Config.PROPERTY_PREFIX + "auto_bootstrap");
+        try (WithProperties properties = new WithProperties().set(AUTO_BOOTSTRAP, false))
+        {
+            StorageService.instance.checkForEndpointCollision(SystemKeyspace.getOrInitializeLocalHostId(), SystemKeyspace.loadHostIds().keySet());
+        }
     }
 
 }

@@ -34,6 +34,8 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.commitlog.CommitLogPosition;
+import org.apache.cassandra.db.commitlog.IntervalSet;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.Range;
@@ -178,7 +180,7 @@ public abstract class AbstractCompactionStrategy
      *
      * Is responsible for marking its sstables as compaction-pending.
      */
-    public abstract AbstractCompactionTask getNextBackgroundTask(final int gcBefore);
+    public abstract AbstractCompactionTask getNextBackgroundTask(final long gcBefore);
 
     /**
      * @param gcBefore throw away tombstones older than this
@@ -188,7 +190,7 @@ public abstract class AbstractCompactionStrategy
      *
      * Is responsible for marking its sstables as compaction-pending.
      */
-    public abstract Collection<AbstractCompactionTask> getMaximalTask(final int gcBefore, boolean splitOutput);
+    public abstract Collection<AbstractCompactionTask> getMaximalTask(final long gcBefore, boolean splitOutput);
 
     /**
      * @param sstables SSTables to compact. Must be marked as compacting.
@@ -199,9 +201,9 @@ public abstract class AbstractCompactionStrategy
      *
      * Is responsible for marking its sstables as compaction-pending.
      */
-    public abstract AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, final int gcBefore);
+    public abstract AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, final long gcBefore);
 
-    public AbstractCompactionTask getCompactionTask(LifecycleTransaction txn, final int gcBefore, long maxSSTableBytes)
+    public AbstractCompactionTask getCompactionTask(LifecycleTransaction txn, final long gcBefore, long maxSSTableBytes)
     {
         return new CompactionTask(cfs, txn, gcBefore);
     }
@@ -252,10 +254,10 @@ public abstract class AbstractCompactionStrategy
      * allow for a more memory efficient solution if we know the sstable don't overlap (see
      * LeveledCompactionStrategy for instance).
      */
-    @SuppressWarnings("resource")
+    @SuppressWarnings({"resource", "RedundantSuppression"})
     public ScannerList getScanners(Collection<SSTableReader> sstables, Collection<Range<Token>> ranges)
     {
-        ArrayList<ISSTableScanner> scanners = new ArrayList<ISSTableScanner>();
+        ArrayList<ISSTableScanner> scanners = new ArrayList<>();
         try
         {
             for (SSTableReader sstable : sstables)
@@ -325,9 +327,6 @@ public abstract class AbstractCompactionStrategy
      *
      * Not called when repair status changes (which is also metadata), because this results in the
      * sstable getting removed from the compaction strategy instance.
-     *
-     * @param oldMetadata
-     * @param sstable
      */
     public void metadataChanged(StatsMetadata oldMetadata, SSTableReader sstable)
     {
@@ -366,7 +365,7 @@ public abstract class AbstractCompactionStrategy
 
             for (int i=0, isize=scanners.size(); i<isize; i++)
             {
-                @SuppressWarnings("resource")
+                @SuppressWarnings({"resource", "RedundantSuppression"})
                 ISSTableScanner scanner = scanners.get(i);
                 compressed += scanner.getCompressedLengthInBytes();
                 uncompressed += scanner.getLengthInBytes();
@@ -397,9 +396,9 @@ public abstract class AbstractCompactionStrategy
      * @param gcBefore time to drop tombstones
      * @return true if given sstable's tombstones are expected to be removed
      */
-    protected boolean worthDroppingTombstones(SSTableReader sstable, int gcBefore)
+    protected boolean worthDroppingTombstones(SSTableReader sstable, long gcBefore)
     {
-        if (disableTombstoneCompactions || CompactionController.NEVER_PURGE_TOMBSTONES || cfs.getNeverPurgeTombstones())
+        if (disableTombstoneCompactions || CompactionController.NEVER_PURGE_TOMBSTONES_PROPERTY_VALUE || cfs.getNeverPurgeTombstones())
             return false;
         // since we use estimations to calculate, there is a chance that compaction will not drop tombstones actually.
         // if that happens we will end up in infinite compaction loop, so first we check enough if enough time has
@@ -530,7 +529,7 @@ public abstract class AbstractCompactionStrategy
     {
         int groupSize = 2;
         List<SSTableReader> sortedSSTablesToGroup = new ArrayList<>(sstablesToGroup);
-        Collections.sort(sortedSSTablesToGroup, SSTableReader.sstableComparator);
+        Collections.sort(sortedSSTablesToGroup, SSTableReader.firstKeyComparator);
 
         Collection<Collection<SSTableReader>> groupedSSTables = new ArrayList<>();
         Collection<SSTableReader> currGroup = new ArrayList<>(groupSize);
@@ -560,12 +559,23 @@ public abstract class AbstractCompactionStrategy
                                                        long repairedAt,
                                                        TimeUUID pendingRepair,
                                                        boolean isTransient,
-                                                       MetadataCollector meta,
+                                                       IntervalSet<CommitLogPosition> commitLogPositions,
+                                                       int sstableLevel,
                                                        SerializationHeader header,
-                                                       Collection<Index> indexes,
+                                                       Collection<Index.Group> indexGroups,
                                                        LifecycleNewTracker lifecycleNewTracker)
     {
-        return SimpleSSTableMultiWriter.create(descriptor, keyCount, repairedAt, pendingRepair, isTransient, cfs.metadata, meta, header, indexes, lifecycleNewTracker, cfs);
+        return SimpleSSTableMultiWriter.create(descriptor,
+                                               keyCount,
+                                               repairedAt,
+                                               pendingRepair,
+                                               isTransient,
+                                               cfs.metadata,
+                                               commitLogPositions,
+                                               sstableLevel,
+                                               header,
+                                               indexGroups,
+                                               lifecycleNewTracker, cfs);
     }
 
     public boolean supportsEarlyOpen()

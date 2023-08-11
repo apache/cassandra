@@ -24,6 +24,7 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.marshal.CollectionType.Kind;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -31,10 +32,11 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.util.stream.Collectors.toList;
@@ -53,15 +55,35 @@ public interface CQL3Type
         return false;
     }
 
+    default boolean isVector()
+    {
+        return false;
+    }
+
     public AbstractType<?> getType();
 
     /**
      * Generates CQL literal from a binary value of this type.
      *  @param bytes the value to convert to a CQL literal. This value must be
      * serialized with {@code version} of the native protocol.
-     * @param version the native protocol version in which {@code buffer} is encoded.
      */
-    String toCQLLiteral(ByteBuffer bytes, ProtocolVersion version);
+    String toCQLLiteral(ByteBuffer bytes);
+
+    /**
+     * Generates a binary value for the CQL literal of this type
+     */
+    default ByteBuffer fromCQLLiteral(String literal)
+    {
+        return fromCQLLiteral(SchemaConstants.DUMMY_KEYSPACE_OR_TABLE_NAME, literal);
+    }
+
+    /**
+     * Generates a binary value for the CQL literal of this type
+     */
+    default ByteBuffer fromCQLLiteral(String keyspaceName, String literal)
+    {
+        return Terms.asBytes(keyspaceName, literal, getType());
+    }
 
     public enum Native implements CQL3Type
     {
@@ -107,7 +129,7 @@ public interface CQL3Type
          * {@link org.apache.cassandra.serializers.TypeSerializer#toString(Object)}
          * {@link org.apache.cassandra.serializers.TypeSerializer#deserialize(ByteBuffer)} implementations.
          */
-        public String toCQLLiteral(ByteBuffer buffer, ProtocolVersion version)
+        public String toCQLLiteral(ByteBuffer buffer)
         {
             return type.getSerializer().toCQLLiteral(buffer);
         }
@@ -139,10 +161,10 @@ public interface CQL3Type
         }
 
         @Override
-        public String toCQLLiteral(ByteBuffer buffer, ProtocolVersion version)
+        public String toCQLLiteral(ByteBuffer buffer)
         {
             // *always* use the 'blob' syntax to express custom types in CQL
-            return Native.BLOB.toCQLLiteral(buffer, version);
+            return Native.BLOB.toCQLLiteral(buffer);
         }
 
         @Override
@@ -188,7 +210,7 @@ public interface CQL3Type
         }
 
         @Override
-        public String toCQLLiteral(ByteBuffer buffer, ProtocolVersion version)
+        public String toCQLLiteral(ByteBuffer buffer)
         {
             if (buffer == null)
                 return "null";
@@ -203,25 +225,25 @@ public interface CQL3Type
                 case LIST:
                     CQL3Type elements = ((ListType<?>) type).getElementsType().asCQL3Type();
                     target.append('[');
-                    generateSetOrListCQLLiteral(buffer, version, target, size, elements);
+                    generateSetOrListCQLLiteral(buffer, target, size, elements);
                     target.append(']');
                     break;
                 case SET:
                     elements = ((SetType<?>) type).getElementsType().asCQL3Type();
                     target.append('{');
-                    generateSetOrListCQLLiteral(buffer, version, target, size, elements);
+                    generateSetOrListCQLLiteral(buffer, target, size, elements);
                     target.append('}');
                     break;
                 case MAP:
                     target.append('{');
-                    generateMapCQLLiteral(buffer, version, target, size);
+                    generateMapCQLLiteral(buffer, target, size);
                     target.append('}');
                     break;
             }
             return target.toString();
         }
 
-        private void generateMapCQLLiteral(ByteBuffer buffer, ProtocolVersion version, StringBuilder target, int size)
+        private void generateMapCQLLiteral(ByteBuffer buffer, StringBuilder target, int size)
         {
             CQL3Type keys = ((MapType<?, ?>) type).getKeysType().asCQL3Type();
             CQL3Type values = ((MapType<?, ?>) type).getValuesType().asCQL3Type();
@@ -232,15 +254,15 @@ public interface CQL3Type
                     target.append(", ");
                 ByteBuffer element = CollectionSerializer.readValue(buffer, ByteBufferAccessor.instance, offset);
                 offset += CollectionSerializer.sizeOfValue(element, ByteBufferAccessor.instance);
-                target.append(keys.toCQLLiteral(element, version));
+                target.append(keys.toCQLLiteral(element));
                 target.append(": ");
                 element = CollectionSerializer.readValue(buffer, ByteBufferAccessor.instance, offset);
                 offset += CollectionSerializer.sizeOfValue(element, ByteBufferAccessor.instance);
-                target.append(values.toCQLLiteral(element, version));
+                target.append(values.toCQLLiteral(element));
             }
         }
 
-        private static void generateSetOrListCQLLiteral(ByteBuffer buffer, ProtocolVersion version, StringBuilder target, int size, CQL3Type elements)
+        private static void generateSetOrListCQLLiteral(ByteBuffer buffer, StringBuilder target, int size, CQL3Type elements)
         {
             int offset = 0;
             for (int i = 0; i < size; i++)
@@ -249,7 +271,7 @@ public interface CQL3Type
                     target.append(", ");
                 ByteBuffer element = CollectionSerializer.readValue(buffer, ByteBufferAccessor.instance, offset);
                 offset += CollectionSerializer.sizeOfValue(element, ByteBufferAccessor.instance);
-                target.append(elements.toCQLLiteral(element, version));
+                target.append(elements.toCQLLiteral(element));
             }
         }
 
@@ -327,7 +349,7 @@ public interface CQL3Type
         }
 
         @Override
-        public String toCQLLiteral(ByteBuffer buffer, ProtocolVersion version)
+        public String toCQLLiteral(ByteBuffer buffer)
         {
             if (buffer == null)
                 return "null";
@@ -364,7 +386,7 @@ public interface CQL3Type
                     throw new MarshalException(String.format("Not enough bytes to read %dth field %s", i, type.fieldName(i)));
 
                 ByteBuffer field = ByteBufferUtil.readBytes(buffer, size);
-                target.append(type.fieldType(i).asCQL3Type().toCQLLiteral(field, version));
+                target.append(type.fieldType(i).asCQL3Type().toCQLLiteral(field));
             }
             target.append('}');
             return target.toString();
@@ -415,7 +437,7 @@ public interface CQL3Type
             return type;
         }
 
-        public String toCQLLiteral(ByteBuffer buffer, ProtocolVersion version)
+        public String toCQLLiteral(ByteBuffer buffer)
         {
             if (buffer == null)
                 return "null";
@@ -451,7 +473,7 @@ public interface CQL3Type
                     throw new MarshalException(String.format("Not enough bytes to read %dth component", i));
 
                 ByteBuffer field = ByteBufferUtil.readBytes(buffer, size);
-                target.append(type.type(i).asCQL3Type().toCQLLiteral(field, version));
+                target.append(type.type(i).asCQL3Type().toCQLLiteral(field));
             }
             target.append(')');
             return target.toString();
@@ -499,6 +521,60 @@ public interface CQL3Type
         }
     }
 
+    public static class Vector implements CQL3Type
+    {
+        private final VectorType<?> type;
+
+        public Vector(VectorType<?> type)
+        {
+            this.type = type;
+        }
+
+        public Vector(AbstractType<?> elementType, int dimensions)
+        {
+            this.type = VectorType.getInstance(elementType, dimensions);
+        }
+
+        public boolean isVector()
+        {
+            return true;
+        }
+
+        @Override
+        public VectorType<?> getType()
+        {
+            return type;
+        }
+
+        @Override
+        public String toCQLLiteral(ByteBuffer buffer)
+        {
+            if (type.isNull(buffer))
+                return "null";
+            buffer = buffer.duplicate();
+            CQL3Type elementType = type.elementType.asCQL3Type();
+            List<ByteBuffer> values = getType().split(buffer);
+            StringBuilder sb = new StringBuilder();
+            sb.append('[');
+            for (int i = 0; i < values.size(); i++)
+            {
+                if (i > 0)
+                    sb.append(", ");
+                sb.append(elementType.toCQLLiteral(values.get(i)));
+            }
+            sb.append(']');
+            return sb.toString();
+        }
+
+        @Override
+        public String toString()
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.append("vector<").append(type.elementType.asCQL3Type()).append(", ").append(type.dimension).append('>');
+            return sb.toString();
+        }
+    }
+
     // For UserTypes, we need to know the current keyspace to resolve the
     // actual type used, so Raw is a "not yet prepared" CQL3Type.
     public abstract class Raw
@@ -537,6 +613,16 @@ public interface CQL3Type
             return false;
         }
 
+        public boolean isImplicitlyFrozen()
+        {
+            return isTuple() || isVector();
+        }
+
+        public boolean isVector()
+        {
+            return false;
+        }
+
         public String keyspace()
         {
             return null;
@@ -547,6 +633,8 @@ public interface CQL3Type
             String message = String.format("frozen<> is only allowed on collections, tuples, and user-defined types (got %s)", this);
             throw new InvalidRequestException(message);
         }
+
+        public abstract void validate(ClientState state, String name);
 
         public CQL3Type prepare(String keyspace)
         {
@@ -598,6 +686,11 @@ public interface CQL3Type
             return new RawTuple(ts);
         }
 
+        public static Raw vector(CQL3Type.Raw t, int dimension)
+        {
+            return new RawVector(t, dimension);
+        }
+
         private static class RawType extends Raw
         {
             private final CQL3Type type;
@@ -606,6 +699,16 @@ public interface CQL3Type
             {
                 super(frozen);
                 this.type = type;
+            }
+
+            @Override
+            public void validate(ClientState state, String name)
+            {
+                if (type.isVector())
+                {
+                    int dimensions = ((Vector) type).getType().dimension;
+                    Guardrails.vectorDimensions.guard(dimensions, name, false, state);
+                }
             }
 
             public CQL3Type prepare(String keyspace, Types udts) throws InvalidRequestException
@@ -675,6 +778,16 @@ public interface CQL3Type
                 return true;
             }
 
+            @Override
+            public void validate(ClientState state, String name)
+            {
+                if (keys != null)
+                    keys.validate(state, name);
+
+                if (values != null)
+                    values.validate(state, name);
+            }
+
             public CQL3Type prepare(String keyspace, Types udts) throws InvalidRequestException
             {
                 return prepare(keyspace, udts, false);
@@ -689,8 +802,7 @@ public interface CQL3Type
             {
                 assert values != null : "Got null values type for a collection";
 
-                // skip if innerType is tuple, since tuple is implicitly forzen
-                if (!frozen && values.supportsFreezing() && !values.frozen && !values.isTuple())
+                if (!frozen && values.supportsFreezing() && !values.frozen)
                     throwNestedNonFrozenError(values);
 
                 // we represent supercolumns as maps, internally, and we do allow counters in supercolumns. Thus,
@@ -753,6 +865,56 @@ public interface CQL3Type
             }
         }
 
+        private static class RawVector extends Raw
+        {
+            private final CQL3Type.Raw element;
+            private final int dimension;
+
+            private RawVector(Raw element, int dimension)
+            {
+                super(true);
+                this.element = element;
+                this.dimension = dimension;
+            }
+
+            @Override
+            public boolean isVector()
+            {
+                return true;
+            }
+
+            @Override
+            public boolean supportsFreezing()
+            {
+                return true;
+            }
+
+            @Override
+            public Raw freeze()
+            {
+                return this;
+            }
+
+            @Override
+            public void validate(ClientState state, String name)
+            {
+                Guardrails.vectorDimensions.guard(dimension, name, false, state);
+            }
+
+            @Override
+            public CQL3Type prepare(String keyspace, Types udts) throws InvalidRequestException
+            {
+                CQL3Type type = element.prepare(keyspace, udts);
+                return new Vector(type.getType(), dimension);
+            }
+
+            @Override
+            public String toString()
+            {
+                return "vector<" + element.toString() + ", " + dimension + '>';
+            }
+        }
+
         private static class RawUT extends Raw
         {
             private final UTName name;
@@ -772,6 +934,12 @@ public interface CQL3Type
             public RawUT freeze()
             {
                 return new RawUT(name, true);
+            }
+
+            @Override
+            public void validate(ClientState state, String name)
+            {
+                // nothing to do here
             }
 
             public CQL3Type prepare(String keyspace, Types udts) throws InvalidRequestException
@@ -845,6 +1013,13 @@ public interface CQL3Type
             public RawTuple freeze()
             {
                 return this;
+            }
+
+            @Override
+            public void validate(ClientState state, String name)
+            {
+                for (CQL3Type.Raw t : types)
+                    t.validate(state, name);
             }
 
             public CQL3Type prepare(String keyspace, Types udts) throws InvalidRequestException

@@ -49,7 +49,6 @@ import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigTableReader;
 import org.apache.cassandra.io.sstable.format.big.RowIndexEntry;
@@ -62,6 +61,7 @@ import org.assertj.core.api.Assertions;
 import org.hamcrest.Matchers;
 import org.mockito.Mockito;
 import org.mockito.internal.stubbing.answers.AnswersWithDelay;
+import org.mockito.invocation.InvocationOnMock;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
@@ -94,7 +94,7 @@ public class KeyCacheTest
     public static void defineSchema() throws ConfigurationException
     {
         DatabaseDescriptor.daemonInitialization();
-        sstableImplCachesKeys = KeyCacheSupport.isSupportedBy(SSTableFormat.Type.current());
+        sstableImplCachesKeys = KeyCacheSupport.isSupportedBy(DatabaseDescriptor.getSelectedSSTableFormat());
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
@@ -187,12 +187,12 @@ public class KeyCacheTest
             AbstractRowIndexEntry expected = entry.getValue();
             AbstractRowIndexEntry actual = CacheService.instance.keyCache.get(entry.getKey());
             assertEquals(expected.position, actual.position);
-            assertEquals(expected.columnsIndexCount(), actual.columnsIndexCount());
+            assertEquals(expected.blockCount(), actual.blockCount());
             assertEquals(expected.getSSTableFormat(), actual.getSSTableFormat());
-            for (int i = 0; i < expected.columnsIndexCount(); i++)
+            for (int i = 0; i < expected.blockCount(); i++)
             {
                 SSTableReader actualSstr = readerForKey(entry.getKey());
-                Assertions.assertThat(actualSstr.descriptor.formatType).isEqualTo(expected.getSSTableFormat().getType());
+                Assertions.assertThat(actualSstr.descriptor.version.format).isEqualTo(expected.getSSTableFormat());
                 if (actual instanceof RowIndexEntry)
                 {
                     try (RowIndexEntry.IndexInfoRetriever actualIir = ((RowIndexEntry) actual).openWithIndex(((BigTableReader) actualSstr).getIndexFile()))
@@ -418,9 +418,8 @@ public class KeyCacheTest
                                                               CacheService.CacheType.KEY_CACHE,
                                                               keyCacheSerializerSpy);
 
-        doAnswer(new AnswersWithDelay(delayMillis, answer -> keyCacheSerializer.deserialize(answer.getArgument(0),
-                                                                                            answer.getArgument(1)) ))
-               .when(keyCacheSerializerSpy).deserialize(any(DataInputPlus.class), any(ColumnFamilyStore.class));
+        doAnswer(new AnswersWithDelay(delayMillis, InvocationOnMock::callRealMethod)).when(keyCacheSerializerSpy)
+                                                                                     .deserialize(any(DataInputPlus.class));
 
         long maxExpectedKeyCache = Math.min(numberOfRows,
                                             1 + TimeUnit.SECONDS.toMillis(DatabaseDescriptor.getCacheLoadTimeout()) / delayMillis);

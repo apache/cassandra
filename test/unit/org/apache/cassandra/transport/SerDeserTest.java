@@ -59,6 +59,7 @@ import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.serializers.CollectionSerializer;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Event.TopologyChange;
@@ -122,6 +123,38 @@ public class SerDeserTest
         }
 
         assertEquals(m, mt.getSerializer().deserialize(CollectionSerializer.pack(mb, m.size())));
+    }
+
+    @Test(expected = MarshalException.class)
+    public void setsMayNotContainNullsTest()
+    {
+        SetType<?> st = SetType.getInstance(UTF8Type.instance, true);
+        List<ByteBuffer> sb = new ArrayList<>(1);
+        sb.add(null);
+
+        st.getSerializer().deserialize(CollectionSerializer.pack(sb, sb.size()));
+    }
+
+    @Test(expected = MarshalException.class)
+    public void mapKeysMayNotContainNullsTest()
+    {
+        MapType<?, ?> mt = MapType.getInstance(UTF8Type.instance, LongType.instance, true);
+        List<ByteBuffer> mb = new ArrayList<>(2);
+        mb.add(null);
+        mb.add(LongType.instance.decompose(999L));
+
+        mt.getSerializer().deserialize(CollectionSerializer.pack(mb, mb.size()));
+    }
+
+    @Test(expected = MarshalException.class)
+    public void mapValueMayNotContainNullsTest()
+    {
+        MapType<?, ?> mt = MapType.getInstance(UTF8Type.instance, LongType.instance, true);
+        List<ByteBuffer> mb = new ArrayList<>(2);
+        mb.add(UTF8Type.instance.decompose("danger"));
+        mb.add(null);
+
+        mt.getSerializer().deserialize(CollectionSerializer.pack(mb, mb.size()));
     }
 
     @Test

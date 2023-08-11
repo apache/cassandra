@@ -64,6 +64,7 @@ import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.db.virtual.VirtualTable;
 import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.sstable.SSTableReadsListener;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -71,7 +72,6 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.ClientState;
@@ -95,16 +95,16 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                          int digestVersion,
                                          boolean acceptsTransient,
                                          TableMetadata metadata,
-                                         int nowInSec,
+                                         long nowInSec,
                                          ColumnFilter columnFilter,
                                          RowFilter rowFilter,
                                          DataLimits limits,
                                          DecoratedKey partitionKey,
                                          ClusteringIndexFilter clusteringIndexFilter,
-                                         IndexMetadata index,
+                                         Index.QueryPlan indexQueryPlan,
                                          boolean trackWarnings)
     {
-        super(Kind.SINGLE_PARTITION, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, index, trackWarnings);
+        super(Kind.SINGLE_PARTITION, isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, indexQueryPlan, trackWarnings);
         assert partitionKey.getPartitioner() == metadata.partitioner;
         this.partitionKey = partitionKey;
         this.clusteringIndexFilter = clusteringIndexFilter;
@@ -114,13 +114,13 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                                     int digestVersion,
                                                     boolean acceptsTransient,
                                                     TableMetadata metadata,
-                                                    int nowInSec,
+                                                    long nowInSec,
                                                     ColumnFilter columnFilter,
                                                     RowFilter rowFilter,
                                                     DataLimits limits,
                                                     DecoratedKey partitionKey,
                                                     ClusteringIndexFilter clusteringIndexFilter,
-                                                    IndexMetadata index,
+                                                    Index.QueryPlan indexQueryPlan,
                                                     boolean trackWarnings)
     {
         if (metadata.isVirtual())
@@ -135,7 +135,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                                               limits,
                                                               partitionKey,
                                                               clusteringIndexFilter,
-                                                              index,
+                                                              indexQueryPlan,
                                                               trackWarnings);
         }
         return new SinglePartitionReadCommand(isDigest,
@@ -148,7 +148,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                               limits,
                                               partitionKey,
                                               clusteringIndexFilter,
-                                              index,
+                                              indexQueryPlan,
                                               trackWarnings);
     }
 
@@ -162,18 +162,18 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
      * @param limits the limits to use for the query.
      * @param partitionKey the partition key for the partition to query.
      * @param clusteringIndexFilter the clustering index filter to use for the query.
-     * @param indexMetadata explicitly specified index to use for the query
+     * @param indexQueryPlan explicitly specified index to use for the query
      *
      * @return a newly created read command.
      */
     public static SinglePartitionReadCommand create(TableMetadata metadata,
-                                                    int nowInSec,
+                                                    long nowInSec,
                                                     ColumnFilter columnFilter,
                                                     RowFilter rowFilter,
                                                     DataLimits limits,
                                                     DecoratedKey partitionKey,
                                                     ClusteringIndexFilter clusteringIndexFilter,
-                                                    IndexMetadata indexMetadata)
+                                                    Index.QueryPlan indexQueryPlan)
     {
         return create(false,
                       0,
@@ -185,7 +185,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                       limits,
                       partitionKey,
                       clusteringIndexFilter,
-                      indexMetadata,
+                      indexQueryPlan,
                       false);
     }
 
@@ -203,7 +203,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
      * @return a newly created read command.
      */
     public static SinglePartitionReadCommand create(TableMetadata metadata,
-                                                    int nowInSec,
+                                                    long nowInSec,
                                                     ColumnFilter columnFilter,
                                                     RowFilter rowFilter,
                                                     DataLimits limits,
@@ -217,7 +217,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                       limits,
                       partitionKey,
                       clusteringIndexFilter,
-                      findIndex(metadata, rowFilter));
+                      findIndexQueryPlan(metadata, rowFilter));
     }
 
     /**
@@ -232,12 +232,12 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
      * @return a newly created read command. The returned command will use no row filter and have no limits.
      */
     public static SinglePartitionReadCommand create(TableMetadata metadata,
-                                                    int nowInSec,
+                                                    long nowInSec,
                                                     DecoratedKey key,
                                                     ColumnFilter columnFilter,
                                                     ClusteringIndexFilter filter)
     {
-        return create(metadata, nowInSec, columnFilter, RowFilter.NONE, DataLimits.NONE, key, filter);
+        return create(metadata, nowInSec, columnFilter, RowFilter.none(), DataLimits.NONE, key, filter);
     }
 
     /**
@@ -249,7 +249,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
      *
      * @return a newly created read command that queries all the rows of {@code key}.
      */
-    public static SinglePartitionReadCommand fullPartitionRead(TableMetadata metadata, int nowInSec, DecoratedKey key)
+    public static SinglePartitionReadCommand fullPartitionRead(TableMetadata metadata, long nowInSec, DecoratedKey key)
     {
         return create(metadata, nowInSec, key, Slices.ALL);
     }
@@ -263,7 +263,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
      *
      * @return a newly created read command that queries all the rows of {@code key}.
      */
-    public static SinglePartitionReadCommand fullPartitionRead(TableMetadata metadata, int nowInSec, ByteBuffer key)
+    public static SinglePartitionReadCommand fullPartitionRead(TableMetadata metadata, long nowInSec, ByteBuffer key)
     {
         return create(metadata, nowInSec, metadata.partitioner.decorateKey(key), Slices.ALL);
     }
@@ -279,7 +279,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
      * @return a newly created read command that queries {@code slice} in {@code key}. The returned query will
      * query every columns for the table (without limit or row filtering) and be in forward order.
      */
-    public static SinglePartitionReadCommand create(TableMetadata metadata, int nowInSec, DecoratedKey key, Slice slice)
+    public static SinglePartitionReadCommand create(TableMetadata metadata, long nowInSec, DecoratedKey key, Slice slice)
     {
         return create(metadata, nowInSec, key, Slices.with(metadata.comparator, slice));
     }
@@ -295,10 +295,10 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
      * @return a newly created read command that queries the {@code slices} in {@code key}. The returned query will
      * query every columns for the table (without limit or row filtering) and be in forward order.
      */
-    public static SinglePartitionReadCommand create(TableMetadata metadata, int nowInSec, DecoratedKey key, Slices slices)
+    public static SinglePartitionReadCommand create(TableMetadata metadata, long nowInSec, DecoratedKey key, Slices slices)
     {
         ClusteringIndexSliceFilter filter = new ClusteringIndexSliceFilter(slices, false);
-        return create(metadata, nowInSec, ColumnFilter.all(metadata), RowFilter.NONE, DataLimits.NONE, key, filter);
+        return create(metadata, nowInSec, ColumnFilter.all(metadata), RowFilter.none(), DataLimits.NONE, key, filter);
     }
 
     /**
@@ -312,7 +312,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
      * @return a newly created read command that queries the {@code slices} in {@code key}. The returned query will
      * query every columns for the table (without limit or row filtering) and be in forward order.
      */
-    public static SinglePartitionReadCommand create(TableMetadata metadata, int nowInSec, ByteBuffer key, Slices slices)
+    public static SinglePartitionReadCommand create(TableMetadata metadata, long nowInSec, ByteBuffer key, Slices slices)
     {
         return create(metadata, nowInSec, metadata.partitioner.decorateKey(key), slices);
     }
@@ -328,10 +328,10 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
      * @return a newly created read command that queries the {@code names} in {@code key}. The returned query will
      * query every columns (without limit or row filtering) and be in forward order.
      */
-    public static SinglePartitionReadCommand create(TableMetadata metadata, int nowInSec, DecoratedKey key, NavigableSet<Clustering<?>> names)
+    public static SinglePartitionReadCommand create(TableMetadata metadata, long nowInSec, DecoratedKey key, NavigableSet<Clustering<?>> names)
     {
         ClusteringIndexNamesFilter filter = new ClusteringIndexNamesFilter(names, false);
-        return create(metadata, nowInSec, ColumnFilter.all(metadata), RowFilter.NONE, DataLimits.NONE, key, filter);
+        return create(metadata, nowInSec, ColumnFilter.all(metadata), RowFilter.none(), DataLimits.NONE, key, filter);
     }
 
     /**
@@ -345,7 +345,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
      * @return a newly created read command that queries {@code name} in {@code key}. The returned query will
      * query every columns (without limit or row filtering).
      */
-    public static SinglePartitionReadCommand create(TableMetadata metadata, int nowInSec, DecoratedKey key, Clustering<?> name)
+    public static SinglePartitionReadCommand create(TableMetadata metadata, long nowInSec, DecoratedKey key, Clustering<?> name)
     {
         return create(metadata, nowInSec, key, FBUtilities.singleton(name, metadata.comparator));
     }
@@ -362,7 +362,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                       limits(),
                       partitionKey(),
                       clusteringIndexFilter(),
-                      indexMetadata(),
+                      indexQueryPlan(),
                       isTrackingWarnings());
     }
 
@@ -379,7 +379,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                       limits(),
                       partitionKey(),
                       clusteringIndexFilter(),
-                      indexMetadata(),
+                      indexQueryPlan(),
                       isTrackingWarnings());
     }
 
@@ -396,7 +396,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                       limits(),
                       partitionKey(),
                       clusteringIndexFilter(),
-                      indexMetadata(),
+                      indexQueryPlan(),
                       isTrackingWarnings());
     }
 
@@ -413,7 +413,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                       newLimits,
                       partitionKey(),
                       clusteringIndexFilter(),
-                      indexMetadata(),
+                      indexQueryPlan(),
                       isTrackingWarnings());
     }
 
@@ -1242,7 +1242,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
     public static class Group extends SinglePartitionReadQuery.Group<SinglePartitionReadCommand>
     {
         public static Group create(TableMetadata metadata,
-                                   int nowInSec,
+                                   long nowInSec,
                                    ColumnFilter columnFilter,
                                    RowFilter rowFilter,
                                    DataLimits limits,
@@ -1314,16 +1314,16 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                        int digestVersion,
                                        boolean acceptsTransient,
                                        TableMetadata metadata,
-                                       int nowInSec,
+                                       long nowInSec,
                                        ColumnFilter columnFilter,
                                        RowFilter rowFilter,
                                        DataLimits limits,
-                                       IndexMetadata index)
+                                       Index.QueryPlan indexQueryPlan)
         throws IOException
         {
             DecoratedKey key = metadata.partitioner.decorateKey(metadata.partitionKeyType.readBuffer(in, DatabaseDescriptor.getMaxValueSize()));
             ClusteringIndexFilter filter = ClusteringIndexFilter.serializer.deserialize(in, version, metadata);
-            return SinglePartitionReadCommand.create(isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, key, filter, index, false);
+            return SinglePartitionReadCommand.create(isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, key, filter, indexQueryPlan, false);
         }
     }
 
@@ -1361,16 +1361,16 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                                          int digestVersion,
                                                          boolean acceptsTransient,
                                                          TableMetadata metadata,
-                                                         int nowInSec,
+                                                         long nowInSec,
                                                          ColumnFilter columnFilter,
                                                          RowFilter rowFilter,
                                                          DataLimits limits,
                                                          DecoratedKey partitionKey,
                                                          ClusteringIndexFilter clusteringIndexFilter,
-                                                         IndexMetadata index,
+                                                         Index.QueryPlan indexQueryPlan,
                                                          boolean trackWarnings)
         {
-            super(isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, partitionKey, clusteringIndexFilter, index, trackWarnings);
+            super(isDigest, digestVersion, acceptsTransient, metadata, nowInSec, columnFilter, rowFilter, limits, partitionKey, clusteringIndexFilter, indexQueryPlan, trackWarnings);
         }
 
         @Override

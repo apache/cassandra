@@ -20,6 +20,7 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
@@ -55,6 +56,8 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.Version;
+import org.apache.cassandra.io.sstable.keycache.KeyCacheSupport;
+import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
 import org.apache.cassandra.io.util.FileOutputStreamPlus;
@@ -69,6 +72,7 @@ import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static java.util.Collections.singleton;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_LEGACY_SSTABLE_ROOT;
 import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR;
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
@@ -83,16 +87,23 @@ public class LegacySSTableTest
 {
     private static final Logger logger = LoggerFactory.getLogger(LegacySSTableTest.class);
 
-    public static final String LEGACY_SSTABLE_PROP = "legacy-sstable-root";
-
     public static File LEGACY_SSTABLE_ROOT;
+
+    private static final String LEGACY_TABLES_KEYSPACE = "legacy_tables";
 
     /**
      * When adding a new sstable version, add that one here.
      * See {@link #testGenerateSstables()} to generate sstables.
      * Take care on commit as you need to add the sstable files using {@code git add -f}
      */
-    public static final String[] legacyVersions = {"nc", "nb", "na", "me", "md", "mc", "mb", "ma"};
+    public static String[] legacyVersions = null;
+
+    // Get all versions up to the current one. Useful for testing in compatibility mode C18301
+    private static String[] getValidLegacyVersions()
+    {
+        String[] versions = {"oa", "da", "nc", "nb", "na", "me", "md", "mc", "mb", "ma"};
+        return Arrays.stream(versions).filter((v) -> v.compareTo(BigFormat.getInstance().getLatestVersion().toString()) <= 0).toArray(String[]::new);
+    }
 
     // 1200 chars
     static final String longString = "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789" +
@@ -111,8 +122,8 @@ public class LegacySSTableTest
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
-        String scp = System.getProperty(LEGACY_SSTABLE_PROP);
-        Assert.assertNotNull("System property " + LEGACY_SSTABLE_PROP + " not set", scp);
+        String scp = TEST_LEGACY_SSTABLE_ROOT.getString();
+        Assert.assertNotNull("System property " + TEST_LEGACY_SSTABLE_ROOT.getKey() + " not set", scp);
 
         LEGACY_SSTABLE_ROOT = new File(scp).toAbsolute();
         Assert.assertTrue("System property " + LEGACY_SSTABLE_ROOT + " does not specify a directory", LEGACY_SSTABLE_ROOT.isDirectory());
@@ -121,6 +132,8 @@ public class LegacySSTableTest
         StorageService.instance.initServer();
         Keyspace.setInitialized();
         createKeyspace();
+        
+        legacyVersions = getValidLegacyVersions();
         for (String legacyVersion : legacyVersions)
         {
             createTables(legacyVersion);
@@ -174,7 +187,7 @@ public class LegacySSTableTest
             loadLegacyTables(legacyVersion);
             CacheService.instance.invalidateKeyCache();
 
-            for (ColumnFamilyStore cfs : Keyspace.open("legacy_tables").getColumnFamilyStores())
+            for (ColumnFamilyStore cfs : Keyspace.open(LEGACY_TABLES_KEYSPACE).getColumnFamilyStores())
             {
                 for (SSTableReader sstable : cfs.getLiveSSTables())
                 {
@@ -215,7 +228,7 @@ public class LegacySSTableTest
             truncateTables(legacyVersion);
             loadLegacyTables(legacyVersion);
 
-            for (ColumnFamilyStore cfs : Keyspace.open("legacy_tables").getColumnFamilyStores())
+            for (ColumnFamilyStore cfs : Keyspace.open(LEGACY_TABLES_KEYSPACE).getColumnFamilyStores())
             {
                 // set pending
                 for (SSTableReader sstable : cfs.getLiveSSTables())
@@ -263,7 +276,7 @@ public class LegacySSTableTest
             loadLegacyTables(legacyVersion);
             CacheService.instance.invalidateKeyCache();
 
-            for (ColumnFamilyStore cfs : Keyspace.open("legacy_tables").getColumnFamilyStores())
+            for (ColumnFamilyStore cfs : Keyspace.open(LEGACY_TABLES_KEYSPACE).getColumnFamilyStores())
             {
                 for (SSTableReader sstable : cfs.getLiveSSTables())
                 {
@@ -326,7 +339,7 @@ public class LegacySSTableTest
     {
         for (String legacyVersion : legacyVersions)
         {
-            ColumnFamilyStore cfs = Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_simple", legacyVersion));
+            ColumnFamilyStore cfs = Keyspace.open(LEGACY_TABLES_KEYSPACE).getColumnFamilyStore(String.format("legacy_%s_simple", legacyVersion));
             loadLegacyTable("legacy_%s_simple", legacyVersion);
 
             for (SSTableReader sstable : cfs.getLiveSSTables())
@@ -360,7 +373,7 @@ public class LegacySSTableTest
     {
         for (String legacyVersion : legacyVersions)
         {
-            ColumnFamilyStore cfs = Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_simple", legacyVersion));
+            ColumnFamilyStore cfs = Keyspace.open(LEGACY_TABLES_KEYSPACE).getColumnFamilyStore(String.format("legacy_%s_simple", legacyVersion));
             loadLegacyTable("legacy_%s_simple", legacyVersion);
 
             boolean shouldFail = !cfs.getLiveSSTables().stream().allMatch(sstable -> sstable.descriptor.version.hasPendingRepair());
@@ -382,7 +395,7 @@ public class LegacySSTableTest
             logger.info("Loading legacy version: {}", legacyVersion);
             truncateLegacyTables(legacyVersion);
             loadLegacyTables(legacyVersion);
-            ColumnFamilyStore cfs = Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_simple", legacyVersion));
+            ColumnFamilyStore cfs = Keyspace.open(LEGACY_TABLES_KEYSPACE).getColumnFamilyStore(String.format("legacy_%s_simple", legacyVersion));
             AbstractCompactionTask act = cfs.getCompactionStrategyManager().getNextBackgroundTask(0);
             // there should be no compactions to run with auto upgrades disabled:
             assertEquals(null, act);
@@ -394,7 +407,7 @@ public class LegacySSTableTest
             logger.info("Loading legacy version: {}", legacyVersion);
             truncateLegacyTables(legacyVersion);
             loadLegacyTables(legacyVersion);
-            ColumnFamilyStore cfs = Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_simple", legacyVersion));
+            ColumnFamilyStore cfs = Keyspace.open(LEGACY_TABLES_KEYSPACE).getColumnFamilyStore(String.format("legacy_%s_simple", legacyVersion));
             if (cfs.getLiveSSTables().stream().anyMatch(s -> !s.descriptor.version.isLatestVersion()))
                 assertTrue(cfs.metric.oldVersionSSTableCount.getValue() > 0);
             while (cfs.getLiveSSTables().stream().anyMatch(s -> !s.descriptor.version.isLatestVersion()))
@@ -435,19 +448,19 @@ public class LegacySSTableTest
     public static void truncateLegacyTables(String legacyVersion) throws Exception
     {
         logger.info("Truncating legacy version {}", legacyVersion);
-        Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_simple", legacyVersion)).truncateBlocking();
-        Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_simple_counter", legacyVersion)).truncateBlocking();
-        Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_clust", legacyVersion)).truncateBlocking();
-        Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_clust_counter", legacyVersion)).truncateBlocking();
+        Keyspace.open(LEGACY_TABLES_KEYSPACE).getColumnFamilyStore(String.format("legacy_%s_simple", legacyVersion)).truncateBlocking();
+        Keyspace.open(LEGACY_TABLES_KEYSPACE).getColumnFamilyStore(String.format("legacy_%s_simple_counter", legacyVersion)).truncateBlocking();
+        Keyspace.open(LEGACY_TABLES_KEYSPACE).getColumnFamilyStore(String.format("legacy_%s_clust", legacyVersion)).truncateBlocking();
+        Keyspace.open(LEGACY_TABLES_KEYSPACE).getColumnFamilyStore(String.format("legacy_%s_clust_counter", legacyVersion)).truncateBlocking();
     }
 
     private static void compactLegacyTables(String legacyVersion) throws Exception
     {
         logger.info("Compacting legacy version {}", legacyVersion);
-        Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_simple", legacyVersion)).forceMajorCompaction();
-        Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_simple_counter", legacyVersion)).forceMajorCompaction();
-        Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_clust", legacyVersion)).forceMajorCompaction();
-        Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_clust_counter", legacyVersion)).forceMajorCompaction();
+        Keyspace.open(LEGACY_TABLES_KEYSPACE).getColumnFamilyStore(String.format("legacy_%s_simple", legacyVersion)).forceMajorCompaction();
+        Keyspace.open(LEGACY_TABLES_KEYSPACE).getColumnFamilyStore(String.format("legacy_%s_simple_counter", legacyVersion)).forceMajorCompaction();
+        Keyspace.open(LEGACY_TABLES_KEYSPACE).getColumnFamilyStore(String.format("legacy_%s_clust", legacyVersion)).forceMajorCompaction();
+        Keyspace.open(LEGACY_TABLES_KEYSPACE).getColumnFamilyStore(String.format("legacy_%s_clust_counter", legacyVersion)).forceMajorCompaction();
     }
 
     public static void loadLegacyTables(String legacyVersion) throws Exception
@@ -461,6 +474,11 @@ public class LegacySSTableTest
 
     private static void verifyCache(String legacyVersion, long startCount) throws InterruptedException, java.util.concurrent.ExecutionException
     {
+        // Only perform test if format uses cache.
+        SSTableReader sstable = Iterables.getFirst(Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_simple", legacyVersion)).getLiveSSTables(), null);
+        if (!(sstable instanceof KeyCacheSupport))
+            return;
+
         //For https://issues.apache.org/jira/browse/CASSANDRA-10778
         //Validate whether the key cache successfully saves in the presence of old keys as
         //well as loads the correct number of keys
@@ -580,7 +598,7 @@ public class LegacySSTableTest
 
         logger.info("Loading legacy table {}", table);
 
-        ColumnFamilyStore cfs = Keyspace.open("legacy_tables").getColumnFamilyStore(table);
+        ColumnFamilyStore cfs = Keyspace.open(LEGACY_TABLES_KEYSPACE).getColumnFamilyStore(table);
 
         for (File cfDir : cfs.getDirectories().getCFDirectories())
         {
@@ -593,17 +611,17 @@ public class LegacySSTableTest
     /**
      * Generates sstables for 8 CQL tables (see {@link #createTables(String)}) in <i>current</i>
      * sstable format (version) into {@code test/data/legacy-sstables/VERSION}, where
-     * {@code VERSION} matches {@link Version#getVersion() BigFormat.latestVersion.getVersion()}.
+     * {@code VERSION} matches {@link Version#version BigFormat.latestVersion.getVersion()}.
      * <p>
      * Run this test alone (e.g. from your IDE) when a new version is introduced or format changed
      * during development. I.e. remove the {@code @Ignore} annotation temporarily.
      * </p>
      */
-    @Ignore
+    @Ignore // TODO: Currently this test needs to be ran alone to avoid unwanted compactions, flushes, etc to interfere
     @Test
     public void testGenerateSstables() throws Throwable
     {
-        SSTableFormat<?, ?> format = SSTableFormat.Type.current().info;
+        SSTableFormat<?, ?> format = DatabaseDescriptor.getSelectedSSTableFormat();
         Random rand = new Random();
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < 128; i++)
@@ -633,22 +651,22 @@ public class LegacySSTableTest
             }
         }
 
-        StorageService.instance.forceKeyspaceFlush("legacy_tables", ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        StorageService.instance.forceKeyspaceFlush(LEGACY_TABLES_KEYSPACE, ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
         File ksDir = new File(LEGACY_SSTABLE_ROOT, String.format("%s/legacy_tables", format.getLatestVersion()));
         ksDir.tryCreateDirectories();
-        copySstablesFromTestData(String.format("legacy_%s_simple", format.getLatestVersion()), ksDir);
-        copySstablesFromTestData(String.format("legacy_%s_simple_counter", format.getLatestVersion()), ksDir);
-        copySstablesFromTestData(String.format("legacy_%s_clust", format.getLatestVersion()), ksDir);
-        copySstablesFromTestData(String.format("legacy_%s_clust_counter", format.getLatestVersion()), ksDir);
+        copySstablesFromTestData(String.format("legacy_%s_simple", format.getLatestVersion()), ksDir, LEGACY_TABLES_KEYSPACE);
+        copySstablesFromTestData(String.format("legacy_%s_simple_counter", format.getLatestVersion()), ksDir, LEGACY_TABLES_KEYSPACE);
+        copySstablesFromTestData(String.format("legacy_%s_clust", format.getLatestVersion()), ksDir, LEGACY_TABLES_KEYSPACE);
+        copySstablesFromTestData(String.format("legacy_%s_clust_counter", format.getLatestVersion()), ksDir, LEGACY_TABLES_KEYSPACE);
     }
 
-    public static void copySstablesFromTestData(String table, File ksDir) throws IOException
+    public static void copySstablesFromTestData(String table, File ksDir, String ks) throws IOException
     {
         File cfDir = new File(ksDir, table);
         cfDir.tryCreateDirectory();
 
-        for (File srcDir : Keyspace.open("legacy_tables").getColumnFamilyStore(table).getDirectories().getCFDirectories())
+        for (File srcDir : Keyspace.open(ks).getColumnFamilyStore(table).getDirectories().getCFDirectories())
         {
             for (File file : srcDir.tryList())
             {
@@ -672,7 +690,7 @@ public class LegacySSTableTest
         return new File(LEGACY_SSTABLE_ROOT, String.format("%s/legacy_tables/%s", legacyVersion, table));
     }
 
-    private static void copyFile(File cfDir, File file) throws IOException
+    public static void copyFile(File cfDir, File file) throws IOException
     {
         byte[] buf = new byte[65536];
         if (file.isFile())

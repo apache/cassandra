@@ -18,16 +18,18 @@
 
 package org.apache.cassandra.auth;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.ConfigFields;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.config.registry.Registry;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.FBUtilities;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.Arrays;
 
 /**
  * Only purpose is to Initialize authentication/authorization via {@link #applyAuth()}.
@@ -54,12 +56,15 @@ public final class AuthConfig
 
         /* Authentication, authorization and role management backend, implementing IAuthenticator, IAuthorizer & IRoleMapper*/
         if (conf.authenticator != null)
-            authenticator = FBUtilities.newAuthenticator(conf.authenticator);
+        {
+            authenticator = ParameterizedClass.newInstance(conf.authenticator,
+                                                           Arrays.asList("", AuthConfig.class.getPackage().getName()));
+        }
 
         // the configuration options regarding credentials caching are only guaranteed to
         // work with PasswordAuthenticator, so log a message if some other authenticator
         // is in use and non-default values are detected
-        if (!(authenticator instanceof PasswordAuthenticator)
+        if (!(authenticator instanceof PasswordAuthenticator || authenticator instanceof MutualTlsAuthenticator)
             && (registry.get(DurationSpec.IntMillisecondsBound.class, ConfigFields.CREDENTIALS_UPDATE_INTERVAL) != null
                 || registry.get(DurationSpec.IntMillisecondsBound.class, ConfigFields.CREDENTIALS_VALIDITY).toMilliseconds() != 2000
                 || registry.get(Integer.TYPE, ConfigFields.CREDENTIALS_CACHE_MAX_ENTRIES) != 1000))
@@ -79,7 +84,7 @@ public final class AuthConfig
             authorizer = FBUtilities.newAuthorizer(conf.authorizer);
 
         if (!authenticator.requireAuthentication() && authorizer.requireAuthorization())
-            throw new ConfigurationException(conf.authenticator + " can't be used with " + conf.authorizer, false);
+            throw new ConfigurationException(conf.authenticator.class_name + " can't be used with " + conf.authorizer, false);
 
         DatabaseDescriptor.setAuthorizer(authorizer);
 
@@ -99,14 +104,26 @@ public final class AuthConfig
         // authenticator
 
         if (conf.internode_authenticator != null)
-            DatabaseDescriptor.setInternodeAuthenticator(FBUtilities.construct(conf.internode_authenticator, "internode_authenticator"));
+        {
+            DatabaseDescriptor.setInternodeAuthenticator(ParameterizedClass.newInstance(conf.internode_authenticator,
+                                                                                        Arrays.asList("", AuthConfig.class.getPackage().getName())));
+        }
+
 
         // network authorizer
         INetworkAuthorizer networkAuthorizer = FBUtilities.newNetworkAuthorizer(conf.network_authorizer);
         DatabaseDescriptor.setNetworkAuthorizer(networkAuthorizer);
         if (networkAuthorizer.requireAuthorization() && !authenticator.requireAuthentication())
         {
-            throw new ConfigurationException(conf.network_authorizer + " can't be used with " + conf.authenticator, false);
+            throw new ConfigurationException(conf.network_authorizer + " can't be used with " + conf.authenticator.class_name, false);
+        }
+
+        // cidr authorizer
+        ICIDRAuthorizer cidrAuthorizer = ICIDRAuthorizer.newCIDRAuthorizer(conf.cidr_authorizer);
+        DatabaseDescriptor.setCIDRAuthorizer(cidrAuthorizer);
+        if (cidrAuthorizer.requireAuthorization() && !authenticator.requireAuthentication())
+        {
+            throw new ConfigurationException(conf.cidr_authorizer + " can't be used with " + conf.authenticator, false);
         }
 
         // Validate at last to have authenticator, authorizer, role-manager and internode-auth setup
@@ -116,6 +133,7 @@ public final class AuthConfig
         authorizer.validateConfiguration();
         roleManager.validateConfiguration();
         networkAuthorizer.validateConfiguration();
+        cidrAuthorizer.validateConfiguration();
         DatabaseDescriptor.getInternodeAuthenticator().validateConfiguration();
     }
 }

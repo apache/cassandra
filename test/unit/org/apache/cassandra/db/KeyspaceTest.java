@@ -61,7 +61,7 @@ public class KeyspaceTest extends CQLTester
     }
 
     @Override
-    protected UntypedResultSet execute(String query, Object... values) throws Throwable
+    protected UntypedResultSet execute(String query, Object... values)
     {
         return executeFormattedQuery(formatQuery(KEYSPACE_PER_TEST, query), values);
     }
@@ -297,7 +297,7 @@ public class KeyspaceTest extends CQLTester
                          ? DataLimits.NONE
                          : DataLimits.cqlLimits(rowLimit);
         return SinglePartitionReadCommand.create(
-                cfs.metadata(), FBUtilities.nowInSeconds(), ColumnFilter.all(cfs.metadata()), RowFilter.NONE, limit, Util.dk(key), filter);
+                cfs.metadata(), FBUtilities.nowInSeconds(), ColumnFilter.all(cfs.metadata()), RowFilter.none(), limit, Util.dk(key), filter);
     }
 
     @Test
@@ -418,7 +418,7 @@ public class KeyspaceTest extends CQLTester
         if (sstable instanceof BigTableReader)
         {
             AbstractRowIndexEntry indexEntry = ((BigTableReader) sstable).getRowIndexEntry(Util.dk("0"), SSTableReader.Operator.EQ);
-            assert indexEntry.columnsIndexCount() > 2;
+            assert indexEntry.blockCount() > 2;
         }
 
         validateSliceLarge(cfs);
@@ -483,17 +483,17 @@ public class KeyspaceTest extends CQLTester
     {
         ClusteringIndexSliceFilter filter = slices(cfs, 1000, null, false);
         SinglePartitionReadCommand command = SinglePartitionReadCommand.create(
-                cfs.metadata(), FBUtilities.nowInSeconds(), ColumnFilter.all(cfs.metadata()), RowFilter.NONE, DataLimits.cqlLimits(3), Util.dk("0"), filter);
+                cfs.metadata(), FBUtilities.nowInSeconds(), ColumnFilter.all(cfs.metadata()), RowFilter.none(), DataLimits.cqlLimits(3), Util.dk("0"), filter);
         assertRowsInResult(cfs, command, 1000, 1001, 1002);
 
         filter = slices(cfs, 1195, null, false);
         command = SinglePartitionReadCommand.create(
-                cfs.metadata(), FBUtilities.nowInSeconds(), ColumnFilter.all(cfs.metadata()), RowFilter.NONE, DataLimits.cqlLimits(3), Util.dk("0"), filter);
+                cfs.metadata(), FBUtilities.nowInSeconds(), ColumnFilter.all(cfs.metadata()), RowFilter.none(), DataLimits.cqlLimits(3), Util.dk("0"), filter);
         assertRowsInResult(cfs, command, 1195, 1196, 1197);
 
         filter = slices(cfs, null, 1996, true);
         command = SinglePartitionReadCommand.create(
-                cfs.metadata(), FBUtilities.nowInSeconds(), ColumnFilter.all(cfs.metadata()), RowFilter.NONE, DataLimits.cqlLimits(1000), Util.dk("0"), filter);
+                cfs.metadata(), FBUtilities.nowInSeconds(), ColumnFilter.all(cfs.metadata()), RowFilter.none(), DataLimits.cqlLimits(1000), Util.dk("0"), filter);
         int[] expectedValues = new int[997];
         for (int i = 0, v = 1996; v >= 1000; i++, v--)
             expectedValues[i] = v;
@@ -501,22 +501,22 @@ public class KeyspaceTest extends CQLTester
 
         filter = slices(cfs, 1990, null, false);
         command = SinglePartitionReadCommand.create(
-                cfs.metadata(), FBUtilities.nowInSeconds(), ColumnFilter.all(cfs.metadata()), RowFilter.NONE, DataLimits.cqlLimits(3), Util.dk("0"), filter);
+                cfs.metadata(), FBUtilities.nowInSeconds(), ColumnFilter.all(cfs.metadata()), RowFilter.none(), DataLimits.cqlLimits(3), Util.dk("0"), filter);
         assertRowsInResult(cfs, command, 1990, 1991, 1992);
 
         filter = slices(cfs, null, null, true);
         command = SinglePartitionReadCommand.create(
-                cfs.metadata(), FBUtilities.nowInSeconds(), ColumnFilter.all(cfs.metadata()), RowFilter.NONE, DataLimits.cqlLimits(3), Util.dk("0"), filter);
+                cfs.metadata(), FBUtilities.nowInSeconds(), ColumnFilter.all(cfs.metadata()), RowFilter.none(), DataLimits.cqlLimits(3), Util.dk("0"), filter);
         assertRowsInResult(cfs, command, 1999, 1998, 1997);
 
         filter = slices(cfs, null, 9000, true);
         command = SinglePartitionReadCommand.create(
-                cfs.metadata(), FBUtilities.nowInSeconds(), ColumnFilter.all(cfs.metadata()), RowFilter.NONE, DataLimits.cqlLimits(3), Util.dk("0"), filter);
+                cfs.metadata(), FBUtilities.nowInSeconds(), ColumnFilter.all(cfs.metadata()), RowFilter.none(), DataLimits.cqlLimits(3), Util.dk("0"), filter);
         assertRowsInResult(cfs, command, 1999, 1998, 1997);
 
         filter = slices(cfs, 9000, null, false);
         command = SinglePartitionReadCommand.create(
-                cfs.metadata(), FBUtilities.nowInSeconds(), ColumnFilter.all(cfs.metadata()), RowFilter.NONE, DataLimits.cqlLimits(3), Util.dk("0"), filter);
+                cfs.metadata(), FBUtilities.nowInSeconds(), ColumnFilter.all(cfs.metadata()), RowFilter.none(), DataLimits.cqlLimits(3), Util.dk("0"), filter);
         assertRowsInResult(cfs, command);
     }
 

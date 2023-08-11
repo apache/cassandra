@@ -37,7 +37,8 @@ my_commands_ending_with_newline = (
     'exit',
     'quit',
     'clear',
-    'cls'
+    'cls',
+    'history'
 )
 
 cqlsh_syntax_completers = []
@@ -73,6 +74,7 @@ cqlsh_special_cmd_command_syntax_rules = r'''
                    | <exitCommand>
                    | <pagingCommand>
                    | <clearCommand>
+                   | <historyCommand>
                    ;
 '''
 
@@ -207,6 +209,11 @@ cqlsh_clear_cmd_syntax_rules = r'''
                  ;
 '''
 
+cqlsh_history_cmd_syntax_rules = r'''
+<historyCommand> ::= "history" (n=<wholenumber>)?
+                    ;
+'''
+
 cqlsh_question_mark = r'''
 <qmark> ::= "?" ;
 '''
@@ -232,6 +239,7 @@ cqlsh_extra_syntax_rules = cqlsh_cmd_syntax_rules + \
     cqlsh_login_cmd_syntax_rules + \
     cqlsh_exit_cmd_syntax_rules + \
     cqlsh_clear_cmd_syntax_rules + \
+    cqlsh_history_cmd_syntax_rules + \
     cqlsh_question_mark
 
 

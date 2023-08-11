@@ -66,7 +66,6 @@ import org.apache.cassandra.db.virtual.VirtualSchemaKeyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.io.sstable.SSTableHeaderFix;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -92,12 +91,17 @@ import org.apache.cassandra.utils.logging.VirtualTableAppender;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_FOREGROUND;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_LOCAL_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_REMOTE_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_PID_FILE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_CLASS_PATH;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_RMI_SERVER_RANDOM_ID;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VERSION;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VM_NAME;
+import static org.apache.cassandra.config.CassandraRelevantProperties.METRICS_REPORTER_CONFIG_FILE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SIZE_RECORDER_INTERVAL;
+import static org.apache.cassandra.config.CassandraRelevantProperties.START_NATIVE_TRANSPORT;
 
 /**
  * The <code>CassandraDaemon</code> is an abstraction for a Cassandra daemon
@@ -151,7 +155,7 @@ public class CassandraDaemon
             return;
         }
 
-        System.setProperty("java.rmi.server.randomIDs", "true");
+        JAVA_RMI_SERVER_RANDOM_ID.setBoolean(true);
 
         // If a remote port has been specified then use that to set up a JMX
         // connector server which can be accessed remotely. Otherwise, look
@@ -167,7 +171,7 @@ public class CassandraDaemon
         if (jmxPort == null)
         {
             localOnly = true;
-            jmxPort = System.getProperty("cassandra.jmx.local.port");
+            jmxPort = CASSANDRA_JMX_LOCAL_PORT.getString();
         }
 
         if (jmxPort == null)
@@ -290,8 +294,6 @@ public class CassandraDaemon
 
         setupVirtualKeyspaces();
 
-        SSTableHeaderFix.fixNonFrozenUDTIfUpgradeFrom30();
-
         try
         {
             scrubDataDirectories();
@@ -368,7 +370,7 @@ public class CassandraDaemon
 
         // schedule periodic dumps of table size estimates into SystemKeyspace.SIZE_ESTIMATES_CF
         // set cassandra.size_recorder_interval to 0 to disable
-        int sizeRecorderInterval = Integer.getInteger("cassandra.size_recorder_interval", 5 * 60);
+        int sizeRecorderInterval = SIZE_RECORDER_INTERVAL.getInt();
         if (sizeRecorderInterval > 0)
             ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(SizeEstimatesRecorder.instance, 30, sizeRecorderInterval, TimeUnit.SECONDS);
 
@@ -379,7 +381,7 @@ public class CassandraDaemon
         QueryProcessor.instance.preloadPreparedStatements();
 
         // Metrics
-        String metricsReporterConfigFile = System.getProperty("cassandra.metricsReporterConfigFile");
+        String metricsReporterConfigFile = METRICS_REPORTER_CONFIG_FILE.getString();
         if (metricsReporterConfigFile != null)
         {
             logger.info("Trying to load metrics-reporter-config from file: {}", metricsReporterConfigFile);
@@ -453,7 +455,7 @@ public class CassandraDaemon
                         }
                         else
                         {
-                            logger.info("Not enabling compaction for {}.{}; autocompaction_on_startup_enabled is set to false", store.keyspace.getName(), store.name);
+                            logger.info("Not enabling compaction for {}.{}; autocompaction_on_startup_enabled is set to false", store.getKeyspaceName(), store.name);
                         }
                     }
                 }
@@ -698,8 +700,8 @@ public class CassandraDaemon
 
     private void startClientTransports()
     {
-        String nativeFlag = System.getProperty("cassandra.start_native_transport");
-        if ((nativeFlag != null && Boolean.parseBoolean(nativeFlag)) || (nativeFlag == null && DatabaseDescriptor.startNativeTransport()))
+        String nativeFlag = START_NATIVE_TRANSPORT.getString();
+        if (START_NATIVE_TRANSPORT.getBoolean() || (nativeFlag == null && DatabaseDescriptor.startNativeTransport()))
         {
             startNativeTransport();
             StorageService.instance.setRpcReady(true);

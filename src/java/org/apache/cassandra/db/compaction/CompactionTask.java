@@ -58,17 +58,17 @@ import static org.apache.cassandra.utils.FBUtilities.now;
 public class CompactionTask extends AbstractCompactionTask
 {
     protected static final Logger logger = LoggerFactory.getLogger(CompactionTask.class);
-    protected final int gcBefore;
+    protected final long gcBefore;
     protected final boolean keepOriginals;
     protected static long totalBytesCompacted = 0;
     private ActiveCompactionsTracker activeCompactions;
 
-    public CompactionTask(ColumnFamilyStore cfs, LifecycleTransaction txn, int gcBefore)
+    public CompactionTask(ColumnFamilyStore cfs, LifecycleTransaction txn, long gcBefore)
     {
         this(cfs, txn, gcBefore, false);
     }
 
-    public CompactionTask(ColumnFamilyStore cfs, LifecycleTransaction txn, int gcBefore, boolean keepOriginals)
+    public CompactionTask(ColumnFamilyStore cfs, LifecycleTransaction txn, long gcBefore, boolean keepOriginals)
     {
         super(cfs, txn);
         this.gcBefore = gcBefore;
@@ -92,13 +92,14 @@ public class CompactionTask extends AbstractCompactionTask
         if (partialCompactionsAcceptable() && transaction.originals().size() > 1)
         {
             // Try again w/o the largest one.
-            logger.warn("insufficient space to compact all requested files. {}MiB required, {} for compaction {}",
+            SSTableReader removedSSTable = cfs.getMaxSizeFile(nonExpiredSSTables);
+            logger.warn("insufficient space to compact all requested files. {}MiB required, {} for compaction {} - removing largest SSTable: {}",
                         (float) expectedSize / 1024 / 1024,
                         StringUtils.join(transaction.originals(), ", "),
-                        transaction.opId());
+                        transaction.opId(),
+                        removedSSTable);
             // Note that we have removed files that are still marked as compacting.
             // This suboptimal but ok since the caller will unmark all the sstables at the end.
-            SSTableReader removedSSTable = cfs.getMaxSizeFile(nonExpiredSSTables);
             transaction.cancel(removedSSTable);
             return true;
         }
@@ -136,7 +137,12 @@ public class CompactionTask extends AbstractCompactionTask
 
             TimeUUID taskId = transaction.opId();
             // select SSTables to compact based on available disk space.
-            buildCompactionCandidatesForAvailableDiskSpace(fullyExpiredSSTables, taskId);
+            if (!buildCompactionCandidatesForAvailableDiskSpace(fullyExpiredSSTables, taskId))
+            {
+                // The set of sstables has changed (one or more were excluded due to limited available disk space).
+                // We need to recompute the overlaps between sstables.
+                controller.refreshOverlaps();
+            }
 
             // sanity check: all sstables must belong to the same cfs
             assert !Iterables.any(transaction.originals(), new Predicate<SSTableReader>()
@@ -174,7 +180,7 @@ public class CompactionTask extends AbstractCompactionTask
             long[] mergedRowCounts;
             long totalSourceCQLRows;
 
-            int nowInSec = FBUtilities.nowInSeconds();
+            long nowInSec = FBUtilities.nowInSeconds();
             try (Refs<SSTableReader> refs = Refs.ref(actuallyCompact);
                  AbstractCompactionStrategy.ScannerList scanners = strategy.getScanners(actuallyCompact);
                  CompactionIterator ci = new CompactionIterator(compactionType, scanners.scanners, controller, nowInSec, taskId))
@@ -246,7 +252,7 @@ public class CompactionTask extends AbstractCompactionTask
             for (int i = 0; i < mergedRowCounts.length; i++)
                 totalSourceRows += mergedRowCounts[i] * (i + 1);
 
-            String mergeSummary = updateCompactionHistory(cfs.keyspace.getName(), cfs.getTableName(), mergedRowCounts, startsize, endsize,
+            String mergeSummary = updateCompactionHistory(taskId, cfs.getKeyspaceName(), cfs.getTableName(), mergedRowCounts, startsize, endsize,
                                                           ImmutableMap.of(COMPACTION_TYPE_PROPERTY, compactionType.type));
 
             logger.info(String.format("Compacted (%s) %d sstables to [%s] to level=%d.  %s to %s (~%d%% of original) in %,dms.  Read Throughput = %s, Write Throughput = %s, Row Throughput = ~%,d/s.  %,d total partitions merged to %,d.  Partition merge counts were {%s}. Time spent writing keys = %,dms",
@@ -286,7 +292,7 @@ public class CompactionTask extends AbstractCompactionTask
         return new DefaultCompactionWriter(cfs, directories, transaction, nonExpiredSSTables, keepOriginals, getLevel());
     }
 
-    public static String updateCompactionHistory(String keyspaceName, String columnFamilyName, long[] mergedRowCounts, long startSize, long endSize, Map<String, String> compactionProperties)
+    public static String updateCompactionHistory(TimeUUID taskId, String keyspaceName, String columnFamilyName, long[] mergedRowCounts, long startSize, long endSize, Map<String, String> compactionProperties)
     {
         StringBuilder mergeSummary = new StringBuilder(mergedRowCounts.length * 10);
         Map<Integer, Long> mergedRows = new HashMap<>();
@@ -300,7 +306,7 @@ public class CompactionTask extends AbstractCompactionTask
             mergeSummary.append(String.format("%d:%d, ", rows, count));
             mergedRows.put(rows, count);
         }
-        SystemKeyspace.updateCompactionHistory(keyspaceName, columnFamilyName, currentTimeMillis(), startSize, endSize, mergedRows, compactionProperties);
+        SystemKeyspace.updateCompactionHistory(taskId, keyspaceName, columnFamilyName, currentTimeMillis(), startSize, endSize, mergedRows, compactionProperties);
         return mergeSummary.toString();
     }
 
@@ -356,13 +362,15 @@ public class CompactionTask extends AbstractCompactionTask
     /*
      * Checks if we have enough disk space to execute the compaction.  Drops the largest sstable out of the Task until
      * there's enough space (in theory) to handle the compaction.
+     *
+     * @return true if there is enough disk space to execute the complete compaction, false if some sstables are excluded.
      */
-    protected void buildCompactionCandidatesForAvailableDiskSpace(final Set<SSTableReader> fullyExpiredSSTables, TimeUUID taskId)
+    protected boolean buildCompactionCandidatesForAvailableDiskSpace(final Set<SSTableReader> fullyExpiredSSTables, TimeUUID taskId)
     {
         if(!cfs.isCompactionDiskSpaceCheckEnabled() && compactionType == OperationType.COMPACTION)
         {
-            logger.info("Compaction space check is disabled");
-            return; // try to compact all SSTables
+            logger.info("Compaction space check is disabled - trying to compact all sstables");
+            return true;
         }
 
         final Set<SSTableReader> nonExpiredSSTables = Sets.difference(transaction.originals(), fullyExpiredSSTables);
@@ -385,7 +393,7 @@ public class CompactionTask extends AbstractCompactionTask
                 Map<File, Long> expectedWriteSize = CompactionManager.instance.active.estimatedRemainingWriteBytes();
 
                 // todo: abort streams if they block compactions
-                if (Directories.hasDiskSpaceForCompactionsAndStreams(expectedNewWriteSize, expectedWriteSize))
+                if (cfs.getDirectories().hasDiskSpaceForCompactionsAndStreams(expectedNewWriteSize, expectedWriteSize))
                     break;
             }
             catch (Exception e)
@@ -409,7 +417,7 @@ public class CompactionTask extends AbstractCompactionTask
 
                 String msg = String.format("Not enough space for compaction (%s) of %s.%s, estimated sstables = %d, expected write size = %d",
                                            taskId,
-                                           cfs.keyspace.getName(),
+                                           cfs.getKeyspaceName(),
                                            cfs.name,
                                            Math.max(1, writeSize / strategy.getMaxSSTableBytes()),
                                            writeSize);
@@ -427,7 +435,9 @@ public class CompactionTask extends AbstractCompactionTask
         {
             CompactionManager.instance.incrementCompactionsReduced();
             CompactionManager.instance.incrementSstablesDropppedFromCompactions(sstablesRemoved);
+            return false;
         }
+        return true;
     }
 
     protected int getLevel()

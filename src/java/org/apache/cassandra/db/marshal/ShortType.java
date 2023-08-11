@@ -20,9 +20,12 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 
+import org.apache.commons.lang3.mutable.MutableShort;
+
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.Constants;
 import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.functions.ArgumentDeserializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.ShortSerializer;
 import org.apache.cassandra.serializers.TypeSerializer;
@@ -42,6 +45,12 @@ public class ShortType extends NumberType<Short>
     {
         super(ComparisonType.CUSTOM);
     } // singleton
+
+    @Override
+    public boolean allowsEmpty()
+    {
+        return false;
+    }
 
     public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
     {
@@ -111,76 +120,82 @@ public class ShortType extends NumberType<Short>
     }
 
     @Override
-    public short toShort(ByteBuffer value)
+    public ArgumentDeserializer getArgumentDeserializer()
     {
-        return ByteBufferUtil.toShort(value);
+        return new NumberArgumentDeserializer<MutableShort>(new MutableShort())
+        {
+            @Override
+            protected void setMutableValue(MutableShort mutable, ByteBuffer buffer)
+            {
+                mutable.setValue(ByteBufferUtil.toShort(buffer));
+            }
+        };
     }
 
     @Override
-    public int toInt(ByteBuffer value)
+    public ByteBuffer add(Number left, Number right)
     {
-        return toShort(value);
+        return ByteBufferUtil.bytes((short) (left.shortValue() + right.shortValue()));
     }
 
     @Override
-    public ByteBuffer add(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
+    public ByteBuffer substract(Number left, Number right)
     {
-        return ByteBufferUtil.bytes((short) (leftType.toShort(left) + rightType.toShort(right)));
-    }
-
-    public ByteBuffer substract(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
-    {
-        return ByteBufferUtil.bytes((short) (leftType.toShort(left) - rightType.toShort(right)));
-    }
-
-    public ByteBuffer multiply(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
-    {
-        return ByteBufferUtil.bytes((short) (leftType.toShort(left) * rightType.toShort(right)));
-    }
-
-    public ByteBuffer divide(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
-    {
-        return ByteBufferUtil.bytes((short) (leftType.toShort(left) / rightType.toShort(right)));
-    }
-
-    public ByteBuffer mod(NumberType<?> leftType, ByteBuffer left, NumberType<?> rightType, ByteBuffer right)
-    {
-        return ByteBufferUtil.bytes((short) (leftType.toShort(left) % rightType.toShort(right)));
-    }
-
-    public ByteBuffer negate(ByteBuffer input)
-    {
-        return ByteBufferUtil.bytes((short) -toShort(input));
+        return ByteBufferUtil.bytes((short) (left.shortValue() - right.shortValue()));
     }
 
     @Override
-    public ByteBuffer abs(ByteBuffer input)
+    public ByteBuffer multiply(Number left, Number right)
     {
-        return ByteBufferUtil.bytes((short) Math.abs(toShort(input)));
+        return ByteBufferUtil.bytes((short) (left.shortValue() * right.shortValue()));
     }
 
     @Override
-    public ByteBuffer exp(ByteBuffer input)
+    public ByteBuffer divide(Number left, Number right)
     {
-        return ByteBufferUtil.bytes((short) Math.exp(toShort(input)));
+        return ByteBufferUtil.bytes((short) (left.shortValue() / right.shortValue()));
     }
 
     @Override
-    public ByteBuffer log(ByteBuffer input)
+    public ByteBuffer mod(Number left, Number right)
     {
-        return ByteBufferUtil.bytes((short) Math.log(toShort(input)));
+        return ByteBufferUtil.bytes((short) (left.shortValue() % right.shortValue()));
     }
 
     @Override
-    public ByteBuffer log10(ByteBuffer input)
+    public ByteBuffer negate(Number input)
     {
-        return ByteBufferUtil.bytes((short) Math.log10(toShort(input)));
+        return ByteBufferUtil.bytes((short) -input.shortValue());
     }
 
     @Override
-    public ByteBuffer round(ByteBuffer input)
+    public ByteBuffer abs(Number input)
     {
-        return ByteBufferUtil.clone(input);
+        return ByteBufferUtil.bytes((short) Math.abs(input.shortValue()));
+    }
+
+    @Override
+    public ByteBuffer exp(Number input)
+    {
+        return ByteBufferUtil.bytes((short) Math.exp(input.shortValue()));
+    }
+
+    @Override
+    public ByteBuffer log(Number input)
+    {
+        return ByteBufferUtil.bytes((short) Math.log(input.shortValue()));
+    }
+
+    @Override
+    public ByteBuffer log10(Number input)
+    {
+        return ByteBufferUtil.bytes((short) Math.log10(input.shortValue()));
+    }
+
+    @Override
+    public ByteBuffer round(Number input)
+    {
+        return decompose(input.shortValue());
     }
 
     @Override

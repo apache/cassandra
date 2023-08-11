@@ -41,5 +41,5 @@ public interface PartialScalarFunction extends ScalarFunction
      *
      * @return the list of input parameters for the function
      */
-    public List<ByteBuffer> getPartialParameters();
+    public List<ByteBuffer> getPartialArguments();
 }

@@ -164,7 +164,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                          'COPY', 'CREATE', 'DEBUG', 'DELETE', 'DESC', 'DESCRIBE',
                                          'DROP', 'GRANT', 'HELP', 'INSERT', 'LIST', 'LOGIN', 'PAGING', 'REVOKE',
                                          'SELECT', 'SHOW', 'SOURCE', 'TRACING', 'EXPAND', 'SERIAL', 'TRUNCATE',
-                                         'UPDATE', 'USE', 'exit', 'quit', 'CLEAR', 'CLS'))
+                                         'UPDATE', 'USE', 'exit', 'quit', 'CLEAR', 'CLS', 'history'))
 
     def test_complete_command_words(self):
         self.trycompletions('alt', '\b\b\bALTER ')
@@ -250,7 +250,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                      'CREATE', 'DEBUG', 'DELETE', 'DESC', 'DESCRIBE', 'DROP',
                      'EXPAND', 'GRANT', 'HELP', 'INSERT', 'LIST', 'LOGIN', 'PAGING',
                      'REVOKE', 'SELECT', 'SHOW', 'SOURCE', 'SERIAL', 'TRACING',
-                     'TRUNCATE', 'UPDATE', 'USE', 'exit', 'quit',
+                     'TRUNCATE', 'UPDATE', 'USE', 'exit', 'history', 'quit',
                      'CLEAR', 'CLS'])
 
         self.trycompletions(
@@ -998,12 +998,15 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions('CREATE ROLE foo WITH HASHED ', immediate='PASSWORD = ');
         self.trycompletions('CREATE ROLE foo WITH ACCESS TO ', choices=['ALL', 'DATACENTERS'])
         self.trycompletions('CREATE ROLE foo WITH ACCESS TO ALL ', immediate='DATACENTERS ')
+        self.trycompletions('CREATE ROLE foo WITH ACCESS FROM ', choices=['ALL', 'CIDRS'])
+        self.trycompletions('CREATE ROLE foo WITH ACCESS FROM ALL ', immediate='CIDRS ')
 
     def test_complete_in_alter_role(self):
         self.trycompletions('ALTER ROLE ', choices=['<identifier>', 'IF', '<quotedName>'])
         self.trycompletions('ALTER ROLE foo ', immediate='WITH ')
         self.trycompletions('ALTER ROLE foo WITH ', choices=['ACCESS', 'HASHED', 'LOGIN', 'OPTIONS', 'PASSWORD', 'SUPERUSER'])
         self.trycompletions('ALTER ROLE foo WITH ACCESS TO ', choices=['ALL', 'DATACENTERS'])
+        self.trycompletions('ALTER ROLE foo WITH ACCESS FROM ', choices=['ALL', 'CIDRS'])
 
     def test_complete_in_drop_role(self):
         self.trycompletions('DROP ROLE ', choices=['<identifier>', 'IF', '<quotedName>'])

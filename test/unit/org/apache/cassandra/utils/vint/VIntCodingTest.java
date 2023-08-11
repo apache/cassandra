@@ -18,26 +18,98 @@
 */
 package org.apache.cassandra.utils.vint;
 
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 
-import com.google.common.primitives.UnsignedInteger;
 import org.junit.Test;
 
+import org.apache.cassandra.db.marshal.ByteArrayAccessor;
+import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.WrappedDataOutputStreamPlus;
+import org.apache.cassandra.utils.CassandraUInt;
+import org.assertj.core.api.Assertions;
+import org.quicktheories.generators.SourceDSL;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
+import static org.quicktheories.QuickTheory.qt;
 
 public class VIntCodingTest
 {
     private static final long[] LONGS = new long[] {53L, 10201L, 1097151L,
                                                     168435455L, 33251130335L, 3281283447775L,
                                                     417672546086779L, 52057592037927932L, 72057594037927937L};
+
+    @Test
+    public void serdeSigned()
+    {
+        qt().forAll(SourceDSL.longs().all()).checkAssert(l -> {
+            for (ValueAccessor<?> accessor : Arrays.asList(ByteBufferAccessor.instance, ByteArrayAccessor.instance))
+                serdeSigned(l, accessor);
+        });
+    }
+
+    private static <T> void serdeSigned(long value, ValueAccessor<T> accessor)
+    {
+        T buffer = accessor.allocate(Long.BYTES + 1);
+        VIntCoding.writeVInt(value, buffer, 0, accessor);
+        Assertions.assertThat(VIntCoding.getVInt(buffer, accessor, 0)).isEqualTo(value);
+    }
+
+    @Test
+    public void serdeUnsigned()
+    {
+        qt().forAll(SourceDSL.longs().between(0, Long.MAX_VALUE)).checkAssert(l -> {
+            for (ValueAccessor<?> accessor : Arrays.asList(ByteBufferAccessor.instance, ByteArrayAccessor.instance))
+                serdeUnsigned(l, accessor);
+        });
+    }
+
+    private static <T> void serdeUnsigned(long value, ValueAccessor<T> accessor)
+    {
+        T buffer = accessor.allocate(Long.BYTES + 1);
+        VIntCoding.writeUnsignedVInt(value, buffer, 0, accessor);
+        Assertions.assertThat(VIntCoding.getUnsignedVInt(buffer, accessor, 0)).isEqualTo(value);
+    }
+
+    @Test
+    public void serdeSigned32()
+    {
+        qt().forAll(SourceDSL.integers().all()).checkAssert(l -> {
+            for (ValueAccessor<?> accessor : Arrays.asList(ByteBufferAccessor.instance, ByteArrayAccessor.instance))
+                serdeSigned32(l, accessor);
+        });
+    }
+
+    private static <T> void serdeSigned32(int value, ValueAccessor<T> accessor)
+    {
+        T buffer = accessor.allocate(Integer.BYTES + 1);
+        VIntCoding.writeVInt32(value, buffer, 0, accessor);
+        Assertions.assertThat(VIntCoding.getVInt32(buffer, accessor, 0)).isEqualTo(value);
+    }
+
+    @Test
+    public void serdeUnsignedInt32()
+    {
+        qt().forAll(SourceDSL.integers().between(0, Integer.MAX_VALUE)).checkAssert(l -> {
+            for (ValueAccessor<?> accessor : Arrays.asList(ByteBufferAccessor.instance, ByteArrayAccessor.instance))
+                serdeUnsignedInt32(l, accessor);
+        });
+    }
+
+    private static <T> void serdeUnsignedInt32(int value, ValueAccessor<T> accessor)
+    {
+        T buffer = accessor.allocate(Integer.BYTES + 1);
+        VIntCoding.writeUnsignedVInt32(value, buffer, 0, accessor);
+        Assertions.assertThat(VIntCoding.getUnsignedVInt32(buffer, accessor, 0)).isEqualTo(value);
+    }
 
     @Test
     public void testComputeSize() throws Exception
@@ -197,7 +269,7 @@ public class VIntCodingTest
     }
 
     static int[] roundtripTestValues =  new int[] {
-            UnsignedInteger.MAX_VALUE.intValue(),
+            CassandraUInt.MAX_VALUE_UINT,
             Integer.MAX_VALUE + 1,
             Integer.MAX_VALUE,
             Integer.MAX_VALUE - 1,

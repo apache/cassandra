@@ -31,13 +31,13 @@ import org.junit.Assume;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.indexsummary.IndexSummaryManager;
 import org.apache.cassandra.io.sstable.indexsummary.IndexSummaryRedistribution;
@@ -48,6 +48,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
+import static org.psjava.util.AssertStatus.assertTrue;
 
 public class DiskSpaceMetricsTest extends CQLTester
 {
@@ -75,7 +76,7 @@ public class DiskSpaceMetricsTest extends CQLTester
     @Test
     public void summaryRedistribution() throws Throwable
     {
-        Assume.assumeTrue(IndexSummarySupport.isSupportedBy(SSTableFormat.Type.current()));
+        Assume.assumeTrue(IndexSummarySupport.isSupportedBy(DatabaseDescriptor.getSelectedSSTableFormat()));
         createTable("CREATE TABLE %s (pk bigint, PRIMARY KEY (pk)) WITH min_index_interval=1");
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
 
@@ -95,6 +96,30 @@ public class DiskSpaceMetricsTest extends CQLTester
         }
     }
 
+    @Test
+    public void testFlushSize() throws Throwable
+    {
+        createTable(KEYSPACE_PER_TEST, "CREATE TABLE %s (pk bigint, PRIMARY KEY (pk))");
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore(KEYSPACE_PER_TEST);
+        assertTrue(Double.isNaN(cfs.metric.flushSizeOnDisk.get()));
+
+        // disable compaction so nothing changes between calculations
+        cfs.disableAutoCompaction();
+
+        for (int i = 0; i < 3; i++)
+            insertN(KEYSPACE_PER_TEST, cfs, 1000, 55);
+
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+        int totalSize = 0;
+        final Set<SSTableReader> liveSSTables = cfs.getLiveSSTables();
+        for (SSTableReader rdr : liveSSTables)
+        {
+            totalSize += rdr.onDiskLength();
+        }
+        final int avgSize = totalSize / liveSSTables.size();
+        assertEquals(avgSize, cfs.metric.flushSizeOnDisk.get(), 0.05 * avgSize);
+    }
+
     private void insert(ColumnFamilyStore cfs, long value) throws Throwable
     {
         insertN(cfs, 1, value);
@@ -102,8 +127,13 @@ public class DiskSpaceMetricsTest extends CQLTester
 
     private void insertN(ColumnFamilyStore cfs, int n, long base) throws Throwable
     {
+        insertN(KEYSPACE, cfs, n, base);
+    }
+
+    private void insertN(String keyspace, ColumnFamilyStore cfs, int n, long base) throws Throwable
+    {
         for (int i = 0; i < n; i++)
-            execute("INSERT INTO %s (pk) VALUES (?)", base + i);
+            executeFormattedQuery(formatQuery(keyspace, "INSERT INTO %s (pk) VALUES (?)"), base + i);
 
         // flush to write the sstable
         Util.flush(cfs);

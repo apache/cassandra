@@ -54,6 +54,7 @@ import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_ORG_CAFFINITAS_OHC_SEGMENTCOUNT;
 import static org.junit.Assert.*;
 
 public class RowCacheTest
@@ -66,7 +67,7 @@ public class RowCacheTest
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
-        System.setProperty("org.caffinitas.ohc.segmentCount", "16");
+        TEST_ORG_CAFFINITAS_OHC_SEGMENTCOUNT.setInt(16);
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE_CACHED,
                                     KeyspaceParams.simple(1),

@@ -50,6 +50,7 @@ import org.assertj.core.api.Assertions;
 import org.awaitility.Awaitility;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SUPERUSER_SETUP_DELAY_MS;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.replaceHostAndStart;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.stopUnchecked;
 import static org.apache.cassandra.distributed.test.hostreplacement.HostReplacementTest.setupCluster;
@@ -78,7 +79,7 @@ public class FailedBootstrapTest extends TestBaseImpl
             stopUnchecked(nodeToRemove);
 
             // should fail to join, but should start up!
-            IInvokableInstance added = replaceHostAndStart(cluster, nodeToRemove, p -> p.setProperty("cassandra.superuser_setup_delay_ms", "1"));
+            IInvokableInstance added = replaceHostAndStart(cluster, nodeToRemove, p -> p.set(SUPERUSER_SETUP_DELAY_MS, "1"));
             // log gossip for debugging
             alive.forEach(i -> {
                 NodeToolResult result = i.nodetoolResult("gossipinfo");

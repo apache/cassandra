@@ -131,7 +131,7 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
                                              boolean reversed,
                                              SSTableReadsListener listener)
     {
-        RowIndexEntry rie = getRowIndexEntry(key, SSTableReader.Operator.EQ, true, false, listener);
+        RowIndexEntry rie = getRowIndexEntry(key, SSTableReader.Operator.EQ, true, listener);
         return rowIterator(null, key, rie, slices, selectedColumns, reversed);
     }
 
@@ -198,8 +198,8 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
     @Override
     public DecoratedKey firstKeyBeyond(PartitionPosition token)
     {
-        if (token.compareTo(first) < 0)
-            return first;
+        if (token.compareTo(getFirst()) < 0)
+            return getFirst();
 
         long sampledPosition = getIndexScanPosition(token);
 
@@ -238,7 +238,7 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
      */
     public final RowIndexEntry getRowIndexEntry(PartitionPosition key, Operator op)
     {
-        return getRowIndexEntry(key, op, true, false, SSTableReadsListener.NOOP_LISTENER);
+        return getRowIndexEntry(key, op, true, SSTableReadsListener.NOOP_LISTENER);
     }
 
     /**
@@ -252,7 +252,6 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
     public RowIndexEntry getRowIndexEntry(PartitionPosition key,
                                           Operator operator,
                                           boolean updateStats,
-                                          boolean permitMatchPastLast,
                                           SSTableReadsListener listener)
     {
         // Having no index file is impossible in a normal operation. The only way it might happen is running
@@ -264,7 +263,7 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
 
         // check the smallest and greatest keys in the sstable to see if it can't be present
         boolean skip = false;
-        if (key.compareTo(first) < 0)
+        if (key.compareTo(getFirst()) < 0)
         {
             if (searchOp == Operator.EQ)
             {
@@ -272,15 +271,15 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
             }
             else
             {
-                key = first;
+                key = getFirst();
                 searchOp = Operator.GE; // since op != EQ, bloom filter will be skipped; first key is included so no reason to check bloom filter
             }
         }
         else
         {
-            int l = last.compareTo(key);
+            int l = getLast().compareTo(key);
             skip = l < 0 // out of range, skip
-                   || l == 0 && searchOp == Operator.GT && !permitMatchPastLast; // search entry > key, but key is the last in range, so if permitMatchPastLast == false skip
+                   || l == 0 && searchOp == Operator.GT; // search entry > key, but key is the last in range, so skip
             if (l == 0)
                 searchOp = Operator.GE; // since op != EQ, bloom filter will be skipped, last key is included so no reason to check bloom filter
         }
@@ -408,10 +407,9 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
     protected long getPosition(PartitionPosition key,
                                Operator op,
                                boolean updateCacheAndStats,
-                               boolean permitMatchPastLast,
                                SSTableReadsListener listener)
     {
-        RowIndexEntry rowIndexEntry = getRowIndexEntry(key, op, updateCacheAndStats, permitMatchPastLast, listener);
+        RowIndexEntry rowIndexEntry = getRowIndexEntry(key, op, updateCacheAndStats, listener);
         return rowIndexEntry != null ? rowIndexEntry.position : -1;
     }
 
@@ -454,7 +452,7 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
 
         try (RowIndexEntry.IndexInfoRetriever onHeapRetriever = rowIndexEntry.openWithIndex(null))
         {
-            IndexInfo columns = onHeapRetriever.columnsIndex(isReversed ? rowIndexEntry.columnsIndexCount() - 1 : 0);
+            IndexInfo columns = onHeapRetriever.columnsIndex(isReversed ? rowIndexEntry.blockCount() - 1 : 0);
             ClusteringBound<?> bound = isReversed ? columns.lastName.asEndBound() : columns.firstName.asStartBound();
             UnfilteredRowIteratorWithLowerBound.assertBoundSize(bound, this);
             return bound.artificialLowerBound(isReversed);
@@ -531,8 +529,8 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
      */
     long getIndexScanPosition(PartitionPosition key)
     {
-        if (openReason == OpenReason.MOVED_START && key.compareTo(first) < 0)
-            key = first;
+        if (openReason == OpenReason.MOVED_START && key.compareTo(getFirst()) < 0)
+            key = getFirst();
 
         return indexSummary.getScanPosition(key);
     }
@@ -601,7 +599,7 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
         return runWithLock(ignored -> {
             assert openReason != OpenReason.EARLY;
             // TODO: merge with caller's firstKeyBeyond() work,to save time
-            if (newStart.compareTo(first) > 0)
+            if (newStart.compareTo(getFirst()) > 0)
             {
                 Map<FileHandle, Long> handleAndPositions = new LinkedHashMap<>(2);
                 if (dfile != null)
@@ -656,8 +654,8 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
 
         // Always save the resampled index with lock to avoid racing with entire-sstable streaming
         return runWithLock(ignored -> {
-            new IndexSummaryComponent(newSummary, first, last).save(descriptor.fileFor(Components.SUMMARY), true);
-            return cloneAndReplace(first, OpenReason.METADATA_CHANGE, newSummary);
+            new IndexSummaryComponent(newSummary, getFirst(), getLast()).save(descriptor.fileFor(Components.SUMMARY), true);
+            return cloneAndReplace(getFirst(), OpenReason.METADATA_CHANGE, newSummary);
         });
     }
 

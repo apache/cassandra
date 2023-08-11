@@ -28,7 +28,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
-import org.apache.cassandra.cql3.Json;
 import org.apache.cassandra.cql3.Maps;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.db.rows.Cell;
@@ -38,6 +37,7 @@ import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MapSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.JsonUtils;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable.Version;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
@@ -61,7 +61,7 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
         if (l.size() != 2)
             throw new ConfigurationException("MapType takes exactly 2 type parameters");
 
-        return getInstance(l.get(0), l.get(1), true);
+        return getInstance(l.get(0).freeze(), l.get(1).freeze(), true);
     }
 
     public static <K, V> MapType<K, V> getInstance(AbstractType<K> keys, AbstractType<V> values, boolean isMultiCell)
@@ -150,10 +150,14 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     @Override
     public AbstractType<?> freeze()
     {
-        if (isMultiCell)
-            return getInstance(this.keys, this.values, false);
-        else
-            return this;
+        // freeze key/value to match org.apache.cassandra.cql3.CQL3Type.Raw.RawCollection.freeze
+        return isMultiCell ? getInstance(this.keys.freeze(), this.values.freeze(), false) : this;
+    }
+
+    @Override
+    public AbstractType<?> unfreeze()
+    {
+        return isMultiCell ? this : getInstance(this.keys, this.values, true);
     }
 
     @Override
@@ -333,7 +337,7 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
         if (parsed instanceof String)
-            parsed = Json.decodeJson((String) parsed);
+            parsed = JsonUtils.decodeJson((String) parsed);
 
         if (!(parsed instanceof Map))
             throw new MarshalException(String.format(
@@ -373,7 +377,7 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
             if (key.startsWith("\""))
                 sb.append(key);
             else
-                sb.append('"').append(Json.quoteAsJsonString(key)).append('"');
+                sb.append('"').append(JsonUtils.quoteAsJsonString(key)).append('"');
 
             sb.append(": ");
             ByteBuffer vv = CollectionSerializer.readValue(value, ByteBufferAccessor.instance, offset);

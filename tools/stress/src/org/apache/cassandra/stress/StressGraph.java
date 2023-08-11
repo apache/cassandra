@@ -28,18 +28,17 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.Arrays;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.google.common.io.ByteStreams;
 import org.apache.commons.lang3.StringUtils;
+
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.apache.cassandra.stress.report.StressMetrics;
 import org.apache.cassandra.stress.settings.StressSettings;
-import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
-import org.json.simple.JSONValue;
-
+import org.apache.cassandra.utils.JsonUtils;
 
 public class StressGraph
 {
@@ -62,7 +61,7 @@ public class StressGraph
     public void generateGraph()
     {
         File htmlFile = new File(stressSettings.graph.file);
-        JSONObject stats;
+        ObjectNode stats;
         if (htmlFile.isFile())
         {
             try
@@ -84,7 +83,7 @@ public class StressGraph
         try
         {
             PrintWriter out = new PrintWriter(htmlFile);
-            String statsBlock = "/* stats start */\nstats = " + stats.toJSONString() + ";\n/* stats end */\n";
+            String statsBlock = "/* stats start */\nstats = " + JsonUtils.writeAsJsonString(stats) + ";\n/* stats end */\n";
             String html = getGraphHTML().replaceFirst("/\\* stats start \\*/\n\n/\\* stats end \\*/\n", statsBlock);
             out.write(html);
             out.close();
@@ -95,16 +94,19 @@ public class StressGraph
         }
     }
 
-    private JSONObject parseExistingStats(String html)
+    private ObjectNode parseExistingStats(String html)
     {
-        JSONObject stats;
-
         Pattern pattern = Pattern.compile("(?s).*/\\* stats start \\*/\\nstats = (.*);\\n/\\* stats end \\*/.*");
         Matcher matcher = pattern.matcher(html);
         matcher.matches();
-        stats = (JSONObject) JSONValue.parse(matcher.group(1));
-
-        return stats;
+        try
+        {
+            return (ObjectNode) JsonUtils.JSON_OBJECT_MAPPER.readTree(matcher.group(1));
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("Couldn't parser stats json: "+e.getMessage(), e);
+        }
     }
 
     private String getGraphHTML()
@@ -120,10 +122,10 @@ public class StressGraph
     }
 
     /** Parse log and append to stats array */
-    private JSONArray parseLogStats(InputStream log, JSONArray stats) {
+    private ArrayNode parseLogStats(InputStream log, ArrayNode stats) {
         BufferedReader reader = new BufferedReader(new InputStreamReader(log));
-        JSONObject json = new JSONObject();
-        JSONArray intervals = new JSONArray();
+        ObjectNode json = JsonUtils.JSON_OBJECT_MAPPER.createObjectNode();
+        ArrayNode intervals = JsonUtils.JSON_OBJECT_MAPPER.createArrayNode();
         boolean runningMultipleThreadCounts = false;
         String currentThreadCount = null;
         Pattern threadCountMessage = Pattern.compile("Running ([A-Z]+) with ([0-9]+) threads .*");
@@ -171,7 +173,7 @@ public class StressGraph
                 // Process lines
                 if (mode == ReadingMode.METRICS)
                 {
-                    JSONArray metrics = new JSONArray();
+                    ArrayNode metrics = JsonUtils.JSON_OBJECT_MAPPER.createArrayNode();
                     String[] parts = line.split(",");
                     if (parts.length != StressMetrics.HEADMETRICS.length)
                     {
@@ -185,7 +187,7 @@ public class StressGraph
                         }
                         catch (NumberFormatException e)
                         {
-                            metrics.add(null);
+                            metrics.addNull();
                         }
                     }
                     intervals.add(metrics);
@@ -203,7 +205,10 @@ public class StressGraph
                 else if (mode == ReadingMode.NEXTITERATION)
                 {
                     //Wrap up the results of this test and append to the array.
-                    json.put("metrics", Arrays.asList(StressMetrics.HEADMETRICS));
+                    ArrayNode metrics = json.putArray("metrics");
+                    for (String metric : StressMetrics.HEADMETRICS) {
+                        metrics.add(metric);
+                    }
                     json.put("test", stressSettings.graph.operation);
                     if (currentThreadCount == null)
                         json.put("revision", stressSettings.graph.revision);
@@ -211,12 +216,12 @@ public class StressGraph
                         json.put("revision", String.format("%s - %s threads", stressSettings.graph.revision, currentThreadCount));
                     String command = StringUtils.join(stressArguments, " ").replaceAll("password=.*? ", "password=******* ");
                     json.put("command", command);
-                    json.put("intervals", intervals);
+                    json.set("intervals", intervals);
                     stats.add(json);
 
                     //Start fresh for next iteration:
-                    json = new JSONObject();
-                    intervals = new JSONArray();
+                    json = JsonUtils.JSON_OBJECT_MAPPER.createObjectNode();
+                    intervals = JsonUtils.JSON_OBJECT_MAPPER.createArrayNode();
                     mode = ReadingMode.START;
                 }
             }
@@ -229,25 +234,25 @@ public class StressGraph
         return stats;
     }
 
-    private JSONObject createJSONStats(JSONObject json)
+    private ObjectNode createJSONStats(ObjectNode json)
     {
         try (InputStream logStream = Files.newInputStream(stressSettings.graph.temporaryLogFile.toPath()))
         {
-            JSONArray stats;
+            ArrayNode stats;
             if (json == null)
             {
-                json = new JSONObject();
-                stats = new JSONArray();
+                json = JsonUtils.JSON_OBJECT_MAPPER.createObjectNode();
+                stats = JsonUtils.JSON_OBJECT_MAPPER.createArrayNode();
             }
             else
             {
-                stats = (JSONArray) json.get("stats");
+                stats = (ArrayNode) json.get("stats");
             }
 
             stats = parseLogStats(logStream, stats);
 
             json.put("title", stressSettings.graph.title);
-            json.put("stats", stats);
+            json.set("stats", stats);
             return json;
         }
         catch (IOException e)

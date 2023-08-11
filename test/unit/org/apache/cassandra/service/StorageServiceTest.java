@@ -21,6 +21,7 @@ package org.apache.cassandra.service;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.google.common.collect.ImmutableMultimap;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -40,12 +41,15 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.locator.ReplicaMultimap;
+import org.apache.cassandra.locator.SimpleSnitch;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.mockito.Mockito;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.awaitility.Awaitility.await;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -310,15 +314,67 @@ public class StorageServiceTest
     @Test
     public void testLocalDatacenterNodesExcludedDuringRebuild()
     {
-        StorageService service = StorageService.instance;
         try
         {
-            service.rebuild(DatabaseDescriptor.getLocalDataCenter(), "StorageServiceTest", null, null, true);
+            getStorageService().rebuild(DatabaseDescriptor.getLocalDataCenter(), "StorageServiceTest", null, null, true);
             fail();
         }
         catch (IllegalArgumentException e)
         {
             Assert.assertEquals("Cannot set source data center to be local data center, when excludeLocalDataCenter flag is set", e.getMessage());
         }
+    }
+
+    @Test
+    public void testRebuildFailOnNonExistingDatacenter()
+    {
+        String nonExistentDC = "NON_EXISTENT_DC";
+
+        try
+        {
+            getStorageService().rebuild(nonExistentDC, "StorageServiceTest", null, null, true);
+            fail();
+        }
+        catch (IllegalArgumentException ex)
+        {
+            Assert.assertEquals(String.format("Provided datacenter '%s' is not a valid datacenter, available datacenters are: %s",
+                                              nonExistentDC,
+                                              SimpleSnitch.DATA_CENTER_NAME),
+                                ex.getMessage());
+        }
+    }
+
+    @Test
+    public void testRebuildingWithTokensWithoutKeyspace() throws Exception
+    {
+        try
+        {
+            getStorageService().rebuild("datacenter1", null, "123", null);
+            fail();
+        }
+        catch (IllegalArgumentException ex)
+        {
+            assertEquals("Cannot specify tokens without keyspace.", ex.getMessage());
+        }
+    }
+
+    private StorageService getStorageService()
+    {
+        ImmutableMultimap.Builder<String, InetAddressAndPort> builder = ImmutableMultimap.builder();
+        builder.put(SimpleSnitch.DATA_CENTER_NAME, aAddress);
+
+        TokenMetadata.Topology tokenMetadataTopology = Mockito.mock(TokenMetadata.Topology.class);
+        Mockito.when(tokenMetadataTopology.getDatacenterEndpoints()).thenReturn(builder.build());
+
+        TokenMetadata metadata = new TokenMetadata(new SimpleSnitch());
+        TokenMetadata spiedMetadata = Mockito.spy(metadata);
+
+        Mockito.when(spiedMetadata.getTopology()).thenReturn(tokenMetadataTopology);
+
+        StorageService spiedStorageService = Mockito.spy(StorageService.instance);
+        Mockito.when(spiedStorageService.getTokenMetadata()).thenReturn(spiedMetadata);
+        Mockito.when(spiedMetadata.cloneOnlyTokenMap()).thenReturn(spiedMetadata);
+
+        return spiedStorageService;
     }
 }

@@ -18,19 +18,18 @@
 
 package org.apache.cassandra.distributed.test;
 
-import java.net.InetAddress;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
+
+import org.apache.cassandra.distributed.shared.WithProperties;
+import org.awaitility.Awaitility;
 import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -69,7 +68,6 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.exceptions.CasWriteTimeoutException;
 import org.apache.cassandra.gms.FailureDetector;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.RepairParallelism;
@@ -96,6 +94,8 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.AUTO_REPAIR_FREQUENCY_SECONDS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_PAXOS_AUTO_REPAIRS;
 import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.GLOBAL;
 import static org.apache.cassandra.service.paxos.BallotGenerator.Global.staleBallot;
@@ -107,10 +107,11 @@ public class PaxosRepair2Test extends TestBaseImpl
 {
     private static final Logger logger = LoggerFactory.getLogger(PaxosRepair2Test.class);
     private static final String TABLE = "tbl";
+    public static final String OFFSETTABLE_CLOCK_NAME = OffsettableClock.class.getName();
 
     static
     {
-        CassandraRelevantProperties.PAXOS_EXECUTE_ON_SELF.setBoolean(false);
+        CassandraRelevantProperties.PAXOS_USE_SELF_EXECUTION.setBoolean(false);
         DatabaseDescriptor.daemonInitialization();
     }
 
@@ -124,19 +125,6 @@ public class PaxosRepair2Test extends TestBaseImpl
         }).call();
         logger.info("{} has {} uncommitted instances", instance, uncommitted);
         return uncommitted;
-    }
-
-    private static void assertAllAlive(Cluster cluster)
-    {
-        Set<InetAddress> allEndpoints = cluster.stream().map(i -> i.broadcastAddress().getAddress()).collect(Collectors.toSet());
-        cluster.stream().forEach(instance -> {
-            instance.runOnInstance(() -> {
-                ImmutableSet<InetAddressAndPort> endpoints = Gossiper.instance.getEndpoints();
-                Assert.assertEquals(allEndpoints, endpoints);
-                for (InetAddressAndPort endpoint : endpoints)
-                    Assert.assertTrue(FailureDetector.instance.isAlive(endpoint));
-            });
-        });
     }
 
     private static void assertUncommitted(IInvokableInstance instance, String ks, String table, int expected)
@@ -259,16 +247,15 @@ public class PaxosRepair2Test extends TestBaseImpl
             ClusterUtils.stopUnchecked(cluster.get(3));
             InetAddressAndPort node3 = InetAddressAndPort.getByAddress(cluster.get(3).broadcastAddress());
 
-            for (int i = 0; i < 10; i++)
-            {
-                if (!cluster.get(1).callOnInstance(() -> FailureDetector.instance.isAlive(node3)))
-                    break;
-            }
+            // make sure node1 knows node3 is down
+            Awaitility.waitAtMost(1,TimeUnit.MINUTES).until(
+            () -> !cluster.get(1).callOnInstance(() -> FailureDetector.instance.isAlive(node3)));
 
             repair(cluster, KEYSPACE, TABLE, true);
             for (int i = 0; i < cluster.size() - 1; i++)
             {
                 cluster.get(i + 1).runOnInstance(() -> {
+                    Assert.assertFalse(CassandraRelevantProperties.CLOCK_GLOBAL.isPresent());
                     ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE);
                     DecoratedKey key = cfs.decorateKey(ByteBufferUtil.bytes(1));
                     Assert.assertTrue(FBUtilities.getBroadcastAddressAndPort().toString(), Commit.isAfter(staleBallot, cfs.getPaxosRepairLowBound(key)));
@@ -348,14 +335,18 @@ public class PaxosRepair2Test extends TestBaseImpl
     @Test
     public void paxosAutoRepair() throws Throwable
     {
-        System.setProperty("cassandra.auto_repair_frequency_seconds", "1");
-        System.setProperty("cassandra.disable_paxos_auto_repairs", "true");
-        try (Cluster cluster = init(Cluster.create(3, cfg -> cfg
+        try (WithProperties properties = new WithProperties().set(AUTO_REPAIR_FREQUENCY_SECONDS, 1).set(DISABLE_PAXOS_AUTO_REPAIRS, true);
+             Cluster cluster = init(Cluster.create(3, cfg -> cfg
                                                              .set("paxos_variant", "v2")
                                                              .set("paxos_repair_enabled", true)
-                                                             .set("truncate_request_timeout_in_ms", 1000L)))
-        )
+                                                             .set("truncate_request_timeout_in_ms", 1000L)));
+             )
         {
+            cluster.forEach(i -> {
+                Assert.assertFalse(CassandraRelevantProperties.CLOCK_GLOBAL.isPresent());
+                Assert.assertEquals(1, CassandraRelevantProperties.AUTO_REPAIR_FREQUENCY_SECONDS.getInt());
+                Assert.assertTrue(CassandraRelevantProperties.DISABLE_PAXOS_AUTO_REPAIRS.getBoolean());
+            });
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + '.' + TABLE + " (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
             ClusterUtils.stopUnchecked(cluster.get(3));
             cluster.verbs(Verb.PAXOS_COMMIT_REQ).drop();
@@ -382,18 +373,13 @@ public class PaxosRepair2Test extends TestBaseImpl
             for (int i=0; i<20; i++)
             {
                 if (!cluster.get(1).callsOnInstance(() -> PaxosState.uncommittedTracker().hasInflightAutoRepairs()).call()
-                 && !cluster.get(2).callsOnInstance(() -> PaxosState.uncommittedTracker().hasInflightAutoRepairs()).call())
+                    && !cluster.get(2).callsOnInstance(() -> PaxosState.uncommittedTracker().hasInflightAutoRepairs()).call())
                     break;
                 logger.info("Waiting for auto repairs to finish...");
                 Thread.sleep(1000);
             }
             assertUncommitted(cluster.get(1), KEYSPACE, TABLE, 0);
             assertUncommitted(cluster.get(2), KEYSPACE, TABLE, 0);
-        }
-        finally
-        {
-            System.clearProperty("cassandra.auto_repair_frequency_seconds");
-            System.clearProperty("cassandra.disable_paxos_auto_repairs");
         }
     }
 
@@ -413,6 +399,7 @@ public class PaxosRepair2Test extends TestBaseImpl
 
             repair(cluster, KEYSPACE, TABLE);
             cluster.forEach(i -> i.runOnInstance(() -> {
+                Assert.assertFalse(CassandraRelevantProperties.CLOCK_GLOBAL.isPresent());
                 compactPaxos();
                 Map<Integer, PaxosRow> rows = getPaxosRows();
                 Assert.assertEquals(Sets.newHashSet(1), rows.keySet());
@@ -471,116 +458,125 @@ public class PaxosRepair2Test extends TestBaseImpl
     @Test
     public void legacyPurgeRepairLoop() throws Exception
     {
-        CassandraRelevantProperties.CLOCK_GLOBAL.setString(OffsettableClock.class.getName());
-        try (Cluster cluster = init(Cluster.create(3, cfg -> cfg
-                                                             .set("paxos_variant", "v2")
-                                                             .set("paxos_state_purging", "legacy")
-                                                             .set("paxos_purge_grace_period", "0s")
-                                                             .set("truncate_request_timeout_in_ms", 1000L)))
-        )
+        try
         {
-            int ttl = 3*3600;
-            cluster.schemaChange("CREATE TABLE " + KEYSPACE + '.' + TABLE + " (pk int, ck int, v int, PRIMARY KEY (pk, ck)) WITH gc_grace_seconds=" + ttl);
+            CassandraRelevantProperties.CLOCK_GLOBAL.setString(OFFSETTABLE_CLOCK_NAME);
+            try (Cluster cluster = init(Cluster.create(3, cfg -> cfg
+                                                                 .set("paxos_variant", "v2")
+                                                                 .set("paxos_state_purging", "legacy")
+                                                                 .set("paxos_purge_grace_period", "0s")
+                                                                 .set("truncate_request_timeout_in_ms", 1000L)))
+            )
+            {
+                cluster.forEach(i -> Assert.assertEquals(OFFSETTABLE_CLOCK_NAME, CassandraRelevantProperties.CLOCK_GLOBAL.getString()));
+                int ttl = 3 * 3600;
+                cluster.schemaChange("CREATE TABLE " + KEYSPACE + '.' + TABLE + " (pk int, ck int, v int, PRIMARY KEY (pk, ck)) WITH gc_grace_seconds=" + ttl);
 
-            // prepare an operation ttl + 1 hour into the past on a single node
-            cluster.forEach(instance -> {
-                instance.runOnInstance(() -> {
-                    backdateTimestamps(ttl + 3600);
-                });
-            });
-            cluster.filters().inbound().to(1, 2).drop();
-            assertTimeout(() -> cluster.coordinator(3).execute("INSERT INTO " + KEYSPACE + '.' + TABLE + " (pk, ck, v) VALUES (400, 2, 2) IF NOT EXISTS", ConsistencyLevel.QUORUM));
-            Ballot oldBallot = Ballot.fromUuid(cluster.get(3).callOnInstance(() -> {
-                TableMetadata cfm = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
-                DecoratedKey dk = cfm.partitioner.decorateKey(ByteBufferUtil.bytes(400));
-                try (PaxosState state = PaxosState.get(dk, cfm))
-                {
-                    return state.currentSnapshot().promised.asUUID();
-                }
-            }));
-
-            assertUncommitted(cluster.get(1), KEYSPACE, TABLE, 0);
-            assertUncommitted(cluster.get(2), KEYSPACE, TABLE, 0);
-            assertUncommitted(cluster.get(3), KEYSPACE, TABLE, 1);
-
-            // commit an operation just over ttl in the past on the other nodes
-            cluster.filters().reset();
-            cluster.filters().inbound().to(2).drop();
-            cluster.forEach(instance -> {
-                instance.runOnInstance(() -> {
-                    backdateTimestamps(ttl + 2);
-                });
-            });
-            cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + '.' + TABLE + " (pk, ck, v) VALUES (400, 2, 2) IF NOT EXISTS", ConsistencyLevel.QUORUM);
-
-            // expire the cache entries
-            int nowInSec = FBUtilities.nowInSeconds();
-            cluster.get(1).runOnInstance(() -> {
-                TableMetadata table = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
-                DecoratedKey dk = table.partitioner.decorateKey(ByteBufferUtil.bytes(400));
-                try (PaxosState state = PaxosState.get(dk, table))
-                {
-                    state.updateStateUnsafe(s -> {
-                        Assert.assertNull(s.accepted);
-                        Assert.assertTrue(Commit.isAfter(s.committed.ballot, oldBallot));
-                        Commit.CommittedWithTTL committed = new Commit.CommittedWithTTL(s.committed.ballot,
-                                                                                        s.committed.update,
-                                                                                        ballotDeletion(s.committed));
-                        Assert.assertTrue(committed.localDeletionTime < nowInSec);
-                        return new PaxosState.Snapshot(Ballot.none(), Ballot.none(), null, committed);
+                // prepare an operation ttl + 1 hour into the past on a single node
+                cluster.forEach(instance -> {
+                    instance.runOnInstance(() -> {
+                        Assert.assertEquals(OFFSETTABLE_CLOCK_NAME, CassandraRelevantProperties.CLOCK_GLOBAL.getString());
+                        backdateTimestamps(ttl + 3600);
                     });
-                }
-            });
-
-            cluster.get(3).runOnInstance(() -> {
-                TableMetadata table = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
-                DecoratedKey dk = table.partitioner.decorateKey(ByteBufferUtil.bytes(400));
-                try (PaxosState state = PaxosState.get(dk, table))
-                {
-                    state.updateStateUnsafe(s -> {
-                        Assert.assertNull(s.accepted);
-                        Assert.assertTrue(Commit.isAfter(s.committed.ballot, oldBallot));
-                        Commit.CommittedWithTTL committed = new Commit.CommittedWithTTL(s.committed.ballot,
-                                                                                        s.committed.update,
-                                                                                        ballotDeletion(s.committed));
-                        Assert.assertTrue(committed.localDeletionTime < nowInSec);
-                        return new PaxosState.Snapshot(oldBallot, oldBallot, null, committed);
-                    });
-                }
-            });
-
-            cluster.forEach(instance -> {
-                instance.runOnInstance(() -> {
-                    backdateTimestamps(0);
                 });
-            });
+                cluster.filters().inbound().to(1, 2).drop();
+                assertTimeout(() -> cluster.coordinator(3).execute("INSERT INTO " + KEYSPACE + '.' + TABLE + " (pk, ck, v) VALUES (400, 2, 2) IF NOT EXISTS", ConsistencyLevel.QUORUM));
+                Ballot oldBallot = Ballot.fromUuid(cluster.get(3).callOnInstance(() -> {
+                    TableMetadata cfm = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
+                    DecoratedKey dk = cfm.partitioner.decorateKey(ByteBufferUtil.bytes(400));
+                    try (PaxosState state = PaxosState.get(dk, cfm))
+                    {
+                        return state.currentSnapshot().promised.asUUID();
+                    }
+                }));
 
-            cluster.filters().reset();
-            cluster.filters().inbound().to(2).drop();
-            cluster.get(3).runOnInstance(() -> {
+                assertUncommitted(cluster.get(1), KEYSPACE, TABLE, 0);
+                assertUncommitted(cluster.get(2), KEYSPACE, TABLE, 0);
+                assertUncommitted(cluster.get(3), KEYSPACE, TABLE, 1);
 
-                TableMetadata table = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
-                DecoratedKey dk = table.partitioner.decorateKey(ByteBufferUtil.bytes(400));
+                // commit an operation just over ttl in the past on the other nodes
+                cluster.filters().reset();
+                cluster.filters().inbound().to(2).drop();
+                cluster.forEach(instance -> {
+                    instance.runOnInstance(() -> {
+                        backdateTimestamps(ttl + 2);
+                    });
+                });
+                cluster.coordinator(1).execute("INSERT INTO " + KEYSPACE + '.' + TABLE + " (pk, ck, v) VALUES (400, 2, 2) IF NOT EXISTS", ConsistencyLevel.QUORUM);
 
-                UpdateSupplier supplier = PaxosState.uncommittedTracker().unsafGetUpdateSupplier();
-                try
-                {
-                    PaxosUncommittedTracker.unsafSetUpdateSupplier(new SingleUpdateSupplier(table, dk, oldBallot));
-                    StorageService.instance.autoRepairPaxos(table.id).get();
-                }
-                catch (Exception e)
-                {
-                    throw new RuntimeException(e);
-                }
-                finally
-                {
-                    PaxosUncommittedTracker.unsafSetUpdateSupplier(supplier);
-                }
-            });
+                // expire the cache entries
+                long nowInSec = FBUtilities.nowInSeconds();
+                cluster.get(1).runOnInstance(() -> {
+                    TableMetadata table = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
+                    DecoratedKey dk = table.partitioner.decorateKey(ByteBufferUtil.bytes(400));
+                    try (PaxosState state = PaxosState.get(dk, table))
+                    {
+                        state.updateStateUnsafe(s -> {
+                            Assert.assertNull(s.accepted);
+                            Assert.assertTrue(Commit.isAfter(s.committed.ballot, oldBallot));
+                            Commit.CommittedWithTTL committed = new Commit.CommittedWithTTL(s.committed.ballot,
+                                                                                            s.committed.update,
+                                                                                            ballotDeletion(s.committed));
+                            Assert.assertTrue(committed.localDeletionTime < nowInSec);
+                            return new PaxosState.Snapshot(Ballot.none(), Ballot.none(), null, committed);
+                        });
+                    }
+                });
 
-            assertUncommitted(cluster.get(1), KEYSPACE, TABLE, 0);
-            assertUncommitted(cluster.get(2), KEYSPACE, TABLE, 0);
-            assertUncommitted(cluster.get(3), KEYSPACE, TABLE, 0);
+                cluster.get(3).runOnInstance(() -> {
+                    TableMetadata table = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
+                    DecoratedKey dk = table.partitioner.decorateKey(ByteBufferUtil.bytes(400));
+                    try (PaxosState state = PaxosState.get(dk, table))
+                    {
+                        state.updateStateUnsafe(s -> {
+                            Assert.assertNull(s.accepted);
+                            Assert.assertTrue(Commit.isAfter(s.committed.ballot, oldBallot));
+                            Commit.CommittedWithTTL committed = new Commit.CommittedWithTTL(s.committed.ballot,
+                                                                                            s.committed.update,
+                                                                                            ballotDeletion(s.committed));
+                            Assert.assertTrue(committed.localDeletionTime < nowInSec);
+                            return new PaxosState.Snapshot(oldBallot, oldBallot, null, committed);
+                        });
+                    }
+                });
+
+                cluster.forEach(instance -> {
+                    instance.runOnInstance(() -> {
+                        backdateTimestamps(0);
+                    });
+                });
+
+                cluster.filters().reset();
+                cluster.filters().inbound().to(2).drop();
+                cluster.get(3).runOnInstance(() -> {
+
+                    TableMetadata table = Schema.instance.getTableMetadata(KEYSPACE, TABLE);
+                    DecoratedKey dk = table.partitioner.decorateKey(ByteBufferUtil.bytes(400));
+
+                    UpdateSupplier supplier = PaxosState.uncommittedTracker().unsafGetUpdateSupplier();
+                    try
+                    {
+                        PaxosUncommittedTracker.unsafSetUpdateSupplier(new SingleUpdateSupplier(table, dk, oldBallot));
+                        StorageService.instance.autoRepairPaxos(table.id).get();
+                    }
+                    catch (Exception e)
+                    {
+                        throw new RuntimeException(e);
+                    }
+                    finally
+                    {
+                        PaxosUncommittedTracker.unsafSetUpdateSupplier(supplier);
+                    }
+                });
+
+                assertUncommitted(cluster.get(1), KEYSPACE, TABLE, 0);
+                assertUncommitted(cluster.get(2), KEYSPACE, TABLE, 0);
+                assertUncommitted(cluster.get(3), KEYSPACE, TABLE, 0);
+            }
+        }
+        finally
+        {
+            CassandraRelevantProperties.CLOCK_GLOBAL.reset();
         }
     }
 

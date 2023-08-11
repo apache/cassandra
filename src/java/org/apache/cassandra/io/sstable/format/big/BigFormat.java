@@ -20,6 +20,8 @@ package org.apache.cassandra.io.sstable.format.big;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import com.google.common.base.Preconditions;
@@ -27,24 +29,25 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.KeyCacheKey;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.GaugeProvider;
 import org.apache.cassandra.io.sstable.IScrubber;
 import org.apache.cassandra.io.sstable.MetricsProviders;
-import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.filter.BloomFilterMetrics;
 import org.apache.cassandra.io.sstable.format.AbstractSSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableReaderLoadingBuilder;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.format.SortedTableScrubber;
@@ -69,20 +72,20 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
 {
     private final static Logger logger = LoggerFactory.getLogger(BigFormat.class);
 
-    public static final BigFormat instance = new BigFormat();
+    public static final String NAME = "big";
 
     private final Version latestVersion = new BigVersion(this, BigVersion.current_version);
     private final BigTableReaderFactory readerFactory = new BigTableReaderFactory();
     private final BigTableWriterFactory writerFactory = new BigTableWriterFactory();
 
-    public static class Components extends AbstractSSTableFormat.Components
+    public static class Components extends SSTableFormat.Components
     {
         public static class Types extends SSTableFormat.Components.Types
         {
             // index of the row keys with pointers to their positions in the data file
-            public static final Component.Type PRIMARY_INDEX = Component.Type.createSingleton("PRIMARY_INDEX", "Index.db", BigFormat.class);
+            public static final Component.Type PRIMARY_INDEX = Component.Type.createSingleton("PRIMARY_INDEX", "Index.db", true, BigFormat.class);
             // holds SSTable Index Summary (sampling of Index component)
-            public static final Component.Type SUMMARY = Component.Type.createSingleton("SUMMARY", "Summary.db", BigFormat.class);
+            public static final Component.Type SUMMARY = Component.Type.createSingleton("SUMMARY", "Summary.db", true, BigFormat.class);
         }
 
         public final static Component PRIMARY_INDEX = Types.PRIMARY_INDEX.getSingleton();
@@ -107,16 +110,6 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
                                                                                 SUMMARY,
                                                                                 COMPRESSION_INFO,
                                                                                 STATS);
-
-        private static final Set<Component> STREAM_COMPONENTS = ImmutableSet.of(DATA,
-                                                                                PRIMARY_INDEX,
-                                                                                STATS,
-                                                                                COMPRESSION_INFO,
-                                                                                FILTER,
-                                                                                SUMMARY,
-                                                                                DIGEST,
-                                                                                CRC);
-
         private static final Set<Component> ALL_COMPONENTS = ImmutableSet.of(DATA,
                                                                              PRIMARY_INDEX,
                                                                              STATS,
@@ -128,19 +121,24 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
                                                                              TOC);
     }
 
-    private BigFormat()
+    public BigFormat(Map<String, String> options)
     {
+        super(NAME, options);
+    }
 
+    public static boolean is(SSTableFormat<?, ?> format)
+    {
+        return format.name().equals(NAME);
     }
 
     public static BigFormat getInstance()
     {
-        return instance;
+        return (BigFormat) Objects.requireNonNull(DatabaseDescriptor.getSSTableFormats().get(NAME), "Unknown SSTable format: " + NAME);
     }
 
-    public static boolean isDefault()
+    public static boolean isSelected()
     {
-        return getInstance().getType() == Type.current();
+        return is(DatabaseDescriptor.getSelectedSSTableFormat());
     }
 
     @Override
@@ -171,12 +169,6 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
     public Set<Component> allComponents()
     {
         return Components.ALL_COMPONENTS;
-    }
-
-    @Override
-    public Set<Component> streamingComponents()
-    {
-        return Components.STREAM_COMPONENTS;
     }
 
     @Override
@@ -218,20 +210,8 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
     @Override
     public IScrubber getScrubber(ColumnFamilyStore cfs, LifecycleTransaction transaction, OutputHandler outputHandler, IScrubber.Options options)
     {
-        Preconditions.checkArgument(cfs.metadata().equals(transaction.onlyOne().metadata()));
+        Preconditions.checkArgument(cfs.metadata().equals(transaction.onlyOne().metadata()), "SSTable metadata does not match current definition");
         return new BigTableScrubber(cfs, transaction, outputHandler, options);
-    }
-
-    @Override
-    public BigTableReader cast(SSTableReader sstr)
-    {
-        return (BigTableReader) sstr;
-    }
-
-    @Override
-    public BigTableWriter cast(SSTableWriter sstw)
-    {
-        return (BigTableWriter) sstw;
     }
 
     @Override
@@ -291,7 +271,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         @Override
         public void skip(DataInputPlus input) throws IOException
         {
-            RowIndexEntry.Serializer.skipForCache(input);
+            RowIndexEntry.Serializer.skipForCache(input, getInstance().latestVersion);
         }
 
         @Override
@@ -355,15 +335,9 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         }
     }
 
-    // versions are denoted as [major][minor].  Minor versions must be forward-compatible:
-    // new fields are allowed in e.g. the metadata component, but fields can't be removed
-    // or have their size changed.
-    //
-    // Minor versions were introduced with version "hb" for Cassandra 1.0.3; prior to that,
-    // we always incremented the major version.
     static class BigVersion extends Version
     {
-        public static final String current_version = "nc";
+        public static final String current_version = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? "nc" : "oa";
         public static final String earliest_supported_version = "ma";
 
         // ma (3.0.0): swap bf hash order
@@ -376,8 +350,12 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         // na (4.0-rc1): uncompressed chunks, pending repair session, isTransient, checksummed sstable metadata file, new Bloomfilter format
         // nb (4.0.0): originating host id
         // nc (4.1): improved min/max, partition level deletion presence marker, key range (CASSANDRA-18134)
+        // oa (5.0): Long deletionTime to prevent TTL overflow
+        //           token space coverage
         //
-        // NOTE: when adding a new version, please add that to LegacySSTableTest, too.
+        // NOTE: When adding a new version:
+        //  - Please add it to LegacySSTableTest
+        //  - Please maybe add it to hasOriginatingHostId's regexp
 
         private final boolean isLatestVersion;
         private final int correspondingMessagingVersion;
@@ -393,6 +371,8 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         private final boolean hasImprovedMinMax;
         private final boolean hasPartitionLevelDeletionPresenceMarker;
         private final boolean hasKeyRange;
+        private final boolean hasUintDeletionTime;
+        private final boolean hasTokenSpaceCoverage;
 
         /**
          * CASSANDRA-9067: 4.0 bloom filter representation changed (two longs just swapped)
@@ -411,7 +391,8 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
             hasCommitLogIntervals = version.compareTo("mc") >= 0;
             hasAccurateMinMax = version.matches("(m[d-z])|(n[a-z])"); // deprecated in 'nc' and to be removed in 'oa'
             hasLegacyMinMax = version.matches("(m[a-z])|(n[a-z])"); // deprecated in 'nc' and to be removed in 'oa'
-            hasOriginatingHostId = version.matches("(m[e-z])") || version.compareTo("nb") >= 0;
+            // When adding a new version you might need to add it here
+            hasOriginatingHostId = version.compareTo("nb") >= 0 || version.matches("(m[e-z])");
             hasMaxCompressedLength = version.compareTo("na") >= 0;
             hasPendingRepair = version.compareTo("na") >= 0;
             hasIsTransient = version.compareTo("na") >= 0;
@@ -420,6 +401,8 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
             hasImprovedMinMax = version.compareTo("nc") >= 0;
             hasPartitionLevelDeletionPresenceMarker = version.compareTo("nc") >= 0;
             hasKeyRange = version.compareTo("nc") >= 0;
+            hasUintDeletionTime = version.compareTo("oa") >= 0;
+            hasTokenSpaceCoverage = version.compareTo("oa") >= 0;
         }
 
         @Override
@@ -501,9 +484,21 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         }
 
         @Override
+        public boolean hasTokenSpaceCoverage()
+        {
+            return hasTokenSpaceCoverage;
+        }
+
+        @Override
         public boolean hasPartitionLevelDeletionsPresenceMarker()
         {
             return hasPartitionLevelDeletionPresenceMarker;
+        }
+
+        @Override
+        public boolean hasUIntDeletionTime()
+        {
+            return hasUintDeletionTime;
         }
 
         @Override
@@ -537,6 +532,22 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
         public Iterable<GaugeProvider<?>> getGaugeProviders()
         {
             return gaugeProviders;
+        }
+    }
+
+    @SuppressWarnings("unused")
+    public static class BigFormatFactory implements Factory
+    {
+        @Override
+        public String name()
+        {
+            return NAME;
+        }
+
+        @Override
+        public SSTableFormat<?, ?> getInstance(Map<String, String> options)
+        {
+            return new BigFormat(options);
         }
     }
 }

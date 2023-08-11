@@ -35,6 +35,7 @@ import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.cql3.Terms;
+import org.apache.cassandra.cql3.functions.Arguments;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.FunctionResolver;
@@ -64,7 +65,7 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.invalidReq
  * CQL function actually has three arguments. The first argument is always ommitted when attaching the function to a
  * schema column. The value of that first argument is always the value of the masked column, in this case an int.
  */
-public abstract class ColumnMask
+public class ColumnMask
 {
     public static final String DISABLED_ERROR_MESSAGE = "Cannot mask columns because dynamic data masking is not " +
                                                         "enabled. You can enable it with the " +
@@ -76,18 +77,11 @@ public abstract class ColumnMask
     /** The values of the arguments of the partially applied masking function. */
     protected final ByteBuffer[] partialArgumentValues;
 
-    private ColumnMask(ScalarFunction function, ByteBuffer... partialArgumentValues)
+    public ColumnMask(ScalarFunction function, ByteBuffer... partialArgumentValues)
     {
         assert function.argTypes().size() == partialArgumentValues.length + 1;
         this.function = function;
         this.partialArgumentValues = partialArgumentValues;
-    }
-
-    public static ColumnMask build(ScalarFunction function, ByteBuffer... partialArgumentValues)
-    {
-        return function.isNative()
-               ? new Native((MaskingFunction) function, partialArgumentValues)
-               : new Custom(function, partialArgumentValues);
     }
 
     /**
@@ -122,23 +116,37 @@ public abstract class ColumnMask
                                                   .build();
         Function newFunction = FunctionResolver.get(function.name().keyspace, function.name(), args, null, null, null);
         assert newFunction != null;
-        return build((ScalarFunction) newFunction, partialArgumentValues);
+        return new ColumnMask((ScalarFunction) newFunction, partialArgumentValues);
     }
 
     /**
-     * @param protocolVersion the used version of the transport protocol
-     * @param value a column value to be masked
-     * @return the specified value after having been masked by the masked function
+     * @param version the used version of the transport protocol
+     * @return a masker instance that caches the terminal masking function arguments
      */
-    public ByteBuffer mask(ProtocolVersion protocolVersion, ByteBuffer value)
+    public Masker masker(ProtocolVersion version)
     {
-        if (!DatabaseDescriptor.getDynamicDataMaskingEnabled())
-            return value;
-
-        return maskInternal(protocolVersion, value);
+        return new Masker(version, function, partialArgumentValues);
     }
 
-    protected abstract ByteBuffer maskInternal(ProtocolVersion protocolVersion, ByteBuffer value);
+    public static class Masker
+    {
+        private final ScalarFunction function;
+        private final Arguments arguments;
+
+        private Masker(ProtocolVersion version, ScalarFunction function, ByteBuffer[] partialArgumentValues)
+        {
+            this.function = function;
+            arguments = function.newArguments(version);
+            for (int i = 0; i < partialArgumentValues.length; i++)
+                arguments.set(i + 1, partialArgumentValues[i]);
+        }
+
+        public ByteBuffer mask(ByteBuffer value)
+        {
+            arguments.set(0, value);
+            return function.execute(arguments);
+        }
+    }
 
     public static void ensureEnabled()
     {
@@ -173,7 +181,7 @@ public abstract class ColumnMask
         {
             CQL3Type type = types.get(i).asCQL3Type();
             ByteBuffer value = partialArgumentValues[i];
-            arguments.add(type.toCQLLiteral(value, ProtocolVersion.CURRENT));
+            arguments.add(type.toCQLLiteral(value));
         }
         return format("%s(%s)", function.name(), StringUtils.join(arguments, ", "));
     }
@@ -181,57 +189,6 @@ public abstract class ColumnMask
     public void appendCqlTo(CqlBuilder builder)
     {
         builder.append(" MASKED WITH ").append(toString());
-    }
-
-    /**
-     * {@link ColumnMask} for native masking functions.
-     */
-    private static class Native extends ColumnMask
-    {
-        private final MaskingFunction.Masker masker;
-
-        public Native(MaskingFunction function, ByteBuffer... partialArgumentValues)
-        {
-            super(function, partialArgumentValues);
-            masker = function.masker(partialArgumentValues);
-        }
-
-        @Override
-        protected ByteBuffer maskInternal(ProtocolVersion protocolVersion, ByteBuffer value)
-        {
-            return masker.mask(value);
-        }
-    }
-
-    /**
-     * {@link ColumnMask} for user-defined masking functions.
-     */
-    private static class Custom extends ColumnMask
-    {
-        public Custom(ScalarFunction function, ByteBuffer... partialArgumentValues)
-        {
-            super(function, partialArgumentValues);
-        }
-
-        @Override
-        protected ByteBuffer maskInternal(ProtocolVersion protocolVersion, ByteBuffer value)
-        {
-            List<ByteBuffer> argumentValues;
-            int numPartialArgs = partialArgumentValues.length;
-            if (numPartialArgs == 0)
-            {
-                argumentValues = Collections.singletonList(value);
-            }
-            else
-            {
-                ByteBuffer[] args = new ByteBuffer[numPartialArgs + 1];
-                args[0] = value;
-                System.arraycopy(partialArgumentValues, 0, args, 1, numPartialArgs);
-                argumentValues = Arrays.asList(args);
-            }
-
-            return function.execute(protocolVersion, argumentValues);
-        }
     }
 
     /**
@@ -252,7 +209,7 @@ public abstract class ColumnMask
         {
             ScalarFunction function = findMaskingFunction(keyspace, table, column, type);
             ByteBuffer[] partialArguments = preparePartialArguments(keyspace, function);
-            return ColumnMask.build(function, partialArguments);
+            return new ColumnMask(function, partialArguments);
         }
 
         private ScalarFunction findMaskingFunction(String keyspace, String table, ColumnIdentifier column, AbstractType<?> type)

@@ -148,7 +148,7 @@ public class TableViews extends AbstractCollection<View>
             return;
 
         // Read modified rows
-        int nowInSec = FBUtilities.nowInSeconds();
+        long nowInSec = FBUtilities.nowInSeconds();
         long queryStartNanoTime = nanoTime();
         SinglePartitionReadCommand command = readExistingRowsCommand(update, views, nowInSec);
         if (command == null)
@@ -188,7 +188,7 @@ public class TableViews extends AbstractCollection<View>
     public Iterator<Collection<Mutation>> generateViewUpdates(Collection<View> views,
                                                               UnfilteredRowIterator updates,
                                                               UnfilteredRowIterator existings,
-                                                              int nowInSec,
+                                                              long nowInSec,
                                                               boolean separateUpdates)
     {
         assert updates.metadata().id.equals(baseTableMetadata.id);
@@ -386,7 +386,7 @@ public class TableViews extends AbstractCollection<View>
      * @param nowInSec the current time in seconds.
      * @return the command to use to read the base table rows required to generate view updates for {@code updates}.
      */
-    private SinglePartitionReadCommand readExistingRowsCommand(PartitionUpdate updates, Collection<View> views, int nowInSec)
+    private SinglePartitionReadCommand readExistingRowsCommand(PartitionUpdate updates, Collection<View> views, long nowInSec)
     {
         Slices.Builder sliceBuilder = null;
         DeletionInfo deletionInfo = updates.deletionInfo();
@@ -462,7 +462,7 @@ public class TableViews extends AbstractCollection<View>
         // TODO: we could still make sense to special case for when there is a single view and a small number of updates (and
         // no deletions). Indeed, in that case we could check whether any of the update modify any of the restricted regular
         // column, and if that's not the case we could use view filter. We keep it simple for now though.
-        RowFilter rowFilter = RowFilter.NONE;
+        RowFilter rowFilter = RowFilter.none();
         return SinglePartitionReadCommand.create(metadata, nowInSec, queriedColumns, rowFilter, DataLimits.NONE, key, clusteringFilter);
     }
 

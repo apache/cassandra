@@ -39,12 +39,12 @@ import org.apache.cassandra.db.compaction.Upgrader;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.OutputHandler;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST;
 import static org.apache.cassandra.tools.BulkLoader.CmdLineOptions;
 
 public class StandaloneUpgrader
@@ -57,7 +57,7 @@ public class StandaloneUpgrader
     public static void main(String args[])
     {
         Options options = Options.parseArgs(args);
-        if (Boolean.getBoolean(Util.ALLOW_TOOL_REINIT_FOR_TEST))
+        if (TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST.getBoolean())
             DatabaseDescriptor.toolInitialization(false); //Necessary for testing
         else
             Util.initDatabaseDescriptor();
@@ -94,7 +94,7 @@ public class StandaloneUpgrader
                 try
                 {
                     SSTableReader sstable = SSTableReader.openNoValidation(entry.getKey(), components, cfs);
-                    if (sstable.descriptor.version.equals(SSTableFormat.Type.current().info.getLatestVersion()))
+                    if (sstable.descriptor.version.equals(DatabaseDescriptor.getSelectedSSTableFormat().getLatestVersion()))
                     {
                         sstable.selfRef().release();
                         continue;

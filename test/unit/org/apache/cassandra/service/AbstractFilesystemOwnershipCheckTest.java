@@ -36,6 +36,7 @@ import org.junit.Test;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.StartupChecksOptions;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.io.util.File;
 
@@ -66,11 +67,14 @@ public abstract class AbstractFilesystemOwnershipCheckTest
 
     protected StartupChecksOptions options = new StartupChecksOptions();
 
+    static WithProperties properties;
+
     protected void setup()
     {
         cleanTempDir();
         tempDir = new File(com.google.common.io.Files.createTempDir());
         token = makeRandomString(10);
+        properties = new WithProperties();
         System.clearProperty(CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_FILENAME.getKey());
         System.clearProperty(CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN.getKey());
         System.clearProperty(CassandraRelevantProperties.FILE_SYSTEM_CHECK_ENABLE.getKey());
@@ -188,6 +192,7 @@ public abstract class AbstractFilesystemOwnershipCheckTest
     public void teardown() throws IOException
     {
         cleanTempDir();
+        properties.close();
     }
 
     // tests for enabling/disabling/configuring the check
@@ -205,14 +210,14 @@ public abstract class AbstractFilesystemOwnershipCheckTest
     {
         // no exceptions thrown from the supplier because the check is skipped
         options.enable(check_filesystem_ownership);
-        System.setProperty(CassandraRelevantProperties.FILE_SYSTEM_CHECK_ENABLE.getKey(), "false");
+        CassandraRelevantProperties.FILE_SYSTEM_CHECK_ENABLE.setBoolean(false);
         AbstractFilesystemOwnershipCheckTest.checker(() -> { throw new RuntimeException("FAIL"); }).execute(options);
     }
 
     @Test
     public void checkEnabledButClusterPropertyIsEmpty()
     {
-        System.setProperty(CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN.getKey(), "");
+        CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN.setString("");
         AbstractFilesystemOwnershipCheckTest.executeAndFail(AbstractFilesystemOwnershipCheckTest.checker(tempDir), options, MISSING_PROPERTY, CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN.getKey());
     }
 
@@ -220,7 +225,7 @@ public abstract class AbstractFilesystemOwnershipCheckTest
     public void checkEnabledButClusterPropertyIsUnset()
     {
         Assume.assumeFalse(options.getConfig(check_filesystem_ownership).containsKey("ownership_token"));
-        System.clearProperty(CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN.getKey());
+        CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN.clearValue(); // checkstyle: suppress nearby 'clearValueSystemPropertyUsage'
         AbstractFilesystemOwnershipCheckTest.executeAndFail(AbstractFilesystemOwnershipCheckTest.checker(tempDir), options, MISSING_PROPERTY, CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN.getKey());
     }
 
@@ -356,7 +361,7 @@ public abstract class AbstractFilesystemOwnershipCheckTest
         File leafDir = AbstractFilesystemOwnershipCheckTest.mkdirs(tempDir, "cassandra/data");
         writeFile(leafDir.parent(), "other_file", AbstractFilesystemOwnershipCheckTest.makeProperties(1, 1, token));
         AbstractFilesystemOwnershipCheckTest.executeAndFail(AbstractFilesystemOwnershipCheckTest.checker(leafDir), options, NO_OWNERSHIP_FILE, quote(leafDir.absolutePath()));
-        System.setProperty(CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_FILENAME.getKey(), "other_file");
+        CassandraRelevantProperties.FILE_SYSTEM_CHECK_OWNERSHIP_FILENAME.setString("other_file");
         AbstractFilesystemOwnershipCheckTest.checker(leafDir).execute(options);
     }
 

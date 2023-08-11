@@ -43,6 +43,8 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import org.junit.*;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
+
 public class OperationTest extends SchemaLoader
 {
     private static final String KS_NAME = "sasi";
@@ -57,7 +59,7 @@ public class OperationTest extends SchemaLoader
     @BeforeClass
     public static void loadSchema() throws ConfigurationException
     {
-        System.setProperty("cassandra.config", "cassandra-murmur.yaml");
+        CASSANDRA_CONFIG.setString("cassandra-murmur.yaml");
         SchemaLoader.loadSchema();
         SchemaLoader.createKeyspace(KS_NAME,
                                     KeyspaceParams.simpleTransient(1),
@@ -405,7 +407,7 @@ public class OperationTest extends SchemaLoader
         long now = System.currentTimeMillis();
 
         row = OperationTest.buildRow(
-                Row.Deletion.regular(new DeletionTime(now - 10, (int) (now / 1000))),
+                Row.Deletion.regular(DeletionTime.build(now - 10, (int) (now / 1000))),
                           buildCell(age, Int32Type.instance.decompose(6), System.currentTimeMillis()));
 
         Assert.assertFalse(op.satisfiedBy(row, staticRow, false));
@@ -696,7 +698,7 @@ public class OperationTest extends SchemaLoader
         return BufferCell.live(column, timestamp, value);
     }
 
-    private static Cell<?> deletedCell(ColumnMetadata column, long timestamp, int nowInSeconds)
+    private static Cell<?> deletedCell(ColumnMetadata column, long timestamp, long nowInSeconds)
     {
         return BufferCell.tombstone(column, timestamp, nowInSeconds);
     }

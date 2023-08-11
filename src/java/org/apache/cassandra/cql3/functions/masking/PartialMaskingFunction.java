@@ -23,12 +23,14 @@ import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.functions.ArgumentDeserializer;
+import org.apache.cassandra.cql3.functions.Arguments;
+import org.apache.cassandra.cql3.functions.FunctionArguments;
 import org.apache.cassandra.cql3.functions.FunctionFactory;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.FunctionParameter;
@@ -37,10 +39,13 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.transport.ProtocolVersion;
+
+import static java.lang.String.format;
 
 /**
  * A {@link MaskingFunction} applied to a {@link org.apache.cassandra.db.marshal.StringType} value that,
- * depending on {@link Type}:
+ * depending on {@link Kind}:
  * <ul>
  * <li>Replaces each character between the supplied positions by the supplied padding character. In other words,
  * it will mask all the characters except the first m and last n.</li>
@@ -55,25 +60,38 @@ public class PartialMaskingFunction extends MaskingFunction
     public static final char DEFAULT_PADDING_CHAR = '*';
 
     /** The type of partial masking to perform, inner or outer. */
-    private final Type type;
+    private final Kind kind;
 
     /** The original type of the masked value. */
     private final AbstractType<String> inputType;
 
-    /** Whether a padding argument hab been supplied. */
-    @Nullable
-    private final boolean hasPaddingArgument;
+    /** The custom argument deserializer for the padding character. */
+    private final ArgumentDeserializer paddingArgumentDeserializer;
 
     private PartialMaskingFunction(FunctionName name,
-                                   Type type,
+                                   Kind kind,
                                    AbstractType<String> inputType,
                                    boolean hasPaddingArgument)
     {
         super(name, inputType, inputType, argumentsType(hasPaddingArgument));
 
-        this.type = type;
+        this.kind = kind;
         this.inputType = inputType;
-        this.hasPaddingArgument = hasPaddingArgument;
+
+        paddingArgumentDeserializer = (version, buffer) -> {
+
+            if (buffer == null || !hasPaddingArgument)
+                return null;
+
+            String arg = UTF8Type.instance.compose(buffer);
+            if (arg.length() != 1)
+            {
+                throw new InvalidRequestException(format("The padding argument for function %s should " +
+                                                         "be single-character, but '%s' has %d characters.",
+                                                         name, arg, arg.length()));
+            }
+            return arg.charAt(0);
+        };
     }
 
     private static AbstractType<?>[] argumentsType(boolean hasPaddingArgument)
@@ -87,56 +105,31 @@ public class PartialMaskingFunction extends MaskingFunction
     }
 
     @Override
-    public Masker masker(ByteBuffer... parameters)
+    public Arguments newArguments(ProtocolVersion version)
     {
-        return new Masker(parameters);
+        return new FunctionArguments(version,
+                                     inputType.getArgumentDeserializer(),
+                                     Int32Type.instance.getArgumentDeserializer(),
+                                     Int32Type.instance.getArgumentDeserializer(),
+                                     paddingArgumentDeserializer);
     }
 
-    private class Masker implements MaskingFunction.Masker
+    @Override
+    public ByteBuffer execute(Arguments arguments) throws InvalidRequestException
     {
-        private final int begin, end;
-        private final char padding;
+        String value = arguments.get(0);
+        if (value == null)
+            return null;
 
-        private Masker(ByteBuffer... parameters)
-        {
-            // Parse the beginning and end positions. No validation is needed since the masker accepts negatives,
-            // but we should consider that the arguments migh be null.
-            begin = parameters[0] == null ? 0 : Int32Type.instance.compose(parameters[0]);
-            end = parameters[1] == null ? 0 : Int32Type.instance.compose(parameters[1]);
+        int begin = arguments.get(1) != null ? arguments.getAsInt(1) : 0;
+        int end = arguments.get(2) != null ? arguments.getAsInt(2) : 0;
+        char padding = arguments.get(3) == null ? DEFAULT_PADDING_CHAR : arguments.get(3);
 
-            // Parse the padding character. The type of the argument is a string of any length because we don't have a
-            // character type in CQL, so we should verify that the passed string argument is single-character.
-            if (hasPaddingArgument && parameters[2] != null)
-            {
-                String parameter = UTF8Type.instance.compose(parameters[2]);
-                if (parameter.length() != 1)
-                {
-                    throw new InvalidRequestException(String.format("The padding argument for function %s should " +
-                                                                    "be single-character, but '%s' has %d characters.",
-                                                                    name(), parameter, parameter.length()));
-                }
-                padding = parameter.charAt(0);
-            }
-            else
-            {
-                padding = DEFAULT_PADDING_CHAR;
-            }
-        }
-
-        @Override
-        public ByteBuffer mask(ByteBuffer value)
-        {
-            // Null column values aren't masked
-            if (value == null)
-                return null;
-
-            String stringValue = inputType.compose(value);
-            String maskedValue = type.mask(stringValue, begin, end, padding);
-            return inputType.decompose(maskedValue);
-        }
+        String maskedValue = kind.mask(value, begin, end, padding);
+        return inputType.decompose(maskedValue);
     }
 
-    public enum Type
+    public enum Kind
     {
         /** Masks everything except the first {@code begin} and last {@code end} characters. */
         INNER
@@ -181,14 +174,14 @@ public class PartialMaskingFunction extends MaskingFunction
     /** @return a collection of function factories to build new {@code PartialMaskingFunction} functions. */
     public static Collection<FunctionFactory> factories()
     {
-        return Stream.of(Type.values())
+        return Stream.of(Kind.values())
                      .map(PartialMaskingFunction::factory)
                      .collect(Collectors.toSet());
     }
 
-    private static FunctionFactory factory(Type type)
+    private static FunctionFactory factory(Kind kind)
     {
-        return new MaskingFunction.Factory(type.name(),
+        return new MaskingFunction.Factory(kind.name(),
                                            FunctionParameter.string(),
                                            FunctionParameter.fixed(CQL3Type.Native.INT),
                                            FunctionParameter.fixed(CQL3Type.Native.INT),
@@ -199,7 +192,7 @@ public class PartialMaskingFunction extends MaskingFunction
             protected NativeFunction doGetOrCreateFunction(List<AbstractType<?>> argTypes, AbstractType<?> receiverType)
             {
                 AbstractType<String> inputType = (AbstractType<String>) argTypes.get(0);
-                return new PartialMaskingFunction(name, type, inputType, argTypes.size() == 4);
+                return new PartialMaskingFunction(name, kind, inputType, argTypes.size() == 4);
             }
         };
     }

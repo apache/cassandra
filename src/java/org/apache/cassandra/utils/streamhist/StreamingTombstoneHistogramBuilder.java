@@ -19,11 +19,14 @@
 package org.apache.cassandra.utils.streamhist;
 
 import java.math.RoundingMode;
+import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.stream.Collectors;
+import java.util.List;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.math.IntMath;
+
+import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.db.rows.Cell;
 
@@ -31,10 +34,10 @@ import org.apache.cassandra.db.rows.Cell;
  * Histogram that can be constructed from streaming of data.
  *
  * Histogram used to retrieve the number of droppable tombstones for example via
- * {@link org.apache.cassandra.io.sstable.format.SSTableReader#getDroppableTombstonesBefore(int)}.
+ * {@link org.apache.cassandra.io.sstable.format.SSTableReader#getDroppableTombstonesBefore(long)}.
  * <p>
  * When an sstable is written (or streamed), this histogram-builder receives the "local deletion timestamp"
- * as an {@code int} via {@link #update(int)}. Negative values are not supported.
+ * as an {@code long} via {@link #update(long)}. Negative values are not supported.
  * <p>
  * Algorithm: Histogram is represented as collection of {point, weight} pairs. When new point <i>p</i> with weight <i>m</i> is added:
  * <ol>
@@ -88,7 +91,7 @@ public class StreamingTombstoneHistogramBuilder
      *
      * @param point the point to be added
      */
-    public void update(int point)
+    public void update(long point)
     {
         update(point, 1);
     }
@@ -96,7 +99,7 @@ public class StreamingTombstoneHistogramBuilder
     /**
      * Adds new point {@param point} with value {@param value} to this histogram.
      */
-    public void update(int point, int value)
+    public void update(long point, int value)
     {
         assert spool != null: "update is being called after releaseBuffers. This could be functionally okay, but this assertion is a canary to alert about unintended use before it is necessary.";
         point = ceilKey(point, roundSeconds);
@@ -139,7 +142,7 @@ public class StreamingTombstoneHistogramBuilder
        spool = null;
     }
 
-    private void flushValue(int key, int spoolValue)
+    private void flushValue(long key, int spoolValue)
     {
         bin.addValue(key, spoolValue);
 
@@ -167,34 +170,37 @@ public class StreamingTombstoneHistogramBuilder
     static class DataHolder
     {
         private static final long EMPTY = Long.MAX_VALUE;
-        private final long[] data;
+        private final long[] points;
+        private final int[] values;
         private final int roundSeconds;
 
         DataHolder(int maxCapacity, int roundSeconds)
         {
-            data = new long[maxCapacity];
-            Arrays.fill(data, EMPTY);
+            points = new long[maxCapacity];
+            values = new int[maxCapacity];
+            Arrays.fill(points, EMPTY);
+            Arrays.fill(values, 0);
             this.roundSeconds = roundSeconds;
         }
 
         DataHolder(DataHolder holder)
         {
-            data = Arrays.copyOf(holder.data, holder.data.length);
+            points = Arrays.copyOf(holder.points, holder.points.length);
+            values = Arrays.copyOf(holder.values, holder.values.length);
             roundSeconds = holder.roundSeconds;
         }
 
         @VisibleForTesting
-        int getValue(int point)
+        int getValue(long point)
         {
-            long key = wrap(point, 0);
-            int index = Arrays.binarySearch(data, key);
+            int index = Arrays.binarySearch(points, point);
             if (index < 0)
                 index = -index - 1;
-            if (index >= data.length)
+            if (index >= points.length)
                 return -1; // not-found sentinel
-            if (unwrapPoint(data[index]) != point)
+            if (points[index] != point)
                 return -2; // not-found sentinel
-            return unwrapValue(data[index]);
+            return values[index];
         }
 
         /**
@@ -202,32 +208,33 @@ public class StreamingTombstoneHistogramBuilder
          *
          * @return {@code true} if inserted, {@code false} if accumulated
          */
-        boolean addValue(int point, int delta)
+        boolean addValue(long point, int delta)
         {
-            long key = wrap(point, 0);
-            int index = Arrays.binarySearch(data, key);
+            int index = Arrays.binarySearch(points, point);
             if (index < 0)
             {
                 index = -index - 1;
-                assert (index < data.length) : "No more space in array";
+                assert (index < points.length) : "No more space in array";
 
-                if (unwrapPoint(data[index]) != point) //ok, someone else at this point, let's shift array and insert
+                if (points[index] != point) //ok, someone else at this point, let's shift array and insert
                 {
-                    assert (data[data.length - 1] == EMPTY) : "No more space in array";
+                    assert (points[points.length - 1] == EMPTY) : "No more space in array";
 
-                    System.arraycopy(data, index, data, index + 1, data.length - index - 1);
+                    System.arraycopy(points, index, points, index + 1, points.length - index - 1);
+                    System.arraycopy(values, index, values, index + 1, values.length - index - 1);
 
-                    data[index] = wrap(point, delta);
+                    points[index] = point;
+                    values[index] = saturatingCastToInt(delta);
                     return true;
                 }
                 else
                 {
-                    data[index] = wrap(point, (long) unwrapValue(data[index]) + delta);
+                    values[index] = saturatingCastToInt((long)values[index] + (long)delta);
                 }
             }
             else
             {
-                data[index] = wrap(point, (long) unwrapValue(data[index]) + delta);
+                values[index] = saturatingCastToInt((long)values[index] + (long)delta);
             }
 
             return false;
@@ -242,47 +249,51 @@ public class StreamingTombstoneHistogramBuilder
         {
             assert isFull() : "DataHolder must be full in order to merge two points";
 
-            final int[] smallestDifference = findPointPairWithSmallestDistance();
+            final long[] smallestDifference = findPointPairWithSmallestDistance();
 
-            final int point1 = smallestDifference[0];
-            final int point2 = smallestDifference[1];
+            final long point1 = smallestDifference[0];
+            final long point2 = smallestDifference[1];
 
-            long key = wrap(point1, 0);
-            int index = Arrays.binarySearch(data, key);
+            int index = Arrays.binarySearch(points, point1);
             if (index < 0)
             {
                 index = -index - 1;
-                assert (index < data.length) : "Not found in array";
-                assert (unwrapPoint(data[index]) == point1) : "Not found in array";
+                assert (index < points.length) : "Not found in array";
+                assert (points[index] == point1) : "Not found in array";
             }
 
-            long value1 = unwrapValue(data[index]);
-            long value2 = unwrapValue(data[index + 1]);
+            long value1 = values[index];
+            long value2 = values[index + 1];
 
-            assert (unwrapPoint(data[index + 1]) == point2) : "point2 should follow point1";
+            assert (points[index + 1] == point2) : "point2 should follow point1";
 
-            long sum = value1 + value2;
-
-            //let's evaluate in long values to handle overflow in multiplication
-            int newPoint = saturatingCastToInt((point1 * value1 + point2 * value2) / sum);
+            long a = saturatingCastToLong(point1 * value1);
+            long b = saturatingCastToLong(point2 * value2);
+            long sum = saturatingCastToLong(value1 + value2);
+            long newPoint = saturatingCastToMaxDeletionTime(saturatingCastToLong(a + b) / sum);
+            newPoint = newPoint <= point1 ? saturatingCastToMaxDeletionTime(point1 + 1) : newPoint;
+            newPoint = Math.min(newPoint, point2);
             newPoint = ceilKey(newPoint, roundSeconds);
-            data[index] = wrap(newPoint, saturatingCastToInt(sum));
+            points[index] = newPoint;
+            values[index] = saturatingCastToInt(sum);
 
-            System.arraycopy(data, index + 2, data, index + 1, data.length - index - 2);
-            data[data.length - 1] = EMPTY;
+            System.arraycopy(points, index + 2, points, index + 1, points.length - index - 2);
+            System.arraycopy(values, index + 2, values, index + 1, values.length - index - 2);
+            points[points.length - 1] = EMPTY;
+            values[values.length - 1] = 0;
         }
 
-        private int[] findPointPairWithSmallestDistance()
+        private long[] findPointPairWithSmallestDistance()
         {
             assert isFull(): "The DataHolder must be full in order to find the closest pair of points";
 
-            int point1 = 0;
-            int point2 = Integer.MAX_VALUE;
+            long point1 = 0;
+            long point2 = Long.MAX_VALUE;
 
-            for (int i = 0; i < data.length - 1; i++)
+            for (int i = 0; i < points.length - 1; i++)
             {
-                int pointA = unwrapPoint(data[i]);
-                int pointB = unwrapPoint(data[i + 1]);
+                long pointA = points[i];
+                long pointB = points[i + 1];
 
                 assert pointB > pointA : "DataHolder not sorted, p2(" + pointB +") < p1(" + pointA + ") for " + this;
 
@@ -293,52 +304,35 @@ public class StreamingTombstoneHistogramBuilder
                 }
             }
 
-            return new int[]{point1, point2};
-        }
-
-        private int[] unwrap(long key)
-        {
-            final int point = unwrapPoint(key);
-            final int value = unwrapValue(key);
-            return new int[]{ point, value };
-        }
-
-        private int unwrapPoint(long key)
-        {
-            return (int) (key >> 32);
-        }
-
-        private int unwrapValue(long key)
-        {
-            return (int) (key & 0xFF_FF_FF_FFL);
-        }
-
-        private long wrap(int point, long value)
-        {
-            assert point >= 0 : "Invalid argument: point:" + point;
-            return (((long) point) << 32) | saturatingCastToInt(value);
+            return new long[]{point1, point2};
         }
 
         public String toString()
         {
-            return Arrays.stream(data).filter(x -> x != EMPTY).mapToObj(this::unwrap).map(Arrays::toString).collect(Collectors.joining());
+            List<String> entries = new ArrayList<>();
+            for (int i = 0; i < points.length; i++)
+            {
+                if (points[i] == EMPTY)
+                    break;
+
+                entries.add("[" + points[i] + "], [" + values[i] + "]");
+            }
+            return StringUtils.join(entries, ",");
         }
 
         public boolean isFull()
         {
-            return data[data.length - 1] != EMPTY;
+            return points[points.length - 1] != EMPTY;
         }
 
         public <E extends Exception> void forEach(HistogramDataConsumer<E> histogramDataConsumer) throws E
         {
-            for (long datum : data)
+            for (int i = 0; i < points.length; i++)
             {
-                if (datum == EMPTY)
-                {
+                if (points[i] == EMPTY)
                     break;
-                }
 
-                histogramDataConsumer.consume(unwrapPoint(datum), unwrapValue(datum));
+                histogramDataConsumer.consume(points[i], values[i]);
             }
         }
 
@@ -353,15 +347,12 @@ public class StreamingTombstoneHistogramBuilder
         {
             double sum = 0;
 
-            for (int i = 0; i < data.length; i++)
+            for (int i = 0; i < points.length; i++)
             {
-                long pointAndValue = data[i];
-                if (pointAndValue == EMPTY)
-                {
+                final long point = points[i];
+                if (point == EMPTY)
                     break;
-                }
-                final int point = unwrapPoint(pointAndValue);
-                final int value = unwrapValue(pointAndValue);
+                final int value = values[i];
                 if (point > b)
                 {
                     if (i == 0)
@@ -370,8 +361,8 @@ public class StreamingTombstoneHistogramBuilder
                     }
                     else
                     {
-                        final int prevPoint = unwrapPoint(data[i - 1]);
-                        final int prevValue = unwrapValue(data[i - 1]);
+                        final long prevPoint = points[i - 1];
+                        final int prevValue = values[i - 1];
                         // calculate estimated count mb for point b
                         double weight = (b - prevPoint) / (double) (point - prevPoint);
                         double mb = prevValue + (value - prevValue) * weight;
@@ -392,7 +383,7 @@ public class StreamingTombstoneHistogramBuilder
         @Override
         public int hashCode()
         {
-            return Arrays.hashCode(data);
+            return Arrays.hashCode(points);
         }
 
         @Override
@@ -408,7 +399,7 @@ public class StreamingTombstoneHistogramBuilder
 
             for (int i=0; i<size(); i++)
             {
-                if (data[i]!=other.data[i])
+                if (points[i]!=other.points[i] || values[i]!=other.values[i])
                 {
                     return false;
                 }
@@ -425,7 +416,7 @@ public class StreamingTombstoneHistogramBuilder
      */
     static class Spool
     {
-        final int[] points;
+        final long[] points;
         final int[] values;
 
         final int capacity;
@@ -439,7 +430,7 @@ public class StreamingTombstoneHistogramBuilder
             this.capacity = getPowerOfTwoCapacity(requestedCapacity);
 
             // x2 because we want no more than two reprobes on average when _capacity_ entries will be written
-            points = new int[capacity * 2];
+            points = new long[capacity * 2];
             values = new int[capacity * 2];
             clear();
         }
@@ -456,7 +447,7 @@ public class StreamingTombstoneHistogramBuilder
             size = 0;
         }
 
-        boolean tryAddOrAccumulate(int point, int delta)
+        boolean tryAddOrAccumulate(long point, int delta)
         {
             if (size > capacity)
             {
@@ -474,7 +465,7 @@ public class StreamingTombstoneHistogramBuilder
             return false;
         }
 
-        private int hash(int i)
+        private int hash(long i)
         {
             long largePrime = 948701839L;
             return (int) (i * largePrime);
@@ -491,7 +482,7 @@ public class StreamingTombstoneHistogramBuilder
             }
         }
 
-        private boolean tryCell(int cell, int point, int delta)
+        private boolean tryCell(int cell, long point, int delta)
         {
             assert cell >= 0 && point >= 0 && delta >= 0 : "Invalid arguments: cell:" + cell + " point:" + point + " delta:" + delta;
 
@@ -505,7 +496,7 @@ public class StreamingTombstoneHistogramBuilder
             }
             if (points[cell] == point)
             {
-                values[cell] = saturatingCastToInt((long) values[cell] + (long) delta);
+                values[cell] = (int) saturatingCastToInt((long) values[cell] + (long) delta);
                 return true;
             }
             return false;
@@ -528,9 +519,9 @@ public class StreamingTombstoneHistogramBuilder
         }
     }
 
-    private static int ceilKey(int point, int bucketSize)
+    private static long ceilKey(long point, int bucketSize)
     {
-        int delta = point % bucketSize;
+        long delta = point % bucketSize;
 
         if (delta == 0)
             return point;
@@ -542,15 +533,20 @@ public class StreamingTombstoneHistogramBuilder
     {
         return (int) (value > Integer.MAX_VALUE ? Integer.MAX_VALUE : value);
     }
+    
+    public static long saturatingCastToLong(long value)
+    {
+        return value < 0L ? Long.MAX_VALUE : value;
+    }
 
     /**
-     * Cast to an int with maximum value of {@code Cell.MAX_DELETION_TIME} to avoid representing values that
+     * Cast to an long with maximum value of {@code Cell.MAX_DELETION_TIME} to avoid representing values that
      * aren't a tombstone
      */
-    public static int saturatingCastToMaxDeletionTime(long value)
+    public static long saturatingCastToMaxDeletionTime(long value)
     {
         return (value < 0L || value > Cell.MAX_DELETION_TIME)
                ? Cell.MAX_DELETION_TIME
-               : (int) value;
+               : value;
     }
 }

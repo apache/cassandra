@@ -64,7 +64,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
     {
         try
         {
-            DeletionTime partitionLevelDeletion = DeletionTime.serializer.deserialize(file);
+            DeletionTime partitionLevelDeletion = DeletionTime.getSerializer(sstable.descriptor.version).deserialize(file);
             if (!partitionLevelDeletion.validate())
                 UnfilteredValidation.handleInvalid(sstable.metadata(), key, sstable, "partitionLevelDeletion="+partitionLevelDeletion.toString());
             DeserializationHelper helper = new DeserializationHelper(sstable.metadata(), sstable.descriptor.version.correspondingMessagingVersion(), DeserializationHelper.Flag.LOCAL);
@@ -85,7 +85,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         {
             dfile.seek(dataPosition);
             ByteBufferUtil.skipShortLength(dfile); // Skip partition key
-            DeletionTime partitionLevelDeletion = DeletionTime.serializer.deserialize(dfile);
+            DeletionTime partitionLevelDeletion = DeletionTime.getSerializer(sstable.descriptor.version).deserialize(dfile);
             if (!partitionLevelDeletion.validate())
                 UnfilteredValidation.handleInvalid(sstable.metadata(), key, sstable, "partitionLevelDeletion="+partitionLevelDeletion.toString());
 
@@ -138,7 +138,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         {
             return iterator.hasNext();
         }
-        catch (IndexOutOfBoundsException | VIntOutOfRangeException e)
+        catch (IndexOutOfBoundsException | VIntOutOfRangeException | AssertionError e)
         {
             sstable.markSuspect();
             throw new CorruptSSTableException(e, filename);
@@ -163,7 +163,7 @@ public class SSTableIdentityIterator implements Comparable<SSTableIdentityIterat
         {
             return doCompute();
         }
-        catch (IndexOutOfBoundsException e)
+        catch (IndexOutOfBoundsException | VIntOutOfRangeException | AssertionError e)
         {
             sstable.markSuspect();
             throw new CorruptSSTableException(e, filename);

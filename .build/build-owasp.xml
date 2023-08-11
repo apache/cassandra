@@ -17,15 +17,15 @@
   ~ limitations under the License.
   -->
 <project basedir="." name="apache-cassandra-owasp-tasks">
-    <property name="dependency-check.version" value="6.3.2"/>
-    <property name="dependency-check.home" value="${build.dir}/dependency-check-ant-${dependency-check.version}"/>
+    <property name="dependency-check.version" value="8.3.1"/>
+    <property name="dependency-check.home.base" value="${build.dir}"/>
+    <property name="dependency-check.home" value="${dependency-check.home.base}/dependency-check-ant-${dependency-check.version}"/>
 
     <condition property="is.dependency.check.jar">
         <available file="${dependency-check.home}/dependency-check-ant/dependency-check-ant.jar" type="file" />
     </condition>
 
     <target name="dependency-check-download"
-            depends="build"
             description="Fetch OWASP Dependency checker"
             unless="is.dependency.check.jar">
 
@@ -33,8 +33,10 @@
 
         <mkdir dir="${dependency-check.home}"/>
 
-        <get src="https://github.com/jeremylong/DependencyCheck/releases/download/v${dependency-check.version}/dependency-check-ant-${dependency-check.version}-release.zip"
-             dest="${dependency-check.home}/dependency-check-ant-${dependency-check.version}-release.zip"/>
+        <retry retrycount="3" retrydelay="10" >
+            <get src="https://github.com/jeremylong/DependencyCheck/releases/download/v${dependency-check.version}/dependency-check-ant-${dependency-check.version}-release.zip"
+                 dest="${dependency-check.home}/dependency-check-ant-${dependency-check.version}-release.zip"/>
+        </retry>
 
         <unzip src="${dependency-check.home}/dependency-check-ant-${dependency-check.version}-release.zip" dest="${dependency-check.home}"/>
     </target>

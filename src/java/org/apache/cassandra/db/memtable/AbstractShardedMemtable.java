@@ -20,8 +20,6 @@ package org.apache.cassandra.db.memtable;
 
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.google.common.annotations.VisibleForTesting;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,14 +29,13 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.github.jamm.Unmetered;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.MEMTABLE_SHARD_COUNT;
+
 public abstract class AbstractShardedMemtable extends AbstractAllocatorMemtable
 {
     private static final Logger logger = LoggerFactory.getLogger(AbstractShardedMemtable.class);
 
     public static final String SHARDS_OPTION = "shards";
-    @VisibleForTesting
-    public static final String DEFAULT_SHARD_COUNT_PROPERTY = "cassandra.memtable.shard.count";
-
     public static final String SHARDED_MEMTABLE_CONFIG_OBJECT_NAME = "org.apache.cassandra.db:type=ShardedMemtableConfig";
     static
     {
@@ -46,7 +43,7 @@ public abstract class AbstractShardedMemtable extends AbstractAllocatorMemtable
     }
 
     // default shard count, used when a specific number of shards is not specified in the options
-    private static volatile int defaultShardCount = Integer.getInteger(DEFAULT_SHARD_COUNT_PROPERTY, FBUtilities.getAvailableProcessors());
+    private static volatile int defaultShardCount = MEMTABLE_SHARD_COUNT.getInt(FBUtilities.getAvailableProcessors());
 
     // The boundaries for the keyspace as they were calculated when the memtable is created.
     // The boundaries will be NONE for system keyspaces or if StorageService is not yet initialized.

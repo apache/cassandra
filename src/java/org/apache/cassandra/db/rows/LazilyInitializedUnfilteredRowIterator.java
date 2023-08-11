@@ -17,17 +17,17 @@
  */
 package org.apache.cassandra.db.rows;
 
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.AbstractIterator;
 
-import org.apache.cassandra.db.*;
-
 /**
- * Abstract class to create UnfilteredRowIterator that lazily initialize themselves.
- *
+ * Abstract class to create UnfilteredRowIterator that lazily initializes itself.
+ * <p>
  * This is used during partition range queries when we know the partition key but want
- * to defer the initialization of the rest of the UnfilteredRowIterator until we need those informations.
- * See {@link org.apache.cassandra.io.sstable.format.big.BigTableScanner.KeyScanningIterator} for instance.
+ * to defer the initialization of the rest of the UnfilteredRowIterator until we need it.
  */
 public abstract class LazilyInitializedUnfilteredRowIterator extends AbstractIterator<Unfiltered> implements UnfilteredRowIterator
 {
@@ -46,11 +46,6 @@ public abstract class LazilyInitializedUnfilteredRowIterator extends AbstractIte
     {
         if (iterator == null)
             iterator = initializeIterator();
-    }
-
-    public boolean initialized()
-    {
-        return iterator != null;
     }
 
     public TableMetadata metadata()
@@ -103,6 +98,14 @@ public abstract class LazilyInitializedUnfilteredRowIterator extends AbstractIte
     public void close()
     {
         if (iterator != null)
+        {
             iterator.close();
+            iterator = null;
+        }
+    }
+
+    public boolean isOpen()
+    {
+        return iterator != null;
     }
 }

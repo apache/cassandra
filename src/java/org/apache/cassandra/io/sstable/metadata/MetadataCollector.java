@@ -95,6 +95,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
                                  ActiveRepairService.UNREPAIRED_SSTABLE,
                                  -1,
                                  -1,
+                                 Double.NaN,
                                  null,
                                  null,
                                  false,
@@ -108,7 +109,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
     protected EstimatedHistogram estimatedCellPerPartitionCount = defaultCellPerPartitionCountHistogram();
     protected IntervalSet<CommitLogPosition> commitLogIntervals = IntervalSet.empty();
     protected final MinMaxLongTracker timestampTracker = new MinMaxLongTracker();
-    protected final MinMaxIntTracker localDeletionTimeTracker = new MinMaxIntTracker(Cell.NO_DELETION_TIME, Cell.NO_DELETION_TIME);
+    protected final MinMaxLongTracker localDeletionTimeTracker = new MinMaxLongTracker(Cell.NO_DELETION_TIME, Cell.NO_DELETION_TIME);
     protected final MinMaxIntTracker ttlTracker = new MinMaxIntTracker(Cell.NO_TTL, Cell.NO_TTL);
     protected double compressionRatio = NO_COMPRESSION_RATIO;
     protected StreamingTombstoneHistogramBuilder estimatedTombstoneDropTime = new StreamingTombstoneHistogramBuilder(SSTable.TOMBSTONE_HISTOGRAM_BIN_SIZE, SSTable.TOMBSTONE_HISTOGRAM_SPOOL_SIZE, SSTable.TOMBSTONE_HISTOGRAM_TTL_ROUND_SECONDS);
@@ -128,13 +129,14 @@ public class MetadataCollector implements PartitionStatisticsCollector
      * be a corresponding end bound that is bigger).
      */
     private ClusteringPrefix<?> maxClustering = ClusteringBound.MIN_END;
-    private boolean clusteringInitialized = false;
 
     protected boolean hasLegacyCounterShards = false;
     private boolean hasPartitionLevelDeletions = false;
     protected long totalColumnsSet;
     protected long totalRows;
     public int totalTombstones;
+
+    protected double tokenSpaceCoverage = Double.NaN;
 
     /**
      * Default cardinality estimation method is to use HyperLogLog++.
@@ -144,7 +146,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
      */
     protected ICardinality cardinality = new HyperLogLogPlus(13, 25);
     private final ClusteringComparator comparator;
-    private final int nowInSec = FBUtilities.nowInSeconds();
+    private final long nowInSec = FBUtilities.nowInSeconds();
 
     private final UUID originatingHostId;
 
@@ -159,7 +161,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
         this.originatingHostId = originatingHostId;
     }
 
-    public MetadataCollector(Iterable<SSTableReader> sstables, ClusteringComparator comparator, int level)
+    public MetadataCollector(Iterable<SSTableReader> sstables, ClusteringComparator comparator)
     {
         this(comparator);
 
@@ -173,7 +175,6 @@ public class MetadataCollector implements PartitionStatisticsCollector
             }
         }
         commitLogIntervals(intervals.build());
-        sstableLevel(level);
     }
 
     public MetadataCollector addKey(ByteBuffer key)
@@ -263,7 +264,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
         timestampTracker.update(newTimestamp);
     }
 
-    private void updateLocalDeletionTime(int newLocalDeletionTime)
+    private void updateLocalDeletionTime(long newLocalDeletionTime)
     {
         localDeletionTimeTracker.update(newLocalDeletionTime);
         if (newLocalDeletionTime != Cell.NO_DELETION_TIME)
@@ -289,6 +290,12 @@ public class MetadataCollector implements PartitionStatisticsCollector
     public MetadataCollector sstableLevel(int sstableLevel)
     {
         this.sstableLevel = sstableLevel;
+        return this;
+    }
+
+    public MetadataCollector tokenSpaceCoverage(double coverage)
+    {
+        tokenSpaceCoverage = coverage;
         return this;
     }
 
@@ -372,6 +379,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
                                                              repairedAt,
                                                              totalColumnsSet,
                                                              totalRows,
+                                                             tokenSpaceCoverage,
                                                              originatingHostId,
                                                              pendingRepair,
                                                              isTransient,

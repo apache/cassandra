@@ -100,6 +100,8 @@ import org.apache.cassandra.utils.NoSpamLogger;
 import static java.util.Collections.emptyMap;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_LOG_TTL_LINEARIZABILITY_VIOLATIONS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_MODERN_RELEASE;
 import static org.apache.cassandra.config.Config.PaxosVariant.v2_without_linearizable_reads_or_rejected_writes;
 import static org.apache.cassandra.db.Keyspace.openAndGetStore;
 import static org.apache.cassandra.exceptions.RequestFailureReason.TIMEOUT;
@@ -214,8 +216,8 @@ public class Paxos
     private static final Logger logger = LoggerFactory.getLogger(Paxos.class);
 
     private static volatile Config.PaxosVariant PAXOS_VARIANT = DatabaseDescriptor.getPaxosVariant();
-    private static final CassandraVersion MODERN_PAXOS_RELEASE = new CassandraVersion(System.getProperty("cassandra.paxos.modern_release", "4.1"));
-    static final boolean LOG_TTL_LINEARIZABILITY_VIOLATIONS = Boolean.parseBoolean(System.getProperty("cassandra.paxos.log_ttl_linearizability_violations", "true"));
+    private static final CassandraVersion MODERN_PAXOS_RELEASE = new CassandraVersion(PAXOS_MODERN_RELEASE.getString());
+    static final boolean LOG_TTL_LINEARIZABILITY_VIOLATIONS = PAXOS_LOG_TTL_LINEARIZABILITY_VIOLATIONS.getBoolean();
 
     static class Electorate implements Iterable<InetAddressAndPort>
     {

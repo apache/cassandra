@@ -356,4 +356,37 @@ public class ByteBufferUtilTest
                 }
         }
     }
+
+    @Test
+    public void testEqualsWithShortLength() throws IOException
+    {
+        ByteBuffer bb = ByteBufferUtil.bytes(s);
+        checkEquals(bb);
+
+        bb = fromStringWithPosition(s, 10, false);
+        checkEquals(bb);
+
+        bb = fromStringWithPosition(s, 10, true);
+        checkEquals(bb);
+    }
+
+    private void checkEquals(ByteBuffer bb) throws IOException
+    {
+        DataOutputBuffer out = new DataOutputBuffer();
+        ByteBufferUtil.writeWithShortLength(bb, out);
+
+        DataInputStream in = new DataInputStream(new ByteArrayInputStream(out.toByteArray()));
+        assert ByteBufferUtil.equalsWithShortLength(in, bb);
+
+        int index = ThreadLocalRandom.current().nextInt(bb.remaining());
+
+        in = new DataInputStream(new ByteArrayInputStream(out.toByteArray()));
+        bb.put(bb.position() + index, (byte) (bb.get(index) ^ 0x55));
+        assert !ByteBufferUtil.equalsWithShortLength(in, bb);
+        bb.put(bb.position() + index, (byte) (bb.get(index) ^ 0x55));   // revert change
+
+        in = new DataInputStream(new ByteArrayInputStream(out.toByteArray()));
+        bb.limit(bb.position() + index);
+        assert !ByteBufferUtil.equalsWithShortLength(in, bb);
+    }
 }

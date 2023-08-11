@@ -41,6 +41,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -62,6 +63,8 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
+
 public class PerSSTableIndexWriterTest extends SchemaLoader
 {
     private static final String KS_NAME = "sasi";
@@ -70,7 +73,7 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
     @BeforeClass
     public static void loadSchema() throws ConfigurationException
     {
-        System.setProperty("cassandra.config", "cassandra-murmur.yaml");
+        CASSANDRA_CONFIG.setString("cassandra-murmur.yaml");
         SchemaLoader.loadSchema();
         SchemaTestUtil.announceNewKeyspace(KeyspaceMetadata.create(KS_NAME,
                                                                    KeyspaceParams.simpleTransient(1),
@@ -91,7 +94,7 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
 
         File directory = cfs.getDirectories().getDirectoryForNewSSTables();
         Descriptor descriptor = cfs.newSSTableDescriptor(directory);
-        PerSSTableIndexWriter indexWriter = (PerSSTableIndexWriter) sasi.getFlushObserver(descriptor, OperationType.FLUSH);
+        PerSSTableIndexWriter indexWriter = (PerSSTableIndexWriter) sasi.getFlushObserver(descriptor, LifecycleTransaction.offline(OperationType.FLUSH));
 
         SortedMap<DecoratedKey, Row> expectedKeys = new TreeMap<>(DecoratedKey.comparator);
 
@@ -185,7 +188,7 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
 
         File directory = cfs.getDirectories().getDirectoryForNewSSTables();
         Descriptor descriptor = cfs.newSSTableDescriptor(directory);
-        PerSSTableIndexWriter indexWriter = (PerSSTableIndexWriter) sasi.getFlushObserver(descriptor, OperationType.FLUSH);
+        PerSSTableIndexWriter indexWriter = (PerSSTableIndexWriter) sasi.getFlushObserver(descriptor, LifecycleTransaction.offline(OperationType.FLUSH));
 
         final long now = System.currentTimeMillis();
 

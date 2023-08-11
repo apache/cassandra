@@ -19,7 +19,6 @@
 package org.apache.cassandra.cql3;
 
 import java.io.ByteArrayOutputStream;
-import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.regex.Pattern;
 
@@ -30,6 +29,7 @@ import org.junit.Test;
 
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.DecimalType;
@@ -73,17 +73,22 @@ public class EmptyValuesTest extends CQLTester
         ByteArrayOutputStream buf = new ByteArrayOutputStream();
         for (SSTableReader ssTable : cfs.getLiveSSTables())
         {
-            try (PrintStream out = new PrintStream(buf, true))
+            int exitValue = 0;
+            try
             {
                 ProcessBuilder pb = new ProcessBuilder("tools/bin/sstabledump", ssTable.getFilename());
+                pb.redirectErrorStream(true);
+                if (CassandraRelevantProperties.CASSANDRA_CONFIG.isPresent())
+                    pb.environment().put("JVM_OPTS", "-Dcassandra.config=" + CassandraRelevantProperties.CASSANDRA_CONFIG.getString());
                 Process process = pb.start();
-                process.waitFor();
+                exitValue = process.waitFor();
                 IOUtils.copy(process.getInputStream(), buf);
             }
             catch (Throwable t)
             {
                 Assert.fail(t.getClass().getName());
             }
+            Assert.assertEquals(buf.toString(), 0, exitValue);
         }
         
         String outString = new String(buf.toByteArray(), StandardCharsets.UTF_8);

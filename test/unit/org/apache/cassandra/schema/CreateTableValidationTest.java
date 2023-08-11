@@ -18,21 +18,13 @@
  */
 package org.apache.cassandra.schema;
 
-import java.io.IOException;
-import java.util.List;
-
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.transport.Message;
-import org.apache.cassandra.transport.ProtocolVersion;
-import org.apache.cassandra.transport.SimpleClient;
-import org.apache.cassandra.transport.messages.QueryMessage;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 
 import org.junit.Test;
 
-import static org.junit.Assert.assertTrue;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.junit.Assert.fail;
 
 public class CreateTableValidationTest extends CQLTester
@@ -58,50 +50,60 @@ public class CreateTableValidationTest extends CQLTester
         createTable("CREATE TABLE %s (a int PRIMARY KEY, b int) WITH bloom_filter_fp_chance = 0.1");
     }
 
-    @Deprecated // these warning thresholds will be replaced by equivalent guardrails
     @Test
-    public void testCreateKeyspaceTableWarning() throws IOException
+    public void testCreateTableOnSelectedClusteringColumn()
     {
-        requireNetwork();
-        int tableCountWarn = DatabaseDescriptor.tableCountWarnThreshold();
-        int keyspaceCountWarn = DatabaseDescriptor.keyspaceCountWarnThreshold();
-        DatabaseDescriptor.setTableCountWarnThreshold(Schema.instance.getNumberOfTables());
-        DatabaseDescriptor.setKeyspaceCountWarnThreshold(Schema.instance.getKeyspaces().size());
+        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC);");
+    }
 
-        try (SimpleClient client = newSimpleClient(ProtocolVersion.CURRENT).connect(false))
-        {
-            String createKeyspace = "CREATE KEYSPACE createkswarning%d WITH REPLICATION={'class':'org.apache.cassandra.locator.NetworkTopologyStrategy','datacenter1':'2'}";
-            QueryMessage query = new QueryMessage(String.format(createKeyspace, 1), QueryOptions.DEFAULT);
-            Message.Response resp = client.execute(query);
-            List<String> warns = resp.getWarnings();
-            warns.removeIf(w -> w.contains("is higher than the number of nodes"));
-            assertTrue(warns.size() > 0);
-            assertTrue(warns.get(0).contains("Having a large number of keyspaces will significantly"));
+    @Test
+    public void testCreateTableOnAllClusteringColumns()
+    {
+        createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC, ck2 DESC);");
+    }
 
-            DatabaseDescriptor.setKeyspaceCountWarnThreshold(Schema.instance.getKeyspaces().size() + 2);
-            query = new QueryMessage(String.format(createKeyspace, 2), QueryOptions.DEFAULT);
-            resp = client.execute(query);
-            warns = resp.getWarnings();
-            if (warns != null)
-                warns.removeIf(w -> w.contains("is higher than the number of nodes"));
-            assertTrue(warns == null || warns.isEmpty());
+    @Test
+    public void testCreateTableErrorOnNonClusteringKey()
+    {
+        String expectedMessage = "Only clustering key columns can be defined in CLUSTERING ORDER directive";
+        expectedFailure("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC, ck2 DESC, v ASC);",
+                        expectedMessage+": [v]");
+        expectedFailure("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (v ASC);",
+                        expectedMessage+": [v]");
+        expectedFailure("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (pk ASC);",
+                        expectedMessage+": [pk]");
+        expectedFailure("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (pk ASC, ck1 DESC);",
+                        expectedMessage+": [pk]");
+        expectedFailure("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC, ck2 DESC, pk DESC);",
+                        expectedMessage+": [pk]");
+        expectedFailure("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (pk DESC, v DESC);",
+                        expectedMessage+": [pk, v]");
+        expectedFailure("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (pk DESC, v DESC, ck1 DESC);",
+                        expectedMessage+": [pk, v]");
+        expectedFailure("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck1 ASC, v ASC);",
+                        expectedMessage+": [v]");
+        expectedFailure("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (v ASC, ck1 DESC);",
+                        expectedMessage+": [v]");
+    }
 
-            query = new QueryMessage(String.format("CREATE TABLE %s.%s (id int primary key, x int)", KEYSPACE, "test1"), QueryOptions.DEFAULT);
-            resp = client.execute(query);
-            warns = resp.getWarnings();
-            warns.removeIf(w -> w.contains("is higher than the number of nodes"));
-            assertTrue(warns.size() > 0);
-            assertTrue(warns.get(0).contains("Having a large number of tables"));
+    @Test
+    public void testCreateTableInWrongOrder()
+    {
+        expectedFailure("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck2 ASC, ck1 DESC);",
+                        "The order of columns in the CLUSTERING ORDER directive must match that of the clustering columns");
+    }
 
-            DatabaseDescriptor.setTableCountWarnThreshold(Schema.instance.getNumberOfTables() + 1);
-            query = new QueryMessage(String.format("CREATE TABLE %s.%s (id int primary key, x int)", KEYSPACE, "test2"), QueryOptions.DEFAULT);
-            resp = client.execute(query);
-            assertTrue(resp.getWarnings() == null || resp.getWarnings().isEmpty());
-        }
-        finally
-        {
-            DatabaseDescriptor.setTableCountWarnThreshold(tableCountWarn);
-            DatabaseDescriptor.setKeyspaceCountWarnThreshold(keyspaceCountWarn);
-        }
+    @Test
+    public void testCreateTableWithMissingClusteringColumn()
+    {
+        expectedFailure("CREATE TABLE %s (pk int, ck1 int, ck2 int, v int, PRIMARY KEY ((pk),ck1, ck2)) WITH CLUSTERING ORDER BY (ck2 ASC);",
+                        "Missing CLUSTERING ORDER for column ck1");
+    }
+
+    private void expectedFailure(String statement, String errorMsg)
+    {
+
+        assertThatExceptionOfType(InvalidRequestException.class)
+        .isThrownBy(() -> createTableMayThrow(statement)) .withMessageContaining(errorMsg);
     }
 }

@@ -142,6 +142,22 @@ public class Info extends NodeToolCmd
             // Chunk cache is not on.
         }
 
+        // network Cache: capacity, size
+        try
+        {
+            out.printf("%-23s: size %s, overflow size: %s, capacity %s%n", "Network Cache",
+                       FileUtils.stringifyFileSize((long) probe.getBufferPoolMetric("networking", "Size")),
+                       FileUtils.stringifyFileSize((long) probe.getBufferPoolMetric("networking", "OverflowSize")),
+                       FileUtils.stringifyFileSize((long) probe.getBufferPoolMetric("networking", "Capacity")));
+        }
+        catch (RuntimeException e)
+        {
+            if (!(e.getCause() instanceof InstanceNotFoundException))
+                throw e;
+
+            // network cache is not on.
+        }
+
         // Global table stats
         out.printf("%-23s: %s%%%n", "Percent Repaired", probe.getColumnFamilyMetric(null, null, "PercentRepaired"));
 
@@ -161,6 +177,10 @@ public class Info extends NodeToolCmd
         {
             out.printf("%-23s: (node is not joined to the cluster)%n", "Token");
         }
+
+        out.printf("%-23s: %s%n", "Bootstrap state", probe.getStorageService().getBootstrapState());
+        out.printf("%-23s: %s%n", "Decommissioning", probe.getStorageService().isDecommissioning());
+        out.printf("%-23s: %s%n", "Decommission failed", probe.getStorageService().isDecommissionFailed());
     }
 
     /**

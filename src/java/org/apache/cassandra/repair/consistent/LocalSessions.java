@@ -98,6 +98,10 @@ import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Future;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
+import static org.apache.cassandra.config.CassandraRelevantProperties.REPAIR_CLEANUP_INTERVAL_SECONDS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.REPAIR_DELETE_TIMEOUT_SECONDS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.REPAIR_FAIL_TIMEOUT_SECONDS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.REPAIR_STATUS_CHECK_TIMEOUT_SECONDS;
 import static org.apache.cassandra.net.Verb.FAILED_SESSION_MSG;
 import static org.apache.cassandra.net.Verb.FINALIZE_PROMISE_MSG;
 import static org.apache.cassandra.net.Verb.PREPARE_CONSISTENT_RSP;
@@ -121,26 +125,22 @@ public class LocalSessions
      * Amount of time a session can go without any activity before we start checking the status of other
      * participants to see if we've missed a message
      */
-    static final int CHECK_STATUS_TIMEOUT = Integer.getInteger("cassandra.repair_status_check_timeout_seconds",
-                                                               Ints.checkedCast(TimeUnit.HOURS.toSeconds(1)));
+    static final int CHECK_STATUS_TIMEOUT = REPAIR_STATUS_CHECK_TIMEOUT_SECONDS.getInt();
 
     /**
      * Amount of time a session can go without any activity before being automatically set to FAILED
      */
-    static final int AUTO_FAIL_TIMEOUT = Integer.getInteger("cassandra.repair_fail_timeout_seconds",
-                                                            Ints.checkedCast(TimeUnit.DAYS.toSeconds(1)));
+    static final int AUTO_FAIL_TIMEOUT = REPAIR_FAIL_TIMEOUT_SECONDS.getInt();
 
     /**
      * Amount of time a completed session is kept around after completion before being deleted, this gives
      * compaction plenty of time to move sstables from successful sessions into the repaired bucket
      */
-    static final int AUTO_DELETE_TIMEOUT = Integer.getInteger("cassandra.repair_delete_timeout_seconds",
-                                                              Ints.checkedCast(TimeUnit.DAYS.toSeconds(1)));
+    static final int AUTO_DELETE_TIMEOUT = REPAIR_DELETE_TIMEOUT_SECONDS.getInt();
     /**
      * How often LocalSessions.cleanup is run
      */
-    public static final int CLEANUP_INTERVAL = Integer.getInteger("cassandra.repair_cleanup_interval_seconds",
-                                                                  Ints.checkedCast(TimeUnit.MINUTES.toSeconds(10)));
+    public static final int CLEANUP_INTERVAL = REPAIR_CLEANUP_INTERVAL_SECONDS.getInt();
 
     private static Set<TableId> uuidToTableId(Set<UUID> src)
     {
@@ -301,7 +301,7 @@ public class LocalSessions
             }
         }
 
-        return new PendingStats(cfs.keyspace.getName(), cfs.name, pending.build(), finalized.build(), failed.build());
+        return new PendingStats(cfs.getKeyspaceName(), cfs.name, pending.build(), finalized.build(), failed.build());
     }
 
     public CleanupSummary cleanup(TableId tid, Collection<Range<Token>> ranges, boolean force)
@@ -411,17 +411,17 @@ public class LocalSessions
         return started;
     }
 
-    private static boolean shouldCheckStatus(LocalSession session, int now)
+    private static boolean shouldCheckStatus(LocalSession session, long now)
     {
         return !session.isCompleted() && (now > session.getLastUpdate() + CHECK_STATUS_TIMEOUT);
     }
 
-    private static boolean shouldFail(LocalSession session, int now)
+    private static boolean shouldFail(LocalSession session, long now)
     {
         return !session.isCompleted() && (now > session.getLastUpdate() + AUTO_FAIL_TIMEOUT);
     }
 
-    private static boolean shouldDelete(LocalSession session, int now)
+    private static boolean shouldDelete(LocalSession session, long now)
     {
         return session.isCompleted() && (now > session.getLastUpdate() + AUTO_DELETE_TIMEOUT);
     }
@@ -443,7 +443,7 @@ public class LocalSessions
         {
             synchronized (session)
             {
-                int now = FBUtilities.nowInSeconds();
+                long now = FBUtilities.nowInSeconds();
                 if (shouldFail(session, now))
                 {
                     logger.warn("Auto failing timed out repair session {}", session);
@@ -672,7 +672,7 @@ public class LocalSessions
         builder.withRanges(prs.getRanges());
         builder.withParticipants(peers);
 
-        int now = FBUtilities.nowInSeconds();
+        long now = FBUtilities.nowInSeconds();
         builder.withStartedAt(now);
         builder.withLastUpdate(now);
 

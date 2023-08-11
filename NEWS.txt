@@ -1,12 +1,26 @@
-PLEASE READ: MAXIMUM TTL EXPIRATION DATE NOTICE (CASSANDRA-14092)
-------------------------------------------------------------------
+PLEASE READ: MAXIMUM TTL EXPIRATION DATE NOTICE (CASSANDRA-14092 & CASSANDRA-14227)
+-----------------------------------------------------------------------------------
 (General upgrading instructions are available in the next section)
 
-The maximum expiration timestamp that can be represented by the storage engine is
-2038-01-19T03:14:06+00:00, which means that inserts with TTL thatl expire after
+The maximum expiration timestamp that can be represented by the storage engine has been
+raised to 2106-02-07T06:28:13+00:00 (2038-01-19T03:14:06+00:00 if in compatibility mode 
+with Cassandra <5.0, sstable version <=nc), which means that inserts with TTL that expire after
 this date are not currently supported. By default, INSERTS with TTL exceeding the
-maximum supported date are rejected, but it's possible to choose a different
- expiration overflow policy. See CASSANDRA-14092.txt for more details.
+maximum supported date are rejected, but it's possible to choose a different 
+expiration overflow policy. See CASSANDRA-14092.txt for more details.
+ 
+There is a new yaml property storage_compatibility_mode that determines the
+Cassandra major version we want to stay compatible with. Its default is CASSANDRA_4, which means that
+the node sstables, commitlog, hints and messaging version will stay compatible with Cassandra 4.x,
+2038 will still be the limit, and it will be possible to rollback to the previous version. To upgrade:
+ - Do a rolling upgrade to 5.0 where 2038 will still be the limit. At this point, the node won't write
+ anything incompatible with Cassandra 4.x, and you would still be able to rollback to that version.
+ - Do a rolling restart setting storage_compatibility_mode=UPGRADING. Once all nodes
+ are in storage version 5, 2106 will become the new limit.
+ - Do a rolling restart setting storage_compatibility_mode=NONE. Now mixed
+ 2038 and 2106 nodes are no longer possible.
+Notice the yaml property needs to be set all the time for all executables and tools. It
+will be removed in future versions when 2038 nodes are no longer possible.
 
 Prior to 3.0.16 (3.0.X) and 3.11.2 (3.11.x) there was no protection against INSERTS
 with TTL expiring after the maximum supported date, causing the expiration time
@@ -57,10 +71,32 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - Added a new authorizer, CIDR authorizer, to restrict user access based on CIDR groups.
+    - Pluggable crypto providers were made possible via `crypto_provider` section in cassandra.yaml. The default provider is 
+      Amazon Corretto Crypto Provider and it is installed automatically upon node's start. Only x86_64 and aarch64 architectures are supported now.
+      Please consult upgrade section to know more details when upgrading from older Cassandra versions.
+    - Added a new secondary index implementation, Storage-Attached Indexes (SAI). Overview documentation and a basic
+      tutorial can be found at src/java/org/apache/cassandra/index/sai/README.md.
+    - *Experimental* support for Java 17 has been added. JVM options that differ between or are
+      specific for Java 17 have been added into jvm17.options.
+      IMPORTANT: Running C* on Java 17 is *experimental* and do it at your own risk.
+    - Added a new "unified" compaction strategy that supports the use cases of the legacy compaction strategies, with
+      low space overhead, high parallelism and flexible configuration. Implemented by the UnifiedCompactionStrategy
+      class. Further details and documentation can be found in
+      src/java/org/apache/cassandra/db/compaction/UnifiedCompactionStrategy.md
+    - New `VectorType` (cql `vector<element_type, dimension>`) which adds new fixed-length element arrays. See CASSANDRA-18504
+    - Added new vector similarity functions `similarity_cosine`, `similarity_euclidean` and `similarity_dot_product`.
+    - Removed UDT type migration logic for 3.6+ clusters upgrading to 4.0.  If migration has been disabled, it must be
+      enabled before upgrading to 5.0 if the cluster used UDTs. See CASSANDRA-18504
+    - Entended max expiration time from 2038-01-19T03:14:06+00:00 to 2106-02-07T06:28:13+00:00
     - Added new Mathematical CQL functions: abs, exp, log, log10 and round.
-    - Adds a trie-based memtable implementation, which improves memory use, garbage collection efficiency and lookup
+    - Added a trie-based memtable implementation, which improves memory use, garbage collection efficiency and lookup
       performance. The new memtable is implemented by the TrieMemtable class and can be selected using the memtable
       API, see src/java/org/apache/cassandra/db/memtable/Memtable_API.md.
+    - Added a new trie-indexed SSTable format with better lookup efficiency and size. The new format removes the index
+      summary component and does not require key caching. Additionally, it is able to efficiently search in partitions
+      spanning thousands or millions of rows.
+      The format is applied by setting "bti" as the selected sstable format in cassandra.yaml's sstables option.
     - Added a new configuration cdc_on_repair_enabled to toggle whether CDC mutations are replayed through the
       write path on streaming, e.g. repair. When enabled, CDC data streamed to the destination node will be written into
       commit log first. When disabled, the streamed CDC data is written into SSTables just the same as normal streaming.
@@ -78,6 +114,9 @@ New features
       - Maximum replication factor
       - Whether DROP KEYSPACE commands are allowed.
       - Column value size
+      - Partition size
+      - Partition tombstones
+      - Vector dimensions
     - It is possible to list ephemeral snapshots by nodetool listsnaphots command when flag "-e" is specified.
     - Added a new flag to `nodetool profileload` and JMX endpoint to set up recurring profile load generation on specified
       intervals (see CASSANDRA-17821)
@@ -140,9 +179,17 @@ New features
     - Added new SELECT_MASKED permission. It allows to run SELECT queries selecting the clear values of masked columns.
       Superusers have it by default, whereas regular users don't have it by default.
     - Added support for using UDFs as masking functions attached to table columns on the schema.
+    - Added `sstablepartitions` offline tool to find large partitions in sstables.
+    - `cassandra-stress` has a new option called '-jmx' which enables a user to pass username and password to JMX (CASSANDRA-18544)
+    - It is possible to read all credentials for `cassandra-stress` from a file via option `-credentials-file` (CASSANDRA-18544)
+    - nodetool info displays bootstrap state a node is in as well as if it was decommissioned or if it failed to decommission (CASSANDRA-18555)
+    - Added snitch for Microsoft Azure of name AzureSnitch (CASSANDRA-18646)
+    - legacy command line options from cassandra-stress were removed
+    - `-mode` option in cassandra-stress has `native` and `cql3` as defaults and they do not need to be specified
 
 Upgrading
 ---------
+    - Java 8 has been removed. Lowest supported version is Java 11.
     - Ephemeral marker files for snapshots done by repairs are not created anymore,
       there is a dedicated flag in snapshot manifest instead. On upgrade of a node to this version, on node's start, in case there
       are such ephemeral snapshots on disk, they will be deleted (same behaviour as before) and any new ephemeral snapshots
@@ -165,6 +212,18 @@ Upgrading
      removed. Any deployments that depend upon the code default to this password value without explicitly specifying
      it in cassandra.yaml will fail on upgrade. Please specify your keystore_password and truststore_password elements in cassandra.yaml with appropriate
      values to prevent this failure.
+   - Please beware that if you use Ec2Snitch or Ec2MultiRegionSnitch, by default it will 
+     communicate with AWS IMDS of version 2. This change is transparent, there does not need 
+     to be done anything upon upgrade. Furthermore, IMDS of version 2 can be configured to be required in AWS EC2 console.
+     Consult cassandra-rackdc.properties for more details. (CASSANDRA-16555)
+    - JMX MBean `org.apache.cassandra.metrics:type=BufferPool` without scope has been removed.
+      Use instead `org.apache.cassandra.metrics:type=BufferPool,scope=chunk-cache`.  (CASSANDRA-17668)
+    - Upon upgrade, when cassandra.yaml does not contain `crypto_provider` configuration section, crypto providers from JRE installation will be used
+      and no installation of DefaultCryptoProvider installing Amazon Corretto Crypto Provider will be conducted. 
+      You need to explicitly add this section to the old yaml if it does not contain it yet to enable Amazon Corretto Crypto Provider for such node. 
+      New deployments have `crypto_provider` uncommented with DefaultCryptoProvider hence Corretto provider will be installed automatically for corresponding architecture.
+    - `commitlog_sync_batch_window_in_ms` configuration property in cassandra.yaml was removed. Please ensure your configuration is not using this property.
+
 
 Deprecation
 -----------
@@ -182,6 +241,16 @@ Deprecation
     - All native CQL functions names that don't use the snake case names are deprecated in favour of equivalent names
       using snake casing. Thus, `totimestamp` is deprecated in favour of `to_timestamp`, `intasblob` in favour
       of `int_as_blob`, `castAsInt` in favour of `cast_as_int`, etc.
+    - The config property `compaction_large_partition_warning_threshold` has been deprecated in favour of the new
+      guardrail for partition size. That guardrail is based on the properties `partition_size_warn_threshold` and
+      `partition_size_fail_threshold`. The warn threshold has a very similar behaviour to the old config property.
+      The old property is still supported for backward compatibility, but now it is disabled by default.
+    - The config property `compaction_tombstone_warning_threshold` has been deprecated in favour of the new guardrail
+      for partition tombstones. That guardrail is based on the properties `partition_tombstones_warn_threshold` and
+      `partition_tombstones_fail_threshold`. The warn threshold has a very similar behaviour to the old config property.
+      The old property is still supported for backward compatibility, but now it is disabled by default.
+    - CloudstackSnitch is marked as deprecated and it is not actively maintained anymore. It is scheduled to be removed 
+      in the next major version of Cassandra.
 
 4.1
 ===
@@ -396,7 +465,7 @@ Deprecation
       No change of functionality in the new one, only name change for clarity in regards to units and to follow naming
       standartization.
     - The properties `keyspace_count_warn_threshold` and `table_count_warn_threshold` in cassandra.yaml have been
-      deprecated in favour of the new `guardrails.keyspaces` and `guardrails.tables` properties and will be removed
+      deprecated in favour of the new `keyspaces_warn_threshold` and `tables_warn_threshold` properties and will be removed
       in a subsequent major version. This also affects the setters and getters for those properties in the JMX MBean
       `org.apache.cassandra.db:type=StorageService`, which are equally deprecated in favour of the analogous methods
       in the JMX MBean `org.apache.cassandra.db:type=Guardrails`. See CASSANDRA-17195 for further details.
@@ -667,7 +736,7 @@ Upgrading
       the node will not start. See CASSANDRA-14477 for details.
     - CASSANDRA-13701 To give a better out of the box experience, the default 'num_tokens'
       value has been changed from 256 to 16 for reasons described in
-      https://cassandra.apache.org/doc/latest/getting_started/production.html#tokens
+      https://cassandra.apache.org/doc/latest/getting-started/production.html#tokens
       'allocate_tokens_for_local_replication_factor' is also uncommented and set to 3.
       Please note when upgrading that if the 'num_tokens' value is different than what you have
       configured, the upgraded node will refuse to start. Also note that if a new node joining

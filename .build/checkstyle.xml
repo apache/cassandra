@@ -1,0 +1,176 @@
+<?xml version="1.0"?>
+<!--
+  Licensed to the Apache Software Foundation (ASF) under one or more
+  contributor license agreements.  See the NOTICE file distributed with
+  this work for additional information regarding copyright ownership.
+  The ASF licenses this file to You under the Apache License, Version 2.0
+  (the "License"); you may not use this file except in compliance with
+  the License.  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<!DOCTYPE module PUBLIC
+          "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
+          "https://checkstyle.org/dtds/configuration_1_3.dtd">
+
+<module name="Checker">
+  <property name="severity" value="error"/>
+
+  <property name="fileExtensions" value="java, properties, xml"/>
+  
+  <property name="cacheFile" value="${checkstyle.log.dir}/checkstyle_cachefile"/>
+
+  <module name="BeforeExecutionExclusionFileFilter">
+    <property name="fileNamePattern" value="module\-info\.java$"/>
+  </module>
+
+  <!-- https://checkstyle.org/config_filters.html#SuppressionFilter -->
+  <!-- this exists only because for some reason the comment filter does not seem to work for Semaphore -->
+  <module name="SuppressionFilter">
+    <property name="file" value="${checkstyle.suppressions}"
+              default="checkstyle-suppressions.xml" />
+    <property name="optional" value="false"/>
+  </module>
+
+  <module name="TreeWalker">
+    <module name="SuppressWithNearbyCommentFilter">
+       <property name="commentFormat" value="checkstyle: permit this import"/>
+       <property name="checkFormat" value="IllegalImport"/>
+       <property name="influenceFormat" value="0"/>
+    </module>
+ 
+    <module name="SuppressWithNearbyCommentFilter">
+       <property name="commentFormat" value="checkstyle: permit this instantiation"/>
+       <property name="checkFormat" value="IllegalInstantiation"/>
+       <property name="influenceFormat" value="0"/>
+    </module>
+ 
+    <module name="SuppressWithNearbyCommentFilter">
+       <property name="commentFormat" value="checkstyle: permit system clock"/>
+       <property name="idFormat" value="blockSystemClock"/>
+       <property name="influenceFormat" value="0"/>
+    </module>
+
+    <module name="SuppressWithNearbyCommentFilter">
+      <property name="commentFormat" value="checkstyle: permit this invocation"/>
+      <property name="idFormat" value="blockPathToFile"/>
+      <property name="influenceFormat" value="0"/>
+    </module>
+ 
+    <module name="RegexpSinglelineJava">
+      <!-- block system time -->
+      <property name="id" value="blockSystemClock"/>
+      <property name="format" value="System\.(currentTimeMillis|nanoTime)"/>
+      <property name="ignoreComments" value="true"/>
+      <property name="message" value="Avoid System for time, should use org.apache.cassandra.utils.Clock.Global or org.apache.cassandra.utils.Clock interface" />
+    </module>
+
+    <module name="RegexpSinglelineJava">
+      <!-- block Instant.now -->
+      <property name="id" value="blockInstantNow"/>
+      <property name="format" value="Instant\.now"/>
+      <property name="ignoreComments" value="true"/>
+      <property name="message" value="Avoid Instant.now() for time, should use org.apache.cassandra.util.FBUtilities.now()" />
+    </module>
+
+    <module name="RegexpSinglelineJava">
+      <!-- block normal executors -->
+      <property name="id" value="blockExecutors"/>
+      <property name="format" value="newSingleThreadExecutor|newFixedThreadPool|newCachedThreadPool|newSingleThreadScheduledExecutor|newWorkStealingPool|newScheduledThreadPool|defaultThreadFactory"/>
+      <property name="ignoreComments" value="true"/>
+      <property name="message" value="Avoid creating an executor directly, should use org.apache.cassandra.concurrent.ExecutorFactory.Global#executorFactory" />
+    </module>
+    <module name="RegexpSinglelineJava">
+      <!-- block guavas directExecutor -->
+      <property name="id" value="blockGuavaDirectExecutor"/>
+      <property name="format" value="MoreExecutors\.directExecutor"/>
+      <property name="ignoreComments" value="true"/>
+      <property name="message" value="Avoid MoreExecutors.directExecutor() in favor of ImmediateExecutor.INSTANCE" />
+    </module>
+    <module name="IllegalImport">
+      <property name="illegalPkgs" value="junit.framework"/>
+      <property name="illegalClasses" value="java.io.File,java.io.FileInputStream,java.io.FileOutputStream,java.io.FileReader,java.io.FileWriter,java.io.RandomAccessFile,java.util.concurrent.Semaphore,java.util.concurrent.CountDownLatch,java.util.concurrent.Executors,java.util.concurrent.LinkedBlockingQueue,java.util.concurrent.SynchronousQueue,java.util.concurrent.ArrayBlockingQueue,com.google.common.util.concurrent.Futures,java.util.concurrent.CompletableFuture,io.netty.util.concurrent.Future,io.netty.util.concurrent.Promise,io.netty.util.concurrent.AbstractFuture,com.google.common.util.concurrent.ListenableFutureTask,com.google.common.util.concurrent.ListenableFuture,com.google.common.util.concurrent.AbstractFuture,java.nio.file.Paths"/>
+    </module>
+    <module name="IllegalInstantiation">
+      <property name="classes" value="com.fasterxml.jackson.databind.ObjectMapper,java.io.File,java.lang.Thread,java.util.concurrent.FutureTask,java.util.concurrent.Semaphore,java.util.concurrent.CountDownLatch,java.util.concurrent.ScheduledThreadPoolExecutor,java.util.concurrent.ThreadPoolExecutor,java.util.concurrent.ForkJoinPool,java.lang.OutOfMemoryError"/>
+    </module>
+
+    <module name="RegexpSinglelineJava">
+      <!-- block Path#toFile() -->
+      <property name="id" value="blockPathToFile"/>
+      <property name="format" value="toFile\(\)"/>
+      <property name="message" value="Avoid Path#toFile(), as some implementations may not support it." />
+    </module>
+    
+    <module name="RegexpSinglelineJava">
+      <!-- block Integer() -->
+      <property name="id" value="blockIntegerInstantiation"/>
+      <property name="format" value="new Integer\("/>
+      <property name="ignoreComments" value="true"/>
+      <property name="message" value="Avoid Integer() and use Integer.valueOf()" />
+    </module>
+    <module name="RegexpSinglelineJava">
+      <!-- block Long() -->
+      <property name="id" value="blockLongInstantiation"/>
+      <property name="format" value="new Long\("/>
+      <property name="ignoreComments" value="true"/>
+      <property name="message" value="Avoid Long() and use Long.valueOf()" />
+    </module>
+    <module name="RegexpSinglelineJava">
+      <!-- block Float() -->
+      <property name="id" value="blockFloatInstantiation"/>
+      <property name="format" value="new Float\("/>
+      <property name="ignoreComments" value="true"/>
+      <property name="message" value="Avoid Float() and use Float.valueOf()" />
+    </module>
+    <module name="RegexpSinglelineJava">
+      <!-- block Byte() -->
+      <property name="id" value="blockByteInstantiation"/>
+      <property name="format" value="new Byte\("/>
+      <property name="ignoreComments" value="true"/>
+      <property name="message" value="Avoid Byte() and use Byte.valueOf()" />
+    </module>
+    <module name="RegexpSinglelineJava">
+      <!-- block Double() -->
+      <property name="id" value="blockDoubleInstantiation"/>
+      <property name="format" value="new Double\("/>
+      <property name="ignoreComments" value="true"/>
+      <property name="message" value="Avoid Double() and use Double.valueOf()" />
+    </module>
+    <module name="RegexpSinglelineJava">
+      <!-- block Short() -->
+      <property name="id" value="blockShortInstantiation"/>
+      <property name="format" value="new Short\("/>
+      <property name="ignoreComments" value="true"/>
+      <property name="message" value="Avoid Short() and use Short.valueOf()" />
+    </module>
+
+    <module name="SuppressionCommentFilter">
+      <property name="offCommentFormat" value="checkstyle: suppress below '([\w\|]+)'"/>
+      <property name="idFormat" value="$1"/>
+    </module>
+
+    <module name="SuppressWithNearbyCommentFilter">
+      <property name="commentFormat" value="checkstyle: suppress nearby '([\w\|]+)'"/>
+      <property name="idFormat" value="$1"/>
+      <property name="influenceFormat" value="0"/>
+    </module>
+
+    <module name="RegexpSinglelineJava">
+      <property name="id" value="blockSystemPropertyUsage"/>
+      <property name="format" value="(System\.getenv)|(System\.(getProperty|setProperty))|(Integer\.getInteger)|(Long\.getLong)|(Boolean\.getBoolean)"/>
+      <property name="ignoreComments" value="true"/>
+      <property name="message" value="Use the CassandraRelevantProperties or CassandraRelevantEnv instead." />
+    </module>
+
+    <module name="RedundantImport"/>
+    <module name="UnusedImports"/>
+  </module>
+
+</module>

@@ -26,9 +26,10 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import io.netty.util.concurrent.FastThreadLocal;
-import org.apache.cassandra.config.Config;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.DATA_OUTPUT_BUFFER_ALLOCATE_TYPE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.DOB_DOUBLING_THRESHOLD_MB;
+import static org.apache.cassandra.config.CassandraRelevantProperties.DOB_MAX_RECYCLE_BYTES;
 
 /**
  * An implementation of the DataOutputStream interface using a FastByteArrayOutputStream and exposing
@@ -41,12 +42,12 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
     /*
      * Threshold at which resizing transitions from doubling to increasing by 50%
      */
-    static final long DOUBLING_THRESHOLD = Long.getLong(Config.PROPERTY_PREFIX + "DOB_DOUBLING_THRESHOLD_MB", 64);
+    static final long DOUBLING_THRESHOLD = DOB_DOUBLING_THRESHOLD_MB.getLong();
 
     /*
      * Only recycle OutputBuffers up to 1Mb. Larger buffers will be trimmed back to this size.
      */
-    private static final int MAX_RECYCLE_BUFFER_SIZE = Integer.getInteger(Config.PROPERTY_PREFIX + "dob_max_recycle_bytes", 1024 * 1024);
+    private static final int MAX_RECYCLE_BUFFER_SIZE = DOB_MAX_RECYCLE_BYTES.getInt();
     private enum AllocationType { DIRECT, ONHEAP }
     private static final AllocationType ALLOCATION_TYPE = DATA_OUTPUT_BUFFER_ALLOCATE_TYPE.getEnum(AllocationType.DIRECT);
 

@@ -25,7 +25,6 @@ import java.util.TreeMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
@@ -33,14 +32,14 @@ import org.apache.cassandra.io.sstable.Downsampling;
 import org.apache.cassandra.io.util.Memory;
 import org.apache.cassandra.io.util.SafeMemoryWriter;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.INDEX_SUMMARY_EXPECTED_KEY_SIZE;
 import static org.apache.cassandra.io.sstable.Downsampling.BASE_SAMPLING_LEVEL;
 
 public class IndexSummaryBuilder implements AutoCloseable
 {
     private static final Logger logger = LoggerFactory.getLogger(IndexSummaryBuilder.class);
 
-    static final String defaultExpectedKeySizeName = Config.PROPERTY_PREFIX + "index_summary_expected_key_size";
-    static long defaultExpectedKeySize = Long.valueOf(System.getProperty(defaultExpectedKeySizeName, "64"));
+    static long defaultExpectedKeySize = INDEX_SUMMARY_EXPECTED_KEY_SIZE.getLong();
 
     // the offset in the keys memory region to look for a given summary boundary
     private final SafeMemoryWriter offsets;
@@ -124,8 +123,8 @@ public class IndexSummaryBuilder implements AutoCloseable
 
         // for initializing data structures, adjust our estimates based on the sampling level
         maxExpectedEntries = Math.max(1, (maxExpectedEntries * samplingLevel) / BASE_SAMPLING_LEVEL);
-        offsets = new SafeMemoryWriter(4 * maxExpectedEntries).order(ByteOrder.nativeOrder());
-        entries = new SafeMemoryWriter(expectedEntrySize * maxExpectedEntries).order(ByteOrder.nativeOrder());
+        offsets = new SafeMemoryWriter(4 * maxExpectedEntries).order(ByteOrder.LITTLE_ENDIAN);
+        entries = new SafeMemoryWriter(expectedEntrySize * maxExpectedEntries).order(ByteOrder.LITTLE_ENDIAN);
 
         // the summary will always contain the first index entry (downsampling will never remove it)
         nextSamplePosition = 0;

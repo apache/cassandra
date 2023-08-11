@@ -30,8 +30,8 @@ public interface IndexSummarySupport<T extends SSTableReader & IndexSummarySuppo
 
     T cloneWithNewSummarySamplingLevel(ColumnFamilyStore cfs, int newSamplingLevel) throws IOException;
 
-    static boolean isSupportedBy(SSTableFormat.Type formatType)
+    static boolean isSupportedBy(SSTableFormat<?, ?> format)
     {
-        return IndexSummarySupport.class.isAssignableFrom(formatType.info.getReaderFactory().getReaderClass());
+        return IndexSummarySupport.class.isAssignableFrom(format.getReaderFactory().getReaderClass());
     }
 }

@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.utils;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
@@ -25,7 +27,9 @@ import java.sql.Timestamp;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
@@ -38,6 +42,8 @@ import org.quicktheories.core.Gen;
 import org.quicktheories.core.RandomnessSource;
 import org.quicktheories.generators.SourceDSL;
 import org.quicktheories.impl.Constraint;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_BLOB_SHARED_SEED;
 
 public final class Generators
 {
@@ -61,10 +67,25 @@ public final class Generators
 
     public static final Gen<String> IDENTIFIER_GEN = Generators.regexWord(SourceDSL.integers().between(1, 50));
 
+    public static Gen<Character> letterOrDigit()
+    {
+        return SourceDSL.integers().between(0, LETTER_OR_DIGIT_DOMAIN.length - 1).map(idx -> LETTER_OR_DIGIT_DOMAIN[idx]);
+    }
+
     public static final Gen<UUID> UUID_RANDOM_GEN = rnd -> {
         long most = rnd.next(Constraint.none());
         most &= 0x0f << 8; /* clear version        */
         most += 0x40 << 8; /* set to version 4     */
+        long least = rnd.next(Constraint.none());
+        least &= 0x3fl << 56; /* clear variant        */
+        least |= 0x80l << 56; /* set to IETF variant  */
+        return new UUID(most, least);
+    };
+
+    public static final Gen<UUID> UUID_TIME_GEN = rnd -> {
+        long most = rnd.next(Constraint.none());
+        most &= 0x0f << 8; /* clear version        */
+        most += 0x10 << 8; /* set to version 1     */
         long least = rnd.next(Constraint.none());
         least &= 0x3fl << 56; /* clear variant        */
         least |= 0x80l << 56; /* set to IETF variant  */
@@ -361,6 +382,70 @@ public final class Generators
                  .map(s -> new String(s.getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8));
     }
 
+    public static Gen<BigInteger> bigInt()
+    {
+        return bigInt(SourceDSL.integers().between(1, 32));
+    }
+
+    public static Gen<BigInteger> bigInt(Gen<Integer> numBitsGen)
+    {
+        Gen<Integer> signumGen = SourceDSL.arbitrary().pick(-1, 0, 1);
+        return rnd -> {
+            int signum = signumGen.generate(rnd);
+            if (signum == 0)
+                return BigInteger.ZERO;
+            int numBits = numBitsGen.generate(rnd);
+            if (numBits < 0)
+                throw new IllegalArgumentException("numBits must be non-negative");
+            int numBytes = (int)(((long)numBits+7)/8); // avoid overflow
+
+            // Generate random bytes and mask out any excess bits
+            byte[] randomBits = new byte[0];
+            if (numBytes > 0) {
+                randomBits = bytes(numBytes, numBytes).map(bb -> ByteBufferUtil.getArray(bb)).generate(rnd);
+                int excessBits = 8*numBytes - numBits;
+                randomBits[0] &= (1 << (8-excessBits)) - 1;
+            }
+            return new BigInteger(signum, randomBits);
+        };
+    }
+
+    public static Gen<BigDecimal> bigDecimal()
+    {
+        return bigDecimal(SourceDSL.integers().between(1, 100), bigInt());
+    }
+
+    public static Gen<BigDecimal> bigDecimal(Gen<Integer> scaleGen, Gen<BigInteger> bigIntegerGen)
+    {
+        return rnd -> {
+            int scale = scaleGen.generate(rnd);
+            BigInteger bigInt = bigIntegerGen.generate(rnd);
+            return new BigDecimal(bigInt, scale);
+        };
+    }
+
+    public static <T> Gen<T> unique(Gen<T> gen)
+    {
+        Set<T> dedup = new HashSet<>();
+        return filter(gen, dedup::add);
+    }
+
+    public static <T> Gen<T> cached(Gen<T> gen)
+    {
+        Object cacheMissed = new Object();
+        return new Gen<T>()
+        {
+            private Object value = cacheMissed;
+            @Override
+            public T generate(RandomnessSource randomnessSource)
+            {
+                if (value == cacheMissed)
+                    value = gen.generate(randomnessSource);
+                return (T) value;
+            }
+        };
+    }
+
     private static boolean isDash(char c)
     {
         switch (c)
@@ -379,7 +464,7 @@ public final class Generators
 
         static
         {
-            long blobSeed = Long.parseLong(System.getProperty("cassandra.test.blob.shared.seed", Long.toString(System.currentTimeMillis())));
+            long blobSeed = TEST_BLOB_SHARED_SEED.getLong(System.currentTimeMillis());
             logger.info("Shared blob Gen used seed {}", blobSeed);
 
             Random random = new Random(blobSeed);

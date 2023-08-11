@@ -183,8 +183,9 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     }
     public final UniqueIdentifier instanceId = new UniqueIdentifier();
 
-    public static final Comparator<SSTableReader> sstableComparator = Comparator.comparing(o -> o.first);
-    public static final Ordering<SSTableReader> sstableOrdering = Ordering.from(sstableComparator);
+    public static final Comparator<SSTableReader> firstKeyComparator = (o1, o2) -> o1.getFirst().compareTo(o2.getFirst());
+    public static final Ordering<SSTableReader> firstKeyOrdering = Ordering.from(firstKeyComparator);
+    public static final Comparator<SSTableReader> lastKeyComparator = (o1, o2) -> o1.getLast().compareTo(o2.getLast());
 
     public static final Comparator<SSTableReader> idComparator = Comparator.comparing(t -> t.descriptor.id, SSTableIdFactory.COMPARATOR);
     public static final Comparator<SSTableReader> idReverseComparator = idComparator.reversed();
@@ -267,8 +268,8 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
     private volatile double crcCheckChance;
 
-    public final DecoratedKey first;
-    public final DecoratedKey last;
+    protected final DecoratedKey first;
+    protected final DecoratedKey last;
     public final AbstractBounds<Token> bounds;
 
     /**
@@ -765,14 +766,14 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
     public final long getPosition(PartitionPosition key, Operator op, SSTableReadsListener listener)
     {
-        return getPosition(key, op, true, false, listener);
+        return getPosition(key, op, true, listener);
     }
 
     public final long getPosition(PartitionPosition key,
                                   Operator op,
                                   boolean updateStats)
     {
-        return getPosition(key, op, updateStats, false, SSTableReadsListener.NOOP_LISTENER);
+        return getPosition(key, op, updateStats, SSTableReadsListener.NOOP_LISTENER);
     }
 
     /**
@@ -783,16 +784,14 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
      * @param op          The Operator defining matching keys: the nearest key to the target matching the operator wins.
      * @param updateStats true if updating stats and cache
      * @param listener    a listener used to handle internal events
-     *
      * @return The index entry corresponding to the key, or null if the key is not present
      */
     protected long getPosition(PartitionPosition key,
                                Operator op,
                                boolean updateStats,
-                               boolean permitMatchPastLast,
                                SSTableReadsListener listener)
     {
-        AbstractRowIndexEntry rie = getRowIndexEntry(key, op, updateStats, permitMatchPastLast, listener);
+        AbstractRowIndexEntry rie = getRowIndexEntry(key, op, updateStats, listener);
         return rie != null ? rie.position : -1;
     }
 
@@ -804,14 +803,12 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
      * @param op          The Operator defining matching keys: the nearest key to the target matching the operator wins.
      * @param updateStats true if updating stats and cache
      * @param listener    a listener used to handle internal events
-     *
      * @return The index entry corresponding to the key, or null if the key is not present
      */
     @VisibleForTesting
     protected abstract AbstractRowIndexEntry getRowIndexEntry(PartitionPosition key,
                                                               Operator op,
                                                               boolean updateStats,
-                                                              boolean permitMatchPastLast,
                                                               SSTableReadsListener listener);
 
     public UnfilteredRowIterator simpleIterator(FileDataInput file, DecoratedKey key, long dataPosition, boolean tombstoneOnly)
@@ -844,6 +841,19 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     public long uncompressedLength()
     {
         return dfile.dataLength();
+    }
+
+    /**
+     * @return the fraction of the token space for which this sstable has content. In the simplest case this is just the
+     * size of the interval returned by {@link #getBounds()}, but the sstable may contain "holes" when the locally-owned
+     * range is not contiguous (e.g. with vnodes).
+     * As this is affected by the local ranges which can change, the token space fraction is calculated at the time of
+     * writing the sstable and stored with its metadata.
+     * For older sstables that do not contain this metadata field, this method returns NaN.
+     */
+    public double tokenSpaceCoverage()
+    {
+        return sstableMetadata.tokenSpaceCoverage;
     }
 
     /**
@@ -1099,12 +1109,12 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         return sstableMetadata.estimatedCellPerPartitionCount;
     }
 
-    public double getEstimatedDroppableTombstoneRatio(int gcBefore)
+    public double getEstimatedDroppableTombstoneRatio(long gcBefore)
     {
         return sstableMetadata.getEstimatedDroppableTombstoneRatio(gcBefore);
     }
 
-    public double getDroppableTombstonesBefore(int gcBefore)
+    public double getDroppableTombstonesBefore(long gcBefore)
     {
         return sstableMetadata.getDroppableTombstonesBefore(gcBefore);
     }
@@ -1124,12 +1134,12 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
         return sstableMetadata.maxTimestamp;
     }
 
-    public int getMinLocalDeletionTime()
+    public long getMinLocalDeletionTime()
     {
         return sstableMetadata.minLocalDeletionTime;
     }
 
-    public int getMaxLocalDeletionTime()
+    public long getMaxLocalDeletionTime()
     {
         return sstableMetadata.maxLocalDeletionTime;
     }
@@ -1348,13 +1358,14 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
         public void setup(SSTableReader reader, boolean trackHotness, Collection<? extends AutoCloseable> closeables)
         {
-            this.setup = true;
             // get a new reference to the shared descriptor-type tidy
             this.globalRef = GlobalTidy.get(reader);
             this.global = globalRef.get();
             if (trackHotness)
                 global.ensureReadMeter();
             this.closeables = new ArrayList<>(closeables);
+            // to avoid tidy seeing partial state, set setup=true at the end
+            this.setup = true;
         }
 
         private InstanceTidier(Descriptor descriptor, Owner owner)
@@ -1733,8 +1744,8 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
                                           IVerifier.Options options);
 
     /**
-     * A method to be called by {@link #getPosition(PartitionPosition, Operator, boolean, boolean, SSTableReadsListener)}
-     * and {@link #getRowIndexEntry(PartitionPosition, Operator, boolean, boolean, SSTableReadsListener)} methods when
+     * A method to be called by {@link #getPosition(PartitionPosition, Operator, boolean, SSTableReadsListener)}
+     * and {@link #getRowIndexEntry(PartitionPosition, Operator, boolean, SSTableReadsListener)} methods when
      * a searched key is found. It adds a trace message and notify the provided listener.
      */
     protected void notifySelected(SSTableReadsListener.SelectionReason reason, SSTableReadsListener localListener, Operator op, boolean updateStats, AbstractRowIndexEntry entry)
@@ -1746,8 +1757,8 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     }
 
     /**
-     * A method to be called by {@link #getPosition(PartitionPosition, Operator, boolean, boolean, SSTableReadsListener)}
-     * and {@link #getRowIndexEntry(PartitionPosition, Operator, boolean, boolean, SSTableReadsListener)} methods when
+     * A method to be called by {@link #getPosition(PartitionPosition, Operator, boolean, SSTableReadsListener)}
+     * and {@link #getRowIndexEntry(PartitionPosition, Operator, boolean, SSTableReadsListener)} methods when
      * a searched key is not found. It adds a trace message and notify the provided listener.
      */
     protected void notifySkipped(SSTableReadsListener.SkippingReason reason, SSTableReadsListener localListener, Operator op, boolean updateStats)

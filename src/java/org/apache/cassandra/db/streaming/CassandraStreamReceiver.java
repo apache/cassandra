@@ -53,11 +53,13 @@ import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Refs;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.REPAIR_MUTATION_REPAIR_ROWS_PER_BATCH;
+
 public class CassandraStreamReceiver implements StreamReceiver
 {
     private static final Logger logger = LoggerFactory.getLogger(CassandraStreamReceiver.class);
 
-    private static final int MAX_ROWS_PER_BATCH = Integer.getInteger("cassandra.repair.mutation_repair_rows_per_batch", 100);
+    private static final int MAX_ROWS_PER_BATCH = REPAIR_MUTATION_REPAIR_ROWS_PER_BATCH.getInt();
 
     private final ColumnFamilyStore cfs;
     private final StreamSession session;
@@ -66,7 +68,9 @@ public class CassandraStreamReceiver implements StreamReceiver
     private final LifecycleTransaction txn;
 
     //  holds references to SSTables received
-    protected Collection<SSTableReader> sstables;
+    protected final Collection<SSTableReader> sstables;
+
+    protected volatile boolean receivedEntireSSTable;
 
     private final boolean requiresWritePath;
 
@@ -112,6 +116,7 @@ public class CassandraStreamReceiver implements StreamReceiver
         }
         txn.update(finished, false);
         sstables.addAll(finished);
+        receivedEntireSSTable = file.isEntireSSTable();
     }
 
     @Override
@@ -221,7 +226,7 @@ public class CassandraStreamReceiver implements StreamReceiver
         }
     }
 
-    public synchronized  void finishTransaction()
+    public synchronized void finishTransaction()
     {
         txn.finish();
     }
@@ -240,9 +245,16 @@ public class CassandraStreamReceiver implements StreamReceiver
             }
             else
             {
+                // Validate SSTable-attached indexes that should have streamed in an already complete state. When we
+                // don't stream the entire SSTable, validation is unnecessary, as the indexes have just been written
+                // via the SSTable flush observer, and an error there would have aborted the streaming transaction.
+                if (receivedEntireSSTable)
+                    // If we do validate, any exception thrown doing so will also abort the streaming transaction:
+                    cfs.indexManager.validateSSTableAttachedIndexes(readers, true);
+
                 finishTransaction();
 
-                // add sstables (this will build secondary indexes too, see CASSANDRA-10130)
+                // add sstables (this will build non-SSTable-attached secondary indexes too, see CASSANDRA-10130)
                 logger.debug("[Stream #{}] Received {} sstables from {} ({})", session.planId(), readers.size(), session.peer, readers);
                 cfs.addSSTables(readers);
 
@@ -250,7 +262,7 @@ public class CassandraStreamReceiver implements StreamReceiver
                 if (cfs.isRowCacheEnabled() || cfs.metadata().isCounter())
                 {
                     List<Bounds<Token>> boundsToInvalidate = new ArrayList<>(readers.size());
-                    readers.forEach(sstable -> boundsToInvalidate.add(new Bounds<Token>(sstable.first.getToken(), sstable.last.getToken())));
+                    readers.forEach(sstable -> boundsToInvalidate.add(new Bounds<Token>(sstable.getFirst().getToken(), sstable.getLast().getToken())));
                     Set<Bounds<Token>> nonOverlappingBounds = Bounds.getNonOverlappingBounds(boundsToInvalidate);
 
                     if (cfs.isRowCacheEnabled())
@@ -259,7 +271,7 @@ public class CassandraStreamReceiver implements StreamReceiver
                         if (invalidatedKeys > 0)
                             logger.debug("[Stream #{}] Invalidated {} row cache entries on table {}.{} after stream " +
                                          "receive task completed.", session.planId(), invalidatedKeys,
-                                         cfs.keyspace.getName(), cfs.getTableName());
+                                         cfs.getKeyspaceName(), cfs.getTableName());
                     }
 
                     if (cfs.metadata().isCounter())
@@ -268,7 +280,7 @@ public class CassandraStreamReceiver implements StreamReceiver
                         if (invalidatedKeys > 0)
                             logger.debug("[Stream #{}] Invalidated {} counter cache entries on table {}.{} after stream " +
                                          "receive task completed.", session.planId(), invalidatedKeys,
-                                         cfs.keyspace.getName(), cfs.getTableName());
+                                         cfs.getKeyspaceName(), cfs.getTableName());
                     }
                 }
             }

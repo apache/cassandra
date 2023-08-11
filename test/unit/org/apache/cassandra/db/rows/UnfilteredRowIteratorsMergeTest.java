@@ -55,7 +55,7 @@ public class UnfilteredRowIteratorsMergeTest
                      .build();
 
     static Comparator<Clusterable> comparator = new ClusteringComparator(Int32Type.instance);
-    static int nowInSec = FBUtilities.nowInSeconds();
+    static long nowInSec = FBUtilities.nowInSeconds();
 
     static final int RANGE = 3000;
     static final int DEL_RANGE = 100;
@@ -202,8 +202,8 @@ public class UnfilteredRowIteratorsMergeTest
                     includesStart = false;
                     includesEnd = r.nextBoolean();
                 }
-                int deltime = r.nextInt(DEL_RANGE);
-                DeletionTime dt = new DeletionTime(deltime, deltime);
+                long deltime = r.nextInt(DEL_RANGE);
+                DeletionTime dt = DeletionTime.build(deltime, deltime);
                 content.add(new RangeTombstoneBoundMarker(boundFor(pos, true, includesStart), dt));
                 content.add(new RangeTombstoneBoundMarker(boundFor(pos + span, false, includesEnd), dt));
                 prev = pos + span - (includesEnd ? 0 : 1);
@@ -473,13 +473,13 @@ public class UnfilteredRowIteratorsMergeTest
             Matcher m = open.matcher(s);
             if (m.matches())
             {
-                out.add(openMarker(Integer.parseInt(m.group(1)), Integer.parseInt(m.group(3)), m.group(2) != null));
+                out.add(openMarker(Integer.parseInt(m.group(1)), Long.parseLong(m.group(3)), m.group(2) != null));
                 continue;
             }
             m = close.matcher(s);
             if (m.matches())
             {
-                out.add(closeMarker(Integer.parseInt(m.group(3)), Integer.parseInt(m.group(1)), m.group(2) != null));
+                out.add(closeMarker(Integer.parseInt(m.group(3)), Long.parseLong(m.group(1)), m.group(2) != null));
                 continue;
             }
             m = row.matcher(s);
@@ -494,20 +494,20 @@ public class UnfilteredRowIteratorsMergeTest
         return out;
     }
 
-    private RangeTombstoneMarker openMarker(int pos, int delTime, boolean inclusive)
+    private RangeTombstoneMarker openMarker(int pos, long delTime, boolean inclusive)
     {
         return marker(pos, delTime, true, inclusive);
     }
 
-    private RangeTombstoneMarker closeMarker(int pos, int delTime, boolean inclusive)
+    private RangeTombstoneMarker closeMarker(int pos, long delTime, boolean inclusive)
     {
         return marker(pos, delTime, false, inclusive);
     }
 
-    private RangeTombstoneMarker marker(int pos, int delTime, boolean isStart, boolean inclusive)
+    private RangeTombstoneMarker marker(int pos, long delTime, boolean isStart, boolean inclusive)
     {
         return new RangeTombstoneBoundMarker(BufferClusteringBound.create(ClusteringBound.boundKind(isStart, inclusive),
                                                                     new ByteBuffer[] {clusteringFor(pos).bufferAt(0)}),
-                                             new DeletionTime(delTime, delTime));
+                                             DeletionTime.build(delTime, delTime));
     }
 }

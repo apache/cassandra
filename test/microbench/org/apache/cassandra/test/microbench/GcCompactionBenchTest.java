@@ -350,7 +350,7 @@ public class GcCompactionBenchTest extends CQLTester
     int countRows(ColumnFamilyStore cfs)
     {
         boolean enforceStrictLiveness = cfs.metadata().enforceStrictLiveness();
-        int nowInSec = FBUtilities.nowInSeconds();
+        long nowInSec = FBUtilities.nowInSeconds();
         return count(cfs, x -> x.isRow() && ((Row) x).hasLiveData(nowInSec, enforceStrictLiveness));
     }
 

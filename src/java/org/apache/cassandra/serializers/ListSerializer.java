@@ -72,13 +72,15 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
     @Override
     public <V> void validate(V input, ValueAccessor<V> accessor)
     {
+        if (accessor.isEmpty(input))
+            throw new MarshalException("Not enough bytes to read a list");
         try
         {
             int n = readCollectionSize(input, accessor);
             int offset = sizeOfCollectionSize();
             for (int i = 0; i < n; i++)
             {
-                V value = readValue(input, accessor, offset);
+                V value = readNonNullValue(input, accessor, offset);
                 offset += sizeOfValue(value, accessor);
                 elements.validate(value, accessor);
             }
@@ -110,7 +112,12 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
             List<T> l = new ArrayList<>(Math.min(n, 256));
             for (int i = 0; i < n; i++)
             {
-                // We can have nulls in lists that are used for IN values
+                // CASSANDRA-6839: "We can have nulls in lists that are used for IN values"
+                // CASSANDRA-8613 checks IN clauses and throws an exception if null is in the list.
+                // Leaving for this as-is for now in case there is some unknown use
+                // for it, but should likely be changed to readNonNull. Validate has been
+                // changed to throw on null elements as otherwise it would NPE, and it's unclear
+                // if callers could handle null elements.
                 V databb = readValue(input, accessor, offset);
                 offset += sizeOfValue(databb, accessor);
                 if (databb != null)

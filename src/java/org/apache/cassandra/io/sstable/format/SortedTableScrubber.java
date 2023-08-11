@@ -114,7 +114,7 @@ public abstract class SortedTableScrubber<R extends SSTableReaderWithFilter> imp
     {
         this.sstable = (R) transaction.onlyOne();
         Preconditions.checkNotNull(sstable.metadata());
-        assert sstable.metadata().keyspace.equals(cfs.keyspace.getName());
+        assert sstable.metadata().keyspace.equals(cfs.getKeyspaceName());
         if (!sstable.descriptor.cfname.equals(cfs.metadata().name))
         {
             logger.warn("Descriptor points to a different table {} than metadata {}", sstable.descriptor.cfname, cfs.metadata().name);
@@ -318,7 +318,12 @@ public abstract class SortedTableScrubber<R extends SSTableReaderWithFilter> imp
      */
     private UnfilteredRowIterator getIterator(DecoratedKey key)
     {
-        RowMergingSSTableIterator rowMergingIterator = new RowMergingSSTableIterator(SSTableIdentityIterator.create(sstable, dataFile, key), outputHandler);
+        RowMergingSSTableIterator rowMergingIterator = new RowMergingSSTableIterator(SSTableIdentityIterator.create(sstable,
+                                                                                                                    dataFile,
+                                                                                                                    key),
+                                                                                     outputHandler,
+                                                                                     sstable.descriptor.version,
+                                                                                     options.reinsertOverflowedTTLRows);
         if (options.reinsertOverflowedTTLRows)
             return new FixNegativeLocalDeletionTimeIterator(rowMergingIterator, outputHandler, negativeLocalDeletionInfoMetrics);
         else
@@ -466,11 +471,15 @@ public abstract class SortedTableScrubber<R extends SSTableReaderWithFilter> imp
         Unfiltered nextToOffer = null;
         private final OutputHandler output;
         private final UnfilteredRowIterator wrapped;
+        private final Version sstableVersion;
+        private final boolean reinsertOverflowedTTLRows;
 
-        RowMergingSSTableIterator(UnfilteredRowIterator source, OutputHandler output)
+        RowMergingSSTableIterator(UnfilteredRowIterator source, OutputHandler output, Version sstableVersion, boolean reinsertOverflowedTTLRows)
         {
             this.wrapped = source;
             this.output = output;
+            this.sstableVersion = sstableVersion;
+            this.reinsertOverflowedTTLRows = reinsertOverflowedTTLRows;
         }
 
         @Override
@@ -499,7 +508,7 @@ public abstract class SortedTableScrubber<R extends SSTableReaderWithFilter> imp
                     if (!peek.isRow() || !next.clustering().equals(peek.clustering()))
                     {
                         nextToOffer = peek; // Offer peek in next call
-                        return next;
+                        return computeFinalRow((Row) next);
                     }
 
                     // Duplicate row, merge it.
@@ -515,9 +524,86 @@ public abstract class SortedTableScrubber<R extends SSTableReaderWithFilter> imp
             }
 
             nextToOffer = null;
-            return next;
-        }
-    }
+            return computeFinalRow((Row) next);
+         }
+
+         private Row computeFinalRow(Row next)
+         {
+             // If the row has overflowed let rows skip them unless we need to keep them for the overflow policy
+             if (hasOverflowedLocalExpirationTimeRow(next) && !reinsertOverflowedTTLRows)
+                 return null;
+             else if (reinsertOverflowedTTLRows)
+                 return rebuildTimestamptsForOverflowedRows(next);
+             else
+                 return next;
+         }
+
+         /*
+          * When building ldt on deser it won't overflow now being a long as it used to. 
+          * This causes row resurrection for old sstable formats!
+          * To prevent it we preserve the overflow to be backwards compatible and to feed into the overflow policy
+          */
+         private Row rebuildTimestamptsForOverflowedRows(Row row)
+         {
+             if (sstableVersion.hasUIntDeletionTime())
+                 return row;
+
+             LivenessInfo livenessInfo = row.primaryKeyLivenessInfo();
+             if (livenessInfo.isExpiring() && livenessInfo.localExpirationTime() >= 0)
+             {
+                 livenessInfo = livenessInfo.withUpdatedTimestampAndLocalDeletionTime(livenessInfo.timestamp(), livenessInfo.localExpirationTime(), false);
+             }
+
+             return row.transformAndFilter(livenessInfo, row.deletion(), cd -> {
+                 if (cd.column().isSimple())
+                 {
+                     Cell<?> cell = (Cell<?>)cd;
+                     return cell.isExpiring() && cell.localDeletionTime() >= 0
+                            ? cell.withUpdatedTimestampAndLocalDeletionTime(cell.timestamp(), cell.localDeletionTime())
+                            : cell;
+                 }
+                 else
+                 {
+                     ComplexColumnData complexData = (ComplexColumnData)cd;
+                     return complexData.transformAndFilter(cell -> cell.isExpiring() && cell.localDeletionTime() >= 0
+                                                                   ? cell.withUpdatedTimestampAndLocalDeletionTime(cell.timestamp(), cell.localDeletionTime())
+                                                                   : cell);
+                 }
+             }).clone(HeapCloner.instance);
+         }
+
+         private boolean hasOverflowedLocalExpirationTimeRow(Row next)
+         {
+             if (sstableVersion.hasUIntDeletionTime())
+                 return false;
+
+             if (next.primaryKeyLivenessInfo().isExpiring() && next.primaryKeyLivenessInfo().localExpirationTime() >= 0)
+             {
+                 return true;
+             }
+
+             for (ColumnData cd : next)
+             {
+                 if (cd.column().isSimple())
+                 {
+                     Cell<?> cell = (Cell<?>)cd;
+                     if (cell.isExpiring() && cell.localDeletionTime() >= 0)
+                         return true;
+                 }
+                 else
+                 {
+                     ComplexColumnData complexData = (ComplexColumnData)cd;
+                     for (Cell<?> cell : complexData)
+                     {
+                         if (cell.isExpiring() && cell.localDeletionTime() >= 0)
+                             return true;
+                     }
+                 }
+             }
+
+             return false;
+         }
+     }
 
     /**
      * This iterator converts negative {@link AbstractCell#localDeletionTime()} into {@link AbstractCell#MAX_DELETION_TIME}
@@ -571,7 +657,7 @@ public abstract class SortedTableScrubber<R extends SSTableReaderWithFilter> imp
         private boolean hasNegativeLocalExpirationTime(Row next)
         {
             Row row = next;
-            if (row.primaryKeyLivenessInfo().isExpiring() && row.primaryKeyLivenessInfo().localExpirationTime() < 0)
+            if (row.primaryKeyLivenessInfo().isExpiring() && row.primaryKeyLivenessInfo().localExpirationTime() == Cell.INVALID_DELETION_TIME)
             {
                 return true;
             }
@@ -581,7 +667,7 @@ public abstract class SortedTableScrubber<R extends SSTableReaderWithFilter> imp
                 if (cd.column().isSimple())
                 {
                     Cell<?> cell = (Cell<?>) cd;
-                    if (cell.isExpiring() && cell.localDeletionTime() < 0)
+                    if (cell.isExpiring() && cell.localDeletionTime() == Cell.INVALID_DELETION_TIME)
                         return true;
                 }
                 else
@@ -589,7 +675,7 @@ public abstract class SortedTableScrubber<R extends SSTableReaderWithFilter> imp
                     ComplexColumnData complexData = (ComplexColumnData) cd;
                     for (Cell<?> cell : complexData)
                     {
-                        if (cell.isExpiring() && cell.localDeletionTime() < 0)
+                        if (cell.isExpiring() && cell.localDeletionTime() == Cell.INVALID_DELETION_TIME)
                             return true;
                     }
                 }
@@ -601,22 +687,22 @@ public abstract class SortedTableScrubber<R extends SSTableReaderWithFilter> imp
         private Unfiltered fixNegativeLocalExpirationTime(Row row)
         {
             LivenessInfo livenessInfo = row.primaryKeyLivenessInfo();
-            if (livenessInfo.isExpiring() && livenessInfo.localExpirationTime() < 0)
-                livenessInfo = livenessInfo.withUpdatedTimestampAndLocalDeletionTime(livenessInfo.timestamp() + 1, AbstractCell.MAX_DELETION_TIME);
+            if (livenessInfo.isExpiring() && livenessInfo.localExpirationTime() == Cell.INVALID_DELETION_TIME)
+                livenessInfo = livenessInfo.withUpdatedTimestampAndLocalDeletionTime(livenessInfo.timestamp() + 1, AbstractCell.MAX_DELETION_TIME_2038_LEGACY_CAP);
 
             return row.transformAndFilter(livenessInfo, row.deletion(), cd -> {
                 if (cd.column().isSimple())
                 {
                     Cell cell = (Cell) cd;
-                    return cell.isExpiring() && cell.localDeletionTime() < 0
-                           ? cell.withUpdatedTimestampAndLocalDeletionTime(cell.timestamp() + 1, AbstractCell.MAX_DELETION_TIME)
+                    return cell.isExpiring() && cell.localDeletionTime() == Cell.INVALID_DELETION_TIME
+                           ? cell.withUpdatedTimestampAndLocalDeletionTime(cell.timestamp() + 1, AbstractCell.MAX_DELETION_TIME_2038_LEGACY_CAP)
                            : cell;
                 }
                 else
                 {
                     ComplexColumnData complexData = (ComplexColumnData) cd;
-                    return complexData.transformAndFilter(cell -> cell.isExpiring() && cell.localDeletionTime() < 0
-                                                                  ? cell.withUpdatedTimestampAndLocalDeletionTime(cell.timestamp() + 1, AbstractCell.MAX_DELETION_TIME)
+                    return complexData.transformAndFilter(cell -> cell.isExpiring() && cell.localDeletionTime() == Cell.INVALID_DELETION_TIME
+                                                                  ? cell.withUpdatedTimestampAndLocalDeletionTime(cell.timestamp() + 1, AbstractCell.MAX_DELETION_TIME_2038_LEGACY_CAP)
                                                                   : cell);
                 }
             }).clone(HeapCloner.instance);

@@ -15,7 +15,7 @@
   See the License for the specific language governing permissions and
   limitations under the License.
 -->
-<project basedir="." name="apache-cassandra--rat-tasks"
+<project basedir="." name="apache-cassandra-rat-tasks"
      xmlns:rat="antlib:org.apache.rat.anttasks">
 
     <!--
@@ -37,7 +37,7 @@
         </condition>
     </target>
 
-    <target name="_rat_copy_versioned_files" depends="_build_ratinclude" unless="${rat.skip}">
+    <target name="_rat_copy_versioned_files" depends="_build_ratinclude" unless="rat.skip">
         <copy file="${build.dir}/.versioned_files" tofile="${build.dir}/.ratinclude">
             <filterchain>
                 <linecontainsregexp>
@@ -47,7 +47,7 @@
         </copy>
     </target>
 
-    <target name="rat-check" depends="_rat_copy_versioned_files" unless="${rat.skip}" description="License checks on source" >
+    <target name="rat-check" depends="_rat_copy_versioned_files" unless="rat.skip" description="License checks on source" >
         <rat:report reportFile="${build.dir}/rat.txt">
             <fileset dir="." includesfile="${build.dir}/.ratinclude">
                  <!-- Config files with not much creativity -->
@@ -71,13 +71,8 @@
                  <exclude name="**/test/conf/system_keyspaces_directory.yaml"/>
                  <exclude name="**/test/conf/sstableloader_with_encryption.yaml"/>
                  <exclude name="**/test/conf/unit-test-conf/test-native-port.yaml"/>
-                 <exclude name="**/test/data/jmxdump/cassandra-3.0-jmx.yaml"/>
-                 <exclude name="**/test/data/jmxdump/cassandra-3.11-jmx.yaml"/>
-                 <exclude name="**/test/data/jmxdump/cassandra-4.0-jmx.yaml"/>
-                 <exclude name="**/test/data/jmxdump/cassandra-4.1-jmx.yaml"/>
-                 <exclude name="**/test/data/config/version=3.0.0-alpha1.yml"/>
-                 <exclude name="**/test/data/config/version=3.11.0.yml"/>
-                 <exclude name="**/test/data/config/version=4.0-alpha1.yml"/>
+                 <exclude name="**/test/data/jmxdump/cassandra-*-jmx.yaml"/>
+                 <exclude name="**/test/data/config/version=*.yml"/>
                  <exclude name="**/test/resources/data/config/YamlConfigurationLoaderTest/shared_client_error_reporting_exclusions.yaml"/>
                  <exclude name="**/tools/cqlstress-counter-example.yaml"/>
                  <exclude name="**/tools/cqlstress-example.yaml"/>
@@ -86,10 +81,10 @@
                  <!-- Documentation files -->
                  <exclude name="**/doc/modules/**/*"/>
                  <exclude name="**/src/java/**/*.md"/>
-                 <!-- NOTICE files -->
+                 <!-- NOTICE, LICENSE, README files -->
                  <exclude name="**/NOTICE.md"/>
-                 <!-- LICENSE files -->
                  <exclude name="**/LICENSE.md"/>
+                 <exclude name="**/README.md"/>
             </fileset>
         </rat:report>
         <exec executable="grep" outputproperty="rat.failed.files" failifexecutionfails="false">
@@ -105,15 +100,4 @@
             </condition>
         </fail>
     </target>
-
-    <target name="_assert_rat_output">
-        <fail message="The rat report at build/rat.txt was not generated. Please ensure that the rat-check task is able to run successfully. For dev builds only, touch build/rat.txt to skip this check">
-            <condition>
-                <not>
-                    <available file="${build.dir}/rat.txt" />
-                </not>
-            </condition>
-        </fail>
-    </target>
-
 </project>

@@ -29,10 +29,10 @@ import org.apache.cassandra.schema.CompactionParams;
 public abstract class AbstractCompactionController implements AutoCloseable
 {
     public final ColumnFamilyStore cfs;
-    public final int gcBefore;
+    public final long gcBefore;
     public final CompactionParams.TombstoneOption tombstoneOption;
 
-    public AbstractCompactionController(final ColumnFamilyStore cfs, final int gcBefore, CompactionParams.TombstoneOption tombstoneOption)
+    public AbstractCompactionController(final ColumnFamilyStore cfs, final long gcBefore, CompactionParams.TombstoneOption tombstoneOption)
     {
         assert cfs != null;
         this.cfs = cfs;
@@ -44,7 +44,7 @@ public abstract class AbstractCompactionController implements AutoCloseable
 
     public String getKeyspace()
     {
-        return cfs.keyspace.getName();
+        return cfs.getKeyspaceName();
     }
 
     public String getColumnFamily()
