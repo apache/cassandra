@@ -49,6 +49,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.IOUtils;
 
@@ -256,30 +257,66 @@ public class IndexDescriptor
         return writer;
     }
 
-    public FileHandle createPerSSTableFileHandle(IndexComponent indexComponent)
+    public FileHandle createPerSSTableFileHandle(IndexComponent indexComponent, Throwables.DiscreteAction<?> cleanup)
     {
-        final File file = fileFor(indexComponent);
-
-        if (logger.isTraceEnabled())
+        try
         {
-            logger.trace(logMessage("Opening {} file handle for {} ({})"),
-                         file, FBUtilities.prettyPrintMemory(file.length()));
-        }
+            final File file = fileFor(indexComponent);
 
-        return new FileHandle.Builder(file).mmapped(true).complete();
+            if (logger.isTraceEnabled())
+            {
+                logger.trace(logMessage("Opening {} file handle for {} ({})"),
+                             file, FBUtilities.prettyPrintMemory(file.length()));
+            }
+
+            return new FileHandle.Builder(file).mmapped(true).complete();
+        }
+        catch (Throwable t)
+        {
+            if (cleanup != null)
+            {
+                try
+                {
+                    cleanup.perform();
+                }
+                catch (Exception e)
+                {
+                    throw Throwables.unchecked(Throwables.merge(t, e));
+                }
+            }
+            throw t;
+        }
     }
 
-    public FileHandle createPerIndexFileHandle(IndexComponent indexComponent, IndexContext indexContext)
+    public FileHandle createPerIndexFileHandle(IndexComponent indexComponent, IndexContext indexContext, Throwables.DiscreteAction<?> cleanup)
     {
-        final File file = fileFor(indexComponent, indexContext);
-
-        if (logger.isTraceEnabled())
+        try
         {
-            logger.trace(indexContext.logMessage("Opening file handle for {} ({})"),
-                         file, FBUtilities.prettyPrintMemory(file.length()));
-        }
+            final File file = fileFor(indexComponent, indexContext);
 
-        return new FileHandle.Builder(file).mmapped(true).complete();
+            if (logger.isTraceEnabled())
+            {
+                logger.trace(indexContext.logMessage("Opening file handle for {} ({})"),
+                             file, FBUtilities.prettyPrintMemory(file.length()));
+            }
+
+            return new FileHandle.Builder(file).mmapped(true).complete();
+        }
+        catch (Throwable t)
+        {
+            if (cleanup != null)
+            {
+                try
+                {
+                    cleanup.perform();
+                }
+                catch (Exception e)
+                {
+                    throw Throwables.unchecked(Throwables.merge(t, e));
+                }
+            }
+            throw t;
+        }
     }
 
     public Set<Component> getLivePerSSTableComponents()

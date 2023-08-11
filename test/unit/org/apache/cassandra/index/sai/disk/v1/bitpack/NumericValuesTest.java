@@ -67,7 +67,7 @@ public class NumericValuesTest extends SAIRandomizedTester
 
         NumericValuesMeta tokensMeta = new NumericValuesMeta(source.get(indexDescriptor.componentName(IndexComponent.TOKEN_VALUES)));
 
-        try (FileHandle fileHandle = indexDescriptor.createPerSSTableFileHandle(IndexComponent.TOKEN_VALUES);
+        try (FileHandle fileHandle = indexDescriptor.createPerSSTableFileHandle(IndexComponent.TOKEN_VALUES, null);
              LongArray reader = monotonic ? new MonotonicBlockPackedReader(fileHandle, tokensMeta).open()
                                           : new BlockPackedReader(fileHandle, tokensMeta).open())
         {
@@ -87,7 +87,7 @@ public class NumericValuesTest extends SAIRandomizedTester
         final MetadataSource source = MetadataSource.loadGroupMetadata(indexDescriptor);
         NumericValuesMeta tokensMeta = new NumericValuesMeta(source.get(indexDescriptor.componentName(IndexComponent.TOKEN_VALUES)));
 
-        try (FileHandle fileHandle = indexDescriptor.createPerSSTableFileHandle(IndexComponent.TOKEN_VALUES);
+        try (FileHandle fileHandle = indexDescriptor.createPerSSTableFileHandle(IndexComponent.TOKEN_VALUES, null);
              LongArray reader = (monotonic ? new MonotonicBlockPackedReader(fileHandle, tokensMeta)
                                            : new BlockPackedReader(fileHandle, tokensMeta)).open())
         {

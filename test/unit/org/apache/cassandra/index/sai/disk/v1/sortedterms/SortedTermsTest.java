@@ -377,8 +377,8 @@ public class SortedTermsTest extends SAIRandomizedTester
         MetadataSource metadataSource = MetadataSource.loadGroupMetadata(indexDescriptor);
         NumericValuesMeta blockPointersMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCK_OFFSETS)));
         SortedTermsMeta sortedTermsMeta = new SortedTermsMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCKS)));
-        try (FileHandle termsData = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_KEY_BLOCKS);
-             FileHandle blockOffsets = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_KEY_BLOCK_OFFSETS))
+        try (FileHandle termsData = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_KEY_BLOCKS, null);
+             FileHandle blockOffsets = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_KEY_BLOCK_OFFSETS, null))
         {
             SortedTermsReader reader = new SortedTermsReader(termsData, blockOffsets, sortedTermsMeta, blockPointersMeta);
             testCode.accept(reader);

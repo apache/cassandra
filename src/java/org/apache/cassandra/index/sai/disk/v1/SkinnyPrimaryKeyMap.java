@@ -82,35 +82,10 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
 
         public Factory(IndexDescriptor indexDescriptor, SSTableReader sstable)
         {
-            this.tokensFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.TOKEN_VALUES);
-            try
-            {
-                this.partitionsFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_SIZES);
-            }
-            catch (Throwable t)
-            {
-                FileUtils.closeQuietly(tokensFile);
-                throw Throwables.unchecked(t);
-            }
-            try
-            {
-                this.partitionKeyBlockOffsetsFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_KEY_BLOCK_OFFSETS);
-            }
-            catch (Throwable t)
-            {
-                FileUtils.closeQuietly(Arrays.asList(tokensFile, partitionsFile));
-                throw Throwables.unchecked(t);
-            }
-            try
-            {
-                this.partitionKeyBlocksFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_KEY_BLOCKS);
-            }
-            catch (Throwable t)
-            {
-                FileUtils.closeQuietly(Arrays.asList(tokensFile, partitionsFile, partitionKeyBlockOffsetsFile));
-                throw Throwables.unchecked(t);
-            }
-
+            this.tokensFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.TOKEN_VALUES, this::close);
+            this.partitionsFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_SIZES, this::close);
+            this.partitionKeyBlockOffsetsFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_KEY_BLOCK_OFFSETS, this::close);
+            this.partitionKeyBlocksFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_KEY_BLOCKS, this::close);
             try
             {
                 this.metadataSource = MetadataSource.loadGroupMetadata(indexDescriptor);
