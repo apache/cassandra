@@ -132,6 +132,10 @@ public class UserTypesTest extends CQLTester
         assertInvalidMessage("A user type cannot contain non-frozen UDTs",
                 "CREATE TYPE " + KEYSPACE + ".wrong (a int, b " + myType + ")");
 
+        String ut1 = createType(KEYSPACE, "CREATE TYPE %s (a int)");
+        assertInvalidMessage("A user type cannot contain non-frozen UDTs",
+                "ALTER TYPE " + KEYSPACE + "." + ut1 + " ADD b " + myType);
+
         // referencing a UDT in another keyspace
         assertInvalidMessage("Statement on keyspace " + KEYSPACE + " cannot refer to a user type in keyspace otherkeyspace;" +
                              " user types can only be used in the keyspace they are defined in",
