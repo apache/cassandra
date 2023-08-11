@@ -50,10 +50,7 @@ public abstract class PredefinedOperation extends PartitionOperation
         return new DataSpec(generator, seedManager, new DistributionFixed(1), rowPopulationCount, 1);
     }
 
-    public boolean isCql3()
-    {
-        return settings.mode.cqlVersion == CqlVersion.CQL3;
-    }
+
     public Object getCqlCache()
     {
         return cqlCache;

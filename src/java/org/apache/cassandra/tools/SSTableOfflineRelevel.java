@@ -179,7 +179,7 @@ public class SSTableOfflineRelevel
                 @Override
                 public int compare(SSTableReader o1, SSTableReader o2)
                 {
-                    return o1.last.compareTo(o2.last);
+                    return o1.getLast().compareTo(o2.getLast());
                 }
             });
 
@@ -193,10 +193,10 @@ public class SSTableOfflineRelevel
                 while (it.hasNext())
                 {
                     SSTableReader sstable = it.next();
-                    if (lastLast == null || lastLast.compareTo(sstable.first) < 0)
+                    if (lastLast == null || lastLast.compareTo(sstable.getFirst()) < 0)
                     {
                         level.add(sstable);
-                        lastLast = sstable.last;
+                        lastLast = sstable.getLast();
                         it.remove();
                     }
                 }

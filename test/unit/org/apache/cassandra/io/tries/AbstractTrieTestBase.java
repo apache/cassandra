@@ -89,11 +89,13 @@ abstract public class AbstractTrieTestBase
 
     protected final TrieSerializer<Integer, DataOutputPlus> serializer = new TrieSerializer<Integer, DataOutputPlus>()
     {
+        @Override
         public int sizeofNode(SerializationNode<Integer> node, long nodePosition)
         {
             return TrieNode.typeFor(node, nodePosition).sizeofNode(node) + payloadSize;
         }
 
+        @Override
         public void write(DataOutputPlus dataOutput, SerializationNode<Integer> node, long nodePosition) throws IOException
         {
             if (dump)
@@ -131,16 +133,19 @@ abstract public class AbstractTrieTestBase
     // In-memory buffer with added paging parameters, to make sure the code below does the proper layout
     protected static class DataOutputBufferPaged extends DataOutputBuffer
     {
+        @Override
         public int maxBytesInPage()
         {
             return PageAware.PAGE_SIZE;
         }
 
+        @Override
         public void padToPageBoundary() throws IOException
         {
             PageAware.pad(this);
         }
 
+        @Override
         public int bytesLeftInPage()
         {
             long position = position();
@@ -148,6 +153,7 @@ abstract public class AbstractTrieTestBase
             return (int) bytesLeft;
         }
 
+        @Override
         public long paddedPosition()
         {
             return PageAware.padded(position());

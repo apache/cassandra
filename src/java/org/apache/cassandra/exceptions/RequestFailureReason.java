@@ -35,7 +35,8 @@ public enum RequestFailureReason
     TIMEOUT                  (2),
     INCOMPATIBLE_SCHEMA      (3),
     READ_SIZE                (4),
-    NODE_DOWN                (5);
+    NODE_DOWN                (5),
+    INDEX_NOT_AVAILABLE      (6);
 
     public static final Serializer serializer = new Serializer();
 
@@ -96,20 +97,20 @@ public enum RequestFailureReason
 
         public void serialize(RequestFailureReason reason, DataOutputPlus out, int version) throws IOException
         {
-            if (version < VERSION_40)
-                out.writeShort(reason.code);
-            else
-                out.writeUnsignedVInt32(reason.code);
+            assert version >= VERSION_40;
+            out.writeUnsignedVInt32(reason.code);
         }
 
         public RequestFailureReason deserialize(DataInputPlus in, int version) throws IOException
         {
-            return fromCode(version < VERSION_40 ? in.readUnsignedShort() : in.readUnsignedVInt32());
+            assert version >= VERSION_40;
+            return fromCode(in.readUnsignedVInt32());
         }
 
         public long serializedSize(RequestFailureReason reason, int version)
         {
-            return version < VERSION_40 ? 2 : VIntCoding.computeVIntSize(reason.code);
+            assert version >= VERSION_40;
+            return VIntCoding.computeVIntSize(reason.code);
         }
     }
 }

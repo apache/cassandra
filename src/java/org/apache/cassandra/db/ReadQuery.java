@@ -107,7 +107,7 @@ public interface ReadQuery
             @Override
             public RowFilter rowFilter()
             {
-                return RowFilter.NONE;
+                return RowFilter.none();
             }
 
             @Override

@@ -125,6 +125,21 @@ public abstract class Token implements RingPosition<Token>, Serializable
     abstract public Object getTokenValue();
 
     /**
+     * This method exists so that callers can access the primitive {@code long} value for this {@link Token}, if
+     * one exits. It is especially useful when the auto-boxing induced by a call to {@link #getTokenValue()} would
+     * be unacceptable for reasons of performance.
+     *
+     * @return the primitive {@code long} value of this token, if one exists
+     *
+     * @throws UnsupportedOperationException if this {@link Token} is not backed by a primitive {@code long} value
+     */
+    public long getLongValue()
+    {
+        throw new UnsupportedOperationException();
+    }
+
+
+    /**
      * Produce a weakly prefix-free byte-comparable representation of the token, i.e. such a sequence of bytes that any
      * pair x, y of valid tokens of this type and any bytes b1, b2 between 0x10 and 0xEF,
      * (+ stands for concatenation)
@@ -144,11 +159,18 @@ public abstract class Token implements RingPosition<Token>, Serializable
      */
     abstract public double size(Token next);
     /**
-     * Returns a token that is slightly greater than this. Used to avoid clashes
-     * between nodes in separate datacentres trying to use the same token via
-     * the token allocation algorithm.
+     * Returns the next possible token in the token space, one that compares
+     * greater than this and such that there is no other token that sits
+     * between this token and it in the token order.
+     *
+     * This is not possible for all token types, esp. for comparison-based
+     * tokens such as the LocalPartioner used for classic secondary indexes.
+     *
+     * Used to avoid clashes between nodes in separate datacentres trying to
+     * use the same token via the token allocation algorithm, as well as in
+     * constructing token ranges for sstables.
      */
-    abstract public Token increaseSlightly();
+    abstract public Token nextValidToken();
 
     public Token getToken()
     {

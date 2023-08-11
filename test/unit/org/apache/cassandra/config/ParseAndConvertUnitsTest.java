@@ -79,7 +79,7 @@ public class ParseAndConvertUnitsTest
         //Confirm space parameters were successfully parsed with the default values in cassandra.yaml
         assertNull(config.memtable_heap_space);
         assertNull(config.memtable_offheap_space);
-        assertEquals(new DataStorageSpec.IntMebibytesBound("910MiB"), config.repair_session_space); // The value is set on pre-parse to 910MiB
+        assertEquals(new DataStorageSpec.IntMebibytesBound("1022MiB"), config.repair_session_space); // The value is set on pre-parse to 910MiB
         assertEquals(new DataStorageSpec.IntBytesBound(4194304), config.internode_application_send_queue_capacity);
         assertEquals(new DataStorageSpec.IntBytesBound(134217728), config.internode_application_send_queue_reserve_endpoint_capacity);
         assertEquals(new DataStorageSpec.IntBytesBound(536870912), config.internode_application_send_queue_reserve_global_capacity);

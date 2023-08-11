@@ -44,10 +44,12 @@ import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.*;
+import org.apache.cassandra.utils.Throwables;
 
 import static org.junit.Assert.assertTrue;
 
@@ -60,6 +62,7 @@ public class CorruptedSSTablesCompactionsTest
     private static final String KEYSPACE1 = "CorruptedSSTablesCompactionsTest";
     private static final String STANDARD_STCS = "Standard_STCS";
     private static final String STANDARD_LCS = "Standard_LCS";
+    private static final String STANDARD_UCS = "Standard_UCS";
     private static int maxValueSize;
 
     @After
@@ -86,8 +89,9 @@ public class CorruptedSSTablesCompactionsTest
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
-                                    makeTable(STANDARD_STCS).compaction(CompactionParams.DEFAULT),
-                                    makeTable(STANDARD_LCS).compaction(CompactionParams.lcs(Collections.emptyMap())));
+                                    makeTable(STANDARD_STCS).compaction(CompactionParams.stcs(Collections.emptyMap())),
+                                    makeTable(STANDARD_LCS).compaction(CompactionParams.lcs(Collections.emptyMap())),
+                                    makeTable(STANDARD_UCS).compaction(CompactionParams.ucs(Collections.emptyMap())));
 
         maxValueSize = DatabaseDescriptor.getMaxValueSize();
         DatabaseDescriptor.setMaxValueSize(1024 * 1024);
@@ -128,6 +132,12 @@ public class CorruptedSSTablesCompactionsTest
     public void testCorruptedSSTablesWithLeveledCompactionStrategy() throws Exception
     {
         testCorruptedSSTables(STANDARD_LCS);
+    }
+
+    @Test
+    public void testCorruptedSSTablesWithUnifiedCompactionStrategy() throws Exception
+    {
+        testCorruptedSSTables(STANDARD_UCS);
     }
 
 
@@ -215,16 +225,15 @@ public class CorruptedSSTablesCompactionsTest
             try
             {
                 cfs.forceMajorCompaction();
+                break; // After all corrupted sstables are marked as such, compaction of the rest should succeed.
             }
             catch (Exception e)
             {
-                // kind of a hack since we're not specifying just CorruptSSTableExceptions, or (what we actually expect)
-                // an ExecutionException wrapping a CSSTE.  This is probably Good Enough though, since if there are
-                // other errors in compaction presumably the other tests would bring that to light.
+                // This is the expected path. The SSTable should be marked corrupted, and retrying the compaction
+                // should move on to the next corruption.
+                Throwables.assertAnyCause(e, CorruptSSTableException.class);
                 failures++;
-                continue;
             }
-            break;
         }
 
         cfs.truncateBlocking();

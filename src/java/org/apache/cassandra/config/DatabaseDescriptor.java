@@ -17,39 +17,6 @@
  */
 package org.apache.cassandra.config;
 
-import java.io.IOException;
-import java.lang.management.ManagementFactory;
-import java.lang.management.RuntimeMXBean;
-import java.net.Inet4Address;
-import java.net.Inet6Address;
-import java.net.InetAddress;
-import java.net.NetworkInterface;
-import java.net.SocketException;
-import java.net.UnknownHostException;
-import java.nio.file.FileStore;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.OptionalDouble;
-import java.util.ServiceLoader;
-import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.TimeUnit;
-import java.util.function.BiConsumer;
-import java.util.function.Function;
-import java.util.function.Supplier;
-import java.util.function.ToDoubleFunction;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import javax.annotation.Nullable;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
@@ -59,17 +26,13 @@ import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.RateLimiter;
-import org.apache.commons.lang3.ArrayUtils;
-import org.apache.commons.lang3.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.googlecode.concurrenttrees.common.Iterables;
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.auth.AllowAllInternodeAuthenticator;
 import org.apache.cassandra.auth.AuthConfig;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.auth.IAuthorizer;
+import org.apache.cassandra.auth.ICIDRAuthorizer;
 import org.apache.cassandra.auth.IInternodeAuthenticator;
 import org.apache.cassandra.auth.INetworkAuthorizer;
 import org.apache.cassandra.auth.IRoleManager;
@@ -101,13 +64,52 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.SeedProvider;
+import org.apache.cassandra.security.AbstractCryptoProvider;
 import org.apache.cassandra.security.EncryptionContext;
+import org.apache.cassandra.security.JREProvider;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.CacheService.CacheType;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.StorageCompatibilityMode;
+import org.apache.commons.lang3.ArrayUtils;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.introspector.Property;
+
+import javax.annotation.Nullable;
+import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.lang.management.RuntimeMXBean;
+import java.net.Inet4Address;
+import java.net.Inet6Address;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
+import java.net.UnknownHostException;
+import java.nio.file.FileStore;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.OptionalDouble;
+import java.util.ServiceLoader;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.function.ToDoubleFunction;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOCATE_TOKENS_FOR_KEYSPACE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_UNLIMITED_CONCURRENT_VALIDATIONS;
@@ -130,6 +132,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.STORAGE_PO
 import static org.apache.cassandra.config.CassandraRelevantProperties.SUN_ARCH_DATA_MODEL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_FAIL_MV_LOCKS_COUNT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_JVM_DTEST_DISABLE_SSL;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_SKIP_CRYPTO_PROVIDER_INSTALLATION;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_STRICT_RUNTIME_CHECKS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.UNSAFE_SYSTEM;
 import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.BYTES_PER_SECOND;
@@ -190,9 +193,12 @@ public class DatabaseDescriptor
 
     private static Config.DiskAccessMode indexAccessMode;
 
+    private static AbstractCryptoProvider cryptoProvider;
     private static IAuthenticator authenticator;
     private static IAuthorizer authorizer;
     private static INetworkAuthorizer networkAuthorizer;
+    private static ICIDRAuthorizer cidrAuthorizer;
+
     // Don't initialize the role manager until applying config. The options supported by CassandraRoleManager
     // depend on the configured IAuthenticator, so defer creating it until that's been set.
     private static IRoleManager roleManager;
@@ -432,7 +438,8 @@ public class DatabaseDescriptor
         }
     }
 
-    private static void setConfig(Config config)
+    @VisibleForTesting
+    public static void setConfig(Config config)
     {
         conf = config;
     }
@@ -441,6 +448,8 @@ public class DatabaseDescriptor
     {
         //InetAddressAndPort cares that applySimpleConfig runs first
         applySSTableFormats();
+
+        applyCryptoProvider();
 
         applySimpleConfig();
 
@@ -511,10 +520,6 @@ public class DatabaseDescriptor
             if (conf.commitlog_sync_period.toMilliseconds() == 0)
             {
                 throw new ConfigurationException("Missing value for commitlog_sync_period.", false);
-            }
-            else if (!Double.isNaN(conf.commitlog_sync_batch_window_in_ms))
-            {
-                throw new ConfigurationException("commitlog_sync_period specified, but commitlog_sync_batch_window found.  Only specify commitlog_sync_period when using periodic sync.", false);
             }
             logger.debug("Syncing log with a period of {}", conf.commitlog_sync_period.toString());
         }
@@ -970,6 +975,8 @@ public class DatabaseDescriptor
 
         if (conf.dump_heap_on_uncaught_exception && DatabaseDescriptor.getHeapDumpPath() == null)
             throw new ConfigurationException(String.format("Invalid configuration. Heap dump is enabled but cannot create heap dump output path: %s.", conf.heap_dump_path != null ? conf.heap_dump_path : "null"));
+
+        conf.sai_options.validate();
     }
 
     @VisibleForTesting
@@ -1203,6 +1210,42 @@ public class DatabaseDescriptor
         catch (IOException e)
         {
             throw new ConfigurationException("Failed to initialize SSL", e);
+        }
+    }
+
+    public static void applyCryptoProvider()
+    {
+        if (TEST_SKIP_CRYPTO_PROVIDER_INSTALLATION.getBoolean())
+            return;
+
+        if (conf.crypto_provider == null)
+            conf.crypto_provider = new ParameterizedClass(JREProvider.class.getName(), null);
+
+        // properties beat configuration
+        String classNameFromSystemProperties = CassandraRelevantProperties.CRYPTO_PROVIDER_CLASS_NAME.getString();
+        if (classNameFromSystemProperties != null)
+            conf.crypto_provider.class_name = classNameFromSystemProperties;
+
+        if (conf.crypto_provider.class_name == null)
+            throw new ConfigurationException("Failed to initialize crypto provider, class_name cannot be null");
+
+        if (conf.crypto_provider.parameters == null)
+            conf.crypto_provider.parameters = new HashMap<>();
+
+        Map<String, String> cryptoProviderParameters = new HashMap<>(conf.crypto_provider.parameters);
+        cryptoProviderParameters.putIfAbsent(AbstractCryptoProvider.FAIL_ON_MISSING_PROVIDER_KEY, "false");
+
+        try
+        {
+            cryptoProvider = FBUtilities.newCryptoProvider(conf.crypto_provider.class_name, cryptoProviderParameters);
+            cryptoProvider.install();
+        }
+        catch (Exception e)
+        {
+            if (e instanceof ConfigurationException)
+                throw (ConfigurationException) e;
+            else
+                throw new ConfigurationException(String.format("Failed to initialize crypto provider %s", conf.crypto_provider.class_name), e);
         }
     }
 
@@ -1489,6 +1532,15 @@ public class DatabaseDescriptor
         return detector;
     }
 
+    public static AbstractCryptoProvider getCryptoProvider()
+    {
+        return cryptoProvider;
+    }
+
+    public static void setCryptoProvider(AbstractCryptoProvider cryptoProvider)
+    {
+        DatabaseDescriptor.cryptoProvider = cryptoProvider;
+    }
     public static IAuthenticator getAuthenticator()
     {
         return authenticator;
@@ -1517,6 +1569,72 @@ public class DatabaseDescriptor
     public static void setNetworkAuthorizer(INetworkAuthorizer networkAuthorizer)
     {
         DatabaseDescriptor.networkAuthorizer = networkAuthorizer;
+    }
+
+    public static ICIDRAuthorizer getCIDRAuthorizer()
+    {
+        return cidrAuthorizer;
+    }
+
+    public static void setCIDRAuthorizer(ICIDRAuthorizer cidrAuthorizer)
+    {
+        DatabaseDescriptor.cidrAuthorizer = cidrAuthorizer;
+    }
+
+    public static boolean getCidrChecksForSuperusers()
+    {
+        boolean defaultCidrChecksForSuperusers = false;
+
+        if (conf.cidr_authorizer == null || conf.cidr_authorizer.parameters == null)
+            return defaultCidrChecksForSuperusers;
+
+        String value = conf.cidr_authorizer.parameters.get("cidr_checks_for_superusers");
+        if (value == null || value.isEmpty())
+            return defaultCidrChecksForSuperusers;
+
+        return Boolean.parseBoolean(value);
+    }
+
+    public static ICIDRAuthorizer.CIDRAuthorizerMode getCidrAuthorizerMode()
+    {
+        ICIDRAuthorizer.CIDRAuthorizerMode defaultCidrAuthorizerMode = ICIDRAuthorizer.CIDRAuthorizerMode.MONITOR;
+
+        if (conf.cidr_authorizer == null || conf.cidr_authorizer.parameters == null)
+            return defaultCidrAuthorizerMode;
+
+        String cidrAuthorizerMode = conf.cidr_authorizer.parameters.get("cidr_authorizer_mode");
+        if (cidrAuthorizerMode == null || cidrAuthorizerMode.isEmpty())
+            return defaultCidrAuthorizerMode;
+
+        return ICIDRAuthorizer.CIDRAuthorizerMode.valueOf(cidrAuthorizerMode.toUpperCase());
+    }
+
+    public static int getCidrGroupsCacheRefreshInterval()
+    {
+        int defaultCidrGroupsCacheRefreshInterval = 5; // mins
+
+        if (conf.cidr_authorizer == null  || conf.cidr_authorizer.parameters == null)
+            return defaultCidrGroupsCacheRefreshInterval;
+
+        String cidrGroupsCacheRefreshInterval = conf.cidr_authorizer.parameters.get("cidr_groups_cache_refresh_interval");
+        if (cidrGroupsCacheRefreshInterval == null || cidrGroupsCacheRefreshInterval.isEmpty())
+            return defaultCidrGroupsCacheRefreshInterval;
+
+        return Integer.parseInt(cidrGroupsCacheRefreshInterval);
+    }
+
+    public static int getIpCacheMaxSize()
+    {
+        int defaultIpCacheMaxSize = 100;
+
+        if (conf.cidr_authorizer == null  || conf.cidr_authorizer.parameters == null)
+            return defaultIpCacheMaxSize;
+
+        String ipCacheMaxSize = conf.cidr_authorizer.parameters.get("ip_cache_max_size");
+        if (ipCacheMaxSize == null || ipCacheMaxSize.isEmpty())
+            return defaultIpCacheMaxSize;
+
+        return Integer.parseInt(ipCacheMaxSize);
     }
 
     public static void setAuthFromRoot(boolean fromRoot)
@@ -3515,6 +3633,12 @@ public class DatabaseDescriptor
         return conf.stream_entire_sstables;
     }
 
+    @VisibleForTesting
+    public static boolean setStreamEntireSSTables(boolean value)
+    {
+        return conf.stream_entire_sstables = value;
+    }
+
     public static DurationSpec.LongMillisecondsBound getStreamTransferTaskTimeout()
     {
         return conf.stream_transfer_task_timeout;
@@ -3726,6 +3850,26 @@ public class DatabaseDescriptor
     public static void setSASIIndexesEnabled(boolean enableSASIIndexes)
     {
         conf.sasi_indexes_enabled = enableSASIIndexes;
+    }
+
+    public static String getDefaultSecondaryIndex()
+    {
+        return conf.default_secondary_index;
+    }
+
+    public static void setDefaultSecondaryIndex(String name)
+    {
+        conf.default_secondary_index = name;
+    }
+
+    public static boolean getDefaultSecondaryIndexEnabled()
+    {
+        return conf.default_secondary_index_enabled;
+    }
+
+    public static void setDefaultSecondaryIndexEnabled(boolean enabled)
+    {
+        conf.default_secondary_index_enabled = enabled;
     }
 
     public static boolean isTransientReplicationEnabled()
@@ -4715,6 +4859,16 @@ public class DatabaseDescriptor
             return CassandraRelevantProperties.JUNIT_STORAGE_COMPATIBILITY_MODE.getEnum(StorageCompatibilityMode.CASSANDRA_4);
         else
             return conf.storage_compatibility_mode;
+    }
+
+    public static ParameterizedClass getDefaultCompaction()
+    {
+        return conf != null ? conf.default_compaction : null;
+    }
+
+    public static DataStorageSpec.IntMebibytesBound getSAISegmentWriteBufferSpace()
+    {
+        return conf.sai_options.segment_write_buffer_size;
     }
 
     public static <T> ListenableProperty.Remover addBeforeChangePropertyListener(String name, Class<T> clazz, BiConsumer<T, T> consumer)

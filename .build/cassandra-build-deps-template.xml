@@ -27,6 +27,10 @@
   <version>@version@</version>
   <dependencies>
     <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+    </dependency>
+    <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
     </dependency>
@@ -61,6 +65,10 @@
     <dependency>
       <groupId>com.google.jimfs</groupId>
       <artifactId>jimfs</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.puppycrawl.tools</groupId>
+      <artifactId>checkstyle</artifactId>
     </dependency>
     <dependency>
       <groupId>org.quicktheories</groupId>
@@ -130,6 +138,10 @@
     <dependency>
       <groupId>de.jflex</groupId>
       <artifactId>jflex</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.carrotsearch.randomizedtesting</groupId>
+      <artifactId>randomizedtesting-runner</artifactId>
     </dependency>
   </dependencies>
 </project>

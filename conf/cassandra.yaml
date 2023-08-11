@@ -150,7 +150,14 @@ batchlog_replay_throttle: 1024KiB
 #   users. It keeps usernames and hashed passwords in system_auth.roles table.
 #   Please increase system_auth keyspace replication factor if you use this authenticator.
 #   If using PasswordAuthenticator, CassandraRoleManager must also be used (see below)
-authenticator: AllowAllAuthenticator
+authenticator:
+  class_name : org.apache.cassandra.auth.AllowAllAuthenticator
+# MutualTlsAuthenticator can be configured using the following configuration. One can add their own validator
+# which implements MutualTlsCertificateValidator class and provide logic for extracting identity out of certificates
+# and validating certificates.
+#  class_name : org.apache.cassandra.auth.MutualTlsAuthenticator
+#  parameters :
+#    validator_class_name: org.apache.cassandra.auth.SpiffeCertificateValidator
 
 # Authorization backend, implementing IAuthorizer; used to limit access/provide permissions
 # Out of the box, Cassandra provides org.apache.cassandra.auth.{AllowAllAuthorizer,
@@ -181,6 +188,37 @@ role_manager: CassandraRoleManager
 # - CassandraNetworkAuthorizer stores permissions in system_auth.network_permissions table. Please
 #   increase system_auth keyspace replication factor if you use this authorizer.
 network_authorizer: AllowAllNetworkAuthorizer
+
+# CIDR authorization backend, implementing ICIDRAuthorizer; used to restrict user
+# access from certain CIDRs
+# Out of the box, Cassandra provides org.apache.cassandra.auth.{AllowAllCIDRAuthorizer,
+# CassandraCIDRAuthorizer}.
+# - AllowAllCIDRAuthorizer allows access from any CIDR to any user - set it to disable CIDR authorization.
+# - CassandraCIDRAuthorizer stores user's CIDR permissions in system_auth.cidr_permissions table. Please
+#   increase system_auth keyspace replication factor if you use this authorizer, otherwise any changes to
+#   system_auth tables being used by this feature may be lost when a host goes down.
+cidr_authorizer:
+  class_name: AllowAllCIDRAuthorizer
+  # Below parameters are used only when CIDR authorizer is enabled
+  # parameters:
+    # CIDR authorizer when enabled, i.e, CassandraCIDRAuthorizer, is applicable for non-superusers only by default.
+    # Set this setting to true, to enable CIDR authorization for superusers as well.
+    # Note: CIDR checks cannot be performed for JMX calls
+    # cidr_checks_for_superusers: true
+
+    # CIDR authorizer when enabled, supports MONITOR and ENFORCE modes. Default mode is MONITOR
+    # In MONITOR mode, CIDR checks are NOT enforced. Instead, CIDR groups of users accesses are logged using
+    # nospamlogger. A warning message would be logged if a user accesses from unauthorized CIDR group (but access won't
+    # be rejected). An info message would be logged otherwise.
+    # In ENFORCE mode, CIDR checks are enforced, i.e, users accesses would be rejected if attempted from unauthorized
+    # CIDR groups.
+    # cidr_authorizer_mode: MONITOR
+
+    # Refresh interval for CIDR groups cache, this value is considered in minutes
+    # cidr_groups_cache_refresh_interval: 5
+
+    # Maximum number of entries an IP to CIDR groups cache can accommodate
+    # ip_cache_max_size: 100
 
 # Depending on the auth strategy of the cluster, it can be beneficial to iterate
 # from root to table (root -> ks -> table) instead of table to root (table -> ks -> root).
@@ -504,10 +542,6 @@ counter_cache_save_period: 7200s
 #
 # When in batch mode, Cassandra won't ack writes until the commit log
 # has been flushed to disk.  Each incoming write will trigger the flush task.
-# commitlog_sync_batch_window_in_ms is a deprecated value. Previously it had
-# almost no value, and is being removed.
-#
-# commitlog_sync_batch_window_in_ms: 2
 #
 # group mode is similar to batch mode, where Cassandra will not ack writes
 # until the commit log has been flushed to disk. The difference is group
@@ -820,8 +854,17 @@ listen_address: localhost
 
 # Internode authentication backend, implementing IInternodeAuthenticator;
 # used to allow/disallow connections from peer nodes.
-# internode_authenticator: org.apache.cassandra.auth.AllowAllInternodeAuthenticator
-
+#internode_authenticator:
+#  class_name : org.apache.cassandra.auth.AllowAllInternodeAuthenticator
+#  parameters :
+# MutualTlsInternodeAuthenticator can be configured using the following configuration.One can add their own validator
+# which implements MutualTlsCertificateValidator class and provide logic for extracting identity out of certificates
+# and validating certificates.
+#  class_name : org.apache.cassandra.auth.MutualTlsInternodeAuthenticator
+#  parameters :
+#    validator_class_name: org.apache.cassandra.auth.SpiffeCertificateValidator
+#    trusted_peer_identities: "spiffe1,spiffe2"
+#    node_identity: "spiffe1"
 # Whether to start the native transport server.
 # The address on which the native transport is bound is defined by rpc_address.
 start_native_transport: true
@@ -1001,6 +1044,20 @@ snapshot_links_per_second: 0
 # This is only relevant to SSTable formats that use key cache, e.g. BIG.
 # Min unit: KiB
 column_index_cache_size: 2KiB
+
+# Default compaction strategy, applied when a table's parameters do not
+# specify compaction.
+# The selected compaction strategy will also apply to system tables.
+#
+# The default is to use SizeTieredCompactionStrategy, with its default
+# compaction parameters.
+#
+# default_compaction:
+#   class_name: UnifiedCompactionStrategy
+#   parameters:
+#     scaling_parameters: T4
+#     target_sstable_size: 1GiB
+
 
 # Number of simultaneous compactions to allow, NOT including
 # validation "compactions" for anti-entropy repair.  Simultaneous
@@ -1302,6 +1359,11 @@ slow_query_log_timeout: 500ms
 #    Snitch for getting dc and rack of a node from metadata service of Alibaba cloud.
 #    This snitch that assumes an ECS region is a DC and an ECS availability_zone is a rack.
 #
+# AzureSnitch:
+#    Gets datacenter from 'location' and rack from 'zone' fields of 'compute' object
+#    from instance metadata service. If the availability zone is not enabled, it will use the fault
+#    domain and get its respective value.
+#
 # CloudstackSnitch:
 #    A snitch that assumes a Cloudstack Zone follows the typical convention 
 #    country-location-az and uses a country/location tuple as a datacenter
@@ -1355,6 +1417,21 @@ dynamic_snitch_reset_interval: 600000ms
 # 0.2 means Cassandra would continue to prefer the static snitch values
 # until the pinned host was 20% worse than the fastest.
 dynamic_snitch_badness_threshold: 1.0
+
+# Configures Java crypto provider. By default, it will use DefaultCryptoProvider
+# which will install Amazon Correto Crypto Provider.
+#
+# Amazon Correto Crypto Provider works currently for x86_64 and aarch_64 platforms.
+# If this provider fails it will fall back to the default crypto provider in the JRE.
+#
+# To force failure when the provider was not installed properly, set the property "fail_on_missing_provider" to "true".
+#
+# To bypass the installation of a crypto provider use class 'org.apache.cassandra.security.JREProvider'
+#
+crypto_provider:
+  - class_name: org.apache.cassandra.security.DefaultCryptoProvider
+    parameters:
+      - fail_on_missing_provider: "false"
 
 # Configure server-to-server internode encryption
 #
@@ -1526,6 +1603,12 @@ transparent_data_encryption_options:
           store_type: JCEKS
           key_password: cassandra
 
+# Storage Attached Indexing options.
+# sai_options:
+  ## Total permitted memory allowed for writing SAI index segments. This memory
+  ## is split between all SAI indexes being built so more indexes will mean smaller
+  ## segment sizes.
+  # segment_write_buffer_size: 1024MiB
 
 #####################
 # SAFETY THRESHOLDS #
@@ -1902,6 +1985,11 @@ drop_compact_storage_enabled: false
 # fields_per_udt_warn_threshold: -1
 # fields_per_udt_fail_threshold: -1
 #
+# Guardrail to warn or fail when creating a vector column with more dimensions than threshold.
+# Default -1 to disable.
+# vector_dimensions_warn_threshold: -1
+# vector_dimensions_fail_threshold: -1
+#
 # Guardrail to indicate whether or not users are allowed to use ALTER TABLE commands to make column changes to tables
 # alter_table_enabled: true
 #
@@ -1949,6 +2037,15 @@ drop_compact_storage_enabled: false
 # and the table is using TimeWindowCompactionStrategy compaction or a subclass of it. Defaults to true.
 # if zero_ttl_on_twcs_enabled is set to false, this property is irrelevant as such statements will fail.
 #zero_ttl_on_twcs_warned: true
+
+# The default secondary index implementation when CREATE INDEX does not specify one via USING.
+# ex. "legacy_local_table" - (default) legacy secondary index, implemented as a hidden table
+# ex. "sai" - "storage-attched" index, implemented via optimized SSTable/Memtable-attached indexes
+#default_secondary_index: legacy_local_table
+
+# Whether a default secondary index implementation is allowed. If this is "false", CREATE INDEX must
+# specify an index implementation via USING.
+#default_secondary_index_enabled: true
 
 # Startup Checks are executed as part of Cassandra startup process, not all of them
 # are configurable (so you can disable them) but these which are enumerated bellow.

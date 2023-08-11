@@ -1,4 +1,37 @@
+5.1
+Merged from 5.0:
+ * Remove legacy command line options from cassandra-stress (CASSANDRA-18529)
+ * Remove commitlog_sync_batch_window_in_ms (CASSANDRA-17161)
+ * Upgrade JMH from 1.21 to 1.36 (CASSANDRA-18696)
+ * Add guardrail for vector dimensions (CASSANDRA-18730)
+Merged from 4.1:
+Merged from 4.0:
+Merged from 3.11:
+Merged from 3.0:
+ * Fix CQLSH online help topic link (CASSANDRA-17534)
+ * Remove unused suppressions (CASSANDRA-18724)
+
+
 5.0
+ * Upgraded Netty to 4.1.96, added BouncyCastle dependency (CASSANDRA-17992)
+ * Fix for (unsupported) big endian unaligned architecture, eg s390x (CASSANDRA-17723)
+ * CIDR filtering authorizer (CASSANDRA-18592)
+ * Remove 3.x from the versions checked for prepared statement behaviour (CASSANDRA-18695)
+ * Add vector similarity functions (CASSANDRA-18640)
+ * Lift MessagingService.minimum_version to 40 (CASSANDRA-18314)
+ * Introduce pluggable crypto providers and default to AmazonCorrettoCryptoProvider (CASSANDRA-18624)
+ * Improved DeletionTime serialization (CASSANDRA-18648)
+ * CEP-7: Storage Attached Indexes (CASSANDRA-16052)
+ * Add equals/hashCode override for ServerEncryptionOptions (CASSANDRA-18428)
+ * Upgrade ECJ to version 3.33.0 (CASSANDRA-18190)
+ * Fix ClassCastException  from jdk GaloisCounterMode when using JDK17 provider (CASSANDRA-18180)
+ * Drop JDK8, add JDK17 (CASSANDRA-18255)
+ * Remove WaitingOnFreeMemtableSpace and DroppedMutations metrics (CASSANDRA-18298)
+ * Upgrade Jamm version to 0.4.0  (CASSANDRA-17884, CASSANDRA-16304, CASSANDRA-18329)
+ * Remove legacy 3.0/3.11 buffer pool metrics (CASSANDRA-18313)
+ * Add AzureSnitch (CASSANDRA-18646)
+ * Implementation of the Unified Compaction Strategy as described in CEP-26 (CASSANDRA-18397)
+ * Upgrade commons cli to 1.5.0 (CASSANDRA-18659)
  * Disable the deprecated keyspace/table thresholds and convert them to guardrails (CASSANDRA-18617)
  * Deprecate CloudstackSnitch and remove duplicate code in snitches (CASSANDRA-18438)
  * Add support for vectors in UDFs (CASSANDRA-18613)
@@ -155,8 +188,21 @@
  * Add new CQL function maxWritetime (CASSANDRA-17425)
  * Add guardrail for ALTER TABLE ADD / DROP / REMOVE column operations (CASSANDRA-17495)
  * Rename DisableFlag class to EnableFlag on guardrails (CASSANDRA-17544)
+Merged from 4.1:
+ * Skip ColumnFamilyStore#topPartitions initialization when client or tool mode (CASSANDRA-18697)
 Merged from 4.0:
  * Partial compaction can resurrect deleted data (CASSANDRA-18507)
+Merged from 3.11:
+Merged from 3.0:
+
+
+4.1.4
+Merged from 4.0:
+ * Fix NTS log message when an unrecognized strategy option is passed (CASSANDRA-18679)
+ * Fix BulkLoader ignoring cipher suites options (CASSANDRA-18582)
+ * Migrate Python optparse to argparse (CASSANDRA-17914)
+Merged from 3.11:
+Merged from 3.0:
 
 
 4.1.3

@@ -16,10 +16,8 @@
 # limitations under the License.
 
 #
-# Wrapper script for running a split chunk of an ant test target
+# Wrapper script for running a split or regexp of tests (excluding python dtests)
 #
-# Usage: run-tests.sh target [split_chunk]
-#  split_chunk formatted as "K/N" for the Kth chunk of N chunks
 
 set -o errexit
 set -o pipefail
@@ -39,7 +37,7 @@ command -v git >/dev/null 2>&1 || { echo >&2 "git needs to be installed"; exit 1
 # help
 if [ "$#" -lt 1 ] || [ "$#" -gt 2 ] || [ "$1" == "-h" ]; then
     echo ""
-    echo "Usage: run-tests.sh target [split_chunk|test_regexp]"
+    echo "Usage: run-tests.sh test_type [split_chunk|test_regexp]"
     echo ""
     echo "        default split_chunk is 1/1"
     exit 1
@@ -65,7 +63,7 @@ _split_tests() {
     command -v ${split_cmd} >/dev/null 2>&1 || { echo >&2 "${split_cmd} needs to be installed"; exit 1; }
     ${split_cmd} -n r/${_split_chunk}
   elif [[ "x" != "x${_split_chunk}" ]] ; then
-    grep ${_split_chunk}
+    grep -e "${_split_chunk}"
   else
     echo
   fi
@@ -155,13 +153,16 @@ _main() {
   # check project is already built. no cleaning is done, so jenkins unstash works, beware.
   [[ -f "${DIST_DIR}/apache-cassandra-${version}.jar" ]] || [[ -f "${DIST_DIR}/apache-cassandra-${version}-SNAPSHOT.jar" ]] || { echo "Project must be built first. Use \`ant jar\`. Build directory is ${DIST_DIR} with: $(ls ${DIST_DIR})"; exit 1; }
 
+  # check if dist artifacts exist, this breaks the dtests
+  [[ -d "${DIST_DIR}/dist" ]] && { echo "tests don't work when build/dist ("${DIST_DIR}/dist") exists (from \`ant artifacts\`)"; exit 1; }
+
   # ant test setup
   export TMP_DIR="${DIST_DIR}/tmp"
   mkdir -p "${TMP_DIR}" || true
-  export ANT_TEST_OPTS="-Dno-build-test=true -Dtmp.dir=${TMP_DIR} -Drat.skip=true -Dno-checkstyle=true -Dno-javadoc=true -Dant.gen-doc.skip=true"
+  export ANT_TEST_OPTS="-Dno-build-test=true -Dtmp.dir=${TMP_DIR}"
 
   # fresh virtualenv and test logs results everytime
-  rm -rf ${DIST_DIR}/test/{html,output,logs}
+  [[ "/" == "${DIST_DIR}" ]] || rm -rf "${DIST_DIR}/test/{html,output,logs}"
 
   # cheap trick to ensure dependency libraries are in place. allows us to stash only project specific build artifacts.
   ant -quiet -silent resolver-dist-lib
@@ -189,6 +190,15 @@ _main() {
     "test-compression")
       _run_testlist "unit" "testclasslist-compression" "${split_chunk}" "$(_timeout_for 'test.timeout')"
       ;;
+    "test-oa")
+      _run_testlist "unit" "testclasslist-oa" "${split_chunk}" "$(_timeout_for 'test.timeout')"
+      ;;
+    "test-system-keyspace-directory")
+      _run_testlist "unit" "testclasslist-system-keyspace-directory" "${split_chunk}" "$(_timeout_for 'test.timeout')"
+      ;;
+    "test-trie")
+      _run_testlist "unit" "testclasslist-trie" "${split_chunk}" "$(_timeout_for 'test.timeout')"
+      ;;
     "test-burn")
       _run_testlist "burn" "testclasslist" "${split_chunk}" "$(_timeout_for 'test.burn.timeout')"
       ;;
@@ -198,8 +208,9 @@ _main() {
     "jvm-dtest")
       testlist=$( _list_tests "distributed" | grep -v "upgrade" | _split_tests "${split_chunk}")
       if [[ -z "$testlist" ]]; then
+          [[ "${split_chunk}" =~ ^[0-9]+/[0-9]+$ ]] || { echo "No tests match ${split_chunk}"; exit 1; }
           # something has to run in the split to generate a junit xml result
-          echo Hacking jvm-dtest to run only first test found as no tests in split ${split_chunk} were found
+          echo "Hacking jvm-dtest to run only first test found as no tests in split ${split_chunk} were found"
           testlist="$( _list_tests "distributed"  | grep -v "upgrade" | head -n1)"
       fi
       ant testclasslist -Dtest.classlistprefix=distributed -Dtest.timeout=$(_timeout_for "test.distributed.timeout") -Dtest.classlistfile=<(echo "${testlist}") ${ANT_TEST_OPTS} || echo "failed ${target} ${split_chunk}"
@@ -208,8 +219,9 @@ _main() {
       _build_all_dtest_jars
       testlist=$( _list_tests "distributed"  | grep "upgrade" | _split_tests "${split_chunk}")
       if [[ -z "${testlist}" ]]; then
+          [[ "${split_chunk}" =~ ^[0-9]+/[0-9]+$ ]] || { echo "No tests match ${split_chunk}"; exit 1; }
           # something has to run in the split to generate a junit xml result
-          echo Hacking jvm-dtest-upgrade to run only first test found as no tests in split ${split_chunk} were found
+          echo "Hacking jvm-dtest-upgrade to run only first test found as no tests in split ${split_chunk} were found"
           testlist="$( _list_tests "distributed"  | grep "upgrade" | head -n1)"
       fi
       ant testclasslist -Dtest.classlistprefix=distributed -Dtest.timeout=$(_timeout_for "test.distributed.timeout") -Dtest.classlistfile=<(echo "${testlist}") ${ANT_TEST_OPTS} || echo "failed ${target} ${split_chunk}"
@@ -218,7 +230,7 @@ _main() {
       ./pylib/cassandra-cqlsh-tests.sh $(pwd)
       ;;
     *)
-      echo "unregconized \"${target}\""
+      echo "unrecognized test type \"${target}\""
       exit 1
       ;;
   esac

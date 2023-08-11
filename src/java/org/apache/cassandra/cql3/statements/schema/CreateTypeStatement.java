@@ -68,6 +68,11 @@ public final class CreateTypeStatement extends AlterSchemaStatement
         super.validate(state);
 
         Guardrails.fieldsPerUDT.guard(fieldNames.size(), typeName, false, state);
+
+        for (int i = 0; i < rawFieldTypes.size(); i++)
+        {
+            rawFieldTypes.get(i).validate(state, "Field " + fieldNames.get(i));
+        }
     }
 
     public Keyspaces apply(Keyspaces schema)

@@ -59,7 +59,7 @@ import org.apache.cassandra.io.util.SizedInts;
 public abstract class TrieNode
 {
     /** Value used to indicate a branch (e.g. for transition and lastTransition) does not exist. */
-    public static int NONE = -1;
+    public static final int NONE = -1;
 
     // Consumption (read) methods
 

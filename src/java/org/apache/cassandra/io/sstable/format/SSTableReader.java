@@ -183,8 +183,9 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     }
     public final UniqueIdentifier instanceId = new UniqueIdentifier();
 
-    public static final Comparator<SSTableReader> sstableComparator = Comparator.comparing(o -> o.first);
-    public static final Ordering<SSTableReader> sstableOrdering = Ordering.from(sstableComparator);
+    public static final Comparator<SSTableReader> firstKeyComparator = (o1, o2) -> o1.getFirst().compareTo(o2.getFirst());
+    public static final Ordering<SSTableReader> firstKeyOrdering = Ordering.from(firstKeyComparator);
+    public static final Comparator<SSTableReader> lastKeyComparator = (o1, o2) -> o1.getLast().compareTo(o2.getLast());
 
     public static final Comparator<SSTableReader> idComparator = Comparator.comparing(t -> t.descriptor.id, SSTableIdFactory.COMPARATOR);
     public static final Comparator<SSTableReader> idReverseComparator = idComparator.reversed();
@@ -267,8 +268,8 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
     private volatile double crcCheckChance;
 
-    public final DecoratedKey first;
-    public final DecoratedKey last;
+    protected final DecoratedKey first;
+    protected final DecoratedKey last;
     public final AbstractBounds<Token> bounds;
 
     /**
@@ -840,6 +841,19 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
     public long uncompressedLength()
     {
         return dfile.dataLength();
+    }
+
+    /**
+     * @return the fraction of the token space for which this sstable has content. In the simplest case this is just the
+     * size of the interval returned by {@link #getBounds()}, but the sstable may contain "holes" when the locally-owned
+     * range is not contiguous (e.g. with vnodes).
+     * As this is affected by the local ranges which can change, the token space fraction is calculated at the time of
+     * writing the sstable and stored with its metadata.
+     * For older sstables that do not contain this metadata field, this method returns NaN.
+     */
+    public double tokenSpaceCoverage()
+    {
+        return sstableMetadata.tokenSpaceCoverage;
     }
 
     /**

@@ -1,0 +1,133 @@
+= Getting started with mTLS authenticators
+
+When a certificate based authentication protocol like TLS is used for client and
+Internode connections, `MutualTlsAuthenticator` & `MutualTlsInternodeAuthenticator`
+can be used for the authentication by leveraging the client certificates from the
+SSL handshake.
+
+After SSL handshake, identity from the client certificates is extracted and only
+authorized users will be granted access.
+
+== What is an Identity
+
+Operators can define their own identity for certificates by extracting some fields or
+information from the certificates. Implementing the interface `MutualTlsCertificateValidator`
+supports validating & extracting identities from the certificates that can be used by
+`MutualTlsAuthenticator` and `MutualTlsInternodeAuthenticator` to customize for the
+certificate conventions used in the deployment environment.
+
+There is a default implementation of `MutualTlsCertificateValidator` with
+https://spiffe.io/docs/latest/spiffe-about/spiffe-concepts/[SPIFFE] as the identity
+of the certificates.This requires spiffe to be present in the SAN of the certificate.
+
+Instead of using `SPIFFE` based validator, a custom `CN` based validator that implements `MutualTlsCertificateValidator`
+could be configured by the operator if required.
+
+== Configuring mTLS authenticator for client connections
+
+Note that the following steps uses SPIFFE identity as an example, If you are using
+a custom validator, use appropriate identity in place of `spiffe://testdomain.com/testIdentifier/testValue`.
+
+*STEP 1: Add authorized users to system_auth.identity_to_roles table*
+
+Note that only users with permissions to create/modify roles can add/remove identities.
+Client certificates with the identities in this table will be trusted by C*.
+[source, plaintext]
+----
+ADD IDENTITY 'spiffe://testdomain.com/testIdentifier/testValue' TO ROLE 'read_only_user'
+----
+
+*STEP 2: Configure Cassandra.yaml with right properties*
+
+`client_encryption_options` configuration for mTLS connections
+[source, plaintext]
+----
+client_encryption_options:
+  enabled: true
+  optional: false
+  keystore: conf/.keystore
+  keystore_password: cassandra
+  truststore: conf/.truststore
+  truststore_password: cassandra
+  require_client_auth: true // to enable mTLS
+----
+Configure mTLS authenticator and the validator for client connections . If you are
+implementing a custom validator, use that instead of Spiffe validator
+[source, plaintext]
+----
+authenticator:
+  class_name : org.apache.cassandra.auth.MutualTlsAuthenticator
+  parameters :
+    validator_class_name: org.apache.cassandra.auth.SpiffeCertificateValidator
+----
+
+*STEP 3: Bounce the cluster*
+
+After the bounce, C* will accept mTLS connections from the clients and if their
+identity is present in the `identity_to_roles` table, access will be granted.
+
+== Configuring mTLS authenticator for Internode connections
+
+Internode authenticator trusts certificates whose identities are present in
+`internode_authenticator.parameters.trusted_peer_identities` if configured.
+
+Otherwise, it trusts connections which have the same identity as the node.
+When a node is making an outbound connection to another node, it uses the
+certificate configured in `server_encryption_options.outbound_keystore`.
+During the start of the node, identity is extracted from the outbound keystore and
+connections from other nodes who have the same identity will be trusted if
+`trusted_peer_identities` is not configured.
+
+For example, if a node has `testIdentity` embedded in the certificate in
+outbound keystore, It trusts connections from other nodes when their certificates
+have `testIdentity` embedded in them.
+
+There is an optional configuration `node_identity` that can be used to verify identity
+extracted from the keystore to avoid any configuration errors.
+
+*STEP 1: Configure server_encryption_options in cassandra.yaml*
+
+[source, plaintext]
+----
+server_encryption_options:
+  internode_encryption: all
+  optional: true
+  keystore: conf/.keystore
+  keystore_password: cassandra
+  outbound_keystore: conf/.outbound_keystore
+  outbound_keystore_password: cassandra
+  require_client_auth: true  // for enabling mTLS
+  truststore: conf/.truststore
+  truststore_password: cassandra
+----
+
+*STEP 2: Configure Internode Authenticator and Validator*
+
+Configure mTLS Internode authenticator and validator. If you are
+implementing a custom validator, use that instead of Spiffe validator
+[source, plaintext]
+----
+internode_authenticator:
+  class_name : org.apache.cassandra.auth.MutualTlsInternodeAuthenticator
+  parameters :
+    validator_class_name: org.apache.cassandra.auth.SpiffeCertificateValidator
+    trusted_peer_identities : "spiffe1,spiffe2"
+----
+
+*STEP 3: Bounce the cluster*
+Once all nodes in the cluster are restarted, all internode communications will be authenticated by mTLS.
+
+== Migration from existing password based authentication
+* For client connections, since the migration will not happen overnight,
+the operators can run cassandra in optional mTLS mode and use
+`MutualTlsWithPasswordFallbackAuthenticator` which will accept both mTLS & password
+based connections, based on the type of connection client is making. These settings
+can be configured in `cassandra.yaml`. Once all the clients migrate to using mTLS,
+turn off optional mode and set the authenticator to be `MutualTlsAuthenticator`. From
+that point only mTLS client connections will be accepted.
+
+* For Internode connections, while doing rolling upgrades from non-mTLS based configuration
+to mTLS based configuration, set `server_encryption_options.optional:true` for the new nodes to
+be able to connect to old nodes which are still using non-mTLS based configuration during upgrade.
+After this, change the internode authenticator to be `MutualTlsInternodeAuthenticator` and turn off the optional
+mode by setting `server_encryption_options.optional:false`.

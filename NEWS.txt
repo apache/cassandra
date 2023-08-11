@@ -71,7 +71,21 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - Added a new authorizer, CIDR authorizer, to restrict user access based on CIDR groups.
+    - Pluggable crypto providers were made possible via `crypto_provider` section in cassandra.yaml. The default provider is 
+      Amazon Corretto Crypto Provider and it is installed automatically upon node's start. Only x86_64 and aarch64 architectures are supported now.
+      Please consult upgrade section to know more details when upgrading from older Cassandra versions.
+    - Added a new secondary index implementation, Storage-Attached Indexes (SAI). Overview documentation and a basic
+      tutorial can be found at src/java/org/apache/cassandra/index/sai/README.md.
+    - *Experimental* support for Java 17 has been added. JVM options that differ between or are
+      specific for Java 17 have been added into jvm17.options.
+      IMPORTANT: Running C* on Java 17 is *experimental* and do it at your own risk.
+    - Added a new "unified" compaction strategy that supports the use cases of the legacy compaction strategies, with
+      low space overhead, high parallelism and flexible configuration. Implemented by the UnifiedCompactionStrategy
+      class. Further details and documentation can be found in
+      src/java/org/apache/cassandra/db/compaction/UnifiedCompactionStrategy.md
     - New `VectorType` (cql `vector<element_type, dimension>`) which adds new fixed-length element arrays. See CASSANDRA-18504
+    - Added new vector similarity functions `similarity_cosine`, `similarity_euclidean` and `similarity_dot_product`.
     - Removed UDT type migration logic for 3.6+ clusters upgrading to 4.0.  If migration has been disabled, it must be
       enabled before upgrading to 5.0 if the cluster used UDTs. See CASSANDRA-18504
     - Entended max expiration time from 2038-01-19T03:14:06+00:00 to 2106-02-07T06:28:13+00:00
@@ -102,6 +116,7 @@ New features
       - Column value size
       - Partition size
       - Partition tombstones
+      - Vector dimensions
     - It is possible to list ephemeral snapshots by nodetool listsnaphots command when flag "-e" is specified.
     - Added a new flag to `nodetool profileload` and JMX endpoint to set up recurring profile load generation on specified
       intervals (see CASSANDRA-17821)
@@ -168,9 +183,13 @@ New features
     - `cassandra-stress` has a new option called '-jmx' which enables a user to pass username and password to JMX (CASSANDRA-18544)
     - It is possible to read all credentials for `cassandra-stress` from a file via option `-credentials-file` (CASSANDRA-18544)
     - nodetool info displays bootstrap state a node is in as well as if it was decommissioned or if it failed to decommission (CASSANDRA-18555)
+    - Added snitch for Microsoft Azure of name AzureSnitch (CASSANDRA-18646)
+    - legacy command line options from cassandra-stress were removed
+    - `-mode` option in cassandra-stress has `native` and `cql3` as defaults and they do not need to be specified
 
 Upgrading
 ---------
+    - Java 8 has been removed. Lowest supported version is Java 11.
     - Ephemeral marker files for snapshots done by repairs are not created anymore,
       there is a dedicated flag in snapshot manifest instead. On upgrade of a node to this version, on node's start, in case there
       are such ephemeral snapshots on disk, they will be deleted (same behaviour as before) and any new ephemeral snapshots
@@ -197,6 +216,13 @@ Upgrading
      communicate with AWS IMDS of version 2. This change is transparent, there does not need 
      to be done anything upon upgrade. Furthermore, IMDS of version 2 can be configured to be required in AWS EC2 console.
      Consult cassandra-rackdc.properties for more details. (CASSANDRA-16555)
+    - JMX MBean `org.apache.cassandra.metrics:type=BufferPool` without scope has been removed.
+      Use instead `org.apache.cassandra.metrics:type=BufferPool,scope=chunk-cache`.  (CASSANDRA-17668)
+    - Upon upgrade, when cassandra.yaml does not contain `crypto_provider` configuration section, crypto providers from JRE installation will be used
+      and no installation of DefaultCryptoProvider installing Amazon Corretto Crypto Provider will be conducted. 
+      You need to explicitly add this section to the old yaml if it does not contain it yet to enable Amazon Corretto Crypto Provider for such node. 
+      New deployments have `crypto_provider` uncommented with DefaultCryptoProvider hence Corretto provider will be installed automatically for corresponding architecture.
+    - `commitlog_sync_batch_window_in_ms` configuration property in cassandra.yaml was removed. Please ensure your configuration is not using this property.
 
 
 Deprecation

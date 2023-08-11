@@ -55,12 +55,12 @@ public class Ec2MultiRegionSnitch extends Ec2Snitch
 
     public Ec2MultiRegionSnitch(SnitchProperties props) throws IOException, ConfigurationException
     {
-        this(props, Ec2MetadataServiceConnector.create(props));
+        this(Ec2MetadataServiceConnector.create(props));
     }
 
-    Ec2MultiRegionSnitch(SnitchProperties props, AbstractCloudMetadataServiceConnector connector) throws IOException
+    Ec2MultiRegionSnitch(AbstractCloudMetadataServiceConnector connector) throws IOException
     {
-        super(props, connector);
+        super(connector);
         InetAddress localPublicAddress = InetAddress.getByName(connector.apiCall(PUBLIC_IP_QUERY));
         logger.info("EC2Snitch using publicIP as identifier: {}", localPublicAddress);
         localPrivateAddress = connector.apiCall(PRIVATE_IP_QUERY);

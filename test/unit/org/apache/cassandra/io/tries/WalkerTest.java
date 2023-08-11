@@ -43,7 +43,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNull;
 
-@SuppressWarnings("unchecked")
+@SuppressWarnings({"unchecked", "RedundantSuppression"})
 public class WalkerTest extends AbstractTrieTestBase
 {
     @Test
@@ -310,5 +310,4 @@ public class WalkerTest extends AbstractTrieTestBase
         s = StringUtils.leftPad(s, size, '0');
         return source(s);
     }
-
 }

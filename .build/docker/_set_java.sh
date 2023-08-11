@@ -49,12 +49,6 @@ if [[ ! "$java_version" =~ $regx_java_version ]]; then
    exit 1
 fi
 
-# TODO – remove after CASSANDRA-18255
-if [ "$java_version" == "1.8" ]; then
-   echo "Error: Java 8 is not supported, ref CASSANDRA-18255"
-   exit 1
-fi
-
 ################################
 #
 # Main

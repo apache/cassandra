@@ -63,22 +63,22 @@ public class Ec2Snitch extends AbstractCloudMetadataServiceSnitch
 
     public Ec2Snitch(SnitchProperties props) throws IOException, ConfigurationException
     {
-        this(props, Ec2MetadataServiceConnector.create(props));
+        this(Ec2MetadataServiceConnector.create(props));
     }
 
-    Ec2Snitch(SnitchProperties props, AbstractCloudMetadataServiceConnector connector) throws IOException
+    Ec2Snitch(AbstractCloudMetadataServiceConnector connector) throws IOException
     {
-        super(connector, props, getDcAndRack(props, connector));
-        usingLegacyNaming = isUsingLegacyNaming(props);
+        super(connector, getDcAndRack(connector));
+        usingLegacyNaming = isUsingLegacyNaming(connector.getProperties());
     }
 
-    private static Pair<String, String> getDcAndRack(SnitchProperties props, AbstractCloudMetadataServiceConnector connector) throws IOException
+    private static Pair<String, String> getDcAndRack(AbstractCloudMetadataServiceConnector connector) throws IOException
     {
         String az = connector.apiCall(ZONE_NAME_QUERY);
 
         // if using the full naming scheme, region name is created by removing letters from the
         // end of the availability zone and zone is the full zone name
-        boolean usingLegacyNaming = isUsingLegacyNaming(props);
+        boolean usingLegacyNaming = isUsingLegacyNaming(connector.getProperties());
         String region;
         String localDc;
         String localRack;
@@ -101,7 +101,7 @@ public class Ec2Snitch extends AbstractCloudMetadataServiceSnitch
             localRack = az;
         }
 
-        localDc = region.concat(props.getDcSuffix());
+        localDc = region.concat(connector.getProperties().getDcSuffix());
 
         return Pair.create(localDc, localRack);
     }
