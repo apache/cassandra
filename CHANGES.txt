@@ -1,5 +1,6 @@
 5.1
 Merged from 5.0:
+ * Prevent InaccessibleObjectException when the Leak Detector is traversing objects (CASSANDRA-18708)
  * Remove legacy command line options from cassandra-stress (CASSANDRA-18529)
  * Remove commitlog_sync_batch_window_in_ms (CASSANDRA-17161)
  * Upgrade JMH from 1.21 to 1.36 (CASSANDRA-18696)
