@@ -101,7 +101,7 @@ generate.sh -p \
   -e REPEATED_LARGE_DTESTS=replace_address_test.py::TestReplaceAddress::test_replace_stopped_node \
   -e REPEATED_JVM_DTESTS=org.apache.cassandra.distributed.test.PagingTest#testPaging \
   -e REPEATED_UPGRADE_DTESTS=upgrade_tests/cql_tests.py \
-  -e REPEATED_JVM_UPGRADE_DTESTS=org.apache.cassandra.distributed.upgrade.GroupByTest
+  -e REPEATED_JVM_UPGRADE_DTESTS=org.apache.cassandra.distributed.upgrade.PagingTest
 ```
 If you need to repeat a particular set of tests and avoid automatic detection of changed tests 
 use the -s command line option.
