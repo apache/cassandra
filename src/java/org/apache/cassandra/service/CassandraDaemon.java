@@ -384,6 +384,7 @@ public class CassandraDaemon
         String metricsReporterConfigFile = METRICS_REPORTER_CONFIG_FILE.getString();
         if (metricsReporterConfigFile != null)
         {
+            logger.warn("The metrics-reporter-config was deprecated in version 5.0 and will likely be removed in a future release.");
             logger.info("Trying to load metrics-reporter-config from file: {}", metricsReporterConfigFile);
             try
             {

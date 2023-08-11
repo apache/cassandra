@@ -21,6 +21,11 @@
 # jars to the lib directory.  Nothing in this file can affect
 # jmx metrics.
 
+#
+# DEPRECATION NOTICE:
+#
+# The metrics-reporter-config was deprecated in version 5.0 and will likely
+# be removed in a future release. See CASSANDRA-18743 for more details.
 
 console:
   -

@@ -251,6 +251,8 @@ Deprecation
       The old property is still supported for backward compatibility, but now it is disabled by default.
     - CloudstackSnitch is marked as deprecated and it is not actively maintained anymore. It is scheduled to be removed 
       in the next major version of Cassandra.
+    - The metrics-reporter-config was deprecated in version 5.0 and will likely be removed in a future release.
+      See CASSANDRA-18743 for more details.
 
 4.1
 ===
