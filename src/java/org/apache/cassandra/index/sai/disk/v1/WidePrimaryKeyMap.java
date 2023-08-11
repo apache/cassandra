@@ -67,9 +67,23 @@ public class WidePrimaryKeyMap extends SkinnyPrimaryKeyMap
         public Factory(IndexDescriptor indexDescriptor, SSTableReader sstable)
         {
             super(indexDescriptor, sstable);
-
-            this.clusteringKeyBlockOffsetsFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.CLUSTERING_KEY_BLOCK_OFFSETS);
-            this.clustingingKeyBlocksFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.CLUSTERING_KEY_BLOCKS);
+            try
+            {
+                this.clusteringKeyBlockOffsetsFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.CLUSTERING_KEY_BLOCK_OFFSETS);
+            }
+            catch (Throwable t)
+            {
+                throw Throwables.unchecked(t);
+            }
+            try
+            {
+                this.clustingingKeyBlocksFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.CLUSTERING_KEY_BLOCKS);
+            }
+            catch (Throwable t)
+            {
+                FileUtils.closeQuietly(clusteringKeyBlockOffsetsFile);
+                throw Throwables.unchecked(t);
+            }
 
             try
             {
@@ -80,7 +94,7 @@ public class WidePrimaryKeyMap extends SkinnyPrimaryKeyMap
             }
             catch (Throwable t)
             {
-                throw Throwables.unchecked(Throwables.close(t, clustingingKeyBlocksFile, clusteringKeyBlockOffsetsFile));
+                throw Throwables.unchecked(t);
             }
         }
 

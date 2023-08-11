@@ -83,9 +83,33 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
         public Factory(IndexDescriptor indexDescriptor, SSTableReader sstable)
         {
             this.tokensFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.TOKEN_VALUES);
-            this.partitionsFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_SIZES);
-            this.partitionKeyBlockOffsetsFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_KEY_BLOCK_OFFSETS);
-            this.partitionKeyBlocksFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_KEY_BLOCKS);
+            try
+            {
+                this.partitionsFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_SIZES);
+            }
+            catch (Throwable t)
+            {
+                FileUtils.closeQuietly(tokensFile);
+                throw Throwables.unchecked(t);
+            }
+            try
+            {
+                this.partitionKeyBlockOffsetsFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_KEY_BLOCK_OFFSETS);
+            }
+            catch (Throwable t)
+            {
+                FileUtils.closeQuietly(Arrays.asList(tokensFile, partitionsFile));
+                throw Throwables.unchecked(t);
+            }
+            try
+            {
+                this.partitionKeyBlocksFile = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_KEY_BLOCKS);
+            }
+            catch (Throwable t)
+            {
+                FileUtils.closeQuietly(Arrays.asList(tokensFile, partitionsFile, partitionKeyBlockOffsetsFile));
+                throw Throwables.unchecked(t);
+            }
 
             try
             {
@@ -102,7 +126,7 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
             }
             catch (Throwable t)
             {
-                throw Throwables.unchecked(Throwables.close(t, Arrays.asList(tokensFile, partitionsFile, partitionKeyBlocksFile, partitionKeyBlockOffsetsFile)));
+                throw Throwables.unchecked(t);
             }
         }
 
