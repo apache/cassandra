@@ -1,5 +1,5 @@
---- config_template.yml	2023-08-10 19:58:35.000000000 -0400
-+++ config_template.yml.PAID	2023-08-10 19:58:35.000000000 -0400
+--- config_template.yml	2023-08-11 10:03:34.000000000 -0400
++++ config_template.yml.PAID	2023-08-11 10:04:30.000000000 -0400
 @@ -157,20 +157,20 @@
  j8_par_executor: &j8_par_executor
    executor:
@@ -122,7 +122,7 @@
    executor:
      name: java8-executor
 -  parallelism: 4
-+    exec_resource_class: large
++    exec_resource_class: medium
 +  parallelism: 25
  
  j11_repeated_utest_executor: &j11_repeated_utest_executor
