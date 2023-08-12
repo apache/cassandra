@@ -25,13 +25,22 @@
 # IMPLEMENTATION REQUIRED PARAMETERS:
 #-----------------------------------------------------------------------------
 # We do not provide a mechanism to transform the contents of $TEST_LIST_FILE into $TEST_SPLIT_FILE. Implementations
-# must provide that mechanism and set that environment variable or "job->run:" operations will fail, unable to find a test split.
+# must provide that mechanism and set that environment variable or "job->run_cmd:" operations will fail, unable to find a test split.
 #
-# EXPECTED FLOW ON AN AGENT:
+# REQUIRED ENV VAR FOR NORMAL TESTS:
+# TEST_SPLIT_FILE: the name of the files in which you'll be splitting out tests for parallelization
+#
+#
+# REQUIRED ENV VAR FOR REPEATED TESTS:
+# AGENT_COUNT: the count of agent executors you're running in your environment, used to constrain repeat runs to agent count
+# BASE_DIR: Path to a base checkout of Cassandra
+# BASE_BRANCH: The base branch to diff against to determine changed tests
+#
+#
+# EXPECTED FLOW ON AN AGENT DURING NORMAL TESTING:
 # 1. Populate contents of $TEST_LIST_FILE for a given job using "job->test_list_cmd:" piped through "job->TEST_FILTER:"
-# 2. Split up $TEST_LIST_FILE using "job->num_split_cmd:"
-# 3. Populate $TEST_SPLIT_FILE with a given split (CI implementation specific)
-# 3. Execute "job->run:" to run the given $TEST_SPLIT_FILE
+# 2. Populate $TEST_SPLIT_FILE with a given split (CI implementation specific)
+# 3. Execute "job->run_cmd:" to run the given $TEST_SPLIT_FILE
 
 #-----------------------------------------------------------------------------
 # SOURCES
@@ -69,7 +78,6 @@ pipelines:
       - unit
       - jvm-dtest
       - python-dtest
-      - dtest
       - dtest-large
       - dtest-upgrade
       - dtest-upgrade-large
@@ -131,10 +139,7 @@ repeat_default: &repeat_many 500
 repeat_less: &repeat_moderate 100
 repeat_tiny: &repeat_few 25
 
-# Default to at least one split
-default_split_num: &default_split_num let NUM_SPLITS=$(( $(wc -l < "$TEST_LIST_FILE") / $SPLIT_SIZE )); if [ "$NUM_SPLITS" -eq 0 ]; then NUM_SPLITS=1; fi
-
-# These env vars are required for tests to complete successfully given the run: commands, however downstream implementations
+# These env vars are required for tests to complete successfully given the run_cmd: commands, however downstream implementations
 # are welcome to change them as needed to setup their env
 default_env_vars: &default_env_vars
   ANT_HOME: /usr/share/ant
@@ -148,6 +153,7 @@ default_env_vars: &default_env_vars
   TEST_TIMEOUT: 480000
   # Whether the repeated test iterations should stop on the first failure by default.
   REPEATED_TESTS_STOP_ON_FAILURE: false
+  NUM_TOKENS: "16"
 
 # Anything specified in the required env vars SHOULD NOT BE CHANGED except for ASF CI; these are expected to have a
 # material impact on test correctness and changes to them on a downstream system will likely destabilize our reference
@@ -161,7 +167,8 @@ required_env_vars: &required_env_vars
   #Skip all syncing to disk to avoid performance issues in flaky CI environments
   CASSANDRA_SKIP_SYNC: true
   CCM_MAX_HEAP_SIZE: "1024M"
-  CCM_HEAP_NEWSIZE: "512M"
+  # TODO: 512 on ASF, 256 on circle. Using circle's here; is this good?
+  CCM_HEAP_NEWSIZE: "256"
   PYTEST_OPTS: "-vv --log-cli-level=DEBUG --junit-xml=${DIST_DIR}/test/output/nosetests.xml --junit-prefix=${DTEST_TARGET} -s"
 
 #-----------------------------------------------------------------------------
@@ -173,16 +180,37 @@ required_env_vars: &required_env_vars
 #   job: the name
 #   resources: cpu: memory: storage: max allowable for the suite.
 #   SPLIT_SIZE: This indicates how many tests to include in a given split. Can raise or lower as needed in your env.
-#   REPEAT_COUNT: Number of times to repeat a test when multiplexing. *Do not lower below upstream config default.*
 #   env:
 #     TYPE: The type of test; this should translate into tests found under ${CASSANDRA_DIR}/test/${type} in $TEST_SPLIT_FILE
 #     TEST_FILTER: filter to run after test_list_cmd to narrow down tests (splits, upgrade vs. non, etc)
 #   test_list_cmd: command to run in shell to generate full list of tests to run. By default, randomizes test list by file name
-#   num_split_cmd: Calculation that populates NUM_SPLITS based on suite, count, weighting.
-#     *If you make changes to this value, they must be >= the default value*
-#   run: command to run in shell to execute tests
+#   run_cmd: command to run in shell to execute tests
 #
 #-----------------------------------------------------------------------------
+
+# We have both a single run-through context and a "repeat" context where we multiplex jobs, for both the JDK and python context
+testrun_profiles:
+  - jvm_test_normal: &jvm_test_normal
+    test_list_cmd: find "test/${type}" -name "*Test.java" ${TEST_FILTER:-} | sed "s;^test/${type}/;;" | sort -R > ${TEST_LIST_FILE}
+    run_cmd: ant testclasslist -Dtest.classlistprefix=${type} -Dtest.timeout=${TEST_TIMEOUT} -Dtest.classlistfile=${TEST_SPLIT_FILE} ${ANT_TEST_OPTS}
+
+  - jvm_test_repeat: &jvm_test_repeat
+    test_list_cmd: ${CASSANDRA_DIR}/.build/generate_diff_test_list.sh ${BASE_DIR} ${BASE_BRANCH}
+    run_cmd: ${CASSANDRA_DIR}/.build/repeat_new_or_modified_junit.sh ${TYPE} ${REPEAT_COUNT} ${AGENT_COUNT} ${TEST_LIST_FILE}
+    env:
+      REPEAT_COUNT: *repeat_many
+
+  # For our python tests, DTEST_ARGS will swap between different run profiles
+  - python_test_normal: &python_test_normal
+    test_list_cmd: ./run_dtests.py --cassandra-dir=${CASSANDRA_DIR} ${DTEST_ARGS} --dtest-print-tests-only --dtest-print-tests-output=${TEST_LIST_FILE} 2>&1 > ${DIST_DIR}/test_stdout.txt
+    run_cmd: pytest ${PYTEST_OPTS} --cassandra-dir=${CASSANDRA_DIR} --keep-failed-test-dir ${DTEST_ARGS} ${TEST_SPLIT_FILE} 2>&1 | tee -a ${DIST_DIR}/test_stdout.txt
+
+  - python_test_repeat: &python_test_repeat
+    test_list_cmd: ${CASSANDRA_DIR}/.build/generate_diff_test_list.sh ${BASE_DIR} ${BASE_BRANCH} --python
+    run_cmd: ${CASSANDRA_DIR}/.build/repeat_python_dtests.sh ${REPEAT_COUNT} ${AGENT_COUNT} ${TEST_LIST_FILE}
+    env:
+      REPEAT_COUNT: *repeat_many
+
 
 #-----------------------------------------------------------------------------
 # Single node JVM tests
@@ -191,7 +219,6 @@ jobs:
   - &job_unit
     name: unit
     resources: *medium_executor
-    REPEAT_COUNT: *repeat_many
     SPLIT_SIZE: 20
     env:
       <<: *default_env_vars
@@ -201,9 +228,13 @@ jobs:
       TYPE: unit
       TEST_FILTER: ""
     TEST_LIST_FILE: ${DIST_DIR}/test_list.txt
-    test_list_cmd: find "test/${type}" -name "*Test.java" ${TEST_FILTER:-} | sed "s;^test/${type}/;;" | sort -R > ${TEST_LIST_FILE}
-    num_split_cmd: *default_split_num
-    run: ant testclasslist -Dtest.classlistprefix=${type} -Dtest.timeout=${TEST_TIMEOUT} -Dtest.classlistfile=${TEST_SPLIT_FILE} ${ANT_TEST_OPTS}
+    <<: *jvm_test_normal
+
+  - <<: *job_unit
+    name: unit-repeat
+    env_override:
+      TYPE: unit
+    <<: *jvm_test_repeat
 
   - <<: *job_unit
     name: test-cdc
@@ -211,9 +242,21 @@ jobs:
       TYPE: test-cdc
 
   - <<: *job_unit
+    name: test-cdc-repeat
+    env_override:
+      TYPE: test-cdc
+    <<: *jvm_test_repeat
+
+  - <<: *job_unit
     name: test-compression
     env_override:
       TYPE: test-compression
+
+  - <<: *job_unit
+    name: test-compression-repeat
+    env_override:
+      TYPE: test-compression
+    <<: *jvm_test_repeat
 
   - <<: *job_unit
     name: test-oa
@@ -221,14 +264,32 @@ jobs:
       TYPE: test-oa
 
   - <<: *job_unit
+    name: test-oa-repeat
+    env_override:
+      TYPE: test-oa
+    <<: *jvm_test_repeat
+
+  - <<: *job_unit
     name: test-system-keyspace-directory
     env_override:
+      TYPE: test-system-keyspace
+
+  - <<: *job_unit
+    name: test-system-keyspace-directory-repeat
+    env_override:
       TYPE: test-system-keyspace-directory
+    <<: *jvm_test_repeat
 
   - <<: *job_unit
     name: test-trie
     env_override:
       TYPE: test-trie
+
+  - <<: *job_unit
+    name: test-trie-repeat
+    env_override:
+      TYPE: test-trie
+    <<: *jvm_test_repeat
 
   - <<: *job_unit
     name: microbench
@@ -243,23 +304,52 @@ jobs:
       TYPE: fqltool-test
 
   - <<: *job_unit
+    name: fqltool-test-repeat
+    resources: *small_executor
+    env_override:
+      TYPE: fqltool-test
+    <<: *jvm_test_repeat
+
+  - <<: *job_unit
     name: stress-test
     resources: *small_executor
     env_override:
       TYPE: stress-test
 
   - <<: *job_unit
+    name: stress-test-repeat
+    resources: *small_executor
+    env_override:
+      TYPE: stress-test
+    <<: *jvm_test_repeat
+
+  - <<: *job_unit
     name: long-test
-    REPEAT_COUNT: *repeat_moderate
     env_override:
       TYPE: long-test
 
   - <<: *job_unit
+    name: long-test-repeat
+    env_override:
+      TYPE: long-test
+      REPEAT_COUNT: *repeat_moderate
+    <<: *jvm_test_repeat
+
+  - <<: *job_unit
     name: cqlsh-test
-    run: ./pylib/cassandra-cqlsh-tests.sh $(pwd)
+    run_cmd: ./pylib/cassandra-cqlsh-tests.sh $(pwd)
     resources: *small_executor
     env_override:
       TYPE: cqlsh-test
+
+  - <<: *job_unit
+    name: cqlsh-test-repeat
+    # TODO: Determine whether the script referenced in jvm_test_repeat correctly picks up cqlsh tests
+    run_cmd: ./pylib/cassandra-cqlsh-tests.sh $(pwd)
+    resources: *small_executor
+    env_override:
+      TYPE: cqlsh-test
+    <<: *jvm_test_repeat
 
   - <<: *job_unit
     name: test-burn
@@ -272,13 +362,23 @@ jobs:
   # JVM Multi-node tests
   #-----------------------------------------------------------------------------
   - <<: *job_unit
-    name: jvm_dtest
+    name: jvm-dtest
     resources: *large_executor
     SPLIT_SIZE: 4
     REPEAT_COUNT: *repeat_moderate
     env_override:
       TYPE: distributed
       TEST_FILTER: "| grep -v -e upgrade/ -e fuzz/"
+
+  - <<: *job_unit
+    name: jvm-dtest-repeat
+    resources: *large_executor
+    SPLIT_SIZE: 4
+    REPEAT_COUNT: *repeat_moderate
+    env_override:
+      TYPE: test-jvm
+      TEST_FILTER: "| grep -v -e upgrade/ -e fuzz/"
+    <<: *jvm_test_repeat
 
   - <<: *job_unit
     name: jvm-dtest-upgrade
@@ -289,67 +389,117 @@ jobs:
       TYPE: distributed
       TEST_FILTER: "| grep upgrade/ -e fuzz/"
 
+  - <<: *job_unit
+    name: jvm-dtest-upgrade-repeat
+    resources: *large_executor
+    SPLIT_SIZE: 2
+    REPEAT_COUNT: *repeat_few
+    env_override:
+      TYPE: distributed
+      TEST_FILTER: "| grep upgrade/ -e fuzz/"
+    <<: *jvm_test_repeat
+
 
   #-----------------------------------------------------------------------------
   # Python Dtests
   #-----------------------------------------------------------------------------
   - &python_dtest
-    name: python_dtest
+    name: python-dtest
     resources: *large_executor
-    REPEAT_COUNT: *repeat_many
     SPLIT_SIZE: 4
     env:
       <<: *default_env_vars
       <<: *required_env_vars
-      NUM_TOKENS: "16"
       DTEST_REPO: *python_dtest_url
       DTEST_BRANCH: *python_dtest_branch
       DTEST_TARGET: dtest
       # Should not be changed for a given job tag downstream
       DTEST_ARGS: "--use-vnodes --num-tokens=${NUM_TOKENS} --skip-resource-intensive-tests"
     TEST_LIST_FILE: ${DIST_DIR}/test_list.txt
-    test_list_cmd: ./run_dtests.py --cassandra-dir=${CASSANDRA_DIR} ${DTEST_ARGS} --dtest-print-tests-only --dtest-print-tests-output=${TEST_LIST_FILE} 2>&1 > ${DIST_DIR}/test_stdout.txt
-    num_split_cmd: *default_split_num
-    run: pytest ${PYTEST_OPTS} --cassandra-dir=${CASSANDRA_DIR} --keep-failed-test-dir ${DTEST_ARGS} ${TEST_SPLIT_FILE} 2>&1 | tee -a ${DIST_DIR}/test_stdout.txt
+    <<: *python_test_normal
+
+  - <<: *python_dtest
+    name: python-dtest-repeat
+    <<: *python_test_repeat
 
   - <<: *python_dtest
     name: dtest-novnode
+    &novnode_params
     env_override:
       DTEST_TARGET: "dtest-novnode"
       DTEST_ARGS: "--skip-resource-intensive-tests --keep-failed-test-dir"
 
   - <<: *python_dtest
+    name: dtest-novnode-repeat
+    <<: *novnode_params
+    <<: *python_test_repeat
+
+  - <<: *python_dtest
     name: dtest-offheap
+    &offheap_params
     env_overrides:
       DTEST_TARGET: "dtest-offheap"
       DTEST_ARGS: "--use-vnodes --num-tokens=${NUM_TOKENS} --use-off-heap-memtables --skip-resource-intensive-tests"
 
   - <<: *python_dtest
+    name: dtest-offheap-repeat
+    <<: *offheap_params
+    <<: *python_test_repeat
+
+  - <<: *python_dtest
     name: dtest-large
-    REPEAT_COUNT: *repeat_moderate
+    &large_params
     env_overrides:
       DTEST_TARGET: "dtest-large"
       DTEST_ARGS: "--use-vnodes --num-tokens=${NUM_TOKENS} --only-resource-intensive-tests --force-resource-intensive-tests"
 
   - <<: *python_dtest
-    name: dtest-large-nonode
-    REPEAT_COUNT: *repeat_moderate
+    name: dtest-large-repeat
+    <<: *large_params
+    <<: *python_test_repeat
+
+  - <<: *python_dtest
+    name: dtest-large-novnode
+    &novnode_large_params
     env_overrides:
       DTEST_TARGET: "dtest-large-novnode"
       DTEST_ARGS: "--use-vnodes --num-tokens=${NUM_TOKENS} --only-resource-intensive-tests --force-resource-intensive-tests"
 
   - <<: *python_dtest
+    name: dtest-large-novnode-repeat
+    <<: *novnode_large_params
+    env_overrides:
+      REPEAT_COUNT: *repeat_moderate
+    <<: *python_test_repeat
+
+  - <<: *python_dtest
     name: dtest-upgrade
-    REPEAT_COUNT: *repeat_few
     SPLIT_SIZE: 2
+    &upgrade_params
     env_overrides:
       DTEST_TARGET: "dtest-upgrade"
       DTEST_ARGS: "--use-vnodes --num-tokens=${NUM_TOKENS} --execute-upgrade-tests --execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all"
 
   - <<: *python_dtest
-    name: dtest-upgrade-large
-    REPEAT_COUNT: *repeat_few
+    name: dtest-upgrade-repeat
     SPLIT_SIZE: 2
+    <<: *upgrade_params
+    env_overrides:
+      REPEAT_COUNT: *repeat_few
+    <<: *python_test_repeat
+
+  - <<: *python_dtest
+    name: dtest-upgrade-large
+    SPLIT_SIZE: 2
+    &upgrade_large_params
     env_overrides:
       DTEST_TARGET: "dtest-upgrade-large"
       DTEST_ARGS: "--use-vnodes --num-tokens=${NUM_TOKENS} --execute-upgrade-tests --execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all --only-resource-intensive-tests --force-resource-intensive-tests"
+
+  - <<: *python_dtest
+    name: dtest-upgrade-large-repeat
+    SPLIT_SIZE: 2
+    <<: *upgrade_large_params
+    env_overrides:
+      REPEAT_COUNT: *repeat_few
+    <<: *python_test_repeat

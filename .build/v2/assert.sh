@@ -38,7 +38,7 @@
 ##
 #####################################################################
 
-. functions.sh
+. ci_functions.sh
 
 if command -v tput &>/dev/null && tty -s; then
     RED=$(tput setaf 1)

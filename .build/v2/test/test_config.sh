@@ -19,7 +19,7 @@
 
 . ../ci_config_parser.sh
 . ../assert.sh
-. ../functions.sh
+. ci_functions.sh
 
 # For a given job, parses things and ensures that the results match what we expect.
 _test_job_parse() {

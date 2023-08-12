@@ -17,7 +17,7 @@
 # limitations under the License.
 #
 
-. functions.sh
+. ci_functions.sh
 
 # This script relies on yq: https://github.com/mikefarah/yq
 # License: MIT: https://github.com/jmckenzie-dev/yq/blob/master/LICENSE
