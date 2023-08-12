@@ -691,6 +691,13 @@ public abstract class CQLTester
         return typeName;
     }
 
+    protected String createTypeName()
+    {
+        String typeName = String.format("type_%02d", seqNumber.getAndIncrement());
+        types.add(typeName);
+        return typeName;
+    }
+
     protected String createFunctionName(String keyspace)
     {
         return String.format("%s.function_%02d", keyspace, seqNumber.getAndIncrement());
