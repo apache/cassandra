@@ -71,11 +71,6 @@ public class CassandraResourceUtilization
     public volatile boolean shouldThrottle = false;
     public volatile double throttlingPercentageCur = 0.1;
 
-    //  Unfortunately, we cannot add test cases for !StorageService.instance.isNormal() because it is a global state, and all the JUnit test cases share the state.
-    // so this variable is mainly added for unit test purposes
-    @VisibleForTesting
-    public boolean uTestCassandraStateNormal = true;
-
     public void setup(boolean continuousHealthCheck)
     {
         resourcesStats = new ResourcesStats();
@@ -89,15 +84,10 @@ public class CassandraResourceUtilization
         }
     }
 
-    public boolean isuTestCassandraStateNormal()
-    {
-        return uTestCassandraStateNormal && StorageService.instance.isNormal();
-    }
-
     public void fetchCurrentHealth()
     {
         // make throttling decisions only when Cassandra is normal
-        if (isuTestCassandraStateNormal())
+        if (StorageService.instance.isNormal())
         {
             resourcesStats.setCpuUtil1(resourceUtilzation.getCurrentCpuUtil1());
             resourcesStats.setCpuUtil2(resourceUtilzation.getCurrentCpuUtil2());

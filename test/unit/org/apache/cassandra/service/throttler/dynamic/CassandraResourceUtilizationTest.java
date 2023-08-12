@@ -608,14 +608,27 @@ public class CassandraResourceUtilizationTest extends CQLTester
         CassandraResourceUtilization cassandraResourceUtilization = new CassandraResourceUtilization();
         Assert.assertFalse(cassandraResourceUtilization.shouldThrottle);
         cassandraResourceUtilization.setup(false);
-        cassandraResourceUtilization.uTestCassandraStateNormal = false;
+
+
+        StorageService.instance.setOperationMode(StorageService.Mode.LEAVING);
         cassandraResourceUtilization.fetchCurrentHealth();
         Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.doesNotNeedThrottling.getCount());
         Assert.assertFalse(cassandraResourceUtilization.shouldThrottle);
 
-        cassandraResourceUtilization.uTestCassandraStateNormal = true;
+        StorageService.instance.setOperationMode(StorageService.Mode.NORMAL);
         cassandraResourceUtilization.fetchCurrentHealth();
         Assert.assertEquals(1, cassandraResourceUtilization.throttlingMetrics.doesNotNeedThrottling.getCount());
+
+
+        StorageService.instance.setOperationMode(StorageService.Mode.JOINING);
+        cassandraResourceUtilization.fetchCurrentHealth();
+        Assert.assertEquals(1, cassandraResourceUtilization.throttlingMetrics.doesNotNeedThrottling.getCount());
+        Assert.assertFalse(cassandraResourceUtilization.shouldThrottle);
+
+        StorageService.instance.setOperationMode(StorageService.Mode.NORMAL);
+        cassandraResourceUtilization.fetchCurrentHealth();
+        Assert.assertEquals(2, cassandraResourceUtilization.throttlingMetrics.doesNotNeedThrottling.getCount());
+        Assert.assertFalse(cassandraResourceUtilization.shouldThrottle);
     }
 
 
