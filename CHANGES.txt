@@ -2,6 +2,7 @@
  * Fix NTS log message when an unrecognized strategy option is passed (CASSANDRA-18679)
  * Fix BulkLoader ignoring cipher suites options (CASSANDRA-18582)
  * Migrate Python optparse to argparse (CASSANDRA-17914)
+ * Fix Alter Type does not validate changes like Create Type does (CASSANDRA-18585)
 Merged from 3.11:
  * Moved jflex from runtime to build dependencies (CASSANDRA-18664)
 Merged from 3.0:
