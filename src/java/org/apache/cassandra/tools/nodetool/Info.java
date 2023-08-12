@@ -179,6 +179,7 @@ public class Info extends NodeToolCmd
         }
 
         out.printf("%-23s: %s%n", "Bootstrap state", probe.getStorageService().getBootstrapState());
+        out.printf("%-23s: %s%n", "Bootstrap failed", probe.getStorageService().isBootstrapFailed());
         out.printf("%-23s: %s%n", "Decommissioning", probe.getStorageService().isDecommissioning());
         out.printf("%-23s: %s%n", "Decommission failed", probe.getStorageService().isDecommissionFailed());
     }
