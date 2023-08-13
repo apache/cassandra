@@ -154,6 +154,12 @@ j8_small_par_executor: &j8_small_par_executor
     #exec_resource_class: xlarge
   parallelism: 1
 
+j8_small_parallel_executor: &j8_small_parallel_executor
+  executor:
+    name: java8-executor
+    #exec_resource_class: xlarge
+  parallelism: 1
+
 j8_small_executor: &j8_small_executor
   executor:
     name: java8-executor
@@ -1556,7 +1562,7 @@ jobs:
           target: "testclasslist"
 
   j8_jvm_upgrade_dtests:
-    <<: *j8_medium_par_executor
+    <<: *j8_small_parallel_executor
     steps:
       - attach_workspace:
           at: /home/cassandra
