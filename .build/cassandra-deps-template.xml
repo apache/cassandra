@@ -17,12 +17,11 @@
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <modelVersion>4.0.0</modelVersion>
   <parent>
-    <artifactId>cassandra-parent</artifactId>
     <groupId>org.apache.cassandra</groupId>
+    <artifactId>cassandra-parent</artifactId>
     <version>@version@</version>
     <relativePath>@final.name@-parent.pom</relativePath>
   </parent>
-  <groupId>org.apache.cassandra</groupId>
   <artifactId>cassandra-all</artifactId>
   <version>@version@</version>
   <name>Apache Cassandra</name>
@@ -172,12 +171,7 @@
     </dependency>
     <dependency>
       <groupId>org.bouncycastle</groupId>
-      <artifactId>bcpkix-jdk15on</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>io.netty</groupId>
-      <artifactId>netty-bom</artifactId>
-      <type>pom</type>
+      <artifactId>bcpkix-jdk18on</artifactId>
     </dependency>
     <dependency>
       <groupId>io.netty</groupId>
@@ -191,6 +185,15 @@
       <groupId>io.netty</groupId>
       <artifactId>netty-transport-native-epoll</artifactId>
       <classifier>linux-x86_64</classifier>
+    </dependency>
+    <dependency>
+      <groupId>io.netty</groupId>
+      <artifactId>netty-transport-native-epoll</artifactId>
+      <classifier>linux-aarch_64</classifier>
+    </dependency>
+    <dependency>
+      <groupId>io.netty</groupId>
+      <artifactId>netty-tcnative-boringssl-static</artifactId>
     </dependency>
 
     <!-- chronicle queue, and fixed transitive dependencies -->
@@ -320,10 +323,6 @@
     <dependency>
       <groupId>org.psjava</groupId>
       <artifactId>psjava</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>io.netty</groupId>
-      <artifactId>netty-tcnative-boringssl-static</artifactId>
     </dependency>
     <dependency>
       <groupId>javax.inject</groupId>
