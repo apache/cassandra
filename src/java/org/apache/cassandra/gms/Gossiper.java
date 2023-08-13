@@ -67,6 +67,8 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.metrics.GossipMetrics;
+import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
@@ -201,6 +203,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      */
     private volatile boolean upgradeInProgressPossible = true;
 
+    private long lastGossipAndServiceCacheCheckedAt;
+    public Map<InetAddressAndPort, Long> gossipAndServiceCacheMismatchOccurredTracker = new HashMap<>();
+
     public void clearUnsafe()
     {
         unreachableEndpoints.clear();
@@ -323,6 +328,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 final List<GossipDigest> gDigests = new ArrayList<>();
 
                 Gossiper.instance.makeGossipDigest(gDigests);
+                Gossiper.instance.gossipAndServicecacheMismatchDetectionAndResolution();
 
                 if (gDigests.size() > 0)
                 {
@@ -2671,5 +2677,74 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         GossipDigestAck2 digestAck2Message = new GossipDigestAck2(Collections.singletonMap(getBroadcastAddressAndPort(), epState));
         Message<GossipDigestAck2> message = Message.out(Verb.GOSSIP_DIGEST_ACK2, digestAck2Message);
         MessagingService.instance().send(message, ep);
+    }
+
+    /**
+     * Checks the Gossip and service cache Token ownership. Optionally, in case of a mismatch, it will fix the inconsistencies.
+     */
+    void gossipAndServicecacheMismatchDetectionAndResolution()
+    {
+        if (DatabaseDescriptor.getCompareGossipAndStorageServiceCache() &&
+            TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis() - lastGossipAndServiceCacheCheckedAt) >= DatabaseDescriptor.getGossipAndStorageServiceCacheComparisonIntervalInSec())
+        {
+            lastGossipAndServiceCacheCheckedAt = System.currentTimeMillis();
+            try
+            {
+                // local epstate will be part of endpointStateMap
+                List<InetAddressAndPort> endpoints = new ArrayList<>(endpointStateMap.keySet());
+                int matchingEndpoints = 0;
+                int nonMatchingEndpoints = 0;
+                int nonNormalEndpoints = 0;
+                for (InetAddressAndPort endpoint : endpoints)
+                {
+                    EndpointState ep = endpointStateMap.get(endpoint);
+                    // check the status only for NORMAL nodes
+                    if (ep.isNormalState())
+                    {
+                        Collection<Token> tokensFromStorageServiceCache = StorageService.instance.getTokenMetadata().getTokens(endpoint);
+                        Collection<Token> tokensFromGossipCache = StorageService.instance.getTokensFor(endpoint);
+                        List<Token> c1 = new ArrayList<>(tokensFromStorageServiceCache);
+                        List<Token> c2 = new ArrayList<>(tokensFromGossipCache);
+                        Collections.sort(c1);
+                        Collections.sort(c2);
+                        if (!c1.equals(c2))
+                        {
+                            nonMatchingEndpoints++;
+                            GossipMetrics.gossipAndStorageServiceCacheMismatch.inc();
+                            gossipAndServiceCacheMismatchOccurredTracker.put(endpoint, gossipAndServiceCacheMismatchOccurredTracker.getOrDefault(endpoint, 0L) + 1);
+                            logger.warn("Gossip and storage service cache token mismatch for endpoint {}. tokensFromStorageServiceCache: {}, tokensFromGossipCache: {}",
+                                        endpoint, tokensFromStorageServiceCache, tokensFromGossipCache);
+                            if (DatabaseDescriptor.shouldFixGossipAndStorageServiceCacheMismatch() && gossipAndServiceCacheMismatchOccurredTracker.get(endpoint) >= DatabaseDescriptor.gossipAndStorageServiceCacheMismatchConvictionThreshold())
+                            {
+                                GossipMetrics.gossipAndStorageServiceCacheRepair.inc();
+                                // use the Gossip's token cache as the source of truth and override the Storage service cache
+                                StorageService.instance.updateTokenMetadata(endpoint, tokensFromGossipCache);
+                                logger.warn("Repair Gossip and storage service cache due to token mismatch for endpoint {}. tokensFromStorageServiceCache: {}, tokensFromGossipCache: {}",
+                                            endpoint, tokensFromStorageServiceCache, tokensFromGossipCache);
+                            }
+                        }
+                        else
+                        {
+                            matchingEndpoints++;
+                            gossipAndServiceCacheMismatchOccurredTracker.put(endpoint, 0L);
+                        }
+                    }
+                    else
+                    {
+                        nonNormalEndpoints++;
+                    }
+                }
+                if (nonNormalEndpoints > 0)
+                {
+                    logger.debug("Compared the storage service and gossip caches. Found matchingEndpoints: {}, nonMatchingEndpoints: {}, nonNormalEndpoints: {}", matchingEndpoints, nonMatchingEndpoints, nonNormalEndpoints);
+                }
+            }
+            catch(Throwable e)
+            {
+                // do not throw an exception intentionally, as this function behaves as an add-on
+                GossipMetrics.gossipAndStorageServiceCacheError.inc();
+                logger.error("Error while comparing the Gossip and Storage Service caches {}", e);
+            }
+        }
     }
 }
