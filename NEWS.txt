@@ -66,6 +66,19 @@ restore snapshots created with the previous major version using the
 using the provided 'sstableupgrade' tool.
 
 
+5.1
+===
+
+New features
+------------
+
+Upgrading
+---------
+
+Deprecation
+-----------
+
+
 5.0
 ===
 

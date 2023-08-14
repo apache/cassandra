@@ -45,7 +45,9 @@ public class MixedModeWritetimeOrTTLTest extends UpgradeTestBase
         new TestCase()
         .nodes(2)
         .nodesToUpgradeOrdered(1, 2)
-        .upgradesToCurrentFrom(v30)
+        // all upgrades from v40 to current, excluding v50 -> v51
+        .singleUpgradeToCurrentFrom(v40)
+        .singleUpgradeToCurrentFrom(v41)
         .setup(cluster -> {
 
             ICoordinator coordinator = cluster.coordinator(1);

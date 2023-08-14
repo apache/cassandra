@@ -74,16 +74,31 @@ _timeout_for() {
 }
 
 _build_all_dtest_jars() {
-    pushd $TMP_DIR >/dev/null
-    rm -fR ${TMP_DIR}/cassandra-dtest-jars
-    until git clone --quiet --depth 1 --no-single-branch https://github.com/apache/cassandra.git cassandra-dtest-jars ; do echo "git clone failed… trying again… " ; done
+
+    # build the dtest-jar for the branch under test. remember to `ant clean` if you want a new dtest jar built
+    dtest_jar_version=$(grep 'property\s*name=\"base.version\"' build.xml |sed -ne 's/.*value=\"\([^"]*\)\".*/\1/p')
+    if [ -f "${DIST_DIR}/dtest-${dtest_jar_version}.jar" ] ; then
+        echo "Skipping dtest jar build for branch under test as ${DIST_DIR}/dtest-${dtest_jar_version}.jar already exists"
+    else
+        ant jar dtest-jar ${ANT_TEST_OPTS} -Dbuild.dir=${TMP_DIR}/cassandra-dtest-jars/build
+        cp "${TMP_DIR}/cassandra-dtest-jars/build/dtest-${dtest_jar_version}.jar" ${DIST_DIR}/
+    fi
+
+    if [ -d ${TMP_DIR}/cassandra-dtest-jars ] && [ "https://github.com/apache/cassandra.git" == "$(git -C ${TMP_DIR}/cassandra-dtest-jars remote get-url origin)" ] ; then
+        until git -C ${TMP_DIR}/cassandra-dtest-jars fetch --quiet origin ; do echo "git pull failed… trying again… " ; done
+    else
+        rm -fR ${TMP_DIR}/cassandra-dtest-jars
+        pushd $TMP_DIR >/dev/null
+        until git clone --quiet --depth 1 --no-single-branch https://github.com/apache/cassandra.git cassandra-dtest-jars ; do echo "git clone failed… trying again… " ; done
+        popd >/dev/null
+    fi
 
     # cassandra-4 branches need CASSANDRA_USE_JDK11 to allow jdk11
     [ "${java_version}" -eq 11 ] && export CASSANDRA_USE_JDK11=true
 
     pushd ${TMP_DIR}/cassandra-dtest-jars >/dev/null
-    for branch in cassandra-4.0 cassandra-4.1 trunk ; do
-        git checkout $branch
+    for branch in cassandra-4.0 cassandra-4.1 cassandra-5.0 trunk ; do
+        git checkout --quiet $branch
         dtest_jar_version=$(grep 'property\s*name=\"base.version\"' build.xml |sed -ne 's/.*value=\"\([^"]*\)\".*/\1/p')
         if [ -f "${DIST_DIR}/dtest-${dtest_jar_version}.jar" ] ; then
             echo "Skipping dtest jar build for branch ${branch} as ${DIST_DIR}/dtest-${dtest_jar_version}.jar already exists"
@@ -94,7 +109,6 @@ _build_all_dtest_jars() {
         ant jar dtest-jar ${ANT_TEST_OPTS} -Dbuild.dir=${TMP_DIR}/cassandra-dtest-jars/build
         cp "${TMP_DIR}/cassandra-dtest-jars/build/dtest-${dtest_jar_version}.jar" ${DIST_DIR}/
     done
-    popd >/dev/null
     popd >/dev/null
     ls -l ${DIST_DIR}/dtest*.jar
     unset CASSANDRA_USE_JDK11
