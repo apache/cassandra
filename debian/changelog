@@ -1,8 +1,8 @@
-cassandra (5.0) UNRELEASED; urgency=medium
+cassandra (5.0~alpha1) UNRELEASED; urgency=medium
 
   * New release
 
- -- Mick Semb Wever <mck@apache.org>  Wed, 21 Apr 2021 19:24:28 +0200
+ -- Mick Semb Wever <mck@apache.org>  Mon, 14 Aug 2023 19:24:28 +0200
 
 cassandra (4.0~rc1) unstable; urgency=medium
 
