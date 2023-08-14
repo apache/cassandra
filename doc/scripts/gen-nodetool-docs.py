@@ -34,7 +34,7 @@ if(os.environ.get("SKIP_NODETOOL") == "1"):
 
 
 nodetool = "../bin/nodetool"
-outdir = "modules/cassandra/pages/tools/nodetool"
+outdir = "modules/cassandra/pages/managing/tools/nodetool"
 examplesdir = "modules/cassandra/examples/TEXT/NODETOOL"
 helpfilename = outdir + "/nodetool.txt"
 command_re = re.compile("(    )([_a-z]+)")
