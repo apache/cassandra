@@ -7,7 +7,7 @@ Cassandra].
 
 [source,shell]
 ----
-include::example$BASH/nodetool_status.sh[]
+include::cassandra:example$BASH/nodetool_status.sh[]
 ----
 
 The status column in the output should report `UN` which stands for
@@ -17,5 +17,5 @@ Alternatively, connect to the database with:
 
 [source,shell]
 ----
-include::example$BASH/run_cqlsh.sh[]
+include::cassandra:example$BASH/run_cqlsh.sh[]
 ----

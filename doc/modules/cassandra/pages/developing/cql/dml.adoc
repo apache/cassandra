@@ -10,14 +10,14 @@ Querying data from data is done using a `SELECT` statement:
 
 [source,bnf]
 ----
-include::example$BNF/select_statement.bnf[]
+include::cassandra:example$BNF/select_statement.bnf[]
 ----
 
 For example:
 
 [source,cql]
 ----
-include::example$CQL/select_statement.cql[]
+include::cassandra:example$CQL/select_statement.cql[]
 ----
 
 The `SELECT` statements reads one or more columns for one or more rows
@@ -66,7 +66,7 @@ that of the alias. For instance:
 
 [source,cql]
 ----
-include::example$CQL/as.cql[]
+include::cassandra:example$CQL/as.cql[]
 ----
 
 [NOTE]
@@ -109,14 +109,14 @@ For instance, given:
 
 [source,cql]
 ----
-include::example$CQL/table_for_where.cql[]
+include::cassandra:example$CQL/table_for_where.cql[]
 ----
 
 The following query is allowed:
 
 [source,cql]
 ----
-include::example$CQL/where.cql[]
+include::cassandra:example$CQL/where.cql[]
 ----
 
 But the following one is not, as it does not select a contiguous set of
@@ -124,7 +124,7 @@ rows (and we suppose no secondary indexes are set):
 
 [source,cql]
 ----
-include::example$CQL/where_fail.cql[]
+include::cassandra:example$CQL/where_fail.cql[]
 ----
 
 When specifying relationships, the `TOKEN` function can be applied to the `PARTITION KEY` column to query. 
@@ -142,7 +142,7 @@ For example:
 
 [source,cql]
 ----
-include::example$CQL/token.cql[]
+include::cassandra:example$CQL/token.cql[]
 ----
 
 The `IN` relationship is only allowed on the last column of the
@@ -155,7 +155,7 @@ For example:
 
 [source,cql]
 ----
-include::example$CQL/where_group_cluster_columns.cql[]
+include::cassandra:example$CQL/where_group_cluster_columns.cql[]
 ----
 
 This query will return all rows that sort after the one having “John's Blog” as
@@ -167,14 +167,14 @@ That would not be the case for this example:
 
 [source,cql]
 ----
-include::example$CQL/where_no_group_cluster_columns.cql[]
+include::cassandra:example$CQL/where_no_group_cluster_columns.cql[]
 ----
 
 The tuple notation may also be used for `IN` clauses on clustering columns:
 
 [source,cql]
 ----
-include::example$CQL/where_in_tuple.cql[]
+include::cassandra:example$CQL/where_in_tuple.cql[]
 ----
 
 The `CONTAINS` operator may only be used for collection columns (lists,
@@ -231,14 +231,14 @@ The birth year has a secondary index defined.
 
 [source,cql]
 ----
-include::example$CQL/allow_filtering.cql[]
+include::cassandra:example$CQL/allow_filtering.cql[]
 ----
 
 The following queries are valid:
 
 [source,cql]
 ----
-include::example$CQL/query_allow_filtering.cql[]
+include::cassandra:example$CQL/query_allow_filtering.cql[]
 ----
 
 In both cases, the query performance is proportional to the amount of data returned. 
@@ -252,7 +252,7 @@ The following query will be rejected:
 
 [source,cql]
 ----
-include::example$CQL/query_fail_allow_filtering.cql[]
+include::cassandra:example$CQL/query_fail_allow_filtering.cql[]
 ----
 
 Cassandra cannot guarantee that large amounts of data won't have to scanned amount of data, even if the result is small. 
@@ -261,7 +261,7 @@ execute:
 
 [source,cql]
 ----
-include::example$CQL/query_nofail_allow_filtering.cql[]
+include::cassandra:example$CQL/query_nofail_allow_filtering.cql[]
 ----
 
 [[insert-statement]]
@@ -271,14 +271,14 @@ Inserting data for a row is done using an `INSERT` statement:
 
 [source,bnf]
 ----
-include::example$BNF/insert_statement.bnf[]
+include::cassandra:example$BNF/insert_statement.bnf[]
 ----
 
 For example:
 
 [source,cql]
 ----
-include::example$CQL/insert_statement.cql[]
+include::cassandra:example$CQL/insert_statement.cql[]
 ----
 
 The `INSERT` statement writes one or more columns for a given row in a
@@ -307,14 +307,14 @@ Updating a row is done using an `UPDATE` statement:
 
 [source, bnf]
 ----
-include::example$BNF/update_statement.bnf[]
+include::cassandra:example$BNF/update_statement.bnf[]
 ----
 
 For instance:
 
 [source,cql]
 ----
-include::example$CQL/update_statement.cql[]
+include::cassandra:example$CQL/update_statement.cql[]
 ----
 
 The `UPDATE` statement writes one or more columns for a given row in a
@@ -369,14 +369,14 @@ Deleting rows or parts of rows uses the `DELETE` statement:
 
 [source,bnf]
 ----
-include::example$BNF/delete_statement.bnf[]
+include::cassandra:example$BNF/delete_statement.bnf[]
 ----
 
 For example:
 
 [source,cql]
 ----
-include::example$CQL/delete_statement.cql[]
+include::cassandra:example$CQL/delete_statement.cql[]
 ----
 
 The `DELETE` statement deletes columns and rows. If column names are
@@ -407,14 +407,14 @@ statement by grouping them through a `BATCH` statement:
 
 [source, bnf]
 ----
-include::example$BNF/batch_statement.bnf[]
+include::cassandra:example$BNF/batch_statement.bnf[]
 ----
 
 For instance:
 
 [source,cql]
 ----
-include::example$CQL/batch_statement.cql[]
+include::cassandra:example$CQL/batch_statement.cql[]
 ----
 
 The `BATCH` statement group multiple modification statements

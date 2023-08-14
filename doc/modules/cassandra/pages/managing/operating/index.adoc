@@ -1,4 +1,4 @@
-== Operating Cassandra
+= Operating Cassandra
 
 * xref:operating/hardware.adoc[Hardware]
 * xref:operating/security.adoc[Security]

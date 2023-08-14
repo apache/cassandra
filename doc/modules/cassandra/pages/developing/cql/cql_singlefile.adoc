@@ -122,7 +122,7 @@ CQL support. Terms are defined by:
 
 [source, bnf]
 ----
-include::example$BNF/term.bnf[]
+include::cassandra:example$BNF/term.bnf[]
 ----
 
 A term is thus one of:
@@ -3051,7 +3051,7 @@ You can define, insert and update a vector with:
 
 [source,cql]
 ----
-include::example$CQL/vector.cql[]
+include::cassandra:example$CQL/vector.cql[]
 ----
 
 Note that it isn't possible to change the individual values of a vector, and it isn't possible to select individual

@@ -38,7 +38,7 @@ outdir = "modules/cassandra/pages/tools/nodetool"
 examplesdir = "modules/cassandra/examples/TEXT/NODETOOL"
 helpfilename = outdir + "/nodetool.txt"
 command_re = re.compile("(    )([_a-z]+)")
-commandADOCContent = "== {0}\n\n== Usage\n[source,plaintext]\n----\ninclude::example$TEXT/NODETOOL/{0}.txt[]\n----\n"
+commandADOCContent = "== {0}\n\n== Usage\n[source,plaintext]\n----\ninclude::cassandra:example$TEXT/NODETOOL/{0}.txt[]\n----\n"
 
 # https://docs.python.org/3/library/itertools.html#itertools-recipes
 def batched(iterable, n):

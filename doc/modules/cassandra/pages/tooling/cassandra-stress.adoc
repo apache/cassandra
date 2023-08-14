@@ -251,7 +251,7 @@ the table will be truncated once before the test.
 The full example can be found here:
 [source, yaml]
 ----
-include::example$YAML/stress-example.yaml[]
+include::cassandra:example$YAML/stress-example.yaml[]
 ---- 
 
 Running a user mode test with multiple yaml files::::
@@ -285,7 +285,7 @@ queries:
 The full example can be found here:
 [source, yaml]
 ----
-include::example$YAML/stress-lwt-example.yaml[]
+include::cassandra:example$YAML/stress-lwt-example.yaml[]
 ----
 
 == Graphing

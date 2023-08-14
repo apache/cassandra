@@ -73,7 +73,7 @@ will install the binaries and configuration files as the `cassandra` OS user.
 
 [source, shell]
 ----
-include::example$BASH/docker_pull.sh[]
+include::cassandra:example$BASH/docker_pull.sh[]
 ----
 
 This `docker pull` command will get the latest version of the 'Docker Official'
@@ -84,7 +84,7 @@ Apache Cassandra image available from the https://hub.docker.com/_/cassandra[Doc
 
 [source, shell]
 ----
-include::example$BASH/docker_run.sh[]
+include::cassandra:example$BASH/docker_run.sh[]
 ----
 
 The `--name` option will be the name of the Cassandra cluster created.
@@ -94,11 +94,11 @@ The `--name` option will be the name of the Cassandra cluster created.
 
 [source, shell]
 ----
-include::example$BASH/docker_cqlsh.sh[]
+include::cassandra:example$BASH/docker_cqlsh.sh[]
 ----
 == Installing the binary tarball
 
-include::partial$java_version.adoc[]
+include::cassandra:partial$java_version.adoc[]
 
 [arabic, start=2]
 . Download the binary tarball from one of the mirrors on the
@@ -107,7 +107,7 @@ For example, to download Cassandra {40_version}:
 
 [source,shell]
 ----
-include::example$BASH/curl_install.sh[]
+include::cassandra:example$BASH/curl_install.sh[]
 ----
 
 NOTE: The mirrors only host the latest versions of each major supported
@@ -126,7 +126,7 @@ Command::
 --
 [source,shell]
 ----
-include::example$BASH/verify_gpg.sh[]
+include::cassandra:example$BASH/verify_gpg.sh[]
 ----
 --
 
@@ -135,7 +135,7 @@ Result::
 --
 [source,plaintext]
 ----
-include::example$RESULTS/verify_gpg.result[]
+include::cassandra:example$RESULTS/verify_gpg.result[]
 ----
 --
 ====
@@ -149,7 +149,7 @@ Command::
 --
 [source,shell]
 ----
-include::example$BASH/curl_verify_sha.sh[]
+include::cassandra:example$BASH/curl_verify_sha.sh[]
 ----
 --
 
@@ -168,7 +168,7 @@ Result::
 
 [source,shell]
 ----
-include::example$BASH/tarball.sh[]
+include::cassandra:example$BASH/tarball.sh[]
 ----
 
 The files will be extracted to the `apache-cassandra-4.0.0/` directory.
@@ -180,7 +180,7 @@ the scripts, binaries, utilities, configuration, data and log files:
 
 [source,plaintext]
 ----
-include::example$TEXT/tarball_install_dirs.txt[]
+include::cassandra:example$TEXT/tarball_install_dirs.txt[]
 ----
 <1> location of the commands to run cassandra, cqlsh, nodetool, and SSTable tools
 <2> location of cassandra.yaml and other configuration files
@@ -197,12 +197,12 @@ Cassandra].
 
 [source,shell]
 ----
-include::example$BASH/start_tarball.sh[]
+include::cassandra:example$BASH/start_tarball.sh[]
 ----
 
 NOTE: This will run Cassandra as the authenticated Linux user.
 
-include::partial$tail_syslog.adoc[]
+include::cassandra:partial$tail_syslog.adoc[]
 You can monitor the progress of the startup with:
 
 [{tabs}]
@@ -212,7 +212,7 @@ Command::
 --
 [source,shell]
 ----
-include::example$BASH/tail_syslog.sh[]
+include::cassandra:example$BASH/tail_syslog.sh[]
 ----
 --
 
@@ -223,25 +223,25 @@ Cassandra is ready when you see an entry like this in the `system.log`:
 
 [source,plaintext]
 ----
-include::example$RESULTS/tail_syslog.result[]
+include::cassandra:example$RESULTS/tail_syslog.result[]
 ----
 --
 ====
 
-include::partial$nodetool_and_cqlsh.adoc[]
+include::cassandra:partial$nodetool_and_cqlsh.adoc[]
 
 == Installing the Debian packages
 
-include::partial$java_version.adoc[]
+include::cassandra:partial$java_version.adoc[]
 
 [arabic, start=2]
 . Add the Apache repository of Cassandra to the file
 `cassandra.sources.list`. 
-include::partial$package_versions.adoc[]
+include::cassandra:partial$package_versions.adoc[]
 
 [source,shell]
 ----
-include::example$BASH/get_deb_package.sh[]
+include::cassandra:example$BASH/get_deb_package.sh[]
 ----
 
 [arabic, start=3]
@@ -255,7 +255,7 @@ Command::
 --
 [source,shell]
 ----
-include::example$BASH/add_repo_keys.sh[]
+include::cassandra:example$BASH/add_repo_keys.sh[]
 ----
 --
 
@@ -264,7 +264,7 @@ Result::
 --
 [source,plaintext]
 ----
-include::example$RESULTS/add_repo_keys.result[]
+include::cassandra:example$RESULTS/add_repo_keys.result[]
 ----
 --
 ====
@@ -274,7 +274,7 @@ include::example$RESULTS/add_repo_keys.result[]
 
 [source,shell]
 ----
-include::example$BASH/apt-get_update.sh[]
+include::cassandra:example$BASH/apt-get_update.sh[]
 ----
 
 [arabic, start=5]
@@ -282,29 +282,29 @@ include::example$BASH/apt-get_update.sh[]
 
 [source,shell]
 ----
-include::example$BASH/apt-get_cass.sh[]
+include::cassandra:example$BASH/apt-get_cass.sh[]
 ----
 
 NOTE: For information on how to configure your installation, see
 {cass_url}doc/latest/getting-started/configuring.html[Configuring
 Cassandra].
 
-include::partial$tail_syslog.adoc[]
+include::cassandra:partial$tail_syslog.adoc[]
 
-include::partial$nodetool_and_cqlsh_nobin.adoc[]
+include::cassandra:partial$nodetool_and_cqlsh_nobin.adoc[]
 
 == Installing the RPM packages
 
-include::partial$java_version.adoc[]
+include::cassandra:partial$java_version.adoc[]
 
 [arabic, start=2]
 . Add the Apache repository of Cassandra to the file
 `/etc/yum.repos.d/cassandra.repo` (as the `root` user).
-include::partial$package_versions.adoc[]
+include::cassandra:partial$package_versions.adoc[]
  
 [source,plaintext]
 ----
-include::example$RESULTS/add_yum_repo.result[]
+include::cassandra:example$RESULTS/add_yum_repo.result[]
 ----
 
 [arabic, start=3]
@@ -312,7 +312,7 @@ include::example$RESULTS/add_yum_repo.result[]
 
 [source,shell]
 ----
-include::example$BASH/yum_update.sh[]
+include::cassandra:example$BASH/yum_update.sh[]
 ----
 
 [arabic, start=4]
@@ -320,7 +320,7 @@ include::example$BASH/yum_update.sh[]
 
 [source,shell]
 ----
-include::example$BASH/yum_cass.sh[]
+include::cassandra:example$BASH/yum_cass.sh[]
 ----
 
 NOTE: A new Linux user `cassandra` will get created as part of the
@@ -331,12 +331,12 @@ installation. The Cassandra service will also be run as this user.
 
 [source,shell]
 ----
-include::example$BASH/yum_start.sh[]
+include::cassandra:example$BASH/yum_start.sh[]
 ----
 
-include::partial$tail_syslog.adoc[]
+include::cassandra:partial$tail_syslog.adoc[]
 
-include::partial$nodetool_and_cqlsh_nobin.adoc[]
+include::cassandra:partial$nodetool_and_cqlsh_nobin.adoc[]
 
 == Further installation info
 

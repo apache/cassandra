@@ -73,7 +73,7 @@ More formally, we have:
 
 [source, bnf]
 ----
-include::example$BNF/identifier.bnf[]
+include::cassandra:example$BNF/identifier.bnf[]
 ----
 
 [[constants]]
@@ -83,7 +83,7 @@ CQL defines the following _constants_:
 
 [source, bnf]
 ----
-include::example$BNF/constant.bnf[]
+include::cassandra:example$BNF/constant.bnf[]
 ----
 
 In other words:
@@ -115,7 +115,7 @@ CQL support. Terms are defined by:
 
 [source, bnf]
 ----
-include::example$BNF/term.bnf[]
+include::cassandra:example$BNF/term.bnf[]
 ----
 
 A term is thus one of:
@@ -171,7 +171,7 @@ this documentation (see links above):
 
 [source, bnf]
 ----
-include::example$BNF/cql_statement.bnf[]
+include::cassandra:example$BNF/cql_statement.bnf[]
 ----
 
 == Prepared Statements

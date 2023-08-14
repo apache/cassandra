@@ -1,0 +1,8 @@
+== Create vector schema
+
+. Select the keyspace you want to use for your Vector Search table. This example uses `cycling` as the `keyspace name`:
++
+[source,cql]
+----
+include::cassandra:example$CQL/vector-search/use-keyspace-cycling.cql[]
+----

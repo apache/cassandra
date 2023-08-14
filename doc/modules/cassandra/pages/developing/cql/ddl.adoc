@@ -19,7 +19,7 @@ grammar:
 
 [source,bnf]
 ----
-include::example$BNF/ks_table.bnf[]
+include::cassandra:example$BNF/ks_table.bnf[]
 ----
 
 Both keyspace and table name should be comprised of only alphanumeric
@@ -39,7 +39,7 @@ Further, the valid names for columns are defined as:
 
 [source,bnf]
 ----
-include::example$BNF/column.bnf[]
+include::cassandra:example$BNF/column.bnf[]
 ----
 
 We also define the notion of statement options for use in the following
@@ -47,7 +47,7 @@ section:
 
 [source,bnf]
 ----
-include::example$BNF/options.bnf[]
+include::cassandra:example$BNF/options.bnf[]
 ----
 
 [[create-keyspace-statement]]
@@ -57,14 +57,14 @@ A keyspace is created with a `CREATE KEYSPACE` statement:
 
 [source,bnf]
 ----
-include::example$BNF/create_ks.bnf[]
+include::cassandra:example$BNF/create_ks.bnf[]
 ----
 
 For example:
 
 [source,cql]
 ----
-include::example$CQL/create_ks.cql[]
+include::cassandra:example$CQL/create_ks.cql[]
 ----
 
 Attempting to create a keyspace that already exists will return an error
@@ -132,36 +132,36 @@ An example of auto-expanding datacenters with two datacenters: `DC1` and
 
 [source,cql]
 ----
-include::example$CQL/autoexpand_ks.cql[]
+include::cassandra:example$CQL/autoexpand_ks.cql[]
 ----
 will result in:
 [source,plaintext]
 ----
-include::example$RESULTS/autoexpand_ks.result[]
+include::cassandra:example$RESULTS/autoexpand_ks.result[]
 ----
 
 An example of auto-expanding and overriding a datacenter:
 
 [source,cql]
 ----
-include::example$CQL/autoexpand_ks_override.cql[]
+include::cassandra:example$CQL/autoexpand_ks_override.cql[]
 ----
 will result in:
 [source,plaintext]
 ----
-include::example$RESULTS/autoexpand_ks_override.result[]
+include::cassandra:example$RESULTS/autoexpand_ks_override.result[]
 ----
 
 An example that excludes a datacenter while using `replication_factor`:
 
 [source,cql]
 ----
-include::example$CQL/autoexpand_exclude_dc.cql[]
+include::cassandra:example$CQL/autoexpand_exclude_dc.cql[]
 ----
 will result in:
 [source,plaintext]
 ----
-include::example$RESULTS/autoexpand_exclude_dc.result[]
+include::cassandra:example$RESULTS/autoexpand_exclude_dc.result[]
 ----
 
 If xref:new/transientreplication.adoc[transient replication] has been enabled, transient replicas can be
@@ -174,7 +174,7 @@ transient, and 5 replicas in DC2, 2 of which are transient:
 
 [source,cql]
 ----
-include::example$CQL/create_ks_trans_repl.cql[]
+include::cassandra:example$CQL/create_ks_trans_repl.cql[]
 ----
 
 [[use-statement]]
@@ -188,12 +188,12 @@ A `USE` statement specifies the keyspace to use as an argument:
 
 [source,bnf]
 ----
-include::example$BNF/use_ks.bnf[]
+include::cassandra:example$BNF/use_ks.bnf[]
 ----
 Using CQL:
 [source,cql]
 ----
-include::example$CQL/use_ks.cql[]
+include::cassandra:example$CQL/use_ks.cql[]
 ----
 
 [[alter-keyspace-statement]]
@@ -203,14 +203,14 @@ An `ALTER KEYSPACE` statement modifies the options of a keyspace:
 
 [source,bnf]
 ----
-include::example$BNF/alter_ks.bnf[]
+include::cassandra:example$BNF/alter_ks.bnf[]
 ----
 
 For example:
 
 [source,cql]
 ----
-include::example$CQL/alter_ks.cql[]
+include::cassandra:example$CQL/alter_ks.cql[]
 ----
 If the keyspace does not exist, the statement will return an error, unless `IF EXISTS` is used in which case the operation is a no-op.
 The supported options are the same as for xref:cql/ddl.adoc#create-keyspace-statement[creating a keyspace].
@@ -222,14 +222,14 @@ Dropping a keyspace is done with the `DROP KEYSPACE` statement:
 
 [source,bnf]
 ----
-include::example$BNF/drop_ks.bnf[]
+include::cassandra:example$BNF/drop_ks.bnf[]
 ----
 
 For example:
 
 [source,cql]
 ----
-include::example$CQL/drop_ks.cql[]
+include::cassandra:example$CQL/drop_ks.cql[]
 ----
 
 Dropping a keyspace results in the immediate, irreversible removal of
@@ -246,14 +246,14 @@ Creating a new table uses the `CREATE TABLE` statement:
 
 [source,bnf]
 ----
-include::example$BNF/create_table.bnf[]
+include::cassandra:example$BNF/create_table.bnf[]
 ----
 
 For example, here are some CQL statements to create tables:
 
 [source,cql]
 ----
-include::example$CQL/create_table.cql[]
+include::cassandra:example$CQL/create_table.cql[]
 ----
 
 A CQL table has a name and is composed of a set of _rows_. 
@@ -294,9 +294,9 @@ Code::
 -- 
 [source,cql]
 ----
-include::example$CQL/create_static_column.cql[]
-include::example$CQL/insert_static_data.cql[]
-include::example$CQL/select_static_data.cql[]
+include::cassandra:example$CQL/create_static_column.cql[]
+include::cassandra:example$CQL/insert_static_data.cql[]
+include::cassandra:example$CQL/select_static_data.cql[]
 ----
 --
 
@@ -305,7 +305,7 @@ Results::
 --
 [source,cql]
 ----
-include::example$RESULTS/select_static_data.result[]
+include::cassandra:example$RESULTS/select_static_data.result[]
 ----
 --
 ====
@@ -344,7 +344,7 @@ A table must have at least one partition key, the smallest possible table defini
 +
 [source,cql]
 ----
-include::example$CQL/create_table_single_pk.cql[]
+include::cassandra:example$CQL/create_table_single_pk.cql[]
 ----
 xref:cql/ddl.adoc#clustering-columns[clustering columns]::
 * The columns are the columns that follow the partition key in the primary key definition.
@@ -377,15 +377,15 @@ So, for instance, given the following table definition and content:
 
 [source,cql]
 ----
-include::example$CQL/create_table_compound_pk.cql[]
-include::example$CQL/insert_table_compound_pk.cql[]
-include::example$CQL/select_table_compound_pk.cql[]
+include::cassandra:example$CQL/create_table_compound_pk.cql[]
+include::cassandra:example$CQL/insert_table_compound_pk.cql[]
+include::cassandra:example$CQL/select_table_compound_pk.cql[]
 ----
 
 will result in
 [source,cql]
 ----
-include::example$RESULTS/select_table_compound_pk.result[]
+include::cassandra:example$RESULTS/select_table_compound_pk.result[]
 ----
 <1> Rows 1 and 2 are in the same partition, because both columns `a` and `b` are zero.
 <2> Rows 3 and 4 are in the same partition, but a different one, because column `a` is zero and column `b` is 1 in both rows.
@@ -421,15 +421,15 @@ For instance, given:
 
 [source,cql]
 ----
-include::example$CQL/create_table_clustercolumn.cql[]
-include::example$CQL/insert_table_clustercolumn.cql[]
-include::example$CQL/select_table_clustercolumn.cql[]
+include::cassandra:example$CQL/create_table_clustercolumn.cql[]
+include::cassandra:example$CQL/insert_table_clustercolumn.cql[]
+include::cassandra:example$CQL/select_table_clustercolumn.cql[]
 ----
 
 will result in
 [source,cql]
 ----
-include::example$RESULTS/select_table_clustercolumn.result[]
+include::cassandra:example$RESULTS/select_table_clustercolumn.result[]
 ----
 <1> Row 1 is in one partition, and Rows 2-5 are in a different one. The display order is also different.
 
@@ -442,13 +442,13 @@ That sorting allows the very efficient retrieval of a range of rows within a par
 
 [source,cql]
 ----
-include::example$CQL/select_range.cql[]
+include::cassandra:example$CQL/select_range.cql[]
 ----
 
 will result in
 [source,cql]
 ----
-include::example$RESULTS/select_range.result[]
+include::cassandra:example$RESULTS/select_range.result[]
 ----
 
 [[create-table-options]]
@@ -540,14 +540,14 @@ An example of setting speculative retry sets a custom value:
 
 [source,cql]
 ----
-include::example$CQL/alter_table_spec_retry.cql[]
+include::cassandra:example$CQL/alter_table_spec_retry.cql[]
 ----
 
 This example uses a percentile for the setting:
 
 [source,cql]
 ----
-include::example$CQL/alter_table_spec_retry_percent.cql[]
+include::cassandra:example$CQL/alter_table_spec_retry_percent.cql[]
 ----
 
 A percentile setting can backfire. If a single host becomes unavailable, it can
@@ -588,7 +588,7 @@ To illustrate variations, the following examples are all valid:
 
 [source,cql]
 ----
-include::example$CQL/spec_retry_values.cql[]
+include::cassandra:example$CQL/spec_retry_values.cql[]
 ----
 
 The `additional_write_policy` setting specifies the threshold at which a cheap
@@ -655,7 +655,7 @@ For instance, to create a table with LZ4Compressor and a `chunk_length_in_kb` of
 
 [source,cql]
 ----
-include::example$CQL/chunk_length.cql[]
+include::cassandra:example$CQL/chunk_length.cql[]
 ----
 
 [[cql-caching-options]]
@@ -680,7 +680,7 @@ For instance, to create a table with both a key cache and 10 rows cached per par
 
 [source,cql]
 ----
-include::example$CQL/caching_option.cql[]
+include::cassandra:example$CQL/caching_option.cql[]
 ----
 
 [[read-repair-options]]
@@ -726,7 +726,7 @@ Altering an existing table uses the `ALTER TABLE` statement:
 
 [source,bnf]
 ----
-include::example$BNF/alter_table.bnf[]
+include::cassandra:example$BNF/alter_table.bnf[]
 ----
 If the table does not exist, the statement will return an error, unless `IF EXISTS` is used in which case the operation is a no-op.
 
@@ -734,8 +734,8 @@ For example:
 
 [source,cql]
 ----
-include::example$CQL/alter_table_add_column.cql[]
-include::example$CQL/alter_table_with_comment.cql[]
+include::cassandra:example$CQL/alter_table_add_column.cql[]
+include::cassandra:example$CQL/alter_table_with_comment.cql[]
 ----
 
 The `ALTER TABLE` statement can:
@@ -780,7 +780,7 @@ Dropping a table uses the `DROP TABLE` statement:
 
 [source,bnf]
 ----
-include::example$BNF/drop_table.bnf[]
+include::cassandra:example$BNF/drop_table.bnf[]
 ----
 
 Dropping a table results in the immediate, irreversible removal of the
@@ -796,7 +796,7 @@ A table can be truncated using the `TRUNCATE` statement:
 
 [source,bnf]
 ----
-include::example$BNF/truncate_table.bnf[]
+include::cassandra:example$BNF/truncate_table.bnf[]
 ----
 
 `TRUNCATE TABLE foo` is the preferred syntax for consistency with other DDL
