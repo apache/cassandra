@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.index.sai.disk.v1.sortedterms;
+package org.apache.cassandra.index.sai.disk.v1.keystore;
 
 import java.io.IOException;
 
@@ -24,14 +24,14 @@ import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IndexOutput;
 
 /**
- * Metadata produced by {@link SortedTermsWriter}, needed by {@link SortedTermsReader}.
+ * Metadata produced by {@link KeyStoreWriter}, needed by {@link KeyLookup}.
  */
-public class SortedTermsMeta
+public class KeyLookupMeta
 {
     public final long termCount;
     public final int maxTermLength;
 
-    public SortedTermsMeta(DataInput input) throws IOException
+    public KeyLookupMeta(DataInput input) throws IOException
     {
         this.termCount = input.readLong();
         this.maxTermLength = input.readInt();

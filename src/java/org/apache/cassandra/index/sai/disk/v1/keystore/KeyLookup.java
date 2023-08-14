@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.index.sai.disk.v1.sortedterms;
+package org.apache.cassandra.index.sai.disk.v1.keystore;
 
 import java.io.IOException;
 import javax.annotation.Nonnull;
@@ -38,7 +38,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 
 /**
- * Provides read access to an on-disk sequence of terms written by {@link SortedTermsWriter}.
+ * Provides read access to an on-disk sequence of terms written by {@link KeyStoreWriter}.
  * <p>
  * Allows constant-time look up of the term at a given point id.
  * <p>
@@ -53,16 +53,16 @@ import org.apache.lucene.util.BytesRefBuilder;
  * <p>
  * For documentation of the underlying on-disk data structures, see the package documentation.
  *
- * @see SortedTermsWriter
- * @see org.apache.cassandra.index.sai.disk.v1.sortedterms
+ * @see KeyStoreWriter
+ * @see org.apache.cassandra.index.sai.disk.v1.keystore
  */
 @NotThreadSafe
-public class SortedTermsReader
+public class KeyLookup
 {
     public static final String INDEX_OUT_OF_BOUNDS = "The target point id [%d] cannot be less than 0 or greater than or equal to the term count [%d]";
 
     private final FileHandle termsData;
-    private final SortedTermsMeta meta;
+    private final KeyLookupMeta meta;
     private final LongArray.Factory blockOffsetsFactory;
 
     /**
@@ -75,10 +75,10 @@ public class SortedTermsReader
      * @param meta metadata object created earlier by the writer
      * @param blockOffsetsMeta metadata object for the block offsets
      */
-    public SortedTermsReader(@Nonnull FileHandle termsDataFileHandle,
-                             @Nonnull FileHandle termsDataBlockOffsets,
-                             @Nonnull SortedTermsMeta meta,
-                             @Nonnull NumericValuesMeta blockOffsetsMeta) throws IOException
+    public KeyLookup(@Nonnull FileHandle termsDataFileHandle,
+                     @Nonnull FileHandle termsDataBlockOffsets,
+                     @Nonnull KeyLookupMeta meta,
+                     @Nonnull NumericValuesMeta blockOffsetsMeta) throws IOException
     {
         this.termsData = termsDataFileHandle;
         this.meta = meta;

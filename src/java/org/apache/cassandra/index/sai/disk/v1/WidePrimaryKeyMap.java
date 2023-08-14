@@ -26,8 +26,8 @@ import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.bitpack.NumericValuesMeta;
-import org.apache.cassandra.index.sai.disk.v1.sortedterms.SortedTermsMeta;
-import org.apache.cassandra.index.sai.disk.v1.sortedterms.SortedTermsReader;
+import org.apache.cassandra.index.sai.disk.v1.keystore.KeyLookupMeta;
+import org.apache.cassandra.index.sai.disk.v1.keystore.KeyLookup;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileHandle;
@@ -47,7 +47,7 @@ import java.util.Arrays;
  * This used the following additional on-disk structures to the {@link SkinnyPrimaryKeyMap}
  * <ul>
  *     <li>A sorted terms structure for rowId to {@link Clustering} and {@link Clustering} to rowId lookups using
- *     {@link SortedTermsReader}. Uses the {@link IndexComponent#CLUSTERING_KEY_BLOCKS} and
+ *     {@link KeyLookup}. Uses the {@link IndexComponent#CLUSTERING_KEY_BLOCKS} and
  *     {@link IndexComponent#CLUSTERING_KEY_BLOCK_OFFSETS} components</li>
  * </ul>
  * While the {@link Factory} is threadsafe, individual instances of the {@link WidePrimaryKeyMap}
@@ -60,7 +60,7 @@ public class WidePrimaryKeyMap extends SkinnyPrimaryKeyMap
     public static class Factory extends SkinnyPrimaryKeyMap.Factory
     {
         private final ClusteringComparator clusteringComparator;
-        private final SortedTermsReader clusteringKeyReader;
+        private final KeyLookup clusteringKeyReader;
         private final FileHandle clusteringKeyBlockOffsetsFile;
         private final FileHandle clustingingKeyBlocksFile;
 
@@ -75,8 +75,8 @@ public class WidePrimaryKeyMap extends SkinnyPrimaryKeyMap
             {
                 this.clusteringComparator = indexDescriptor.clusteringComparator;
                 NumericValuesMeta clusteringKeyBlockOffsetsMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.CLUSTERING_KEY_BLOCK_OFFSETS)));
-                SortedTermsMeta clusteringKeyMeta = new SortedTermsMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.CLUSTERING_KEY_BLOCKS)));
-                this.clusteringKeyReader = new SortedTermsReader(clustingingKeyBlocksFile, clusteringKeyBlockOffsetsFile, clusteringKeyMeta, clusteringKeyBlockOffsetsMeta);
+                KeyLookupMeta clusteringKeyMeta = new KeyLookupMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.CLUSTERING_KEY_BLOCKS)));
+                this.clusteringKeyReader = new KeyLookup(clustingingKeyBlocksFile, clusteringKeyBlockOffsetsFile, clusteringKeyMeta, clusteringKeyBlockOffsetsMeta);
             }
             catch (Throwable t)
             {
@@ -109,12 +109,12 @@ public class WidePrimaryKeyMap extends SkinnyPrimaryKeyMap
     }
 
     private final ClusteringComparator clusteringComparator;
-    private final SortedTermsReader.Cursor clusteringKeyCursor;
+    private final KeyLookup.Cursor clusteringKeyCursor;
 
     private WidePrimaryKeyMap(LongArray tokenArray,
                               LongArray partitionArray,
-                              SortedTermsReader.Cursor partitionKeyCursor,
-                              SortedTermsReader.Cursor clusteringKeyCursor,
+                              KeyLookup.Cursor partitionKeyCursor,
+                              KeyLookup.Cursor clusteringKeyCursor,
                               IPartitioner partitioner,
                               PrimaryKey.Factory primaryKeyFactory,
                               ClusteringComparator clusteringComparator)

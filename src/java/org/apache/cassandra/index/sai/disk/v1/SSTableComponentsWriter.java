@@ -30,7 +30,7 @@ import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
 import org.apache.cassandra.index.sai.disk.v1.bitpack.NumericValuesWriter;
-import org.apache.cassandra.index.sai.disk.v1.sortedterms.SortedTermsWriter;
+import org.apache.cassandra.index.sai.disk.v1.keystore.KeyStoreWriter;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.bytecomparable.ByteSource;
@@ -43,8 +43,8 @@ public class SSTableComponentsWriter implements PerSSTableIndexWriter
     private final MetadataWriter metadataWriter;
     private final NumericValuesWriter partitionSizeWriter;
     private final NumericValuesWriter tokenWriter;
-    private final SortedTermsWriter partitionKeysWriter;
-    private final SortedTermsWriter clusteringKeysWriter;
+    private final KeyStoreWriter partitionKeysWriter;
+    private final KeyStoreWriter clusteringKeysWriter;
 
     private long partitionId = -1;
 
@@ -57,22 +57,22 @@ public class SSTableComponentsWriter implements PerSSTableIndexWriter
         this.partitionSizeWriter = new NumericValuesWriter(indexDescriptor, IndexComponent.PARTITION_SIZES, metadataWriter, true);
         IndexOutputWriter partitionKeyBlocksWriter = indexDescriptor.openPerSSTableOutput(IndexComponent.PARTITION_KEY_BLOCKS);
         NumericValuesWriter partitionKeyBlockOffsetWriter = new NumericValuesWriter(indexDescriptor, IndexComponent.PARTITION_KEY_BLOCK_OFFSETS, metadataWriter, true);
-        this.partitionKeysWriter = new SortedTermsWriter(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCKS),
-                                                         metadataWriter,
-                                                         partitionKeyBlocksWriter,
-                                                         partitionKeyBlockOffsetWriter,
-                                                         CassandraRelevantProperties.SAI_SORTED_TERMS_PARTITION_BLOCK_SHIFT.getInt(),
-                                                         false);
+        this.partitionKeysWriter = new KeyStoreWriter(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCKS),
+                                                      metadataWriter,
+                                                      partitionKeyBlocksWriter,
+                                                      partitionKeyBlockOffsetWriter,
+                                                      CassandraRelevantProperties.SAI_SORTED_TERMS_PARTITION_BLOCK_SHIFT.getInt(),
+                                                      false);
         if (indexDescriptor.hasClustering())
         {
             IndexOutputWriter clusteringKeyBlocksWriter = indexDescriptor.openPerSSTableOutput(IndexComponent.CLUSTERING_KEY_BLOCKS);
             NumericValuesWriter clusteringKeyBlockOffsetWriter = new NumericValuesWriter(indexDescriptor, IndexComponent.CLUSTERING_KEY_BLOCK_OFFSETS, metadataWriter, true);
-            this.clusteringKeysWriter = new SortedTermsWriter(indexDescriptor.componentName(IndexComponent.CLUSTERING_KEY_BLOCKS),
-                                                              metadataWriter,
-                                                              clusteringKeyBlocksWriter,
-                                                              clusteringKeyBlockOffsetWriter,
-                                                              CassandraRelevantProperties.SAI_SORTED_TERMS_CLUSTERING_BLOCK_SHIFT.getInt(),
-                                                              true);
+            this.clusteringKeysWriter = new KeyStoreWriter(indexDescriptor.componentName(IndexComponent.CLUSTERING_KEY_BLOCKS),
+                                                           metadataWriter,
+                                                           clusteringKeyBlocksWriter,
+                                                           clusteringKeyBlockOffsetWriter,
+                                                           CassandraRelevantProperties.SAI_SORTED_TERMS_CLUSTERING_BLOCK_SHIFT.getInt(),
+                                                           true);
         }
         else
         {

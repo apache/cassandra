@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.index.sai.disk.v1.sortedterms;
+package org.apache.cassandra.index.sai.disk.v1.keystore;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -85,12 +85,12 @@ public class SortedTermsTest extends SAIRandomizedTester
         {
             IndexOutputWriter bytesWriter = indexDescriptor.openPerSSTableOutput(IndexComponent.PARTITION_KEY_BLOCKS);
             NumericValuesWriter blockFPWriter = new NumericValuesWriter(indexDescriptor, IndexComponent.PARTITION_KEY_BLOCK_OFFSETS, metadataWriter, true);
-            try (SortedTermsWriter writer = new SortedTermsWriter(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCKS),
-                                                                  metadataWriter,
-                                                                  bytesWriter,
-                                                                  blockFPWriter,
-                                                                  4,
-                                                                  false))
+            try (KeyStoreWriter writer = new KeyStoreWriter(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCKS),
+                                                            metadataWriter,
+                                                            bytesWriter,
+                                                            blockFPWriter,
+                                                            4,
+                                                            false))
             {
                 primaryKeys.forEach(primaryKey -> {
                     try
@@ -222,11 +222,11 @@ public class SortedTermsTest extends SAIRandomizedTester
 
         withSortedTermsCursor(cursor -> {
             assertThatThrownBy(() -> cursor.seekForwardToPointId(-2)).isInstanceOf(IndexOutOfBoundsException.class)
-                                                                     .hasMessage(String.format(SortedTermsReader.INDEX_OUT_OF_BOUNDS, -2, 4000));
+                                                                     .hasMessage(String.format(KeyLookup.INDEX_OUT_OF_BOUNDS, -2, 4000));
             assertThatThrownBy(() -> cursor.seekForwardToPointId(Long.MAX_VALUE)).isInstanceOf(IndexOutOfBoundsException.class)
-                                                                                 .hasMessage(String.format(SortedTermsReader.INDEX_OUT_OF_BOUNDS, Long.MAX_VALUE, 4000));
+                                                                                 .hasMessage(String.format(KeyLookup.INDEX_OUT_OF_BOUNDS, Long.MAX_VALUE, 4000));
             assertThatThrownBy(() -> cursor.seekForwardToPointId(4000)).isInstanceOf(IndexOutOfBoundsException.class)
-                                                                       .hasMessage(String.format(SortedTermsReader.INDEX_OUT_OF_BOUNDS, 4000, 4000));
+                                                                       .hasMessage(String.format(KeyLookup.INDEX_OUT_OF_BOUNDS, 4000, 4000));
         });
     }
 
@@ -348,18 +348,18 @@ public class SortedTermsTest extends SAIRandomizedTester
         });
     }
 
-    protected void writeTerms(ThrowingConsumer<SortedTermsWriter> testCode, boolean partitioned) throws IOException
+    protected void writeTerms(ThrowingConsumer<KeyStoreWriter> testCode, boolean partitioned) throws IOException
     {
         try (MetadataWriter metadataWriter = new MetadataWriter(indexDescriptor.openPerSSTableOutput(IndexComponent.GROUP_META)))
         {
             IndexOutputWriter bytesWriter = indexDescriptor.openPerSSTableOutput(IndexComponent.PARTITION_KEY_BLOCKS);
             NumericValuesWriter blockFPWriter = new NumericValuesWriter(indexDescriptor, IndexComponent.PARTITION_KEY_BLOCK_OFFSETS, metadataWriter, true);
-            try (SortedTermsWriter writer = new SortedTermsWriter(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCKS),
-                                                                  metadataWriter,
-                                                                  bytesWriter,
-                                                                  blockFPWriter,
-                                                                  4,
-                                                                  partitioned))
+            try (KeyStoreWriter writer = new KeyStoreWriter(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCKS),
+                                                            metadataWriter,
+                                                            bytesWriter,
+                                                            blockFPWriter,
+                                                            4,
+                                                            partitioned))
             {
                 testCode.accept(writer);
             }
@@ -372,23 +372,23 @@ public class SortedTermsTest extends SAIRandomizedTester
         void accept(T t) throws IOException;
     }
 
-    private void withSortedTermsReader(ThrowingConsumer<SortedTermsReader> testCode) throws IOException
+    private void withSortedTermsReader(ThrowingConsumer<KeyLookup> testCode) throws IOException
     {
         MetadataSource metadataSource = MetadataSource.loadGroupMetadata(indexDescriptor);
         NumericValuesMeta blockPointersMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCK_OFFSETS)));
-        SortedTermsMeta sortedTermsMeta = new SortedTermsMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCKS)));
+        KeyLookupMeta sortedTermsMeta = new KeyLookupMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCKS)));
         try (FileHandle termsData = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_KEY_BLOCKS, null);
              FileHandle blockOffsets = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_KEY_BLOCK_OFFSETS, null))
         {
-            SortedTermsReader reader = new SortedTermsReader(termsData, blockOffsets, sortedTermsMeta, blockPointersMeta);
+            KeyLookup reader = new KeyLookup(termsData, blockOffsets, sortedTermsMeta, blockPointersMeta);
             testCode.accept(reader);
         }
     }
 
-    private void withSortedTermsCursor(ThrowingConsumer<SortedTermsReader.Cursor> testCode) throws IOException
+    private void withSortedTermsCursor(ThrowingConsumer<KeyLookup.Cursor> testCode) throws IOException
     {
         withSortedTermsReader(reader -> {
-            try (SortedTermsReader.Cursor cursor = reader.openCursor())
+            try (KeyLookup.Cursor cursor = reader.openCursor())
             {
                 testCode.accept(cursor);
             }

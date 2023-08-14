@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.index.sai.disk.v1.sortedterms;
+package org.apache.cassandra.index.sai.disk.v1.keystore;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -36,7 +36,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.StringHelper;
 
 /**
- * Writes a sequence of terms for use with {@link SortedTermsReader}.
+ * Writes a sequence of terms for use with {@link KeyLookup}.
  * <p>
  * Terms can be written in two distinct way
  * <ul>
@@ -59,11 +59,11 @@ import org.apache.lucene.util.StringHelper;
  * The blocks should not be too large because we can't just randomly jump to the term inside the block,
  * but we have to iterate through all the terms from the start of the block.
  *
- * @see SortedTermsReader
- * @see org.apache.cassandra.index.sai.disk.v1.sortedterms
+ * @see KeyLookup
+ * @see org.apache.cassandra.index.sai.disk.v1.keystore
  */
 @NotThreadSafe
-public class SortedTermsWriter implements Closeable
+public class KeyStoreWriter implements Closeable
 {
     private final int blockShift;
     private final int blockMask;
@@ -88,19 +88,19 @@ public class SortedTermsWriter implements Closeable
      * It does not own the components, so you must close the components by yourself
      * after you're done with the writer.
      *
-     * @param componentName the component name for the {@link SortedTermsMeta}
-     * @param metadataWriter the {@link MetadataWriter} for storing the {@link SortedTermsMeta}
+     * @param componentName the component name for the {@link KeyLookupMeta}
+     * @param metadataWriter the {@link MetadataWriter} for storing the {@link KeyLookupMeta}
      * @param termsOutput where to write the prefix-compressed terms data
      * @param termsDataBlockOffsets  where to write the offsets of each block of terms data
      * @param blockShift the block shift that is used to determine the block size
      * @param partitioned determines whether the terms will be written as ordered partitions
      */
-    public SortedTermsWriter(String componentName,
-                             MetadataWriter metadataWriter,
-                             IndexOutput termsOutput,
-                             NumericValuesWriter termsDataBlockOffsets,
-                             int blockShift,
-                             boolean partitioned) throws IOException
+    public KeyStoreWriter(String componentName,
+                          MetadataWriter metadataWriter,
+                          IndexOutput termsOutput,
+                          NumericValuesWriter termsDataBlockOffsets,
+                          int blockShift,
+                          boolean partitioned) throws IOException
     {
         this.componentName = componentName;
         this.metadataWriter = metadataWriter;
@@ -203,7 +203,7 @@ public class SortedTermsWriter implements Closeable
         try (IndexOutput output = metadataWriter.builder(componentName))
         {
             SAICodecUtils.writeFooter(termsOutput);
-            SortedTermsMeta.write(output, pointId, maxTermLength);
+            KeyLookupMeta.write(output, pointId, maxTermLength);
         }
         finally
         {

@@ -28,8 +28,8 @@ import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.bitpack.BlockPackedReader;
 import org.apache.cassandra.index.sai.disk.v1.bitpack.MonotonicBlockPackedReader;
 import org.apache.cassandra.index.sai.disk.v1.bitpack.NumericValuesMeta;
-import org.apache.cassandra.index.sai.disk.v1.sortedterms.SortedTermsMeta;
-import org.apache.cassandra.index.sai.disk.v1.sortedterms.SortedTermsReader;
+import org.apache.cassandra.index.sai.disk.v1.keystore.KeyLookupMeta;
+import org.apache.cassandra.index.sai.disk.v1.keystore.KeyLookup;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileHandle;
@@ -46,7 +46,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 /**
- * A row-aware {@link PrimaryKeyMap} for skinny tables (those with no clustering columns).
+ * A {@link PrimaryKeyMap} for skinny tables (those with no clustering columns).
  * <p>
  * This uses the following on-disk structures:
  * <ul>
@@ -55,7 +55,7 @@ import java.util.Arrays;
  *     <li>A monotonic block packed structure for rowId to partitionId lookups using {@link MonotonicBlockPackedReader}.
  *     Uses the {@link IndexComponent#PARTITION_SIZES} component</li>
  *     <li>A sorted terms structure for rowId to {@link PrimaryKey} and {@link PrimaryKey} to rowId lookups using
- *     {@link SortedTermsReader}. Uses the {@link IndexComponent#PARTITION_KEY_BLOCKS} and
+ *     {@link KeyLookup}. Uses the {@link IndexComponent#PARTITION_KEY_BLOCKS} and
  *     {@link IndexComponent#PARTITION_KEY_BLOCK_OFFSETS} components</li>
  * </ul>
  *
@@ -71,7 +71,7 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
         protected final MetadataSource metadataSource;
         protected final LongArray.Factory tokenReaderFactory;
         protected final LongArray.Factory partitionReaderFactory;
-        protected final SortedTermsReader partitionKeyReader;
+        protected final KeyLookup partitionKeyReader;
         protected final IPartitioner partitioner;
         protected final PrimaryKey.Factory primaryKeyFactory;
 
@@ -94,8 +94,8 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
                 NumericValuesMeta partitionsMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_SIZES)));
                 this.partitionReaderFactory = new MonotonicBlockPackedReader(partitionsFile, partitionsMeta);
                 NumericValuesMeta partitionKeyBlockOffsetsMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCK_OFFSETS)));
-                SortedTermsMeta partitionKeysMeta = new SortedTermsMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCKS)));
-                this.partitionKeyReader = new SortedTermsReader(partitionKeyBlocksFile, partitionKeyBlockOffsetsFile, partitionKeysMeta, partitionKeyBlockOffsetsMeta);
+                KeyLookupMeta partitionKeysMeta = new KeyLookupMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCKS)));
+                this.partitionKeyReader = new KeyLookup(partitionKeyBlocksFile, partitionKeyBlockOffsetsFile, partitionKeysMeta, partitionKeyBlockOffsetsMeta);
                 this.partitioner = sstable.metadata().partitioner;
                 this.primaryKeyFactory = indexDescriptor.primaryKeyFactory;
             }
@@ -127,14 +127,14 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
 
     protected final LongArray tokenArray;
     protected final LongArray partitionArray;
-    protected final SortedTermsReader.Cursor partitionKeyCursor;
+    protected final KeyLookup.Cursor partitionKeyCursor;
     protected final IPartitioner partitioner;
     protected final PrimaryKey.Factory primaryKeyFactory;
     protected final ByteBuffer tokenBuffer = ByteBuffer.allocate(Long.BYTES);
 
     protected SkinnyPrimaryKeyMap(LongArray tokenArray,
                                   LongArray partitionArray,
-                                  SortedTermsReader.Cursor partitionKeyCursor,
+                                  KeyLookup.Cursor partitionKeyCursor,
                                   IPartitioner partitioner,
                                   PrimaryKey.Factory primaryKeyFactory)
     {
