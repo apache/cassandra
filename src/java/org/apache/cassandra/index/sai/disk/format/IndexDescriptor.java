@@ -273,18 +273,7 @@ public class IndexDescriptor
         }
         catch (Throwable t)
         {
-            if (cleanup != null)
-            {
-                try
-                {
-                    cleanup.perform();
-                }
-                catch (Exception e)
-                {
-                    throw Throwables.unchecked(Throwables.merge(t, e));
-                }
-            }
-            throw t;
+            throw handleFileHandleCleanup(t, cleanup);
         }
     }
 
@@ -304,19 +293,24 @@ public class IndexDescriptor
         }
         catch (Throwable t)
         {
-            if (cleanup != null)
-            {
-                try
-                {
-                    cleanup.perform();
-                }
-                catch (Exception e)
-                {
-                    throw Throwables.unchecked(Throwables.merge(t, e));
-                }
-            }
-            throw t;
+            throw handleFileHandleCleanup(t, cleanup);
         }
+    }
+
+    private RuntimeException handleFileHandleCleanup(Throwable t, Throwables.DiscreteAction<?> cleanup)
+    {
+        if (cleanup != null)
+        {
+            try
+            {
+                cleanup.perform();
+            }
+            catch (Exception e)
+            {
+                return Throwables.unchecked(Throwables.merge(t, e));
+            }
+        }
+        return Throwables.unchecked(t);
     }
 
     public Set<Component> getLivePerSSTableComponents()
