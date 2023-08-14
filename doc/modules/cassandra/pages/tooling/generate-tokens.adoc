@@ -1,4 +1,4 @@
-== Generate tokens
+= Generate tokens
 
 Pre-generates tokens for a datacenter with the given number of nodes using the token allocation algorithm.
 Useful in edge-cases when generated tokens needs to be known in advance of bootstrapping nodes. 
