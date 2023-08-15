@@ -8,6 +8,7 @@
  * Add keyspace and table name to exception message during ColumnSubselection deserialization (CASSANDRA-18346)
  * Remove unnecessary String.format invocation in QueryProcessor when getting a prepared statement from cache (CASSANDRA-17202)
 Merged from 3.0:
+ * Fix Requires for Java for RPM package (CASSANDRA-18751)
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
  * Upgrade OWASP to 8.3.1 (CASSANDRA-18650)
