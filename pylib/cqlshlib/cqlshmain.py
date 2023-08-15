@@ -14,12 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
+import base64
 import cmd
 import codecs
 import configparser
 import csv
 import getpass
-import argparse
+import importlib
 import os
 import re
 import subprocess
@@ -2230,12 +2232,9 @@ def setup_docspath(path):
         # fallback to package file
         CASSANDRA_CQL_HTML = 'file:///usr/share/doc/cassandra/CQL.html'
     elif sys.version_info >= (3, 7):
-        import base64
-        import importlib
         with importlib.resources.open_text('doc', 'cql.html') as file:
             help_contents = base64.b64encode(file.read().encode()).decode()
-            url = "data:text/html;base64," + str(help_contents)
-        webbrowser.open(url)
+            CASSANDRA_CQL_HTML = "data:text/html;base64," + str(help_contents)
     else:
         # fallback to online version
         CASSANDRA_CQL_HTML = CASSANDRA_CQL_HTML_FALLBACK
