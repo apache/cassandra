@@ -187,6 +187,8 @@ public abstract class AsyncOperation<R> extends AsyncChains.Head<R> implements R
                 case INITIALIZED:
                     break; // nothing to clean up, call callback
             }
+            if (commandStore.hasSafeStore())
+                commandStore.agent().onUncaughtException(new IllegalStateException(String.format("Failure to cleanup safe store for %s; status=%s", this, state), throwable));
         }
         catch (Throwable cleanup)
         {

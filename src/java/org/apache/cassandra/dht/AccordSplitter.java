@@ -56,7 +56,7 @@ public abstract class AccordSplitter implements ShardDistributor.EvenSplit.Split
 
         String keyspace = startBound.keyspace();
         return new TokenRange(startOffset.equals(ZERO) ? startBound : new TokenKey(keyspace, tokenForValue(start.add(startOffset))),
-                              endOffset.equals(sizeOfRange) ? endBound : new TokenKey(keyspace, tokenForValue(start.add(endOffset))));
+                              endOffset.compareTo(sizeOfRange) >= 0 ? endBound : new TokenKey(keyspace, tokenForValue(start.add(endOffset))));
     }
 
     @Override
@@ -64,6 +64,13 @@ public abstract class AccordSplitter implements ShardDistributor.EvenSplit.Split
     {
         return ZERO;
     }
+
+    @Override
+    public BigInteger valueOf(int v)
+    {
+        return BigInteger.valueOf(v);
+    }
+
 
     @Override
     public BigInteger add(BigInteger a, BigInteger b)
@@ -82,6 +89,13 @@ public abstract class AccordSplitter implements ShardDistributor.EvenSplit.Split
     {
         return a.divide(BigInteger.valueOf(i));
     }
+
+    @Override
+    public BigInteger divide(BigInteger a, BigInteger i)
+    {
+        return a.divide(i);
+    }
+
 
     @Override
     public BigInteger multiply(BigInteger a, int i)

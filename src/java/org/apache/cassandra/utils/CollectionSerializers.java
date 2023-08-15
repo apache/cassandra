@@ -39,7 +39,6 @@ import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 
 public class CollectionSerializers
 {
-
     public static <V> void serializeCollection(Collection<V> values, DataOutputPlus out, int version, IVersionedSerializer<V> valueSerializer) throws IOException
     {
         out.writeUnsignedVInt32(values.size());
@@ -150,5 +149,29 @@ public class CollectionSerializers
         while (size-- > 0)
             result.add(serializer.deserialize(in, version));
         return result;
+    }
+
+    public static <V> IVersionedSerializer<List<V>> newListSerializer(IVersionedSerializer<V> itemSerializer)
+    {
+        return new IVersionedSerializer<List<V>>()
+        {
+            @Override
+            public void serialize(List<V> list, DataOutputPlus out, int version) throws IOException
+            {
+                serializeList(list, out, version, itemSerializer);
+            }
+
+            @Override
+            public List<V> deserialize(DataInputPlus in, int version) throws IOException
+            {
+                return deserializeList(in, version, itemSerializer);
+            }
+
+            @Override
+            public long serializedSize(List<V> t, int version)
+            {
+                return serializedListSize(t, version, itemSerializer);
+            }
+        };
     }
 }

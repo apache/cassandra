@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.test.accord;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -30,6 +31,7 @@ import org.junit.Test;
 import accord.local.CommandStore;
 import accord.local.PreLoadContext;
 import accord.primitives.Timestamp;
+import accord.topology.TopologyManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -165,7 +167,6 @@ public class AccordBootstrapTest extends TestBaseImpl
     @Test
     public void bootstrapTest() throws Throwable
     {
-
         int originalNodeCount = 2;
         int expandedNodeCount = originalNodeCount + 1;
 
@@ -173,7 +174,7 @@ public class AccordBootstrapTest extends TestBaseImpl
                                       .withoutVNodes()
                                       .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(expandedNodeCount))
                                       .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
-                                      .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                      .withConfig(config -> config.set("accord_shard_count", 2).with(NETWORK, GOSSIP))
                                       .start())
         {
             long initialMax = maxEpoch(cluster);
@@ -271,15 +272,37 @@ public class AccordBootstrapTest extends TestBaseImpl
 
                     awaitUninterruptiblyAndRethrow(service().node().commandStores().forEach(safeStore -> {
                         CommandStore commandStore = safeStore.commandStore();
-                        Assert.assertEquals(0, commandStore.maxBootstrapEpoch());
                         Assert.assertEquals(Timestamp.NONE, getOnlyElement(commandStore.bootstrapBeganAt().keySet()));
                         Assert.assertEquals(Timestamp.NONE, getOnlyElement(commandStore.safeToRead().keySet()));
+//
+//                        Assert.assertTrue(commandStore.maxBootstrapEpoch() > 0);
+//                        Assert.assertTrue(commandStore.bootstrapBeganAt().isEmpty());
+//                        Assert.assertTrue(commandStore.safeToRead().isEmpty());
                     }));
                 });
             }
 
             cluster.get(3).runOnInstance(() -> {
                 List<Range<Token>> ranges = StorageService.instance.getLocalRanges("ks");
+                TopologyManager topologyManager = service().node().topology();
+                for (long epoch = topologyManager.minEpoch() ; epoch <= topologyManager.epoch() ; ++epoch)
+                {
+                    CountDownLatch latch = new CountDownLatch(1);
+                    topologyManager.epochReady(epoch).data.addCallback(latch::countDown);
+                    while (true)
+                    {
+                        try
+                        {
+                            if (latch.await(1L, TimeUnit.SECONDS))
+                                break;
+                        }
+                        catch (InterruptedException e)
+                        {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                }
+
                 for (int key = 0; key < 100; key++)
                 {
                     UntypedResultSet result = QueryProcessor.executeInternal("SELECT * FROM ks.tbl WHERE k=?", key);
@@ -294,7 +317,6 @@ public class AccordBootstrapTest extends TestBaseImpl
                             if (safeStore.ranges().currentRanges().contains(partitionKey))
                             {
                                 CommandStore commandStore = safeStore.commandStore();
-                                Assert.assertTrue(commandStore.maxBootstrapEpoch() > 0);
                                 Assert.assertFalse(commandStore.bootstrapBeganAt().isEmpty());
                                 Assert.assertFalse(commandStore.safeToRead().isEmpty());
 
@@ -437,7 +459,6 @@ public class AccordBootstrapTest extends TestBaseImpl
                                 if (!safeStore.ranges().allAt(preMove).contains(partitionKey))
                                 {
                                     CommandStore commandStore = safeStore.commandStore();
-                                    Assert.assertTrue(commandStore.maxBootstrapEpoch() > 0);
                                     Assert.assertFalse(commandStore.bootstrapBeganAt().isEmpty());
                                     Assert.assertFalse(commandStore.safeToRead().isEmpty());
 

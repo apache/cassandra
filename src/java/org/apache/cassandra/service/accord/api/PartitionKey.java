@@ -105,12 +105,9 @@ public final class PartitionKey extends AccordRoutableKey implements Key
     }
 
     @Override
-    public String toString()
+    public String suffix()
     {
-        return "PartitionKey{" +
-               "tableId=" + tableId() +
-               ", key=" + partitionKey() +
-               '}';
+        return partitionKey().toString();
     }
 
     // TODO: callers to this method are not correctly handling ranges

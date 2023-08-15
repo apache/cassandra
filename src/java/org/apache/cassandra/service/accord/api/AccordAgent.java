@@ -18,6 +18,11 @@
 
 package org.apache.cassandra.service.accord.api;
 
+import java.util.concurrent.TimeUnit;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import accord.api.Agent;
 import accord.api.Result;
 import accord.local.Command;
@@ -27,15 +32,28 @@ import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
+import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.config.DatabaseDescriptor.getReadRpcTimeout;
 
+// TODO (expected): merge with AccordService
 public class AccordAgent implements Agent
 {
+    private static final Logger logger = LoggerFactory.getLogger(AccordAgent.class);
+
+    // TODO (required): this should be configurable and have exponential back-off, escaping to operator input past a certain number of retries
+    private long retryBootstrapDelayMicros = SECONDS.toMicros(1L);
+
+    public void setRetryBootstrapDelay(long delay, TimeUnit units)
+    {
+        retryBootstrapDelayMicros = units.toMicros(delay);
+    }
+
     @Override
     public void onRecover(Node node, Result success, Throwable fail)
     {
@@ -54,7 +72,8 @@ public class AccordAgent implements Agent
     @Override
     public void onFailedBootstrap(String phase, Ranges ranges, Runnable retry, Throwable failure)
     {
-
+        logger.error("Failed bootstrap at {} for {}", phase, ranges, failure);
+        AccordService.instance().scheduler().once(retry, retryBootstrapDelayMicros, MICROSECONDS);
     }
 
     @Override

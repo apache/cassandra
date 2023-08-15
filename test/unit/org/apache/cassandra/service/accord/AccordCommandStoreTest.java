@@ -20,8 +20,6 @@ package org.apache.cassandra.service.accord;
 
 import java.util.concurrent.atomic.AtomicLong;
 
-import com.google.common.collect.ImmutableSortedMap;
-import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Iterables;
 import org.junit.Assert;
 import org.junit.Before;
@@ -39,9 +37,12 @@ import accord.local.SaveStatus;
 import accord.primitives.Ballot;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
+import accord.primitives.RoutingKeys;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
+import accord.utils.ImmutableBitSet;
+import accord.utils.SimpleBitSet;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -53,7 +54,7 @@ import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializer;
 import org.apache.cassandra.utils.Pair;
 
-import static accord.local.Status.Durability.Durable;
+import static accord.local.Status.Durability.Majority;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
 import static org.apache.cassandra.service.accord.AccordTestUtils.Commands.preaccepted;
 import static org.apache.cassandra.service.accord.AccordTestUtils.ballot;
@@ -90,34 +91,37 @@ public class AccordCommandStoreTest
         Key key = (Key)depTxn.keys().get(0);
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
 
-        PartialDeps dependencies;
-        try (PartialDeps.Builder builder = PartialDeps.builder(depTxn.covering()))
-        {
-            builder.add(key, txnId(1, clock.incrementAndGet(), 1));
-            dependencies = builder.build();
-        }
-
         QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, c, v) VALUES (0, 0, 1)");
         TxnId oldTxnId1 = txnId(1, clock.incrementAndGet(), 1);
         TxnId oldTxnId2 = txnId(1, clock.incrementAndGet(), 1);
         TxnId oldTimestamp = txnId(1, clock.incrementAndGet(), 1);
         TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
 
+        PartialDeps dependencies;
+        try (PartialDeps.Builder builder = PartialDeps.builder(depTxn.covering()))
+        {
+            builder.add(key, oldTxnId1);
+            builder.add(key, oldTxnId2);
+            dependencies = builder.build();
+        }
+
         CommonAttributes.Mutable attrs = new CommonAttributes.Mutable(txnId);
         PartialTxn txn = createPartialTxn(0);
-        attrs.homeKey(key.toUnseekable());
-        attrs.progressKey(key.toUnseekable());
-        attrs.durability(Durable);
+        attrs.route(RoutingKeys.of(key.toUnseekable()).toRoute(key.toUnseekable()));
+        attrs.durability(Majority);
         Ballot promised = ballot(1, clock.incrementAndGet(), 1);
         Ballot accepted = ballot(1, clock.incrementAndGet(), 1);
         Timestamp executeAt = timestamp(1, clock.incrementAndGet(), 1);
         attrs.partialDeps(dependencies);
-        ImmutableSortedSet<TxnId> waitingOnCommit = ImmutableSortedSet.of(oldTxnId1);
-        ImmutableSortedMap<Timestamp, TxnId > waitingOnApply = ImmutableSortedMap.of(oldTimestamp, oldTxnId2);
+        SimpleBitSet waitingOnCommit = new SimpleBitSet(2);
+        waitingOnCommit.set(0);
+        SimpleBitSet waitingOnApply = new SimpleBitSet(2);
+        waitingOnApply.set(1);
+        Command.WaitingOn waitingOn = new Command.WaitingOn(dependencies, new ImmutableBitSet(waitingOnCommit), new ImmutableBitSet(waitingOnApply), new ImmutableBitSet(2));
         attrs.addListener(new Command.ProxyListener(oldTxnId1));
         Pair<Writes, Result> result = AccordTestUtils.processTxnResult(commandStore, txnId, txn, executeAt);
         Command command = Command.SerializerSupport.executed(attrs, SaveStatus.Applied, executeAt, promised, accepted,
-                                                             waitingOnCommit, waitingOnApply, result.left, result.right);
+                                                             waitingOn, result.left, result.right);
 
         AccordSafeCommand safeCommand = new AccordSafeCommand(loaded(txnId, null));
         safeCommand.set(command);
@@ -149,13 +153,13 @@ public class AccordCommandStoreTest
         cfk.updateMax(maxTimestamp);
 
         cfk.updateLastExecutionTimestamps(txnId1, true);
-        Assert.assertEquals(txnId1.hlc(), cfk.current().timestampMicrosFor(txnId1, true));
+        Assert.assertEquals(txnId1.hlc(), cfk.timestampMicrosFor(txnId1, true));
 
         cfk.updateLastExecutionTimestamps(txnId2, true);
-        Assert.assertEquals(txnId2.hlc(), cfk.current().timestampMicrosFor(txnId2, true));
+        Assert.assertEquals(txnId2.hlc(), cfk.timestampMicrosFor(txnId2, true));
 
         Assert.assertEquals(txnId2, cfk.current().lastExecutedTimestamp());
-        Assert.assertEquals(txnId2.hlc(), cfk.current().lastExecutedMicros());
+        Assert.assertEquals(txnId2.hlc(), cfk.lastExecutedMicros());
 
 
         cfk.register(command1);

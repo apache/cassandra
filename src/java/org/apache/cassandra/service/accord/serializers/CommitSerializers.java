@@ -85,7 +85,7 @@ public class CommitSerializers
         public Commit.Invalidate deserialize(DataInputPlus in, int version) throws IOException
         {
             TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
-            Unseekables<?, ?> scope = KeySerializers.unseekables.deserialize(in, version);
+            Unseekables<?> scope = KeySerializers.unseekables.deserialize(in, version);
             long waitForEpoch = in.readUnsignedVInt();
             long invalidateUntilEpoch = in.readUnsignedVInt() + waitForEpoch;
             return Commit.Invalidate.SerializerSupport.create(txnId, scope, waitForEpoch, invalidateUntilEpoch);

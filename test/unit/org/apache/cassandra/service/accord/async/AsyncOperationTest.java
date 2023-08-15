@@ -32,7 +32,6 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -86,7 +85,6 @@ import static accord.utils.async.AsyncChains.getUninterruptibly;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createAccordCommandStore;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createPartialTxn;
-import static org.apache.cassandra.service.accord.AccordTestUtils.createTxn;
 import static org.apache.cassandra.service.accord.AccordTestUtils.keys;
 import static org.apache.cassandra.service.accord.AccordTestUtils.loaded;
 import static org.apache.cassandra.service.accord.AccordTestUtils.txnId;
@@ -122,11 +120,13 @@ public class AsyncOperationTest
     {
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
         TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
-        Txn txn = createTxn((int)clock.incrementAndGet());
+        Txn txn = AccordTestUtils.createWriteTxn((int)clock.incrementAndGet());
         PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
 
         getUninterruptibly(commandStore.execute(contextFor(txnId), instance -> {
-            SafeCommand command = instance.ifPresent(txnId);
+            // TODO review: This change to `ifInitialized` was done in a lot of places and it doesn't preserve this property
+            // I fixed this reference to point to `ifLoadedAndInitialised` and but didn't update other places
+            SafeCommand command = instance.ifLoadedAndInitialised(txnId);
             Assert.assertNull(command);
         }));
 
@@ -138,7 +138,7 @@ public class AsyncOperationTest
     public void optionalCommandsForKeyTest() throws Throwable
     {
         AccordCommandStore commandStore = createAccordCommandStore(clock::incrementAndGet, "ks", "tbl");
-        Txn txn = createTxn((int)clock.incrementAndGet());
+        Txn txn = AccordTestUtils.createWriteTxn((int)clock.incrementAndGet());
         PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
 
         getUninterruptibly(commandStore.execute(contextFor(key), instance -> {
@@ -194,7 +194,7 @@ public class AsyncOperationTest
                 commandStore.setCacheSize(0);
                 commandStore.setCacheSize(cacheSize);
 
-                return safe.command(txnId).current();
+                return safe.ifInitialised(txnId).current();
             }).beginAsResult());
         }
         catch (ExecutionException e)
@@ -230,7 +230,7 @@ public class AsyncOperationTest
 
         createCommittedAndPersist(commandStore, txnId);
 
-        Consumer<SafeCommandStore> consumer = safeStore -> safeStore.command(txnId).readyToExecute();
+        Consumer<SafeCommandStore> consumer = safeStore -> safeStore.ifInitialised(txnId).readyToExecute();
         PreLoadContext ctx = contextFor(txnId);
         AsyncOperation<Void> operation = new AsyncOperation.ForConsumer(commandStore, ctx, consumer)
         {
@@ -316,7 +316,7 @@ public class AsyncOperationTest
 
             // can we recover?
             commandStore.commandCache().unsafeSetLoadFunction(txnId -> AccordKeyspace.loadCommand(commandStore, txnId));
-            AsyncOperation.ForConsumer o2 = new AsyncOperation.ForConsumer(commandStore, ctx, store -> ids.forEach(id -> store.command(id).readyToExecute()));
+            AsyncOperation.ForConsumer o2 = new AsyncOperation.ForConsumer(commandStore, ctx, store -> ids.forEach(id -> store.ifInitialised(id).readyToExecute()));
             getUninterruptibly(o2);
         });
     }

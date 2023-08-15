@@ -163,7 +163,6 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileSystems;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.net.MessagingService;
@@ -195,6 +194,10 @@ import org.apache.cassandra.utils.LazyToString;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_DRIVER_CONNECTION_TIMEOUT_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_DRIVER_READ_TIMEOUT_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_RANDOM_SEED;
@@ -209,10 +212,6 @@ import static org.apache.cassandra.cql3.SchemaElement.SchemaElementType.TYPE;
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.createMetricsKeyspaceTables;
 import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_METRICS;
 import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 /**
  * Base class for CQL tests.
@@ -252,7 +251,6 @@ public abstract class CQLTester
 
     protected static int nativePort;
     protected static final InetAddress nativeAddr;
-    protected static final Set<InetAddressAndPort> remoteAddrs = new HashSet<>();
     private static final Map<ClusterSettings, Cluster> clusters = new HashMap<>();
     private static final Map<ClusterSettings, Session> sessions = new HashMap<>();
 
@@ -445,12 +443,18 @@ public abstract class CQLTester
     protected static void prePrepareServer()
     {
         CassandraRelevantProperties.SUPERUSER_SETUP_DELAY_MS.setLong(0);
-        ServerTestUtils.daemonInitialization();
+        daemonInitialization();
         if (ROW_CACHE_SIZE_IN_MIB > 0)
             DatabaseDescriptor.setRowCacheSizeInMiB(ROW_CACHE_SIZE_IN_MIB);
         StorageService.instance.registerMBeans();
         StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
         SnapshotManager.instance.registerMBean();
+    }
+
+    // So derived classes can get enough intialization to start setting DatabaseDescriptor options
+    public static void daemonInitialization()
+    {
+        ServerTestUtils.daemonInitialization();
     }
 
     @AfterClass

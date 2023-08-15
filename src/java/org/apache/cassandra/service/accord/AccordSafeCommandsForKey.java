@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.accord;
 
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -26,6 +27,7 @@ import accord.api.Key;
 import accord.impl.CommandsForKey;
 import accord.impl.SafeCommandsForKey;
 import accord.primitives.RoutableKey;
+import accord.primitives.Timestamp;
 
 public class AccordSafeCommandsForKey extends SafeCommandsForKey implements AccordSafeState<RoutableKey, CommandsForKey>
 {
@@ -109,6 +111,26 @@ public class AccordSafeCommandsForKey extends SafeCommandsForKey implements Acco
     {
         checkNotInvalidated();
         global.set(current);
+    }
+
+    public long lastExecutedMicros()
+    {
+        return current().lastExecutedHlc();
+    }
+
+    public long timestampMicrosFor(Timestamp executeAt, boolean isForWriteTxn)
+    {
+        return current().hlcFor(executeAt, isForWriteTxn);
+    }
+
+    public int nowInSecondsFor(Timestamp executeAt, boolean isForWriteTxn)
+    {
+        CommandsForKey current = current();
+        current.validateExecuteAtTime(executeAt, isForWriteTxn);
+        // we use the executeAt time instead of the monotonic database timestamp to prevent uneven
+        // ttl expiration in extreme cases, ie 1M+ writes/second to a key causing timestamps to overflow
+        // into the next second on some keys and not others.
+        return Math.toIntExact(TimeUnit.MICROSECONDS.toSeconds(current.lastExecutedTimestamp().hlc()));
     }
 
     @Override

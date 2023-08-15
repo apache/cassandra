@@ -23,12 +23,9 @@ import java.io.IOException;
 import accord.api.Data;
 import accord.impl.AbstractFetchCoordinator.FetchRequest;
 import accord.impl.AbstractFetchCoordinator.FetchResponse;
-import accord.local.Status;
 import accord.messages.ReadData;
 import accord.messages.ReadData.ReadReply;
 import accord.primitives.Ranges;
-import accord.primitives.Timestamp;
-import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -49,16 +46,14 @@ public class FetchSerializers
         @Override
         public void serialize(FetchRequest request, DataOutputPlus out, int version) throws IOException
         {
-            Invariants.checkArgument(request.txnId.equals(TxnId.NONE));
-            Invariants.checkArgument(request.waitForStatus == Status.Applied);
-            Invariants.checkArgument(request.waitUntil.equals(Timestamp.MAX));
+            Invariants.checkArgument(request.txnId.epoch() == request.executeAt.epoch());
 
             out.writeUnsignedVInt(request.waitForEpoch());
-            CommandSerializers.txnId.serialize((TxnId) request.executeReadAt, out, version);
+            CommandSerializers.txnId.serialize(request.txnId, out, version);
             KeySerializers.ranges.serialize((Ranges) request.readScope, out, version);
-
             DepsSerializer.partialDeps.serialize(request.partialDeps, out, version);
             StreamingTxn.serializer.serialize(request.read, out, version);
+            out.writeBoolean(request.collectMaxApplied);
         }
 
         @Override
@@ -68,17 +63,19 @@ public class FetchSerializers
                                     CommandSerializers.txnId.deserialize(in, version),
                                     KeySerializers.ranges.deserialize(in, version),
                                     DepsSerializer.partialDeps.deserialize(in, version),
-                                    StreamingTxn.serializer.deserialize(in, version));
+                                    StreamingTxn.serializer.deserialize(in, version),
+                                    in.readBoolean());
         }
 
         @Override
         public long serializedSize(FetchRequest request, int version)
         {
             return TypeSizes.sizeofUnsignedVInt(request.waitForEpoch())
-                   + CommandSerializers.txnId.serializedSize((TxnId) request.executeReadAt, version)
+                   + CommandSerializers.txnId.serializedSize(request.txnId, version)
                    + KeySerializers.ranges.serializedSize((Ranges) request.readScope, version)
                    + DepsSerializer.partialDeps.serializedSize(request.partialDeps, version)
-                   + StreamingTxn.serializer.serializedSize(request.read, version);
+                   + StreamingTxn.serializer.serializedSize(request.read, version)
+                   + TypeSizes.BYTE_SIZE;
         }
     };
 
@@ -100,7 +97,7 @@ public class FetchSerializers
             FetchResponse response = (FetchResponse) reply;
             serializeNullable(response.unavailable, out, version, KeySerializers.ranges);
             serializeNullable(response.data, out, version, streamDataSerializer);
-            CommandSerializers.timestamp.serialize(response.maxApplied, out, version);
+            serializeNullable(response.maxApplied, out, version, CommandSerializers.timestamp);
         }
 
         @Override
@@ -112,7 +109,7 @@ public class FetchSerializers
 
             return new FetchResponse(deserializeNullable(in, version, KeySerializers.ranges),
                                      deserializeNullable(in, version, streamDataSerializer),
-                                     CommandSerializers.timestamp.deserialize(in, version));
+                                     deserializeNullable(in, version, CommandSerializers.timestamp));
         }
 
         @Override
@@ -125,7 +122,7 @@ public class FetchSerializers
             return TypeSizes.BYTE_SIZE
                    + serializedNullableSize(response.unavailable, version, KeySerializers.ranges)
                    + serializedNullableSize(response.data, version, streamDataSerializer)
-                   + CommandSerializers.timestamp.serializedSize(response.maxApplied, version);
+                   + serializedNullableSize(response.maxApplied, version, CommandSerializers.timestamp);
         }
     };
 }

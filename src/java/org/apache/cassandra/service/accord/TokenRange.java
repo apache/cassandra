@@ -20,6 +20,8 @@ package org.apache.cassandra.service.accord;
 
 import java.io.IOException;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import accord.api.RoutingKey;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
@@ -46,6 +48,12 @@ public class TokenRange extends Range.EndInclusive
     public String keyspace()
     {
         return ((AccordRoutingKey) start()).keyspace();
+    }
+
+    @VisibleForTesting
+    public Range withKeyspace(String ks)
+    {
+        return new TokenRange(((AccordRoutingKey) start()).withKeyspace(ks), ((AccordRoutingKey) end()).withKeyspace(ks));
     }
 
     public static TokenRange fullRange(String keyspace)

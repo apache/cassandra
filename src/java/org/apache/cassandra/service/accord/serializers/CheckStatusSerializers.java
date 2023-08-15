@@ -23,6 +23,7 @@ import java.io.IOException;
 import accord.api.Result;
 import accord.api.RoutingKey;
 import accord.local.SaveStatus;
+import accord.local.Status;
 import accord.local.Status.Durability;
 import accord.messages.CheckStatus;
 import accord.messages.CheckStatus.CheckStatusNack;
@@ -32,6 +33,7 @@ import accord.messages.CheckStatus.CheckStatusReply;
 import accord.primitives.Ballot;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
+import accord.primitives.Ranges;
 import accord.primitives.Route;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
@@ -59,8 +61,7 @@ public class CheckStatusSerializers
         {
             CommandSerializers.txnId.serialize(check.txnId, out, version);
             KeySerializers.unseekables.serialize(check.query, out, version);
-            out.writeUnsignedVInt(check.startEpoch);
-            out.writeUnsignedVInt(check.endEpoch - check.startEpoch);
+            out.writeUnsignedVInt(check.sourceEpoch);
             out.writeByte(check.includeInfo.ordinal());
         }
 
@@ -68,11 +69,10 @@ public class CheckStatusSerializers
         public CheckStatus deserialize(DataInputPlus in, int version) throws IOException
         {
             TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
-            Unseekables<?, ?> query = KeySerializers.unseekables.deserialize(in, version);
-            long startEpoch = in.readUnsignedVInt();
-            long endEpoch = in.readUnsignedVInt() + startEpoch;
+            Unseekables<?> query = KeySerializers.unseekables.deserialize(in, version);
+            long sourceEpoch = in.readUnsignedVInt();
             CheckStatus.IncludeInfo info = infos[in.readByte()];
-            return new CheckStatus(txnId, query, startEpoch, endEpoch, info);
+            return new CheckStatus(txnId, query, sourceEpoch, info);
         }
 
         @Override
@@ -80,8 +80,7 @@ public class CheckStatusSerializers
         {
             return CommandSerializers.txnId.serializedSize(check.txnId, version)
                    + KeySerializers.unseekables.serializedSize(check.query, version)
-                   + TypeSizes.sizeofUnsignedVInt(check.startEpoch)
-                   + TypeSizes.sizeofUnsignedVInt(check.endEpoch - check.startEpoch)
+                   + TypeSizes.sizeofUnsignedVInt(check.sourceEpoch)
                    + TypeSizes.BYTE_SIZE;
         }
     };
@@ -103,7 +102,10 @@ public class CheckStatusSerializers
 
             CheckStatusOk ok = (CheckStatusOk) reply;
             out.write(reply instanceof CheckStatusOkFull ? FULL : OK);
+            KeySerializers.ranges.serialize(ok.truncated, out, version);
+            CommandSerializers.status.serialize(ok.invalidIfNotAtLeast, out, version);
             CommandSerializers.saveStatus.serialize(ok.saveStatus, out, version);
+            CommandSerializers.saveStatus.serialize(ok.maxSaveStatus, out, version);
             CommandSerializers.ballot.serialize(ok.promised, out, version);
             CommandSerializers.ballot.serialize(ok.accepted, out, version);
             serializeNullable(ok.executeAt, out, version, CommandSerializers.timestamp);
@@ -130,10 +132,13 @@ public class CheckStatusSerializers
             {
                 default: throw new IOException("Unhandled CheckStatusReply kind: " + Integer.toHexString(Byte.toUnsignedInt(kind)));
                 case NACK:
-                    return CheckStatusNack.nack();
+                    return CheckStatusNack.NotOwned;
                 case OK:
                 case FULL:
+                    Ranges truncated = KeySerializers.ranges.deserialize(in, version);
+                    Status invalidIfNotAtLeast = CommandSerializers.status.deserialize(in, version);
                     SaveStatus status = CommandSerializers.saveStatus.deserialize(in, version);
+                    SaveStatus maxStatus = CommandSerializers.saveStatus.deserialize(in, version);
                     Ballot promised = CommandSerializers.ballot.deserialize(in, version);
                     Ballot accepted = CommandSerializers.ballot.deserialize(in, version);
                     Timestamp executeAt = deserializeNullable(in, version, CommandSerializers.timestamp);
@@ -143,14 +148,15 @@ public class CheckStatusSerializers
                     RoutingKey homeKey = deserializeNullable(in, version, KeySerializers.routingKey);
 
                     if (kind == OK)
-                        return createOk(status, promised, accepted, executeAt, isCoordinating, durability, route, homeKey);
+                        return createOk(truncated, invalidIfNotAtLeast, status, maxStatus, promised, accepted, executeAt,
+                                        isCoordinating, durability, route, homeKey);
 
                     PartialTxn partialTxn = deserializeNullable(in, version, CommandSerializers.partialTxn);
                     PartialDeps committedDeps = deserializeNullable(in, version, DepsSerializer.partialDeps);
                     Writes writes = deserializeNullable(in, version, CommandSerializers.writes);
                     Result result = deserializeNullable(in, version, TxnData.serializer);
-                    return createOk(status, promised, accepted, executeAt, isCoordinating, durability, route, homeKey,
-                                    partialTxn, committedDeps, writes, result);
+                    return createOk(truncated, invalidIfNotAtLeast, status, maxStatus, promised, accepted, executeAt,
+                                    isCoordinating, durability, route, homeKey, partialTxn, committedDeps, writes, result);
             }
         }
 
@@ -162,6 +168,9 @@ public class CheckStatusSerializers
                 return size;
 
             CheckStatusOk ok = (CheckStatusOk) reply;
+            size += KeySerializers.ranges.serializedSize(ok.truncated, version);
+            size += CommandSerializers.status.serializedSize(ok.invalidIfNotAtLeast, version);
+            size += CommandSerializers.saveStatus.serializedSize(ok.saveStatus, version);
             size += CommandSerializers.saveStatus.serializedSize(ok.saveStatus, version);
             size += CommandSerializers.ballot.serializedSize(ok.promised, version);
             size += CommandSerializers.ballot.serializedSize(ok.accepted, version);
