@@ -79,7 +79,10 @@ public class AccordBytesSplitter extends AccordSplitter
 
     private static int byteLength(RoutingKey routingKey)
     {
-        return byteLength(((AccordRoutingKey) routingKey).token());
+        AccordRoutingKey accordKey = (AccordRoutingKey) routingKey;
+        if (accordKey.kindOfRoutingKey() == AccordRoutingKey.RoutingKeyKind.SENTINEL)
+            return 0;
+        return byteLength(accordKey.token());
     }
 
     private static int byteLength(Token token)

@@ -45,6 +45,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
+import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
@@ -214,7 +215,7 @@ public class MessageFiltersTest extends TestBaseImpl
                                                                Message decoded = Instance.deserializeMessage(msg);
                                                                return (Integer) decoded.verb().id;
                                                            }).call();
-                                                           Assert.assertTrue(verbs.contains(id));
+                                                           Assertions.assertThat(verbs).describedAs("Unexpected verb %s", Verb.fromId(id)).contains(id);
                                                            counter.incrementAndGet();
                                                            return false;
                                                        }).drop();

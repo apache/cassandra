@@ -230,7 +230,7 @@ public class AccordJournalSimulationTest extends SimulationTestBase
 
         private static FullRoute<?> route()
         {
-            return new FullKeyRoute(key, new RoutingKey[]{ key });
+            return new FullKeyRoute(key, true, new RoutingKey[]{ key });
         }
 
         private static final RoutingKey key = new AccordRoutingKey.TokenKey("system", new Murmur3Partitioner.LongToken(42));

@@ -53,7 +53,11 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static accord.utils.async.AsyncChains.getUninterruptibly;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
-import static org.apache.cassandra.service.accord.AccordTestUtils.*;
+import static org.apache.cassandra.service.accord.AccordTestUtils.createAccordCommandStore;
+import static org.apache.cassandra.service.accord.AccordTestUtils.createWriteTxn;
+import static org.apache.cassandra.service.accord.AccordTestUtils.fullRange;
+import static org.apache.cassandra.service.accord.AccordTestUtils.timestamp;
+import static org.apache.cassandra.service.accord.AccordTestUtils.txnId;
 
 public class AccordCommandTest
 {
@@ -88,7 +92,7 @@ public class AccordCommandTest
         getUninterruptibly(commandStore.execute(PreLoadContext.empty(), unused -> commandStore.setCacheSize(0)));
 
         TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
-        Txn txn = createTxn(1);
+        Txn txn = createWriteTxn(1);
         Key key = (Key)txn.keys().get(0);
         RoutingKey homeKey = key.toUnseekable();
         FullRoute<?> fullRoute = txn.keys().toRoute(homeKey);
@@ -106,7 +110,7 @@ public class AccordCommandTest
         }));
 
         getUninterruptibly(commandStore.execute(preAccept, instance -> {
-            Command command = instance.command(txnId).current();
+            Command command = instance.ifInitialised(txnId).current();
             Assert.assertEquals(txnId, command.executeAt());
             Assert.assertEquals(Status.PreAccepted, command.status());
             Assert.assertTrue(command.partialDeps() == null || command.partialDeps().isEmpty());
@@ -135,7 +139,7 @@ public class AccordCommandTest
         }));
 
         getUninterruptibly(commandStore.execute(accept, instance -> {
-            Command command = instance.command(txnId).current();
+            Command command = instance.ifInitialised(txnId).current();
             Assert.assertEquals(executeAt, command.executeAt());
             Assert.assertEquals(Status.Accepted, command.status());
             Assert.assertEquals(deps, command.partialDeps());
@@ -151,7 +155,7 @@ public class AccordCommandTest
         getUninterruptibly(commandStore.execute(commit, commit::apply));
 
         getUninterruptibly(commandStore.execute(PreLoadContext.contextFor(txnId, Keys.of(key)), instance -> {
-            Command command = instance.command(txnId).current();
+            Command command = instance.ifInitialised(txnId).current();
             Assert.assertEquals(commit.executeAt, command.executeAt());
             Assert.assertTrue(command.hasBeen(Status.Committed));
             Assert.assertEquals(commit.partialDeps, command.partialDeps());
@@ -169,7 +173,7 @@ public class AccordCommandTest
         getUninterruptibly(commandStore.execute(PreLoadContext.empty(), unused -> commandStore.setCacheSize(0)));
 
         TxnId txnId1 = txnId(1, clock.incrementAndGet(), 1);
-        Txn txn = createTxn(2);
+        Txn txn = createWriteTxn(2);
         Key key = (Key)txn.keys().get(0);
         RoutingKey homeKey = key.toUnseekable();
         FullRoute<?> fullRoute = txn.keys().toRoute(homeKey);

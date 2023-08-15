@@ -20,7 +20,16 @@
  */
 package org.apache.cassandra.index;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -32,21 +41,32 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.datastax.driver.core.exceptions.QueryValidationException;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.restrictions.IndexRestrictions;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
-import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.db.ColumnFamilyStore.FlushReason;
-import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
+import org.apache.cassandra.cql3.statements.schema.IndexTarget;
+import org.apache.cassandra.db.CassandraWriteContext;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.RangeTombstone;
+import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.RegularAndStaticColumns;
+import org.apache.cassandra.db.WriteContext;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -77,6 +97,20 @@ import static org.junit.Assert.fail;
 
 public class CustomIndexTest extends CQLTester
 {
+    @BeforeClass
+    public static void setUpClass() // overrides CQLTester.setUpClass()
+    {
+        // Accord breaks indexBuildingPagesLargePartitions because it introduces blocking OpOrder.Group
+        // when it sees the schema change and forces a flush of the Accord keyspace topologies table
+        // which creates a blocking OpOrder.Group.
+        // The test is explicitly trying to assert none of the created groups are blocking and that is pretty
+        // fragile as implemented since any background things could create mark a group blocking becuase Keyspace.writeOrder
+        // is global
+        CQLTester.daemonInitialization();
+        DatabaseDescriptor.setAccordTransactionsEnabled(false);
+        CQLTester.setUpClass();
+    }
+
     @Test
     public void testInsertsOnCfsBackedIndex() throws Throwable
     {
@@ -1174,7 +1208,7 @@ public class CustomIndexTest extends CQLTester
 
 
     @Test
-    public void testFlushObserver() throws Throwable
+    public void testFlushObserver()
     {
         createTable("CREATE TABLE %s (k int, c int, s int static, v int, PRIMARY KEY (k, c))");
         String indexName = "test_index_with_flush_observer";
