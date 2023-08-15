@@ -87,7 +87,7 @@ create_help_file()
 # create the main usage page
 with open(outdir + "/nodetool.adoc", "w+") as output:
     with open(helpfilename, "r+") as helpfile:
-        output.write("== Nodetool\n\n== Usage\n\n")
+        output.write("= Nodetool\n\n== Usage\n\n")
         for commandLine in helpfile:
             command = command_re.sub(r'\nxref:tools/nodetool/\2.adoc[\2] - ',commandLine)
             output.write(command)
