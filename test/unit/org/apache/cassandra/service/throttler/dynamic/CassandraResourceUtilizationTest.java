@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.throttler.dynamic;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -643,6 +644,11 @@ public class CassandraResourceUtilizationTest extends CQLTester
     @Before
     public void deregisterMetrics()
     {
+        // we need to make sure rate limiter is enabled for each unit test method
+        ThrottlingOptions options = new ThrottlingOptions();
+        options.enabled = true;
+        DatabaseDescriptor.setThrottlingOptions(options);
+
         Metrics.remove(ThrottlingMetrics.factory.createMetricName("NeedsThrottling"));
         Metrics.remove(ThrottlingMetrics.factory.createMetricName("DoesNotNeedsThrottling"));
         Metrics.remove(ThrottlingMetrics.factory.createMetricName("ResetThrottling"));
@@ -662,5 +668,14 @@ public class CassandraResourceUtilizationTest extends CQLTester
         Metrics.remove(ResourcesStats.factory.createMetricName("NRThrottled2Current"));
         Metrics.remove(ResourcesStats.factory.createMetricName("PendingReadsCurrent"));
         Metrics.remove(ResourcesStats.factory.createMetricName("PendingMutationsCurrent"));
+    }
+
+    // we need to make sure rate limiter is disabled for the one-node-cluster test
+    @BeforeClass
+    public static void setUp()
+    {
+        ThrottlingOptions options = new ThrottlingOptions();
+        options.enabled = false;
+        DatabaseDescriptor.setThrottlingOptions(options);
     }
 }

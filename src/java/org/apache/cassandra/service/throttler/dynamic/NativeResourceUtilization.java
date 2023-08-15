@@ -94,6 +94,7 @@ public class NativeResourceUtilization implements IResourceUtilzation
         catch (Exception e)
         {
             readFailures.inc();
+            // TODO: consider change it to Debug to avoid log flooding in, for exmaple, local laptop testing
             logger.error("Exception while reading {}, error: {}", cpuStatFilePath, e);
         }
         return nrThrottled;

@@ -23,7 +23,13 @@ import java.io.Serializable;
 public class ThrottlingOptions implements Serializable
 {
     // Also, adjust the default values based on the POC
-    public boolean enabled = true;
+    // TODO: think of the need to declare the following variables a vilotale, given they can be modified by nodetool at runtime
+
+    // By default, we'd like to have rate limiter disabled.
+    // When the field 'throttling_options' dones't exist in cassandra.yaml, which is the default, DatabaseDescriptor
+    // will refer to the default value here.
+    public boolean enabled = false;
+
     public long cpu_threshold_cur = 35;
     public long cpu_threshold_one_minute = 35;
     public long nr_throttling_threshold_cur = 1;
@@ -37,6 +43,10 @@ public class ThrottlingOptions implements Serializable
     public int reset_after_no_throttling_seen_in_sec = 15 * 60; // 15 minutes
     public double aggressive_throttling_qps_ratio = 4;
     public double aggressive_throttling_latency_ratio = 4;
+
+    public boolean isEnabled() {
+        return enabled;
+    }
 
     public String toString()
     {

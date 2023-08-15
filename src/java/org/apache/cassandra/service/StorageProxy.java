@@ -51,6 +51,7 @@ import org.apache.cassandra.service.paxos.ContentionStrategy;
 import org.apache.cassandra.service.paxos.Paxos;
 import org.apache.cassandra.service.paxos.PaxosState;
 import org.apache.cassandra.db.monitoring.BadQuery;
+import org.apache.cassandra.service.throttler.dynamic.CassandraResourceUtilization;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -118,7 +119,6 @@ import org.apache.cassandra.metrics.CASClientRequestMetrics;
 import org.apache.cassandra.metrics.DenylistMetrics;
 import org.apache.cassandra.metrics.ReadRepairMetrics;
 import org.apache.cassandra.metrics.StorageMetrics;
-import org.apache.cassandra.metrics.StorageProxyMetrics;
 import org.apache.cassandra.metrics.StorageProxyMetricsManager;
 import org.apache.cassandra.net.ForwardingInfo;
 import org.apache.cassandra.net.Message;
@@ -317,7 +317,8 @@ public class StorageProxy implements StorageProxyMBean
                                   ClientState clientState,
                                   int nowInSeconds,
                                   Dispatcher.RequestTime requestTime)
-    throws UnavailableException, IsBootstrappingException, RequestFailureException, RequestTimeoutException, InvalidRequestException, CasWriteUnknownResultException
+    throws UnavailableException, IsBootstrappingException, RequestFailureException, RequestTimeoutException,
+           OverloadedException, InvalidRequestException, CasWriteUnknownResultException
     {
         if (DatabaseDescriptor.getPartitionDenylistEnabled() && DatabaseDescriptor.getDenylistWritesEnabled() && !partitionDenylist.isKeyPermitted(keyspaceName, cfName, key.getKey()))
         {
@@ -344,6 +345,7 @@ public class StorageProxy implements StorageProxyMBean
     {
         try
         {
+            CassandraResourceUtilization.instance.throttleUserTrafficWithThrow(keyspaceName, true);
             SinglePartitionReadCommand readCommandForThrottle = (SinglePartitionReadCommand) request.readCommand(nowInSeconds);
             DatabaseDescriptor.getRequestThrottler().maybeThrottleRead(readCommandForThrottle, consistencyForPaxos);
             TableMetadata metadata = Schema.instance.validateTable(keyspaceName, cfName);
@@ -400,12 +402,20 @@ public class StorageProxy implements StorageProxyMBean
                            updateProposer);
 
         }
-        catch (RequestThrottledException e) {
+        catch (RequestThrottledException e)
+        {
             casWriteMetrics.throttles.mark();
             StorageProxyMetricsManager.getMetrics(keyspaceName, consistencyForPaxos).casWriteMetrics.throttles.mark();
             Tracing.trace("CAS request throttled");
             logger.debug("CAS request throttled");
             throw new ReadTimeoutException(consistencyForPaxos, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT, false);
+        }
+        catch (OverloadedException e)
+        {
+            // TODO: update casWriteMetrics
+            Tracing.trace("CAS request throttled due to overload");
+            logger.debug("CAS request throttled due to overload");
+            throw e;
         }
         catch (CasWriteUnknownResultException e)
         {
@@ -916,6 +926,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             for (IMutation mutation : mutations)
             {
+                CassandraResourceUtilization.instance.throttleUserTrafficWithThrow(keyspaceName, false);
                 DatabaseDescriptor.getRequestThrottler().maybeThrottleMutation(mutation, consistencyLevel);
                 if (mutation instanceof CounterMutation)
                     responseHandlers.add(mutateCounter((CounterMutation)mutation, localDataCenter, requestTime));
@@ -979,11 +990,21 @@ public class StorageProxy implements StorageProxyMBean
         }
         catch (OverloadedException e)
         {
-            writeMetrics.unavailables.mark();
-            writeMetricsForLevel(consistencyLevel).unavailables.mark();
-            StorageProxyMetricsManager.getMetrics(keyspaceName, consistencyLevel).writeMetrics.unavailables.mark();
-            Tracing.trace("Overloaded");
-            throw e;
+            if (e.getMessage().contains(CassandraResourceUtilization.THROW_MESSAGE))
+            {
+                // TODO: update writeMetrics
+                Tracing.trace("Throttling write request due to overload");
+                logger.debug("Throttling write request due to overload");
+                throw e;
+            }
+            else
+            {
+                writeMetrics.unavailables.mark();
+                writeMetricsForLevel(consistencyLevel).unavailables.mark();
+                StorageProxyMetricsManager.getMetrics(keyspaceName, consistencyLevel).writeMetrics.unavailables.mark();
+                Tracing.trace("Overloaded");
+                throw e;
+            }
         }
         finally
         {
@@ -1259,6 +1280,7 @@ public class StorageProxy implements StorageProxyMBean
             // add a handler for each mutation - includes checking availability, but doesn't initiate any writes, yet
             for (Mutation mutation : mutations)
             {
+                CassandraResourceUtilization.instance.throttleUserTrafficWithThrow(keyspaceName, false);
                 DatabaseDescriptor.getRequestThrottler().maybeThrottleMutation(mutation, consistency_level);
                 WriteResponseHandlerWrapper wrapper = wrapBatchResponseHandler(mutation,
                                                                                consistency_level,
@@ -1276,12 +1298,20 @@ public class StorageProxy implements StorageProxyMBean
             // now actually perform the writes and wait for them to complete
             syncWriteBatchedMutations(wrappers, Stage.MUTATION, requestTime);
         }
-        catch (RequestThrottledException e) {
+        catch (RequestThrottledException e)
+        {
             Tracing.trace("Throttling write request");
             logger.debug("Throttling write request");
             writeMetrics.throttles.mark();
             StorageProxyMetricsManager.getMetrics(keyspaceName, consistency_level).writeMetrics.throttles.mark();
             throw new WriteTimeoutException(WriteType.BATCH, consistency_level, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT);
+        }
+        catch (OverloadedException e)
+        {
+            // TODO: update writeMetrics
+            Tracing.trace("Throttling write request due to overload");
+            logger.debug("Throttling write request due to overload");
+            throw e;
         }
         catch (UnavailableException e)
         {
@@ -1926,7 +1956,7 @@ public class StorageProxy implements StorageProxyMBean
              : readRegular(group, consistencyLevel, requestTime);
     }
 
-    private static PartitionIterator readWithPaxos(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
+    public static PartitionIterator readWithPaxos(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
     throws InvalidRequestException, UnavailableException, ReadFailureException, ReadTimeoutException
     {
         return Paxos.useV2()
@@ -1935,7 +1965,7 @@ public class StorageProxy implements StorageProxyMBean
     }
 
     private static PartitionIterator legacyReadWithPaxos(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
-    throws InvalidRequestException, UnavailableException, ReadFailureException, ReadTimeoutException
+    throws InvalidRequestException, UnavailableException, ReadFailureException, ReadTimeoutException, OverloadedException
     {
         long start = nanoTime();
         if (group.queries.size() > 1)
@@ -1953,6 +1983,7 @@ public class StorageProxy implements StorageProxyMBean
 
             for (SinglePartitionReadCommand cmd : group.queries)
             {
+                CassandraResourceUtilization.instance.throttleUserTrafficWithThrow(metadata.keyspace, true);
                 DatabaseDescriptor.getRequestThrottler().maybeThrottleRead(cmd, consistencyLevel);
             }
             final ConsistencyLevel consistencyForReplayCommitsOrFetch = consistencyLevel == ConsistencyLevel.LOCAL_SERIAL
@@ -1992,7 +2023,8 @@ public class StorageProxy implements StorageProxyMBean
 
             result = fetchRows(group.queries, consistencyForReplayCommitsOrFetch, requestTime);
         }
-        catch (RequestThrottledException e) {
+        catch (RequestThrottledException e)
+        {
             logger.debug("Throttling read request");
             Tracing.trace("Throttling read request");
             readMetrics.throttles.mark();
@@ -2000,6 +2032,14 @@ public class StorageProxy implements StorageProxyMBean
             StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).readMetrics.throttles.mark();
             StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).casReadMetrics.throttles.mark();
             throw new ReadTimeoutException(consistencyLevel, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT, false);
+        }
+        catch (OverloadedException e)
+        {
+            // TODO: update readMetrics
+            // TODO: update casReadMetrics
+            logger.debug("Throttling read request due to overload");
+            Tracing.trace("Throttling read request due to overload");
+            throw e;
         }
         catch (UnavailableException e)
         {
@@ -2058,13 +2098,14 @@ public class StorageProxy implements StorageProxyMBean
     }
 
     @SuppressWarnings("resource")
-    private static PartitionIterator readRegular(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
-    throws UnavailableException, ReadFailureException, ReadTimeoutException
+    public static PartitionIterator readRegular(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, Dispatcher.RequestTime requestTime)
+    throws UnavailableException, ReadFailureException, ReadTimeoutException, OverloadedException
     {
         long start = nanoTime();
         try
         {
             for (SinglePartitionReadCommand cmd : group.queries) {
+                CassandraResourceUtilization.instance.throttleUserTrafficWithThrow(group.queries.get(0).metadata().keyspace, true);
                 DatabaseDescriptor.getRequestThrottler().maybeThrottleRead(cmd, consistencyLevel);
             }
             PartitionIterator result = fetchRows(group.queries, consistencyLevel, requestTime);
@@ -2077,12 +2118,20 @@ public class StorageProxy implements StorageProxyMBean
                 result = group.limits().filter(result, group.nowInSec(), group.selectsFullPartition(), enforceStrictLiveness);
             return result;
         }
-        catch (RequestThrottledException e) {
+        catch (RequestThrottledException e)
+        {
             Tracing.trace("Throttling read request");
             logger.debug("Throttling read request");
             readMetrics.throttles.mark();
             StorageProxyMetricsManager.getMetrics(group.queries.get(0).metadata().keyspace, consistencyLevel).readMetrics.throttles.mark();
             throw new ReadTimeoutException(consistencyLevel, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT, IRequestThrottler.REQUEST_THROTTLE_ERROR_INT, false);
+        }
+        catch (OverloadedException e)
+        {
+            // TODO: update readMetrics
+            Tracing.trace("Throttling read request due to overload");
+            logger.debug("Throttling read request due to overload");
+            throw e;
         }
         catch (UnavailableException e)
         {

@@ -24,6 +24,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.OverloadedException;
+import org.apache.cassandra.service.RateLimiterService;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,6 +53,8 @@ public class CassandraResourceUtilization
     private final ScheduledExecutorPlus reportThread = executorFactory().scheduled(false, "CassandraResourceUtilization", Thread.MAX_PRIORITY);
     private static final DecimalFormat df = new DecimalFormat("0");
 
+    public static final String THROW_MESSAGE = "from dynamic throttler";
+
     // TODO: make this configurable
     public final IResourceUtilzation resourceUtilzation = new NativeResourceUtilization();
 
@@ -70,11 +76,20 @@ public class CassandraResourceUtilization
     public volatile boolean shouldThrottle = false;
     public volatile double throttlingPercentageCur = 0.1;
 
+    public static CassandraResourceUtilization instance = new CassandraResourceUtilization();
+
+    // TODO: Eventually this method shall be private to achieve the singleton pattern. For now make it public
+    //  to allow eastier test writting.
+    public CassandraResourceUtilization()
+    {
+        RateLimiterService.instance.setThrottlingOptions(DatabaseDescriptor.getThrottlingOptions());
+        throttlingOptions = RateLimiterService.instance.getThrottlingOptions();
+        throttlingMetrics = new ThrottlingMetrics();
+    }
+
     public void setup(boolean continuousHealthCheck)
     {
         resourcesStats = new ResourcesStats();
-        throttlingOptions = new ThrottlingOptions();
-        throttlingMetrics = new ThrottlingMetrics();
         resourceUtilzation.setup();
         if (continuousHealthCheck)
         {
@@ -268,7 +283,7 @@ public class CassandraResourceUtilization
         if (!throttlingOptions.enabled)
         {
             throttlingMetrics.disableThrottling.inc();
-            logger.info("Throttling is disabled reads: {}....", reads);
+            logger.info("Throttling is disabled, reads: {}....", reads);
             return false;
         }
         KeyspaceThrottlingMetrics ksThrottlingMetrics = KeyspaceThrottlingMetricsManager.getMetrics(keyspaceName);
@@ -284,6 +299,13 @@ public class CassandraResourceUtilization
             return decideThrottling(keyspaceName, metrics, reads, ksThrottlingMetrics);
         }
         return false;
+    }
+
+    public void throttleUserTrafficWithThrow(String keyspaceName, boolean reads) throws OverloadedException
+    {
+        if (throttleUserTraffic(keyspaceName, reads)) {
+            throw new OverloadedException(THROW_MESSAGE);
+        }
     }
 
     public boolean decideThrottling(String ksName, KeyspaceMetrics metrics, boolean reads, KeyspaceThrottlingMetrics ksThrottlingMetrics)

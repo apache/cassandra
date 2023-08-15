@@ -96,6 +96,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.ReplicaCollection.Builder.Conflict;
 import org.apache.cassandra.db.monitoring.BadQuery;
 import org.apache.cassandra.repair.AutoRepair;
+import org.apache.cassandra.service.throttler.dynamic.CassandraResourceUtilization;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -1492,7 +1493,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private void doRateLimiterSetup()
     {
-        RateLimiterService.instance.setThrottlingOptions(DatabaseDescriptor.getThrottlingOptions());
+        if (DatabaseDescriptor.getThrottlingOptions().isEnabled()) {
+            logger.info("Enable RateLimiter");
+            CassandraResourceUtilization.instance.setup(true);
+        }
         logger.info("RateLimiter setup complete!");
     }
 

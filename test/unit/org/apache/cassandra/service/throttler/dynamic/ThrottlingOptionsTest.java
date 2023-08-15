@@ -27,7 +27,7 @@ public class ThrottlingOptionsTest
     public void testThrottlingOptions()
     {
         ThrottlingOptions throttlingOptions = new ThrottlingOptions();
-        Assert.assertTrue(throttlingOptions.enabled);
+        Assert.assertFalse(throttlingOptions.enabled);
         Assert.assertEquals(35, throttlingOptions.cpu_threshold_cur);
         Assert.assertEquals(35, throttlingOptions.cpu_threshold_one_minute);
         Assert.assertEquals(1, throttlingOptions.nr_throttling_threshold_cur);
