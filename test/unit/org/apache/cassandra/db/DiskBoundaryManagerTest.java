@@ -18,7 +18,10 @@
 
 package org.apache.cassandra.db;
 
+import java.io.IOException;
 import java.net.UnknownHostException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 import com.google.common.collect.Lists;
@@ -45,17 +48,21 @@ public class DiskBoundaryManagerTest extends CQLTester
     private DiskBoundaryManager dbm;
     private MockCFS mock;
     private Directories dirs;
+    private List<Directories.DataDirectory> datadirs;
+    private Path tmpDir;
 
     @Before
-    public void setup()
+    public void setup() throws IOException
     {
         DisallowedDirectories.clearUnwritableUnsafe();
         TokenMetadata metadata = StorageService.instance.getTokenMetadata();
         metadata.updateNormalTokens(BootStrapper.getRandomTokens(metadata, 10), FBUtilities.getBroadcastAddressAndPort());
         createTable("create table %s (id int primary key, x text)");
-        dirs = new Directories(getCurrentColumnFamilyStore().metadata(), Lists.newArrayList(new Directories.DataDirectory(new File("/tmp/1")),
-                                                                                          new Directories.DataDirectory(new File("/tmp/2")),
-                                                                                          new Directories.DataDirectory(new File("/tmp/3"))));
+        tmpDir = Files.createTempDirectory("DiskBoundaryManagerTest");
+        datadirs = Lists.newArrayList(new Directories.DataDirectory(new File(tmpDir, "1")),
+                                      new Directories.DataDirectory(new File(tmpDir, "2")),
+                                      new Directories.DataDirectory(new File(tmpDir, "3")));
+        dirs = new Directories(getCurrentColumnFamilyStore().metadata(), datadirs);
         mock = new MockCFS(getCurrentColumnFamilyStore(), dirs);
         dbm = mock.diskBoundaryManager;
     }
@@ -74,11 +81,11 @@ public class DiskBoundaryManagerTest extends CQLTester
         DiskBoundaries dbv = dbm.getDiskBoundaries(mock);
         Assert.assertEquals(3, dbv.positions.size());
         assertEquals(dbv.directories, dirs.getWriteableLocations());
-        DisallowedDirectories.maybeMarkUnwritable(new File("/tmp/3"));
+        DisallowedDirectories.maybeMarkUnwritable(new File(tmpDir, "3"));
         dbv = dbm.getDiskBoundaries(mock);
         Assert.assertEquals(2, dbv.positions.size());
-        Assert.assertEquals(Lists.newArrayList(new Directories.DataDirectory(new File("/tmp/1")),
-                                        new Directories.DataDirectory(new File("/tmp/2"))),
+        Assert.assertEquals(Lists.newArrayList(new Directories.DataDirectory(new File(tmpDir, "1")),
+                                               new Directories.DataDirectory(new File(tmpDir, "2"))),
                                  dbv.directories);
     }
 
