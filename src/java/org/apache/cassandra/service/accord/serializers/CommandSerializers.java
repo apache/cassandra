@@ -47,6 +47,7 @@ import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnUpdate;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
 import org.apache.cassandra.utils.CastingSerializer;
+import org.apache.cassandra.utils.NullableSerializer;
 
 public class CommandSerializers
 {
@@ -54,6 +55,7 @@ public class CommandSerializers
 
     public static final TimestampSerializer<TxnId> txnId = new TimestampSerializer<>(TxnId::fromBits);
     public static final TimestampSerializer<Timestamp> timestamp = new TimestampSerializer<>(Timestamp::fromBits);
+    public static final IVersionedSerializer<Timestamp> nullableTimestamp = NullableSerializer.wrap(timestamp);
     public static final TimestampSerializer<Ballot> ballot = new TimestampSerializer<>(Ballot::fromBits);
     public static final EnumSerializer<Txn.Kind> kind = new EnumSerializer<>(Txn.Kind.class);
 
@@ -181,9 +183,9 @@ public class CommandSerializers
 
     public static final IVersionedSerializer<PartialTxn> partialTxn = new PartialTxnSerializer(read, query, update);
 
-    public static final IVersionedSerializer<SaveStatus> saveStatus = new EnumSerializer<>(SaveStatus.class);
-    public static final IVersionedSerializer<Status> status = new EnumSerializer<>(Status.class);
-    public static final IVersionedSerializer<Durability> durability = new EnumSerializer<>(Durability.class);
+    public static final EnumSerializer<SaveStatus> saveStatus = new EnumSerializer<>(SaveStatus.class);
+    public static final EnumSerializer<Status> status = new EnumSerializer<>(Status.class);
+    public static final EnumSerializer<Durability> durability = new EnumSerializer<>(Durability.class);
 
     public static final IVersionedSerializer<Writes> writes = new IVersionedSerializer<Writes>()
     {

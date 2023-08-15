@@ -38,6 +38,18 @@ public abstract class AccordRoutableKey implements RoutableKey
     public abstract Token token();
 
     @Override
+    public Object prefix()
+    {
+        return keyspace;
+    }
+
+    @Override
+    public String toString()
+    {
+        return prefix() + ":" + suffix();
+    }
+
+    @Override
     public int hashCode()
     {
         return Objects.hash(keyspace, token().tokenHash());

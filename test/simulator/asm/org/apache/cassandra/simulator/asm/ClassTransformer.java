@@ -44,8 +44,8 @@ import static org.apache.cassandra.simulator.asm.Flag.NO_PROXY_METHODS;
 import static org.apache.cassandra.simulator.asm.TransformationKind.HASHCODE;
 import static org.apache.cassandra.simulator.asm.TransformationKind.SYNCHRONIZED;
 import static org.apache.cassandra.simulator.asm.Utils.deterministicToString;
-import static org.apache.cassandra.simulator.asm.Utils.visitEachRefType;
 import static org.apache.cassandra.simulator.asm.Utils.generateTryFinallyProxyCall;
+import static org.apache.cassandra.simulator.asm.Utils.visitEachRefType;
 import static org.objectweb.asm.Opcodes.ACC_PRIVATE;
 import static org.objectweb.asm.Opcodes.ACC_STATIC;
 import static org.objectweb.asm.Opcodes.ACC_SYNTHETIC;
@@ -182,7 +182,6 @@ class ClassTransformer extends ClassVisitor implements MethodWriterSink
     public void visit(int version, int access, String name, String signature, String superName, String[] interfaces)
     {
         super.visit(version, makePublic(access), name, signature, superName, interfaces);
-
     }
 
     @Override

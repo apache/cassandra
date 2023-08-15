@@ -21,7 +21,6 @@ package org.apache.cassandra.service.accord;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.function.BiFunction;
-
 import javax.annotation.Nullable;
 
 import accord.api.Agent;
@@ -34,11 +33,11 @@ import accord.impl.CommandTimeseries.CommandLoader;
 import accord.impl.CommandTimeseriesHolder;
 import accord.impl.CommandsForKey;
 import accord.impl.SafeCommandsForKey;
-import accord.local.CommandStores;
 import accord.local.CommandStores.RangesForEpoch;
 import accord.local.CommonAttributes;
 import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
+import accord.local.SafeCommand;
 import accord.local.Status;
 import accord.primitives.AbstractKeys;
 import accord.primitives.Deps;
@@ -57,6 +56,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     private final Map<TxnId, AccordSafeCommand> commands;
     private final NavigableMap<RoutableKey, AccordSafeCommandsForKey> commandsForKeys;
     private final AccordCommandStore commandStore;
+    private final RangesForEpoch ranges;
     CommandsForRanges.Updater rangeUpdates = null;
 
     public AccordSafeCommandStore(PreLoadContext context,
@@ -68,6 +68,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
         this.commands = commands;
         this.commandsForKeys = commandsForKey;
         this.commandStore = commandStore;
+        this.ranges = commandStore.updateRangesForEpoch();
     }
 
     @Override
@@ -143,7 +144,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     @Override
     public RangesForEpoch ranges()
     {
-        return commandStore().ranges();
+        return commandStore().unsafeRangesForEpoch();
     }
 
     @Override
@@ -155,7 +156,8 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     @Override
     public Timestamp maxConflict(Seekables<?, ?> keysOrRanges, Ranges slice)
     {
-        return mapReduce(keysOrRanges, slice, (ts, accum) -> Timestamp.max(ts.max(), accum), Timestamp.NONE, null);
+        Timestamp maxConflict = mapReduce(keysOrRanges, slice, (ts, accum) -> Timestamp.max(ts.max(), accum), Timestamp.NONE, null);
+        return Timestamp.nonNullOrMax(maxConflict, commandStore.commandsForRanges().maxRedundant());
     }
 
     @Override
@@ -163,15 +165,14 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     {
         // used in places such as accord.local.CommandStore.fetchMajorityDeps
         // We find a set of dependencies for a range then update CommandsFor to know about them
-        CommandStores.RangesForEpochHolder rangesForEpochHolder = commandStore.rangesForEpochHolder();
-        Ranges allRanges = rangesForEpochHolder.get().all();
+        Ranges allRanges = ranges.all();
         deps.keyDeps.keys().forEach(allRanges, key -> {
             SafeCommandsForKey cfk = commandsForKey(key);
             deps.keyDeps.forEach(key, txnId -> {
                 // TODO (desired, efficiency): this can be made more efficient by batching by epoch
-                if (rangesForEpochHolder.get().coordinates(txnId).contains(key))
+                if (ranges.coordinates(txnId).contains(key))
                     return; // already coordinates, no need to replicate
-                if (!rangesForEpochHolder.get().allBefore(txnId.epoch()).contains(key))
+                if (!ranges.allBefore(txnId.epoch()).contains(key))
                     return;
 
                 cfk.registerNotWitnessed(txnId);
@@ -183,16 +184,21 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
                 return;
 
             Ranges ranges = deps.rangeDeps.ranges(txnId);
-            if (rangesForEpochHolder.get().coordinates(txnId).intersects(ranges))
+            if (this.ranges.coordinates(txnId).intersects(ranges))
                 return; // already coordinates, no need to replicate
-            if (!rangesForEpochHolder.get().allBefore(txnId.epoch()).intersects(ranges))
+            if (!this.ranges.allBefore(txnId.epoch()).intersects(ranges))
                 return;
 
             updateRanges().mergeRemote(txnId, ranges.slice(allRanges), Ranges::with);
         });
     }
 
-    private <O> O mapReduce(Routables<?, ?> keysOrRanges, Ranges slice, BiFunction<CommandTimeseriesHolder, O, O> map, O accumulate, O terminalValue)
+    @Override
+    public void erase(SafeCommand safeCommand)
+    {
+    }
+
+    private <O> O mapReduce(Routables<?> keysOrRanges, Ranges slice, BiFunction<CommandTimeseriesHolder, O, O> map, O accumulate, O terminalValue)
     {
         accumulate = commandStore.mapReduceForRange(keysOrRanges, slice, map, accumulate, terminalValue);
         if (accumulate.equals(terminalValue))
@@ -200,7 +206,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
         return mapReduceForKey(keysOrRanges, slice, map, accumulate, terminalValue);
     }
 
-    private <O> O mapReduceForKey(Routables<?, ?> keysOrRanges, Ranges slice, BiFunction<CommandTimeseriesHolder, O, O> map, O accumulate, O terminalValue)
+    private <O> O mapReduceForKey(Routables<?> keysOrRanges, Ranges slice, BiFunction<CommandTimeseriesHolder, O, O> map, O accumulate, O terminalValue)
     {
         switch (keysOrRanges.domain())
         {
@@ -209,7 +215,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
             case Key:
             {
                 // TODO: efficiency
-                AbstractKeys<Key, ?> keys = (AbstractKeys<Key, ?>) keysOrRanges;
+                AbstractKeys<Key> keys = (AbstractKeys<Key>) keysOrRanges;
                 for (Key key : keys)
                 {
                     if (!slice.contains(key)) continue;
@@ -224,7 +230,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
             {
                 // Assuming the range provided is in the PreLoadContext, then AsyncLoader has populated commandsForKeys with keys that
                 // are contained within the ranges... so walk all keys found in commandsForKeys
-                Routables<?, ?> sliced = keysOrRanges.slice(slice, Routables.Slice.Minimal);
+                Routables<?> sliced = keysOrRanges.slice(slice, Routables.Slice.Minimal);
                 if (!context.keys().slice(slice, Routables.Slice.Minimal).containsAll(sliced))
                     throw new AssertionError("Range(s) detected not present in the PreLoadContext: expected " + context.keys() + " but given " + keysOrRanges);
                 for (RoutableKey key : commandsForKeys.keySet())
@@ -335,7 +341,7 @@ public class AccordSafeCommandStore extends AbstractSafeCommandStore<AccordSafeC
     }
 
     @Override
-    public CommandLoader<?> cfkLoader()
+    public CommandLoader<?> cfkLoader(RoutableKey key)
     {
         return CommandsForKeySerializer.loader;
     }

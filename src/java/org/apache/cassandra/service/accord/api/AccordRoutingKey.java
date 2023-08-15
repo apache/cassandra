@@ -20,6 +20,7 @@ package org.apache.cassandra.service.accord.api;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -35,7 +36,9 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.TokenRange;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -57,6 +60,7 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
 
     public abstract RoutingKeyKind kindOfRoutingKey();
     public abstract long estimatedSizeOnHeap();
+    public abstract AccordRoutingKey withKeyspace(String ks);
 
     public SentinelKey asSentinelKey()
     {
@@ -104,6 +108,12 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
             return EMPTY_SIZE;
         }
 
+        @Override
+        public AccordRoutingKey withKeyspace(String ks)
+        {
+            return new SentinelKey(ks, isMin);
+        }
+
         public static SentinelKey min(String keyspace)
         {
             return new SentinelKey(keyspace, true);
@@ -134,12 +144,9 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
         }
 
         @Override
-        public String toString()
+        public String suffix()
         {
-            return "SentinelKey{" +
-                   "keyspace=" + keyspace +
-                   ", key=" + (isMin ? "min": "max") +
-                   '}';
+            return isMin ? "-Inf" : "+Inf";
         }
 
         public static final IVersionedSerializer<SentinelKey> serializer = new IVersionedSerializer<SentinelKey>()
@@ -219,17 +226,20 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
         }
 
         @Override
-        public String toString()
+        public String suffix()
         {
-            return "TokenKey{" +
-                   "keyspace=" + keyspace() +
-                   ", key=" + token() +
-                   '}';
+            return token.toString();
         }
 
         public long estimatedSizeOnHeap()
         {
             return EMPTY_SIZE + token().getHeapSize();
+        }
+
+        @Override
+        public AccordRoutingKey withKeyspace(String ks)
+        {
+            return new TokenKey(ks, token);
         }
 
         public static final Serializer serializer = new Serializer();
@@ -260,9 +270,10 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
         }
     }
 
-    public static final IVersionedSerializer<AccordRoutingKey> serializer = new IVersionedSerializer<AccordRoutingKey>()
+    public static class Serializer implements IVersionedSerializer<AccordRoutingKey>
     {
-        final RoutingKeyKind[] kinds = RoutingKeyKind.values();
+        static final RoutingKeyKind[] kinds = RoutingKeyKind.values();
+
         @Override
         public void serialize(AccordRoutingKey key, DataOutputPlus out, int version) throws IOException
         {
@@ -277,6 +288,37 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
                     break;
                 default:
                     throw new IllegalArgumentException();
+            }
+        }
+
+        public ByteBuffer serialize(AccordRoutingKey key)
+        {
+            try (DataOutputBuffer buffer = new DataOutputBuffer((int)serializedSize(key, 0)))
+            {
+                try
+                {
+                    serialize(key, buffer, 0);
+                }
+                catch (IOException e)
+                {
+                    throw new RuntimeException(e);
+                }
+                return buffer.asNewBuffer();
+            }
+        }
+
+        public AccordRoutingKey deserialize(ByteBuffer buffer)
+        {
+            try (DataInputBuffer in = new DataInputBuffer(buffer, true))
+            {
+                try
+                {
+                    return deserialize(in, 0);
+                }
+                catch (IOException e)
+                {
+                    throw new RuntimeException(e);
+                }
             }
         }
 
@@ -312,7 +354,10 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
             }
             return size;
         }
-    };
+
+    }
+
+    public static final Serializer serializer = new Serializer();
 
     public static class KeyspaceSplitter implements ShardDistributor
     {
@@ -344,6 +389,12 @@ public abstract class AccordRoutingKey extends AccordRoutableKey implements Rout
                 }
             }
             return results;
+        }
+
+        @Override
+        public Range splitRange(Range range, int from, int to, int numSplits)
+        {
+            return subSplitter.splitRange(range, from, to, numSplits);
         }
     }
 }

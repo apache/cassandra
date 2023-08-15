@@ -20,17 +20,14 @@ package org.apache.cassandra.service.accord;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import javax.annotation.Nullable;
 
-import com.google.common.collect.ImmutableSortedMap;
-import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.junit.Assert;
@@ -40,7 +37,6 @@ import accord.api.Key;
 import accord.api.ProgressLog;
 import accord.api.Result;
 import accord.api.RoutingKey;
-import accord.api.Write;
 import accord.impl.CommandsForKey;
 import accord.impl.InMemoryCommandStore;
 import accord.local.Command;
@@ -51,17 +47,23 @@ import accord.local.Node;
 import accord.local.Node.Id;
 import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
+import accord.local.SafeCommand;
+import accord.local.SafeCommandStore;
 import accord.local.SaveStatus;
-import accord.local.Status.Known;
+import accord.local.SaveStatus.LocalExecution;
 import accord.primitives.Ballot;
+import accord.primitives.FullKeyRoute;
 import accord.primitives.Keys;
+import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
+import accord.primitives.Participants;
 import accord.primitives.Ranges;
+import accord.primitives.Route;
+import accord.primitives.Seekable;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
-import accord.primitives.Unseekables;
 import accord.primitives.Writes;
 import accord.topology.Shard;
 import accord.topology.Topology;
@@ -94,11 +96,11 @@ public class AccordTestUtils
 {
     public static class Commands
     {
-        public static Command notWitnessed(TxnId txnId, PartialTxn txn)
+        public static Command notDefined(TxnId txnId, PartialTxn txn)
         {
             CommonAttributes.Mutable attrs = new CommonAttributes.Mutable(txnId);
             attrs.partialTxn(txn);
-            return Command.SerializerSupport.notWitnessed(attrs, Ballot.ZERO);
+            return Command.SerializerSupport.notDefined(attrs, Ballot.ZERO);
         }
 
         public static Command preaccepted(TxnId txnId, PartialTxn txn, Timestamp executeAt)
@@ -110,15 +112,17 @@ public class AccordTestUtils
 
         public static Command committed(TxnId txnId, PartialTxn txn, Timestamp executeAt)
         {
-            CommonAttributes.Mutable attrs = new CommonAttributes.Mutable(txnId);
+            CommonAttributes.Mutable attrs = new CommonAttributes.Mutable(txnId).partialDeps(PartialDeps.NONE);
             attrs.partialTxn(txn);
+            Seekable key = txn.keys().get(0);
+            RoutingKey routingKey = key.asKey().toUnseekable();
+            attrs.route(new FullKeyRoute(routingKey, true, new RoutingKey[]{ routingKey}));
             return Command.SerializerSupport.committed(attrs,
                                                        SaveStatus.Committed,
                                                        executeAt,
                                                        Ballot.ZERO,
                                                        Ballot.ZERO,
-                                                       ImmutableSortedSet.of(),
-                                                       ImmutableSortedMap.of());
+                                                       Command.WaitingOn.EMPTY);
         }
     }
 
@@ -163,22 +167,26 @@ public class AccordTestUtils
 
     public static final ProgressLog NOOP_PROGRESS_LOG = new ProgressLog()
     {
-        @Override public void unwitnessed(TxnId txnId, RoutingKey routingKey, ProgressShard progressShard) {}
+        @Override public void unwitnessed(TxnId txnId, ProgressShard progressShard) {}
         @Override public void preaccepted(Command command, ProgressShard progressShard) {}
         @Override public void accepted(Command command, ProgressShard progressShard) {}
         @Override public void committed(Command command, ProgressShard progressShard) {}
-        @Override public void readyToExecute(Command command, ProgressShard progressShard) {}
+        @Override public void readyToExecute(Command command) {}
         @Override public void executed(Command command, ProgressShard progressShard) {}
-        @Override public void invalidated(Command command, ProgressShard progressShard) {}
-        @Override public void durableLocal(TxnId txnId) {}
-        @Override public void durable(Command command, @Nullable Set<Id> set) {}
-        @Override public void durable(TxnId txnId, @Nullable Unseekables<?, ?> unseekables, ProgressShard progressShard) {}
-        @Override public void waiting(TxnId txnId, Known known, Unseekables<?, ?> unseekables) {}
+        @Override public void clear(TxnId txnId) {}
+        @Override public void durable(Command command) {}
+        @Override
+        public void waiting(SafeCommand blockedBy, LocalExecution blockedUntil, Route<?> blockedOnRoute, Participants<?> blockedOnParticipants) {}
     };
 
     public static TxnId txnId(long epoch, long hlc, int node)
     {
-        return new TxnId(epoch, hlc, Txn.Kind.Write, Key, new Node.Id(node));
+        return txnId(epoch, hlc, node, Txn.Kind.Write);
+    }
+
+    public static TxnId txnId(long epoch, long hlc, int node, Txn.Kind kind)
+    {
+        return new TxnId(epoch, hlc, kind, Key, new Node.Id(node));
     }
 
     public static Timestamp timestamp(long epoch, long hlc, int node)
@@ -195,30 +203,32 @@ public class AccordTestUtils
     {
         AtomicReference<Pair<Writes, Result>> result = new AtomicReference<>();
         getUninterruptibly(commandStore.execute(PreLoadContext.contextFor(txn.keys()),
-                              safeStore -> {
-                                  TxnRead read = (TxnRead) txn.read();
-                                  Data readData = read.keys().stream().map(key -> {
-                                                          try
-                                                          {
-                                                              return AsyncChains.getBlocking(read.read(key, txn.kind(), safeStore, executeAt, null));
-                                                          }
-                                                          catch (InterruptedException e)
-                                                          {
-                                                              throw new UncheckedInterruptedException(e);
-                                                          }
-                                                          catch (ExecutionException e)
-                                                          {
-                                                              throw new RuntimeException(e);
-                                                          }
-                                                      })
-                                                      .reduce(null, TxnData::merge);
-                                  Write write = txn.update().apply(executeAt, readData);
-                                  result.set(Pair.create(new Writes(txnId, executeAt, txn.keys(), write),
-                                                         txn.query().compute(txnId, executeAt, readData, txn.read(), txn.update())));
-                              }));
+                           safeStore -> result.set(processTxnResultDirect(safeStore, txnId, txn, executeAt))));
         return result.get();
     }
 
+    public static Pair<Writes, Result> processTxnResultDirect(SafeCommandStore safeStore, TxnId txnId, PartialTxn txn, Timestamp executeAt)
+    {
+        TxnRead read = (TxnRead) txn.read();
+        Data readData = read.keys().stream().map(key -> {
+                                try
+                                {
+                                    return AsyncChains.getBlocking(read.read(key, txn.kind(), safeStore, executeAt, null));
+                                }
+                                catch (InterruptedException e)
+                                {
+                                    throw new UncheckedInterruptedException(e);
+                                }
+                                catch (ExecutionException e)
+                                {
+                                    throw new RuntimeException(e);
+                                }
+                            })
+                            .reduce(null, TxnData::merge);
+        return Pair.create(txn.execute(txnId, executeAt, readData),
+                           txn.query().compute(txnId, executeAt, readData, txn.read(), txn.update()));
+
+    }
 
     public static Txn createTxn(String query)
     {
@@ -251,15 +261,18 @@ public class AccordTestUtils
         StringBuilder sb = new StringBuilder("BEGIN TRANSACTION\n");
         sb.append(format("LET row1 = (SELECT * FROM ks.tbl WHERE k=%s AND c=0);\n", readKey));
         sb.append("SELECT row1.v;\n");
-        sb.append("IF row1 IS NULL THEN\n");
-        for (int key : writeKeys)
-            sb.append(format("INSERT INTO ks.tbl (k, c, v) VALUES (%s, 0, 1);\n", key));
-        sb.append("END IF\n");
+        if (writeKeys.length > 0)
+        {
+            sb.append("IF row1 IS NULL THEN\n");
+            for (int key : writeKeys)
+                sb.append(format("INSERT INTO ks.tbl (k, c, v) VALUES (%s, 0, 1);\n", key));
+            sb.append("END IF\n");
+        }
         sb.append("COMMIT TRANSACTION");
         return createTxn(sb.toString());
     }
 
-    public static Txn createTxn(int key)
+    public static Txn createWriteTxn(int key)
     {
         return createTxn(key, key);
     }
@@ -282,7 +295,7 @@ public class AccordTestUtils
         return new PartialTxn.InMemory(ranges, txn.kind(), txn.keys(), txn.read(), txn.query(), txn.update());
     }
 
-    private static class SingleEpochRanges extends CommandStores.RangesForEpochHolder
+    private static class SingleEpochRanges extends CommandStore.EpochUpdateHolder
     {
         private final Ranges ranges;
 
@@ -293,7 +306,7 @@ public class AccordTestUtils
 
         private void set(CommandStore store)
         {
-            this.current = new CommandStores.RangesForEpoch(1, ranges, store);
+            add(1, new CommandStores.RangesForEpoch(1, ranges, store), ranges);
         }
     }
 
@@ -309,6 +322,8 @@ public class AccordTestUtils
             @Override public long epoch() {return 1; }
             @Override public long now() {return now.getAsLong(); }
             @Override public Timestamp uniqueNow(Timestamp atLeast) { return Timestamp.fromValues(1, now.getAsLong(), node); }
+            @Override
+            public long unix(TimeUnit timeUnit) { return NodeTimeService.unixWrapper(TimeUnit.MICROSECONDS, this::now).applyAsLong(timeUnit); }
         };
 
         SingleEpochRanges holder = new SingleEpochRanges(Ranges.of(range));
@@ -330,6 +345,8 @@ public class AccordTestUtils
             @Override public long epoch() {return 1; }
             @Override public long now() {return now.getAsLong(); }
             @Override public Timestamp uniqueNow(Timestamp atLeast) { return Timestamp.fromValues(1, now.getAsLong(), node); }
+            @Override
+            public long unix(TimeUnit timeUnit) { return NodeTimeService.unixWrapper(TimeUnit.MICROSECONDS, this::now).applyAsLong(timeUnit); }
         };
 
         SingleEpochRanges holder = new SingleEpochRanges(topology.rangesForNode(node));
@@ -342,6 +359,7 @@ public class AccordTestUtils
                                                            loadExecutor,
                                                            saveExecutor);
         holder.set(result);
+        result.updateRangesForEpoch();
         return result;
     }
 

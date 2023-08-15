@@ -358,7 +358,10 @@ public class OrderPreservingPartitioner implements IPartitioner
 
     private static int charLength(RoutingKey routingKey)
     {
-        return charLength(((AccordRoutingKey) routingKey).token());
+        AccordRoutingKey accordKey = (AccordRoutingKey) routingKey;
+        if (accordKey.kindOfRoutingKey() == AccordRoutingKey.RoutingKeyKind.SENTINEL)
+            return 0;
+        return charLength(accordKey.token());
     }
 
     private static int charLength(Token token)

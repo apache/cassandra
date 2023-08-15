@@ -28,10 +28,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedMap;
@@ -96,7 +98,7 @@ public class CommandsForRanges
         {
             return Objects.equals(txnId, other.txnId)
                    && Objects.equals(ranges, other.ranges)
-                   && Objects.equals(status, other.status)
+                   && status == other.status
                    && Objects.equals(executeAt, other.executeAt)
                    && Objects.equals(deps, other.deps);
         }
@@ -183,21 +185,25 @@ public class CommandsForRanges
         public T put(TxnId txnId, Ranges ranges, SaveStatus status, Timestamp execteAt, List<TxnId> dependsOn)
         {
             remove(txnId);
-            RangeCommandSummary summary = new RangeCommandSummary(txnId, ranges, status, execteAt, dependsOn);
+            put(new RangeCommandSummary(txnId, ranges, status, execteAt, dependsOn));
+            //noinspection unchecked
+            return (T) this;
+        }
+
+        private void put(RangeCommandSummary summary)
+        {
+            TxnId txnId = summary.txnId;
             localTxns.add(txnId);
             txnToRange.put(txnId, summary);
             addRanges(summary);
-            return (T) this;
         }
 
         private void addRanges(RangeCommandSummary summary)
         {
             for (Range range : summary.ranges)
-            {
                 rangeToTxn.add(Interval.create(normalize(range.start(), range.startInclusive(), true),
                                                normalize(range.end(), range.endInclusive(), false),
                                                summary));
-            }
         }
 
         public T putAll(CommandsForRanges other)
@@ -216,6 +222,7 @@ public class CommandsForRanges
             // empty list (aka no-op)
             rangeToTxn.removeIf(data -> other.commandsToRanges.containsKey(data.txnId));
             rangeToTxn.addAll(other.rangesToCommands);
+            //noinspection unchecked
             return (T) this;
         }
 
@@ -232,18 +239,15 @@ public class CommandsForRanges
             // the only subtle difference is if minStatus = NotWitnessed, this API will include these but InMemoryStore won't
             RangeCommandSummary oldValue = txnToRange.get(txnId);
             RangeCommandSummary newValue = oldValue == null ?
-                                           new RangeCommandSummary(txnId, ranges, SaveStatus.NotWitnessed, null, Collections.emptyList())
+                                           new RangeCommandSummary(txnId, ranges, SaveStatus.NotDefined, null, Collections.emptyList())
                                            : oldValue.withRanges(ranges, remappingFunction);
-            if (newValue == null)
-            {
-                remove(txnId);
-            }
-            else if (!oldValue.equalsDeep(newValue))
+            if (oldValue == null || !oldValue.equalsDeep(newValue))
             {
                 // changes detected... have to update range index
                 rangeToTxn.removeIf(data -> data.txnId.equals(txnId));
                 addRanges(newValue);
             }
+            //noinspection unchecked
             return (T) this;
         }
 
@@ -255,6 +259,23 @@ public class CommandsForRanges
                 txnToRange.remove(txnId);
                 rangeToTxn.removeIf(data -> data.txnId.equals(txnId));
             }
+            //noinspection unchecked
+            return (T) this;
+        }
+
+        public T map(Function<? super RangeCommandSummary, ? extends RangeCommandSummary> mapper)
+        {
+            for (TxnId id : new TreeSet<>(txnToRange.keySet()))
+            {
+                RangeCommandSummary summary = txnToRange.get(id);
+                RangeCommandSummary update = mapper.apply(summary);
+                if (summary.equals(update))
+                    continue;
+                remove(summary.txnId);
+                if (update != null)
+                    put(update);
+            }
+            //noinspection unchecked
             return (T) this;
         }
     }
@@ -329,6 +350,8 @@ public class CommandsForRanges
     private ImmutableSet<TxnId> localCommands;
     private ImmutableSortedMap<TxnId, RangeCommandSummary> commandsToRanges;
     private IntervalTree<RoutableKey, RangeCommandSummary, Interval<RoutableKey, RangeCommandSummary>> rangesToCommands;
+    @Nullable
+    private Timestamp maxRedundant;
 
     public CommandsForRanges()
     {
@@ -350,12 +373,29 @@ public class CommandsForRanges
         return localCommands.contains(txnId) ? TxnType.LOCAL : TxnType.REMOTE;
     }
 
+    @VisibleForTesting
+    Set<TxnId> knownIds()
+    {
+        return commandsToRanges.keySet();
+    }
+
+    @VisibleForTesting
+    IntervalTree<RoutableKey, RangeCommandSummary, Interval<RoutableKey, RangeCommandSummary>> tree()
+    {
+        return rangesToCommands;
+    }
+
+    public @Nullable Timestamp maxRedundant()
+    {
+        return maxRedundant;
+    }
+
     public boolean containsLocally(TxnId txnId)
     {
         return localCommands.contains(txnId);
     }
 
-    public Iterable<CommandTimeseriesHolder> search(AbstractKeys<Key, ?> keys)
+    public Iterable<CommandTimeseriesHolder> search(AbstractKeys<Key> keys)
     {
         // group by the keyspace, as ranges are based off TokenKey, which is scoped to a range
         Map<String, List<Key>> groupByKeyspace = new TreeMap<>();
@@ -441,17 +481,21 @@ public class CommandsForRanges
 
     private static RoutingKey normalize(RoutingKey key, boolean inclusive, boolean upOrDown)
     {
-        if (inclusive) return key;
-        AccordRoutingKey ak = (AccordRoutingKey) key;
-        switch (ak.kindOfRoutingKey())
+        while (true)
         {
-            case SENTINEL:
-                return normalize(ak.asSentinelKey().toTokenKey(), inclusive, upOrDown);
-            case TOKEN:
-                TokenKey tk = ak.asTokenKey();
-                return tk.withToken(upOrDown ? tk.token().nextValidToken() : tk.token().decreaseSlightly());
-            default:
-                throw new IllegalArgumentException("Unknown kind: " + ak.kindOfRoutingKey());
+            if (inclusive) return key;
+            AccordRoutingKey ak = (AccordRoutingKey) key;
+            switch (ak.kindOfRoutingKey())
+            {
+                case SENTINEL:
+                    key = ak.asSentinelKey().toTokenKey();
+                    continue;
+                case TOKEN:
+                    TokenKey tk = ak.asTokenKey();
+                    return tk.withToken(upOrDown ? tk.token().nextValidToken() : tk.token().decreaseSlightly());
+                default:
+                    throw new IllegalArgumentException("Unknown kind: " + ak.kindOfRoutingKey());
+            }
         }
     }
 
@@ -505,4 +549,26 @@ public class CommandsForRanges
                    '}';
         }
     }
+
+    public void prune(TxnId pruneBefore, Ranges pruneRanges)
+    {
+        class MaxErased { Timestamp v; }
+        MaxErased maxErased = new MaxErased();
+        Updater update = update();
+        update.map(summary -> {
+            if (summary.txnId.compareTo(pruneBefore) >= 0)
+                return summary;
+
+            Ranges newRanges = summary.ranges.subtract(pruneRanges);
+            if (newRanges == summary.ranges || newRanges.equals(summary.ranges))
+                return summary;
+
+            maxErased.v = Timestamp.nonNullOrMax(maxErased.v, summary.executeAt);
+            if (newRanges.isEmpty())
+                return null;
+            return new RangeCommandSummary(summary.txnId, newRanges, summary.status, summary.executeAt, summary.deps);
+        }).apply();
+        maxRedundant = Timestamp.nonNullOrMax(maxRedundant, maxErased.v);
+    }
+
 }

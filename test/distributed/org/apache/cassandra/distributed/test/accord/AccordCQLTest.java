@@ -173,8 +173,9 @@ public class AccordCQLTest extends AccordTestBase
                 sb.append(String.format("SELECT * FROM %s WHERE k=%s AND c=0;\n", currentTable, keyStrings.get(keyStrings.size() - 1)));
                 sb.append("COMMIT TRANSACTION");
 
-                Unseekables<?, ?> routables = AccordTestUtils.createTxn(sb.toString()).keys().toUnseekables();
-                Topologies topology = AccordService.instance().topology().withUnsyncedEpochs(routables, AccordService.instance().topology().epoch());
+                Unseekables<?> routables = AccordTestUtils.createTxn(sb.toString()).keys().toParticipants();
+                long epoch = AccordService.instance().topology().epoch();
+                Topologies topology = AccordService.instance().topology().withUnsyncedEpochs(routables, epoch, epoch);
                 // we don't detect out-of-bounds read/write yet, so use this to validate we reach different shards
                 Assertions.assertThat(topology.totalShards()).isEqualTo(2);
             });

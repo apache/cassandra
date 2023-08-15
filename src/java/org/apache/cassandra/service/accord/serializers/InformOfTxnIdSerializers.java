@@ -33,21 +33,21 @@ public class InformOfTxnIdSerializers
         public void serialize(InformOfTxnId inform, DataOutputPlus out, int version) throws IOException
         {
             CommandSerializers.txnId.serialize(inform.txnId, out, version);
-            KeySerializers.routingKey.serialize(inform.homeKey, out, version);
+            KeySerializers.route.serialize(inform.someRoute, out, version);
         }
 
         @Override
         public InformOfTxnId deserialize(DataInputPlus in, int version) throws IOException
         {
             return new InformOfTxnId(CommandSerializers.txnId.deserialize(in, version),
-                                     KeySerializers.routingKey.deserialize(in, version));
+                                     KeySerializers.route.deserialize(in, version));
         }
 
         @Override
         public long serializedSize(InformOfTxnId inform, int version)
         {
             return CommandSerializers.txnId.serializedSize(inform.txnId, version)
-                   + KeySerializers.routingKey.serializedSize(inform.homeKey, version);
+                   + KeySerializers.route.serializedSize(inform.someRoute, version);
         }
     };
 }

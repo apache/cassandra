@@ -22,8 +22,8 @@ import java.io.IOException;
 
 import accord.messages.WaitOnCommit;
 import accord.messages.WaitOnCommit.WaitOnCommitOk;
+import accord.primitives.Participants;
 import accord.primitives.TxnId;
-import accord.primitives.Unseekables;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -36,14 +36,14 @@ public class WaitOnCommitSerializer
         public void serialize(WaitOnCommit wait, DataOutputPlus out, int version) throws IOException
         {
             CommandSerializers.txnId.serialize(wait.txnId, out, version);
-            KeySerializers.unseekables.serialize(wait.scope, out, version);
+            KeySerializers.participants.serialize(wait.scope, out, version);
         }
 
         @Override
         public WaitOnCommit deserialize(DataInputPlus in, int version) throws IOException
         {
             TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
-            Unseekables<?, ?> scope = KeySerializers.unseekables.deserialize(in, version);
+            Participants<?> scope = KeySerializers.participants.deserialize(in, version);
             return WaitOnCommit.SerializerSupport.create(txnId, scope);
         }
 
@@ -51,7 +51,7 @@ public class WaitOnCommitSerializer
         public long serializedSize(WaitOnCommit wait, int version)
         {
             return CommandSerializers.txnId.serializedSize(wait.txnId, version)
-                   + KeySerializers.unseekables.serializedSize(wait.scope, version);
+                   + KeySerializers.participants.serializedSize(wait.scope, version);
         }
     };
 

@@ -18,18 +18,24 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+
+import accord.local.DurableBefore;
+import accord.local.RedundantBefore;
 import accord.messages.Request;
 import accord.primitives.Txn;
 import accord.topology.TopologyManager;
+import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.service.accord.api.AccordScheduler;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Future;
-
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 public interface IAccordService
 {
@@ -47,13 +53,15 @@ public interface IAccordService
 
     void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException;
 
+    AccordScheduler scheduler();
+
     /**
      * Return a future that will complete once the accord has completed it's local bootstrap process
      * for any ranges gained in the given epoch
      */
     Future<Void> epochReady(Epoch epoch);
 
-    void remoteSyncComplete(Message<AccordLocalSyncNotifier.Notification> message);
+    void receive(Message<List<AccordSyncPropagator.Notification>> message);
 
     /**
      * Temporary method to avoid double-streaming keyspaces
@@ -61,4 +69,9 @@ public interface IAccordService
      * @return
      */
     boolean isAccordManagedKeyspace(String keyspace);
+
+    /**
+     * Fetch the redundnant befores for every command store
+     */
+    Pair<Int2ObjectHashMap<RedundantBefore>, DurableBefore> getRedundantBeforesAndDurableBefore();
 }

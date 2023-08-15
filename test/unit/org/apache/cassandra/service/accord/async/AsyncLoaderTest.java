@@ -53,7 +53,7 @@ import org.apache.cassandra.utils.concurrent.AsyncPromise;
 
 import static java.util.Collections.singleton;
 import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.parse;
-import static org.apache.cassandra.service.accord.AccordTestUtils.Commands.notWitnessed;
+import static org.apache.cassandra.service.accord.AccordTestUtils.Commands.notDefined;
 import static org.apache.cassandra.service.accord.AccordTestUtils.commandsForKey;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createAccordCommandStore;
 import static org.apache.cassandra.service.accord.AccordTestUtils.createPartialTxn;
@@ -93,9 +93,9 @@ public class AsyncLoaderTest
 
         // acquire / release
 
-        commandCache.unsafeSetLoadFunction(id -> notWitnessed(id, txn));
+        commandCache.unsafeSetLoadFunction(id -> notDefined(id, txn));
         AccordSafeCommand safeCommand = commandCache.acquire(txnId);
-        testLoad(executor, safeCommand, notWitnessed(txnId, txn));
+        testLoad(executor, safeCommand, notDefined(txnId, txn));
         commandCache.release(safeCommand);
 
         cfkCache.unsafeSetLoadFunction(k -> commandsForKey((PartitionKey) k));
@@ -133,7 +133,7 @@ public class AsyncLoaderTest
         // create / persist
         AccordSafeCommand safeCommand = new AccordSafeCommand(loaded(txnId, null));
         safeCommand.preExecute();
-        safeCommand.set(notWitnessed(txnId, txn));
+        safeCommand.set(notDefined(txnId, txn));
         AccordKeyspace.getCommandMutation(commandStore, safeCommand, commandStore.nextSystemTimestampMicros()).apply();
 
         AccordSafeCommandsForKey cfk = new AccordSafeCommandsForKey(loaded(key, null));
@@ -182,9 +182,9 @@ public class AsyncLoaderTest
         PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
 
         // acquire /release, create / persist
-        commandCache.unsafeSetLoadFunction(id -> notWitnessed(id, txn));
+        commandCache.unsafeSetLoadFunction(id -> notDefined(id, txn));
         AccordSafeCommand safeCommand = commandCache.acquire(txnId);
-        testLoad(executor, safeCommand, notWitnessed(txnId, txn));
+        testLoad(executor, safeCommand, notDefined(txnId, txn));
         commandCache.release(safeCommand);
 
 
@@ -242,7 +242,7 @@ public class AsyncLoaderTest
         testLoad(executor, safeCfk, commandsForKey(key));
         cfkCache.release(safeCfk);
 
-        commandCache.unsafeSetLoadFunction(id -> { Assert.assertEquals(txnId, id); return notWitnessed(id, txn); });
+        commandCache.unsafeSetLoadFunction(id -> { Assert.assertEquals(txnId, id); return notDefined(id, txn); });
         AccordSafeCommand safeCommand = commandCache.acquire(txnId);
         Assert.assertEquals(AccordCachingState.Status.LOADING, safeCommand.globalStatus());
         Assert.assertTrue(commandCache.isReferenced(txnId));
@@ -299,7 +299,7 @@ public class AsyncLoaderTest
                 if (txnId.equals(txnId1))
                     throw failure;
                 else if (txnId.equals(txnId2))
-                    return notWitnessed(txnId, null);
+                    return notDefined(txnId, null);
                 throw new AssertionError("Unknown txnId: " + txnId);
             });
 

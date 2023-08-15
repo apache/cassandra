@@ -46,10 +46,10 @@ import accord.impl.CommandTimeseriesHolder;
 import accord.impl.CommandsForKey;
 import accord.local.Command;
 import accord.local.CommandStore;
-import accord.local.CommandStores.RangesForEpoch;
-import accord.local.CommandStores.RangesForEpochHolder;
+import accord.local.DurableBefore;
 import accord.local.NodeTimeService;
 import accord.local.PreLoadContext;
+import accord.local.RedundantBefore;
 import accord.local.SafeCommandStore;
 import accord.local.SaveStatus;
 import accord.primitives.AbstractKeys;
@@ -117,9 +117,9 @@ public class AccordCommandStore extends CommandStore
                               Agent agent,
                               DataStore dataStore,
                               ProgressLog.Factory progressLogFactory,
-                              RangesForEpochHolder rangesForEpoch)
+                              EpochUpdateHolder epochUpdateHolder)
     {
-        this(id, time, agent, dataStore, progressLogFactory, rangesForEpoch, Stage.READ.executor(), Stage.MUTATION.executor());
+        this(id, time, agent, dataStore, progressLogFactory, epochUpdateHolder, Stage.READ.executor(), Stage.MUTATION.executor());
     }
 
     @VisibleForTesting
@@ -128,11 +128,11 @@ public class AccordCommandStore extends CommandStore
                               Agent agent,
                               DataStore dataStore,
                               ProgressLog.Factory progressLogFactory,
-                              RangesForEpochHolder rangesForEpoch,
+                              EpochUpdateHolder epochUpdateHolder,
                               ExecutorPlus loadExecutor,
                               ExecutorPlus saveExecutor)
     {
-        super(id, time, agent, dataStore, progressLogFactory, rangesForEpoch);
+        super(id, time, agent, dataStore, progressLogFactory, epochUpdateHolder);
         loggingId = String.format("[%s]", id);
         executor = executorFactory().sequential(CommandStore.class.getSimpleName() + '[' + id + ']');
         threadId = getThreadId(this.executor);
@@ -151,10 +151,14 @@ public class AccordCommandStore extends CommandStore
                                 this::loadCommandsForKey,
                                 this::saveCommandsForKey,
                                 AccordObjectSizes::commandsForKey);
-        AccordKeyspace.loadCommandStoreMetadata(id, ((rejectBefore, bootstrapBeganAt, safeToRead) -> {
+        AccordKeyspace.loadCommandStoreMetadata(id, ((rejectBefore, durableBefore, redundantBefore, bootstrapBeganAt, safeToRead) -> {
             executor.submit(() -> {
                 if (rejectBefore != null)
                     super.setRejectBefore(rejectBefore);
+                if (durableBefore != null)
+                    super.setDurableBefore(durableBefore);
+                if (redundantBefore != null)
+                    super.setRedundantBefore(redundantBefore);
                 if (bootstrapBeganAt != null)
                     super.setBootstrapBeganAt(bootstrapBeganAt);
                 if (safeToRead != null)
@@ -347,11 +351,6 @@ public class AccordCommandStore extends CommandStore
         return progressLog;
     }
 
-    RangesForEpoch ranges()
-    {
-        return rangesForEpochHolder.get();
-    }
-
     @Override
     public AsyncChain<Void> execute(PreLoadContext preLoadContext, Consumer<? super SafeCommandStore> consumer)
     {
@@ -385,6 +384,11 @@ public class AccordCommandStore extends CommandStore
         return current;
     }
 
+    public boolean hasSafeStore()
+    {
+        return current != null;
+    }
+
     public void completeOperation(AccordSafeCommandStore store)
     {
         Invariants.checkState(current == store);
@@ -392,14 +396,14 @@ public class AccordCommandStore extends CommandStore
         current = null;
     }
 
-    <O> O mapReduceForRange(Routables<?, ?> keysOrRanges, Ranges slice, BiFunction<CommandTimeseriesHolder, O, O> map, O accumulate, O terminalValue)
+    <O> O mapReduceForRange(Routables<?> keysOrRanges, Ranges slice, BiFunction<CommandTimeseriesHolder, O, O> map, O accumulate, O terminalValue)
     {
         keysOrRanges = keysOrRanges.slice(slice, Routables.Slice.Minimal);
         switch (keysOrRanges.domain())
         {
             case Key:
             {
-                AbstractKeys<Key, ?> keys = (AbstractKeys<Key, ?>) keysOrRanges;
+                AbstractKeys<Key> keys = (AbstractKeys<Key>) keysOrRanges;
                 for (CommandTimeseriesHolder summary : commandsForRanges.search(keys))
                 {
                     accumulate = map.apply(summary, accumulate);
@@ -410,7 +414,7 @@ public class AccordCommandStore extends CommandStore
             break;
             case Range:
             {
-                AbstractRanges<?> ranges = (AbstractRanges<?>) keysOrRanges;
+                AbstractRanges ranges = (AbstractRanges) keysOrRanges;
                 for (Range range : ranges)
                 {
                     CommandTimeseriesHolder summary = commandsForRanges.search(range);
@@ -468,5 +472,27 @@ public class AccordCommandStore extends CommandStore
         super.setSafeToRead(newSafeToRead);
         // TODO (required, correctness): rework to persist via journal once available, this can lose updates in some edge cases
         AccordKeyspace.updateSafeToRead(this, newSafeToRead);
+    }
+
+    @Override
+    public void setDurableBefore(DurableBefore newDurableBefore)
+    {
+        super.setDurableBefore(newDurableBefore);
+        AccordKeyspace.updateDurableBefore(this, newDurableBefore);
+    }
+
+    @Override
+    protected void setRedundantBefore(RedundantBefore newRedundantBefore)
+    {
+        super.setRedundantBefore(newRedundantBefore);
+        // TODO (required): this needs to be synchronous, or at least needs to take effect before we rely upon it
+        AccordKeyspace.updateRedundantBefore(this, newRedundantBefore);
+    }
+
+    @Override
+    public void markShardDurable(SafeCommandStore safeStore, TxnId globalSyncId, Ranges ranges)
+    {
+        super.markShardDurable(safeStore, globalSyncId, ranges);
+        commandsForRanges.prune(globalSyncId, ranges);
     }
 }

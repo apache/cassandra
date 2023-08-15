@@ -52,11 +52,11 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.TopPartitionTracker;
+import org.apache.cassandra.repair.NoSuchRepairSessionException;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.repair.ValidationPartitionIterator;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
-import org.apache.cassandra.repair.NoSuchRepairSessionException;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Refs;
 
@@ -159,7 +159,6 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
     }
 
     private final ColumnFamilyStore cfs;
-    private final SharedContext ctx;
     private final Refs<SSTableReader> sstables;
     private final String snapshotName;
     private final boolean isGlobalSnapshotValidation;
@@ -177,7 +176,6 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
     public CassandraValidationIterator(ColumnFamilyStore cfs, SharedContext ctx, Collection<Range<Token>> ranges, TimeUUID parentId, TimeUUID sessionID, boolean isIncremental, long nowInSec, TopPartitionTracker.Collector topPartitionCollector) throws IOException, NoSuchRepairSessionException
     {
         this.cfs = cfs;
-        this.ctx = ctx;
 
         isGlobalSnapshotValidation = cfs.snapshotExists(parentId.toString());
         if (isGlobalSnapshotValidation)

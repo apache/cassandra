@@ -18,17 +18,29 @@
  */
 package org.apache.cassandra.schema;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
-import org.apache.cassandra.db.marshal.*;
-
+import org.junit.BeforeClass;
 import org.junit.Test;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.marshal.AbstractType;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class ValidationTest
 {
+    @BeforeClass
+    public static void beforeClass()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
+
     @Test
     public void testIsNameValidPositive()
     {

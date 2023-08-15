@@ -21,21 +21,20 @@ package org.apache.cassandra.service.accord;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.impl.AbstractConfigurationService;
 import accord.local.Node;
+import accord.primitives.Ranges;
 import accord.topology.Topology;
 import accord.utils.Invariants;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
-import org.agrona.collections.Long2ObjectHashMap;
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.IFailureDetector;
@@ -50,18 +49,17 @@ import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 
 // TODO: listen to FailureDetector and rearrange fast path accordingly
-public class AccordConfigurationService extends AbstractConfigurationService<AccordConfigurationService.EpochState, AccordConfigurationService.EpochHistory> implements ChangeListener, AccordEndpointMapper, AccordLocalSyncNotifier.Listener
+public class AccordConfigurationService extends AbstractConfigurationService<AccordConfigurationService.EpochState, AccordConfigurationService.EpochHistory> implements ChangeListener, AccordEndpointMapper, AccordSyncPropagator.Listener
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordConfigurationService.class);
+    private final AccordSyncPropagator syncPropagator;
 
-    private final MessageDelivery messagingService;
-    private final IFailureDetector failureDetector;
     private EpochDiskState diskState = EpochDiskState.EMPTY;
+
     private enum State { INITIALIZED, LOADING, STARTED }
 
     private State state = State.INITIALIZED;
     private volatile EndpointMapping mapping = EndpointMapping.EMPTY;
-    private final Long2ObjectHashMap<AccordLocalSyncNotifier> syncNotifiers = new Long2ObjectHashMap<>();
 
     public enum SyncStatus { NOT_STARTED, NOTIFYING, COMPLETED }
 
@@ -115,8 +113,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     public AccordConfigurationService(Node.Id node, MessageDelivery messagingService, IFailureDetector failureDetector)
     {
         super(node);
-        this.messagingService = messagingService;
-        this.failureDetector = failureDetector;
+        this.syncPropagator = new AccordSyncPropagator(localId, this, messagingService, failureDetector, ScheduledExecutors.scheduledTasks, this);
     }
 
     public AccordConfigurationService(Node.Id node)
@@ -135,24 +132,26 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         Invariants.checkState(state == State.INITIALIZED, "Expected state to be INITIALIZED but was %s", state);
         state = State.LOADING;
         updateMapping(ClusterMetadata.current());
-        diskState = AccordKeyspace.loadTopologies(((epoch, topology, syncStatus, pendingSyncNotify, remoteSyncComplete) -> {
+        diskState = AccordKeyspace.loadTopologies(((epoch, topology, syncStatus, pendingSyncNotify, remoteSyncComplete, closed, redundant) -> {
             if (topology != null)
                 reportTopology(topology, syncStatus == SyncStatus.NOT_STARTED);
 
             getOrCreateEpochState(epoch).setSyncStatus(syncStatus);
             if (syncStatus == SyncStatus.NOTIFYING)
-                syncNotifiers.put(epoch, new AccordLocalSyncNotifier(epoch, localId, pendingSyncNotify, this, messagingService, failureDetector, this));
+                syncPropagator.reportSyncComplete(epoch, pendingSyncNotify, localId);
 
-            remoteSyncComplete.forEach(id -> remoteSyncComplete(id, epoch));
+            remoteSyncComplete.forEach(id -> receiveRemoteSyncComplete(id, epoch));
+            // TODO (now): disk doesn't get updated until we see our own notification, so there is an edge case where this instance notified others and fails in the middle, but Apply was already sent!  This could leave partial closed/redudant accross the cluster
+            receiveClosed(closed, epoch);
+            receiveRedundant(redundant, epoch);
         }));
-        syncNotifiers.values().forEach(AccordLocalSyncNotifier::start);
         state = State.STARTED;
     }
 
     @Override
     public Node.Id mappedId(InetAddressAndPort endpoint)
     {
-        return Invariants.nonNull(mapping.mappedId(endpoint));
+        return Invariants.nonNull(mapping.mappedId(endpoint), "Unable to map address %s to a Node.Id", endpoint);
     }
 
     @Override
@@ -184,7 +183,6 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         Stage.MISC.submit(() -> {
             synchronized (AccordConfigurationService.this)
             {
-                logger.info("Reporting metadata for epoch {}", metadata.epoch.getEpoch());
                 updateMapping(metadata);
                 reportTopology(AccordTopologyUtils.createAccordTopology(metadata, this::isAccordManagedKeyspace));
             }
@@ -229,18 +227,10 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         if (epochState.syncStatus != SyncStatus.NOT_STARTED)
             return;
 
-        Set<Node.Id> pendingNotification = topology.nodes().stream().filter(i -> !localId.equals(i)).collect(Collectors.toSet());
-        AccordLocalSyncNotifier notifier = new AccordLocalSyncNotifier(epoch, localId, pendingNotification, this, messagingService, failureDetector, this);
-        syncNotifiers.put(epoch, notifier);
-        diskState = AccordKeyspace.setNotifyingLocalSync(epoch, pendingNotification, diskState);
+        Set<Node.Id> notify = topology.nodes().stream().filter(i -> !localId.equals(i)).collect(Collectors.toSet());
+        diskState = AccordKeyspace.setNotifyingLocalSync(epoch, notify, diskState);
         epochState.setSyncStatus(SyncStatus.NOTIFYING);
-        notifier.start();
-    }
-
-    @Override
-    public long currentEpoch()
-    {
-        return super.currentEpoch();
+        syncPropagator.reportSyncComplete(epoch, notify, localId);
     }
 
     @Override
@@ -268,10 +258,41 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     }
 
     @Override
-    protected void remoteSyncCompletePreListenerNotify(Node.Id node, long epoch)
+    protected void receiveRemoteSyncCompletePreListenerNotify(Node.Id node, long epoch)
     {
         if (state == State.STARTED)
             diskState = AccordKeyspace.markRemoteTopologySync(node, epoch, diskState);
+    }
+
+    @Override
+    public synchronized void reportEpochClosed(Ranges ranges, long epoch)
+    {
+        Invariants.checkState(state == State.STARTED);
+        Topology topology = getTopologyForEpoch(epoch);
+        syncPropagator.reportClosed(epoch, topology.nodes(), ranges);
+    }
+
+    @Override
+    public synchronized void reportEpochRedundant(Ranges ranges, long epoch)
+    {
+        Invariants.checkState(state == State.STARTED);
+        // TODO (expected): ensure we aren't fetching a truncated epoch; otherwise this should be non-null
+        Topology topology = getTopologyForEpoch(epoch);
+        syncPropagator.reportRedundant(epoch, topology.nodes(), ranges);
+    }
+
+    @Override
+    public synchronized void receiveClosed(Ranges ranges, long epoch)
+    {
+        diskState = AccordKeyspace.markClosed(ranges, epoch, diskState);
+        super.receiveClosed(ranges, epoch);
+    }
+
+    @Override
+    public synchronized void receiveRedundant(Ranges ranges, long epoch)
+    {
+        diskState = AccordKeyspace.markClosed(ranges, epoch, diskState);
+        super.receiveRedundant(ranges, epoch);
     }
 
     @Override

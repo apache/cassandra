@@ -24,8 +24,10 @@ import accord.messages.ReadData.ReadNack;
 import accord.messages.ReadData.ReadOk;
 import accord.messages.ReadData.ReadReply;
 import accord.messages.ReadTxnData;
+import accord.messages.WaitUntilApplied;
+import accord.primitives.Participants;
 import accord.primitives.Ranges;
-import accord.primitives.Seekables;
+import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -45,7 +47,7 @@ public class ReadDataSerializers
         public void serialize(ReadTxnData read, DataOutputPlus out, int version) throws IOException
         {
             CommandSerializers.txnId.serialize(read.txnId, out, version);
-            KeySerializers.seekables.serialize(read.readScope, out, version);
+            KeySerializers.participants.serialize(read.readScope, out, version);
             out.writeUnsignedVInt(read.waitForEpoch());
             out.writeUnsignedVInt(read.executeAtEpoch - read.waitForEpoch());
         }
@@ -54,7 +56,7 @@ public class ReadDataSerializers
         public ReadTxnData deserialize(DataInputPlus in, int version) throws IOException
         {
             TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
-            Seekables<?, ?> readScope = KeySerializers.seekables.deserialize(in, version);
+            Participants<?> readScope = KeySerializers.participants.deserialize(in, version);
             long waitForEpoch = in.readUnsignedVInt();
             long executeAtEpoch = in.readUnsignedVInt() + waitForEpoch;
             return ReadTxnData.SerializerSupport.create(txnId, readScope, executeAtEpoch, waitForEpoch);
@@ -64,7 +66,7 @@ public class ReadDataSerializers
         public long serializedSize(ReadTxnData read, int version)
         {
             return CommandSerializers.txnId.serializedSize(read.txnId, version)
-                   + KeySerializers.seekables.serializedSize(read.readScope, version)
+                   + KeySerializers.participants.serializedSize(read.readScope, version)
                    + TypeSizes.sizeofUnsignedVInt(read.waitForEpoch())
                    + TypeSizes.sizeofUnsignedVInt(read.executeAtEpoch - read.waitForEpoch());
         }
@@ -112,6 +114,38 @@ public class ReadDataSerializers
             return TypeSizes.BYTE_SIZE
                    + serializedNullableSize(readOk.unavailable, version, KeySerializers.ranges)
                    + TxnData.nullableSerializer.serializedSize((TxnData) readOk.data, version);
+        }
+    };
+
+    // TODO (consider): duplicates ReadTxnData ser/de logic; conside deduplicating if another instance of this is added
+    public static final IVersionedSerializer<WaitUntilApplied> waitOnApply = new IVersionedSerializer<WaitUntilApplied>()
+    {
+        @Override
+        public void serialize(WaitUntilApplied msg, DataOutputPlus out, int version) throws IOException
+        {
+            CommandSerializers.txnId.serialize(msg.txnId, out, version);
+            KeySerializers.participants.serialize(msg.readScope, out, version);
+            out.writeUnsignedVInt(msg.waitForEpoch());
+            CommandSerializers.timestamp.serialize(msg.executeAt, out , version);
+        }
+
+        @Override
+        public WaitUntilApplied deserialize(DataInputPlus in, int version) throws IOException
+        {
+            TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
+            Participants<?> readScope = KeySerializers.participants.deserialize(in, version);
+            long waitForEpoch = in.readUnsignedVInt();
+            Timestamp executeAt = CommandSerializers.timestamp.deserialize(in, version);
+            return WaitUntilApplied.SerializerSupport.create(txnId, readScope, executeAt, waitForEpoch);
+        }
+
+        @Override
+        public long serializedSize(WaitUntilApplied msg, int version)
+        {
+            return CommandSerializers.txnId.serializedSize(msg.txnId, version)
+                 + KeySerializers.participants.serializedSize(msg.readScope, version)
+                 + TypeSizes.sizeofUnsignedVInt(msg.waitForEpoch())
+                 + CommandSerializers.timestamp.serializedSize(msg.executeAt, version);
         }
     };
 }

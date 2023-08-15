@@ -153,6 +153,7 @@ public class ProgressBarrierTest extends CMSTestBase
                         public <REQ> void send(Message<REQ> message, InetAddressAndPort to) {}
                         public <REQ, RSP> void sendWithCallback(Message<REQ> message, InetAddressAndPort to, RequestCallback<RSP> cb, ConnectionType specifyConnection) {}
                         public <REQ, RSP> Future<Message<RSP>> sendWithResult(Message<REQ> message, InetAddressAndPort to) { return null; }
+                        @Override
                         public <V> void respond(V response, Message<?> message) {}
                     };
                     ProgressBarrier progressBarrier = ((MultiStepOperation<Epoch>)metadata.inProgressSequences.get(node.nodeId()))
