@@ -138,7 +138,7 @@ public class WidePrimaryKeyMap extends SkinnyPrimaryKeyMap
         rowId = tokenCollisionDetection(primaryKey, rowId);
 
         // Search the key store for the key in the same partition
-        return clusteringKeyCursor.partitionedSeekToTerm(clusteringComparator.asByteComparable(primaryKey.clustering()), rowId, startOfNextPartition(rowId));
+        return clusteringKeyCursor.clusteredSeekToKey(clusteringComparator.asByteComparable(primaryKey.clustering()), rowId, startOfNextPartition(rowId));
     }
 
     @Override

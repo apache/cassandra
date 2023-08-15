@@ -36,50 +36,41 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.StringHelper;
 
 /**
- * Writes a sequence of terms for use with {@link KeyLookup}.
+ * Writes a sequence of partition keys or clustering keys for use with {@link KeyLookup}.
  * <p>
- * Terms can be written in two distinct way
- * <ul>
- *     <li>
- *         Non-partitioned - terms can be written in any order
- *     </li>
- *     <li>
- *         Partitioned - terms added between calls to {@link #startPartition()} must be in lexographical order
- *     </li>
- * </ul>
- * In both cases terms can be of varying lengths.
- * <p>
- * For documentation of the underlying on-disk data structures, see the package documentation.
+ * Partition keys are written unordered and clustering keys are written in ordered partitions determined by calls to
+ * {@link #startPartition()}. In either case keys can be of varying lengths.
  * <p>
  * The {@link #blockShift} field is used to quickly determine the id of the current block
  * based on a point id or to check if we are exactly at the beginning of the block.
- * Terms data are organized in blocks of (2 ^ {@link #blockShift}) terms.
- * The blocks should not be too small because they allow prefix compression of
- * the terms except the first term in a block.
- * The blocks should not be too large because we can't just randomly jump to the term inside the block,
- * but we have to iterate through all the terms from the start of the block.
+ * <p>
+ * Keys are organized in blocks of (2 ^ {@link #blockShift}) keys.
+ * <p>
+ * The blocks should not be too small because they allow prefix compression of the keys except the first key in a block.
+ * <p>
+ * The blocks should not be too large because we can't just randomly jump to the key inside the block, but we have to
+ * iterate through all the keys from the start of the block.
  *
  * @see KeyLookup
- * @see org.apache.cassandra.index.sai.disk.v1.keystore
  */
 @NotThreadSafe
 public class KeyStoreWriter implements Closeable
 {
     private final int blockShift;
     private final int blockMask;
-    private final boolean partitioned;
-    private final IndexOutput termsOutput;
+    private final boolean clustering;
+    private final IndexOutput keysOutput;
     private final NumericValuesWriter offsetsWriter;
     private final String componentName;
     private final MetadataWriter metadataWriter;
 
-    private BytesRefBuilder prevTerm = new BytesRefBuilder();
-    private BytesRefBuilder tempTerm = new BytesRefBuilder();
+    private BytesRefBuilder prevKey = new BytesRefBuilder();
+    private BytesRefBuilder tempKey = new BytesRefBuilder();
 
     private final long bytesStartFP;
 
     private boolean inPartition = false;
-    private int maxTermLength = -1;
+    private int maxKeyLength = -1;
     private long pointId = 0;
 
     /**
@@ -90,104 +81,104 @@ public class KeyStoreWriter implements Closeable
      *
      * @param componentName the component name for the {@link KeyLookupMeta}
      * @param metadataWriter the {@link MetadataWriter} for storing the {@link KeyLookupMeta}
-     * @param termsOutput where to write the prefix-compressed terms data
-     * @param termsDataBlockOffsets  where to write the offsets of each block of terms data
+     * @param keysOutput where to write the prefix-compressed keys
+     * @param keysBlockOffsets  where to write the offsets of each block of keys
      * @param blockShift the block shift that is used to determine the block size
-     * @param partitioned determines whether the terms will be written as ordered partitions
+     * @param clustering determines whether the keys will be written as ordered partitions
      */
     public KeyStoreWriter(String componentName,
                           MetadataWriter metadataWriter,
-                          IndexOutput termsOutput,
-                          NumericValuesWriter termsDataBlockOffsets,
+                          IndexOutput keysOutput,
+                          NumericValuesWriter keysBlockOffsets,
                           int blockShift,
-                          boolean partitioned) throws IOException
+                          boolean clustering) throws IOException
     {
         this.componentName = componentName;
         this.metadataWriter = metadataWriter;
-        SAICodecUtils.writeHeader(termsOutput);
+        SAICodecUtils.writeHeader(keysOutput);
         this.blockShift = blockShift;
         this.blockMask = (1 << this.blockShift) - 1;
-        this.partitioned = partitioned;
-        this.termsOutput = termsOutput;
-        this.termsOutput.writeVInt(blockShift);
-        this.termsOutput.writeByte((byte ) (partitioned ? 1 : 0));
-        this.bytesStartFP = termsOutput.getFilePointer();
-        this.offsetsWriter = termsDataBlockOffsets;
+        this.clustering = clustering;
+        this.keysOutput = keysOutput;
+        this.keysOutput.writeVInt(blockShift);
+        this.keysOutput.writeByte((byte ) (clustering ? 1 : 0));
+        this.bytesStartFP = keysOutput.getFilePointer();
+        this.offsetsWriter = keysBlockOffsets;
     }
 
     public void startPartition()
     {
-        assert partitioned : "Cannot start a partition on an un-partitioned key store";
+        assert clustering : "Cannot start a partition on a non-clustering key store";
 
         inPartition = false;
     }
 
     /**
-     * Appends a term at the end of the sequence.
+     * Appends a key at the end of the sequence.
      *
      * @throws IOException if write to disk fails
-     * @throws IllegalArgumentException if the term is not greater than the previous added term
+     * @throws IllegalArgumentException if the key is not greater than the previous added key
      */
-    public void add(final @Nonnull ByteComparable term) throws IOException
+    public void add(final @Nonnull ByteComparable key) throws IOException
     {
-        tempTerm.clear();
-        copyBytes(term, tempTerm);
+        tempKey.clear();
+        copyBytes(key, tempKey);
 
-        BytesRef termRef = tempTerm.get();
+        BytesRef keyRef = tempKey.get();
 
-        if (partitioned && inPartition)
+        if (clustering && inPartition)
         {
-            if (compareTerms(termRef, prevTerm.get()) <= 0)
-                throw new IllegalArgumentException("Partitioned terms must be in ascending lexographical order");
+            if (compareKeys(keyRef, prevKey.get()) <= 0)
+                throw new IllegalArgumentException("Clustering keys must be in ascending lexographical order");
         }
 
         inPartition = true;
 
-        writeTermData(termRef);
+        writeKey(keyRef);
 
-        maxTermLength = Math.max(maxTermLength, termRef.length);
+        maxKeyLength = Math.max(maxKeyLength, keyRef.length);
 
-        BytesRefBuilder temp = this.tempTerm;
-        this.tempTerm = this.prevTerm;
-        this.prevTerm = temp;
+        BytesRefBuilder temp = this.tempKey;
+        this.tempKey = this.prevKey;
+        this.prevKey = temp;
 
         pointId++;
     }
 
-    private void writeTermData(BytesRef term) throws IOException
+    private void writeKey(BytesRef key) throws IOException
     {
         if ((pointId & blockMask) == 0)
         {
-            offsetsWriter.add(termsOutput.getFilePointer() - bytesStartFP);
+            offsetsWriter.add(keysOutput.getFilePointer() - bytesStartFP);
 
-            termsOutput.writeVInt(term.length);
-            termsOutput.writeBytes(term.bytes, term.offset, term.length);
+            keysOutput.writeVInt(key.length);
+            keysOutput.writeBytes(key.bytes, key.offset, key.length);
         }
         else
         {
             int prefixLength = 0;
             int suffixLength = 0;
 
-            // If the term is the same as the previous term then we use prefix and suffix lengths of 0.
-            // This means that we store a byte of 0 and don't write any data for the term.
-            if (compareTerms(prevTerm.get(), term) != 0)
+            // If the key is the same as the previous key then we use prefix and suffix lengths of 0.
+            // This means that we store a byte of 0 and don't write any data for the key.
+            if (compareKeys(prevKey.get(), key) != 0)
             {
-                prefixLength = StringHelper.bytesDifference(prevTerm.get(), term);
-                suffixLength = term.length - prefixLength;
+                prefixLength = StringHelper.bytesDifference(prevKey.get(), key);
+                suffixLength = key.length - prefixLength;
             }
             // The prefix and suffix lengths are written as a byte followed by up to 2 vints. An attempt is
             // made to compress the lengths into the byte (if prefix length < 15 and/or suffix length < 15).
             // If either length exceeds the compressed byte maximum, it is written as a vint following the byte.
-            termsOutput.writeByte((byte) (Math.min(prefixLength, 15) | (Math.min(15, suffixLength) << 4)));
+            keysOutput.writeByte((byte) (Math.min(prefixLength, 15) | (Math.min(15, suffixLength) << 4)));
 
             if (prefixLength + suffixLength > 0)
             {
                 if (prefixLength >= 15)
-                    termsOutput.writeVInt(prefixLength - 15);
+                    keysOutput.writeVInt(prefixLength - 15);
                 if (suffixLength >= 15)
-                    termsOutput.writeVInt(suffixLength - 15);
+                    keysOutput.writeVInt(suffixLength - 15);
 
-                termsOutput.writeBytes(term.bytes, term.offset + prefixLength, term.length - prefixLength);
+                keysOutput.writeBytes(key.bytes, key.offset + prefixLength, key.length - prefixLength);
             }
         }
     }
@@ -202,16 +193,16 @@ public class KeyStoreWriter implements Closeable
     {
         try (IndexOutput output = metadataWriter.builder(componentName))
         {
-            SAICodecUtils.writeFooter(termsOutput);
-            KeyLookupMeta.write(output, pointId, maxTermLength);
+            SAICodecUtils.writeFooter(keysOutput);
+            KeyLookupMeta.write(output, pointId, maxKeyLength);
         }
         finally
         {
-            FileUtils.close(offsetsWriter, termsOutput);
+            FileUtils.close(offsetsWriter, keysOutput);
         }
     }
 
-    private int compareTerms(BytesRef left, BytesRef right)
+    private int compareKeys(BytesRef left, BytesRef right)
     {
         return FastByteOperations.compareUnsigned(left.bytes, left.offset, left.offset + left.length,
                                                   right.bytes, right.offset, right.offset + right.length);

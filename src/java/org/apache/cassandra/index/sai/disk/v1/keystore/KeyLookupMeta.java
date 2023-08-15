@@ -28,18 +28,18 @@ import org.apache.lucene.store.IndexOutput;
  */
 public class KeyLookupMeta
 {
-    public final long termCount;
-    public final int maxTermLength;
+    public final long keyCount;
+    public final int maxKeyLength;
 
     public KeyLookupMeta(DataInput input) throws IOException
     {
-        this.termCount = input.readLong();
-        this.maxTermLength = input.readInt();
+        this.keyCount = input.readLong();
+        this.maxKeyLength = input.readInt();
     }
 
-    public static void write(IndexOutput output, long termCount, int maxTermLength) throws IOException
+    public static void write(IndexOutput output, long keyCount, int maxKeyLength) throws IOException
     {
-        output.writeLong(termCount);
-        output.writeInt(maxTermLength);
+        output.writeLong(keyCount);
+        output.writeInt(maxKeyLength);
     }
 }

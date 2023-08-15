@@ -56,7 +56,7 @@ import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class SortedTermsTest extends SAIRandomizedTester
+public class KeyLookupTest extends SAIRandomizedTester
 {
     protected IndexDescriptor indexDescriptor;
 
@@ -247,27 +247,27 @@ public class SortedTermsTest extends SAIRandomizedTester
         }, true);
 
         withSortedTermsCursor(cursor -> {
-            assertEquals(0L, cursor.partitionedSeekToTerm(ByteComparable.fixedLength(terms.get(0L)), 0L, 10L));
+            assertEquals(0L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(terms.get(0L)), 0L, 10L));
             cursor.reset();
-            assertEquals(160L, cursor.partitionedSeekToTerm(ByteComparable.fixedLength(terms.get(160L)), 160L, 170L));
+            assertEquals(160L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(terms.get(160L)), 160L, 170L));
             cursor.reset();
-            assertEquals(165L, cursor.partitionedSeekToTerm(ByteComparable.fixedLength(terms.get(165L)), 160L, 170L));
+            assertEquals(165L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(terms.get(165L)), 160L, 170L));
             cursor.reset();
-            assertEquals(175L, cursor.partitionedSeekToTerm(ByteComparable.fixedLength(terms.get(175L)), 160L, 176L));
+            assertEquals(175L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(terms.get(175L)), 160L, 176L));
             cursor.reset();
-            assertEquals(176L, cursor.partitionedSeekToTerm(ByteComparable.fixedLength(terms.get(176L)), 160L, 177L));
+            assertEquals(176L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(terms.get(176L)), 160L, 177L));
             cursor.reset();
-            assertEquals(176L, cursor.partitionedSeekToTerm(ByteComparable.fixedLength(terms.get(176L)), 175L, 177L));
+            assertEquals(176L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(terms.get(176L)), 175L, 177L));
             cursor.reset();
-            assertEquals(176L, cursor.partitionedSeekToTerm(ByteComparable.fixedLength(makeTerm(701)), 160L, 177L));
+            assertEquals(176L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(makeTerm(701)), 160L, 177L));
             cursor.reset();
-            assertEquals(504L, cursor.partitionedSeekToTerm(ByteComparable.fixedLength(terms.get(504L)), 200L, 600L));
+            assertEquals(504L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(terms.get(504L)), 200L, 600L));
             cursor.reset();
-            assertEquals(-1L, cursor.partitionedSeekToTerm(ByteComparable.fixedLength(makeTerm(4000)), 0L, 1000L));
+            assertEquals(-1L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(makeTerm(4000)), 0L, 1000L));
             cursor.reset();
-            assertEquals(-1L, cursor.partitionedSeekToTerm(ByteComparable.fixedLength(makeTerm(4000)), 999L, 1000L));
+            assertEquals(-1L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(makeTerm(4000)), 999L, 1000L));
             cursor.reset();
-            assertEquals(999L, cursor.partitionedSeekToTerm(ByteComparable.fixedLength(terms.get(999L)), 0L, 1000L));
+            assertEquals(999L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(terms.get(999L)), 0L, 1000L));
         });
     }
 
@@ -287,7 +287,7 @@ public class SortedTermsTest extends SAIRandomizedTester
             }
         }, false);
 
-        withSortedTermsCursor(cursor -> assertThatThrownBy(() -> cursor.partitionedSeekToTerm(ByteComparable.fixedLength(terms.get(0L)), 0L, 10L))
+        withSortedTermsCursor(cursor -> assertThatThrownBy(() -> cursor.clusteredSeekToKey(ByteComparable.fixedLength(terms.get(0L)), 0L, 10L))
                                         .isInstanceOf(AssertionError.class));
     }
 

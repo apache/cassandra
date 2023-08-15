@@ -67,7 +67,7 @@ import static org.mockito.Mockito.when;
 @Fork(value = 1, jvmArgsAppend = "-Xmx512M")
 @Threads(1)
 @State(Scope.Benchmark)
-public class SortedTermsBench
+public class KeyLookupBench
 {
     private static final int rows = 1_000_000;
 
@@ -165,7 +165,7 @@ public class SortedTermsBench
     }
 
     @Benchmark
-    public long advanceToTerm()
+    public long advanceToKey()
     {
         return primaryKeyMap.rowIdFromPrimaryKey(primaryKey);
     }
