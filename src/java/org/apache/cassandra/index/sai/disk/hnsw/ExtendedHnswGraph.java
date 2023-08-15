@@ -46,6 +46,13 @@ public abstract class ExtendedHnswGraph extends HnswGraph
         }
         var sortedNodes = new int[nodesOnLevel.size()];
 
+        // if all ordinals appear on level (for instance, level 0), generate all ordinals in sorted order
+        if (nodesOnLevel.size() == hnsw.size())
+        {
+            Arrays.setAll(sortedNodes, i -> i);
+            return sortedNodes;
+        }
+
         for(var n = 0; nodesOnLevel.hasNext(); n++) {
             sortedNodes[n] = nodesOnLevel.nextInt();
         }
