@@ -252,42 +252,42 @@ public class DescriptorTest
         testKeyspaceTableParsing(filePathsWithBackupsKeyspaceAndTableWithIndices, "backups", "backups.index");
 
         String[] outsideOfCassandra = new String[]{
-        "/tmp/some/path/tests/keyspace/table-34234234234234234234234234234234/na-1-big-Index.db",
-        "/tmp/some/path/tests/keyspace/table-34234234234234234234234234234234/snapshots/snapshots/na-1-big-Index.db",
-        "/tmp/some/path/tests/keyspace/table-34234234234234234234234234234234/backups/na-1-big-Index.db",
-        "/tmp/tests/keyspace/table-34234234234234234234234234234234/na-1-big-Index.db",
+        "/testroot/some/path/tests/keyspace/table-34234234234234234234234234234234/na-1-big-Index.db",
+        "/testroot/some/path/tests/keyspace/table-34234234234234234234234234234234/snapshots/snapshots/na-1-big-Index.db",
+        "/testroot/some/path/tests/keyspace/table-34234234234234234234234234234234/backups/na-1-big-Index.db",
+        "/testroot/tests/keyspace/table-34234234234234234234234234234234/na-1-big-Index.db",
         "/keyspace/table-34234234234234234234234234234234/nb-3g1m_0nuf_3vj5m2k1125165rxa7-big-Index.db",
-        "/tmp/some/path/tests/keyspace/table-34234234234234234234234234234234/nb-3g1m_0nuf_3vj5m2k1125165rxa7-big-Index.db",
-        "/tmp/some/path/tests/keyspace/table-34234234234234234234234234234234/snapshots/snapshots/nb-3g1m_0nuf_3vj5m2k1125165rxa7-big-Index.db",
-        "/tmp/some/path/tests/keyspace/table-34234234234234234234234234234234/backups/nb-3g1m_0nuf_3vj5m2k1125165rxa7-big-Index.db",
-        "/tmp/tests/keyspace/table-34234234234234234234234234234234/nb-3g1m_0nuf_3vj5m2k1125165rxa7-big-Index.db",
+        "/testroot/some/path/tests/keyspace/table-34234234234234234234234234234234/nb-3g1m_0nuf_3vj5m2k1125165rxa7-big-Index.db",
+        "/testroot/some/path/tests/keyspace/table-34234234234234234234234234234234/snapshots/snapshots/nb-3g1m_0nuf_3vj5m2k1125165rxa7-big-Index.db",
+        "/testroot/some/path/tests/keyspace/table-34234234234234234234234234234234/backups/nb-3g1m_0nuf_3vj5m2k1125165rxa7-big-Index.db",
+        "/testroot/tests/keyspace/table-34234234234234234234234234234234/nb-3g1m_0nuf_3vj5m2k1125165rxa7-big-Index.db",
         "/keyspace/table-34234234234234234234234234234234/nb-3g1m_0nuf_3vj5m2k1125165rxa7-big-Index.db"
         };
 
         testKeyspaceTableParsing(outsideOfCassandra, "keyspace", "table");
 
         String[] outsideOfCassandraUppercaseKeyspaceAndTable = new String[]{
-        "/tmp/some/path/tests/Keyspace/Table-34234234234234234234234234234234/na-1-big-Index.db",
-        "/tmp/some/path/tests/Keyspace/Table-34234234234234234234234234234234/snapshots/snapshots/na-1-big-Index.db",
-        "/tmp/some/path/tests/Keyspace/Table-34234234234234234234234234234234/backups/na-1-big-Index.db",
-        "/tmp/tests/Keyspace/Table-34234234234234234234234234234234/na-1-big-Index.db",
+        "/testroot/some/path/tests/Keyspace/Table-34234234234234234234234234234234/na-1-big-Index.db",
+        "/testroot/some/path/tests/Keyspace/Table-34234234234234234234234234234234/snapshots/snapshots/na-1-big-Index.db",
+        "/testroot/some/path/tests/Keyspace/Table-34234234234234234234234234234234/backups/na-1-big-Index.db",
+        "/testroot/tests/Keyspace/Table-34234234234234234234234234234234/na-1-big-Index.db",
         "/Keyspace/Table-34234234234234234234234234234234/nb-3g1m_0nuf_3vj5m2k1125165rxa7-big-Index.db",
-        "/tmp/some/path/tests/Keyspace/Table-34234234234234234234234234234234/nb-3g1m_0nuf_3vj5m2k1125165rxa7-big-Index.db",
-        "/tmp/some/path/tests/Keyspace/Table-34234234234234234234234234234234/snapshots/snapshots/nb-3g1m_0nuf_3vj5m2k1125165rxa7-big-Index.db",
-        "/tmp/some/path/tests/Keyspace/Table-34234234234234234234234234234234/backups/nb-3g1m_0nuf_3vj5m2k1125165rxa7-big-Index.db",
-        "/tmp/tests/Keyspace/Table-34234234234234234234234234234234/nb-3g1m_0nuf_3vj5m2k1125165rxa7-big-Index.db",
+        "/testroot/some/path/tests/Keyspace/Table-34234234234234234234234234234234/nb-3g1m_0nuf_3vj5m2k1125165rxa7-big-Index.db",
+        "/testroot/some/path/tests/Keyspace/Table-34234234234234234234234234234234/snapshots/snapshots/nb-3g1m_0nuf_3vj5m2k1125165rxa7-big-Index.db",
+        "/testroot/some/path/tests/Keyspace/Table-34234234234234234234234234234234/backups/nb-3g1m_0nuf_3vj5m2k1125165rxa7-big-Index.db",
+        "/testroot/tests/Keyspace/Table-34234234234234234234234234234234/nb-3g1m_0nuf_3vj5m2k1125165rxa7-big-Index.db",
         "/Keyspace/Table-34234234234234234234234234234234/nb-3g1m_0nuf_3vj5m2k1125165rxa7-big-Index.db"
         };
 
         testKeyspaceTableParsing(outsideOfCassandraUppercaseKeyspaceAndTable, "Keyspace", "Table");
 
         String[] outsideOfCassandraIndexes = new String[]{
-        "/tmp/some/path/tests/keyspace/table-34234234234234234234234234234234/.index/na-1-big-Index.db",
-        "/tmp/some/path/tests/keyspace/table-34234234234234234234234234234234/snapshots/snapshots/.index/na-1-big-Index.db",
-        "/tmp/some/path/tests/keyspace/table-34234234234234234234234234234234/backups/.index/na-1-big-Index.db",
-        "/tmp/some/path/tests/keyspace/table-34234234234234234234234234234234/.index/nb-3g1m_0nuf_3vj5m2k1125165rxa7-big-Index.db",
-        "/tmp/some/path/tests/keyspace/table-34234234234234234234234234234234/snapshots/snapshots/.index/nb-3g1m_0nuf_3vj5m2k1125165rxa7-big-Index.db",
-        "/tmp/some/path/tests/keyspace/table-34234234234234234234234234234234/backups/.index/nb-3g1m_0nuf_3vj5m2k1125165rxa7-big-Index.db"
+        "/testroot/some/path/tests/keyspace/table-34234234234234234234234234234234/.index/na-1-big-Index.db",
+        "/testroot/some/path/tests/keyspace/table-34234234234234234234234234234234/snapshots/snapshots/.index/na-1-big-Index.db",
+        "/testroot/some/path/tests/keyspace/table-34234234234234234234234234234234/backups/.index/na-1-big-Index.db",
+        "/testroot/some/path/tests/keyspace/table-34234234234234234234234234234234/.index/nb-3g1m_0nuf_3vj5m2k1125165rxa7-big-Index.db",
+        "/testroot/some/path/tests/keyspace/table-34234234234234234234234234234234/snapshots/snapshots/.index/nb-3g1m_0nuf_3vj5m2k1125165rxa7-big-Index.db",
+        "/testroot/some/path/tests/keyspace/table-34234234234234234234234234234234/backups/.index/nb-3g1m_0nuf_3vj5m2k1125165rxa7-big-Index.db"
         };
 
         testKeyspaceTableParsing(outsideOfCassandraIndexes, "keyspace", "table.index");
