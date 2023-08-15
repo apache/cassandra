@@ -175,6 +175,10 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
     // current token. If we find a collision we need to compare the partition key instead.
     protected long tokenCollisionDetection(PrimaryKey primaryKey, long rowId)
     {
+        // First check to make sure we aren't at the end of the array
+        if (rowId + 1 == tokenArray.length())
+            return rowId;
+
         while (primaryKey.token().getLongValue() == tokenArray.get(rowId + 1))
         {
             // If it does then see if the partition key for this row is >= to the lookup partition key
