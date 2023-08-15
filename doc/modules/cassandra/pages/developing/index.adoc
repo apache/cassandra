@@ -1,4 +1,4 @@
 = Developing
 
-* xref:developing/data-modeling/index.adoc[Data Modeling]
-* xref:developing/cql/index.adoc[CQL]
+* xref:cassandra:developing/data-modeling/index.adoc[Data Modeling]
+* xref:cassandra:developing/cql/index.adoc[CQL]
