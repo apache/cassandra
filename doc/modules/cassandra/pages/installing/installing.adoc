@@ -32,7 +32,7 @@ verify that you have the correct version of java installed, type
 Full support is effective Cassandra 4.0.2 version (https://issues.apache.org/jira/browse/CASSANDRA-16894[CASSANDRA-16894])
 For more information, see
 https://github.com/apache/cassandra/blob/trunk/NEWS.txt[NEWS.txt].
-* For using cqlsh, the latest version of
+* For using `cqlsh`, the latest version of
 Python 3.6+ or Python 2.7 (support deprecated). To verify
 that you have the correct version of Python installed, type
 `python --version`.
@@ -189,7 +189,7 @@ include::cassandra:example$TEXT/tarball_install_dirs.txt[]
 <5>location of cassandra-stress tool
 
 For information on how to configure your installation, see
-{cass_url}doc/latest/getting-started/configuring.html[Configuring
+xref:cassandra:getting-started/configuring.adoc[Configuring
 Cassandra].
 
 [arabic, start=6]
@@ -286,7 +286,7 @@ include::cassandra:example$BASH/apt-get_cass.sh[]
 ----
 
 NOTE: For information on how to configure your installation, see
-{cass_url}doc/latest/getting-started/configuring.html[Configuring
+xref:cassandra:getting-started/configuring.html[Configuring
 Cassandra].
 
 include::cassandra:partial$tail_syslog.adoc[]
@@ -341,5 +341,5 @@ include::cassandra:partial$nodetool_and_cqlsh_nobin.adoc[]
 == Further installation info
 
 For help with installation issues, see the
-{cass_url}doc/latest/troubleshooting/index.html[Troubleshooting]
+xref:cassandra:troubleshooting/index.html[Troubleshooting]
 section.
