@@ -147,6 +147,12 @@ public class AccordConfigurationServiceTest
         {
             throw new UnsupportedOperationException();
         }
+
+        @Override
+        public <V> void respond(V response, Message<?> message)
+        {
+            throw new UnsupportedOperationException();
+        }
     }
 
     @BeforeClass
@@ -178,15 +184,15 @@ public class AccordConfigurationServiceTest
 
         Topology topology1 = new Topology(1, new Shard(AccordTopologyUtils.fullRange("ks"), ID_LIST, ID_SET));
         service.reportTopology(topology1);
-        loadEpoch(1, (epoch, topology, syncStatus, pendingSync, remoteSync) -> {
+        loadEpoch(1, (epoch, topology, syncStatus, pendingSync, remoteSync, closed, redundant) -> {
             Assert.assertEquals(topology1, topology);
             Assert.assertTrue(remoteSync.isEmpty());
         });
-        Assert.assertEquals(new EpochDiskState(1, 1), service.diskState());
+        Assert.assertEquals(EpochDiskState.create(1), service.diskState());
 
-        service.remoteSyncComplete(ID1, 1);
-        service.remoteSyncComplete(ID2, 1);
-        loadEpoch(1, (epoch, topology, syncStatus, pendingSync, remoteSync) -> {
+        service.receiveRemoteSyncComplete(ID1, 1);
+        service.receiveRemoteSyncComplete(ID2, 1);
+        loadEpoch(1, (epoch, topology, syncStatus, pendingSync, remoteSync, closed, redundant) -> {
             Assert.assertEquals(topology1, topology);
             Assert.assertEquals(Sets.newHashSet(ID1, ID2), remoteSync);
         });
@@ -202,14 +208,14 @@ public class AccordConfigurationServiceTest
         service.updateMapping(mappingForEpoch(ClusterMetadata.current().epoch.getEpoch() + 1));
         service.reportTopology(topology1);
         service.acknowledgeEpoch(EpochReady.done(1));
-        service.remoteSyncComplete(ID1, 1);
-        service.remoteSyncComplete(ID2, 1);
-        service.remoteSyncComplete(ID3, 1);
+        service.receiveRemoteSyncComplete(ID1, 1);
+        service.receiveRemoteSyncComplete(ID2, 1);
+        service.receiveRemoteSyncComplete(ID3, 1);
 
         Topology topology2 = new Topology(2, new Shard(AccordTopologyUtils.fullRange("ks"), ID_LIST, of(ID1, ID2)));
         service.reportTopology(topology2);
         service.acknowledgeEpoch(EpochReady.done(2));
-        service.remoteSyncComplete(ID1, 2);
+        service.receiveRemoteSyncComplete(ID1, 2);
 
         Topology topology3 = new Topology(3, new Shard(AccordTopologyUtils.fullRange("ks"), ID_LIST, of(ID1, ID2)));
         service.reportTopology(topology3);
@@ -249,7 +255,7 @@ public class AccordConfigurationServiceTest
         Topology topology3 = new Topology(3, new Shard(AccordTopologyUtils.fullRange("ks"), ID_LIST, of(ID1, ID2)));
         service.reportTopology(topology3);
         service.truncateTopologiesUntil(3);
-        Assert.assertEquals(new EpochDiskState(3, 3), service.diskState());
+        Assert.assertEquals(EpochDiskState.create(3), service.diskState());
         serviceListener.assertTruncates(3L);
 
         AccordConfigurationService loaded = new AccordConfigurationService(ID1, new Messaging(), new MockFailureDetector());

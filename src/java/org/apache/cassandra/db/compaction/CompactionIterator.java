@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db.compaction;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -24,10 +25,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongPredicate;
+import javax.annotation.Nonnull;
 
+import com.google.common.base.Supplier;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Ordering;
 
+import accord.local.Commands;
+import accord.local.DurableBefore;
+import accord.local.RedundantBefore;
+import accord.local.SaveStatus;
+import accord.local.Status.Durability;
+import accord.primitives.Route;
+import accord.primitives.Timestamp;
+import accord.primitives.TxnId;
+import org.agrona.collections.Int2ObjectHashMap;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.AbstractCompactionController;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -38,7 +50,6 @@ import org.apache.cassandra.db.EmptyIterators;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.db.transform.DuplicateRowChecker;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.PurgeFunction;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
@@ -51,6 +62,7 @@ import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.db.rows.WrappingUnfilteredRowIterator;
+import org.apache.cassandra.db.transform.DuplicateRowChecker;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.transactions.CompactionTransaction;
@@ -63,13 +75,25 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.accord.AccordKeyspace;
+import org.apache.cassandra.service.accord.AccordKeyspace.CommandRows;
+import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyRows;
+import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.IAccordService;
+import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.paxos.PaxosRepairHistory;
 import org.apache.cassandra.service.paxos.uncommitted.PaxosRows;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static accord.impl.CommandsForKey.NO_LAST_EXECUTED_HLC;
+import static accord.local.Commands.Cleanup.TRUNCATE_WITH_OUTCOME;
+import static com.google.common.base.Preconditions.checkState;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static org.apache.cassandra.config.Config.PaxosStatePurging.legacy;
 import static org.apache.cassandra.config.DatabaseDescriptor.paxosStatePurging;
+import static org.apache.cassandra.service.accord.AccordKeyspace.CommandRows.truncatedApply;
+import static org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyRows.truncateStaticRow;
 
 /**
  * Merge multiple iterators over the content of sstable into a "compacted" iterator.
@@ -116,7 +140,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
     public CompactionIterator(OperationType type, List<ISSTableScanner> scanners, AbstractCompactionController controller, long nowInSec, TimeUUID compactionId)
     {
-        this(type, scanners, controller, nowInSec, compactionId, ActiveCompactionsTracker.NOOP, null);
+        this(type, scanners, controller, nowInSec, compactionId, ActiveCompactionsTracker.NOOP, null, AccordService::instance);
     }
 
     public CompactionIterator(OperationType type,
@@ -126,6 +150,19 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                               TimeUUID compactionId,
                               ActiveCompactionsTracker activeCompactions,
                               TopPartitionTracker.Collector topPartitionCollector)
+    {
+        this(type, scanners, controller, nowInSec, compactionId, activeCompactions, topPartitionCollector,
+             AccordService::instance);
+    }
+
+    public CompactionIterator(OperationType type,
+                              List<ISSTableScanner> scanners,
+                              AbstractCompactionController controller,
+                              long nowInSec,
+                              TimeUUID compactionId,
+                              ActiveCompactionsTracker activeCompactions,
+                              TopPartitionTracker.Collector topPartitionCollector,
+                              @Nonnull Supplier<IAccordService> accordService)
     {
         this.controller = controller;
         this.type = type;
@@ -152,8 +189,11 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             merged = Transformation.apply(merged, new TopPartitionTracker.TombstoneCounter(topPartitionCollector, nowInSec));
         merged = Transformation.apply(merged, new GarbageSkipper(controller));
         Transformation<UnfilteredRowIterator> purger = isPaxos(controller.cfs) && paxosStatePurging() != legacy
-                                                       ? new PaxosPurger(nowInSec)
-                                                       : new Purger(controller, nowInSec);
+                                                       ? new PaxosPurger()
+                                                       : isAccordCommands(controller.cfs)
+                                                         ? new AccordCommandsPurger(accordService)
+                                                         : isAccordCommandsForKey(controller.cfs) ? new AccordCommandsForKeyPurger(accordService)
+                                                                                                  : new Purger(controller, nowInSec);
         merged = Transformation.apply(merged, purger);
         merged = DuplicateRowChecker.duringCompaction(merged, type);
         compacted = Transformation.apply(merged, new AbortableUnfilteredPartitionTransformation(this));
@@ -634,18 +674,9 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         }
     }
 
-    private class PaxosPurger extends Transformation<UnfilteredRowIterator>
+    private abstract class AbstractPurger extends Transformation<UnfilteredRowIterator>
     {
-        private final long nowInSec;
-        private final long paxosPurgeGraceMicros = DatabaseDescriptor.getPaxosPurgeGrace(MICROSECONDS);
-        private final Map<TableId, PaxosRepairHistory.Searcher> tableIdToHistory = new HashMap<>();
-        private Token currentToken;
-        private int compactedUnfiltered;
-
-        private PaxosPurger(long nowInSec)
-        {
-            this.nowInSec = nowInSec;
-        }
+        int compactedUnfiltered;
 
         protected void onEmptyPartitionPostPurge(DecoratedKey key)
         {
@@ -662,7 +693,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         @Override
         protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
         {
-            currentToken = partition.partitionKey().getToken();
+            beginPartition(partition);
             UnfilteredRowIterator purged = Transformation.apply(partition, this);
             if (purged.isEmpty())
             {
@@ -674,10 +705,27 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             return purged;
         }
 
+        protected abstract void beginPartition(UnfilteredRowIterator partition);
+    }
+
+    private class PaxosPurger extends AbstractPurger
+    {
+        private final long paxosPurgeGraceMicros = DatabaseDescriptor.getPaxosPurgeGrace(MICROSECONDS);
+        private final Map<TableId, PaxosRepairHistory.Searcher> tableIdToHistory = new HashMap<>();
+
+        private Token token;
+
+        @Override
+        protected void beginPartition(UnfilteredRowIterator partition)
+        {
+            this.token = partition.partitionKey().getToken();
+        }
+
         @Override
         protected Row applyToRow(Row row)
         {
             updateProgress();
+
             TableId tableId = PaxosRows.getTableId(row);
 
             switch (paxosStatePurging())
@@ -699,9 +747,173 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                     });
 
                     return history == null ? row :
-                           row.purgeDataOlderThan(history.ballotForToken(currentToken).unixMicros() - paxosPurgeGraceMicros, false);
+                           row.purgeDataOlderThan(history.ballotForToken(token).unixMicros() - paxosPurgeGraceMicros, false);
                 }
             }
+        }
+    }
+
+    class AccordCommandsPurger extends AbstractPurger
+    {
+        final Int2ObjectHashMap<RedundantBefore> redundantBefores;
+        final DurableBefore durableBefore;
+
+        int storeId;
+        TxnId txnId;
+
+        AccordCommandsPurger(Supplier<IAccordService> accordService)
+        {
+            Pair<Int2ObjectHashMap<RedundantBefore>, DurableBefore> redundantBeforesAndDurableBefore = accordService.get().getRedundantBeforesAndDurableBefore();
+            this.redundantBefores = redundantBeforesAndDurableBefore.left;
+            this.durableBefore = redundantBeforesAndDurableBefore.right;
+        }
+
+        protected void beginPartition(UnfilteredRowIterator partition)
+        {
+            ByteBuffer[] partitionKeyComponents = CommandRows.splitPartitionKey(partition.partitionKey());
+            storeId = CommandRows.getStoreId(partitionKeyComponents);
+            txnId = CommandRows.getTxnId(partitionKeyComponents);
+        }
+
+        @Override
+        protected Row applyToRow(Row row)
+        {
+            updateProgress();
+
+            RedundantBefore redundantBefore = redundantBefores.get(storeId);
+            // TODO (expected): if the store has been retired, this should return null
+            if (redundantBefore == null)
+                return row;
+
+            Timestamp executeAt = CommandRows.getExecuteAt(row);
+            Durability durability = CommandRows.getDurability(row);
+            SaveStatus saveStatus = CommandRows.getStatus(row);
+            Route<?> route = CommandRows.getRoute(row);
+
+            Commands.Cleanup cleanup = Commands.shouldCleanup(txnId, saveStatus.status, durability, executeAt, route, redundantBefore, durableBefore);
+            switch (cleanup)
+            {
+                default: throw new AssertionError(String.format("Unexpected cleanup task: %s", cleanup));
+                case ERASE:
+                    return null;
+
+                case TRUNCATE_WITH_OUTCOME:
+                    if (saveStatus.compareTo(cleanup.appliesIfNot) >= 0)
+                        return row;
+
+                case TRUNCATE:
+                    if (saveStatus.compareTo(cleanup.appliesIfNot) >= 0)
+                        return row;
+                    return truncatedApply(cleanup.appliesIfNot, row, nowInSec, cleanup == TRUNCATE_WITH_OUTCOME);
+
+                case NO:
+                    return row;
+            }
+        }
+
+        @Override
+        protected Row applyToStatic(Row row)
+        {
+            checkState(row.isStatic() && row.isEmpty());
+            return row;
+        }
+    }
+
+    class AccordCommandsForKeyPurger extends AbstractPurger
+    {
+        final Int2ObjectHashMap<RedundantBefore> redundantBefores;
+        int storeId;
+        PartitionKey partitionKey;
+
+        AccordCommandsForKeyPurger(Supplier<IAccordService> accordService)
+        {
+            this.redundantBefores = accordService.get().getRedundantBeforesAndDurableBefore().left;
+        }
+
+        protected void beginPartition(UnfilteredRowIterator partition)
+        {
+            ByteBuffer[] partitionKeyComponents = CommandsForKeyRows.splitPartitionKey(partition.partitionKey());
+            storeId = CommandsForKeyRows.getStoreId(partitionKeyComponents);
+            partitionKey = CommandsForKeyRows.getKey(partitionKeyComponents);
+        }
+
+        @Override
+        protected Row applyToStatic(Row row)
+        {
+            updateProgress();
+
+            RedundantBefore redundantBefore = redundantBefores.get(storeId);
+            // TODO (expected): if the store has been retired, this should return null
+            if (redundantBefore == null)
+                return row;
+
+            RedundantBefore.Entry redundantBeforeEntry = redundantBefore.get(partitionKey.toUnseekable());
+            if (redundantBeforeEntry == null)
+                return row;
+
+            TxnId redundantBeforeTxnId = redundantBeforeEntry.redundantBefore;
+
+            boolean updatedColumn = false;
+            Timestamp max_timestamp = CommandsForKeyRows.getMaxTimestamp(row);
+            if (max_timestamp.compareTo(redundantBeforeTxnId) < 0)
+            {
+                max_timestamp = Timestamp.NONE;
+                updatedColumn = true;
+            }
+
+            Timestamp last_execute = CommandsForKeyRows.getLastExecutedTimestamp(row);
+            if (last_execute.compareTo(redundantBeforeTxnId) < 0)
+            {
+                last_execute = Timestamp.NONE;
+                updatedColumn = true;
+            }
+
+            Timestamp last_write = CommandsForKeyRows.getLastWriteTimestamp(row);
+            if (last_write.compareTo(redundantBeforeTxnId) < 0)
+            {
+                last_write = Timestamp.NONE;
+                updatedColumn = true;
+            }
+
+            long last_execute_micros = CommandsForKeyRows.getLastExecutedMicros(row);
+            if (last_execute_micros < redundantBeforeTxnId.hlc())
+            {
+                last_execute_micros = NO_LAST_EXECUTED_HLC;
+                updatedColumn = true;
+            }
+
+            if (max_timestamp == Timestamp.NONE &&
+                last_execute == Timestamp.NONE &&
+                last_write == Timestamp.NONE &&
+                last_execute_micros == NO_LAST_EXECUTED_HLC)
+                return null;
+
+            if (updatedColumn)
+                return truncateStaticRow(nowInSec, row, last_execute_micros, last_execute, last_write, max_timestamp);
+
+            return row;
+        }
+
+        @Override
+        protected Row applyToRow(Row row)
+        {
+            updateProgress();
+
+            RedundantBefore redundantBefore = redundantBefores.get(storeId);
+            // TODO (expected): if the store has been retired, this should return null
+            if (redundantBefore == null)
+                return row;
+
+            RedundantBefore.Entry redundantBeforeEntry = redundantBefore.get(partitionKey.toUnseekable());
+            if (redundantBeforeEntry == null)
+                return row;
+
+            TxnId redundantBeforeTxnId = redundantBeforeEntry.redundantBefore;
+            Timestamp timestamp = CommandsForKeyRows.getTimestamp(row);
+            if (timestamp.compareTo(redundantBeforeTxnId) < 0)
+                return null;
+
+            return row;
         }
     }
 
@@ -743,5 +955,20 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     private static boolean isPaxos(ColumnFamilyStore cfs)
     {
         return cfs.name.equals(SystemKeyspace.PAXOS) && cfs.getKeyspaceName().equals(SchemaConstants.SYSTEM_KEYSPACE_NAME);
+    }
+
+    private static boolean isAccordCommands(ColumnFamilyStore cfs)
+    {
+        return cfs.name.equals(AccordKeyspace.COMMANDS) && cfs.keyspace.getName().equals(SchemaConstants.ACCORD_KEYSPACE_NAME);
+    }
+
+    private static boolean isAccordCommandsForKey(ColumnFamilyStore cfs)
+    {
+        return cfs.name.equals(AccordKeyspace.COMMANDS_FOR_KEY) && cfs.keyspace.getName().equals(SchemaConstants.ACCORD_KEYSPACE_NAME);
+    }
+
+    private static boolean isAccordCommandsOrAccordCommandsForKey(ColumnFamilyStore cfs)
+    {
+        return isAccordCommands(cfs) || isAccordCommandsForKey(cfs);
     }
 }

@@ -19,7 +19,10 @@
 package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.EnumSet;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.function.IntFunction;
 
 import accord.api.Key;
@@ -33,6 +36,7 @@ import accord.primitives.Keys;
 import accord.primitives.PartialKeyRoute;
 import accord.primitives.PartialRangeRoute;
 import accord.primitives.PartialRoute;
+import accord.primitives.Participants;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
 import accord.primitives.RoutableKey;
@@ -87,15 +91,17 @@ public class KeySerializers
         {
             Ranges covering = ranges.deserialize(in, version);
             RoutingKey homeKey = routingKey.deserialize(in, version);
-            return PartialKeyRoute.SerializationSupport.create(covering, homeKey, keys);
+            boolean isParticipatingHomeKey = (in.readByte() & 0x1) != 0;
+            return PartialKeyRoute.SerializationSupport.create(covering, homeKey, isParticipatingHomeKey, keys);
         }
 
         @Override
-        public void serialize(PartialKeyRoute keys, DataOutputPlus out, int version) throws IOException
+        public void serialize(PartialKeyRoute route, DataOutputPlus out, int version) throws IOException
         {
-            super.serialize(keys, out, version);
-            ranges.serialize(keys.covering, out, version);
-            routingKey.serialize(keys.homeKey, out, version);
+            super.serialize(route, out, version);
+            ranges.serialize(route.covering, out, version);
+            routingKey.serialize(route.homeKey, out, version);
+            out.writeByte(route.isParticipatingHomeKey ? 0x1 : 0);
         }
 
         @Override
@@ -103,7 +109,8 @@ public class KeySerializers
         {
             return super.serializedSize(keys, version)
                    + ranges.serializedSize(keys.covering, version)
-                   + routingKey.serializedSize(keys.homeKey, version);
+                   + routingKey.serializedSize(keys.homeKey, version)
+                   + 1;
         }
     };
 
@@ -112,21 +119,24 @@ public class KeySerializers
         @Override FullKeyRoute deserialize(DataInputPlus in, int version, RoutingKey[] keys) throws IOException
         {
             RoutingKey homeKey = routingKey.deserialize(in, version);
-            return FullKeyRoute.SerializationSupport.create(homeKey, keys);
+            boolean isParticipatingHomeKey = (in.readByte() & 0x1) != 0;
+            return FullKeyRoute.SerializationSupport.create(homeKey, isParticipatingHomeKey, keys);
         }
 
         @Override
-        public void serialize(FullKeyRoute keys, DataOutputPlus out, int version) throws IOException
+        public void serialize(FullKeyRoute route, DataOutputPlus out, int version) throws IOException
         {
-            super.serialize(keys, out, version);
-            routingKey.serialize(keys.homeKey, out, version);
+            super.serialize(route, out, version);
+            routingKey.serialize(route.homeKey, out, version);
+            out.writeByte(route.isParticipatingHomeKey ? 0x1 : 0);
         }
 
         @Override
-        public long serializedSize(FullKeyRoute keys, int version)
+        public long serializedSize(FullKeyRoute route, int version)
         {
-            return super.serializedSize(keys, version)
-                 + routingKey.serializedSize(keys.homeKey, version);
+            return super.serializedSize(route, version)
+                   + routingKey.serializedSize(route.homeKey, version)
+                   + 1;
         }
     };
 
@@ -136,15 +146,17 @@ public class KeySerializers
         {
             Ranges covering = ranges.deserialize(in, version);
             RoutingKey homeKey = routingKey.deserialize(in, version);
-            return PartialRangeRoute.SerializationSupport.create(covering, homeKey, rs);
+            boolean isParticipatingHomeKey = (in.readByte() & 0x1) != 0;
+            return PartialRangeRoute.SerializationSupport.create(covering, homeKey, isParticipatingHomeKey, rs);
         }
 
         @Override
-        public void serialize(PartialRangeRoute rs, DataOutputPlus out, int version) throws IOException
+        public void serialize(PartialRangeRoute route, DataOutputPlus out, int version) throws IOException
         {
-            super.serialize(rs, out, version);
-            ranges.serialize(rs.covering, out, version);
-            routingKey.serialize(rs.homeKey, out, version);
+            super.serialize(route, out, version);
+            ranges.serialize(route.covering, out, version);
+            routingKey.serialize(route.homeKey, out, version);
+            out.writeByte(route.isParticipatingHomeKey ? 0x1 : 0);
         }
 
         @Override
@@ -152,7 +164,9 @@ public class KeySerializers
         {
             return super.serializedSize(rs, version)
                    + ranges.serializedSize(rs.covering, version)
-                   + routingKey.serializedSize(rs.homeKey, version);
+                   + routingKey.serializedSize(rs.homeKey, version)
+                   + 1;
+
         }
     };
 
@@ -160,22 +174,25 @@ public class KeySerializers
     {
         @Override FullRangeRoute deserialize(DataInputPlus in, int version, Range[] Ranges) throws IOException
         {
-            RoutingKey homeRange = routingKey.deserialize(in, version);
-            return FullRangeRoute.SerializationSupport.create(homeRange, Ranges);
+            RoutingKey homeKey = routingKey.deserialize(in, version);
+            boolean isParticipatingHomeKey = (in.readByte() & 0x1) != 0;
+            return FullRangeRoute.SerializationSupport.create(homeKey, isParticipatingHomeKey, Ranges);
         }
 
         @Override
-        public void serialize(FullRangeRoute Ranges, DataOutputPlus out, int version) throws IOException
+        public void serialize(FullRangeRoute route, DataOutputPlus out, int version) throws IOException
         {
-            super.serialize(Ranges, out, version);
-            routingKey.serialize(Ranges.homeKey, out, version);
+            super.serialize(route, out, version);
+            routingKey.serialize(route.homeKey, out, version);
+            out.writeByte(route.isParticipatingHomeKey ? 0x1 : 0);
         }
 
         @Override
         public long serializedSize(FullRangeRoute ranges, int version)
         {
             return super.serializedSize(ranges, version)
-                 + routingKey.serializedSize(ranges.homeKey(), version);
+                   + routingKey.serializedSize(ranges.homeKey(), version)
+                   + 1;
         }
     };
 
@@ -191,11 +208,15 @@ public class KeySerializers
         EnumSet.of(UnseekablesKind.FullKeyRoute, UnseekablesKind.FullRangeRoute)
     );
 
-    public static final IVersionedSerializer<Unseekables<?, ?>> unseekables = new AbstractRoutablesSerializer<>(
+    public static final IVersionedSerializer<Unseekables<?>> unseekables = new AbstractRoutablesSerializer<>(
         EnumSet.allOf(UnseekablesKind.class)
     );
 
-    static class AbstractRoutablesSerializer<RS extends Unseekables<?, ?>> implements IVersionedSerializer<RS>
+    public static final IVersionedSerializer<Participants<?>> participants = new AbstractRoutablesSerializer<>(
+        EnumSet.allOf(UnseekablesKind.class)
+    );
+
+    static class AbstractRoutablesSerializer<RS extends Unseekables<?>> implements IVersionedSerializer<RS>
     {
         final EnumSet<UnseekablesKind> permitted;
         protected AbstractRoutablesSerializer(EnumSet<UnseekablesKind> permitted)
@@ -328,7 +349,7 @@ public class KeySerializers
         }
     };
 
-    public static abstract class AbstractKeysSerializer<K extends RoutableKey, KS extends AbstractKeys<K, ?>> implements IVersionedSerializer<KS>
+    public static abstract class AbstractKeysSerializer<K extends RoutableKey, KS extends AbstractKeys<K>> implements IVersionedSerializer<KS>
     {
         final IVersionedSerializer<K> keySerializer;
         final IntFunction<K[]> allocate;
@@ -368,7 +389,7 @@ public class KeySerializers
         }
     }
 
-    public static abstract class AbstractRangesSerializer<RS extends AbstractRanges<?>> implements IVersionedSerializer<RS>
+    public static abstract class AbstractRangesSerializer<RS extends AbstractRanges> implements IVersionedSerializer<RS>
     {
         @Override
         public void serialize(RS ranges, DataOutputPlus out, int version) throws IOException
@@ -397,5 +418,28 @@ public class KeySerializers
                 size += TokenRange.serializer.serializedSize((TokenRange) ranges.get(i), version);
             return size;
         }
+    }
+
+    public static Map<ByteBuffer, ByteBuffer> rangesToBlobMap(Ranges ranges)
+    {
+        TreeMap<ByteBuffer, ByteBuffer> result = new TreeMap<>();
+        for (Range range : ranges)
+        {
+            result.put(AccordRoutingKey.serializer.serialize((AccordRoutingKey) range.start()),
+                       AccordRoutingKey.serializer.serialize((AccordRoutingKey) range.end()));
+        }
+        return result;
+    }
+
+    public static Ranges blobMapToRanges(Map<ByteBuffer, ByteBuffer> blobMap)
+    {
+        int i = 0;
+        Range[] ranges = new Range[blobMap.size()];
+        for (Map.Entry<ByteBuffer, ByteBuffer> e : blobMap.entrySet())
+        {
+            ranges[i++] = new TokenRange(AccordRoutingKey.serializer.deserialize(e.getKey()),
+                                         AccordRoutingKey.serializer.deserialize(e.getValue()));
+        }
+        return Ranges.of(ranges);
     }
 }

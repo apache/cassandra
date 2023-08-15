@@ -350,9 +350,9 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
         //  any that aren't can just use executeAt.hlc
         AccordSafeCommandsForKey cfk = ((AccordSafeCommandStore) safeStore).commandsForKey((RoutableKey) key);
         cfk.updateLastExecutionTimestamps(executeAt, true);
-        long timestamp = cfk.current().timestampMicrosFor(executeAt, true);
+        long timestamp = cfk.timestampMicrosFor(executeAt, true);
         // TODO (low priority - do we need to compute nowInSeconds, or can we just use executeAt?)
-        int nowInSeconds = cfk.current().nowInSecondsFor(executeAt, true);
+        int nowInSeconds = cfk.nowInSecondsFor(executeAt, true);
 
         List<AsyncChain<Void>> results = new ArrayList<>();
         forEachWithKey((PartitionKey) key, write -> results.add(write.write(timestamp, nowInSeconds)));
