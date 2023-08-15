@@ -150,17 +150,18 @@ public class KeyLookup
          * @return The {@link ByteComparable} containing the term
          * @throws IndexOutOfBoundsException if the target point id is less than -1 or greater than the number of terms
          */
-        public @Nonnull ByteComparable seekForwardToPointId(long pointId)
+        public @Nonnull ByteComparable seekToPointId(long pointId)
         {
             if (pointId < 0 || pointId >= meta.termCount)
                 throw new IndexOutOfBoundsException(String.format(INDEX_OUT_OF_BOUNDS, pointId, meta.termCount));
 
-            assert pointId >= currentPointId : "Attempt to seek backwards in seekForwardsToPointId. Next pointId was "
-                                               + pointId + " while current pointId is " + currentPointId;
             if (pointId != currentPointId)
             {
                 long blockIndex = pointId >>> blockShift;
-                if (blockIndex != currentBlockIndex)
+                // We need to reset the block if the block index has changed or the pointId < currentPointId.
+                // We can read forward in the same block without a reset, but we can't read backwards, and token
+                // collision can result in us moving backwards.
+                if (blockIndex != currentBlockIndex || pointId < currentPointId)
                 {
                     currentBlockIndex = blockIndex;
                     resetToCurrentBlock();

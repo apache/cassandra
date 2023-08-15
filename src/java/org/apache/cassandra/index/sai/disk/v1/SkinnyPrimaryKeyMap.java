@@ -54,7 +54,7 @@ import java.util.Arrays;
  *     Uses the {@link IndexComponent#TOKEN_VALUES} component</li>
  *     <li>A monotonic block packed structure for rowId to partitionId lookups using {@link MonotonicBlockPackedReader}.
  *     Uses the {@link IndexComponent#PARTITION_SIZES} component</li>
- *     <li>A sorted terms structure for rowId to {@link PrimaryKey} and {@link PrimaryKey} to rowId lookups using
+ *     <li>A key store for rowId to {@link PrimaryKey} and {@link PrimaryKey} to rowId lookups using
  *     {@link KeyLookup}. Uses the {@link IndexComponent#PARTITION_KEY_BLOCKS} and
  *     {@link IndexComponent#PARTITION_KEY_BLOCK_OFFSETS} components</li>
  * </ul>
@@ -154,15 +154,38 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
     }
 
     @Override
-    public long rowIdFromPrimaryKey(PrimaryKey key)
+    public long rowIdFromPrimaryKey(PrimaryKey primaryKey)
     {
-        return tokenArray.indexOf(key.token().getLongValue());
+        long rowId = tokenArray.indexOf(primaryKey.token().getLongValue());
+        // If the key is token only, the token is out of range, we are at the end of our keys, or we have skipped a token
+        // we can return straight away.
+        if (primaryKey.isTokenOnly() || rowId < 0 || rowId + 1 == tokenArray.length() || tokenArray.get(rowId) != primaryKey.token().getLongValue())
+            return rowId;
+        // Otherwise we need to check for token collision.
+        return tokenCollisionDetection(primaryKey, rowId);
     }
 
     @Override
     public void close()
     {
         FileUtils.closeQuietly(Arrays.asList(partitionKeyCursor, tokenArray, partitionArray));
+    }
+
+    // Look for token collision by if the ajacent token in the token array matches the
+    // current token. If we find a collision we need to compare the partition key instead.
+    protected long tokenCollisionDetection(PrimaryKey primaryKey, long rowId)
+    {
+        while (primaryKey.token().getLongValue() == tokenArray.get(rowId + 1))
+        {
+            // If it does then see if the partition key for this row is >= to the lookup partition key
+            if (readPartitionKey(rowId).compareTo(primaryKey.partitionKey()) >= 0)
+                return rowId;
+            // Keep looking till we hit the end of the tokens.
+            if (++rowId + 1 == tokenArray.length())
+                return rowId;
+        }
+        // Note: We would normally expect to get here without going into the while loop
+        return rowId;
     }
 
     protected PrimaryKey supplier(long sstableRowId)
@@ -173,7 +196,7 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
     protected DecoratedKey readPartitionKey(long sstableRowId)
     {
         long partitionId = partitionArray.get(sstableRowId);
-        ByteSource.Peekable peekable = ByteSource.peekable(partitionKeyCursor.seekForwardToPointId(partitionId).asComparableBytes(ByteComparable.Version.OSS50));
+        ByteSource.Peekable peekable = ByteSource.peekable(partitionKeyCursor.seekToPointId(partitionId).asComparableBytes(ByteComparable.Version.OSS50));
 
         byte[] keyBytes = ByteSourceInverse.getUnescapedBytes(peekable);
 

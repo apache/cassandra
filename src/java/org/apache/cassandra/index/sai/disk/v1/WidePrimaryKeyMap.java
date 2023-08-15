@@ -46,7 +46,7 @@ import java.util.Arrays;
  * <p>
  * This used the following additional on-disk structures to the {@link SkinnyPrimaryKeyMap}
  * <ul>
- *     <li>A sorted terms structure for rowId to {@link Clustering} and {@link Clustering} to rowId lookups using
+ *     <li>A key store for rowId to {@link Clustering} and {@link Clustering} to rowId lookups using
  *     {@link KeyLookup}. Uses the {@link IndexComponent#CLUSTERING_KEY_BLOCKS} and
  *     {@link IndexComponent#CLUSTERING_KEY_BLOCK_OFFSETS} components</li>
  * </ul>
@@ -135,7 +135,9 @@ public class WidePrimaryKeyMap extends SkinnyPrimaryKeyMap
         if (primaryKey.isTokenOnly() || rowId < 0 || tokenArray.get(rowId) != primaryKey.token().getLongValue())
             return rowId;
 
-        // Search the sorted terms for the key in the same partition
+        rowId = tokenCollisionDetection(primaryKey, rowId);
+
+        // Search the key store for the key in the same partition
         return clusteringKeyCursor.partitionedSeekToTerm(clusteringComparator.asByteComparable(primaryKey.clustering()), rowId, startOfNextPartition(rowId));
     }
 
@@ -154,7 +156,7 @@ public class WidePrimaryKeyMap extends SkinnyPrimaryKeyMap
 
     private Clustering<?> readClusteringKey(long sstableRowId)
     {
-        ByteSource.Peekable peekable = ByteSource.peekable(clusteringKeyCursor.seekForwardToPointId(sstableRowId)
+        ByteSource.Peekable peekable = ByteSource.peekable(clusteringKeyCursor.seekToPointId(sstableRowId)
                                                                               .asComparableBytes(ByteComparable.Version.OSS50));
 
         Clustering<?> clustering = clusteringComparator.clusteringFromByteComparable(ByteBufferAccessor.instance, v -> peekable);

@@ -221,12 +221,12 @@ public class SortedTermsTest extends SAIRandomizedTester
         }, false);
 
         withSortedTermsCursor(cursor -> {
-            assertThatThrownBy(() -> cursor.seekForwardToPointId(-2)).isInstanceOf(IndexOutOfBoundsException.class)
-                                                                     .hasMessage(String.format(KeyLookup.INDEX_OUT_OF_BOUNDS, -2, 4000));
-            assertThatThrownBy(() -> cursor.seekForwardToPointId(Long.MAX_VALUE)).isInstanceOf(IndexOutOfBoundsException.class)
-                                                                                 .hasMessage(String.format(KeyLookup.INDEX_OUT_OF_BOUNDS, Long.MAX_VALUE, 4000));
-            assertThatThrownBy(() -> cursor.seekForwardToPointId(4000)).isInstanceOf(IndexOutOfBoundsException.class)
-                                                                       .hasMessage(String.format(KeyLookup.INDEX_OUT_OF_BOUNDS, 4000, 4000));
+            assertThatThrownBy(() -> cursor.seekToPointId(-2)).isInstanceOf(IndexOutOfBoundsException.class)
+                                                              .hasMessage(String.format(KeyLookup.INDEX_OUT_OF_BOUNDS, -2, 4000));
+            assertThatThrownBy(() -> cursor.seekToPointId(Long.MAX_VALUE)).isInstanceOf(IndexOutOfBoundsException.class)
+                                                                          .hasMessage(String.format(KeyLookup.INDEX_OUT_OF_BOUNDS, Long.MAX_VALUE, 4000));
+            assertThatThrownBy(() -> cursor.seekToPointId(4000)).isInstanceOf(IndexOutOfBoundsException.class)
+                                                                .hasMessage(String.format(KeyLookup.INDEX_OUT_OF_BOUNDS, 4000, 4000));
         });
     }
 
@@ -317,7 +317,7 @@ public class SortedTermsTest extends SAIRandomizedTester
         withSortedTermsCursor(cursor -> {
             for (int x = 0; x < terms.size(); x++)
             {
-                ByteComparable term = cursor.seekForwardToPointId(x);
+                ByteComparable term = cursor.seekToPointId(x);
 
                 byte[] bytes = ByteSourceInverse.readBytes(term.asComparableBytes(ByteComparable.Version.OSS50));
 
@@ -329,7 +329,7 @@ public class SortedTermsTest extends SAIRandomizedTester
         withSortedTermsCursor(cursor -> {
             for (int x = 0; x < terms.size(); x += 17)
             {
-                ByteComparable term = cursor.seekForwardToPointId(x);
+                ByteComparable term = cursor.seekToPointId(x);
 
                 byte[] bytes = ByteSourceInverse.readBytes(term.asComparableBytes(ByteComparable.Version.OSS50));
 
@@ -338,11 +338,11 @@ public class SortedTermsTest extends SAIRandomizedTester
         });
 
         withSortedTermsCursor(cursor -> {
-            ByteComparable term = cursor.seekForwardToPointId(7);
+            ByteComparable term = cursor.seekToPointId(7);
             byte[] bytes = ByteSourceInverse.readBytes(term.asComparableBytes(ByteComparable.Version.OSS50));
             assertArrayEquals(terms.get(7), bytes);
 
-            term = cursor.seekForwardToPointId(7);
+            term = cursor.seekToPointId(7);
             bytes = ByteSourceInverse.readBytes(term.asComparableBytes(ByteComparable.Version.OSS50));
             assertArrayEquals(terms.get(7), bytes);
         });

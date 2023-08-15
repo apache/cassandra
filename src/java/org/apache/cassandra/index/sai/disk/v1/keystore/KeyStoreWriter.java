@@ -117,7 +117,7 @@ public class KeyStoreWriter implements Closeable
 
     public void startPartition()
     {
-        assert partitioned : "Cannot start a partition on un-partitioned sorted terms";
+        assert partitioned : "Cannot start a partition on an un-partitioned key store";
 
         inPartition = false;
     }
