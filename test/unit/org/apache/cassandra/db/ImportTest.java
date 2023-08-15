@@ -283,9 +283,11 @@ public class ImportTest extends CQLTester
         getCurrentColumnFamilyStore().clearUnsafe();
         File dir = moveToBackupDir(toMove);
 
-        Directories dirs = new Directories(getCurrentColumnFamilyStore().metadata(), Lists.newArrayList(new Directories.DataDirectory(new File("/tmp/1")),
-                                                                                                        new Directories.DataDirectory(new File("/tmp/2")),
-                                                                                                        new Directories.DataDirectory(new File("/tmp/3"))));
+        Path tmpDir = Files.createTempDirectory("ImportTest");
+
+        Directories dirs = new Directories(getCurrentColumnFamilyStore().metadata(), Lists.newArrayList(new Directories.DataDirectory(new File(tmpDir, "1")),
+                                                                                                        new Directories.DataDirectory(new File(tmpDir, "2")),
+                                                                                                        new Directories.DataDirectory(new File(tmpDir, "3"))));
         MockCFS mock = new MockCFS(getCurrentColumnFamilyStore(), dirs);
         SSTableImporter importer = new SSTableImporter(mock);
 
