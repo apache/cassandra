@@ -20,7 +20,6 @@ package org.apache.cassandra.cql3;
 
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -28,22 +27,32 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import javax.annotation.Nonnull;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
 
 import com.datastax.driver.core.CodecUtils;
 import org.apache.cassandra.cql3.functions.types.LocalDate;
 import org.apache.cassandra.cql3.statements.SelectStatement;
-import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.ReadExecutionController;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.BooleanType;
+import org.apache.cassandra.db.marshal.ByteType;
+import org.apache.cassandra.db.marshal.DoubleType;
+import org.apache.cassandra.db.marshal.InetAddressType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.marshal.ShortType;
+import org.apache.cassandra.db.marshal.TimestampType;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.UUIDType;
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.db.partitions.PartitionIterator;
-import org.apache.cassandra.db.rows.Cell;
-import org.apache.cassandra.db.rows.ComplexColumnData;
-import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.pager.QueryPager;
 import org.apache.cassandra.utils.AbstractIterator;
@@ -58,11 +67,6 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
     public static UntypedResultSet create(ResultSet rs)
     {
         return new FromResultSet(rs);
-    }
-
-    public static UntypedResultSet create(List<Map<String, ByteBuffer>> results)
-    {
-        return new FromResultList(results);
     }
 
     public static UntypedResultSet create(SelectStatement select, QueryPager pager, int pageSize)
@@ -134,48 +138,6 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
         public List<ColumnSpecification> metadata()
         {
             return cqlRows.metadata.requestNames();
-        }
-    }
-
-    private static class FromResultList extends UntypedResultSet
-    {
-        private final List<Map<String, ByteBuffer>> cqlRows;
-
-        private FromResultList(List<Map<String, ByteBuffer>> cqlRows)
-        {
-            this.cqlRows = cqlRows;
-        }
-
-        public int size()
-        {
-            return cqlRows.size();
-        }
-
-        public Row one()
-        {
-            if (cqlRows.size() != 1)
-                throw new IllegalStateException("One row required, " + cqlRows.size() + " found");
-            return new Row(cqlRows.get(0));
-        }
-
-        public Iterator<Row> iterator()
-        {
-            return new AbstractIterator<Row>()
-            {
-                final Iterator<Map<String, ByteBuffer>> iter = cqlRows.iterator();
-
-                protected Row computeNext()
-                {
-                    if (!iter.hasNext())
-                        return endOfData();
-                    return new Row(iter.next());
-                }
-            };
-        }
-
-        public List<ColumnSpecification> metadata()
-        {
-            throw new UnsupportedOperationException();
         }
     }
 
@@ -302,50 +264,16 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
 
     public static class Row
     {
+        @Nonnull
         private final Map<String, ByteBuffer> data = new HashMap<>();
-        private final List<ColumnSpecification> columns = new ArrayList<>();
+        @Nonnull
+        private final List<ColumnSpecification> columns;
 
-        public Row(Map<String, ByteBuffer> data)
+        public Row(@Nonnull List<ColumnSpecification> names, @Nonnull List<ByteBuffer> columns)
         {
-            this.data.putAll(data);
-        }
-
-        public Row(List<ColumnSpecification> names, List<ByteBuffer> columns)
-        {
-            this.columns.addAll(names);
+            this.columns = ImmutableList.copyOf(names);
             for (int i = 0; i < names.size(); i++)
                 data.put(names.get(i).name.toString(), columns.get(i));
-        }
-
-        public static Row fromInternalRow(TableMetadata metadata, DecoratedKey key, org.apache.cassandra.db.rows.Row row)
-        {
-            Map<String, ByteBuffer> data = new HashMap<>();
-
-            ByteBuffer[] keyComponents = SelectStatement.getComponents(metadata, key);
-            for (ColumnMetadata def : metadata.partitionKeyColumns())
-                data.put(def.name.toString(), keyComponents[def.position()]);
-
-            Clustering<?> clustering = row.clustering();
-            for (ColumnMetadata def : metadata.clusteringColumns())
-                data.put(def.name.toString(), clustering.bufferAt(def.position()));
-
-            for (ColumnMetadata def : metadata.regularAndStaticColumns())
-            {
-                if (def.isSimple())
-                {
-                    Cell<?> cell = row.getCell(def);
-                    if (cell != null)
-                        data.put(def.name.toString(), cell.buffer());
-                }
-                else
-                {
-                    ComplexColumnData complexData = row.getComplexColumnData(def);
-                    if (complexData != null)
-                        data.put(def.name.toString(), ((CollectionType<?>) def.type).serializeForNativeProtocol(complexData.iterator()));
-                }
-            }
-
-            return new Row(data);
         }
 
         public boolean has(String column)
@@ -498,7 +426,47 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
         @Override
         public String toString()
         {
-            return data.toString();
+            StringBuilder sb = new StringBuilder();
+            toString(sb);
+            return sb.toString();
         }
+
+        public void toString(StringBuilder sb)
+        {
+            for (int i = 0; i < columns.size(); i++)
+            {
+                ColumnSpecification cspec = columns.get(i);
+                ByteBuffer v = data.get(cspec.name.toString());
+                if (i != 0)
+                    sb.append(" | ");
+                if (v == null)
+                {
+                    sb.append("null");
+                }
+                else
+                {
+                    sb.append(cspec.type.getString(v));
+                }
+            }
+        }
+    }
+
+    /**
+     * When UntypedResultSet is from a pager calling toString will consume the pager.
+     * toString shouldn't mutate the object and this of course breaks things waiting to consume
+     * the results so if you want to get a pretty printed string you need to call this method explicitly.
+    */
+    @SuppressWarnings("unused")
+    public String toStringUnsafe()
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.append(metadata()).append('\n');
+        for (Row row : this)
+        {
+            row.toString(sb);
+            sb.append('\n');
+        }
+        sb.append("---");
+        return sb.toString();
     }
 }

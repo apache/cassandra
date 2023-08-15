@@ -80,6 +80,8 @@ import org.apache.cassandra.db.lifecycle.WrappedLifecycleTransaction;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.view.ViewBuilderTask;
 import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -99,6 +101,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.MetaStrategy;
 import org.apache.cassandra.locator.RangesAtEndpoint;
+import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.metrics.CompactionMetrics;
 import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.repair.NoSuchRepairSessionException;
@@ -120,7 +123,6 @@ import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.concurrent.Refs;
-
 
 import static java.util.Collections.singleton;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
@@ -639,6 +641,11 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
         DataPlacement placement = cm.placements.get(keyspace.getMetadata().params.replication);
         InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
         RangesAtEndpoint localWrites = placement.writes.byEndpoint().get(local);
+        // TODO review: Hack to get local partitioner not to fail out because it's handled very poorly with data placements
+        IPartitioner partitioner = cfStore.getPartitioner();
+        if (partitioner.getClass() == LocalPartitioner.class)
+            localWrites = RangesAtEndpoint.of(Replica.fullReplica(local, new Range<>(partitioner.getMinimumToken(), partitioner.getMinimumToken())));
+
         final Set<Range<Token>> allRanges = new HashSet<>(localWrites.ranges());
         final Set<Range<Token>> transientRanges = new HashSet<>(localWrites.onlyTransient().ranges());
         final Set<Range<Token>> fullRanges = new HashSet<>(localWrites.onlyFull().ranges());

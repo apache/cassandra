@@ -37,7 +37,7 @@ public class InformHomeDurableSerializers
         public void serialize(InformHomeDurable inform, DataOutputPlus out, int version) throws IOException
         {
             CommandSerializers.txnId.serialize(inform.txnId, out, version);
-            KeySerializers.routingKey.serialize(inform.homeKey, out, version);
+            KeySerializers.route.serialize(inform.route, out, version);
             CommandSerializers.timestamp.serialize(inform.executeAt, out, version);
             CommandSerializers.durability.serialize(inform.durability, out, version);
             serializeCollection(inform.persistedOn, out, version, TopologySerializers.nodeId);
@@ -48,7 +48,7 @@ public class InformHomeDurableSerializers
         public InformHomeDurable deserialize(DataInputPlus in, int version) throws IOException
         {
             return new InformHomeDurable(CommandSerializers.txnId.deserialize(in, version),
-                                         KeySerializers.routingKey.deserialize(in, version),
+                                         KeySerializers.route.deserialize(in, version),
                                          CommandSerializers.timestamp.deserialize(in, version),
                                          CommandSerializers.durability.deserialize(in, version),
                                          deserializeSet(in, version, TopologySerializers.nodeId));
@@ -58,7 +58,7 @@ public class InformHomeDurableSerializers
         public long serializedSize(InformHomeDurable inform, int version)
         {
             return CommandSerializers.txnId.serializedSize(inform.txnId, version)
-                   + KeySerializers.routingKey.serializedSize(inform.homeKey, version)
+                   + KeySerializers.route.serializedSize(inform.route, version)
                    + CommandSerializers.timestamp.serializedSize(inform.executeAt, version)
                    + CommandSerializers.durability.serializedSize(inform.durability, version)
                    + serializedCollectionSize(inform.persistedOn, version, TopologySerializers.nodeId);

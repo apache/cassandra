@@ -171,16 +171,16 @@ import org.apache.cassandra.utils.LazyToString;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_LOCAL_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_DRIVER_CONNECTION_TIMEOUT_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_DRIVER_READ_TIMEOUT_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_REUSE_PREPARED;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_ROW_CACHE_SIZE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_USE_PREPARED;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 /**
  * Base class for CQL tests.
@@ -214,7 +214,6 @@ public abstract class CQLTester
 
     protected static int nativePort;
     protected static final InetAddress nativeAddr;
-    protected static final Set<InetAddressAndPort> remoteAddrs = new HashSet<>();
     private static final Map<Pair<User, ProtocolVersion>, Cluster> clusters = new HashMap<>();
     private static final Map<Pair<User, ProtocolVersion>, Session> sessions = new HashMap<>();
 
@@ -395,12 +394,18 @@ public abstract class CQLTester
     public static void setUpClass()
     {
         CassandraRelevantProperties.SUPERUSER_SETUP_DELAY_MS.setLong(0);
-        ServerTestUtils.daemonInitialization();
+        daemonInitialization();
         if (ROW_CACHE_SIZE_IN_MIB > 0)
             DatabaseDescriptor.setRowCacheSizeInMiB(ROW_CACHE_SIZE_IN_MIB);
         StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
         // Once per-JVM is enough
         prepareServer();
+    }
+
+    // So derived classes can get enough intialization to start setting DatabaseDescriptor options
+    public static void daemonInitialization()
+    {
+        ServerTestUtils.daemonInitialization();
     }
 
     @AfterClass

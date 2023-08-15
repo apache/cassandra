@@ -96,6 +96,7 @@ public class RecoveryManagerFlushedTest
     /* test that commit logs do not replay flushed data */
     public void testWithFlush() throws Exception
     {
+        // Flush everything that may be in the commit log now to start fresh
         CompactionManager.instance.disableAutoCompaction();
         for (String ks : Schema.instance.getKeyspaces())
             Util.flush(Keyspace.open(ks));

@@ -331,7 +331,7 @@ public class VIntCoding
     }
 
     @Deprecated
-    public static void writeUnsignedVInt(int value, ByteBuffer output) throws IOException
+    public static void writeUnsignedVInt(int value, ByteBuffer output)
     {
         throw new UnsupportedOperationException("Use writeUnsignedVInt32/getUnsignedVInt32");
     }
