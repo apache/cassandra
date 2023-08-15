@@ -23,7 +23,6 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 
-import org.apache.cassandra.index.sai.disk.hnsw.CassandraOnDiskHnsw.OnDiskVectors;
 import org.apache.lucene.util.hnsw.HnswGraph;
 import org.jctools.maps.NonBlockingHashMapLong;
 
