@@ -6,6 +6,7 @@ Merged from 4.0:
  * Migrate Python optparse to argparse (CASSANDRA-17914)
 Merged from 3.11:
 Merged from 3.0:
+ * Fix Requires for Java for RPM package (CASSANDRA-18751)
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 
