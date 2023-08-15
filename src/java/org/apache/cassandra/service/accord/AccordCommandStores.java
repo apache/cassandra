@@ -59,7 +59,7 @@ public class AccordCommandStores extends CommandStores
     @Override
     protected <O> void mapReduceConsume(
         PreLoadContext context,
-        Routables<?, ?> keys,
+        Routables<?> keys,
         long minEpoch,
         long maxEpoch,
         MapReduceConsume<? super SafeCommandStore, O> mapReduceConsume)
@@ -73,7 +73,7 @@ public class AccordCommandStores extends CommandStores
 
     private <O> void mapReduceConsumeDurable(
         PreLoadContext context,
-        Routables<?, ?> keys,
+        Routables<?> keys,
         long minEpoch,
         long maxEpoch,
         MapReduceConsume<? super SafeCommandStore, O> mapReduceConsume)

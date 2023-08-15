@@ -23,11 +23,11 @@ import java.io.IOException;
 import accord.messages.Apply;
 import accord.primitives.PartialRoute;
 import accord.primitives.TxnId;
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.txn.TxnData;
+import org.apache.cassandra.utils.NullableSerializer;
 
 public class ApplySerializers
 {
@@ -36,10 +36,10 @@ public class ApplySerializers
         @Override
         public void serializeBody(Apply apply, DataOutputPlus out, int version) throws IOException
         {
-            out.writeUnsignedVInt(apply.untilEpoch);
             KeySerializers.seekables.serialize(apply.keys(), out, version);
             CommandSerializers.timestamp.serialize(apply.executeAt, out, version);
             DepsSerializer.partialDeps.serialize(apply.deps, out, version);
+            NullableSerializer.serializeNullable(apply.txn, out, version, CommandSerializers.partialTxn);
             CommandSerializers.writes.serialize(apply.writes, out, version);
             TxnData.serializer.serialize((TxnData) apply.result, out, version);
         }
@@ -47,10 +47,11 @@ public class ApplySerializers
         @Override
         public Apply deserializeBody(DataInputPlus in, int version, TxnId txnId, PartialRoute scope, long waitForEpoch) throws IOException
         {
-            return Apply.SerializationSupport.create(txnId, scope, waitForEpoch, in.readUnsignedVInt(),
+            return Apply.SerializationSupport.create(txnId, scope, waitForEpoch,
                                                      KeySerializers.seekables.deserialize(in, version),
                                                      CommandSerializers.timestamp.deserialize(in, version),
                                                      DepsSerializer.partialDeps.deserialize(in, version),
+                                                     NullableSerializer.deserializeNullable(in, version, CommandSerializers.partialTxn),
                                                      CommandSerializers.writes.deserialize(in, version),
                                                      TxnData.serializer.deserialize(in, version));
         }
@@ -58,10 +59,10 @@ public class ApplySerializers
         @Override
         public long serializedBodySize(Apply apply, int version)
         {
-            return TypeSizes.sizeofUnsignedVInt(apply.untilEpoch)
-                   + KeySerializers.seekables.serializedSize(apply.keys(), version)
+            return   KeySerializers.seekables.serializedSize(apply.keys(), version)
                    + CommandSerializers.timestamp.serializedSize(apply.executeAt, version)
                    + DepsSerializer.partialDeps.serializedSize(apply.deps, version)
+                   + NullableSerializer.serializedNullableSize(apply.txn, version, CommandSerializers.partialTxn)
                    + CommandSerializers.writes.serializedSize(apply.writes, version)
                    + TxnData.serializer.serializedSize((TxnData) apply.result, version);
         }
