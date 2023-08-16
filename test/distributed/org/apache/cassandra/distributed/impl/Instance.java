@@ -947,7 +947,10 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> SharedExecutorPool.SHARED.shutdownAndWait(1L, MINUTES)
             );
 
-            error = parallelRun(error, executor, () -> AccordService.instance().shutdownAndWait(1l, MINUTES));
+            error = parallelRun(error, executor, () -> {
+                if (!AccordService.isSetup()) return;
+                AccordService.instance().shutdownAndWait(1l, MINUTES);
+            });
 
             // CommitLog must shut down after Stage, or threads from the latter may attempt to use the former.
             // (ex. A Mutation stage thread may attempt to add a mutation to the CommitLog.)
