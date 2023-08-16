@@ -544,22 +544,22 @@ public class StreamSession
                     sink.onClose(peer);
                     streamResult.handleSessionComplete(this);
                 }}).flatMap(ignore -> {
-                List<Future<?>> futures = new ArrayList<>();
-                // ensure aborting the tasks do not happen on the network IO thread (read: netty event loop)
-                // as we don't want any blocking disk IO to stop the network thread
-                if (finalState == State.FAILED || finalState == State.ABORTED)
-                    futures.add(ScheduledExecutors.nonPeriodicTasks.submit(this::abortTasks));
+                    List<Future<?>> futures = new ArrayList<>();
+                    // ensure aborting the tasks do not happen on the network IO thread (read: netty event loop)
+                    // as we don't want any blocking disk IO to stop the network thread
+                    if (finalState == State.FAILED || finalState == State.ABORTED)
+                        futures.add(ScheduledExecutors.nonPeriodicTasks.submit(this::abortTasks));
 
-                // Channels should only be closed by the initiator; but, if this session closed
-                // due to failure, channels should be always closed regardless, even if this is not the initator.
-                if (!isFollower || state != State.COMPLETE)
-                {
-                    logger.debug("[Stream #{}] Will close attached inbound {} and outbound {} channels", planId(), inbound, outbound);
-                    inbound.values().forEach(channel -> futures.add(channel.close()));
-                    outbound.values().forEach(channel -> futures.add(channel.close()));
-                }
-                return FutureCombiner.allOf(futures);
-            });
+                    // Channels should only be closed by the initiator; but, if this session closed
+                    // due to failure, channels should be always closed regardless, even if this is not the initator.
+                    if (!isFollower || state != State.COMPLETE)
+                    {
+                        logger.debug("[Stream #{}] Will close attached inbound {} and outbound {} channels", planId(), inbound, outbound);
+                        inbound.values().forEach(channel -> futures.add(channel.close()));
+                        outbound.values().forEach(channel -> futures.add(channel.close()));
+                    }
+                    return FutureCombiner.allOf(futures);
+                });
 
             return closeFuture;
         }

@@ -521,9 +521,7 @@ public class StreamingMultiplexedChannel
         fileTransferExecutor.shutdownNow();
     }
 
-    /** For testing only -- close the control handle for testing streaming exception handling.
-     */
-    @VisibleForTesting
+    @VisibleForTesting // For testing only -- close the control handle for testing streaming exception handling.
     public void unsafeCloseControlChannel()
     {
         logger.warn("Unsafe close of control channel");
