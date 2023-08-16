@@ -113,103 +113,103 @@ public class KeyLookupTest extends SAIRandomizedTester
     @Test
     public void testLongPrefixesAndSuffixes() throws Exception
     {
-        List<byte[]> terms = new ArrayList<>();
-        writeTerms(writer ->  {
-            // The following writes a set of terms that cover the following conditions:
+        List<byte[]> keys = new ArrayList<>();
+        writeKeys(writer ->  {
+            // The following writes a set of keys that cover the following conditions:
 
             // Start value 0
             byte[] bytes = new byte[20];
-            terms.add(bytes);
+            keys.add(bytes);
             writer.add(ByteComparable.fixedLength(bytes));
             // prefix > 15
             bytes = new byte[20];
             Arrays.fill(bytes, 16, 20, (byte)1);
-            terms.add(bytes);
+            keys.add(bytes);
             writer.add(ByteComparable.fixedLength(bytes));
             // prefix == 15
             bytes = new byte[20];
             Arrays.fill(bytes, 15, 20, (byte)1);
-            terms.add(bytes);
+            keys.add(bytes);
             writer.add(ByteComparable.fixedLength(bytes));
             // prefix < 15
             bytes = new byte[20];
             Arrays.fill(bytes, 14, 20, (byte)1);
-            terms.add(bytes);
+            keys.add(bytes);
             writer.add(ByteComparable.fixedLength(bytes));
             // suffix > 16
             bytes = new byte[20];
             Arrays.fill(bytes, 0, 4, (byte)1);
-            terms.add(bytes);
+            keys.add(bytes);
             writer.add(ByteComparable.fixedLength(bytes));
             // suffix == 16
             bytes = new byte[20];
             Arrays.fill(bytes, 0, 5, (byte)1);
-            terms.add(bytes);
+            keys.add(bytes);
             writer.add(ByteComparable.fixedLength(bytes));
             // suffix < 16
             bytes = new byte[20];
             Arrays.fill(bytes, 0, 6, (byte)1);
-            terms.add(bytes);
+            keys.add(bytes);
             writer.add(ByteComparable.fixedLength(bytes));
 
             bytes = new byte[32];
             Arrays.fill(bytes, 0, 16, (byte)1);
-            terms.add(bytes);
+            keys.add(bytes);
             writer.add(ByteComparable.fixedLength(bytes));
             // prefix >= 15 && suffix >= 16
             bytes = new byte[32];
             Arrays.fill(bytes, 0, 32, (byte)1);
-            terms.add(bytes);
+            keys.add(bytes);
             writer.add(ByteComparable.fixedLength(bytes));
         }, false);
 
-        doTestSortedTerms(terms);
+        doTestKeyLookup(keys);
     }
 
     @Test
-    public void testNonUniqueTerms() throws Exception
+    public void testNonUniqueKeys() throws Exception
     {
-        List<byte[]> terms = new ArrayList<>();
+        List<byte[]> keys = new ArrayList<>();
 
-        writeTerms(writer ->  {
+        writeKeys(writer ->  {
             for (int x = 0; x < 4000; x++)
             {
                 ByteBuffer buffer = Int32Type.instance.decompose(5000);
                 ByteSource byteSource = Int32Type.instance.asComparableBytes(buffer, ByteComparable.Version.OSS50);
                 byte[] bytes = ByteSourceInverse.readBytes(byteSource);
-                terms.add(bytes);
+                keys.add(bytes);
 
                 writer.add(ByteComparable.fixedLength(bytes));
             }
         }, false);
 
-        doTestSortedTerms(terms);
+        doTestKeyLookup(keys);
     }
 
     @Test
     public void testSeekToPointId() throws Exception
     {
-        List<byte[]> terms = new ArrayList<>();
+        List<byte[]> keys = new ArrayList<>();
 
-        writeTerms(writer -> {
+        writeKeys(writer -> {
             for (int x = 0; x < 4000; x++)
             {
                 ByteBuffer buffer = Int32Type.instance.decompose(x);
                 ByteSource byteSource = Int32Type.instance.asComparableBytes(buffer, ByteComparable.Version.OSS50);
                 byte[] bytes = ByteSourceInverse.readBytes(byteSource);
-                terms.add(bytes);
+                keys.add(bytes);
 
                 writer.add(ByteComparable.fixedLength(bytes));
             }
         }, false);
 
-        doTestSortedTerms(terms);
+        doTestKeyLookup(keys);
     }
 
     @Test
     public void testSeekToPointIdOutOfRange() throws Exception
     {
-        writeTerms(writer -> {
+        writeKeys(writer -> {
             for (int x = 0; x < 4000; x++)
             {
                 ByteBuffer buffer = Int32Type.instance.decompose(x);
@@ -220,7 +220,7 @@ public class KeyLookupTest extends SAIRandomizedTester
             }
         }, false);
 
-        withSortedTermsCursor(cursor -> {
+        withKeyLookupCursor(cursor -> {
             assertThatThrownBy(() -> cursor.seekToPointId(-2)).isInstanceOf(IndexOutOfBoundsException.class)
                                                               .hasMessage(String.format(KeyLookup.INDEX_OUT_OF_BOUNDS, -2, 4000));
             assertThatThrownBy(() -> cursor.seekToPointId(Long.MAX_VALUE)).isInstanceOf(IndexOutOfBoundsException.class)
@@ -231,124 +231,124 @@ public class KeyLookupTest extends SAIRandomizedTester
     }
 
     @Test
-    public void testSeekToTerm() throws Exception
+    public void testSeekToKey() throws Exception
     {
-        Map<Long, byte[]> terms = new HashMap<>();
+        Map<Long, byte[]> keys = new HashMap<>();
 
-        writeTerms(writer -> {
+        writeKeys(writer -> {
             long pointId = 0;
             for (int x = 0; x < 4000; x += 4)
             {
-                byte[] term = makeTerm(x);
-                terms.put(pointId++, term);
+                byte[] key = makeKey(x);
+                keys.put(pointId++, key);
 
-                writer.add(ByteComparable.fixedLength(term));
+                writer.add(ByteComparable.fixedLength(key));
             }
         }, true);
 
-        withSortedTermsCursor(cursor -> {
-            assertEquals(0L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(terms.get(0L)), 0L, 10L));
+        withKeyLookupCursor(cursor -> {
+            assertEquals(0L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(keys.get(0L)), 0L, 10L));
             cursor.reset();
-            assertEquals(160L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(terms.get(160L)), 160L, 170L));
+            assertEquals(160L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(keys.get(160L)), 160L, 170L));
             cursor.reset();
-            assertEquals(165L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(terms.get(165L)), 160L, 170L));
+            assertEquals(165L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(keys.get(165L)), 160L, 170L));
             cursor.reset();
-            assertEquals(175L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(terms.get(175L)), 160L, 176L));
+            assertEquals(175L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(keys.get(175L)), 160L, 176L));
             cursor.reset();
-            assertEquals(176L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(terms.get(176L)), 160L, 177L));
+            assertEquals(176L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(keys.get(176L)), 160L, 177L));
             cursor.reset();
-            assertEquals(176L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(terms.get(176L)), 175L, 177L));
+            assertEquals(176L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(keys.get(176L)), 175L, 177L));
             cursor.reset();
-            assertEquals(176L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(makeTerm(701)), 160L, 177L));
+            assertEquals(176L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(makeKey(701)), 160L, 177L));
             cursor.reset();
-            assertEquals(504L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(terms.get(504L)), 200L, 600L));
+            assertEquals(504L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(keys.get(504L)), 200L, 600L));
             cursor.reset();
-            assertEquals(-1L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(makeTerm(4000)), 0L, 1000L));
+            assertEquals(-1L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(makeKey(4000)), 0L, 1000L));
             cursor.reset();
-            assertEquals(-1L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(makeTerm(4000)), 999L, 1000L));
+            assertEquals(-1L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(makeKey(4000)), 999L, 1000L));
             cursor.reset();
-            assertEquals(999L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(terms.get(999L)), 0L, 1000L));
+            assertEquals(999L, cursor.clusteredSeekToKey(ByteComparable.fixedLength(keys.get(999L)), 0L, 1000L));
         });
     }
 
     @Test
-    public void seekToTermOnNonPartitionedTest() throws Throwable
+    public void seekToKeyOnNonPartitionedTest() throws Throwable
     {
-        Map<Long, byte[]> terms = new HashMap<>();
+        Map<Long, byte[]> keys = new HashMap<>();
 
-        writeTerms(writer -> {
+        writeKeys(writer -> {
             long pointId = 0;
             for (int x = 0; x < 16; x += 4)
             {
-                byte[] term = makeTerm(x);
-                terms.put(pointId++, term);
+                byte[] key = makeKey(x);
+                keys.put(pointId++, key);
 
-                writer.add(ByteComparable.fixedLength(term));
+                writer.add(ByteComparable.fixedLength(key));
             }
         }, false);
 
-        withSortedTermsCursor(cursor -> assertThatThrownBy(() -> cursor.clusteredSeekToKey(ByteComparable.fixedLength(terms.get(0L)), 0L, 10L))
+        withKeyLookupCursor(cursor -> assertThatThrownBy(() -> cursor.clusteredSeekToKey(ByteComparable.fixedLength(keys.get(0L)), 0L, 10L))
                                         .isInstanceOf(AssertionError.class));
     }
 
     @Test
-    public void partitionedTermsMustBeInOrderInPartitions() throws Throwable
+    public void partitionedKeysMustBeInOrderInPartitions() throws Throwable
     {
-        writeTerms(writer -> {
+        writeKeys(writer -> {
             writer.startPartition();
-            writer.add(ByteComparable.fixedLength(makeTerm(0)));
-            writer.add(ByteComparable.fixedLength(makeTerm(10)));
-            assertThatThrownBy(() -> writer.add(ByteComparable.fixedLength(makeTerm(9)))).isInstanceOf(IllegalArgumentException.class);
+            writer.add(ByteComparable.fixedLength(makeKey(0)));
+            writer.add(ByteComparable.fixedLength(makeKey(10)));
+            assertThatThrownBy(() -> writer.add(ByteComparable.fixedLength(makeKey(9)))).isInstanceOf(IllegalArgumentException.class);
             writer.startPartition();
-            writer.add(ByteComparable.fixedLength(makeTerm(9)));
-        },true);
+            writer.add(ByteComparable.fixedLength(makeKey(9)));
+        }, true);
     }
 
-    private byte[] makeTerm(int value)
+    private byte[] makeKey(int value)
     {
         ByteBuffer buffer = Int32Type.instance.decompose(value);
         ByteSource byteSource = Int32Type.instance.asComparableBytes(buffer, ByteComparable.Version.OSS50);
         return ByteSourceInverse.readBytes(byteSource);
     }
 
-    private void doTestSortedTerms(List<byte[]> terms) throws Exception
+    private void doTestKeyLookup(List<byte[]> keys) throws Exception
     {
         // iterate ascending
-        withSortedTermsCursor(cursor -> {
-            for (int x = 0; x < terms.size(); x++)
+        withKeyLookupCursor(cursor -> {
+            for (int x = 0; x < keys.size(); x++)
             {
-                ByteComparable term = cursor.seekToPointId(x);
+                ByteComparable key = cursor.seekToPointId(x);
 
-                byte[] bytes = ByteSourceInverse.readBytes(term.asComparableBytes(ByteComparable.Version.OSS50));
+                byte[] bytes = ByteSourceInverse.readBytes(key.asComparableBytes(ByteComparable.Version.OSS50));
 
-                assertArrayEquals(terms.get(x), bytes);
+                assertArrayEquals(keys.get(x), bytes);
             }
         });
 
         // iterate ascending skipping blocks
-        withSortedTermsCursor(cursor -> {
-            for (int x = 0; x < terms.size(); x += 17)
+        withKeyLookupCursor(cursor -> {
+            for (int x = 0; x < keys.size(); x += 17)
             {
-                ByteComparable term = cursor.seekToPointId(x);
+                ByteComparable key = cursor.seekToPointId(x);
 
-                byte[] bytes = ByteSourceInverse.readBytes(term.asComparableBytes(ByteComparable.Version.OSS50));
+                byte[] bytes = ByteSourceInverse.readBytes(key.asComparableBytes(ByteComparable.Version.OSS50));
 
-                assertArrayEquals(terms.get(x), bytes);
+                assertArrayEquals(keys.get(x), bytes);
             }
         });
 
-        withSortedTermsCursor(cursor -> {
-            ByteComparable term = cursor.seekToPointId(7);
-            byte[] bytes = ByteSourceInverse.readBytes(term.asComparableBytes(ByteComparable.Version.OSS50));
-            assertArrayEquals(terms.get(7), bytes);
+        withKeyLookupCursor(cursor -> {
+            ByteComparable key = cursor.seekToPointId(7);
+            byte[] bytes = ByteSourceInverse.readBytes(key.asComparableBytes(ByteComparable.Version.OSS50));
+            assertArrayEquals(keys.get(7), bytes);
 
-            term = cursor.seekToPointId(7);
-            bytes = ByteSourceInverse.readBytes(term.asComparableBytes(ByteComparable.Version.OSS50));
-            assertArrayEquals(terms.get(7), bytes);
+            key = cursor.seekToPointId(7);
+            bytes = ByteSourceInverse.readBytes(key.asComparableBytes(ByteComparable.Version.OSS50));
+            assertArrayEquals(keys.get(7), bytes);
         });
     }
 
-    protected void writeTerms(ThrowingConsumer<KeyStoreWriter> testCode, boolean partitioned) throws IOException
+    protected void writeKeys(ThrowingConsumer<KeyStoreWriter> testCode, boolean clustering) throws IOException
     {
         try (MetadataWriter metadataWriter = new MetadataWriter(indexDescriptor.openPerSSTableOutput(IndexComponent.GROUP_META)))
         {
@@ -359,7 +359,7 @@ public class KeyLookupTest extends SAIRandomizedTester
                                                             bytesWriter,
                                                             blockFPWriter,
                                                             4,
-                                                            partitioned))
+                                                            clustering))
             {
                 testCode.accept(writer);
             }
@@ -372,22 +372,22 @@ public class KeyLookupTest extends SAIRandomizedTester
         void accept(T t) throws IOException;
     }
 
-    private void withSortedTermsReader(ThrowingConsumer<KeyLookup> testCode) throws IOException
+    private void withKeyLookup(ThrowingConsumer<KeyLookup> testCode) throws IOException
     {
         MetadataSource metadataSource = MetadataSource.loadGroupMetadata(indexDescriptor);
         NumericValuesMeta blockPointersMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCK_OFFSETS)));
-        KeyLookupMeta sortedTermsMeta = new KeyLookupMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCKS)));
-        try (FileHandle termsData = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_KEY_BLOCKS, null);
+        KeyLookupMeta keyLookupMeta = new KeyLookupMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCKS)));
+        try (FileHandle keysData = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_KEY_BLOCKS, null);
              FileHandle blockOffsets = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PARTITION_KEY_BLOCK_OFFSETS, null))
         {
-            KeyLookup reader = new KeyLookup(termsData, blockOffsets, sortedTermsMeta, blockPointersMeta);
+            KeyLookup reader = new KeyLookup(keysData, blockOffsets, keyLookupMeta, blockPointersMeta);
             testCode.accept(reader);
         }
     }
 
-    private void withSortedTermsCursor(ThrowingConsumer<KeyLookup.Cursor> testCode) throws IOException
+    private void withKeyLookupCursor(ThrowingConsumer<KeyLookup.Cursor> testCode) throws IOException
     {
-        withSortedTermsReader(reader -> {
+        withKeyLookup(reader -> {
             try (KeyLookup.Cursor cursor = reader.openCursor())
             {
                 testCode.accept(cursor);

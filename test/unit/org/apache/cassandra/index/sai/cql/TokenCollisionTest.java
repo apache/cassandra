@@ -46,8 +46,8 @@ public class TokenCollisionTest extends SAITester
     private void doSkinnyPartitionTest(int v1Match, int v2Match)
     {
         createTable("CREATE TABLE %s (pk blob, v1 int, v2 int, PRIMARY KEY (pk))");
-        createIndex("CREATE CUSTOM INDEX ON %s(v1) USING 'StorageAttachedIndex'");
-        createIndex("CREATE CUSTOM INDEX ON %s(v2) USING 'StorageAttachedIndex'");
+        createIndex("CREATE INDEX ON %s(v1) USING 'sai'");
+        createIndex("CREATE INDEX ON %s(v2) USING 'sai'");
 
         ByteBuffer prefix = ByteBufferUtil.bytes("key");
         int numRows = 100;
@@ -87,8 +87,8 @@ public class TokenCollisionTest extends SAITester
     private void doWidePartitionTest(int numRows, int v1Match, int v2Match)
     {
         createTable("CREATE TABLE %s (pk blob, ck int, v1 int, v2 int, PRIMARY KEY (pk, ck))");
-        createIndex("CREATE CUSTOM INDEX ON %s(v1) USING 'StorageAttachedIndex'");
-        createIndex("CREATE CUSTOM INDEX ON %s(v2) USING 'StorageAttachedIndex'");
+        createIndex("CREATE INDEX ON %s(v1) USING 'sai'");
+        createIndex("CREATE INDEX ON %s(v2) USING 'sai'");
 
         ByteBuffer prefix = ByteBufferUtil.bytes("key");
         int pkCount = 0;

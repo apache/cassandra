@@ -137,7 +137,7 @@ public class KeyLookup
         }
 
         /**
-         * Positions the cursor on the target point id and reads the keyat target to the current key buffer.
+         * Positions the cursor on the target point id and reads the key at the target to the current key buffer.
          * <p>
          * It is allowed to position the cursor before the first item or after the last item;
          * in these cases the internal buffer is cleared.
