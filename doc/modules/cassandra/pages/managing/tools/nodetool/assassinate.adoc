@@ -1,0 +1,7 @@
+== assassinate
+
+== Usage
+[source,plaintext]
+----
+include::cassandra:example$TEXT/NODETOOL/assassinate.txt[]
+----

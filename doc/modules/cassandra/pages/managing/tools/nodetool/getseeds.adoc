@@ -1,0 +1,7 @@
+== getseeds
+
+== Usage
+[source,plaintext]
+----
+include::cassandra:example$TEXT/NODETOOL/getseeds.txt[]
+----

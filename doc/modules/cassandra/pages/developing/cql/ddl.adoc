@@ -4,7 +4,7 @@
 CQL stores data in _tables_, whose schema defines the layout of the
 data in the table. Tables are located in _keyspaces_. 
 A keyspace defines options that apply to all the keyspace's tables. 
-The xref:cql/ddl.adoc#replication-strategy[replication strategy]
+The xref:cassandra:developing/cql/ddl.adoc#replication-strategy[replication strategy]
 is an important keyspace option, as is the replication factor. 
 A good general rule is one keyspace per application.
 It is common for a cluster to define only one keyspace for an active application.
@@ -33,7 +33,7 @@ double-quotes (`"myTable"` is different from `mytable`).
 Further, a table is always part of a keyspace and a table name can be
 provided fully-qualified by the keyspace it is part of. If is is not
 fully-qualified, the table is assumed to be in the _current_ keyspace
-(see xref:cql/ddl.adoc#use-statement[USE] statement).
+(see xref:cassandra:developing/cql/ddl.adoc#use-statement[USE] statement).
 
 Further, the valid names for columns are defined as:
 
@@ -83,7 +83,7 @@ option at your own risk!).
 |===
 
 The `replication` property is mandatory and must contain the `'class'` sub-option that defines the desired
-xref:cql/ddl.adoc#replication-strategy[replication strategy] class. 
+xref:cassandra:developing/cql/ddl.adoc#replication-strategy[replication strategy] class. 
 The rest of the sub-options depend on which replication strategy is used. 
 By default, Cassandra supports the following `'class'` values:
 
@@ -213,7 +213,7 @@ For example:
 include::cassandra:example$CQL/alter_ks.cql[]
 ----
 If the keyspace does not exist, the statement will return an error, unless `IF EXISTS` is used in which case the operation is a no-op.
-The supported options are the same as for xref:cql/ddl.adoc#create-keyspace-statement[creating a keyspace].
+The supported options are the same as for xref:cassandra:developing/cql/ddl.adoc#create-keyspace-statement[creating a keyspace].
 
 [[drop-keyspace-statement]]
 == DROP KEYSPACE
@@ -257,9 +257,9 @@ include::cassandra:example$CQL/create_table.cql[]
 ----
 
 A CQL table has a name and is composed of a set of _rows_. 
-Creating a table amounts to defining which xref:cql/ddl.adoc#column-definition[columns] each rows will have, 
-which of those columns comprise the xref:cql/ddl.adoc#primary-key[primary key], as well as defined
-xref:cql/ddl.adoc#create-table-options[options] for the table.
+Creating a table amounts to defining which xref:cassandra:developing/cql/ddl.adoc#column-definition[columns] each rows will have, 
+which of those columns comprise the xref:cassandra:developing/cql/ddl.adoc#primary-key[primary key], as well as defined
+xref:cassandra:developing/cql/ddl.adoc#create-table-options[options] for the table.
 
 Attempting to create an already existing table will return an error
 unless the `IF NOT EXISTS` directive is used. If it is used, the
@@ -269,25 +269,25 @@ statement will be a no-op if the table already exists.
 === Column definitions
 
 Every row in a CQL table will have the predefined columns defined at table creation. 
-Columns can be added later using an xref:cql/ddl.adoc#alter-table-statement[alter statement].
+Columns can be added later using an xref:cassandra:developing/cql/ddl.adoc#alter-table-statement[alter statement].
 
-A `column_definition` is comprised of the name of the column and its xref:cql/ddl.adoc#data-type[type], 
+A `column_definition` is comprised of the name of the column and its xref:cassandra:developing/cql/ddl.adoc#data-type[type], 
 restricting the  values that are accepted for that column. Additionally, a column definition can have the
 following modifiers:
 
-* `STATIC`: declares the column as a xref:cql/ddl.adoc#static-column[static column]
-* `PRIMARY KEY`: declares the column as the sole component of the xref:cql/ddl.adoc#primary-key[primary key] of the table
+* `STATIC`: declares the column as a xref:cassandra:developing/cql/ddl.adoc#static-column[static column]
+* `PRIMARY KEY`: declares the column as the sole component of the xref:cassandra:developing/cql/ddl.adoc#primary-key[primary key] of the table
 
 [[static-column]]
 ==== Static columns
 
 Some columns can be declared as `STATIC` in a table definition. A column
 that is static will be “shared” by all the rows belonging to the same
-partition (having the same xref:cql/ddl.adoc#partition-key[partition key]. 
+partition (having the same xref:cassandra:developing/cql/ddl.adoc#partition-key[partition key]. 
 
 For example:
 
-[{tabs}] 
+[tabs] 
 ==== 
 Code:: 
 + 
@@ -337,7 +337,7 @@ clustering columns.
 
 A CQL primary key is composed of two parts:
 
-xref:cql/ddl.adoc#partition-key[partition key]::
+xref:cassandra:developing/cql/ddl.adoc#partition-key[partition key]::
 * It is the first component of the primary key definition. 
 It can be a single column or, using an additional set of parenthesis, can be multiple columns. 
 A table must have at least one partition key, the smallest possible table definition is:
@@ -346,7 +346,7 @@ A table must have at least one partition key, the smallest possible table defini
 ----
 include::cassandra:example$CQL/create_table_single_pk.cql[]
 ----
-xref:cql/ddl.adoc#clustering-columns[clustering columns]::
+xref:cassandra:developing/cql/ddl.adoc#clustering-columns[clustering columns]::
 * The columns are the columns that follow the partition key in the primary key definition.
 The order of those columns define the _clustering order_.
 
@@ -496,7 +496,7 @@ A table supports the following options:
 |option | kind | default | description
 
 | `comment` | _simple_ | none | A free-form, human-readable comment
-| xref:cql/ddl.adoc#spec_retry[`speculative_retry`] | _simple_ | 99PERCENTILE | Speculative retry options
+| xref:cassandra:developing/cql/ddl.adoc#spec_retry[`speculative_retry`] | _simple_ | 99PERCENTILE | Speculative retry options
 | `cdc` |_boolean_ |false |Create a Change Data Capture (CDC) log on the table
 | `additional_write_policy` |_simple_ |99PERCENTILE | Same as `speculative_retry`
 | `gc_grace_seconds` |_simple_ |864000 |Time to wait before garbage collecting tombstones (deletion markers)
@@ -505,8 +505,8 @@ false positive of the sstable bloom filters. Said bloom filters will be
 sized to provide the provided probability, thus lowering this value
 impacts the size of bloom filters in-memory and on-disk.
 | `default_time_to_live` |_simple_ |0 |Default expiration time (“TTL”) in seconds for a table
-| `compaction` |_map_ |_see below_ | xref:operating/compaction/index.adoc#cql-compaction-options[Compaction options]
-| `compression` |_map_ |_see below_ | xref:operating/compression/index.adoc#cql-compression-options[Compression options]
+| `compaction` |_map_ |_see below_ | xref:cassandra:managing/operating/compaction/index.adoc#cql-compaction-options[Compaction options]
+| `compression` |_map_ |_see below_ | xref:cassandra:managing/operating/compression/index.adoc#cql-compression-options[Compression options]
 | `caching` |_map_ |_see below_ |Caching options
 | `memtable_flush_period_in_ms` |_simple_ |0 |Time (in ms) before Cassandra flushes memtables to disk
 | `read_repair` |_simple_ |BLOCKING |Sets read repair behavior (see below)
@@ -601,13 +601,13 @@ The `compaction` options must minimally define the `'class'` sub-option,
 to specify the compaction strategy class to use. 
 The supported classes are: 
 
-* `'SizeTieredCompactionStrategy'`, xref:operating/compaction/stcs.adoc#stcs[STCS] (Default)
-* `'LeveledCompactionStrategy'`, xref:operating/compaction/lcs.adoc#lcs[LCS]
-* `'TimeWindowCompactionStrategy'`, xref:operating/compaction/twcs.adoc#twcs[TWCS] 
+* `'SizeTieredCompactionStrategy'`, xref:cassandra:managing/operating/compaction/stcs.adoc#stcs[STCS] (Default)
+* `'LeveledCompactionStrategy'`, xref:cassandra:managing/operating/compaction/lcs.adoc#lcs[LCS]
+* `'TimeWindowCompactionStrategy'`, xref:cassandra:managing/operating/compaction/twcs.adoc#twcs[TWCS] 
 
-If a custom strategies is required, specify the full class name as a xref:cql/definitions.adoc#constants[string constant].  
+If a custom strategies is required, specify the full class name as a xref:cassandra:developing/cql/definitions.adoc#constants[string constant].  
 
-All default strategies support a number of xref:operating/compaction/index.adoc#compaction-options[common options], as well as options specific to the strategy chosen. See the section corresponding to your strategy for details: xref:operating/compaction/stcs.adoc#stcs_options[STCS], xref:operating/compaction/lcs.adoc#lcs_options[LCS], xref:operating/compaction/twcs.adoc#twcs_options[TWCS].
+All default strategies support a number of xref:cassandra:managing/operating/compaction/index.adoc#compaction-options[common options], as well as options specific to the strategy chosen. See the section corresponding to your strategy for details: xref:cassandra:managing/operating/compaction/stcs.adoc#stcs_options[STCS], xref:cassandra:managing/operating/compaction/lcs.adoc#lcs_options[LCS], xref:cassandra:managing/operating/compaction/twcs.adoc#twcs_options[TWCS].
 
 [[cql-compression-options]]
 ===== Compression options
@@ -623,13 +623,13 @@ sub-options are available:
 | `class` | LZ4Compressor | The compression algorithm to use. Default compressor are: LZ4Compressor,
 SnappyCompressor, DeflateCompressor and ZstdCompressor. 
 Use `'enabled' : false` to disable compression. 
-Custom compressor can be provided by specifying the full class name as a xref:cql/definitions.adoc#constants[string constant].
+Custom compressor can be provided by specifying the full class name as a xref:cassandra:developing/cql/definitions.adoc#constants[string constant].
 
 | `enabled` | true | Enable/disable sstable compression. 
 If the `enabled` option is set to `false`, no other options must be specified.
 
 | `chunk_length_in_kb` | 64 | On disk SSTables are compressed by block (to allow random reads). 
-This option defines the size (in KB) of said block. See xref:cql/ddl.adoc#chunk_note[note] for further information.
+This option defines the size (in KB) of said block. See xref:cassandra:developing/cql/ddl.adoc#chunk_note[note] for further information.
 
 | `crc_check_chance` | 1.0 | Determines how likely Cassandra is to verify the checksum on each
 compression chunk during reads.
@@ -768,7 +768,7 @@ Furthermore, renaming a column to another name which already exists isn't allowe
 It's important to keep in mind that renamed columns shouldn't have dependent seconday indexes.
 If the renamed column does not already exist, the statement will return an error, unless `IF EXISTS` is used in which case the operation is a no-op.
 
-* Use `WITH` to change a table option. The xref:CQL/ddl.adoc#create-table-options[supported options]
+* Use `WITH` to change a table option. The xref:cassandra:developing/cql/ddl.adoc#create-table-options[supported options]
 are the same as those used when creating a table, with the exception of `CLUSTERING ORDER`.
 However, setting any `compaction` sub-options will erase *ALL* previous `compaction` options, so you need to re-specify
 all the sub-options you wish to keep. The same is true for `compression` sub-options.

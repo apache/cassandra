@@ -1,0 +1,7 @@
+== setsnapshotthrottle
+
+== Usage
+[source,plaintext]
+----
+include::cassandra:example$TEXT/NODETOOL/setsnapshotthrottle.txt[]
+----

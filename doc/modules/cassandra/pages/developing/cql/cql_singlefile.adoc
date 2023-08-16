@@ -127,12 +127,12 @@ include::cassandra:example$BNF/term.bnf[]
 
 A term is thus one of:
 
-* A xref:cql/defintions.adoc#constants[constant]
-* A literal for either a xref:cql/types.adoc#collections[collection], a xref:cql/types.adoc#vectors[vector],
-a xref:cql/types.adoc#udts[user-defined type] or a xref:cql/types.adoc#tuples[tuple]
-* A xref:cql/functions.adoc#cql-functions[function] call, either a xref:cql/functions.adoc#scalar-native-functions[native function]
-or a xref:cql/functions.adoc#user-defined-scalar-functions[user-defined function]
-* An xref:cql/operators.adoc#arithmetic_operators[arithmetic operation] between terms
+* A xref:cassandra:developing/cql/defintions.adoc#constants[constant]
+* A literal for either a xref:cassandra:developing/cql/types.adoc#collections[collection], a xref:cassandra:developing/cql/types.adoc#vectors[vector],
+a xref:cassandra:developing/cql/types.adoc#udts[user-defined type] or a xref:cassandra:developing/cql/types.adoc#tuples[tuple]
+* A xref:cassandra:developing/cql/functions.adoc#cql-functions[function] call, either a xref:cassandra:developing/cql/functions.adoc#scalar-native-functions[native function]
+or a xref:cassandra:developing/cql/functions.adoc#user-defined-scalar-functions[user-defined function]
+* An xref:cassandra:developing/cql/operators.adoc#arithmetic_operators[arithmetic operation] between terms
 * A type hint
 * A bind marker, which denotes a variable to be bound at execution time.
 See the section on `prepared-statements` for details. A bind marker can

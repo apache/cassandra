@@ -84,7 +84,6 @@ include::cassandra:example$BASH/docker_pull.sh[]
 +
 This `docker pull` command will get the latest version of the 'Docker Official'
 Apache Cassandra image available from the https://hub.docker.com/_/cassandra[Dockerhub].
-
 [arabic, start=2]
 . Start Cassandra with a `docker run` command:
 +
@@ -94,7 +93,6 @@ include::cassandra:example$BASH/docker_run.sh[]
 ----
 +
 The `--name` option will be the name of the Cassandra cluster created.
-
 [arabic, start=3]
 . Start the CQL shell, `cqlsh` to interact with the Cassandra node created:
 +
@@ -123,7 +121,6 @@ The mirrors only host the latest versions of each major supported
 release. To download an earlier version of Cassandra, visit the
 http://archive.apache.org/dist/cassandra/[Apache Archives].
 ====
-
 [arabic, start=3]
 . OPTIONAL: Verify the integrity of the downloaded tarball using one of
 the methods https://www.apache.org/dyn/closer.cgi#verify[here]. For
@@ -172,7 +169,6 @@ Result::
 ----
 --
 ====
-
 [arabic, start=4]
 . Unpack the tarball:
 +
@@ -183,7 +179,6 @@ include::cassandra:example$BASH/tarball.sh[]
 +
 The files will be extracted to the `apache-cassandra-4.0.0/` directory.
 This is the tarball installation location.
-
 [arabic, start=5]
 . Located in the tarball installation location are the directories for
 the scripts, binaries, utilities, configuration, data and log files:
@@ -200,7 +195,6 @@ include::cassandra:example$TEXT/tarball_install_dirs.txt[]
 +
 For information on how to configure your installation, see
 xref:cassandra:getting-started/configuring.adoc[Configuring Cassandra].
-
 [arabic, start=6]
 . Start Cassandra:
 +
@@ -297,11 +291,8 @@ include::cassandra:example$BASH/apt-get_update.sh[]
 include::cassandra:example$BASH/apt-get_cass.sh[]
 ----
 +
-[NOTE]
-====
-For information on how to configure your installation, see
-xref:cassandra:getting-started/configuring.adoc[Configuring Cassandra].
-====
++
+include::cassandra:partial$nodetool_and_cqlsh.adoc[]
 
 include::cassandra:partial$tail_syslog.adoc[]
 

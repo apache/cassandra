@@ -1,0 +1,7 @@
+== invalidatejmxpermissionscache
+
+== Usage
+[source,plaintext]
+----
+include::cassandra:example$TEXT/NODETOOL/invalidatejmxpermissionscache.txt[]
+----

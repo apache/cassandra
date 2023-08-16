@@ -32,9 +32,8 @@ Specify the level for a log. Part of the filter. Levels are: `ALL`,
 most verbose log, `ERROR` the least.
 
 [NOTE]
-.Note
 ====
-Note: Increasing logging levels can generate heavy logging output on
+Increasing logging levels can generate heavy logging output on
 a moderately trafficked cluster. You can use the
 `nodetool getlogginglevels` command to see the current logging
 configuration.

@@ -1,7 +1,7 @@
 [arabic, start=1]
 . Verify the version of Java installed. For example:
 
-[{tabs}]
+[tabs]
 ====
 Command::
 +

@@ -1,0 +1,7 @@
+== replaybatchlog
+
+== Usage
+[source,plaintext]
+----
+include::cassandra:example$TEXT/NODETOOL/replaybatchlog.txt[]
+----

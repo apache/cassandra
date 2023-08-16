@@ -1,0 +1,7 @@
+== failuredetector
+
+== Usage
+[source,plaintext]
+----
+include::cassandra:example$TEXT/NODETOOL/failuredetector.txt[]
+----

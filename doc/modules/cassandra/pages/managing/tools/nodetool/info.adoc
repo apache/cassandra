@@ -1,0 +1,7 @@
+== info
+
+== Usage
+[source,plaintext]
+----
+include::cassandra:example$TEXT/NODETOOL/info.txt[]
+----

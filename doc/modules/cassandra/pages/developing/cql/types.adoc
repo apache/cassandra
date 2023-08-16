@@ -1,8 +1,8 @@
 = Data Types
 
 CQL is a typed language and supports a rich set of data types, including
-xref:cql/types.adoc#native-types[native types], xref:cql/types.adoc#collections[collection types],
-xref:cql/types.adoc#udts[user-defined types], xref:cql/types.adoc#tuples[tuple types], and xref:cql/types.adoc#custom-types[custom
+xref:cassandra:developing/cql/types.adoc#native-types[native types], xref:cassandra:developing/cql/types.adoc#collections[collection types],
+xref:cassandra:developing/cql/types.adoc#udts[user-defined types], xref:cassandra:developing/cql/types.adoc#tuples[tuple types], and xref:cassandra:developing/cql/types.adoc#custom-types[custom
 types]:
 
 [source, bnf]
@@ -20,7 +20,7 @@ include::cassandra:example$BNF/native_type.bnf[]
 ----
 
 The following table gives additional informations on the native data
-types, and on which kind of xref:cql/definitions.adoc#constants[constants] each type supports:
+types, and on which kind of xref:cassandra:developing/cql/definitions.adoc#constants[constants] each type supports:
 
 [cols=",,",options="header",]
 |===
@@ -58,7 +58,7 @@ generally used as a “conflict-free” timestamp. Also see `timeuuid-functions`
 The `counter` type is used to define _counter columns_. A counter column
 is a column whose value is a 64-bit signed integer and on which 2
 operations are supported: incrementing and decrementing (see the
-xref:cql/dml.adoc#update-statement[UPDATE] statement for syntax). 
+xref:cassandra:developing/cql/dml.adoc#update-statement[UPDATE] statement for syntax). 
 Note that the value of a counter cannot
 be set: a counter does not exist until first incremented/decremented,
 and that first increment/decrement is made as if the prior value was 0.
@@ -70,7 +70,7 @@ Counters have a number of important limitations:
 * A table that contains a counter can only contain counters. In other
 words, either all the columns of a table outside the `PRIMARY KEY` have
 the `counter` type, or none of them have it.
-* Counters do not support xref:cql/dml.adoc#writetime-and-ttl-function[expiration].
+* Counters do not support xref:cassandra:developing/cql/dml.adoc#writetime-and-ttl-function[expiration].
 * The deletion of counters is supported, but is only guaranteed to work
 the first time you delete a counter. In other words, you should not
 re-update a counter that you have deleted (if you do, proper behavior is
@@ -116,7 +116,7 @@ feasible.
 The time of day may also be omitted (`'2011-02-03'` or
 `'2011-02-03+0000'`), in which case the time of day will default to
 00:00:00 in the specified or default time zone. However, if only the
-date part is relevant, consider using the xref:cql/types.adoc#dates[date] type.
+date part is relevant, consider using the xref:cassandra:developing/cql/types.adoc#dates[date] type.
 
 [[dates]]
 == Date type
@@ -125,7 +125,7 @@ Values of the `date` type are encoded as 32-bit unsigned integers
 representing a number of days with “the epoch” at the center of the
 range (2^31). Epoch is January 1st, 1970
 
-For xref:cql/types.adoc#timestamps[timestamps], a date can be input either as an
+For xref:cassandra:developing/cql/types.adoc#timestamps[timestamps], a date can be input either as an
 `integer` or using a date `string`. In the later case, the format should
 be `yyyy-mm-dd` (so `'2011-02-03'` for instance).
 
@@ -135,7 +135,7 @@ be `yyyy-mm-dd` (so `'2011-02-03'` for instance).
 Values of the `time` type are encoded as 64-bit signed integers
 representing the number of nanoseconds since midnight.
 
-For xref:cql/types.adoc#timestamps[timestamps], a time can be input either as an
+For xref:cassandra:developing/cql/types.adoc#timestamps[timestamps], a time can be input either as an
 `integer` or using a `string` representing the time. In the later case,
 the format should be `hh:mm:ss[.fffffffff]` (where the sub-second
 precision is optional and if provided, can be less than the nanosecond).
@@ -227,7 +227,7 @@ has to be read (and reading one is not paged internally).
 * While insertion operations on sets and maps never incur a
 read-before-write internally, some operations on lists do. Further, some
 lists operations are not idempotent by nature (see the section on
-xref:cql/types.adoc#lists[lists] below for details), making their retry in case of
+xref:cassandra:developing/cql/types.adoc#lists[lists] below for details), making their retry in case of
 timeout problematic. It is thus advised to prefer sets over lists when
 possible.
 
@@ -303,17 +303,16 @@ removing it is a no-op but no error is thrown):
 include::cassandra:example$CQL/delete_set.cql[]
 ----
 
-Lastly, for xref:cql/types.adoc#sets[sets], TTLs are only applied to newly inserted values.
+Lastly, for xref:cassandra:developing/cql/types.adoc#sets[sets], TTLs are only applied to newly inserted values.
 
 === Lists
 
 [NOTE]
-.Note
 ====
 As mentioned above and further discussed at the end of this section,
 lists have limitations and specific performance considerations that you
 should take into account before using them. In general, if you can use a
-xref:cql/types.adoc#sets[set] instead of list, always prefer a set.
+xref:cassandra:developing/cql/types.adoc#sets[set] instead of list, always prefer a set.
 ====
 
 A `list` is a (sorted) collection of non-unique values where
@@ -378,7 +377,7 @@ run slowly and use more resources than usual updates (with the
 exclusion of conditional write that have their own cost).
 ====
 
-Lastly, for xref:cql/types.adoc#lists[lists], TTLs only apply to newly inserted values.
+Lastly, for xref:cassandra:developing/cql/types.adoc#lists[lists], TTLs only apply to newly inserted values.
 
 [[vectors]]
 ==== Working with vectors
@@ -450,7 +449,7 @@ UDT literal:
 include::cassandra:example$BNF/udt_literal.bnf[]
 ----
 
-In other words, a UDT literal is like a xref:cql/types.adoc#maps[map]` literal but its
+In other words, a UDT literal is like a xref:cassandra:developing/cql/types.adoc#maps[map]` literal but its
 keys are the names of the fields of the type. For instance, one could
 insert into the table define in the previous section using:
 
@@ -529,11 +528,10 @@ those values can be null but they need to be explicitly declared as so).
 == Custom Types
 
 [NOTE]
-.Note
 ====
 Custom types exists mostly for backward compatibility purposes and their
 usage is discouraged. Their usage is complex, not user friendly and the
-other provided types, particularly xref:cql/types.adoc#udts[user-defined types], should
+other provided types, particularly xref:cassandra:developing/cql/types.adoc#udts[user-defined types], should
 almost always be enough.
 ====
 
