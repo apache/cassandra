@@ -25,9 +25,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongPredicate;
+import java.util.function.Supplier;
 import javax.annotation.Nonnull;
 
-import com.google.common.base.Supplier;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Ordering;
 
@@ -54,6 +54,8 @@ import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.partitions.PurgeFunction;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
+import org.apache.cassandra.db.rows.BTreeRow;
+import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.RangeTombstoneBoundMarker;
 import org.apache.cassandra.db.rows.RangeTombstoneMarker;
 import org.apache.cassandra.db.rows.Row;
@@ -77,6 +79,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.accord.AccordKeyspace;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandRows;
+import org.apache.cassandra.service.accord.AccordKeyspace.CommandsColumns;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyRows;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.service.accord.IAccordService;
@@ -86,14 +89,23 @@ import org.apache.cassandra.service.paxos.uncommitted.PaxosRows;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.TimeUUID;
 
-import static accord.impl.CommandsForKey.NO_LAST_EXECUTED_HLC;
 import static accord.local.Commands.Cleanup.TRUNCATE_WITH_OUTCOME;
+import static accord.local.Status.Durability.Universal;
 import static com.google.common.base.Preconditions.checkState;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static org.apache.cassandra.config.Config.PaxosStatePurging.legacy;
 import static org.apache.cassandra.config.DatabaseDescriptor.paxosStatePurging;
+import static org.apache.cassandra.service.accord.AccordKeyspace.CommandRows.maybeDropTruncatedCommandColumns;
 import static org.apache.cassandra.service.accord.AccordKeyspace.CommandRows.truncatedApply;
+import static org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyColumns.last_executed_micros;
+import static org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyColumns.last_executed_timestamp;
+import static org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyColumns.last_write_timestamp;
+import static org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyColumns.max_timestamp;
 import static org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyRows.truncateStaticRow;
+import static org.apache.cassandra.service.accord.AccordKeyspace.deserializeDurabilityOrNull;
+import static org.apache.cassandra.service.accord.AccordKeyspace.deserializeRouteOrNull;
+import static org.apache.cassandra.service.accord.AccordKeyspace.deserializeSaveStatusOrNull;
+import static org.apache.cassandra.service.accord.AccordKeyspace.deserializeTimestampOrNull;
 
 /**
  * Merge multiple iterators over the content of sstable into a "compacted" iterator.
@@ -792,26 +804,43 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             if (redundantBefore == null)
                 return row;
 
-            Timestamp executeAt = CommandRows.getExecuteAt(row);
-            Durability durability = CommandRows.getDurability(row);
-            SaveStatus saveStatus = CommandRows.getStatus(row);
-            Route<?> route = CommandRows.getRoute(row);
+            // When commands end up being sliced by compaction we need this to discard tombstones and slices
+            // without enough information to run the rest of the cleanup logic
+            if (durableBefore.min(txnId) == Universal)
+                return null;
 
-            Commands.Cleanup cleanup = Commands.shouldCleanup(txnId, saveStatus.status, durability, executeAt, route, redundantBefore, durableBefore);
+            Cell durabilityCell = row.getCell(CommandsColumns.durability);
+            Durability durability = deserializeDurabilityOrNull(durabilityCell);
+            Cell executeAtCell = row.getCell(CommandsColumns.execute_at);
+            Timestamp executeAt = deserializeTimestampOrNull(executeAtCell);
+            Cell routeCell = row.getCell(CommandsColumns.route);
+            Route<?> route = deserializeRouteOrNull(routeCell);
+            Cell statusCell = row.getCell(CommandsColumns.status);
+            SaveStatus saveStatus = deserializeSaveStatusOrNull(statusCell);
+
+            // With a sliced row we might not have enough columns to determine what to do so output the
+            // the row unmodified and we will try again later once it merges with the rest of the command state
+            // or is dropped by `durableBefore.min(txnId) == Universal`
+            if (executeAt == null || durability == null || saveStatus == null || route == null)
+                return row;
+
+            Commands.Cleanup cleanup = Commands.shouldCleanup(txnId, saveStatus.status, durability, executeAt, route, redundantBefore, durableBefore, false);
             switch (cleanup)
             {
                 default: throw new AssertionError(String.format("Unexpected cleanup task: %s", cleanup));
                 case ERASE:
-                    return null;
+                    // Emit a tombstone so if this is slicing the command and making it not possible to determine if it
+                    // can be truncated later it can still be dropped via the tombstone.
+                    // Eventually the tombstone can be dropped by `durableBefore.min(txnId) == Universal`
+                    // We can still encounter sliced command state just because compaction inputs are random
+                    return BTreeRow.emptyDeletedRow(row.clustering(), new Row.Deletion(DeletionTime.build(row.primaryKeyLivenessInfo().timestamp(), nowInSec), false));
 
                 case TRUNCATE_WITH_OUTCOME:
-                    if (saveStatus.compareTo(cleanup.appliesIfNot) >= 0)
-                        return row;
-
                 case TRUNCATE:
                     if (saveStatus.compareTo(cleanup.appliesIfNot) >= 0)
-                        return row;
-                    return truncatedApply(cleanup.appliesIfNot, row, nowInSec, cleanup == TRUNCATE_WITH_OUTCOME);
+                        return maybeDropTruncatedCommandColumns(row, cleanup == TRUNCATE_WITH_OUTCOME, durabilityCell, executeAtCell, routeCell, statusCell);
+                    return truncatedApply(cleanup.appliesIfNot,
+                                          row, nowInSec, durability, durabilityCell, executeAtCell, routeCell, cleanup == TRUNCATE_WITH_OUTCOME);
 
                 case NO:
                     return row;
@@ -860,45 +889,45 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
             TxnId redundantBeforeTxnId = redundantBeforeEntry.redundantBefore;
 
-            boolean updatedColumn = false;
-            Timestamp max_timestamp = CommandsForKeyRows.getMaxTimestamp(row);
-            if (max_timestamp.compareTo(redundantBeforeTxnId) < 0)
+            Cell lastExecuteMicrosCell = row.getCell(last_executed_micros);
+            Long last_execute_micros = null;
+            if (lastExecuteMicrosCell != null && !lastExecuteMicrosCell.accessor().isEmpty(lastExecuteMicrosCell.value()))
+                last_execute_micros = lastExecuteMicrosCell.accessor().getLong(lastExecuteMicrosCell.value(), 0);
+            if (last_execute_micros != null && last_execute_micros < redundantBeforeTxnId.hlc())
             {
-                max_timestamp = Timestamp.NONE;
-                updatedColumn = true;
+                lastExecuteMicrosCell = null;
             }
 
-            Timestamp last_execute = CommandsForKeyRows.getLastExecutedTimestamp(row);
-            if (last_execute.compareTo(redundantBeforeTxnId) < 0)
+            Cell lastExecuteCell = row.getCell(last_executed_timestamp);
+            Timestamp last_execute = deserializeTimestampOrNull(lastExecuteCell);
+            if (last_execute != null && last_execute.compareTo(redundantBeforeTxnId) < 0)
             {
-                last_execute = Timestamp.NONE;
-                updatedColumn = true;
+                lastExecuteCell = null;
             }
 
-            Timestamp last_write = CommandsForKeyRows.getLastWriteTimestamp(row);
-            if (last_write.compareTo(redundantBeforeTxnId) < 0)
+            Cell lastWriteCell = row.getCell(last_write_timestamp);
+            Timestamp last_write = deserializeTimestampOrNull(lastWriteCell);
+            if (last_write != null && last_write.compareTo(redundantBeforeTxnId) < 0)
             {
-                last_write = Timestamp.NONE;
-                updatedColumn = true;
+                lastWriteCell = null;
             }
 
-            long last_execute_micros = CommandsForKeyRows.getLastExecutedMicros(row);
-            if (last_execute_micros < redundantBeforeTxnId.hlc())
+            Cell<?> maxTimestampCell = row.getCell(max_timestamp);
+            Timestamp max_timestamp = deserializeTimestampOrNull(maxTimestampCell);
+            if (max_timestamp != null && max_timestamp.compareTo(redundantBeforeTxnId) < 0)
             {
-                last_execute_micros = NO_LAST_EXECUTED_HLC;
-                updatedColumn = true;
+                maxTimestampCell = null;
             }
 
-            if (max_timestamp == Timestamp.NONE &&
-                last_execute == Timestamp.NONE &&
-                last_write == Timestamp.NONE &&
-                last_execute_micros == NO_LAST_EXECUTED_HLC)
+            // No need to emit a tombstone as earlier versions of the row will also be nulled out
+            // when compacted later or loaded into a commands for key
+            if (lastExecuteMicrosCell == null &&
+                lastExecuteCell == null &&
+                lastWriteCell == null &&
+                maxTimestampCell == null)
                 return null;
 
-            if (updatedColumn)
-                return truncateStaticRow(nowInSec, row, last_execute_micros, last_execute, last_write, max_timestamp);
-
-            return row;
+            return truncateStaticRow(nowInSec, row, lastExecuteMicrosCell, lastExecuteCell, lastWriteCell, maxTimestampCell);
         }
 
         @Override
@@ -917,7 +946,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
             TxnId redundantBeforeTxnId = redundantBeforeEntry.redundantBefore;
             Timestamp timestamp = CommandsForKeyRows.getTimestamp(row);
-            if (timestamp.compareTo(redundantBeforeTxnId) < 0)
+            if (timestamp != null && timestamp.compareTo(redundantBeforeTxnId) < 0)
                 return null;
 
             return row;
@@ -972,10 +1001,5 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     private static boolean isAccordCommandsForKey(ColumnFamilyStore cfs)
     {
         return cfs.name.equals(AccordKeyspace.COMMANDS_FOR_KEY) && cfs.keyspace.getName().equals(SchemaConstants.ACCORD_KEYSPACE_NAME);
-    }
-
-    private static boolean isAccordCommandsOrAccordCommandsForKey(ColumnFamilyStore cfs)
-    {
-        return isAccordCommands(cfs) || isAccordCommandsForKey(cfs);
     }
 }
