@@ -427,7 +427,7 @@ public class AccordSyncPropagatorTest
             }
 
             @Override
-            protected void localSyncComplete(Topology topology)
+            protected void localSyncComplete(Topology topology, boolean startSync)
             {
                 Set<Node.Id> notify = topology.nodes().stream().filter(i -> !localId.equals(i)).collect(Collectors.toSet());
                 instances.get(localId).propagator.reportSyncComplete(topology.epoch(), notify, localId);

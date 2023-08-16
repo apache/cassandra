@@ -59,7 +59,11 @@ import static org.apache.cassandra.utils.CollectionSerializers.newListSerializer
  */
 public class AccordSyncPropagator
 {
-    public static final IVerbHandler<List<Notification>> verbHandler = message -> AccordService.instance().receive(message);
+    public static final IVerbHandler<List<Notification>> verbHandler = message -> {
+        if (!AccordService.isSetup())
+            return;
+        AccordService.instance().receive(message);
+    };
 
     interface Listener
     {
