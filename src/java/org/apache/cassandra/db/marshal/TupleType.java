@@ -351,6 +351,11 @@ public class TupleType extends MultiElementType<ByteBuffer>
         return "component";
     }
 
+    public static <V> V pack(ValueAccessor<V> accessor, V... components)
+    {
+        return pack(accessor, Arrays.asList(components));
+    }
+
     public static <V> V pack(ValueAccessor<V> accessor, Collection<V> components)
     {
         int totalLength = 0;
@@ -373,16 +378,6 @@ public class TupleType extends MultiElementType<ByteBuffer>
             }
         }
         return result;
-    }
-
-    /**
-     * This API is here to simplify rebases... should likely move off?
-     * @deprecated
-     */
-    @Deprecated(since = "5.1", forRemoval = true)
-    public static ByteBuffer buildValue(ByteBuffer... values)
-    {
-        return pack(ByteBufferAccessor.instance, Arrays.asList(values));
     }
 
     @Override
