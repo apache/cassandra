@@ -200,6 +200,7 @@ public class TableStats extends NodeToolCmd
                 if (memtableOffHeapSize != null)
                     out.println("\t\tMemtable off heap memory used: " + format(memtableOffHeapSize, humanReadable));
                 out.println("\t\tMemtable switch count: " + probe.getColumnFamilyMetric(keyspaceName, tableName, "MemtableSwitchCount"));
+                out.println("\t\tSpeculate retries: " + probe.getColumnFamilyMetric(keyspaceName, tableName, "SpeculativeRetries"));
                 out.println("\t\tLocal read count: " + ((CassandraMetricsRegistry.JmxTimerMBean) probe.getColumnFamilyMetric(keyspaceName, tableName, "ReadLatency")).getCount());
                 double localReadLatency = ((CassandraMetricsRegistry.JmxTimerMBean) probe.getColumnFamilyMetric(keyspaceName, tableName, "ReadLatency")).getMean() / 1000;
                 double localRLatency = localReadLatency > 0 ? localReadLatency : Double.NaN;
