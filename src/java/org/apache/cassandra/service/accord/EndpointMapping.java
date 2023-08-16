@@ -18,9 +18,12 @@
 
 package org.apache.cassandra.service.accord;
 
+import java.util.Set;
+
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.ImmutableBiMap;
+import com.google.common.collect.Sets;
 
 import accord.local.Node;
 import accord.utils.Invariants;
@@ -42,6 +45,16 @@ class EndpointMapping implements AccordEndpointMapper
     long epoch()
     {
         return epoch;
+    }
+
+    public boolean containsId(Node.Id id)
+    {
+        return mapping.containsKey(id);
+    }
+
+    public Set<Node.Id> differenceIds(Builder builder)
+    {
+        return Sets.difference(mapping.keySet(), builder.mapping.keySet());
     }
 
     @Override

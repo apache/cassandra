@@ -131,11 +131,16 @@ public class AccordTopologyUtils
         return new Topology(epoch.getEpoch(), shards.toArray(new Shard[0]));
     }
 
-    public static EndpointMapping directoryToMapping(long epoch, Directory directory)
+    public static EndpointMapping directoryToMapping(EndpointMapping mapping, long epoch, Directory directory)
     {
         EndpointMapping.Builder builder = EndpointMapping.builder(epoch);
         for (NodeId id : directory.peerIds())
             builder.add(directory.endpoint(id), tcmIdToAccord(id));
+
+        // There are cases where nodes are removed from the cluster (host replacement, decom, etc.), but inflight events may still be happening;
+        // keep the ids around so pending events do not fail with a mapping error
+        for (Node.Id id : mapping.differenceIds(builder))
+            builder.add(mapping.mappedEndpoint(id), id);
         return builder.build();
     }
 

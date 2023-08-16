@@ -163,10 +163,22 @@ public class AccordService implements IAccordService, Shutdownable
         }
     };
 
-    private static Node.Id localId = null;
+    private static volatile Node.Id localId = null;
+
     private static class Handle
     {
         public static final AccordService instance = new AccordService();
+    }
+
+    public static boolean isSetup()
+    {
+        return localId != null;
+    }
+
+    public static IVerbHandler<? extends Request> verbHandlerOrNoop()
+    {
+        if (!isSetup()) return ignore -> {};
+        return instance().verbHandler();
     }
 
     public static void startup(NodeId tcmId)
