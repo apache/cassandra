@@ -21,11 +21,11 @@ package org.apache.cassandra.tcm.listeners;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
-import org.apache.cassandra.tcm.compatibility.GossipHelper;
 
-public class UpgradeMigrationListener implements ChangeListener
+public class UpgradeMigrationListener implements ChangeListener.Async
 {
     private static final Logger logger = LoggerFactory.getLogger(UpgradeMigrationListener.class);
     public void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot)
@@ -34,6 +34,6 @@ public class UpgradeMigrationListener implements ChangeListener
             return;
 
         logger.info("Detected upgrade from gossip mode, updating my host id in gossip to {}", next.myNodeId());
-        GossipHelper.mergeNodeToGossip(next.myNodeId(), next);
+        Gossiper.instance.mergeNodeToGossip(next.myNodeId(), next);
     }
 }

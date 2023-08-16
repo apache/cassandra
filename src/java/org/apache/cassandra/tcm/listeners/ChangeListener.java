@@ -36,4 +36,6 @@ public interface ChangeListener
      * Called after updating ClusterMetadata.current() - it is now `next`
      */
     default void notifyPostCommit(ClusterMetadata prev, ClusterMetadata next, boolean fromSnapshot) {}
+
+    interface Async extends ChangeListener {}
 }

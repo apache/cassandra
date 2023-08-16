@@ -50,7 +50,7 @@ import static org.apache.cassandra.tcm.membership.NodeState.BOOT_REPLACING;
 import static org.apache.cassandra.tcm.membership.NodeState.LEFT;
 import static org.apache.cassandra.tcm.membership.NodeState.MOVING;
 
-public class LegacyStateListener implements ChangeListener
+public class LegacyStateListener implements ChangeListener.Async
 {
     private static final Logger logger = LoggerFactory.getLogger(LegacyStateListener.class);
 
@@ -105,38 +105,39 @@ public class LegacyStateListener implements ChangeListener
                             logger.info("Node {} state jump to NORMAL", next.directory.endpoint(change));
                         break;
                 }
-                if (next.directory.peerState(change) == LEFT)
+            }
+
+            if (next.directory.peerState(change) == LEFT)
+            {
+                Gossiper.instance.mergeNodeToGossip(change, next, prev.tokenMap.tokens(change));
+                InetAddressAndPort endpoint = prev.directory.endpoint(change);
+                if (endpoint != null)
+                    GossipHelper.removeFromGossip(endpoint);
+            }
+            else if (NodeState.isBootstrap(next.directory.peerState(change)))
+            {
+                // For compatibility with clients, ensure we set TOKENS for bootstrapping nodes in gossip.
+                // As these are not yet added to the token map they must be extracted from the in progress sequence.
+                Collection<Token> tokens = GossipHelper.getTokensFromSequence(change, next);
+                Gossiper.instance.mergeNodeToGossip(change, next, tokens);
+            }
+            else if (prev.directory.peerState(change) == BOOT_REPLACING)
+            {
+                // legacy log message for compatibility (& tests)
+                InProgressSequence<?> sequence = prev.inProgressSequences.get(change);
+                if (sequence != null && sequence.kind() == InProgressSequences.Kind.REPLACE)
                 {
-                    GossipHelper.mergeNodeToGossip(change, next, prev.tokenMap.tokens(change));
-                    InetAddressAndPort endpoint = prev.directory.endpoint(change);
-                    if (endpoint != null)
-                        Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.removeEndpoint(endpoint));
+                    BootstrapAndReplace replace = (BootstrapAndReplace) sequence;
+                    InetAddressAndPort replaced = prev.directory.endpoint(replace.startReplace.replaced());
+                    InetAddressAndPort replacement = prev.directory.endpoint(change);
+                    Collection<Token> tokens = GossipHelper.getTokensFromSequence(replace);
+                    logger.info("Node {} will complete replacement of {} for tokens {}", replacement, replaced, tokens);
                 }
-                else if (NodeState.isBootstrap(next.directory.peerState(change)))
-                {
-                    // For compatibility with clients, ensure we set TOKENS for bootstrapping nodes in gossip.
-                    // As these are not yet added to the token map they must be extracted from the in progress sequence.
-                    Collection<Token> tokens = GossipHelper.getTokensFromSequence(change, next);
-                    GossipHelper.mergeNodeToGossip(change, next, tokens);
-                }
-                else if (prev.directory.peerState(change) == BOOT_REPLACING)
-                {
-                    // legacy log message for compatibility (& tests)
-                    InProgressSequence<?> sequence = prev.inProgressSequences.get(change);
-                    if (sequence != null && sequence.kind() == InProgressSequences.Kind.REPLACE)
-                    {
-                        BootstrapAndReplace replace = (BootstrapAndReplace) sequence;
-                        InetAddressAndPort replaced = prev.directory.endpoint(replace.startReplace.replaced());
-                        InetAddressAndPort replacement = prev.directory.endpoint(change);
-                        Collection<Token> tokens = GossipHelper.getTokensFromSequence(replace);
-                        logger.info("Node {} will complete replacement of {} for tokens {}", replacement, replaced, tokens);
-                    }
-                }
-                else
-                {
-                    GossipHelper.mergeNodeToGossip(change, next);
-                    PeersTable.updateLegacyPeerTable(change, prev, next);
-                }
+            }
+            else
+            {
+                Gossiper.instance.mergeNodeToGossip(change, next);
+                PeersTable.updateLegacyPeerTable(change, prev, next);
             }
         }
     }

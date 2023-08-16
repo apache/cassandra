@@ -50,7 +50,6 @@ import org.apache.cassandra.tcm.listeners.InitializationListener;
 import org.apache.cassandra.tcm.listeners.LegacyStateListener;
 import org.apache.cassandra.tcm.listeners.LogListener;
 import org.apache.cassandra.tcm.listeners.MetadataSnapshotListener;
-import org.apache.cassandra.tcm.listeners.PaxosRepairListener;
 import org.apache.cassandra.tcm.listeners.PlacementsChangeListener;
 import org.apache.cassandra.tcm.listeners.SchemaListener;
 import org.apache.cassandra.tcm.listeners.UpgradeMigrationListener;
@@ -100,7 +99,8 @@ public abstract class LocalLog implements Closeable
     });
     protected final LogStorage persistence;
     protected final Set<LogListener> listeners;
-    protected final Set<ChangeListener> cmListeners;
+    protected final Set<ChangeListener> changeListeners;
+    protected final Set<ChangeListener.Async> asyncChangeListeners;
 
     private LocalLog(LogStorage persistence, ClusterMetadata initial, boolean addListeners, boolean isReset)
     {
@@ -108,7 +108,8 @@ public abstract class LocalLog implements Closeable
         committed = new AtomicReference<>(initial);
         this.persistence = persistence;
         listeners = Sets.newConcurrentHashSet();
-        cmListeners = Sets.newConcurrentHashSet();
+        changeListeners = Sets.newConcurrentHashSet();
+        asyncChangeListeners = Sets.newConcurrentHashSet();
         if (addListeners)
             addListeners();
     }
@@ -349,8 +350,7 @@ public abstract class LocalLog implements Closeable
 
                     persistence.append(transformed.success().metadata.period, pendingEntry.maybeUnwrapExecuted());
 
-                    for (ChangeListener listener : cmListeners)
-                        listener.notifyPreCommit(prev, next, isSnapshot);
+                    notifyPreCommit(prev, next, isSnapshot);
 
                     if (committed.compareAndSet(prev, next))
                     {
@@ -366,8 +366,7 @@ public abstract class LocalLog implements Closeable
                                                                       next.epoch, prev.epoch, metadata().epoch));
                     }
 
-                    for (ChangeListener listener : cmListeners)
-                        listener.notifyPostCommit(prev, next, isSnapshot);
+                    notifyPostCommit(prev, next, isSnapshot);
                 }
                 catch (StopProcessingException t)
                 {
@@ -423,23 +422,40 @@ public abstract class LocalLog implements Closeable
 
     public void addListener(ChangeListener listener)
     {
-        this.cmListeners.add(listener);
+        if (listener instanceof ChangeListener.Async)
+            this.asyncChangeListeners.add((ChangeListener.Async) listener);
+        else
+            this.changeListeners.add(listener);
     }
 
     public void removeListener(ChangeListener listener)
     {
-        this.cmListeners.remove(listener);
+        this.changeListeners.remove(listener);
     }
 
     public void notifyListeners(ClusterMetadata emptyFromSystemTables)
     {
         ClusterMetadata metadata = ClusterMetadata.current();
-        for (ChangeListener listener : cmListeners)
-            listener.notifyPreCommit(emptyFromSystemTables, metadata, true);
-        for (ChangeListener listener : cmListeners)
-            listener.notifyPostCommit(emptyFromSystemTables, metadata, true);
-
+        notifyPreCommit(emptyFromSystemTables, metadata, true);
+        notifyPostCommit(emptyFromSystemTables, metadata, true);
     }
+
+    private void notifyPreCommit(ClusterMetadata before, ClusterMetadata after, boolean fromSnapshot)
+    {
+        for (ChangeListener listener : changeListeners)
+            listener.notifyPreCommit(before, after, fromSnapshot);
+        for (ChangeListener.Async listener : asyncChangeListeners)
+            ScheduledExecutors.optionalTasks.submit(() -> listener.notifyPreCommit(before, after, fromSnapshot));
+    }
+
+    private void notifyPostCommit(ClusterMetadata before, ClusterMetadata after, boolean fromSnapshot)
+    {
+        for (ChangeListener listener : changeListeners)
+            listener.notifyPostCommit(before, after, fromSnapshot);
+        for (ChangeListener.Async listener : asyncChangeListeners)
+            ScheduledExecutors.optionalTasks.submit(() -> listener.notifyPostCommit(before, after, fromSnapshot));
+    }
+
 
     private static class Async extends LocalLog
     {
@@ -659,7 +675,6 @@ public abstract class LocalLog implements Closeable
         addListener(new LegacyStateListener());
         addListener(new PlacementsChangeListener());
         addListener(new MetadataSnapshotListener());
-        addListener(new PaxosRepairListener());
         addListener(new ClientNotificationListener());
         addListener(new UpgradeMigrationListener());
     }

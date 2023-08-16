@@ -120,6 +120,7 @@ public class UnbootstrapStreams implements LeaveStreams
     {
         Supplier<Future<StreamState>> startStreaming = prepareUnbootstrapStreaming(keyspaces, movements);
 
+        StorageService.instance.repairPaxosForTopologyChange("decommission");
         logger.info("replaying batch log and streaming data to other nodes");
         // Start with BatchLog replay, which may create hints but no writes since this is no longer a valid endpoint.
         Future<?> batchlogReplay = BatchlogManager.instance.startBatchlogReplay();

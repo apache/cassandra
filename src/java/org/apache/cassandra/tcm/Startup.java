@@ -43,10 +43,10 @@ import org.apache.cassandra.gms.NewGossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.DistributedSchema;
-import org.apache.cassandra.tcm.compatibility.GossipHelper;
 import org.apache.cassandra.tcm.listeners.SchemaListener;
 import org.apache.cassandra.tcm.log.SystemKeyspaceStorage;
 import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.migration.Election;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 import org.apache.cassandra.tcm.transformations.cms.Initialize;
@@ -216,7 +216,8 @@ public class Startup
         ClusterMetadataService.instance().setFromGossip(initial);
         Gossiper.instance.clearUnsafe();
         Gossiper.instance.maybeInitializeLocalState(SystemKeyspace.incrementAndGetGeneration());
-        GossipHelper.mergeAllNodeStatesToGossip(initial);
+        for (Map.Entry<NodeId, NodeState> entry : initial.directory.states.entrySet())
+            Gossiper.instance.mergeNodeToGossip(entry.getKey(), initial);
         // double check that everything was added, can remove once we are confident
         ClusterMetadata cmGossip = fromEndpointStates(emptyFromSystemTables.schema, Gossiper.instance.getEndpointStates());
         assert cmGossip.equals(initial) : cmGossip + " != " + initial;

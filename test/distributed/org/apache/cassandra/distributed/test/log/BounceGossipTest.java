@@ -152,8 +152,10 @@ public class BounceGossipTest extends TestBaseImpl
                                              .start()))
         {
             cluster.schemaChange(withKeyspace("create table %s.tbl (id int primary key)"));
+            int tokensBefore = getGossipTokensVersion(cluster, 2);
             cluster.get(2).nodetoolResult("move", "9999").asserts().success();
-            int correctTokensVersion = getGossipTokensVersion(cluster, 2);
+            int correctTokensVersion;
+            while ((correctTokensVersion = getGossipTokensVersion(cluster, 2)) == tokensBefore); // wait for LegacyStateListener to actually update gossip
             for (int inst : new int[] {1, 3})
                 while (correctTokensVersion != getGossipTokensVersion(cluster, inst))
                 {

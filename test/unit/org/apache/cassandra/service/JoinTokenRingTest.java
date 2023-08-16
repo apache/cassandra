@@ -18,6 +18,7 @@
 package org.apache.cassandra.service;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -26,6 +27,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.ServerTestUtils;
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
@@ -47,11 +49,11 @@ public class JoinTokenRingTest
     }
 
     @Test
-    public void testIndexPreJoinInvocation() throws IOException
+    public void testIndexPreJoinInvocation() throws IOException, ExecutionException, InterruptedException
     {
         ClusterMetadataTestHelper.addEndpoint(FBUtilities.getBroadcastAddressAndPort(),
                                               ClusterMetadata.current().partitioner.getRandomToken());
-
+        ScheduledExecutors.optionalTasks.submit(() -> null).get(); // make sure the LegacyStateListener has finished executing
         SecondaryIndexManager indexManager = ColumnFamilyStore.getIfExists("JoinTokenRingTestKeyspace7", "Indexed1").indexManager;
         StubIndex stub = (StubIndex) indexManager.getIndexByName("Indexed1_value_index");
         Assert.assertTrue(stub.preJoinInvocation);
