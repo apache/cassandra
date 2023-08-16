@@ -22,10 +22,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -116,17 +118,21 @@ public class RandomlyConnectedHnswGraph extends ExtendedHnswGraph {
 
         public Builder addLevel(int level, List<Integer> nodeIds, int M) {
             Map<Integer, List<Integer>> nodeConnections = new HashMap<>();
-            for (Integer nodeId : nodeIds)
+            int n = nodeIds.size();
+            int maxNeighbors = Math.min(M, n - 1);
+            for (int i = 0; i < n; i++)
             {
-                List<Integer> neighbors = new ArrayList<>(M);
-                for (int i = 0; i < M; i++)
+                // staging in a Set first cleans up duplicate neighbors
+                Set<Integer> neighborSet = new HashSet<>();
+                while (neighborSet.size() < maxNeighbors)
                 {
-                    int neighbor = random.nextInt(nodeIds.size());
-                    if (neighbor == nodeId)
-                        neighbor = (neighbor + 1) % nodeIds.size();
-                    neighbors.add(neighbor);
+                    int neighborIdx = random.nextInt(n);
+                    if (neighborIdx == i)
+                        continue;
+                    neighborSet.add(nodeIds.get(neighborIdx));
                 }
-                nodeConnections.put(nodeId, neighbors);
+                List<Integer> neighbors = new ArrayList<>(neighborSet);
+                nodeConnections.put(nodeIds.get(i), neighbors);
             }
             this.nodes.put(level, nodeConnections);
             return this;
@@ -134,11 +140,12 @@ public class RandomlyConnectedHnswGraph extends ExtendedHnswGraph {
 
         public Builder addLevels(int levels, int totalNodes, int M)
         {
+            // TODO: Handle totalNodes < 2^(levels - 1); stabilize at 1 node/level eventually?
             List<Integer> nodeIds = IntStream.range(0, totalNodes).boxed().collect(Collectors.toList());
+            Collections.shuffle(nodeIds);
             for (int level = 0; level < levels; level++)
             {
                 addLevel(level, nodeIds, M);
-                Collections.shuffle(nodeIds);
                 nodeIds = new ArrayList<>(nodeIds.subList(0, nodeIds.size() / 2));
             }
             return this;
