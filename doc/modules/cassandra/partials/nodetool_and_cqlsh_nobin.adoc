@@ -1,6 +1,5 @@
 NOTE: For information on how to configure your installation, see
-{cass_url}doc/latest/getting-started/configuring.html[Configuring
-Cassandra].
+xref:cassandra:getting-started/configuring.adoc[Configuring Cassandra].
 
 [arabic, start=7]
 . Check the status of Cassandra:
