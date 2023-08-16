@@ -24,6 +24,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -132,13 +133,17 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
         Invariants.checkState(state == State.INITIALIZED, "Expected state to be INITIALIZED but was %s", state);
         state = State.LOADING;
         updateMapping(ClusterMetadata.current());
+        EndpointMapping snapshot = mapping;
         diskState = AccordKeyspace.loadTopologies(((epoch, topology, syncStatus, pendingSyncNotify, remoteSyncComplete, closed, redundant) -> {
             if (topology != null)
                 reportTopology(topology, syncStatus == SyncStatus.NOT_STARTED);
 
             getOrCreateEpochState(epoch).setSyncStatus(syncStatus);
             if (syncStatus == SyncStatus.NOTIFYING)
-                syncPropagator.reportSyncComplete(epoch, pendingSyncNotify, localId);
+            {
+                // TODO (expected, correctness): since this is loading old topologies, might see nodes no longer present (host replacement, decom, shrink, etc.); attempt to remove unknown nodes
+                syncPropagator.reportSyncComplete(epoch, Sets.filter(pendingSyncNotify, snapshot::containsId), localId);
+            }
 
             remoteSyncComplete.forEach(id -> receiveRemoteSyncComplete(id, epoch));
             // TODO (now): disk doesn't get updated until we see our own notification, so there is an edge case where this instance notified others and fails in the middle, but Apply was already sent!  This could leave partial closed/redudant accross the cluster
@@ -157,7 +162,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     @Override
     public InetAddressAndPort mappedEndpoint(Node.Id id)
     {
-        return Invariants.nonNull(mapping.mappedEndpoint(id));
+        return Invariants.nonNull(mapping.mappedEndpoint(id), "Unable to map node id %s to a InetAddressAndPort", id);
     }
 
     @VisibleForTesting
@@ -175,7 +180,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
 
     synchronized void updateMapping(ClusterMetadata metadata)
     {
-        updateMapping(AccordTopologyUtils.directoryToMapping(metadata.epoch.getEpoch(), metadata.directory));
+        updateMapping(AccordTopologyUtils.directoryToMapping(mapping, metadata.epoch.getEpoch(), metadata.directory));
     }
 
     private void reportMetadata(ClusterMetadata metadata)
@@ -220,11 +225,11 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     }
 
     @Override
-    protected synchronized void localSyncComplete(Topology topology)
+    protected synchronized void localSyncComplete(Topology topology, boolean startSync)
     {
         long epoch = topology.epoch();
         EpochState epochState = getOrCreateEpochState(epoch);
-        if (epochState.syncStatus != SyncStatus.NOT_STARTED)
+        if (!startSync ||epochState.syncStatus != SyncStatus.NOT_STARTED)
             return;
 
         Set<Node.Id> notify = topology.nodes().stream().filter(i -> !localId.equals(i)).collect(Collectors.toSet());
