@@ -92,6 +92,11 @@ public class GossipHelper
         Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.removeEndpoint(addr));
     }
 
+    public static void evictFromMembership(InetAddressAndPort endpoint)
+    {
+        Gossiper.runInGossipStageBlocking(() -> Gossiper.instance.evictFromMembership(endpoint));
+    }
+
     public static VersionedValue nodeStateToStatus(NodeId nodeId,
                                                     ClusterMetadata metadata,
                                                     Collection<Token> tokens,

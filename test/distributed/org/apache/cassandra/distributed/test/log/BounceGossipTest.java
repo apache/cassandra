@@ -155,12 +155,14 @@ public class BounceGossipTest extends TestBaseImpl
             int tokensBefore = getGossipTokensVersion(cluster, 2);
             cluster.get(2).nodetoolResult("move", "9999").asserts().success();
             int correctTokensVersion;
-            while ((correctTokensVersion = getGossipTokensVersion(cluster, 2)) == tokensBefore); // wait for LegacyStateListener to actually update gossip
+            while ((correctTokensVersion = getGossipTokensVersion(cluster, 2)) == tokensBefore)
+                Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS); // wait for LegacyStateListener to actually update gossip
             for (int inst : new int[] {1, 3})
                 while (correctTokensVersion != getGossipTokensVersion(cluster, inst))
                 {
                     System.out.println(correctTokensVersion + " ::: " + getGossipTokensVersion(cluster, inst));
                     Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);  // wait for gossip to propagate
+                    correctTokensVersion = getGossipTokensVersion(cluster, 2);
                 }
         }
     }

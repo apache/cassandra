@@ -72,7 +72,7 @@ public class LegacyStateListener implements ChangeListener.Async
 
         for (NodeId remove : removed)
         {
-            GossipHelper.removeFromGossip(prev.directory.endpoint(remove));
+            GossipHelper.evictFromMembership(prev.directory.endpoint(remove));
             PeersTable.updateLegacyPeerTable(remove, prev, next);
         }
 

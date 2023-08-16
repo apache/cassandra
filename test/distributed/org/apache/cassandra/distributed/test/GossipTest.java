@@ -29,6 +29,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Collectors;
+import java.io.IOException;
 
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Futures;
@@ -47,16 +48,19 @@ import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
+import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 import org.apache.cassandra.tcm.transformations.PrepareMove;
@@ -71,6 +75,7 @@ import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.api.TokenSupplier.evenlyDistributedTokens;
 import static org.apache.cassandra.distributed.impl.DistributedTestSnitch.toCassandraInetAddressAndPort;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.runAndWaitForLogs;
+import static org.apache.cassandra.distributed.shared.ClusterUtils.replaceHostAndStart;
 import static org.apache.cassandra.distributed.shared.NetworkTopology.singleDcNetworkTopology;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -389,6 +394,45 @@ public class GossipTest extends TestBaseImpl
         public static StreamResultFuture execute()
         {
             throw new RuntimeException("failing to execute move");
+        }
+    }
+
+    @Test
+    public void testQuarantine() throws IOException
+    {
+        TokenSupplier even = TokenSupplier.evenlyDistributedTokens(4, 1);
+        try (Cluster cluster = Cluster.build(4)
+                                      .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK)
+                                                        .set("progress_barrier_default_consistency_level", "ONE")
+                                                        .set("progress_barrier_min_consistency_level", "ONE"))
+                                      .withTokenSupplier(node -> even.token(node == 5 ? 4 : node))
+                                      .start())
+        {
+            // 4 nodes, stop node3 from catching up
+            cluster.filters().verbs(Verb.TCM_REPLICATION.id).to(3).drop();
+            String node4 = cluster.get(4).config().broadcastAddress().getAddress().getHostAddress();
+            replaceHostAndStart(cluster, cluster.get(4));
+            Uninterruptibles.sleepUninterruptibly(10, TimeUnit.SECONDS); // wait a few gossip rounds
+            cluster.get(2).runOnInstance(() -> assertFalse(Gossiper.instance.endpointStateMap.containsKey(InetAddressAndPort.getByNameUnchecked(node4))));
+            cluster.get(3).runOnInstance(() -> assertTrue(Gossiper.instance.endpointStateMap.containsKey(InetAddressAndPort.getByNameUnchecked(node4))));
+            cluster.get(3).nodetoolResult("disablegossip").asserts().success();
+            cluster.get(3).nodetoolResult("enablegossip").asserts().success();
+            Uninterruptibles.sleepUninterruptibly(10, TimeUnit.SECONDS);
+            cluster.get(2).runOnInstance(() -> assertFalse(Gossiper.instance.endpointStateMap.containsKey(InetAddressAndPort.getByNameUnchecked(node4))));
+            cluster.filters().reset();
+            long epoch = cluster.get(1).callOnInstance(() -> ClusterMetadata.current().epoch.getEpoch());
+            cluster.get(3).runOnInstance(() -> ClusterMetadataService.instance().fetchLogFromCMS(Epoch.create(epoch)));
+            boolean removed = false;
+            for (int i = 0; i < 20; i++)
+            {
+                if (!cluster.get(3).callOnInstance(() -> Gossiper.instance.endpointStateMap.containsKey(InetAddressAndPort.getByNameUnchecked(node4))))
+                {
+                    removed = true;
+                    break;
+                }
+                Uninterruptibles.sleepUninterruptibly(1, TimeUnit.SECONDS);
+            }
+            assertTrue(removed);
         }
     }
 }
