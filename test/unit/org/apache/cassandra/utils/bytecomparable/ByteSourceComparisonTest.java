@@ -494,7 +494,7 @@ public class ByteSourceComparisonTest extends ByteSourceTestBase
             tt.pack(decomposeAndRandomPad(UTF8Type.instance, ""), decomposeAndRandomPad(Int32Type.instance, 0)),
             // Note: a decomposed null (e.g. decomposeAndRandomPad(Int32Type.instance, null)) should not reach a tuple
             tt.pack(decomposeAndRandomPad(UTF8Type.instance, ""), null),
-            tt.pack(null, decomposeAndRandomPad(Int32Type.instance, 0)),
+            tt.pack((ByteBuffer) null, decomposeAndRandomPad(Int32Type.instance, 0)),
             tt.pack(decomposeAndRandomPad(UTF8Type.instance, "")),
             tt.pack((ByteBuffer) null),
             tt.pack()

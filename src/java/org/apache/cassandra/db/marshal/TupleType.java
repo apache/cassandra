@@ -351,6 +351,11 @@ public class TupleType extends MultiElementType<ByteBuffer>
         return "component";
     }
 
+    public static <V> V pack(ValueAccessor<V> accessor, V... components)
+    {
+        return pack(accessor, Arrays.asList(components));
+    }
+
     public static <V> V pack(ValueAccessor<V> accessor, Collection<V> components)
     {
         int totalLength = 0;
