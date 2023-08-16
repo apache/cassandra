@@ -74,7 +74,7 @@ will install the binaries and configuration files as the `cassandra` OS user.
 
 == Installing the docker image
 
-[arabic, start=1]
+// [arabic, start=1]
 . Pull the docker image. For the latest image, use:
 +
 [source, shell]
@@ -84,7 +84,8 @@ include::cassandra:example$BASH/docker_pull.sh[]
 +
 This `docker pull` command will get the latest version of the 'Docker Official'
 Apache Cassandra image available from the https://hub.docker.com/_/cassandra[Dockerhub].
-[arabic, start=2]
+
+// [arabic, start=2]
 . Start Cassandra with a `docker run` command:
 +
 [source, shell]
@@ -93,7 +94,8 @@ include::cassandra:example$BASH/docker_run.sh[]
 ----
 +
 The `--name` option will be the name of the Cassandra cluster created.
-[arabic, start=3]
+
+// [arabic, start=3]
 . Start the CQL shell, `cqlsh` to interact with the Cassandra node created:
 +
 [source, shell]
@@ -105,7 +107,7 @@ include::cassandra:example$BASH/docker_cqlsh.sh[]
 
 include::cassandra:partial$java_version.adoc[]
 
-[arabic, start=2]
+// [arabic, start=2]
 . Download the binary tarball from one of the mirrors on the
 {cass_url}download/[Apache Cassandra Download] site.
 For example, to download Cassandra {40_version}:
@@ -121,7 +123,8 @@ The mirrors only host the latest versions of each major supported
 release. To download an earlier version of Cassandra, visit the
 http://archive.apache.org/dist/cassandra/[Apache Archives].
 ====
-[arabic, start=3]
+
+// [arabic, start=3]
 . OPTIONAL: Verify the integrity of the downloaded tarball using one of
 the methods https://www.apache.org/dyn/closer.cgi#verify[here]. For
 example, to verify the hash of the downloaded file using GPG:
@@ -169,7 +172,8 @@ Result::
 ----
 --
 ====
-[arabic, start=4]
+
+// [arabic, start=4]
 . Unpack the tarball:
 +
 [source,shell]
@@ -179,7 +183,8 @@ include::cassandra:example$BASH/tarball.sh[]
 +
 The files will be extracted to the `apache-cassandra-4.0.0/` directory.
 This is the tarball installation location.
-[arabic, start=5]
+
+// [arabic, start=5]
 . Located in the tarball installation location are the directories for
 the scripts, binaries, utilities, configuration, data and log files:
 +
@@ -195,7 +200,8 @@ include::cassandra:example$TEXT/tarball_install_dirs.txt[]
 +
 For information on how to configure your installation, see
 xref:cassandra:getting-started/configuring.adoc[Configuring Cassandra].
-[arabic, start=6]
+
+// [arabic, start=6]
 . Start Cassandra:
 +
 [source,shell]
@@ -240,7 +246,7 @@ include::cassandra:partial$nodetool_and_cqlsh.adoc[]
 
 include::cassandra:partial$java_version.adoc[]
 
-[arabic, start=2]
+// [arabic, start=2]
 . Add the Apache repository of Cassandra to the file
 `cassandra.sources.list`. 
 include::cassandra:partial$package_versions.adoc[]
@@ -250,7 +256,7 @@ include::cassandra:partial$package_versions.adoc[]
 include::cassandra:example$BASH/get_deb_package.sh[]
 ----
 
-[arabic, start=3]
+// [arabic, start=3]
 . Add the Apache Cassandra repository keys to the list of trusted keys
 on the server:
 +
@@ -275,7 +281,7 @@ include::cassandra:example$RESULTS/add_repo_keys.result[]
 --
 ====
 
-[arabic, start=4]
+// [arabic, start=4]
 . Update the package index from sources:
 +
 [source,shell]
@@ -283,7 +289,7 @@ include::cassandra:example$RESULTS/add_repo_keys.result[]
 include::cassandra:example$BASH/apt-get_update.sh[]
 ----
 
-[arabic, start=5]
+// [arabic, start=5]
 . Install Cassandra with APT:
 +
 [source,shell]
@@ -302,7 +308,7 @@ include::cassandra:partial$nodetool_and_cqlsh_nobin.adoc[]
 
 include::cassandra:partial$java_version.adoc[]
 
-[arabic, start=2]
+// [arabic, start=2]
 . Add the Apache repository of Cassandra to the file
 `/etc/yum.repos.d/cassandra.repo` (as the `root` user).
 include::cassandra:partial$package_versions.adoc[]
@@ -312,7 +318,7 @@ include::cassandra:partial$package_versions.adoc[]
 include::cassandra:example$RESULTS/add_yum_repo.result[]
 ----
 
-[arabic, start=3]
+// [arabic, start=3]
 . Update the package index from sources:
 +
 [source,shell]
@@ -320,7 +326,7 @@ include::cassandra:example$RESULTS/add_yum_repo.result[]
 include::cassandra:example$BASH/yum_update.sh[]
 ----
 
-[arabic, start=4]
+// [arabic, start=4]
 . Install Cassandra with YUM:
 +
 [source,shell]
@@ -334,7 +340,7 @@ A new Linux user `cassandra` will get created as part of the
 installation. The Cassandra service will also be run as this user.
 ====
 
-[arabic, start=5]
+// [arabic, start=5]
 . Start the Cassandra service:
 +
 [source,shell]
