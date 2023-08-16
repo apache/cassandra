@@ -24,7 +24,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -165,11 +164,25 @@ public class CassandraResourceUtilization
             shouldThrottle = true;
             lastThrottlingIndicatorTimeInMS = System.currentTimeMillis();
             throttlingMetrics.needsThrottling.inc();
+            logger.info("Enforce throttling CpuUtil1: {}-{}, CpuUtil2: {}-{}, NrThrottled1: {}-{}, NrThrottled2: {}-{}, PendingReads: {}-{}, PendingMutations: {}-{}",
+                        resourcesStats.getCpuUtil1Cur(), resourcesStats.getCpuUtil1OneMinute(),
+                        resourcesStats.getCpuUtil2Cur(), resourcesStats.getCpuUtil2OneMinute(),
+                        resourcesStats.getNrThrottled1Cur(), resourcesStats.getNrThrottled1OneMinute(),
+                        resourcesStats.getNrThrottled2Cur(), resourcesStats.getNrThrottled2OneMinute(),
+                        resourcesStats.getPendingReadsCur(), resourcesStats.getPendingReadsOneMinute(),
+                        resourcesStats.getPendingMutationsCur(), resourcesStats.getPendingMutationsOneMinute());
         }
         else
         {
             shouldThrottle = false;
             throttlingMetrics.doesNotNeedThrottling.inc();
+            logger.info("DO NOT Enforce throttling CpuUtil1: {}-{}-{}, CpuUtil2: {}-{}-{}, NrThrottled1: {}-{}-{}, NrThrottled2: {}-{}-{}, PendingReads: {}-{}-{}, PendingMutations: {}-{}-{}",
+                        cpuUtilSignal1, resourcesStats.getCpuUtil1Cur(), resourcesStats.getCpuUtil1OneMinute(),
+                        cpuUtilSignal2, resourcesStats.getCpuUtil2Cur(), resourcesStats.getCpuUtil2OneMinute(),
+                        nrThrottlingSignal1, resourcesStats.getNrThrottled1Cur(), resourcesStats.getNrThrottled1OneMinute(),
+                        nrThrottlingSignal2, resourcesStats.getNrThrottled2Cur(), resourcesStats.getNrThrottled2OneMinute(),
+                        pendingReadsSignal, resourcesStats.getPendingReadsCur(), resourcesStats.getPendingReadsOneMinute(),
+                        pendingMutationsSignal, resourcesStats.getPendingMutationsCur(), resourcesStats.getPendingMutationsOneMinute());
         }
     }
 
