@@ -21,6 +21,9 @@
 
 # Will generate a list of all the tests that differ on the active branch from the provided base branch across all suites
 
+# A user / env can manually override this by providing a space delimited array of relative pathed file names in the
+# REPEAT_TESTS environment variable
+
 # TODO BEFORE COMMIT: Work through and clean this up / test it
 # TODO Make this support python w/a 3rd arg
 
@@ -29,18 +32,31 @@ usage() {
     exit 1
 }
 
-add_diff_tests()
+# $1 string: base dir
+# #2 string: base branch
+# #3 string: absolute path to reference to compare against
+add_diff_tests ()
 {
-    dir="${base_dir}/../${2}"
-    diff=$(git --no-pager diff --name-only --diff-filter=AMR ${base_branch}...HEAD ${dir})
-    tests=$( echo "$diff" \
-           | grep "test*\\.py" \
-           | tr  '/' '.'
-           )
-    # TODO: Determine if we need to pull over the $env_vars functionality from generate.sh
-    for test in $tests; do
-      echo "  $test"
-    done
+dir="${BASEDIR}/../${2}"
+diff=$(git --no-pager diff --name-only --diff-filter=AMR ${BASE_BRANCH}...HEAD ${dir})
+tests=$( echo "$diff" \
+       | grep "Test\\.java" \
+       | sed -e "s/\\.java//" \
+       | sed -e "s,^${2},," \
+       | tr  '/' '.' \
+       | grep ${3} )\
+       || : # avoid execution interruptions due to grep return codes and set -e
+for test in $tests; do
+  echo "  $test"
+  has_env_vars=true
+  if echo "$env_vars" | grep -q "${1}="; then
+    env_vars=$(echo "$env_vars" | sed -e "s/${1}=/${1}=${test},/")
+  elif [ -z "$env_vars" ]; then
+    env_vars="${1}=${test}"
+  else
+    env_vars="$env_vars|${1}=${test}"
+  fi
+done
 }
 
 check_argument "$1" "Missing param 1: base branch. " + usage
