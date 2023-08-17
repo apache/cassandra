@@ -261,6 +261,16 @@ public class StorageAttachedIndex implements Index
             throw new InvalidRequestException("Cannot create more than one storage-attached index on the same column: " + target.left);
         }
 
+        // Analyzer is not supported against PK columns
+        if (AbstractAnalyzer.isAnalyzed(options))
+        {
+            for (ColumnMetadata column : metadata.primaryKeyColumns())
+            {
+                if (column.name.equals(target.left.name))
+                    throw new InvalidRequestException("Cannot specify index analyzer on primary key column: " + target.left);
+            }
+        }
+
         AbstractType<?> type = TypeUtil.cellValueType(target.left, target.right);
 
         // If we are indexing map entries we need to validate the sub-types

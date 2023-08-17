@@ -20,8 +20,8 @@ package org.apache.cassandra.index.sai.cql;
 
 import org.junit.Test;
 
-import com.datastax.driver.core.exceptions.InvalidConfigurationInQueryException;
 import com.datastax.driver.core.exceptions.InvalidQueryException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.sai.SAITester;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -52,6 +52,68 @@ public class LuceneAnalyzerTest extends SAITester
         flush();
 
         assertEquals(0, execute("SELECT * FROM %s WHERE val = 'query'").size());
+    }
+
+    @Test
+    public void testStandardAnalyzer() throws Throwable
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
+
+        createIndex("CREATE CUSTOM INDEX ON %s(val) " +
+                    "USING 'org.apache.cassandra.index.sai.StorageAttachedIndex' " +
+                    "WITH OPTIONS = { 'index_analyzer': '[{\"tokenizer\": \"standard\"}, {\"filter\": \"lowercase\"}]' }");
+
+        waitForIndexQueryable();
+
+        execute("INSERT INTO %s (id, val) VALUES ('1', 'The quick brown fox jumps over the lazy DOG.')");
+
+        assertEquals(1, execute("SELECT * FROM %s WHERE val = 'dog'").size());
+
+        flush();
+        assertEquals(1, execute("SELECT * FROM %s WHERE val = 'dog'").size());
+    }
+
+    // Technically, the NoopAnalyzer is applied, but that maps each field without modification, so any operator
+    // that matches the SAI field will also match the PK field when compared later in the search (there are two phases).
+    @Test
+    public void testNoAnalyzerOnClusteredColumn() throws Throwable
+    {
+        createTable("CREATE TABLE %s (id int, val text, PRIMARY KEY (id, val))");
+
+        createIndex("CREATE CUSTOM INDEX ON %s(val) " +
+                    "USING 'org.apache.cassandra.index.sai.StorageAttachedIndex'");
+
+        waitForIndexQueryable();
+
+        execute("INSERT INTO %s (id, val) VALUES (1, 'dog')");
+
+        assertEquals(1, execute("SELECT * FROM %s WHERE val = 'dog'").size());
+
+        flush();
+        assertEquals(1, execute("SELECT * FROM %s WHERE val = 'dog'").size());
+    }
+
+    // Analyzers on clustering columns are not supported yet
+    @Test
+    public void testStandardAnalyzerInClusteringColumnFailsAtCreateIndex() throws Throwable
+    {
+        createTable("CREATE TABLE %s (id int, val text, PRIMARY KEY (id, val))");
+
+        assertThatThrownBy(() -> createIndex("CREATE CUSTOM INDEX ON %s(val) " +
+                    "USING 'org.apache.cassandra.index.sai.StorageAttachedIndex' " +
+                    "WITH OPTIONS = { 'index_analyzer': '[{\"tokenizer\": \"standard\"}, {\"filter\": \"lowercase\"}]' }"
+        )).isInstanceOf(InvalidRequestException.class);
+
+        assertThatThrownBy(() -> createIndex("CREATE CUSTOM INDEX ON %s(val) WITH OPTIONS = { 'ascii': true }"
+        )).isInstanceOf(InvalidRequestException.class);
+
+        assertThatThrownBy(() -> createIndex("CREATE CUSTOM INDEX ON %s(val) " +
+                                             "WITH OPTIONS = { 'case_sesnsitive': false }"
+        )).isInstanceOf(InvalidRequestException.class);
+
+        assertThatThrownBy(() -> createIndex("CREATE CUSTOM INDEX ON %s(val) " +
+                                             "WITH OPTIONS = { 'normalize': true }"
+        )).isInstanceOf(InvalidRequestException.class);
     }
 
     @Test
@@ -99,10 +161,11 @@ public class LuceneAnalyzerTest extends SAITester
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
 
-        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = {'index_analyzer':'[\n" +
-                    "\t{\"tokenizer\":\"ngram\", \"minGramSize\":\"2\", \"maxGramSize\":\"3\"},\n" +
-                    "\t{\"filter\":\"lowercase\"}\n" +
-                    "]'}");
+        String ddl = "CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = {'index_analyzer':'[\n" +
+                       "\t{\"tokenizer\":\"ngram\", \"minGramSize\":\"2\", \"maxGramSize\":\"3\"},\n" +
+                       "\t{\"filter\":\"lowercase\"}\n" +
+                       "]'}";
+        createIndex(ddl);
 
         waitForIndexQueryable();
 
