@@ -20,8 +20,10 @@ package org.apache.cassandra.serializers;
 
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Consumer;
 
 import com.google.common.collect.Range;
@@ -35,34 +37,105 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public abstract class CollectionSerializer<T> extends TypeSerializer<T>
 {
     protected abstract List<ByteBuffer> serializeValues(T value);
-    protected abstract int getElementCount(T value);
 
     @Override
     public ByteBuffer serialize(T input)
     {
         List<ByteBuffer> values = serializeValues(input);
-        return pack(values, ByteBufferAccessor.instance, getElementCount(input));
+        return pack(values, ByteBufferAccessor.instance);
     }
 
-    public static ByteBuffer pack(Collection<ByteBuffer> values, int elements)
+    public ByteBuffer pack(Collection<ByteBuffer> values)
     {
-        return pack(values, ByteBufferAccessor.instance, elements);
+        return pack(values, ByteBufferAccessor.instance);
     }
 
-    public static <V> V pack(Collection<V> values, ValueAccessor<V> accessor, int elements)
+    public <V> V pack(Collection<V> values, ValueAccessor<V> accessor)
     {
         int size = 0;
         for (V value : values)
             size += sizeOfValue(value, accessor);
 
         ByteBuffer result = ByteBuffer.allocate(sizeOfCollectionSize() + size);
-        writeCollectionSize(result, elements);
+        writeCollectionSize(result, collectionSize(values));
         for (V value : values)
         {
             writeValue(result, value, accessor);
         }
         return accessor.valueOf((ByteBuffer) result.flip());
     }
+
+    public List<ByteBuffer> unpack(ByteBuffer input)
+    {
+        return unpack(input, ByteBufferAccessor.instance);
+    }
+
+    public <V> List<V> unpack(V input, ValueAccessor<V> accessor)
+    {
+        try
+        {
+            int elements = numberOfSerializedElements(readCollectionSize(input, accessor));
+            if (elements < 0)
+                throw new MarshalException("The data cannot be deserialized as a " + getCollectionName());
+
+            // If the received bytes are not corresponding to a collection, the size might be a huge number.
+            // In such a case we do not want to initialize the list with that size as it can result
+            // in an OOM. On the other hand we do not want to have to resize the list
+            // if we can avoid it, so we put a reasonable limit on the initialCapacity.
+            List<V> values = new ArrayList<>(Math.min(elements, 256));
+            int offset = sizeOfCollectionSize();
+
+            for (int i = 0; i < elements; i++)
+            {
+                V value = readValue(input, accessor, offset);
+                offset += sizeOfValue(value, accessor);
+
+                values.add(value);
+            }
+
+            if (!accessor.isEmptyFromOffset(input, offset))
+                throw new MarshalException("Unexpected extraneous bytes after " + getCollectionName() + " value");
+
+            return values;
+        }
+        catch (BufferUnderflowException | IndexOutOfBoundsException e)
+        {
+            throw new MarshalException("Not enough bytes to read a " + getCollectionName());
+        }
+    }
+
+    /**
+     * Return the collection name for error messages.
+     * @return the collection name for error messages.
+     */
+    private String getCollectionName()
+    {
+        return getType().getSimpleName().toLowerCase(Locale.US);
+    }
+
+    /**
+     * Returns the size of the collections from the number of serialized elements.
+     *
+     * @param <E> the value type, ByteBuffer or byte[]
+     * @param elements the serialized elements
+     * @return the size of the collections from the number of serialized elements.
+     */
+    public <E> int collectionSize(Collection<E> elements)
+    {
+        return elements.size();
+    }
+
+    /**
+     * Returns the number of serialized elements from the collection size.
+     *
+     * @param collectionSize the collection size
+     * @return the number of serialized elements from the collection size.
+     */
+    protected int numberOfSerializedElements(int collectionSize)
+    {
+        return collectionSize;
+    }
+
 
     protected static void writeCollectionSize(ByteBuffer output, int elements)
     {
@@ -226,7 +299,7 @@ public abstract class CollectionSerializer<T> extends TypeSerializer<T>
         }
         catch (BufferUnderflowException | IndexOutOfBoundsException e)
         {
-            throw new MarshalException("Not enough bytes to read a set");
+            throw new MarshalException("Not enough bytes to read a " + getCollectionName());
         }
     }
 }

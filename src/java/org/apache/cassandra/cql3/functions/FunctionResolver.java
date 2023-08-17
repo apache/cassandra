@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
-import org.apache.cassandra.cql3.AbstractMarker;
+import org.apache.cassandra.cql3.terms.Marker;
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
@@ -222,7 +222,7 @@ public final class FunctionResolver
      */
     private static boolean containsMarkers(List<? extends AssignmentTestable> args)
     {
-        return args.stream().anyMatch(AbstractMarker.Raw.class::isInstance);
+        return args.stream().anyMatch(Marker.Raw.class::isInstance);
     }
 
     /**

@@ -29,7 +29,6 @@ import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.dht.Range;
@@ -171,7 +170,7 @@ public class PaxosRepairHistory
     {
         List<ByteBuffer> tuples = new ArrayList<>(size() + 1);
         for (int i = 0 ; i < 1 + size() ; ++i)
-            tuples.add(TupleType.buildValue(new ByteBuffer[] { TOKEN_FACTORY.toByteArray(tokenInclusiveUpperBound(i)), ballotLowBound[i].toBytes() }));
+            tuples.add(TYPE.pack(TOKEN_FACTORY.toByteArray(tokenInclusiveUpperBound(i)), ballotLowBound[i].toBytes()));
         return tuples;
     }
 
@@ -181,10 +180,10 @@ public class PaxosRepairHistory
         Ballot[] ballotLowBounds = new Ballot[tuples.size()];
         for (int i = 0 ; i < tuples.size() ; ++i)
         {
-            ByteBuffer[] split = TYPE.split(ByteBufferAccessor.instance, tuples.get(i));
+            List<ByteBuffer> elements = TYPE.unpack(tuples.get(i));
             if (i < tokenInclusiveUpperBounds.length)
-                tokenInclusiveUpperBounds[i] = TOKEN_FACTORY.fromByteArray(split[0]);
-            ballotLowBounds[i] = Ballot.deserialize(split[1]);
+                tokenInclusiveUpperBounds[i] = TOKEN_FACTORY.fromByteArray(elements.get(0));
+            ballotLowBounds[i] = Ballot.deserialize(elements.get(1));
         }
 
         return new PaxosRepairHistory(tokenInclusiveUpperBounds, ballotLowBounds);

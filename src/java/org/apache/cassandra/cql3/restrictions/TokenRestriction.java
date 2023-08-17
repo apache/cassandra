@@ -26,7 +26,7 @@ import org.apache.cassandra.index.Index;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.filter.RowFilter;

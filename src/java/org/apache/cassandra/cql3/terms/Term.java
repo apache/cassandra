@@ -15,21 +15,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.cql3;
+package org.apache.cassandra.cql3.terms;
 
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.List;
 
+import org.apache.cassandra.cql3.AssignmentTestable;
+import org.apache.cassandra.cql3.CQLFragmentParser;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.CqlParser;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.schema.SchemaConstants;
 
 /**
  * A CQL3 term, i.e. a column value with or without bind variables.
- *
- * A Term can be either terminal or non terminal. A term object is one that is typed and is obtained
- * from a raw term (Term.Raw) by poviding the actual receiver to which the term is supposed to be a
+ * <p>
+ * A Term can be either {@link Terminal} or {@link NonTerminal}. A term object is one that is typed and is obtained
+ * from a raw term (Term.Raw) by providing the actual {@link ColumnSpecification} receiver to which the term is supposed to be a
  * value of.
  */
 public interface Term
@@ -41,55 +49,82 @@ public interface Term
      * @param boundNames the variables specification where to collect the
      * bind variables of this term in.
      */
-    public void collectMarkerSpecification(VariableSpecifications boundNames);
+    void collectMarkerSpecification(VariableSpecifications boundNames);
 
     /**
-     * Bind the values in this term to the values contained in {@code values}.
+     * Bind the values in this term to the values contained in the {@code options}.
      * This is obviously a no-op if the term is Terminal.
      *
      * @param options the values to bind markers to.
-     * @return the result of binding all the variables of this NonTerminal (or
-     * 'this' if the term is terminal).
+     * @return the {@code Terminal} resulting of binding the values contained in the {@code options}.
      */
-    public Terminal bind(QueryOptions options) throws InvalidRequestException;
+    Terminal bind(QueryOptions options);
 
     /**
-     * A shorter for bind(values).get().
-     * We expose it mainly because for constants it can avoids allocating a temporary
+     * A shorter for {@code bind(options).get()}.
+     * We expose it mainly because for constants it can avoid allocating a temporary
      * object between the bind and the get (note that we still want to be able
      * to separate bind and get for collections).
      */
-    public ByteBuffer bindAndGet(QueryOptions options) throws InvalidRequestException;
+    ByteBuffer bindAndGet(QueryOptions options);
 
     /**
-     * Whether or not that term contains at least one bind marker.
-     *
+     * A shorter for {@code bind(options).getElements()}.
+     * We expose it mainly because for constants it can avoid allocating a temporary
+     * object between the bind and the getElements.
+     */
+    List<ByteBuffer> bindAndGetElements(QueryOptions options);
+
+    /**
+     * Whether that term contains at least one bind marker.
+     * <p>
      * Note that this is slightly different from being or not a NonTerminal,
-     * because calls to non pure functions will be NonTerminal (see #5616)
+     * because calls to non-pure functions will be {@code NonTerminal} (see #5616)
      * even if they don't have bind markers.
      */
-    public abstract boolean containsBindMarker();
+    boolean containsBindMarker();
 
     /**
      * Whether that term is terminal (this is a shortcut for {@code this instanceof Term.Terminal}).
      */
-    default public boolean isTerminal()
+    default boolean isTerminal()
     {
         return false; // overriden below by Terminal
     }
 
-    public void addFunctionsTo(List<Function> functions);
+    /**
+     * Adds the functions used by this {@link Term} to the list of functions.
+     * <p>
+     * This method is used to discover prepare statements function dependencies on schema updates.
+     * @param functions the list of functions to add to
+     */
+    void addFunctionsTo(List<Function> functions);
+
+    /**
+     * Converts the term represented by the specified {@code String} into its binary representation.
+     * @param term the term to convert
+     * @param type the type of the term
+     * @return the term binary representation
+     */
+    static ByteBuffer asBytes(String keyspace, String term, AbstractType<?> type)
+    {
+        ColumnSpecification receiver = new ColumnSpecification(keyspace, SchemaConstants.DUMMY_KEYSPACE_OR_TABLE_NAME, new ColumnIdentifier("(dummy)", true), type);
+        Term.Raw rawTerm = CQLFragmentParser.parseAny(CqlParser::term, term, "CQL term");
+        return rawTerm.prepare(keyspace, receiver).bindAndGet(QueryOptions.DEFAULT);
+    }
 
     /**
      * A parsed, non prepared (thus untyped) term.
-     *
+     * <p>
      * This can be one of:
-     *   - a constant
-     *   - a collection literal
-     *   - a function call
-     *   - a marker
+     * <ul>
+     *     <li>a constant</li>
+     *     <li>a multi-element type literal</li>
+     *     <li>a function call</li>
+     *     <li>a marker</li>
+     * </ul>
      */
-    public abstract class Raw implements AssignmentTestable
+    abstract class Raw implements AssignmentTestable
     {
         /**
          * This method validates this RawTerm is valid for provided column
@@ -144,36 +179,38 @@ public interface Term
         }
     }
 
-    public abstract class MultiColumnRaw extends Term.Raw
-    {
-        public abstract Term prepare(String keyspace, List<? extends ColumnSpecification> receiver) throws InvalidRequestException;
-    }
-
     /**
      * A terminal term, one that can be reduced to a byte buffer directly.
-     *
+     * <p>
      * This includes most terms that don't have a bind marker (an exception
-     * being delayed call for non pure function that are NonTerminal even
+     * being delayed call for non-pure function that are NonTerminal even
      * if they don't have bind markers).
-     *
+     * <p>
      * This can be only one of:
-     *   - a constant value
-     *   - a collection value
-     *
+     *   <ul>
+     *     <li>a constant value</li>
+     *     <li>a multi-element value</li>
+     *   </ul>
+     * <p>
      * Note that a terminal term will always have been type checked, and thus
      * consumer can (and should) assume so.
      */
-    public abstract class Terminal implements Term
+    abstract class Terminal implements Term
     {
+        @Override
         public void collectMarkerSpecification(VariableSpecifications boundNames) {}
+
+        @Override
         public Terminal bind(QueryOptions options) { return this; }
 
+        @Override
         public void addFunctionsTo(List<Function> functions)
         {
         }
 
         // While some NonTerminal may not have bind markers, no Term can be Terminal
         // with a bind marker
+        @Override
         public boolean containsBindMarker()
         {
             return false;
@@ -188,35 +225,59 @@ public interface Term
         /**
          * @return the serialized value of this terminal.
          */
-        public abstract ByteBuffer get(ProtocolVersion version) throws InvalidRequestException;
+        public abstract ByteBuffer get();
 
-        public ByteBuffer bindAndGet(QueryOptions options) throws InvalidRequestException
+        /**
+         * Returns the serialized values of this Term elements, if this term represents a Collection, Tuple or UDT.
+         * If this term does not represent a multi-elements type it will return a list containing the serialized value
+         * of this terminal
+         * @return a list containing serialized values of this Term elements
+         */
+        public List<ByteBuffer> getElements()
         {
-            return get(options.getProtocolVersion());
+            ByteBuffer value = get();
+            return value == null ? Collections.emptyList() : Collections.singletonList(value);
+        }
+
+        @Override
+        public ByteBuffer bindAndGet(QueryOptions options)
+        {
+            return get();
+        }
+
+        @Override
+        public List<ByteBuffer> bindAndGetElements(QueryOptions options)
+        {
+            return getElements();
         }
     }
 
-    public abstract class MultiItemTerminal extends Terminal
-    {
-        public abstract List<ByteBuffer> getElements();
-    }
-
     /**
-     * A non terminal term, i.e. a term that can only be reduce to a byte buffer
+     * A non-terminal term, i.e. a term that can only be reduced to a byte buffer
      * at execution time.
-     *
+     * <p>
      * We have the following type of NonTerminal:
-     *   - marker for a constant value
-     *   - marker for a collection value (list, set, map)
-     *   - a function having bind marker
-     *   - a non pure function (even if it doesn't have bind marker - see #5616)
+     * <ul>
+     *   <li>marker for a constant value</li>
+     *   <li>marker for a multi-element data type value (list, set, map, tuple, udt, vector)</li>
+     *   <li>a function having bind markers</li>
+     *   <li>a non-pure function (even if it doesn't have bind markers - see #5616)</li>
+     * </ul>
      */
-    public abstract class NonTerminal implements Term
+    abstract class NonTerminal implements Term
     {
+        @Override
         public ByteBuffer bindAndGet(QueryOptions options) throws InvalidRequestException
         {
             Terminal t = bind(options);
-            return t == null ? null : t.get(options.getProtocolVersion());
+            return t == null ? null : t.get();
+        }
+
+        @Override
+        public List<ByteBuffer> bindAndGetElements(QueryOptions options)
+        {
+            Terminal t = bind(options);
+            return t == null ? Collections.emptyList() : t.getElements();
         }
     }
 }

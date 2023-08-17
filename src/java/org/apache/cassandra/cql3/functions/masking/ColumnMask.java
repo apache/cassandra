@@ -34,8 +34,7 @@ import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.CqlBuilder;
-import org.apache.cassandra.cql3.Term;
-import org.apache.cassandra.cql3.Terms;
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.cql3.functions.Arguments;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.FunctionName;
@@ -267,7 +266,7 @@ public class ColumnMask
             {
                 String term = rawPartialArguments.get(i).toString();
                 AbstractType<?> type = function.argTypes().get(i + 1);
-                arguments[i] = Terms.asBytes(keyspace, term, type);
+                arguments[i] = Term.asBytes(keyspace, term, type);
             }
 
             return arguments;

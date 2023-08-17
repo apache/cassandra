@@ -39,18 +39,17 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
-import org.apache.cassandra.cql3.Constants;
+import org.apache.cassandra.cql3.terms.Constants;
 import org.apache.cassandra.cql3.FieldIdentifier;
-import org.apache.cassandra.cql3.Lists;
-import org.apache.cassandra.cql3.Maps;
+import org.apache.cassandra.cql3.terms.Lists;
+import org.apache.cassandra.cql3.terms.Maps;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.ResultSet;
-import org.apache.cassandra.cql3.Sets;
-import org.apache.cassandra.cql3.Term;
-import org.apache.cassandra.cql3.UserTypes;
+import org.apache.cassandra.cql3.terms.Sets;
+import org.apache.cassandra.cql3.terms.Term;
+import org.apache.cassandra.cql3.terms.UserTypes;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.LongType;
@@ -58,7 +57,6 @@ import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UserType;
-import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
@@ -86,7 +84,7 @@ public class SerDeserTest
     }
 
     @Test
-    public void collectionSerDeserTest() throws Exception
+    public void collectionSerDeserTest()
     {
         // Lists
         ListType<?> lt = ListType.getInstance(Int32Type.instance, true);
@@ -96,7 +94,7 @@ public class SerDeserTest
         for (Integer i : l)
             lb.add(Int32Type.instance.decompose(i));
 
-        assertEquals(l, lt.getSerializer().deserialize(CollectionSerializer.pack(lb, lb.size())));
+        assertEquals(l, lt.compose(lt.pack(lb)));
 
         // Sets
         SetType<?> st = SetType.getInstance(UTF8Type.instance, true);
@@ -106,7 +104,7 @@ public class SerDeserTest
         for (String t : s)
             sb.add(UTF8Type.instance.decompose(t));
 
-        assertEquals(s, st.getSerializer().deserialize(CollectionSerializer.pack(sb, sb.size())));
+        assertEquals(s, st.compose(st.pack(sb)));
 
         // Maps
         MapType<?, ?> mt = MapType.getInstance(UTF8Type.instance, LongType.instance, true);
@@ -122,7 +120,7 @@ public class SerDeserTest
             mb.add(LongType.instance.decompose(entry.getValue()));
         }
 
-        assertEquals(m, mt.getSerializer().deserialize(CollectionSerializer.pack(mb, m.size())));
+        assertEquals(m, mt.compose(mt.pack(mb)));
     }
 
     @Test(expected = MarshalException.class)
@@ -132,7 +130,7 @@ public class SerDeserTest
         List<ByteBuffer> sb = new ArrayList<>(1);
         sb.add(null);
 
-        st.getSerializer().deserialize(CollectionSerializer.pack(sb, sb.size()));
+        st.compose(st.pack(sb));
     }
 
     @Test(expected = MarshalException.class)
@@ -143,7 +141,7 @@ public class SerDeserTest
         mb.add(null);
         mb.add(LongType.instance.decompose(999L));
 
-        mt.getSerializer().deserialize(CollectionSerializer.pack(mb, mb.size()));
+        mt.compose(mt.pack(mb));
     }
 
     @Test(expected = MarshalException.class)
@@ -154,7 +152,7 @@ public class SerDeserTest
         mb.add(UTF8Type.instance.decompose("danger"));
         mb.add(null);
 
-        mt.getSerializer().deserialize(CollectionSerializer.pack(mb, mb.size()));
+        mt.compose(mt.pack(mb));
     }
 
     @Test
@@ -288,25 +286,25 @@ public class SerDeserTest
 
         ByteBuffer serialized = t.bindAndGet(options);
 
-        ByteBuffer[] fields = udt.split(ByteBufferAccessor.instance, serialized);
+        List<ByteBuffer> fields = udt.unpack(serialized);
 
-        assertEquals(4, fields.length);
+        assertEquals(4, fields.size());
 
-        assertEquals(bytes(42L), fields[0]);
+        assertEquals(bytes(42L), fields.get(0));
 
         // Note that no matter what the protocol version has been used in bindAndGet above, the collections inside
         // a UDT should alway be serialized with version 3 of the protocol. Which is why we don't use 'version'
         // on purpose below.
 
-        assertEquals(Arrays.asList(3, 1), lt.getSerializer().deserialize(fields[1]));
+        assertEquals(Arrays.asList(3, 1), lt.getSerializer().deserialize(fields.get(1)));
 
         LinkedHashSet<String> s = new LinkedHashSet<>(Arrays.asList("bar", "foo"));
-        assertEquals(s, st.getSerializer().deserialize(fields[2]));
+        assertEquals(s, st.getSerializer().deserialize(fields.get(2)));
 
         LinkedHashMap<String, Long> m = new LinkedHashMap<>();
         m.put("bar", 12L);
         m.put("foo", 24L);
-        assertEquals(m, mt.getSerializer().deserialize(fields[3]));
+        assertEquals(m, mt.getSerializer().deserialize(fields.get(3)));
     }
 
     @Test

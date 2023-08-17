@@ -61,7 +61,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.Clustering;

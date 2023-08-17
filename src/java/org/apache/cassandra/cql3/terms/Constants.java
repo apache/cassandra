@@ -15,13 +15,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.cql3;
+package org.apache.cassandra.cql3.terms;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
+import org.apache.cassandra.cql3.AssignmentTestable;
+import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.Operation;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.UpdateParameters;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.*;
@@ -30,7 +36,6 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FastByteOperations;
 
@@ -142,7 +147,7 @@ public abstract class Constants
             return UNSET_VALUE;
         }
 
-        public AssignmentTestable.TestResult testAssignment(String keyspace, ColumnSpecification receiver)
+        public TestResult testAssignment(String keyspace, ColumnSpecification receiver)
         {
             return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
         }
@@ -195,6 +200,7 @@ public abstract class Constants
 
     public static final Term.Terminal NULL_VALUE = new Value(null)
     {
+        // TODO: The bind overriding should be removed. A user does not have to call bind on a Terminal.
         @Override
         public Terminal bind(QueryOptions options)
         {
@@ -420,7 +426,7 @@ public abstract class Constants
             this.bytes = bytes;
         }
 
-        public ByteBuffer get(ProtocolVersion version)
+        public ByteBuffer get()
         {
             return bytes;
         }
@@ -435,41 +441,6 @@ public abstract class Constants
         public String toString()
         {
             return ByteBufferUtil.bytesToHex(bytes);
-        }
-    }
-
-    public static class Marker extends AbstractMarker
-    {
-        protected Marker(int bindIndex, ColumnSpecification receiver)
-        {
-            super(bindIndex, receiver);
-            assert !receiver.type.isCollection();
-        }
-
-        @Override
-        public ByteBuffer bindAndGet(QueryOptions options) throws InvalidRequestException
-        {
-            try
-            {
-                ByteBuffer value = options.getValues().get(bindIndex);
-                if (value != null && value != ByteBufferUtil.UNSET_BYTE_BUFFER)
-                    receiver.type.validate(value);
-                return value;
-            }
-            catch (MarshalException e)
-            {
-                throw new InvalidRequestException(e.getMessage());
-            }
-        }
-
-        public Value bind(QueryOptions options) throws InvalidRequestException
-        {
-            ByteBuffer bytes = bindAndGet(options);
-            if (bytes == null)
-                return null;
-            if (bytes == ByteBufferUtil.UNSET_BYTE_BUFFER)
-                return Constants.UNSET_VALUE;
-            return new Constants.Value(bytes);
         }
     }
 

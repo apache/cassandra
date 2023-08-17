@@ -36,6 +36,8 @@ import org.apache.cassandra.cql3.functions.ScalarFunction;
 import org.apache.cassandra.cql3.functions.UDAggregate;
 import org.apache.cassandra.cql3.functions.UDFunction;
 import org.apache.cassandra.cql3.functions.UserFunction;
+import org.apache.cassandra.cql3.terms.Constants;
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.schema.UserFunctions.FunctionsDiff;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -164,7 +166,8 @@ public final class CreateAggregateStatement extends AlterSchemaStatement
         ByteBuffer initialValue = null;
         if (null != rawInitialValue)
         {
-            initialValue = Terms.asBytes(keyspaceName, rawInitialValue.toString(), stateType);
+            String term = rawInitialValue.toString();
+            initialValue = Term.asBytes(keyspaceName, term, stateType);
 
             if (null != initialValue)
             {
@@ -180,7 +183,7 @@ public final class CreateAggregateStatement extends AlterSchemaStatement
 
             // Converts initcond to a CQL literal and parse it back to avoid another CASSANDRA-11064
             String initialValueString = stateType.asCQL3Type().toCQLLiteral(initialValue);
-            if (!Objects.equal(initialValue, stateType.asCQL3Type().fromCQLLiteral(keyspaceName, initialValueString)))
+            if (!Objects.equal(initialValue, stateType.asCQL3Type().fromCQLLiteral(initialValueString)))
                 throw new AssertionError(String.format("CQL literal '%s' (from type %s) parsed with a different value", initialValueString, stateType.asCQL3Type()));
 
             if (Constants.NULL_LITERAL != rawInitialValue && isNullOrEmpty(stateType, initialValue))

@@ -20,8 +20,8 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.util.UUID;
 
-import org.apache.cassandra.cql3.Constants;
-import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.terms.Constants;
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.cql3.functions.ArgumentDeserializer;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.MarshalException;

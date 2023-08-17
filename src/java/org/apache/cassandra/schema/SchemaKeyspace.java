@@ -37,6 +37,7 @@ import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.*;
 import org.apache.cassandra.cql3.functions.masking.ColumnMask;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.*;
@@ -1347,7 +1348,16 @@ public final class SchemaKeyspace
 
         FunctionName finalFunc = row.has("final_func") ? new FunctionName(ksName, row.getString("final_func")) : null;
         AbstractType<?> stateType = row.has("state_type") ? CQLTypeParser.parse(ksName, row.getString("state_type"), types) : null;
-        ByteBuffer initcond = row.has("initcond") ? Terms.asBytes(ksName, row.getString("initcond"), stateType) : null;
+        ByteBuffer initcond;
+        if (row.has("initcond"))
+        {
+            String term = row.getString("initcond");
+            initcond = Term.asBytes(ksName, term, stateType);
+        }
+        else
+        {
+            initcond = null;
+        }
 
         return UDAggregate.create(functions, name, argTypes, returnType, stateFunc, finalFunc, stateType, initcond);
     }

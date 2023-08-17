@@ -64,12 +64,6 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
     }
 
     @Override
-    public int getElementCount(List<T> value)
-    {
-        return value.size();
-    }
-
-    @Override
     public <V> void validate(V input, ValueAccessor<V> accessor)
     {
         if (accessor.isEmpty(input))

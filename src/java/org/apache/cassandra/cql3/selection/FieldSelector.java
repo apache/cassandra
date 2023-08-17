@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3.selection;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.List;
 
 import com.google.common.base.Objects;
 
@@ -27,7 +28,6 @@ import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -109,8 +109,8 @@ final class FieldSelector extends Selector
         ByteBuffer value = selected.getOutput(protocolVersion);
         if (value == null)
             return null;
-        ByteBuffer[] buffers = type.split(ByteBufferAccessor.instance, value);
-        return field < buffers.length ? buffers[field] : null;
+        List<ByteBuffer> buffers = type.unpack(value);
+        return field < buffers.size() ? buffers.get(field) : null;
     }
 
     @Override

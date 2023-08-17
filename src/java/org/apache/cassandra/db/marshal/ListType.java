@@ -25,8 +25,8 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
-import org.apache.cassandra.cql3.Lists;
-import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.terms.MultiElements;
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
@@ -234,7 +234,7 @@ public class ListType<T> extends CollectionType<List<T>>
             terms.add(elements.fromJSONObject(element));
         }
 
-        return new Lists.DelayedValue(terms);
+        return new MultiElements.DelayedValue(this, terms);
     }
 
     public ByteBuffer getSliceFromSerialized(ByteBuffer collection, ByteBuffer from, ByteBuffer to)
@@ -259,5 +259,17 @@ public class ListType<T> extends CollectionType<List<T>>
     public ByteBuffer getMaskedValue()
     {
         return decompose(Collections.emptyList());
+    }
+
+    @Override
+    public List<ByteBuffer> filterSortAndValidateElements(List<ByteBuffer> buffers)
+    {
+        for (ByteBuffer buffer: buffers)
+        {
+            if (buffer == null)
+                throw new MarshalException("null is not supported inside collections");
+            elements.validate(buffer);
+        }
+        return buffers;
     }
 }

@@ -21,6 +21,7 @@ package org.apache.cassandra.serializers;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -78,10 +79,15 @@ public class MapSerializer<K, V> extends AbstractMapSerializer<Map<K, V>>
         return buffers;
     }
 
-    @Override
-    public int getElementCount(Map<K, V> value)
+    public <E> int collectionSize(Collection<E> elements)
     {
-        return value.size();
+        return elements.size() >> 1;
+    }
+
+    @Override
+    protected int numberOfSerializedElements(int collectionSize)
+    {
+        return collectionSize * 2; // keys and values
     }
 
     @Override
@@ -91,9 +97,6 @@ public class MapSerializer<K, V> extends AbstractMapSerializer<Map<K, V>>
             throw new MarshalException("Not enough bytes to read a map");
         try
         {
-            // Empty values are still valid.
-            if (accessor.isEmpty(input)) return;
-
             int n = readCollectionSize(input, accessor);
             int offset = sizeOfCollectionSize();
             for (int i = 0; i < n; i++)

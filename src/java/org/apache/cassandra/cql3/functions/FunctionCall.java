@@ -26,6 +26,10 @@ import java.util.stream.Collectors;
 
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.statements.RequestValidations;
+import org.apache.cassandra.cql3.terms.Constants;
+import org.apache.cassandra.cql3.terms.MultiElements;
+import org.apache.cassandra.cql3.terms.Term;
+import org.apache.cassandra.cql3.terms.Terms;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.MarshalException;
@@ -108,22 +112,9 @@ public class FunctionCall extends Term.NonTerminal
     {
         if (result == null)
             return null;
-        if (fun.returnType().isCollection())
-        {
-            switch (((CollectionType<?>) fun.returnType()).kind)
-            {
-                case LIST:
-                    return Lists.Value.fromSerialized(result, (ListType<?>) fun.returnType());
-                case SET:
-                    return Sets.Value.fromSerialized(result, (SetType<?>) fun.returnType());
-                case MAP:
-                    return Maps.Value.fromSerialized(result, (MapType<?, ?>) fun.returnType());
-            }
-        }
-        else if (fun.returnType().isUDT())
-        {
-            return UserTypes.Value.fromSerialized(result, (UserType) fun.returnType());
-        }
+
+        if (fun.returnType() instanceof MultiElementType<?>)
+            return MultiElements.Value.fromSerialized(result, (MultiElementType<?>) fun.returnType());
 
         return new Constants.Value(result);
     }

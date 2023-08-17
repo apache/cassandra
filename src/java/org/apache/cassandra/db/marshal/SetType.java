@@ -22,8 +22,8 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
-import org.apache.cassandra.cql3.Sets;
-import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.terms.MultiElements;
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
@@ -215,7 +215,7 @@ public class SetType<T> extends CollectionType<Set<T>>
                     "Expected a list (representing a set), but got a %s: %s", parsed.getClass().getSimpleName(), parsed));
 
         List<?> list = (List<?>) parsed;
-        Set<Term> terms = new HashSet<>(list.size());
+        List<Term> terms = new ArrayList<>(list.size());
         for (Object element : list)
         {
             if (element == null)
@@ -223,7 +223,7 @@ public class SetType<T> extends CollectionType<Set<T>>
             terms.add(elements.fromJSONObject(element));
         }
 
-        return new Sets.DelayedValue(elements, terms);
+        return new MultiElements.DelayedValue(this, terms);
     }
 
     @Override
@@ -242,5 +242,19 @@ public class SetType<T> extends CollectionType<Set<T>>
     public ByteBuffer getMaskedValue()
     {
         return decompose(Collections.emptySet());
+    }
+
+    @Override
+    public List<ByteBuffer> filterSortAndValidateElements(List<ByteBuffer> buffers)
+    {
+        SortedSet<ByteBuffer> sorted = new TreeSet<>(elements);
+        for (ByteBuffer buffer: buffers)
+        {
+            if (buffer == null)
+                throw new MarshalException("null is not supported inside collections");
+            elements.validate(buffer);
+            sorted.add(buffer);
+        }
+        return new ArrayList<>(sorted);
     }
 }
