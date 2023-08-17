@@ -20,8 +20,8 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.util.Date;
 
-import org.apache.cassandra.cql3.Constants;
-import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.terms.Constants;
+import org.apache.cassandra.cql3.terms.Term;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

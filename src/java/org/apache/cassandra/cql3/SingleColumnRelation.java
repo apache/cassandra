@@ -17,14 +17,15 @@
  */
 package org.apache.cassandra.cql3;
 
-import java.util.Collections;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 
+import javax.annotation.Nullable;
+
+import org.apache.cassandra.cql3.terms.Constants;
+import org.apache.cassandra.cql3.terms.Term;
+import org.apache.cassandra.cql3.terms.Terms;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.cql3.Term.Raw;
 import org.apache.cassandra.cql3.restrictions.Restriction;
 import org.apache.cassandra.cql3.restrictions.SingleColumnRestriction;
 import org.apache.cassandra.cql3.statements.Bound;
@@ -38,52 +39,68 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
 /**
- * Relations encapsulate the relationship between an entity of some kind, and
- * a value (term). For example, {@code <key> > "start" or "colname1" = "somevalue"}.
- *
+ * A filter on a column values.
  */
 public final class SingleColumnRelation extends Relation
 {
-    private final ColumnIdentifier entity;
+    private final ColumnIdentifier column;
     private final Term.Raw mapKey;
     private final Term.Raw value;
-    private final List<Term.Raw> inValues;
+    private final Terms.Raw inValues;
 
-    private SingleColumnRelation(ColumnIdentifier entity, Term.Raw mapKey, Operator type, Term.Raw value, List<Term.Raw> inValues)
+    private SingleColumnRelation(ColumnIdentifier column,
+                                 @Nullable Term.Raw mapKey,
+                                 Operator operator,
+                                 @Nullable Term.Raw value,
+                                 @Nullable Terms.Raw inValues)
     {
-        this.entity = entity;
+        // If mapKey is not null the Operator should be EQ
+        assert mapKey == null || operator == Operator.EQ;
+
+        this.column = column;
         this.mapKey = mapKey;
-        this.relationType = type;
+        this.operator = operator;
         this.value = value;
         this.inValues = inValues;
 
-        if (type == Operator.IS_NOT)
-            assert value == Constants.NULL_LITERAL;
+        assert operator != Operator.IS_NOT || value == Constants.NULL_LITERAL;
     }
 
     /**
      * Creates a new relation.
      *
-     * @param entity the kind of relation this is; what the term is being compared to.
-     * @param mapKey the key into the entity identifying the value the term is being compared to.
-     * @param type the type that describes how this entity relates to the value.
-     * @param value the value being compared.
+     * @param column the column that need to be filtered
+     * @param mapKey the map key used for filtering map column using key value
+     * @param operator the operator used to perform the filtering
+     * @param value the value to which the column values must be compared
      */
-    public SingleColumnRelation(ColumnIdentifier entity, Term.Raw mapKey, Operator type, Term.Raw value)
+    public SingleColumnRelation(ColumnIdentifier column, Term.Raw mapKey, Operator operator, Term.Raw value)
     {
-        this(entity, mapKey, type, value, null);
+        this(column, mapKey, operator, value, null);
     }
 
     /**
      * Creates a new relation.
      *
-     * @param entity the kind of relation this is; what the term is being compared to.
-     * @param type the type that describes how this entity relates to the value.
-     * @param value the value being compared.
+     * @param column the column that need to be filtered
+     * @param operator the operator used to perform the filtering
+     * @param value the value to which the column values must be compared
      */
-    public SingleColumnRelation(ColumnIdentifier entity, Operator type, Term.Raw value)
+    public SingleColumnRelation(ColumnIdentifier column, Operator operator, Term.Raw value)
     {
-        this(entity, null, type, value);
+        this(column, null, operator, value);
+    }
+
+     /**
+     * Creates a new relation.
+     *
+     * @param column the column that need to be filtered
+     * @param operator the operator used to perform the filtering
+     * @param inValues the IN value being compared.
+     */
+    public SingleColumnRelation(ColumnIdentifier column, Operator operator, Terms.Raw inValues)
+    {
+        this(column, null, operator, null, inValues);
     }
 
     public Term.Raw getValue()
@@ -91,53 +108,19 @@ public final class SingleColumnRelation extends Relation
         return value;
     }
 
-    public List<? extends Term.Raw> getInValues()
+    public Terms.Raw getInValues()
     {
         return inValues;
     }
 
-    public static SingleColumnRelation createInRelation(ColumnIdentifier entity, List<Term.Raw> inValues)
+    public static SingleColumnRelation createInRelation(ColumnIdentifier column, Terms.Raw inValues)
     {
-        return new SingleColumnRelation(entity, null, Operator.IN, null, inValues);
-    }
-
-    public ColumnIdentifier getEntity()
-    {
-        return entity;
-    }
-
-    public Term.Raw getMapKey()
-    {
-        return mapKey;
-    }
-
-    @Override
-    protected Term toTerm(List<? extends ColumnSpecification> receivers,
-                          Raw raw,
-                          String keyspace,
-                          VariableSpecifications boundNames)
-                          throws InvalidRequestException
-    {
-        assert receivers.size() == 1;
-
-        Term term = raw.prepare(keyspace, receivers.get(0));
-        term.collectMarkerSpecification(boundNames);
-        return term;
-    }
-
-    public SingleColumnRelation withNonStrictOperator()
-    {
-        switch (relationType)
-        {
-            case GT: return new SingleColumnRelation(entity, Operator.GTE, value);
-            case LT: return new SingleColumnRelation(entity, Operator.LTE, value);
-            default: return this;
-        }
+        return new SingleColumnRelation(column, null, Operator.IN, null, inValues);
     }
 
     public Relation renameIdentifier(ColumnIdentifier from, ColumnIdentifier to)
     {
-        return entity.equals(from)
+        return column.equals(from)
                ? new SingleColumnRelation(to, mapKey, operator(), value, inValues)
                : this;
     }
@@ -145,20 +128,20 @@ public final class SingleColumnRelation extends Relation
     @Override
     public String toCQLString()
     {
-        String entityAsString = entity.toCQLString();
+        String columnAsString = column.toCQLString();
         if (mapKey != null)
-            entityAsString = String.format("%s[%s]", entityAsString, mapKey);
+            columnAsString = String.format("%s[%s]", columnAsString, mapKey);
 
         if (isIN())
-            return String.format("%s IN %s", entityAsString, Tuples.tupleToString(inValues));
+            return String.format("%s IN %s", columnAsString, inValues);
 
-        return String.format("%s %s %s", entityAsString, relationType, value);
+        return String.format("%s %s %s", columnAsString, operator, value);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(relationType, entity, mapKey, value, inValues);
+        return Objects.hash(operator, column, mapKey, value, inValues);
     }
 
     @Override
@@ -171,45 +154,45 @@ public final class SingleColumnRelation extends Relation
             return false;
 
         SingleColumnRelation scr = (SingleColumnRelation) o;
-        return Objects.equals(entity, scr.entity)
-            && Objects.equals(relationType, scr.relationType)
-            && Objects.equals(mapKey, scr.mapKey)
-            && Objects.equals(value, scr.value)
-            && Objects.equals(inValues, scr.inValues);
+        return Objects.equals(column, scr.column)
+               && operator == scr.operator
+               && Objects.equals(mapKey, scr.mapKey)
+               && Objects.equals(value, scr.value)
+               && Objects.equals(inValues, scr.inValues);
     }
 
     @Override
     protected Restriction newEQRestriction(TableMetadata table, VariableSpecifications boundNames)
     {
-        ColumnMetadata columnDef = table.getExistingColumn(entity);
+        ColumnMetadata column = table.getExistingColumn(this.column);
+        validateReceiver(column);
         if (mapKey == null)
         {
-            Term term = toTerm(toReceivers(columnDef), value, table.keyspace, boundNames);
-            return new SingleColumnRestriction.EQRestriction(columnDef, term);
+            Term term = toTerm(column, value, table.keyspace, boundNames);
+            return new SingleColumnRestriction.EQRestriction(column, term);
         }
-        List<? extends ColumnSpecification> receivers = toReceivers(columnDef);
-        Term entryKey = toTerm(Collections.singletonList(receivers.get(0)), mapKey, table.keyspace, boundNames);
-        Term entryValue = toTerm(Collections.singletonList(receivers.get(1)), value, table.keyspace, boundNames);
-        return new SingleColumnRestriction.ContainsRestriction(columnDef, entryKey, entryValue);
+
+        checkFalse(column.type instanceof ListType, "Indexes on list entries (%s[index] = value) are not supported.", column.name);
+        checkTrue(column.type instanceof MapType, "Column %s cannot be used as a map", column.name);
+        checkTrue(column.type.isMultiCell(), "Map-entry equality predicates on frozen map column %s are not supported", column.name);
+
+        Term entryKey = toTerm(makeCollectionReceiver(column, true), mapKey, table.keyspace, boundNames);
+        Term entryValue = toTerm(makeCollectionReceiver(column, false), value, table.keyspace, boundNames);
+        return new SingleColumnRestriction.ContainsRestriction(column, entryKey, entryValue);
     }
 
     @Override
     protected Restriction newINRestriction(TableMetadata table, VariableSpecifications boundNames)
     {
-        ColumnMetadata columnDef = table.getExistingColumn(entity);
-        List<? extends ColumnSpecification> receivers = toReceivers(columnDef);
-        List<Term> terms = toTerms(receivers, inValues, table.keyspace, boundNames);
-        if (terms == null)
-        {
-            Term term = toTerm(receivers, value, table.keyspace, boundNames);
-            return new SingleColumnRestriction.InRestrictionWithMarker(columnDef, (Lists.Marker) term);
-        }
+        ColumnMetadata column = table.getExistingColumn(this.column);
+        validateReceiver(column);
+        Terms terms = toTerms(column, inValues, table.keyspace, boundNames);
 
-        // An IN restrictions with only one element is the same than an EQ restriction
-        if (terms.size() == 1)
-            return new SingleColumnRestriction.EQRestriction(columnDef, terms.get(0));
+        // An IN restriction with only one element is the same as an EQ restriction
+        if (terms.containsSingleTerm())
+            return new SingleColumnRestriction.EQRestriction(column, terms.asSingleTerm());
 
-        return new SingleColumnRestriction.InRestrictionWithValues(columnDef, terms);
+        return new SingleColumnRestriction.INRestriction(column, terms);
     }
 
     @Override
@@ -218,7 +201,7 @@ public final class SingleColumnRelation extends Relation
                                               Bound bound,
                                               boolean inclusive)
     {
-        ColumnMetadata columnDef = table.getExistingColumn(entity);
+        ColumnMetadata columnDef = table.getExistingColumn(column);
 
         if (columnDef.type.referencesDuration())
         {
@@ -227,8 +210,9 @@ public final class SingleColumnRelation extends Relation
             checkFalse(columnDef.type.isUDT(), "Slice restrictions are not supported on UDTs containing durations");
             throw invalidRequest("Slice restrictions are not supported on duration columns");
         }
+        validateReceiver(columnDef);
 
-        Term term = toTerm(toReceivers(columnDef), value, table.keyspace, boundNames);
+        Term term = toTerm(columnDef, value, table.keyspace, boundNames);
         return new SingleColumnRestriction.SliceRestriction(columnDef, bound, inclusive, term);
     }
 
@@ -237,16 +221,23 @@ public final class SingleColumnRelation extends Relation
                                                  VariableSpecifications boundNames,
                                                  boolean isKey) throws InvalidRequestException
     {
-        ColumnMetadata columnDef = table.getExistingColumn(entity);
-        Term term = toTerm(toReceivers(columnDef), value, table.keyspace, boundNames);
-        return new SingleColumnRestriction.ContainsRestriction(columnDef, term, isKey);
+        ColumnMetadata column = table.getExistingColumn(this.column);
+
+        checkFalse(isContainsKey() && !(column.type instanceof MapType), "Cannot use CONTAINS KEY on non-map column %s", column.name);
+        checkFalse(isContains() && !(column.type.isCollection()), "Cannot use CONTAINS on non-collection column %s", column.name);
+        validateReceiver(column);
+
+        ColumnSpecification receiver = makeCollectionReceiver(column, isKey);
+
+        Term term = toTerm(receiver, value, table.keyspace, boundNames);
+        return new SingleColumnRestriction.ContainsRestriction(column, term, isKey);
     }
 
     @Override
     protected Restriction newIsNotRestriction(TableMetadata table,
                                               VariableSpecifications boundNames) throws InvalidRequestException
     {
-        ColumnMetadata columnDef = table.getExistingColumn(entity);
+        ColumnMetadata columnDef = table.getExistingColumn(column);
         // currently enforced by the grammar
         assert value == Constants.NULL_LITERAL : "Expected null literal for IS NOT relation: " + this.toString();
         return new SingleColumnRestriction.IsNotNullRestriction(columnDef);
@@ -255,65 +246,35 @@ public final class SingleColumnRelation extends Relation
     @Override
     protected Restriction newLikeRestriction(TableMetadata table, VariableSpecifications boundNames, Operator operator)
     {
-        if (mapKey != null)
-            throw invalidRequest("%s can't be used with collections.", operator());
+        ColumnMetadata column = table.getExistingColumn(this.column);
+        validateReceiver(column);
+        Term term = toTerm(column, value, table.keyspace, boundNames);
 
-        ColumnMetadata columnDef = table.getExistingColumn(entity);
-        Term term = toTerm(toReceivers(columnDef), value, table.keyspace, boundNames);
-
-        return new SingleColumnRestriction.LikeRestriction(columnDef, operator, term);
+        return new SingleColumnRestriction.LikeRestriction(column, operator, term);
     }
 
     /**
-     * Returns the receivers for this relation.
-     * @param columnDef the column definition
-     * @return the receivers for the specified relation.
+     * Validate the receiving column for this relation.
+     * @param receiver the column definition
      * @throws InvalidRequestException if the relation is invalid
      */
-    private List<? extends ColumnSpecification> toReceivers(ColumnMetadata columnDef) throws InvalidRequestException
+    private void validateReceiver(ColumnMetadata receiver) throws InvalidRequestException
     {
-        ColumnSpecification receiver = columnDef;
-
-        checkFalse(isContainsKey() && !(receiver.type instanceof MapType), "Cannot use CONTAINS KEY on non-map column %s", receiver.name);
-        checkFalse(isContains() && !(receiver.type.isCollection()), "Cannot use CONTAINS on non-collection column %s", receiver.name);
-
-        if (mapKey != null)
+        if (receiver.type.isMultiCell())
         {
-            checkFalse(receiver.type instanceof ListType, "Indexes on list entries (%s[index] = value) are not currently supported.", receiver.name);
-            checkTrue(receiver.type instanceof MapType, "Column %s cannot be used as a map", receiver.name);
-            checkTrue(receiver.type.isMultiCell(), "Map-entry equality predicates on frozen map column %s are not supported", receiver.name);
-            checkTrue(isEQ(), "Only EQ relations are supported on map entries");
-        }
+            // Non-frozen UDTs don't support any operator
+            checkFalse(receiver.type.isUDT(),
+                       "Non-frozen UDT column '%s' (%s) cannot be restricted by any relation",
+                       receiver.name,
+                       receiver.type.asCQL3Type());
 
-        // Non-frozen UDTs don't support any operator
-        checkFalse(receiver.type.isUDT() && receiver.type.isMultiCell(),
-                   "Non-frozen UDT column '%s' (%s) cannot be restricted by any relation",
-                   receiver.name,
-                   receiver.type.asCQL3Type());
-
-        if (receiver.type.isCollection())
-        {
             // We don't support relations against entire collections (unless they're frozen), like "numbers = {1, 2, 3}"
-            checkFalse(receiver.type.isMultiCell() && !isLegalRelationForNonFrozenCollection(),
+            checkFalse(receiver.type.isCollection() && !isLegalRelationForNonFrozenCollection(),
                        "Collection column '%s' (%s) cannot be restricted by a '%s' relation",
                        receiver.name,
                        receiver.type.asCQL3Type(),
                        operator());
-
-            if (isContainsKey() || isContains())
-            {
-                receiver = makeCollectionReceiver(receiver, isContainsKey());
-            }
-            else if (receiver.type.isMultiCell() && mapKey != null && isEQ())
-            {
-                List<ColumnSpecification> receivers = new ArrayList<>(2);
-                receivers.add(makeCollectionReceiver(receiver, true));
-                receivers.add(makeCollectionReceiver(receiver, false));
-                return receivers;
-            }
         }
-
-        return Collections.singletonList(receiver);
     }
 
     private static ColumnSpecification makeCollectionReceiver(ColumnSpecification receiver, boolean forKey)
@@ -329,10 +290,5 @@ public final class SingleColumnRelation extends Relation
     private boolean isMapEntryEquality()
     {
         return mapKey != null && isEQ();
-    }
-
-    private boolean canHaveOnlyOneValue()
-    {
-        return isEQ() || isLIKE() || (isIN() && inValues != null && inValues.size() == 1);
     }
 }

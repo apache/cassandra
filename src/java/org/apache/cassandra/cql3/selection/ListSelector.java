@@ -25,7 +25,7 @@ import java.util.List;
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.Lists;
+import org.apache.cassandra.cql3.terms.Lists;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.ColumnFilter.Builder;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -33,7 +33,6 @@ import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
@@ -59,7 +58,7 @@ final class ListSelector extends Selector
     /**
      * The list type.
      */
-    private final AbstractType<?> type;
+    private final ListType<?> type;
 
     /**
      * The list elements
@@ -102,7 +101,7 @@ final class ListSelector extends Selector
         {
             buffers.add(elements.get(i).getOutput(protocolVersion));
         }
-        return CollectionSerializer.pack(buffers, buffers.size());
+        return type.pack(buffers);
     }
 
     public void reset()
@@ -136,7 +135,7 @@ final class ListSelector extends Selector
     private ListSelector(AbstractType<?> type, List<Selector> elements)
     {
         super(Kind.LIST_SELECTOR);
-        this.type = type;
+        this.type = (ListType<?>) type;
         this.elements = elements;
     }
 

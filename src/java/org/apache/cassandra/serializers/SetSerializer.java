@@ -68,21 +68,12 @@ public class SetSerializer<T> extends AbstractMapSerializer<Set<T>>
     }
 
     @Override
-    public int getElementCount(Set<T> value)
-    {
-        return value.size();
-    }
-
-    @Override
     public <V> void validate(V input, ValueAccessor<V> accessor)
     {
         if (accessor.isEmpty(input))
             throw new MarshalException("Not enough bytes to read a set");
         try
         {
-            // Empty values are still valid.
-            if (accessor.isEmpty(input)) return;
-            
             int n = readCollectionSize(input, accessor);
             int offset = sizeOfCollectionSize();
             for (int i = 0; i < n; i++)

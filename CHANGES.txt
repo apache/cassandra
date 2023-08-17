@@ -1,4 +1,5 @@
 5.1
+ * Simplify the bind marker and Term logic (CASSANDRA-18813)
  * Limit cassandra startup to supported JDKs, allow higher JDKs by setting CASSANDRA_JDK_UNSUPPORTED (CASSANDRA-18688)
  * Standardize nodetool tablestats formatting of data units (CASSANDRA-19104)
  * Make nodetool tablestats use number of significant digits for time and average values consistently (CASSANDRA-19015)

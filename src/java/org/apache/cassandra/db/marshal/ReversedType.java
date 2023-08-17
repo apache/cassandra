@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.cql3.functions.ArgumentDeserializer;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.serializers.MarshalException;
@@ -231,5 +231,11 @@ public class ReversedType<T> extends AbstractType<T>
     public ByteBuffer getMaskedValue()
     {
         return baseType.getMaskedValue();
+    }
+
+    @Override
+    public AbstractType<T> unwrap()
+    {
+        return baseType.unwrap();
     }
 }

@@ -17,9 +17,8 @@
  */
 package org.apache.cassandra.cql3;
 
-import java.util.ArrayList;
-import java.util.List;
-
+import org.apache.cassandra.cql3.terms.Term;
+import org.apache.cassandra.cql3.terms.Terms;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.cql3.restrictions.Restriction;
 import org.apache.cassandra.cql3.statements.Bound;
@@ -29,11 +28,11 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.invalidReq
 
 public abstract class Relation
 {
-    protected Operator relationType;
+    protected Operator operator;
 
     public Operator operator()
     {
-        return relationType;
+        return operator;
     }
 
     /**
@@ -44,17 +43,7 @@ public abstract class Relation
     /**
      * Returns the list of raw IN values for this relation, or null if this is not an IN relation.
      */
-    public abstract List<? extends Term.Raw> getInValues();
-
-    /**
-     * Checks if this relation apply to multiple columns.
-     *
-     * @return <code>true</code> if this relation apply to multiple columns, <code>false</code> otherwise.
-     */
-    public boolean isMultiColumn()
-    {
-        return false;
-    }
+    public abstract Terms.Raw getInValues();
 
     /**
      * Checks if this relation is a token relation (e.g. <pre>token(a) = token(1)</pre>).
@@ -73,7 +62,7 @@ public abstract class Relation
      */
     public final boolean isContains()
     {
-        return relationType == Operator.CONTAINS;
+        return operator == Operator.CONTAINS;
     }
 
     /**
@@ -83,7 +72,7 @@ public abstract class Relation
      */
     public final boolean isContainsKey()
     {
-        return relationType == Operator.CONTAINS_KEY;
+        return operator == Operator.CONTAINS_KEY;
     }
 
     /**
@@ -93,7 +82,7 @@ public abstract class Relation
      */
     public final boolean isIN()
     {
-        return relationType == Operator.IN;
+        return operator == Operator.IN;
     }
 
     /**
@@ -103,16 +92,16 @@ public abstract class Relation
      */
     public final boolean isEQ()
     {
-        return relationType == Operator.EQ;
+        return operator == Operator.EQ;
     }
 
     public final boolean isLIKE()
     {
-        return relationType == Operator.LIKE_PREFIX
-                || relationType == Operator.LIKE_SUFFIX
-                || relationType == Operator.LIKE_CONTAINS
-                || relationType == Operator.LIKE_MATCHES
-                || relationType == Operator.LIKE;
+        return operator == Operator.LIKE_PREFIX
+               || operator == Operator.LIKE_SUFFIX
+               || operator == Operator.LIKE_CONTAINS
+               || operator == Operator.LIKE_MATCHES
+               || operator == Operator.LIKE;
     }
 
     /**
@@ -122,10 +111,10 @@ public abstract class Relation
      */
     public final boolean isSlice()
     {
-        return relationType == Operator.GT
-                || relationType == Operator.GTE
-                || relationType == Operator.LTE
-                || relationType == Operator.LT;
+        return operator == Operator.GT
+               || operator == Operator.GTE
+               || operator == Operator.LTE
+               || operator == Operator.LT;
     }
 
     /**
@@ -138,7 +127,7 @@ public abstract class Relation
      */
     public final Restriction toRestriction(TableMetadata table, VariableSpecifications boundNames)
     {
-        switch (relationType)
+        switch (operator)
         {
             case EQ: return newEQRestriction(table, boundNames);
             case LT: return newSliceRestriction(table, boundNames, Bound.END, false);
@@ -154,7 +143,7 @@ public abstract class Relation
             case LIKE_CONTAINS:
             case LIKE_MATCHES:
             case LIKE:
-                return newLikeRestriction(table, boundNames, relationType);
+                return newLikeRestriction(table, boundNames, operator);
             case ANN:
                 throw invalidRequest("ANN is only supported in ORDER BY");
             default: throw invalidRequest("Unsupported \"!=\" relation: %s", this);
@@ -213,7 +202,7 @@ public abstract class Relation
 
     /**
      * Converts the specified <code>Raw</code> into a <code>Term</code>.
-     * @param receivers the columns to which the values must be associated at
+     * @param receiver the column to which the values must be associated at
      * @param raw the raw term to convert
      * @param keyspace the keyspace name
      * @param boundNames the variables specification where to collect the bind variables
@@ -221,14 +210,19 @@ public abstract class Relation
      * @return the <code>Term</code> corresponding to the specified <code>Raw</code>
      * @throws InvalidRequestException if the <code>Raw</code> term is not valid
      */
-    protected abstract Term toTerm(List<? extends ColumnSpecification> receivers,
-                                   Term.Raw raw,
-                                   String keyspace,
-                                   VariableSpecifications boundNames);
+    protected final Term toTerm(ColumnSpecification receiver,
+                                Term.Raw raw,
+                                String keyspace,
+                                VariableSpecifications boundNames)
+    {
+        Term term = raw.prepare(keyspace, receiver);
+        term.collectMarkerSpecification(boundNames);
+        return term;
+    }
 
     /**
-     * Converts the specified <code>Raw</code> terms into a <code>Term</code>s.
-     * @param receivers the columns to which the values must be associated at
+     * Converts the specified <code>Raw</code> terms into a <code>Terms</code>.
+     * @param receiver the column to which the values must be associated at
      * @param raws the raw terms to convert
      * @param keyspace the keyspace name
      * @param boundNames the variables specification where to collect the bind variables
@@ -236,18 +230,13 @@ public abstract class Relation
      * @return the <code>Term</code>s corresponding to the specified <code>Raw</code> terms
      * @throws InvalidRequestException if the <code>Raw</code> terms are not valid
      */
-    protected final List<Term> toTerms(List<? extends ColumnSpecification> receivers,
-                                       List<? extends Term.Raw> raws,
-                                       String keyspace,
-                                       VariableSpecifications boundNames)
+    protected final Terms toTerms(ColumnSpecification receiver,
+                                  Terms.Raw raws,
+                                  String keyspace,
+                                  VariableSpecifications boundNames)
     {
-        if (raws == null)
-            return null;
-
-        List<Term> terms = new ArrayList<>(raws.size());
-        for (int i = 0, m = raws.size(); i < m; i++)
-            terms.add(toTerm(receivers, raws.get(i), keyspace, boundNames));
-
+        Terms terms = raws.prepare(keyspace, receiver);
+        terms.collectMarkerSpecification(boundNames);
         return terms;
     }
 

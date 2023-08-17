@@ -31,7 +31,7 @@ import java.util.Objects;
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnSpecification;
-import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.cql3.functions.ArgumentDeserializer;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.exceptions.SyntaxException;
@@ -305,7 +305,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
 
     public AbstractType<T> unwrap()
     {
-        return isReversed() ? ((ReversedType<T>) this).baseType.unwrap() : this;
+        return this;
     }
 
     public static AbstractType<?> parseDefaultParameters(AbstractType<?> baseType, TypeParser parser) throws SyntaxException

@@ -23,7 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.regex.Pattern;
 
-import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;

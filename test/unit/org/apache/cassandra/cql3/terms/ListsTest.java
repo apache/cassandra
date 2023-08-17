@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.cql3;
+package org.apache.cassandra.cql3.terms;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -28,9 +28,13 @@ import com.google.common.collect.Iterators;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.cql3.Lists.PrecisionTime;
+import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.UpdateParameters;
+import org.apache.cassandra.cql3.terms.Lists.PrecisionTime;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.marshal.MultiElementType;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -137,7 +141,7 @@ public class ListsTest extends CQLTester
         TableMetadata metaData = currentTableMetadata();
 
         ColumnMetadata columnMetadata = metaData.getColumn(ByteBufferUtil.bytes("l"));
-        Term term = new Lists.Value(terms);
+        Term term = new MultiElements.Value((MultiElementType<?>) columnMetadata.type, terms);
         Lists.Prepender prepender = new Lists.Prepender(columnMetadata, term);
 
         ByteBuffer keyBuf = ByteBufferUtil.bytes("key");

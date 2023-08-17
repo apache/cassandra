@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3;
 
 import org.apache.cassandra.cql3.restrictions.SingleColumnRestriction;
 import org.apache.cassandra.cql3.restrictions.SingleRestriction;
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 

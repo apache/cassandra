@@ -51,7 +51,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
         createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b, c, d))");
 
         assertInvalidSyntax("SELECT * FROM %s WHERE a = 0 AND (b, c) > ()");
-        assertInvalidMessage("Expected 2 elements in value tuple, but got 3: (?, ?, ?)",
+        assertInvalidMessage("Expected 2 elements in value for tuple (b,c), but got 3: (?, ?, ?)",
                              "SELECT * FROM %s WHERE a = 0 AND (b, c) > (?, ?, ?)", 1, 2, 3);
         assertInvalidMessage("Invalid null value in condition for column c",
                              "SELECT * FROM %s WHERE a = 0 AND (b, c) > (?, ?)", 1, null);
@@ -63,9 +63,9 @@ public class SelectMultiColumnRelationTest extends CQLTester
                              "SELECT * FROM %s WHERE a = 0 AND (d, c, b) > (?, ?, ?)", 0, 0, 0);
 
         // Wrong number of values
-        assertInvalidMessage("Expected 3 elements in value tuple, but got 2: (?, ?)",
+        assertInvalidMessage("Expected 3 elements in value for tuple (b,c,d), but got 2: (?, ?)",
                              "SELECT * FROM %s WHERE a=0 AND (b, c, d) IN ((?, ?))", 0, 1);
-        assertInvalidMessage("Expected 3 elements in value tuple, but got 5: (?, ?, ?, ?, ?)",
+        assertInvalidMessage("Expected 3 elements in value for tuple (b,c,d), but got 5: (?, ?, ?, ?, ?)",
                              "SELECT * FROM %s WHERE a=0 AND (b, c, d) IN ((?, ?, ?, ?, ?))", 0, 1, 2, 3, 4);
 
         // Missing first clustering column
@@ -1017,7 +1017,7 @@ public class SelectMultiColumnRelationTest extends CQLTester
                              "SELECT * from %s WHERE i = ? AND (j) > ? ALLOW FILTERING", 1, unset());
         assertInvalidMessage("Invalid unset value for tuple (i,j)",
                              "SELECT * from %s WHERE (i, j) IN (?, ?) ALLOW FILTERING", unset(), tuple(1, 1));
-        assertInvalidMessage("Invalid unset value for in(i,j)",
+        assertInvalidMessage("Invalid unset value for in(i, j)",
                              "SELECT * from %s WHERE (i, j) IN ? ALLOW FILTERING", unset());
     }
 

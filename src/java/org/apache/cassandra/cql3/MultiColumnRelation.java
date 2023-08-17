@@ -22,10 +22,11 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import org.apache.cassandra.cql3.terms.Term;
+import org.apache.cassandra.cql3.terms.Terms;
+import org.apache.cassandra.cql3.terms.Tuples;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.cql3.Term.MultiColumnRaw;
-import org.apache.cassandra.cql3.Term.Raw;
 import org.apache.cassandra.cql3.restrictions.MultiColumnRestriction;
 import org.apache.cassandra.cql3.restrictions.Restriction;
 import org.apache.cassandra.cql3.statements.Bound;
@@ -49,22 +50,19 @@ public class MultiColumnRelation extends Relation
 {
     private final List<ColumnIdentifier> entities;
 
-    /** A Tuples.Literal or Tuples.Raw marker */
-    private final Term.MultiColumnRaw valuesOrMarker;
+    /** A literal or raw marker */
+    private final Term.Raw value;
 
-    /** A list of Tuples.Literal or Tuples.Raw markers */
-    private final List<? extends Term.MultiColumnRaw> inValues;
+    /** A list of literals and/or raw markers or an IN raw marker */
+    private final Terms.Raw inValues;
 
-    private final Tuples.INRaw inMarker;
-
-    private MultiColumnRelation(List<ColumnIdentifier> entities, Operator relationType, Term.MultiColumnRaw valuesOrMarker, List<? extends Term.MultiColumnRaw> inValues, Tuples.INRaw inMarker)
+    private MultiColumnRelation(List<ColumnIdentifier> entities, Operator relationType, Term.Raw value, Terms.Raw inValues)
     {
         this.entities = entities;
-        this.relationType = relationType;
-        this.valuesOrMarker = valuesOrMarker;
+        this.operator = relationType;
+        this.value = value;
 
         this.inValues = inValues;
-        this.inMarker = inMarker;
     }
 
     /**
@@ -74,37 +72,25 @@ public class MultiColumnRelation extends Relation
      * }
      * @param entities the columns on the LHS of the relation
      * @param relationType the relation operator
-     * @param valuesOrMarker a Tuples.Literal instance or a Tuples.Raw marker
+     * @param value a literal or raw marker
      * @return a new <code>MultiColumnRelation</code> instance
      */
-    public static MultiColumnRelation createNonInRelation(List<ColumnIdentifier> entities, Operator relationType, Term.MultiColumnRaw valuesOrMarker)
+    public static MultiColumnRelation createNonInRelation(List<ColumnIdentifier> entities, Operator relationType, Term.Raw value)
     {
         assert relationType != Operator.IN;
-        return new MultiColumnRelation(entities, relationType, valuesOrMarker, null, null);
+        return new MultiColumnRelation(entities, relationType, value, null);
     }
 
     /**
-     * Creates a multi-column IN relation with a list of IN values or markers.
+     * Creates a multi-column IN relation with either a marker for the IN values or a list of IN values or markers.
      * For example: "SELECT ... WHERE (a, b) IN ((0, 1), (2, 3))"
      * @param entities the columns on the LHS of the relation
-     * @param inValues a list of Tuples.Literal instances or a Tuples.Raw markers
+     * @param inValues the IN values as a {@code Terms.Raw}
      * @return a new <code>MultiColumnRelation</code> instance
      */
-    public static MultiColumnRelation createInRelation(List<ColumnIdentifier> entities, List<? extends Term.MultiColumnRaw> inValues)
+    public static MultiColumnRelation createInRelation(List<ColumnIdentifier> entities, Terms.Raw inValues)
     {
-        return new MultiColumnRelation(entities, Operator.IN, null, inValues, null);
-    }
-
-    /**
-     * Creates a multi-column IN relation with a marker for the IN values.
-     * For example: "SELECT ... WHERE (a, b) IN ?"
-     * @param entities the columns on the LHS of the relation
-     * @param inMarker a single IN marker
-     * @return a new <code>MultiColumnRelation</code> instance
-     */
-    public static MultiColumnRelation createSingleMarkerInRelation(List<ColumnIdentifier> entities, Tuples.INRaw inMarker)
-    {
-        return new MultiColumnRelation(entities, Operator.IN, null, null, inMarker);
+        return new MultiColumnRelation(entities, Operator.IN, null, inValues);
     }
 
     public List<ColumnIdentifier> getEntities()
@@ -113,31 +99,25 @@ public class MultiColumnRelation extends Relation
     }
 
     /**
-     * For non-IN relations, returns the Tuples.Literal or Tuples.Raw marker for a single tuple.
-     * @return a Tuples.Literal for non-IN relations or Tuples.Raw marker for a single tuple.
+     * For non-IN relations, returns a literal or a raw marker for a single tuple.
+     * @return a literal or a raw marker for non-IN relations.
      */
-    public Term.MultiColumnRaw getValue()
+    public Term.Raw getValue()
     {
-        return relationType == Operator.IN ? inMarker : valuesOrMarker;
+        return value;
     }
 
-    public List<? extends Term.Raw> getInValues()
+    public Terms.Raw getInValues()
     {
-        assert relationType == Operator.IN;
+        assert operator == Operator.IN;
         return inValues;
-    }
-
-    @Override
-    public boolean isMultiColumn()
-    {
-        return true;
     }
 
     @Override
     protected Restriction newEQRestriction(TableMetadata table, VariableSpecifications boundNames)
     {
         List<ColumnMetadata> receivers = receivers(table);
-        Term term = toTerm(receivers, getValue(), table.keyspace, boundNames);
+        Term term = toTerm(Tuples.makeReceiver(receivers), getValue(), table.keyspace, boundNames);
         return new MultiColumnRestriction.EQRestriction(receivers, term);
     }
 
@@ -145,24 +125,19 @@ public class MultiColumnRelation extends Relation
     protected Restriction newINRestriction(TableMetadata table, VariableSpecifications boundNames)
     {
         List<ColumnMetadata> receivers = receivers(table);
-        List<Term> terms = toTerms(receivers, inValues, table.keyspace, boundNames);
-        if (terms == null)
-        {
-            Term term = toTerm(receivers, getValue(), table.keyspace, boundNames);
-            return new MultiColumnRestriction.InRestrictionWithMarker(receivers, (AbstractMarker) term);
-        }
+        Terms terms = toTerms(Tuples.makeReceiver(receivers), inValues, table.keyspace, boundNames);
 
-        if (terms.size() == 1)
-            return new MultiColumnRestriction.EQRestriction(receivers, terms.get(0));
+        if (terms.containsSingleTerm())
+            return new MultiColumnRestriction.EQRestriction(receivers, terms.asSingleTerm());
 
-        return new MultiColumnRestriction.InRestrictionWithValues(receivers, terms);
+        return new MultiColumnRestriction.INRestriction(receivers, terms);
     }
 
     @Override
     protected Restriction newSliceRestriction(TableMetadata table, VariableSpecifications boundNames, Bound bound, boolean inclusive)
     {
         List<ColumnMetadata> receivers = receivers(table);
-        Term term = toTerm(receivers(table), getValue(), table.keyspace, boundNames);
+        Term term = toTerm(Tuples.makeReceiver(receivers), getValue(), table.keyspace, boundNames);
         return new MultiColumnRestriction.SliceRestriction(receivers, bound, inclusive, term);
     }
 
@@ -183,17 +158,6 @@ public class MultiColumnRelation extends Relation
     protected Restriction newLikeRestriction(TableMetadata table, VariableSpecifications boundNames, Operator operator)
     {
         throw invalidRequest("%s cannot be used for multi-column relations", operator());
-    }
-
-    @Override
-    protected Term toTerm(List<? extends ColumnSpecification> receivers,
-                          Raw raw,
-                          String keyspace,
-                          VariableSpecifications boundNames) throws InvalidRequestException
-    {
-        Term term = ((MultiColumnRaw) raw).prepare(keyspace, receivers);
-        term.collectMarkerSpecification(boundNames);
-        return term;
     }
 
     protected List<ColumnMetadata> receivers(TableMetadata table) throws InvalidRequestException
@@ -223,7 +187,7 @@ public class MultiColumnRelation extends Relation
             return this;
 
         List<ColumnIdentifier> newEntities = entities.stream().map(e -> e.equals(from) ? to : e).collect(Collectors.toList());
-        return new MultiColumnRelation(newEntities, operator(), valuesOrMarker, inValues, inMarker);
+        return new MultiColumnRelation(newEntities, operator(), value, inValues);
     }
 
     @Override
@@ -233,20 +197,20 @@ public class MultiColumnRelation extends Relation
         if (isIN())
         {
             return builder.append(" IN ")
-                          .append(inMarker != null ? '?' : Tuples.tupleToString(inValues))
+                          .append(inValues.getText())
                           .toString();
         }
-        return builder.append(" ")
-                      .append(relationType)
-                      .append(" ")
-                      .append(valuesOrMarker)
+        return builder.append(' ')
+                      .append(operator)
+                      .append(' ')
+                      .append(value)
                       .toString();
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(relationType, entities, valuesOrMarker, inValues, inMarker);
+        return Objects.hash(operator, entities, value, inValues);
     }
 
     @Override
@@ -260,9 +224,8 @@ public class MultiColumnRelation extends Relation
 
         MultiColumnRelation mcr = (MultiColumnRelation) o;
         return Objects.equals(entities, mcr.entities)
-            && Objects.equals(relationType, mcr.relationType)
-            && Objects.equals(valuesOrMarker, mcr.valuesOrMarker)
-            && Objects.equals(inValues, mcr.inValues)
-            && Objects.equals(inMarker, mcr.inMarker);
+               && operator == mcr.operator
+               && Objects.equals(value, mcr.value)
+               && Objects.equals(inValues, mcr.inValues);
     }
 }

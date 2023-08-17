@@ -20,7 +20,7 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.cql3.functions.ArgumentDeserializer;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.serializers.CounterSerializer;

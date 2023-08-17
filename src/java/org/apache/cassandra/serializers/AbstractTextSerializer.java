@@ -53,7 +53,8 @@ public abstract class AbstractTextSerializer extends TypeSerializer<String>
     }
 
 
-        public String toString(String value)
+    @Override
+    public String toString(String value)
     {
         return value;
     }

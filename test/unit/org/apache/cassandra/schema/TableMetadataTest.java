@@ -53,14 +53,15 @@ public class TableMetadataTest
                      metadata1.partitionKeyAsCQLLiteral(type1.decompose("test:", "composite!", "type)")));
 
         // composite type with tuple
-        CompositeType type2 = CompositeType.getInstance(new TupleType(Arrays.asList(FloatType.instance, UTF8Type.instance)),
+        TupleType tupleType = new TupleType(Arrays.asList(FloatType.instance, UTF8Type.instance));
+        CompositeType type2 = CompositeType.getInstance(tupleType,
                                                         IntegerType.instance);
         TableMetadata metadata2 = TableMetadata.builder(keyspaceName, tableName)
                                                .addPartitionKeyColumn("key", type2)
                                                .offline()
                                                .build();
-        ByteBuffer tupleValue = TupleType.buildValue(new ByteBuffer[]{ FloatType.instance.decompose(0.33f),
-                                                                       UTF8Type.instance.decompose("tuple test") });
+        ByteBuffer tupleValue = tupleType.pack(FloatType.instance.decompose(0.33f),
+                                               UTF8Type.instance.decompose("tuple test"));
         assertEquals("((0.33, 'tuple test'), 10)",
                      metadata2.partitionKeyAsCQLLiteral(type2.decompose(tupleValue, BigInteger.valueOf(10))));
 

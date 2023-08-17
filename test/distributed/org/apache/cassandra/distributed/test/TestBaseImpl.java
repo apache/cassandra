@@ -22,9 +22,11 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
@@ -120,10 +122,16 @@ public class TestBaseImpl extends DistributedTestBase
 
     public static ByteBuffer tuple(Object... values)
     {
-        ByteBuffer[] bbs = new ByteBuffer[values.length];
-        for (int i = 0; i < values.length; i++)
-            bbs[i] = makeByteBuffer(values[i]);
-        return TupleType.buildValue(bbs);
+        List<AbstractType<?>> types = new ArrayList<>(values.length);
+        List<ByteBuffer> bbs = new ArrayList<>(values.length);
+        for (Object value : values)
+        {
+            AbstractType type = typeFor(value);
+            types.add(type);
+            bbs.add(value == null ? null : type.decompose(value));
+        }
+        TupleType tupleType = new TupleType(types);
+        return tupleType.pack(bbs);
     }
 
     public static String batch(String... queries)

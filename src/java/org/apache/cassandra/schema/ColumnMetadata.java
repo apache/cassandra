@@ -388,6 +388,12 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
         return isMasked();
     }
 
+    @Override
+    public ColumnSpecification specForElementOrSlice(Selectable selected, ColumnSpecification receiver, CollectionType.Kind kind, String selectionType)
+    {
+        return Selectable.super.specForElementOrSlice(selected, receiver, kind, selectionType);
+    }
+
     /**
      * Converts the specified column definitions into column identifiers.
      *

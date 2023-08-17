@@ -24,6 +24,9 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.terms.Constants;
+import org.apache.cassandra.cql3.terms.MultiElements;
+import org.apache.cassandra.cql3.terms.Terms;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
@@ -129,8 +132,9 @@ public class ColumnConditionTest
 
     private static boolean conditionApplies(List<ByteBuffer> rowValue, Operator op, List<ByteBuffer> conditionValue)
     {
-        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", ListType.getInstance(Int32Type.instance, true));
-        ColumnCondition condition = ColumnCondition.condition(definition, op, Terms.of(new Lists.Value(conditionValue)));
+        ListType<Integer> type = ListType.getInstance(Int32Type.instance, true);
+        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", type);
+        ColumnCondition condition = ColumnCondition.condition(definition, op, Terms.of(new MultiElements.Value(type, conditionValue)));
         ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
         return bound.appliesTo(newRow(definition, rowValue));
     }
@@ -153,8 +157,9 @@ public class ColumnConditionTest
 
     private static boolean conditionApplies(SortedSet<ByteBuffer> rowValue, Operator op, SortedSet<ByteBuffer> conditionValue)
     {
-        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", SetType.getInstance(Int32Type.instance, true));
-        ColumnCondition condition = ColumnCondition.condition(definition, op, Terms.of(new Sets.Value(conditionValue)));
+        SetType<Integer> type = SetType.getInstance(Int32Type.instance, true);
+        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", type);
+        ColumnCondition condition = ColumnCondition.condition(definition, op, Terms.of(new MultiElements.Value(type, new ArrayList<>(conditionValue))));
         ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
         return bound.appliesTo(newRow(definition, rowValue));
     }
@@ -169,8 +174,15 @@ public class ColumnConditionTest
 
     private static boolean conditionApplies(SortedMap<ByteBuffer, ByteBuffer> rowValue, Operator op, SortedMap<ByteBuffer, ByteBuffer> conditionValue)
     {
-        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", MapType.getInstance(Int32Type.instance, Int32Type.instance, true));
-        ColumnCondition condition = ColumnCondition.condition(definition, op, Terms.of(new Maps.Value(conditionValue)));
+        MapType<Integer, Integer> type = MapType.getInstance(Int32Type.instance, Int32Type.instance, true);
+        ColumnMetadata definition = ColumnMetadata.regularColumn("ks", "cf", "c", type);
+        List<ByteBuffer> value = new ArrayList<>(conditionValue.size() * 2);
+        for (Map.Entry<ByteBuffer, ByteBuffer> entry: conditionValue.entrySet())
+        {
+            value.add(entry.getKey());
+            value.add(entry.getValue());
+        }
+        ColumnCondition condition = ColumnCondition.condition(definition, op, Terms.of(new MultiElements.Value(type, value)));
         ColumnCondition.Bound bound = condition.bind(QueryOptions.DEFAULT);
         return bound.appliesTo(newRow(definition, rowValue));
     }

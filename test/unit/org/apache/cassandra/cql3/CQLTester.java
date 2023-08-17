@@ -51,7 +51,6 @@ import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import javax.management.MBeanServerConnection;
 import javax.management.remote.JMXConnector;
@@ -112,7 +111,6 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BooleanType;
-import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ByteType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.CollectionType;
@@ -1725,8 +1723,8 @@ public abstract class CQLTester
         // If the user writes a null for each column, then the whole tuple is null
         if (type.isUDT() && actualValue == null)
         {
-            ByteBuffer[] cells = ((TupleType) type).split(ByteBufferAccessor.instance, expectedByteValue);
-            return Stream.of(cells).allMatch(b -> b == null);
+            List<ByteBuffer> cells = ((TupleType) type).unpack(expectedByteValue);
+            return cells.stream().allMatch(java.util.Objects::isNull);
         }
         return false;
     }
@@ -2689,10 +2687,15 @@ public abstract class CQLTester
 
         public ByteBuffer toByteBuffer()
         {
-            ByteBuffer[] bbs = new ByteBuffer[values.length];
-            for (int i = 0; i < values.length; i++)
-                bbs[i] = makeByteBuffer(values[i], typeFor(values[i]));
-            return TupleType.buildValue(bbs);
+            List<AbstractType<?>> types = new ArrayList<>(values.length);
+            List<ByteBuffer> bbs = new ArrayList<>(values.length);
+            for (Object value : values)
+            {
+                AbstractType<?> type = typeFor(value);
+                types.add(type);
+                bbs.add(makeByteBuffer(value, type));
+            }
+            return new TupleType(types).pack(bbs);
         }
 
         public String toCQLString()

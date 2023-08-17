@@ -15,61 +15,53 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.cql3;
+package org.apache.cassandra.cql3.terms;
 
-import static org.apache.cassandra.cql3.Constants.UNSET_VALUE;
+import static org.apache.cassandra.cql3.terms.Constants.UNSET_VALUE;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.cql3.AssignmentTestable;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.Operation;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.UpdateParameters;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.MapType;
-import org.apache.cassandra.db.marshal.ReversedType;
+import org.apache.cassandra.db.marshal.MultiElementType;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.serializers.CollectionSerializer;
-import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * Static helper methods and classes for sets.
  */
-public abstract class Sets
+public final class Sets
 {
     private Sets() {}
 
     public static ColumnSpecification valueSpecOf(ColumnSpecification column)
     {
-        return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("value(" + column.name + ")", true), elementsType(column.type));
-    }
-
-    private static AbstractType<?> unwrap(AbstractType<?> type)
-    {
-        return type.isReversed() ? unwrap(((ReversedType<?>) type).baseType) : type;
+        return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("value(" + column.name + ')', true), elementsType(column.type));
     }
 
     private static AbstractType<?> elementsType(AbstractType<?> type)
     {
-        return ((SetType<?>) unwrap(type)).getElementsType();
+        return ((SetType<?>) type.unwrap()).getElementsType();
     }
 
     /**
@@ -162,10 +154,10 @@ public abstract class Sets
             // We've parsed empty maps as a set literal to break the ambiguity so
             // handle that case now
             if (receiver.type instanceof MapType && elements.isEmpty())
-                return new Maps.Value(Collections.emptySortedMap());
+                return new MultiElements.Value(((MapType<?, ?>) receiver.type), Collections.emptyList());
 
             ColumnSpecification valueSpec = Sets.valueSpecOf(receiver);
-            Set<Term> values = new HashSet<>(elements.size());
+            List<Term> values = new ArrayList<>(elements.size());
             boolean allTerminal = true;
             for (Term.Raw rt : elements)
             {
@@ -179,13 +171,13 @@ public abstract class Sets
 
                 values.add(t);
             }
-            DelayedValue value = new DelayedValue(elementsType(receiver.type), values);
+            MultiElements.DelayedValue value = new MultiElements.DelayedValue((MultiElementType<?>) receiver.type.unwrap(), values);
             return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
         }
 
         private void validateAssignableTo(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            AbstractType<?> type = unwrap(receiver.type);
+            AbstractType<?> type = receiver.type.unwrap();
 
             if (!(type instanceof SetType))
             {
@@ -228,118 +220,6 @@ public abstract class Sets
         }
     }
 
-    public static class Value extends Term.Terminal
-    {
-        public final SortedSet<ByteBuffer> elements;
-
-        public Value(SortedSet<ByteBuffer> elements)
-        {
-            this.elements = elements;
-        }
-
-        public static <T> Value fromSerialized(ByteBuffer value, SetType<T> type) throws InvalidRequestException
-        {
-            try
-            {
-                // Collections have this small hack that validate cannot be called on a serialized object,
-                // but compose does the validation (so we're fine).
-                Set<T> s = type.getSerializer().deserialize(value, ByteBufferAccessor.instance);
-                SortedSet<ByteBuffer> elements = new TreeSet<>(type.getElementsType());
-                for (T element : s)
-                    elements.add(type.getElementsType().decomposeUntyped(element));
-                return new Value(elements);
-            }
-            catch (MarshalException e)
-            {
-                throw new InvalidRequestException(e.getMessage());
-            }
-        }
-
-        public ByteBuffer get(ProtocolVersion version)
-        {
-            return CollectionSerializer.pack(elements, elements.size());
-        }
-
-        public boolean equals(SetType<?> st, Value v)
-        {
-            if (elements.size() != v.elements.size())
-                return false;
-
-            Iterator<ByteBuffer> thisIter = elements.iterator();
-            Iterator<ByteBuffer> thatIter = v.elements.iterator();
-            AbstractType<?> elementsType = st.getElementsType();
-            while (thisIter.hasNext())
-                if (elementsType.compare(thisIter.next(), thatIter.next()) != 0)
-                    return false;
-
-            return true;
-        }
-    }
-
-    // See Lists.DelayedValue
-    public static class DelayedValue extends Term.NonTerminal
-    {
-        private final Comparator<ByteBuffer> comparator;
-        private final Set<Term> elements;
-
-        public DelayedValue(Comparator<ByteBuffer> comparator, Set<Term> elements)
-        {
-            this.comparator = comparator;
-            this.elements = elements;
-        }
-
-        public boolean containsBindMarker()
-        {
-            // False since we don't support them in collection
-            return false;
-        }
-
-        public void collectMarkerSpecification(VariableSpecifications boundNames)
-        {
-        }
-
-        public Terminal bind(QueryOptions options) throws InvalidRequestException
-        {
-            SortedSet<ByteBuffer> buffers = new TreeSet<>(comparator);
-            for (Term t : elements)
-            {
-                ByteBuffer bytes = t.bindAndGet(options);
-
-                if (bytes == null)
-                    throw new InvalidRequestException("null is not supported inside collections");
-                if (bytes == ByteBufferUtil.UNSET_BYTE_BUFFER)
-                    return UNSET_VALUE;
-
-                buffers.add(bytes);
-            }
-            return new Value(buffers);
-        }
-
-        public void addFunctionsTo(List<Function> functions)
-        {
-            Terms.addFunctions(elements, functions);
-        }
-    }
-
-    public static class Marker extends AbstractMarker
-    {
-        protected Marker(int bindIndex, ColumnSpecification receiver)
-        {
-            super(bindIndex, receiver);
-            assert receiver.type instanceof SetType;
-        }
-
-        public Terminal bind(QueryOptions options) throws InvalidRequestException
-        {
-            ByteBuffer value = options.getValues().get(bindIndex);
-            if (value == null)
-                return null;
-            if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
-                return UNSET_VALUE;
-            return Value.fromSerialized(value, (SetType<?>) receiver.type);
-        }
-    }
-
     public static class Setter extends Operation
     {
         public Setter(ColumnMetadata column, Term t)
@@ -377,26 +257,28 @@ public abstract class Sets
 
         static void doAdd(Term.Terminal value, ColumnMetadata column, UpdateParameters params) throws InvalidRequestException
         {
+            SetType<?> type = (SetType<?>) column.type;
+
             if (value == null)
             {
                 // for frozen sets, we're overwriting the whole cell
-                if (!column.type.isMultiCell())
+                if (!type.isMultiCell())
                     params.addTombstone(column);
 
                 return;
             }
 
-            SortedSet<ByteBuffer> elements = ((Value) value).elements;
+            List<ByteBuffer> elements = value.getElements();
 
-            if (column.type.isMultiCell())
+            if (type.isMultiCell())
             {
-                if (elements.size() == 0)
+                if (elements.isEmpty())
                     return;
 
                 // Guardrails about collection size are only checked for the added elements without considering
                 // already existent elements. This is done so to avoid read-before-write, having additional checks
                 // during SSTable write.
-                Guardrails.itemsPerCollection.guard(elements.size(), column.name.toString(), false, params.clientState);
+                Guardrails.itemsPerCollection.guard(type.collectionSize(elements), column.name.toString(), false, params.clientState);
 
                 int dataSize = 0;
                 for (ByteBuffer bb : elements)
@@ -411,8 +293,8 @@ public abstract class Sets
             }
             else
             {
-                Guardrails.itemsPerCollection.guard(elements.size(), column.name.toString(), false, params.clientState);
-                Cell<?> cell = params.addCell(column, value.get(ProtocolVersion.CURRENT));
+                Guardrails.itemsPerCollection.guard(type.collectionSize(elements), column.name.toString(), false, params.clientState);
+                Cell<?> cell = params.addCell(column, value.get());
                 Guardrails.collectionSize.guard(cell.dataSize(), column.name.toString(), false, params.clientState);
             }
         }
@@ -435,9 +317,7 @@ public abstract class Sets
                 return;
 
             // This can be either a set or a single element
-            Set<ByteBuffer> toDiscard = value instanceof Sets.Value
-                                      ? ((Sets.Value)value).elements
-                                      : Collections.singleton(value.get(params.options.getProtocolVersion()));
+            List<ByteBuffer> toDiscard = value.getElements();
 
             for (ByteBuffer bb : toDiscard)
                 params.addTombstone(column, CellPath.create(bb));
@@ -458,7 +338,7 @@ public abstract class Sets
             if (elt == null)
                 throw new InvalidRequestException("Invalid null set element");
 
-            params.addTombstone(column, CellPath.create(elt.get(params.options.getProtocolVersion())));
+            params.addTombstone(column, CellPath.create(elt.get()));
         }
     }
 }

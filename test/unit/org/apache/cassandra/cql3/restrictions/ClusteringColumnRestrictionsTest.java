@@ -24,11 +24,15 @@ import com.google.common.collect.Iterables;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.cql3.terms.Constants;
+import org.apache.cassandra.cql3.terms.MultiElements;
+import org.apache.cassandra.cql3.terms.Term;
+import org.apache.cassandra.cql3.terms.Terms;
+import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.cql3.Term.MultiItemTerminal;
 import org.apache.cassandra.cql3.statements.Bound;
 
 import org.apache.cassandra.db.*;
@@ -1685,12 +1689,16 @@ public class ClusteringColumnRestrictionsTest
      */
     private static Restriction newMultiEq(TableMetadata tableMetadata, int firstIndex, ByteBuffer... values)
     {
-        List<ColumnMetadata> columnMetadatas = new ArrayList<>();
+        List<ColumnMetadata> columns = new ArrayList<>();
+        List<AbstractType<?>> types = new ArrayList<>();
         for (int i = 0; i < values.length; i++)
         {
-            columnMetadatas.add(getClusteringColumnDefinition(tableMetadata, firstIndex + i));
+            ColumnMetadata column = getClusteringColumnDefinition(tableMetadata, firstIndex + i);
+            columns.add(column);
+            types.add(column.type);
         }
-        return new MultiColumnRestriction.EQRestriction(columnMetadatas, toMultiItemTerminal(values));
+        TupleType tupleType = new TupleType(types);
+        return new MultiColumnRestriction.EQRestriction(columns, new MultiElements.Value(tupleType, Arrays.asList(values)));
     }
 
     /**
@@ -1704,14 +1712,24 @@ public class ClusteringColumnRestrictionsTest
     @SafeVarargs
     private static Restriction newMultiIN(TableMetadata tableMetadata, int firstIndex, List<ByteBuffer>... values)
     {
-        List<ColumnMetadata> columnMetadatas = new ArrayList<>();
-        List<Term> terms = new ArrayList<>();
+        List<ColumnMetadata> columns = new ArrayList<>();
+        List<AbstractType<?>> types = new ArrayList<>();
+
+        for (int i = 0; i < values[0].size(); i++)
+        {
+            ColumnMetadata column = getClusteringColumnDefinition(tableMetadata, firstIndex + i);
+            columns.add(column);
+            types.add(column.type);
+        }
+
+        TupleType tupleType = new TupleType(types);
+
+        List<Term> terms = new ArrayList<>(values.length);
         for (int i = 0; i < values.length; i++)
         {
-            columnMetadatas.add(getClusteringColumnDefinition(tableMetadata, firstIndex + i));
-            terms.add(toMultiItemTerminal(values[i].toArray(new ByteBuffer[0])));
+            terms.add(new MultiElements.Value(tupleType, values[i]));
         }
-        return new MultiColumnRestriction.InRestrictionWithValues(columnMetadatas, terms);
+        return new MultiColumnRestriction.INRestriction(columns, Terms.of(terms));
     }
 
     /**
@@ -1725,7 +1743,7 @@ public class ClusteringColumnRestrictionsTest
     private static Restriction newSingleIN(TableMetadata tableMetadata, int index, ByteBuffer... values)
     {
         ColumnMetadata columnDef = getClusteringColumnDefinition(tableMetadata, index);
-        return new SingleColumnRestriction.InRestrictionWithValues(columnDef, toTerms(values));
+        return new SingleColumnRestriction.INRestriction(columnDef, toTerms(values));
     }
 
     /**
@@ -1768,23 +1786,16 @@ public class ClusteringColumnRestrictionsTest
      */
     private static Restriction newMultiSlice(TableMetadata tableMetadata, int firstIndex, Bound bound, boolean inclusive, ByteBuffer... values)
     {
-        List<ColumnMetadata> columnMetadatas = new ArrayList<>();
+        List<ColumnMetadata> columnMetadatas = new ArrayList<>(values.length);
+        List<AbstractType<?>> types = new ArrayList<>(values.length);
         for (int i = 0; i < values.length; i++)
         {
-            columnMetadatas.add(getClusteringColumnDefinition(tableMetadata, i + firstIndex));
+            ColumnMetadata column = getClusteringColumnDefinition(tableMetadata, i + firstIndex);
+            columnMetadatas.add(column);
+            types.add(column.type);
         }
-        return new MultiColumnRestriction.SliceRestriction(columnMetadatas, bound, inclusive, toMultiItemTerminal(values));
-    }
-
-    /**
-     * Converts the specified values into a <code>MultiItemTerminal</code>.
-     *
-     * @param values the values to convert.
-     * @return the term corresponding to the specified values.
-     */
-    private static MultiItemTerminal toMultiItemTerminal(ByteBuffer... values)
-    {
-        return new Tuples.Value(values);
+        TupleType type = new TupleType(types);
+        return new MultiColumnRestriction.SliceRestriction(columnMetadatas, bound, inclusive, new MultiElements.Value(type, Arrays.asList(values)));
     }
 
     /**
@@ -1804,12 +1815,12 @@ public class ClusteringColumnRestrictionsTest
      * @param values the values to convert.
      * @return a <code>List</code> of terms corresponding to the specified values.
      */
-    private static List<Term> toTerms(ByteBuffer... values)
+    private static Terms toTerms(ByteBuffer... values)
     {
         List<Term> terms = new ArrayList<>();
         for (ByteBuffer value : values)
             terms.add(toTerm(value));
-        return terms;
+        return Terms.of(terms);
     }
 
     private static <T> T get(SortedSet<T> set, int i)

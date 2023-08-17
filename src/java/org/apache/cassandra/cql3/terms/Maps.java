@@ -15,70 +15,62 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.cql3;
+package org.apache.cassandra.cql3.terms;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
 import java.util.stream.Collectors;
 
-import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.cql3.AssignmentTestable;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.Operation;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.UpdateParameters;
+import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.MapType;
-import org.apache.cassandra.db.marshal.ReversedType;
+import org.apache.cassandra.db.marshal.MultiElementType;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.serializers.CollectionSerializer;
-import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
-import static org.apache.cassandra.cql3.Constants.UNSET_VALUE;
+import static org.apache.cassandra.cql3.terms.Constants.UNSET_VALUE;
 
 /**
  * Static helper methods and classes for maps.
  */
-public abstract class Maps
+public final class Maps
 {
     private Maps() {}
 
     public static ColumnSpecification keySpecOf(ColumnSpecification column)
     {
-        return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("key(" + column.name + ")", true), keysType(column.type));
+        return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("key(" + column.name + ')', true), keysType(column.type));
     }
 
     public static ColumnSpecification valueSpecOf(ColumnSpecification column)
     {
-        return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("value(" + column.name + ")", true), valuesType(column.type));
-    }
-
-    private static AbstractType<?> unwrap(AbstractType<?> type)
-    {
-        return type.isReversed() ? unwrap(((ReversedType<?>) type).baseType) : type;
+        return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("value(" + column.name + ')', true), valuesType(column.type));
     }
 
     private static AbstractType<?> keysType(AbstractType<?> type)
     {
-        return ((MapType<?, ?>) unwrap(type)).getKeysType();
+        return ((MapType<?, ?>) type.unwrap()).getKeysType();
     }
 
     private static AbstractType<?> valuesType(AbstractType<?> type)
     {
-        return ((MapType<?, ?>) unwrap(type)).getValuesType();
+        return ((MapType<?, ?>) type.unwrap()).getValuesType();
     }
 
     /**
@@ -189,7 +181,10 @@ public abstract class Maps
 
             ColumnSpecification keySpec = Maps.keySpecOf(receiver);
             ColumnSpecification valueSpec = Maps.valueSpecOf(receiver);
-            Map<Term, Term> values = new HashMap<>(entries.size());
+            // In CQL maps are represented as a list of key value pairs (e.g. {k1 : v1, k2 : v2, ...}).
+            // Whereas, internally maps are serialized as a lists where each key is followed by its value (e.g. [k1, v1, k2, v2, ...])
+            // Therefore, we must go from one format to another.
+            List<Term> values = new ArrayList<>(entries.size() << 1);
             boolean allTerminal = true;
             for (Pair<Term.Raw, Term.Raw> entry : entries)
             {
@@ -202,15 +197,16 @@ public abstract class Maps
                 if (k instanceof Term.NonTerminal || v instanceof Term.NonTerminal)
                     allTerminal = false;
 
-                values.put(k, v);
+                values.add(k);
+                values.add(v);
             }
-            DelayedValue value = new DelayedValue(keysType(receiver.type), values);
+            MultiElements.DelayedValue value = new MultiElements.DelayedValue((MultiElementType<?>) receiver.type.unwrap(), values);
             return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
         }
 
         private void validateAssignableTo(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            AbstractType<?> type = unwrap(receiver.type);
+            AbstractType<?> type = receiver.type.unwrap();
 
             if (!(type instanceof MapType))
                 throw new InvalidRequestException(String.format("Invalid map literal for %s of type %s", receiver.name, receiver.type.asCQL3Type()));
@@ -246,138 +242,6 @@ public abstract class Maps
         public String getText()
         {
             return mapToString(entries, Term.Raw::getText);
-        }
-    }
-
-    public static class Value extends Term.Terminal
-    {
-        public final SortedMap<ByteBuffer, ByteBuffer> map;
-
-        public Value(SortedMap<ByteBuffer, ByteBuffer> map)
-        {
-            this.map = map;
-        }
-
-        public static <K, V> Value fromSerialized(ByteBuffer value, MapType<K, V> type) throws InvalidRequestException
-        {
-            try
-            {
-                // Collections have this small hack that validate cannot be called on a serialized object,
-                // but compose does the validation (so we're fine).
-                Map<K, V> m = type.getSerializer().deserialize(value, ByteBufferAccessor.instance);
-                // We depend on Maps to be properly sorted by their keys, so use a sorted map implementation here.
-                SortedMap<ByteBuffer, ByteBuffer> map = new TreeMap<>(type.getKeysType());
-                for (Map.Entry<K, V> entry : m.entrySet())
-                    map.put(type.getKeysType().decompose(entry.getKey()), type.getValuesType().decompose(entry.getValue()));
-                return new Value(map);
-            }
-            catch (MarshalException e)
-            {
-                throw new InvalidRequestException(e.getMessage());
-            }
-        }
-
-        @Override
-        public ByteBuffer get(ProtocolVersion version)
-        {
-            List<ByteBuffer> buffers = new ArrayList<>(2 * map.size());
-            for (Map.Entry<ByteBuffer, ByteBuffer> entry : map.entrySet())
-            {
-                buffers.add(entry.getKey());
-                buffers.add(entry.getValue());
-            }
-            return CollectionSerializer.pack(buffers, map.size());
-        }
-
-        public boolean equals(MapType<?, ?> mt, Value v)
-        {
-            if (map.size() != v.map.size())
-                return false;
-
-            // We use the fact that we know the maps iteration will both be in comparator order
-            Iterator<Map.Entry<ByteBuffer, ByteBuffer>> thisIter = map.entrySet().iterator();
-            Iterator<Map.Entry<ByteBuffer, ByteBuffer>> thatIter = v.map.entrySet().iterator();
-            while (thisIter.hasNext())
-            {
-                Map.Entry<ByteBuffer, ByteBuffer> thisEntry = thisIter.next();
-                Map.Entry<ByteBuffer, ByteBuffer> thatEntry = thatIter.next();
-                if (mt.getKeysType().compare(thisEntry.getKey(), thatEntry.getKey()) != 0 || mt.getValuesType().compare(thisEntry.getValue(), thatEntry.getValue()) != 0)
-                    return false;
-            }
-
-            return true;
-        }
-    }
-
-    // See Lists.DelayedValue
-    public static class DelayedValue extends Term.NonTerminal
-    {
-        private final Comparator<ByteBuffer> comparator;
-        private final Map<Term, Term> elements;
-
-        public DelayedValue(Comparator<ByteBuffer> comparator, Map<Term, Term> elements)
-        {
-            this.comparator = comparator;
-            this.elements = elements;
-        }
-
-        public boolean containsBindMarker()
-        {
-            // False since we don't support them in collection
-            return false;
-        }
-
-        public void collectMarkerSpecification(VariableSpecifications boundNames)
-        {
-        }
-
-        public Terminal bind(QueryOptions options) throws InvalidRequestException
-        {
-            SortedMap<ByteBuffer, ByteBuffer> buffers = new TreeMap<>(comparator);
-            for (Map.Entry<Term, Term> entry : elements.entrySet())
-            {
-                // We don't support values > 64K because the serialization format encode the length as an unsigned short.
-                ByteBuffer keyBytes = entry.getKey().bindAndGet(options);
-
-                if (keyBytes == null)
-                    throw new InvalidRequestException("null is not supported inside collections");
-                if (keyBytes == ByteBufferUtil.UNSET_BYTE_BUFFER)
-                    throw new InvalidRequestException("unset value is not supported for map keys");
-
-                ByteBuffer valueBytes = entry.getValue().bindAndGet(options);
-                if (valueBytes == null)
-                    throw new InvalidRequestException("null is not supported inside collections");
-                if (valueBytes == ByteBufferUtil.UNSET_BYTE_BUFFER)
-                    return UNSET_VALUE;
-
-                buffers.put(keyBytes, valueBytes);
-            }
-            return new Value(buffers);
-        }
-
-        public void addFunctionsTo(List<Function> functions)
-        {
-            Terms.addFunctions(elements.keySet(), functions);
-            Terms.addFunctions(elements.values(), functions);
-        }
-    }
-
-    public static class Marker extends AbstractMarker
-    {
-        protected Marker(int bindIndex, ColumnSpecification receiver)
-        {
-            super(bindIndex, receiver);
-            assert receiver.type instanceof MapType;
-        }
-
-        public Terminal bind(QueryOptions options) throws InvalidRequestException
-        {
-            ByteBuffer value = options.getValues().get(bindIndex);
-            if (value == null)
-                return null;
-            if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
-                return UNSET_VALUE;
-            return Value.fromSerialized(value, (MapType<?, ?>) receiver.type);
         }
     }
 
@@ -458,39 +322,42 @@ public abstract class Maps
 
         static void doPut(Term.Terminal value, ColumnMetadata column, UpdateParameters params) throws InvalidRequestException
         {
+            MapType<?, ?> type = (MapType<?, ?>) column.type;
+
             if (value == null)
             {
                 // for frozen maps, we're overwriting the whole cell
-                if (!column.type.isMultiCell())
+                if (!type.isMultiCell())
                     params.addTombstone(column);
 
                 return;
             }
 
-            SortedMap<ByteBuffer, ByteBuffer> elements = ((Value) value).map;
+            List<ByteBuffer> elements = value.getElements();
 
-            if (column.type.isMultiCell())
+            if (type.isMultiCell())
             {
-                if (elements.size() == 0)
+                if (elements.isEmpty())
                     return;
 
                 // Guardrails about collection size are only checked for the added elements without considering
                 // already existent elements. This is done so to avoid read-before-write, having additional checks
                 // during SSTable write.
-                Guardrails.itemsPerCollection.guard(elements.size(), column.name.toString(), false, params.clientState);
+                Guardrails.itemsPerCollection.guard(type.collectionSize(elements), column.name.toString(), false, params.clientState);
 
                 int dataSize = 0;
-                for (Map.Entry<ByteBuffer, ByteBuffer> entry : elements.entrySet())
+                Iterator<ByteBuffer> iter = elements.iterator();
+                while(iter.hasNext())
                 {
-                    Cell<?> cell = params.addCell(column, CellPath.create(entry.getKey()), entry.getValue());
+                    Cell<?> cell = params.addCell(column, CellPath.create(iter.next()), iter.next());
                     dataSize += cell.dataSize();
                 }
                 Guardrails.collectionSize.guard(dataSize, column.name.toString(), false, params.clientState);
             }
             else
             {
-                Guardrails.itemsPerCollection.guard(elements.size(), column.name.toString(), false, params.clientState);
-                Cell<?> cell = params.addCell(column, value.get(ProtocolVersion.CURRENT));
+                Guardrails.itemsPerCollection.guard(type.collectionSize(elements), column.name.toString(), false, params.clientState);
+                Cell<?> cell = params.addCell(column, value.get());
                 Guardrails.collectionSize.guard(cell.dataSize(), column.name.toString(), false, params.clientState);
             }
         }
@@ -512,7 +379,7 @@ public abstract class Maps
             if (key == Constants.UNSET_VALUE)
                 throw new InvalidRequestException("Invalid unset map key");
 
-            params.addTombstone(column, CellPath.create(key.get(params.options.getProtocolVersion())));
+            params.addTombstone(column, CellPath.create(key.get()));
         }
     }
 }

@@ -964,7 +964,7 @@ public class CollectionsTest extends CQLTester
         createTable("CREATE TABLE %s(pk int PRIMARY KEY, s set<text>)");
         assertInvalidMessage("Not enough bytes to read a set",
                              "INSERT INTO %s (pk, s) VALUES (?, ?)", 1, "test");
-        assertInvalidMessage("Null value read when not allowed",
+        assertInvalidMessage("Not enough bytes to read a set",
                              "INSERT INTO %s (pk, s) VALUES (?, ?)", 1, Long.MAX_VALUE);
         assertInvalidMessage("Not enough bytes to read a set",
                              "INSERT INTO %s (pk, s) VALUES (?, ?)", 1, "");
@@ -976,9 +976,9 @@ public class CollectionsTest extends CQLTester
     public void testInvalidInputForMap() throws Throwable
     {
         createTable("CREATE TABLE %s(pk int PRIMARY KEY, m map<text, text>)");
-        assertInvalidMessage("Not enough bytes to read a map",
+        assertInvalidMessage("The data cannot be deserialized as a map",
                              "INSERT INTO %s (pk, m) VALUES (?, ?)", 1, "test");
-        assertInvalidMessage("Null value read when not allowed",
+        assertInvalidMessage("The data cannot be deserialized as a map",
                              "INSERT INTO %s (pk, m) VALUES (?, ?)", 1, Long.MAX_VALUE);
         assertInvalidMessage("Not enough bytes to read a map",
                              "INSERT INTO %s (pk, m) VALUES (?, ?)", 1, "");

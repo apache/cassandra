@@ -38,30 +38,16 @@ options {
         add("bitstring");
     }};
 
-    public AbstractMarker.Raw newBindVariables(ColumnIdentifier name)
+    public Marker.Raw newBindVariables(ColumnIdentifier name)
     {
-        AbstractMarker.Raw marker = new AbstractMarker.Raw(bindVariables.size());
+        Marker.Raw marker = new Marker.Raw(bindVariables.size());
         bindVariables.add(name);
         return marker;
     }
 
-    public AbstractMarker.INRaw newINBindVariables(ColumnIdentifier name)
+    public InMarker.Raw newINBindVariables(ColumnIdentifier name)
     {
-        AbstractMarker.INRaw marker = new AbstractMarker.INRaw(bindVariables.size());
-        bindVariables.add(name);
-        return marker;
-    }
-
-    public Tuples.Raw newTupleBindVariables(ColumnIdentifier name)
-    {
-        Tuples.Raw marker = new Tuples.Raw(bindVariables.size());
-        bindVariables.add(name);
-        return marker;
-    }
-
-    public Tuples.INRaw newTupleINBindVariables(ColumnIdentifier name)
-    {
-        Tuples.INRaw marker = new Tuples.INRaw(bindVariables.size());
+        InMarker.Raw marker = new InMarker.Raw(bindVariables.size());
         bindVariables.add(name);
         return marker;
     }
@@ -113,7 +99,7 @@ options {
             if (!(entry.left instanceof Constants.Literal))
             {
                 String msg = "Invalid property name: " + entry.left;
-                if (entry.left instanceof AbstractMarker.Raw)
+                if (entry.left instanceof Marker.Raw)
                     msg += " (bind variables are not supported in DDL queries)";
                 addRecognitionError(msg);
                 break;
@@ -121,7 +107,7 @@ options {
             if (!(entry.right instanceof Constants.Literal))
             {
                 String msg = "Invalid property value: " + entry.right + " for property: " + entry.left;
-                if (entry.right instanceof AbstractMarker.Raw)
+                if (entry.right instanceof Marker.Raw)
                     msg += " (bind variables are not supported in DDL queries)";
                 addRecognitionError(msg);
                 break;
@@ -1785,9 +1771,9 @@ relation[WhereClause.Builder clauses]
     | ids=tupleOfIdentifiers
       ( K_IN
           ( '(' ')'
-              { $clauses.add(MultiColumnRelation.createInRelation(ids, new ArrayList<Tuples.Literal>())); }
-          | tupleInMarker=inMarkerForTuple /* (a, b, c) IN ? */
-              { $clauses.add(MultiColumnRelation.createSingleMarkerInRelation(ids, tupleInMarker)); }
+              { $clauses.add(MultiColumnRelation.createInRelation(ids, Terms.Raw.of(Collections.emptyList()))); }
+          | tupleInMarker=inMarker /* (a, b, c) IN ? */
+              { $clauses.add(MultiColumnRelation.createInRelation(ids, tupleInMarker)); }
           | literals=tupleOfTupleLiterals /* (a, b, c) IN ((1, 2, 3), (4, 5, 6), ...) */
               {
                   $clauses.add(MultiColumnRelation.createInRelation(ids, literals));
@@ -1809,7 +1795,7 @@ containsOperator returns [Operator o]
     : K_CONTAINS { o = Operator.CONTAINS; } (K_KEY { o = Operator.CONTAINS_KEY; })?
     ;
 
-inMarker returns [AbstractMarker.INRaw marker]
+inMarker returns [InMarker.Raw marker]
     : QMARK { $marker = newINBindVariables(null); }
     | ':' name=noncol_ident { $marker = newINBindVariables(name); }
     ;
@@ -1819,29 +1805,27 @@ tupleOfIdentifiers returns [List<ColumnIdentifier> ids]
     : '(' n1=cident { $ids.add(n1); } (',' ni=cident { $ids.add(ni); })* ')'
     ;
 
-singleColumnInValues returns [List<Term.Raw> terms]
-    @init { $terms = new ArrayList<Term.Raw>(); }
-    : '(' ( t1 = term { $terms.add(t1); } (',' ti=term { $terms.add(ti); })* )? ')'
+singleColumnInValues returns [Terms.Raw terms]
+    @init { List<Term.Raw> list = new ArrayList<>(); }
+    @after { $terms = Terms.Raw.of(list); }
+    : '(' ( t1 = term { list.add(t1); } (',' ti=term { list.add(ti); })* )? ')'
     ;
 
-tupleOfTupleLiterals returns [List<Tuples.Literal> literals]
-    @init { $literals = new ArrayList<>(); }
-    : '(' t1=tupleLiteral { $literals.add(t1); } (',' ti=tupleLiteral { $literals.add(ti); })* ')'
+tupleOfTupleLiterals returns [Terms.Raw literals]
+    @init { List<Term.Raw> list = new ArrayList<>(); }
+    @after { $literals = Terms.Raw.of(list); }
+    : '(' t1=tupleLiteral { list.add(t1); } (',' ti=tupleLiteral { list.add(ti); })* ')'
     ;
 
-markerForTuple returns [Tuples.Raw marker]
-    : QMARK { $marker = newTupleBindVariables(null); }
-    | ':' name=noncol_ident { $marker = newTupleBindVariables(name); }
+markerForTuple returns [Marker.Raw marker]
+    : QMARK { $marker = newBindVariables(null); }
+    | ':' name=noncol_ident { $marker = newBindVariables(name); }
     ;
 
-tupleOfMarkersForTuples returns [List<Tuples.Raw> markers]
-    @init { $markers = new ArrayList<Tuples.Raw>(); }
-    : '(' m1=markerForTuple { $markers.add(m1); } (',' mi=markerForTuple { $markers.add(mi); })* ')'
-    ;
-
-inMarkerForTuple returns [Tuples.INRaw marker]
-    : QMARK { $marker = newTupleINBindVariables(null); }
-    | ':' name=noncol_ident { $marker = newTupleINBindVariables(name); }
+tupleOfMarkersForTuples returns [Terms.Raw markers]
+    @init { List<Term.Raw> list = new ArrayList<>(); }
+    @after { $markers = Terms.Raw.of(list); }
+    : '(' m1=markerForTuple { list.add(m1); } (',' mi=markerForTuple { list.add(mi); })* ')'
     ;
 
 comparatorType returns [CQL3Type.Raw t]

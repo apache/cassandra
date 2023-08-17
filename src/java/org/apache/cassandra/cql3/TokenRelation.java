@@ -18,16 +18,18 @@
 package org.apache.cassandra.cql3;
 
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
 import com.google.common.base.Joiner;
 
+import org.apache.cassandra.cql3.terms.Term;
+import org.apache.cassandra.cql3.terms.Terms;
+import org.apache.cassandra.cql3.terms.Tuples;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.cql3.Term.Raw;
 import org.apache.cassandra.cql3.restrictions.Restriction;
 import org.apache.cassandra.cql3.restrictions.TokenRestriction;
 import org.apache.cassandra.cql3.statements.Bound;
@@ -55,7 +57,7 @@ public final class TokenRelation extends Relation
     public TokenRelation(List<ColumnIdentifier> entities, Operator type, Term.Raw value)
     {
         this.entities = entities;
-        this.relationType = type;
+        this.operator = type;
         this.value = value;
     }
 
@@ -70,7 +72,7 @@ public final class TokenRelation extends Relation
         return value;
     }
 
-    public List<? extends Term.Raw> getInValues()
+    public Terms.Raw getInValues()
     {
         return null;
     }
@@ -119,17 +121,6 @@ public final class TokenRelation extends Relation
     }
 
     @Override
-    protected Term toTerm(List<? extends ColumnSpecification> receivers,
-                          Raw raw,
-                          String keyspace,
-                          VariableSpecifications boundNames) throws InvalidRequestException
-    {
-        Term term = raw.prepare(keyspace, receivers.get(0));
-        term.collectMarkerSpecification(boundNames);
-        return term;
-    }
-
-    @Override
     public Relation renameIdentifier(ColumnIdentifier from, ColumnIdentifier to)
     {
         if (!entities.contains(from))
@@ -142,13 +133,13 @@ public final class TokenRelation extends Relation
     @Override
     public String toCQLString()
     {
-        return String.format("token%s %s %s", Tuples.tupleToString(entities, ColumnIdentifier::toCQLString), relationType, value);
+        return String.format("token%s %s %s", Tuples.tupleToString(entities, ColumnIdentifier::toCQLString), operator, value);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(relationType, entities, value);
+        return Objects.hash(operator, entities, value);
     }
 
     @Override
@@ -161,7 +152,7 @@ public final class TokenRelation extends Relation
             return false;
 
         TokenRelation tr = (TokenRelation) o;
-        return relationType.equals(tr.relationType) && entities.equals(tr.entities) && value.equals(tr.value);
+        return operator == tr.operator && entities.equals(tr.entities) && value.equals(tr.value);
     }
 
     /**
@@ -180,21 +171,21 @@ public final class TokenRelation extends Relation
     }
 
     /**
-     * Returns the receivers for this relation.
+     * Returns the receiver for this relation.
      *
      * @param table the table meta data
      * @param columnDefs the column definitions
      * @return the receivers for the specified relation.
      * @throws InvalidRequestException if the relation is invalid
      */
-    private static List<? extends ColumnSpecification> toReceivers(TableMetadata table,
-                                                                   List<ColumnMetadata> columnDefs)
-                                                                   throws InvalidRequestException
+    private static ColumnSpecification toReceivers(TableMetadata table,
+                                                   List<ColumnMetadata> columnDefs)
+                                                   throws InvalidRequestException
     {
 
         if (!columnDefs.equals(table.partitionKeyColumns()))
         {
-            checkTrue(columnDefs.containsAll(table.partitionKeyColumns()),
+            checkTrue(new HashSet<>(columnDefs).containsAll(table.partitionKeyColumns()),
                       "The token() function must be applied to all partition key components or none of them");
 
             checkContainsNoDuplicates(columnDefs, "The token() function contains duplicate partition key components");
@@ -206,9 +197,9 @@ public final class TokenRelation extends Relation
         }
 
         ColumnMetadata firstColumn = columnDefs.get(0);
-        return Collections.singletonList(new ColumnSpecification(firstColumn.ksName,
-                                                                 firstColumn.cfName,
-                                                                 new ColumnIdentifier("partition key token", true),
-                                                                 table.partitioner.getTokenValidator()));
+        return new ColumnSpecification(firstColumn.ksName,
+                                       firstColumn.cfName,
+                                       new ColumnIdentifier("partition key token", true),
+                                       table.partitioner.getTokenValidator());
     }
 }

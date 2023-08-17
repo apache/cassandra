@@ -40,7 +40,6 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.InetAddressType;
 import org.apache.cassandra.db.marshal.ShortType;
 import org.apache.cassandra.db.marshal.TupleType;
@@ -143,9 +142,9 @@ public class CIDRGroupsMappingManager implements CIDRGroupsMappingManagerMBean
         Set<ByteBuffer> cidrAsTuples = row.getFrozenSet("cidrs", tupleType);
         for (ByteBuffer cidrAsTuple : cidrAsTuples)
         {
-            ByteBuffer[] splits = tupleType.split(ByteBufferAccessor.instance, cidrAsTuple);
-            InetAddress ip = InetAddressType.instance.compose(splits[0]);
-            short netMask = ShortType.instance.compose(splits[1]);
+            List<ByteBuffer> elements = tupleType.unpack(cidrAsTuple);
+            InetAddress ip = InetAddressType.instance.compose(elements.get(0));
+            short netMask = ShortType.instance.compose(elements.get(1));
             cidrs.add(Pair.create(ip, netMask));
         }
 

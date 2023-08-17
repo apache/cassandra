@@ -28,6 +28,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.terms.Constants;
+import org.apache.cassandra.cql3.terms.MultiElements;
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.schema.Difference;
@@ -173,25 +176,24 @@ public class UserType extends TupleType implements SchemaElement
     {
         assert isMultiCell;
 
-        ByteBuffer[] components = new ByteBuffer[size()];
-        short fieldPosition = 0;
+        List<ByteBuffer> components = new ArrayList<>(size());
         while (cells.hasNext())
         {
             Cell<?> cell = cells.next();
 
             // handle null fields that aren't at the end
             short fieldPositionOfCell = ByteBufferUtil.toShort(cell.path().get(0));
-            while (fieldPosition < fieldPositionOfCell)
-                components[fieldPosition++] = null;
+            while (components.size() < fieldPositionOfCell)
+                components.add(null);
 
-            components[fieldPosition++] = cell.buffer();
+            components.add(cell.buffer());
         }
 
         // append trailing nulls for missing cells
-        while (fieldPosition < size())
-            components[fieldPosition++] = null;
+        while (components.size() < size())
+            components.add(null);
 
-        return TupleType.buildValue(components);
+        return pack(components);
     }
 
     public <V> void validateCell(Cell<V> cell) throws MarshalException
@@ -254,13 +256,13 @@ public class UserType extends TupleType implements SchemaElement
             }
         }
 
-        return new UserTypes.DelayedValue(this, terms);
+        return new MultiElements.DelayedValue(this, terms);
     }
 
     @Override
     public String toJSONString(ByteBuffer buffer, ProtocolVersion protocolVersion)
     {
-        ByteBuffer[] buffers = split(ByteBufferAccessor.instance, buffer);
+        List<ByteBuffer> buffers = unpack(buffer);
         StringBuilder sb = new StringBuilder("{");
         for (int i = 0; i < types.size(); i++)
         {
@@ -275,7 +277,7 @@ public class UserType extends TupleType implements SchemaElement
             sb.append(JsonUtils.quoteAsJsonString(name));
             sb.append("\": ");
 
-            ByteBuffer valueBuffer = (i >= buffers.length) ? null : buffers[i];
+            ByteBuffer valueBuffer = (i >= buffers.size()) ? null : buffers.get(i);
             if (valueBuffer == null)
                 sb.append("null");
             else
@@ -459,6 +461,27 @@ public class UserType extends TupleType implements SchemaElement
     }
 
     @Override
+    public List<ByteBuffer> filterSortAndValidateElements(List<ByteBuffer> buffers)
+    {
+        if (buffers.size() > size())
+            throw new MarshalException(String.format("UDT value contained too many fields (expected %s, got %s)", size(), buffers.size()));
+
+        for (int i = 0; i < buffers.size(); i++)
+        {
+            // Since a frozen UDT value is always written in its entirety Cassandra can't preserve a pre-existing
+            // value by 'not setting' the new value. Reject the query.
+            ByteBuffer buffer = buffers.get(i);
+            if (buffer == null)
+                continue;
+            if (!isMultiCell() && buffer == ByteBufferUtil.UNSET_BYTE_BUFFER)
+                throw new MarshalException(String.format("Invalid unset value for field '%s' of user defined type %s", fieldNameAsString(i), getNameAsString()));
+            type(i).validate(buffer);
+        }
+
+        return buffers;
+    }
+
+    @Override
     public SchemaElementType elementType()
     {
         return SchemaElementType.TYPE;
@@ -510,6 +533,12 @@ public class UserType extends TupleType implements SchemaElement
                .append(");");
 
         return builder.toString();
+    }
+
+    @Override
+    protected String componentOrFieldName(int i)
+    {
+        return "field " + fieldName(i);
     }
 
     private enum ConflictBehavior

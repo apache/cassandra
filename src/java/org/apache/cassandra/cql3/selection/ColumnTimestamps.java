@@ -27,9 +27,10 @@ import com.google.common.collect.BoundType;
 import com.google.common.collect.Range;
 
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.rows.Cell;
-import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -303,6 +304,7 @@ abstract class ColumnTimestamps
      */
     private static final class MultipleTimestamps extends ColumnTimestamps
     {
+        private static final ListType<Long> LONG_LIST_TYPE = ListType.getInstance(LongType.instance, false);
         private final List<Long> timestamps;
 
         public MultipleTimestamps(TimestampsType type, int initialCapacity)
@@ -382,7 +384,7 @@ abstract class ColumnTimestamps
             List<ByteBuffer> buffers = new ArrayList<>(timestamps.size());
             timestamps.forEach(timestamp -> buffers.add(type.toByteBuffer(timestamp)));
 
-            return CollectionSerializer.pack(buffers, timestamps.size());
+            return LONG_LIST_TYPE.pack(buffers);
         }
 
         @Override

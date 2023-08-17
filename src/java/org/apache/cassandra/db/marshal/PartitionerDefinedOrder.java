@@ -21,7 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.Objects;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.cql3.functions.ArgumentDeserializer;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;

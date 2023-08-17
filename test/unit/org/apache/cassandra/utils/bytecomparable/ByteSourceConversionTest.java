@@ -439,19 +439,13 @@ public class ByteSourceConversionTest extends ByteSourceTestBase
         TupleType tt = new TupleType(ImmutableList.of(UTF8Type.instance, Int32Type.instance));
         List<ByteBuffer> tests = ImmutableList.of
             (
-            TupleType.buildValue(ByteBufferAccessor.instance,
-                                 decomposeAndRandomPad(UTF8Type.instance, ""),
-                                 decomposeAndRandomPad(Int32Type.instance, 0)),
+            tt.pack(decomposeAndRandomPad(UTF8Type.instance, ""), decomposeAndRandomPad(Int32Type.instance, 0)),
             // Note: a decomposed null (e.g. decomposeAndRandomPad(Int32Type.instance, null)) should not reach a tuple
-            TupleType.buildValue(ByteBufferAccessor.instance,
-                                 decomposeAndRandomPad(UTF8Type.instance, ""),
-                                 null),
-            TupleType.buildValue(ByteBufferAccessor.instance,
-                                 null,
-                                 decomposeAndRandomPad(Int32Type.instance, 0)),
-            TupleType.buildValue(ByteBufferAccessor.instance, decomposeAndRandomPad(UTF8Type.instance, "")),
-            TupleType.buildValue(ByteBufferAccessor.instance, (ByteBuffer) null),
-            TupleType.buildValue(ByteBufferAccessor.instance)
+            tt.pack(decomposeAndRandomPad(UTF8Type.instance, ""), null),
+            tt.pack(null, decomposeAndRandomPad(Int32Type.instance, 0)),
+            tt.pack(decomposeAndRandomPad(UTF8Type.instance, "")),
+            tt.pack((ByteBuffer) null),
+            tt.pack()
             );
         testBuffers(tt, tests);
     }
@@ -459,9 +453,7 @@ public class ByteSourceConversionTest extends ByteSourceTestBase
     void assertTupleConvertsSame(AbstractType t1, AbstractType t2, Object o1, Object o2)
     {
         TupleType tt = new TupleType(ImmutableList.of(t1, t2));
-        ByteBuffer b1 = TupleType.buildValue(ByteBufferAccessor.instance,
-                                             decomposeForTuple(t1, o1),
-                                             decomposeForTuple(t2, o2));
+        ByteBuffer b1 = tt.pack(decomposeForTuple(t1, o1), decomposeForTuple(t2, o2));
         assertConvertsSameBuffers(tt, b1);
     }
 

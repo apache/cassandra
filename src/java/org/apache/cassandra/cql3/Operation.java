@@ -20,6 +20,12 @@ package org.apache.cassandra.cql3;
 import java.util.List;
 
 import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.cql3.terms.Constants;
+import org.apache.cassandra.cql3.terms.Lists;
+import org.apache.cassandra.cql3.terms.Maps;
+import org.apache.cassandra.cql3.terms.Sets;
+import org.apache.cassandra.cql3.terms.Term;
+import org.apache.cassandra.cql3.terms.UserTypes;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;

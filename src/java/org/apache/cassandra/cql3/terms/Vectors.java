@@ -16,9 +16,8 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.cql3;
+package org.apache.cassandra.cql3.terms;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -26,14 +25,15 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.cql3.AssignmentTestable;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.transport.ProtocolVersion;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class Vectors
+public final class Vectors
 {
     private Vectors() {}
 
@@ -136,7 +136,7 @@ public class Vectors
 
                 values.add(t);
             }
-            DelayedValue<?> value = new DelayedValue<>(type, values);
+            MultiElements.DelayedValue value = new MultiElements.DelayedValue(type, values);
             return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
         }
 
@@ -156,74 +156,6 @@ public class Vectors
         public AbstractType<?> getCompatibleTypeIfKnown(String keyspace)
         {
             return getPreferredCompatibleType(elements, e -> e.getCompatibleTypeIfKnown(keyspace));
-        }
-    }
-
-    public static class Value<T> extends Term.MultiItemTerminal
-    {
-        public final VectorType<T> type;
-        public final List<ByteBuffer> elements;
-
-        public Value(VectorType<T> type, List<ByteBuffer> elements)
-        {
-            this.type = type;
-            this.elements = elements;
-        }
-
-        public ByteBuffer get(ProtocolVersion version)
-        {
-            return type.decomposeRaw(elements);
-        }
-
-        public List<ByteBuffer> getElements()
-        {
-            return elements;
-        }
-    }
-
-    /**
-     * Basically similar to a Value, but with some non-pure function (that need
-     * to be evaluated at execution time) in it.
-     */
-    public static class DelayedValue<T> extends Term.NonTerminal
-    {
-        private final VectorType<T> type;
-        private final List<Term> elements;
-
-        public DelayedValue(VectorType<T> type, List<Term> elements)
-        {
-            this.type = type;
-            this.elements = elements;
-        }
-
-        public boolean containsBindMarker()
-        {
-            return elements.stream().anyMatch(Term::containsBindMarker);
-        }
-
-        public void collectMarkerSpecification(VariableSpecifications boundNames)
-        {
-            elements.forEach(t -> t.collectMarkerSpecification(boundNames));
-        }
-
-        public Terminal bind(QueryOptions options) throws InvalidRequestException
-        {
-            List<ByteBuffer> buffers = new ArrayList<>(elements.size());
-            for (Term t : elements)
-            {
-                ByteBuffer bytes = t.bindAndGet(options);
-
-                if (bytes == null || bytes == ByteBufferUtil.UNSET_BYTE_BUFFER || type.elementType.isNull(bytes))
-                    throw new InvalidRequestException("null is not supported inside vectors");
-
-                buffers.add(bytes);
-            }
-            return new Value<>(type, buffers);
-        }
-
-        public void addFunctionsTo(List<Function> functions)
-        {
-            Terms.addFunctions(elements, functions);
         }
     }
 }

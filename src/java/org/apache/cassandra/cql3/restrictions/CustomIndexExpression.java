@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.restrictions;
 import java.util.Objects;
 
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.index.Index;

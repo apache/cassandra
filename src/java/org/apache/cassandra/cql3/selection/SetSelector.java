@@ -27,7 +27,7 @@ import java.util.TreeSet;
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.Sets;
+import org.apache.cassandra.cql3.terms.Sets;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.ColumnFilter.Builder;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -35,7 +35,6 @@ import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
 
 /**
@@ -104,7 +103,7 @@ final class SetSelector extends Selector
         {
             buffers.add(elements.get(i).getOutput(protocolVersion));
         }
-        return CollectionSerializer.pack(buffers, buffers.size());
+        return type.pack(new ArrayList<>(buffers));
     }
 
     public void reset()
