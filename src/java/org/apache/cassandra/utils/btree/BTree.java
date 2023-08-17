@@ -347,8 +347,8 @@ public class BTree
 
         if (isEmpty(toUpdate))
         {
-            if (isSimple(updateF))
-                return insert; // if update is empty and updateF is trivial, return our new input
+//            if (isSimple(updateF))
+//                return insert; // if update is empty and updateF is trivial, return our new input
 
             // if update is empty and updateF is non-trivial, perform a simple fast transformation of the input tree
             insert = BTree.transform(insert, updateF::insert);

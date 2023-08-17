@@ -70,7 +70,11 @@ public class MemtableIndexManager
         if (indexContext.isNonFrozenCollection())
         {
             Iterator<ByteBuffer> bufferIterator = indexContext.getValuesOf(row, FBUtilities.nowInSeconds());
-            if (bufferIterator != null)
+            if (bufferIterator == null || !bufferIterator.hasNext())
+            {
+                bytes += target.index(key, row.clustering(), null);
+            }
+            else
             {
                 while (bufferIterator.hasNext())
                 {
@@ -117,6 +121,13 @@ public class MemtableIndexManager
 
     public KeyRangeIterator searchMemtableIndexes(Expression e, AbstractBounds<PartitionPosition> keyRange)
     {
+        if (e.getOp().isNonEquality())
+        {
+            // For negative searches we return everything and rely on anti-join / post filtering
+            // to do the exclusion
+            return scanMemtables(keyRange);
+        }
+
         Collection<MemtableIndex> memtableIndexes = liveMemtableIndexMap.values();
 
         if (memtableIndexes.isEmpty())
@@ -131,6 +142,24 @@ public class MemtableIndexManager
             builder.add(memtableIndex.search(e, keyRange));
         }
 
+        return builder.build();
+    }
+
+    private KeyRangeIterator scanMemtables(AbstractBounds<PartitionPosition> keyRange)
+    {
+        Collection<Memtable> memtables = liveMemtableIndexMap.keySet();
+        if (memtables.isEmpty())
+        {
+            return KeyRangeIterator.empty();
+        }
+
+        KeyRangeIterator.Builder builder = KeyRangeUnionIterator.builder(memtables.size());
+
+        for (Memtable memtable : memtables)
+        {
+            KeyRangeIterator memtableIterator = MemtableKeyRangeIterator.create(memtable, keyRange);
+            builder.add(memtableIterator);
+        }
         return builder.build();
     }
 

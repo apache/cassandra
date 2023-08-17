@@ -75,6 +75,12 @@ public class InvertedIndexSearcherTest extends SAIRandomizedTester
         {
             return key.token().getLongValue();
         }
+
+        @Override
+        public long count()
+        {
+            return Long.MAX_VALUE;
+        }
     };
     public static final PrimaryKeyMap.Factory TEST_PRIMARY_KEY_MAP_FACTORY = () -> TEST_PRIMARY_KEY_MAP;
 

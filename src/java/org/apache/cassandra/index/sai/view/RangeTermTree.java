@@ -43,18 +43,18 @@ public class RangeTermTree
     
     private final IntervalTree<Term, SSTableIndex, Interval<Term, SSTableIndex>> rangeTree;
 
-    private RangeTermTree(ByteBuffer min, ByteBuffer max, IntervalTree<Term, SSTableIndex, Interval<Term, SSTableIndex>> rangeTree, AbstractType<?> comparator)
+    private RangeTermTree(IntervalTree<Term, SSTableIndex, Interval<Term, SSTableIndex>> rangeTree, AbstractType<?> comparator)
     {
-        this.min = min;
-        this.max = max;
+        this.min = rangeTree.isEmpty() ? null : rangeTree.min().term;
+        this.max = rangeTree.isEmpty() ? null : rangeTree.max().term;
         this.rangeTree = rangeTree;
         this.comparator = comparator;
     }
 
     public List<SSTableIndex> search(Expression e)
     {
-        ByteBuffer minTerm = e.lower == null ? min : e.lower.value.encoded;
-        ByteBuffer maxTerm = e.upper == null ? max : e.upper.value.encoded;
+        ByteBuffer minTerm = e.getOp().isNonEquality() || e.lower == null ? min : e.lower.value.encoded;
+        ByteBuffer maxTerm = e.getOp().isNonEquality() || e.upper == null ? max : e.upper.value.encoded;
 
         return rangeTree.search(Interval.create(new Term(minTerm, comparator),
                                                 new Term(maxTerm, comparator),
@@ -64,7 +64,6 @@ public class RangeTermTree
     static class Builder
     {
         private final AbstractType<?> comparator;
-        private ByteBuffer min, max;
 
         final List<Interval<Term, SSTableIndex>> intervals = new ArrayList<>();
 
@@ -76,9 +75,6 @@ public class RangeTermTree
         public final void add(SSTableIndex index)
         {
             addIndex(index);
-
-            min = min == null || TypeUtil.compare(min, index.minTerm(), comparator) > 0 ? index.minTerm() : min;
-            max = max == null || TypeUtil.compare(max, index.maxTerm(), comparator) < 0 ? index.maxTerm() : max;
         }
 
         public void addIndex(SSTableIndex index)
@@ -100,7 +96,7 @@ public class RangeTermTree
 
         public RangeTermTree build()
         {
-            return new RangeTermTree(min, max, IntervalTree.build(intervals), comparator);
+            return new RangeTermTree(IntervalTree.build(intervals), comparator);
         }
     }
 
@@ -122,6 +118,12 @@ public class RangeTermTree
         @Override
         public int compareTo(Term o)
         {
+            if (term == null && o.term == null)
+                return 0;
+            if (term == null)
+                return -1;
+            if (o.term == null)
+                return 1;
             return TypeUtil.compare(term, o.term, comparator);
         }
 

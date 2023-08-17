@@ -177,7 +177,8 @@ public final class StatementRestrictions
          */
         for (Relation relation : whereClause.relations)
         {
-            if ((relation.isContains() || relation.isContainsKey()) && (type.isUpdate() || type.isDelete()))
+            if ((relation.isContains() || relation.isContainsKey() || relation.isNotContains() || relation.isNotContainsKey())
+                && (type.isUpdate() || type.isDelete()))
             {
                 throw invalidRequest("Cannot use %s with %s", type, relation.operator());
             }
@@ -189,7 +190,7 @@ public final class StatementRestrictions
 
                 this.notNullColumns.addAll(relation.toRestriction(table, boundNames).getColumnDefs());
             }
-            else if (relation.isLIKE())
+            else if (relation.isLIKE() || relation.isNotLIKE())
             {
                 Restriction restriction = relation.toRestriction(table, boundNames);
 

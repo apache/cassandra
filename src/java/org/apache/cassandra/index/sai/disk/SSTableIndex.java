@@ -20,6 +20,7 @@ package org.apache.cassandra.index.sai.disk;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -36,7 +37,9 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SSTableContext;
+import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.format.Version;
+import org.apache.cassandra.index.sai.disk.v1.V1OnDiskFormat;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.io.sstable.SSTableIdFactory;
@@ -256,5 +259,11 @@ public abstract class SSTableIndex
                           .add("maxTerm", indexContext.getValidator().getString(maxTerm()))
                           .add("totalRows", sstableContext.sstable.getTotalRows())
                           .toString();
+    }
+
+    protected final List<KeyRangeIterator> allSSTableKeys(AbstractBounds<PartitionPosition> keyRange) throws IOException
+    {
+        PrimaryKeyMapIterator iterator = PrimaryKeyMapIterator.create(sstableContext, keyRange);
+        return Collections.singletonList(iterator);
     }
 }

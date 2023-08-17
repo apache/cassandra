@@ -46,6 +46,57 @@ public class CollectionIndexingTest extends SAITester
     {
         createPopulatedMap(createIndexDDL("value"));
         assertEquals(2, execute("SELECT * FROM %s WHERE value CONTAINS 'v1'").size());
+
+        assertEmpty(execute("SELECT pk FROM %s WHERE value NOT CONTAINS 'v1'"));
+
+        assertRowsIgnoringOrder(execute("SELECT pk FROM %s WHERE value NOT CONTAINS 'v2'"),
+                                row(2));
+        assertRowsIgnoringOrder(execute("SELECT pk FROM %s WHERE value NOT CONTAINS 'v3'"),
+                                row(1));
+
+        flush();
+
+        assertRowsIgnoringOrder(execute("SELECT pk FROM %s WHERE value NOT CONTAINS 'v2'"),
+                                row(2));
+        assertRowsIgnoringOrder(execute("SELECT pk FROM %s WHERE value NOT CONTAINS 'v3'"),
+                                row(1));
+    }
+
+    @Test
+    public void indexEmptyMaps()
+    {
+        createTable("CREATE TABLE %s (pk int primary key, value map<int, text>)");
+        createIndex("CREATE CUSTOM INDEX ON %s(value) USING 'StorageAttachedIndex'");
+
+        // Test memtable index:
+        execute("INSERT INTO %s (pk, value) VALUES (?, ?)", 1, new HashMap<Integer, String>() {{
+            put(1, "v1");
+            put(2, "v2");
+        }});
+        execute("INSERT INTO %s (pk, value) VALUES (?, ?)", 2, new HashMap<Integer, String>());
+
+        assertRowsIgnoringOrder(execute("SELECT pk FROM %s WHERE value CONTAINS 'v1'"),
+                                row(1));
+        assertRowsIgnoringOrder(execute("SELECT pk FROM %s WHERE value NOT CONTAINS 'v1'"),
+                                row(2));
+
+        // Test sstable index:
+        flush();
+
+        assertRowsIgnoringOrder(execute("SELECT pk FROM %s WHERE value CONTAINS 'v1'"),
+                                row(1));
+        assertRowsIgnoringOrder(execute("SELECT pk FROM %s WHERE value NOT CONTAINS 'v1'"),
+                                row(2));
+
+        // Add one more row with an empty map and flush.
+        // This will create an sstable with no index.
+        execute("INSERT INTO %s (pk, value) VALUES (?, ?)", 3, new HashMap<Integer, String>());
+        flush();
+
+        assertRowsIgnoringOrder(execute("SELECT pk FROM %s WHERE value CONTAINS 'v1'"),
+                                row(1));
+        assertRowsIgnoringOrder(execute("SELECT pk FROM %s WHERE value NOT CONTAINS 'v1'"),
+                                row(2), row(3));
     }
 
     @Test
@@ -53,6 +104,8 @@ public class CollectionIndexingTest extends SAITester
     {
         createPopulatedMap(createIndexDDL("KEYS(value)"));
         assertEquals(2, execute("SELECT * FROM %s WHERE value CONTAINS KEY 1").size());
+        assertEquals(0, execute("SELECT * FROM %s WHERE value NOT CONTAINS KEY 1").size());
+        assertEquals(2, execute("SELECT * FROM %s WHERE value NOT CONTAINS KEY 5").size());
     }
 
     @Test
@@ -60,6 +113,8 @@ public class CollectionIndexingTest extends SAITester
     {
         createPopulatedMap(createIndexDDL("VALUES(value)"));
         assertEquals(2, execute("SELECT * FROM %s WHERE value CONTAINS 'v1'").size());
+        assertEquals(0, execute("SELECT * FROM %s WHERE value NOT CONTAINS 'v1'").size());
+        assertEquals(2, execute("SELECT * FROM %s WHERE value NOT CONTAINS 'v5'").size());
     }
 
     @Test
@@ -68,6 +123,8 @@ public class CollectionIndexingTest extends SAITester
         createPopulatedMap(createIndexDDL("ENTRIES(value)"));
         assertEquals(2, execute("SELECT * FROM %s WHERE value[1] = 'v1'").size());
         assertEquals(1, execute("SELECT * FROM %s WHERE value[1] = 'v1' AND value[2] = 'v2'").size());
+        assertEquals(0, execute("SELECT * FROM %s WHERE value[1] != 'v1'").size());
+        assertEquals(1, execute("SELECT * FROM %s WHERE value[1] != 'v2' AND value[2] != 'v2'").size());
     }
 
     @Test
@@ -93,6 +150,7 @@ public class CollectionIndexingTest extends SAITester
     {
         createPopulatedFrozenMap(createIndexDDL("FULL(value)"));
         assertUnsupportedIndexOperator(2, "SELECT * FROM %s WHERE value contains key 1");
+        assertUnsupportedIndexOperator(0, "SELECT * FROM %s WHERE value not contains key 1");
     }
 
     @Test
@@ -100,6 +158,7 @@ public class CollectionIndexingTest extends SAITester
     {
         createPopulatedFrozenMap(createIndexDDL("FULL(value)"));
         assertUnsupportedIndexOperator(2, "SELECT * FROM %s WHERE value contains 'v1'");
+        assertUnsupportedIndexOperator(0, "SELECT * FROM %s WHERE value not contains 'v1'");
     }
 
     @Test
@@ -123,6 +182,7 @@ public class CollectionIndexingTest extends SAITester
     {
         createPopulatedMap(createIndexDDL("ENTRIES(value)"));
         assertUnsupportedIndexOperator(2, "SELECT * FROM %s WHERE value contains key 1");
+        assertUnsupportedIndexOperator(0, "SELECT * FROM %s WHERE value not contains key 1");
     }
 
     @Test
@@ -130,6 +190,7 @@ public class CollectionIndexingTest extends SAITester
     {
         createPopulatedMap(createIndexDDL("ENTRIES(value)"));
         assertUnsupportedIndexOperator(2, "SELECT * FROM %s WHERE value contains 'v1'");
+        assertUnsupportedIndexOperator(0, "SELECT * FROM %s WHERE value not contains 'v1'");
     }
 
     @Test
@@ -145,6 +206,7 @@ public class CollectionIndexingTest extends SAITester
     {
         createPopulatedMap(createIndexDDL("KEYS(value)"));
         assertUnsupportedIndexOperator(2, "SELECT * FROM %s WHERE value contains 'v1'");
+        assertUnsupportedIndexOperator(0, "SELECT * FROM %s WHERE value not contains 'v1'");
     }
 
     @Test
@@ -152,6 +214,7 @@ public class CollectionIndexingTest extends SAITester
     {
         createPopulatedMap(createIndexDDL("KEYS(value)"));
         assertUnsupportedIndexOperator(2, "SELECT * FROM %s WHERE value[1] = 'v1'");
+        assertUnsupportedIndexOperator(0, "SELECT * FROM %s WHERE value[1] != 'v1'");
     }
 
     @Test
@@ -167,6 +230,7 @@ public class CollectionIndexingTest extends SAITester
     {
         createPopulatedMap(createIndexDDL("VALUES(value)"));
         assertUnsupportedIndexOperator(2, "SELECT * FROM %s WHERE value contains key 1");
+        assertUnsupportedIndexOperator(0, "SELECT * FROM %s WHERE value not contains key 1");
     }
 
     @Test
@@ -174,6 +238,7 @@ public class CollectionIndexingTest extends SAITester
     {
         createPopulatedMap(createIndexDDL("VALUES(value)"));
         assertUnsupportedIndexOperator(2, "SELECT * FROM %s WHERE value[1] = 'v1'");
+        assertUnsupportedIndexOperator(0, "SELECT * FROM %s WHERE value[1] != 'v1'");
     }
 
     private void createPopulatedMap(String createIndex)
@@ -188,6 +253,7 @@ public class CollectionIndexingTest extends SAITester
             put(1, "v1");
             put(2, "v3");
         }});
+
     }
 
     @SuppressWarnings("SameParameterValue")

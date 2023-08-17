@@ -45,6 +45,7 @@ import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
+import org.apache.cassandra.index.sai.disk.EmptyIndex;
 import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.memory.MemtableIndexManager;
@@ -180,6 +181,11 @@ public class IndexContext
         return TypeUtil.isNonFrozenCollection(columnMetadata.type);
     }
 
+    public boolean isCollection()
+    {
+        return columnMetadata.type.isCollection();
+    }
+
     public boolean isFrozen()
     {
         return TypeUtil.isFrozen(columnMetadata.type);
@@ -264,9 +270,14 @@ public class IndexContext
 
         if (isNonFrozenCollection())
         {
-            if (indexType == IndexTarget.Type.KEYS) return operator == Expression.IndexOperator.CONTAINS_KEY;
-            if (indexType == IndexTarget.Type.VALUES) return operator == Expression.IndexOperator.CONTAINS_VALUE;
-            return indexType == IndexTarget.Type.KEYS_AND_VALUES && operator == Expression.IndexOperator.EQ;
+            if (indexType == IndexTarget.Type.KEYS)
+                return operator == Expression.IndexOperator.CONTAINS_KEY
+                    || operator == Expression.IndexOperator.NOT_CONTAINS_KEY;
+            if (indexType == IndexTarget.Type.VALUES)
+                return operator == Expression.IndexOperator.CONTAINS_VALUE
+                    || operator == Expression.IndexOperator.NOT_CONTAINS_VALUE;
+            return indexType == IndexTarget.Type.KEYS_AND_VALUES &&
+                   (operator == Expression.IndexOperator.EQ || operator == Expression.IndexOperator.NEQ);
         }
 
         if (indexType == IndexTarget.Type.FULL)
@@ -411,8 +422,8 @@ public class IndexContext
 
             if (sstableContext.indexDescriptor.isIndexEmpty(this))
             {
-                logger.debug(logMessage("No on-disk index was built for SSTable {} because the SSTable " +
-                                        "had no indexable rows for the index."), sstableContext.descriptor());
+                SSTableIndex empty = new EmptyIndex(sstableContext, this);
+                valid.add(empty);
                 continue;
             }
 
@@ -480,4 +491,5 @@ public class IndexContext
                         .mapToLong(SSTableIndex::indexFileCacheSize)
                         .sum();
     }
+
 }
