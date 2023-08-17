@@ -1,4 +1,3 @@
-// [arabic, start=6]
 . Monitor the progress of the startup with:
 +
 [tabs]

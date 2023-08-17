@@ -286,7 +286,7 @@ include::cassandra:partial$masking_functions.adoc[]
 
 A number of functions allow to obtain the similarity score between vectors of floats.
 
-include::cassandra:partial$vector_functions.adoc[]
+include::cassandra:partial$vector-search/vector_functions.adoc[]
 
 [[user-defined-scalar-functions]]
 === User-defined functions
