@@ -287,7 +287,7 @@ public enum CassandraRelevantProperties
     SAI_VECTOR_SEARCH_MAX_TOP_K("cassandra.sai.vector_search.max_top_k", "1000"),
 
     /** Controls the hnsw vector cache size, in bytes, per index segment. 0 to disable */
-    SAI_HNSW_VECTOR_CACHE_BYTES("cassandra.sai.vector_search.vector_cache_bytes", String.valueOf(1 * 1024 * 1024)),
+    SAI_HNSW_VECTOR_CACHE_BYTES("cassandra.sai.vector_search.vector_cache_bytes", String.valueOf(4 * 1024 * 1024)),
 
     /** Whether to allow the user to specify custom options to the hnsw index */
     SAI_HNSW_ALLOW_CUSTOM_PARAMETERS("cassandra.sai.hnsw.allow_custom_parameters", "false"),
