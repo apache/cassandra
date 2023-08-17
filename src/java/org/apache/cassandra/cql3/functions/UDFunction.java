@@ -234,8 +234,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
         this.argCodecs = UDHelper.codecsFor(argDataTypes);
         this.returnCodec = UDHelper.codecFor(returnDataType);
         this.calledOnNullInput = calledOnNullInput;
-        this.udfContext = new UDFContextImpl(argNames, argCodecs, returnCodec,
-                                             name.keyspace);
+        this.udfContext = new UDFContextImpl(argNames, argCodecs, returnCodec, name.keyspace);
     }
 
     public static UDFunction tryCreate(FunctionName name,
