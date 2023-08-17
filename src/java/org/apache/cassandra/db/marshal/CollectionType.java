@@ -20,6 +20,7 @@ package org.apache.cassandra.db.marshal;
 import java.nio.ByteBuffer;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Iterator;
 import java.util.Objects;
@@ -27,9 +28,9 @@ import java.util.function.Consumer;
 
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnSpecification;
-import org.apache.cassandra.cql3.Lists;
-import org.apache.cassandra.cql3.Maps;
-import org.apache.cassandra.cql3.Sets;
+import org.apache.cassandra.cql3.terms.Lists;
+import org.apache.cassandra.cql3.terms.Maps;
+import org.apache.cassandra.cql3.terms.Sets;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
@@ -49,7 +50,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
  * Please note that this comparator shouldn't be used "manually" (as a custom
  * type for instance).
  */
-public abstract class CollectionType<T> extends AbstractType<T>
+public abstract class CollectionType<T> extends MultiElementType<T>
 {
     public static CellPath.Serializer cellPathSerializer = new CollectionPathSerializer();
 
@@ -99,6 +100,12 @@ public abstract class CollectionType<T> extends AbstractType<T>
     public ColumnSpecification makeCollectionReceiver(ColumnSpecification collection, boolean isKey)
     {
         return kind.makeCollectionReceiver(collection, isKey);
+    }
+
+    @Override
+    public ByteBuffer decompose(T value)
+    {
+        return super.decompose(value);
     }
 
     public <V> String getString(V value, ValueAccessor<V> accessor)
@@ -155,18 +162,11 @@ public abstract class CollectionType<T> extends AbstractType<T>
         return true;
     }
 
-    // Overrided by maps
-    protected int collectionSize(List<ByteBuffer> values)
-    {
-        return values.size();
-    }
-
     public ByteBuffer serializeForNativeProtocol(Iterator<Cell<?>> cells)
     {
         assert isMultiCell();
         List<ByteBuffer> values = serializedValues(cells);
-        int size = collectionSize(values);
-        return CollectionSerializer.pack(values, ByteBufferAccessor.instance, size);
+        return getSerializer().pack(values);
     }
 
     @Override
@@ -291,10 +291,10 @@ public abstract class CollectionType<T> extends AbstractType<T>
         return Integer.compare(sizeL, sizeR);
     }
 
-    static <V> ByteSource asComparableBytesListOrSet(AbstractType<?> elementsComparator,
-                                                     ValueAccessor<V> accessor,
-                                                     V data,
-                                                     ByteComparable.Version version)
+    <V> ByteSource asComparableBytesListOrSet(AbstractType<?> elementsComparator,
+                                              ValueAccessor<V> accessor,
+                                              V data,
+                                              ByteComparable.Version version)
     {
         if (accessor.isEmpty(data))
             return null;
@@ -312,10 +312,10 @@ public abstract class CollectionType<T> extends AbstractType<T>
         return ByteSource.withTerminatorMaybeLegacy(version, 0x00, srcs);
     }
 
-    static <V> V fromComparableBytesListOrSet(ValueAccessor<V> accessor,
-                                              ByteSource.Peekable comparableBytes,
-                                              ByteComparable.Version version,
-                                              AbstractType<?> elementType)
+    <V> V fromComparableBytesListOrSet(ValueAccessor<V> accessor,
+                                       ByteSource.Peekable comparableBytes,
+                                       ByteComparable.Version version,
+                                       AbstractType<?> elementType)
     {
         if (comparableBytes == null)
             return accessor.empty();
@@ -331,13 +331,50 @@ public abstract class CollectionType<T> extends AbstractType<T>
                 buffers.add(null);
             separator = comparableBytes.next();
         }
-        return CollectionSerializer.pack(buffers, accessor, buffers.size());
+        return getSerializer().pack(buffers, accessor);
+    }
+
+    @Override
+    public ByteBuffer pack(List<ByteBuffer> elements)
+    {
+        return getSerializer().pack(elements);
+    }
+
+    @Override
+    public List<ByteBuffer> unpack(ByteBuffer input)
+    {
+        return getSerializer().unpack(input);
+    }
+
+    /**
+     * Returns the size of the collections from the number of serialized elements.
+     *
+     * @param elements the serialized elements
+     * @return the size of the collections from the number of serialized elements.
+     */
+    public int collectionSize(Collection<ByteBuffer> elements)
+    {
+        return getSerializer().collectionSize(elements);
+    }
+
+    /**
+     * Checks if this type of collection support bind markers
+     * <p>
+     * At this point Collections do not support bind markers. The two reasons for that are:
+     * 1) it's not excessively useful and 2) we wouldn't have a good column name to return in the ColumnSpecification for those markers (not a
+     * blocker per-se but we don't bother due to 1).
+     * @return {@code false}
+     */
+    @Override
+    public boolean supportsElementBindMarkers()
+    {
+        return false;
     }
 
     public static String setOrListToJsonString(ByteBuffer buffer, AbstractType<?> elementsType, ProtocolVersion protocolVersion)
     {
         ByteBuffer value = buffer.duplicate();
-        StringBuilder sb = new StringBuilder("[");
+        StringBuilder sb = new StringBuilder().append('[');
         int size = CollectionSerializer.readCollectionSize(value, ByteBufferAccessor.instance);
         int offset = CollectionSerializer.sizeOfCollectionSize();
         for (int i = 0; i < size; i++)
@@ -348,7 +385,7 @@ public abstract class CollectionType<T> extends AbstractType<T>
             offset += CollectionSerializer.sizeOfValue(element, ByteBufferAccessor.instance);
             sb.append(elementsType.toJSONString(element, protocolVersion));
         }
-        return sb.append("]").toString();
+        return sb.append(']').toString();
     }
 
     private static class CollectionPathSerializer implements CellPath.Serializer

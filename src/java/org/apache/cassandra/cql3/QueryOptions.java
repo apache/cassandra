@@ -26,6 +26,7 @@ import io.netty.buffer.ByteBuf;
 
 import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.UTF8Type;

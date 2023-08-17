@@ -15,27 +15,31 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.cql3;
+package org.apache.cassandra.cql3.terms;
 
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import org.apache.cassandra.cql3.AssignmentTestable;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.FieldIdentifier;
+import org.apache.cassandra.cql3.Operation;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.UpdateParameters;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.transport.ProtocolVersion;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static org.apache.cassandra.cql3.Constants.UNSET_VALUE;
+import static org.apache.cassandra.cql3.terms.Constants.UNSET_VALUE;
 
 /**
  * Static helper methods and classes for user types.
  */
-public abstract class UserTypes
+public final class UserTypes
 {
     private UserTypes() {}
 
@@ -161,7 +165,7 @@ public abstract class UserTypes
                 }
             }
 
-            DelayedValue value = new DelayedValue(((UserType)receiver.type), values);
+            MultiElements.DelayedValue value = new MultiElements.DelayedValue(((UserType)receiver.type), values);
             return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
         }
 
@@ -203,127 +207,6 @@ public abstract class UserTypes
         }
     }
 
-    public static class Value extends Term.MultiItemTerminal
-    {
-        private final UserType type;
-        public final ByteBuffer[] elements;
-
-        public Value(UserType type, ByteBuffer[] elements)
-        {
-            this.type = type;
-            this.elements = elements;
-        }
-
-        public static Value fromSerialized(ByteBuffer bytes, UserType type)
-        {
-            type.validate(bytes);
-            return new Value(type, type.split(ByteBufferAccessor.instance, bytes));
-        }
-
-        public ByteBuffer get(ProtocolVersion version)
-        {
-            return TupleType.buildValue(elements);
-        }
-
-        public boolean equals(UserType userType, Value v)
-        {
-            if (elements.length != v.elements.length)
-                return false;
-
-            for (int i = 0; i < elements.length; i++)
-                if (userType.fieldType(i).compare(elements[i], v.elements[i]) != 0)
-                    return false;
-
-            return true;
-        }
-
-        public List<ByteBuffer> getElements()
-        {
-            return Arrays.asList(elements);
-        }
-    }
-
-    public static class DelayedValue extends Term.NonTerminal
-    {
-        private final UserType type;
-        private final List<Term> values;
-
-        public DelayedValue(UserType type, List<Term> values)
-        {
-            this.type = type;
-            this.values = values;
-        }
-
-        public void addFunctionsTo(List<Function> functions)
-        {
-            Terms.addFunctions(values, functions);
-        }
-
-        public boolean containsBindMarker()
-        {
-            for (Term t : values)
-                if (t.containsBindMarker())
-                    return true;
-            return false;
-        }
-
-        public void collectMarkerSpecification(VariableSpecifications boundNames)
-        {
-            for (int i = 0; i < type.size(); i++)
-                values.get(i).collectMarkerSpecification(boundNames);
-        }
-
-        private ByteBuffer[] bindInternal(QueryOptions options) throws InvalidRequestException
-        {
-            if (values.size() > type.size())
-            {
-                throw new InvalidRequestException(String.format(
-                        "UDT value contained too many fields (expected %s, got %s)", type.size(), values.size()));
-            }
-
-            ByteBuffer[] buffers = new ByteBuffer[values.size()];
-            for (int i = 0; i < type.size(); i++)
-            {
-                buffers[i] = values.get(i).bindAndGet(options);
-                // Since a frozen UDT value is always written in its entirety Cassandra can't preserve a pre-existing
-                // value by 'not setting' the new value. Reject the query.
-                if (!type.isMultiCell() && buffers[i] == ByteBufferUtil.UNSET_BYTE_BUFFER)
-                    throw new InvalidRequestException(String.format("Invalid unset value for field '%s' of user defined type %s", type.fieldNameAsString(i), type.getNameAsString()));
-            }
-            return buffers;
-        }
-
-        public Value bind(QueryOptions options) throws InvalidRequestException
-        {
-            return new Value(type, bindInternal(options));
-        }
-
-        @Override
-        public ByteBuffer bindAndGet(QueryOptions options) throws InvalidRequestException
-        {
-            return UserType.buildValue(bindInternal(options));
-        }
-    }
-
-    public static class Marker extends AbstractMarker
-    {
-        protected Marker(int bindIndex, ColumnSpecification receiver)
-        {
-            super(bindIndex, receiver);
-            assert receiver.type.isUDT();
-        }
-
-        public Terminal bind(QueryOptions options) throws InvalidRequestException
-        {
-            ByteBuffer value = options.getValues().get(bindIndex);
-            if (value == null)
-                return null;
-            if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
-                return UNSET_VALUE;
-            return Value.fromSerialized(value, (UserType) receiver.type);
-        }
-    }
-
     public static class Setter extends Operation
     {
         public Setter(ColumnMetadata column, Term t)
@@ -337,23 +220,23 @@ public abstract class UserTypes
             if (value == UNSET_VALUE)
                 return;
 
-            Value userTypeValue = (Value) value;
-            if (column.type.isMultiCell())
+            UserType type = (UserType) column.type;
+            if (type.isMultiCell())
             {
                 // setting a whole UDT at once means we overwrite all cells, so delete existing cells
                 params.setComplexDeletionTimeForOverwrite(column);
                 if (value == null)
                     return;
 
-                Iterator<FieldIdentifier> fieldNameIter = userTypeValue.type.fieldNames().iterator();
-                for (ByteBuffer buffer : userTypeValue.elements)
+                Iterator<FieldIdentifier> fieldNameIter = type.fieldNames().iterator();
+                for (ByteBuffer buffer : value.getElements())
                 {
                     assert fieldNameIter.hasNext();
                     FieldIdentifier fieldName = fieldNameIter.next();
                     if (buffer == null)
                         continue;
 
-                    CellPath fieldPath = userTypeValue.type.cellPathForField(fieldName);
+                    CellPath fieldPath = type.cellPathForField(fieldName);
                     params.addCell(column, fieldPath, buffer);
                 }
             }
@@ -363,7 +246,7 @@ public abstract class UserTypes
                 if (value == null)
                     params.addTombstone(column);
                 else
-                    params.addCell(column, value.get(params.options.getProtocolVersion()));
+                    params.addCell(column, value.get());
             }
         }
     }
@@ -391,7 +274,7 @@ public abstract class UserTypes
             if (value == null)
                 params.addTombstone(column, fieldPath);
             else
-                params.addCell(column, fieldPath, value.get(params.options.getProtocolVersion()));
+                params.addCell(column, fieldPath, value.get());
         }
     }
 

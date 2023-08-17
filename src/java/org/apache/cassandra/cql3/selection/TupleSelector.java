@@ -25,7 +25,7 @@ import java.util.List;
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.Tuples;
+import org.apache.cassandra.cql3.terms.Tuples;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.ColumnFilter.Builder;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -59,7 +59,7 @@ final class TupleSelector extends Selector
     /**
      * The tuple type.
      */
-    private final AbstractType<?> type;
+    private final TupleType type;
 
     /**
      * The tuple elements
@@ -97,12 +97,12 @@ final class TupleSelector extends Selector
 
     public ByteBuffer getOutput(ProtocolVersion protocolVersion) throws InvalidRequestException
     {
-        ByteBuffer[] buffers = new ByteBuffer[elements.size()];
+        List<ByteBuffer> buffers = new ArrayList<>(elements.size());
         for (int i = 0, m = elements.size(); i < m; i++)
         {
-            buffers[i] = elements.get(i).getOutput(protocolVersion);
+            buffers.add(elements.get(i).getOutput(protocolVersion));
         }
-        return TupleType.buildValue(buffers);
+        return type.pack(buffers);
     }
 
     public void reset()
@@ -136,7 +136,7 @@ final class TupleSelector extends Selector
     private TupleSelector(AbstractType<?> type, List<Selector> elements)
     {
         super(Kind.TUPLE_SELECTOR);
-        this.type = type;
+        this.type = (TupleType) type;
         this.elements = elements;
     }
 

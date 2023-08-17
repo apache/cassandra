@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.cql3;
+package org.apache.cassandra.cql3.terms;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -27,24 +27,28 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import org.apache.cassandra.cql3.AssignmentTestable;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.Operation;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.UpdateParameters;
+import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.db.guardrails.Guardrails;
-import org.apache.cassandra.db.marshal.ByteBufferAccessor;
+import org.apache.cassandra.db.marshal.MultiElementType;
 import org.apache.cassandra.schema.ColumnMetadata;
 import com.google.common.annotations.VisibleForTesting;
-import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
-import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.serializers.CollectionSerializer;
-import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static org.apache.cassandra.cql3.Constants.UNSET_VALUE;
+import static org.apache.cassandra.cql3.terms.Constants.UNSET_VALUE;
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
+import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.TimeUUID.Generator.atUnixMillisAsBytes;
 
@@ -65,14 +69,9 @@ public abstract class Lists
         return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("value(" + column.name + ")", true), elementsType(column.type));
     }
 
-    private static AbstractType<?> unwrap(AbstractType<?> type)
-    {
-        return type.isReversed() ? unwrap(((ReversedType<?>) type).baseType) : type;
-    }
-
     private static AbstractType<?> elementsType(AbstractType<?> type)
     {
-        return ((ListType<?>) unwrap(type)).getElementsType();
+        return ((ListType<?>) type.unwrap()).getElementsType();
     }
 
     /**
@@ -163,30 +162,29 @@ public abstract class Lists
             {
                 Term t = rt.prepare(keyspace, valueSpec);
 
-                if (t.containsBindMarker())
-                    throw new InvalidRequestException(String.format("Invalid list literal for %s: bind variables are not supported inside collection literals", receiver.name));
+                checkFalse(t.containsBindMarker(), "Invalid list literal for %s: bind variables are not supported inside collection literals", receiver.name);
 
                 if (t instanceof Term.NonTerminal)
                     allTerminal = false;
 
                 values.add(t);
             }
-            DelayedValue value = new DelayedValue(values);
+            MultiElements.DelayedValue value = new MultiElements.DelayedValue((MultiElementType<?>) receiver.type.unwrap(), values);
             return allTerminal ? value.bind(QueryOptions.DEFAULT) : value;
         }
 
         private void validateAssignableTo(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            AbstractType<?> type = unwrap(receiver.type);
+            AbstractType<?> type = receiver.type.unwrap();
 
             if (!(type instanceof ListType))
-                throw new InvalidRequestException(String.format("Invalid list literal for %s of type %s", receiver.name, receiver.type.asCQL3Type()));
+                throw invalidRequest("Invalid list literal for %s of type %s", receiver.name, receiver.type.asCQL3Type());
 
             ColumnSpecification valueSpec = Lists.valueSpecOf(receiver);
             for (Term.Raw rt : elements)
             {
                 if (!rt.testAssignment(keyspace, valueSpec).isAssignable())
-                    throw new InvalidRequestException(String.format("Invalid list literal for %s: value %s is not of type %s", receiver.name, rt, valueSpec.type.asCQL3Type()));
+                    throw invalidRequest("Invalid list literal for %s: value %s is not of type %s", receiver.name, rt, valueSpec.type.asCQL3Type());
             }
         }
 
@@ -210,130 +208,6 @@ public abstract class Lists
         public String getText()
         {
             return listToString(elements, Term.Raw::getText);
-        }
-    }
-
-    public static class Value extends Term.MultiItemTerminal
-    {
-        public final List<ByteBuffer> elements;
-
-        public Value(List<ByteBuffer> elements)
-        {
-            this.elements = elements;
-        }
-
-        public static <T> Value fromSerialized(ByteBuffer value, ListType<T> type) throws InvalidRequestException
-        {
-            try
-            {
-                // Collections have this small hack that validate cannot be called on a serialized object,
-                // but compose does the validation (so we're fine).
-                List<T> l = type.getSerializer().deserialize(value, ByteBufferAccessor.instance);
-                List<ByteBuffer> elements = new ArrayList<>(l.size());
-                for (T element : l)
-                    // elements can be null in lists that represent a set of IN values
-                    elements.add(element == null ? null : type.getElementsType().decompose(element));
-                return new Value(elements);
-            }
-            catch (MarshalException e)
-            {
-                throw new InvalidRequestException(e.getMessage());
-            }
-        }
-
-        public ByteBuffer get(ProtocolVersion version)
-        {
-            return CollectionSerializer.pack(elements, elements.size());
-        }
-
-        public boolean equals(ListType<?> lt, Value v)
-        {
-            if (elements.size() != v.elements.size())
-                return false;
-
-            for (int i = 0; i < elements.size(); i++)
-                if (lt.getElementsType().compare(elements.get(i), v.elements.get(i)) != 0)
-                    return false;
-
-            return true;
-        }
-
-        public List<ByteBuffer> getElements()
-        {
-            return elements;
-        }
-    }
-
-    /**
-     * Basically similar to a Value, but with some non-pure function (that need
-     * to be evaluated at execution time) in it.
-     *
-     * Note: this would also work for a list with bind markers, but we don't support
-     * that because 1) it's not excessively useful and 2) we wouldn't have a good
-     * column name to return in the ColumnSpecification for those markers (not a
-     * blocker per-se but we don't bother due to 1)).
-     */
-    public static class DelayedValue extends Term.NonTerminal
-    {
-        private final List<Term> elements;
-
-        public DelayedValue(List<Term> elements)
-        {
-            this.elements = elements;
-        }
-
-        public boolean containsBindMarker()
-        {
-            // False since we don't support them in collection
-            return false;
-        }
-
-        public void collectMarkerSpecification(VariableSpecifications boundNames)
-        {
-        }
-
-        public Terminal bind(QueryOptions options) throws InvalidRequestException
-        {
-            List<ByteBuffer> buffers = new ArrayList<ByteBuffer>(elements.size());
-            for (Term t : elements)
-            {
-                ByteBuffer bytes = t.bindAndGet(options);
-
-                if (bytes == null)
-                    throw new InvalidRequestException("null is not supported inside collections");
-                if (bytes == ByteBufferUtil.UNSET_BYTE_BUFFER)
-                    return UNSET_VALUE;
-
-                buffers.add(bytes);
-            }
-            return new Value(buffers);
-        }
-
-        public void addFunctionsTo(List<Function> functions)
-        {
-            Terms.addFunctions(elements, functions);
-        }
-    }
-
-    /**
-     * A marker for List values and IN relations
-     */
-    public static class Marker extends AbstractMarker
-    {
-        protected Marker(int bindIndex, ColumnSpecification receiver)
-        {
-            super(bindIndex, receiver);
-            assert receiver.type instanceof ListType;
-        }
-
-        public Terminal bind(QueryOptions options) throws InvalidRequestException
-        {
-            ByteBuffer value = options.getValues().get(bindIndex);
-            if (value == null)
-                return null;
-            if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
-                return UNSET_VALUE;
-            return Value.fromSerialized(value, (ListType<?>) receiver.type);
         }
     }
 
@@ -507,10 +381,12 @@ public abstract class Lists
 
         static void doAppend(Term.Terminal value, ColumnMetadata column, UpdateParameters params) throws InvalidRequestException
         {
+            ListType<?> type = (ListType<?>) column.type;
+
             if (value == null)
             {
                 // for frozen lists, we're overwriting the whole cell value
-                if (!column.type.isMultiCell())
+                if (!type.isMultiCell())
                     params.addTombstone(column);
 
                 // If we append null, do nothing. Note that for Setter, we've
@@ -518,17 +394,17 @@ public abstract class Lists
                 return;
             }
 
-            List<ByteBuffer> elements = ((Value) value).elements;
+            List<ByteBuffer> elements = value.getElements();
 
-            if (column.type.isMultiCell())
+            if (type.isMultiCell())
             {
-                if (elements.size() == 0)
+                if (elements.isEmpty())
                     return;
 
                 // Guardrails about collection size are only checked for the added elements without considering
                 // already existent elements. This is done so to avoid read-before-write, having additional checks
                 // during SSTable write.
-                Guardrails.itemsPerCollection.guard(elements.size(), column.name.toString(), false, params.clientState);
+                Guardrails.itemsPerCollection.guard(type.collectionSize(elements), column.name.toString(), false, params.clientState);
 
                 int dataSize = 0;
                 for (ByteBuffer buffer : elements)
@@ -541,8 +417,8 @@ public abstract class Lists
             }
             else
             {
-                Guardrails.itemsPerCollection.guard(elements.size(), column.name.toString(), false, params.clientState);
-                Cell<?> cell = params.addCell(column, value.get(ProtocolVersion.CURRENT));
+                Guardrails.itemsPerCollection.guard(type.collectionSize(elements), column.name.toString(), false, params.clientState);
+                Cell<?> cell = params.addCell(column, value.get());
                 Guardrails.collectionSize.guard(cell.dataSize(), column.name.toString(), false, params.clientState);
             }
         }
@@ -562,7 +438,7 @@ public abstract class Lists
             if (value == null || value == UNSET_VALUE)
                 return;
 
-            List<ByteBuffer> toAdd = ((Value) value).elements;
+            List<ByteBuffer> toAdd = value.getElements();
             final int totalCount = toAdd.size();
 
             // we have to obey MAX_NANOS per batch - in the unlikely event a client has decided to prepend a list with
@@ -617,7 +493,7 @@ public abstract class Lists
             // Meaning that if toDiscard is big, converting it to a HashSet might be more efficient. However,
             // the read-before-write this operation requires limits its usefulness on big lists, so in practice
             // toDiscard will be small and keeping a list will be more efficient.
-            List<ByteBuffer> toDiscard = ((Value)value).elements;
+            List<ByteBuffer> toDiscard = value.getElements();
             for (Cell<?> cell : complexData)
             {
                 if (toDiscard.contains(cell.buffer()))
@@ -654,7 +530,7 @@ public abstract class Lists
 
             Row existingRow = params.getPrefetchedRow(partitionKey, params.currentClustering());
             int existingSize = existingSize(existingRow, column);
-            int idx = ByteBufferUtil.toInt(index.get(params.options.getProtocolVersion()));
+            int idx = ByteBufferUtil.toInt(index.get());
             if (existingSize == 0)
                 throw new InvalidRequestException("Attempted to delete an element from a list which is null");
             if (idx < 0 || idx >= existingSize)

@@ -32,10 +32,12 @@ import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.marshal.ShortType;
+import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.rows.BufferCell;
@@ -370,7 +372,13 @@ public class CellTest
 
     private static ByteBuffer udt(ByteBuffer...buffers)
     {
-        return UserType.buildValue(buffers);
+        List<AbstractType<?>> types = new ArrayList<>(buffers.length);
+        for (int i = 0, m = buffers.length; i < m; i++)
+        {
+            types.add(BytesType.instance);
+        }
+        TupleType tupleType = new TupleType(types);
+        return tupleType.pack(buffers);
     }
 
     private static FieldIdentifier field(String field)

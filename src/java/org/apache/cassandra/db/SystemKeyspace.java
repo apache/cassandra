@@ -60,7 +60,6 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.compaction.CompactionHistoryTabularData;
-import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
@@ -457,6 +456,7 @@ public final class SystemKeyspace
                 + "PRIMARY KEY (keyspace_name, table_name, top_type))")
                 .build();
 
+    private static final TupleType TOP_TUPLE_TYPE = new TupleType(Arrays.asList(UTF8Type.instance, LongType.instance));
 
     private static final TableMetadata PreparedStatements =
         parse(PREPARED_STATEMENTS,
@@ -1966,8 +1966,7 @@ public final class SystemKeyspace
         List<ByteBuffer> tupleList = new ArrayList<>(topPartitions.size());
         topPartitions.forEach(tp -> {
             String key = metadata.partitionKeyType.getString(tp.key.getKey());
-            tupleList.add(TupleType.buildValue(new ByteBuffer[] { UTF8Type.instance.decompose(key),
-                                                                  LongType.instance.decompose(tp.value)}));
+            tupleList.add(TOP_TUPLE_TYPE.pack(UTF8Type.instance.decompose(key), LongType.instance.decompose(tp.value)));
         });
         executeInternal(cql, metadata.keyspace, metadata.name, topType, tupleList, Date.from(Instant.ofEpochMilli(lastUpdate)));
     }
@@ -1990,9 +1989,9 @@ public final class SystemKeyspace
             TupleType tupleType = new TupleType(Lists.newArrayList(UTF8Type.instance, LongType.instance));
             for (ByteBuffer bb : top)
             {
-                ByteBuffer[] components = tupleType.split(ByteBufferAccessor.instance, bb);
-                String keyStr = UTF8Type.instance.compose(components[0]);
-                long value = LongType.instance.compose(components[1]);
+                List<ByteBuffer> components = tupleType.unpack(bb);
+                String keyStr = UTF8Type.instance.compose(components.get(0));
+                long value = LongType.instance.compose(components.get(1));
                 topPartitions.add(new TopPartitionTracker.TopPartition(metadata.partitioner.decorateKey(metadata.partitionKeyType.fromString(keyStr)), value));
             }
             return new TopPartitionTracker.StoredTopPartitions(topPartitions, lastUpdated);

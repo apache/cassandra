@@ -16,10 +16,11 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.cql3;
+package org.apache.cassandra.cql3.terms;
 
 import java.util.List;
 
+import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.VectorType;
@@ -55,7 +56,7 @@ public class ArrayLiteral extends Term.Raw
     }
 
     @Override
-    public AssignmentTestable.TestResult testAssignment(String keyspace, ColumnSpecification receiver)
+    public TestResult testAssignment(String keyspace, ColumnSpecification receiver)
     {
         return forReceiver(receiver).testAssignment(keyspace, receiver);
     }

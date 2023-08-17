@@ -26,7 +26,7 @@ import java.util.List;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.cql3.Constants.Literal;
+import org.apache.cassandra.cql3.terms.Constants.Literal;
 import org.apache.cassandra.cql3.functions.AggregateFcts;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.TimeFcts;

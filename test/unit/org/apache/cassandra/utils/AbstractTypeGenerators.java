@@ -860,11 +860,11 @@ public final class AbstractTypeGenerators
             List<Comparator<Object>> columns = (List<Comparator<Object>>) (List<?>) tupleType.allTypes().stream().map(AbstractTypeGenerators::comparator).collect(Collectors.toList());
             Comparator<List<Object>> listCompar = listComparator((i, a, b) -> columns.get(i).compare(a, b));
             Comparator<ByteBuffer> comparator = (ByteBuffer a, ByteBuffer b) -> {
-                ByteBuffer[] abb = tupleType.split(ByteBufferAccessor.instance, a);
-                List<Object> av = IntStream.range(0, abb.length).mapToObj(i -> tupleType.type(i).compose(abb[i])).collect(Collectors.toList());
+                List<ByteBuffer> abb = tupleType.unpack(a);
+                List<Object> av = IntStream.range(0, abb.size()).mapToObj(i -> tupleType.type(i).compose(abb.get(i))).collect(Collectors.toList());
 
-                ByteBuffer[] bbb = tupleType.split(ByteBufferAccessor.instance, b);
-                List<Object> bv = IntStream.range(0, bbb.length).mapToObj(i -> tupleType.type(i).compose(bbb[i])).collect(Collectors.toList());
+                List<ByteBuffer> bbb = tupleType.unpack(b);
+                List<Object> bv = IntStream.range(0, bbb.size()).mapToObj(i -> tupleType.type(i).compose(bbb.get(i))).collect(Collectors.toList());
                 return listCompar.compare(av, bv);
             };
             support = (TypeSupport<T>) TypeSupport.of(tupleType, new TupleGen(tupleType, sizeGen, valueDomainGen), comparator);
@@ -1201,22 +1201,25 @@ public final class AbstractTypeGenerators
     {
         private final List<TypeSupport<Object>> elementsSupport;
 
+        private final TupleType type;
+
         @SuppressWarnings("unchecked")
         private TupleGen(TupleType tupleType, Gen<Integer> sizeGen, @Nullable Gen<ValueDomain> valueDomainGen)
         {
             this.elementsSupport = tupleType.allTypes().stream().map(t -> getTypeSupport((AbstractType<Object>) t, sizeGen, valueDomainGen)).collect(Collectors.toList());
+            this.type = tupleType;
         }
 
         public ByteBuffer generate(RandomnessSource rnd)
         {
             List<TypeSupport<Object>> eSupport = this.elementsSupport;
-            ByteBuffer[] elements = new ByteBuffer[eSupport.size()];
+            List<ByteBuffer> elements = new ArrayList<>(eSupport.size());
             for (int i = 0; i < eSupport.size(); i++)
             {
                 TypeSupport<Object> support = eSupport.get(i);
-                elements[i] = support.type.decompose(support.valueGen.generate(rnd));
+                elements.add(support.type.decompose(support.valueGen.generate(rnd)));
             }
-            return TupleType.buildValue(elements);
+            return type.pack(elements);
         }
     }
 

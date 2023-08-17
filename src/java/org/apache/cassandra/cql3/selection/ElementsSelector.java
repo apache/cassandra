@@ -25,7 +25,7 @@ import com.google.common.collect.Range;
 
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.Term;
+import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.cql3.selection.SimpleSelector.SimpleSelectorFactory;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.filter.ColumnFilter;
@@ -169,7 +169,7 @@ abstract class ElementsSelector extends Selector
                 }
 
                 ColumnMetadata column = ((SimpleSelectorFactory) factory).getColumn();
-                builder.select(column, CellPath.create(((Term.Terminal)key).get(ProtocolVersion.V3)));
+                builder.select(column, CellPath.create(((Term.Terminal)key).get()));
             }
         };
     }
@@ -230,8 +230,8 @@ abstract class ElementsSelector extends Selector
                 }
 
                 ColumnMetadata column = ((SimpleSelectorFactory) factory).getColumn();
-                ByteBuffer fromBB = ((Term.Terminal)from).get(ProtocolVersion.V3);
-                ByteBuffer toBB = ((Term.Terminal)to).get(ProtocolVersion.V3);
+                ByteBuffer fromBB = ((Term.Terminal)from).get();
+                ByteBuffer toBB = ((Term.Terminal)to).get();
                 builder.slice(column, isUnset(fromBB) ? CellPath.BOTTOM : CellPath.create(fromBB), isUnset(toBB) ? CellPath.TOP  : CellPath.create(toBB));
             }
         };

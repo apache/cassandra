@@ -28,21 +28,19 @@ import java.util.Set;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
 
-import org.apache.cassandra.cql3.AbstractMarker;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.Term;
-import org.apache.cassandra.cql3.Terms;
-import org.apache.cassandra.cql3.Tuples;
-import org.apache.cassandra.cql3.Term.Terminal;
+import org.apache.cassandra.cql3.terms.Term;
+import org.apache.cassandra.cql3.terms.Terms;
+import org.apache.cassandra.cql3.terms.Term.Terminal;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.MultiCBuilder;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.serializers.ListSerializer;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
@@ -234,7 +232,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         @Override
         public MultiCBuilder appendTo(MultiCBuilder builder, QueryOptions options)
         {
-            Tuples.Value t = ((Tuples.Value) value.bind(options));
+            Term.Terminal t = value.bind(options);
             List<ByteBuffer> values = t.getElements();
             for (int i = 0, m = values.size(); i < m; i++)
             {
@@ -247,7 +245,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         @Override
         public final void addToRowFilter(RowFilter filter, IndexRegistry indexRegistry, QueryOptions options)
         {
-            Tuples.Value t = ((Tuples.Value) value.bind(options));
+            Term.Terminal t = value.bind(options);
             List<ByteBuffer> values = t.getElements();
 
             for (int i = 0, m = columnDefs.size(); i < m; i++)
@@ -258,11 +256,20 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         }
     }
 
-    public abstract static class INRestriction extends MultiColumnRestriction
+    public static class INRestriction extends MultiColumnRestriction
     {
-        public INRestriction(List<ColumnMetadata> columnDefs)
+        private final Terms values;
+
+        public INRestriction(List<ColumnMetadata> columnDefs, Terms values)
         {
             super(columnDefs);
+            this.values = values;
+        }
+
+        @Override
+        public void addFunctionsTo(List<Function> functions)
+        {
+            values.addFunctionsTo(functions);
         }
 
         /**
@@ -271,8 +278,14 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         @Override
         public MultiCBuilder appendTo(MultiCBuilder builder, QueryOptions options)
         {
-            List<List<ByteBuffer>> splitInValues = splitValues(options);
-            builder.addAllElementsToAll(splitInValues);
+            List<List<ByteBuffer>> elements = values.bindAndGetElements(options);
+
+            if (elements == null)
+                throw invalidRequest("Invalid null value for in(%s)", ColumnMetadata.toCQLString(columnDefs));
+            if (elements == Terms.UNSET_LIST)
+                throw invalidRequest("Invalid unset value for in(%s)", ColumnMetadata.toCQLString(columnDefs));
+
+            builder.addAllElementsToAll(elements);
 
             if (builder.containsNull())
                 throw invalidRequest("Invalid null value in condition for columns: %s", ColumnMetadata.toIdentifiers(columnDefs));
@@ -307,94 +320,19 @@ public abstract class MultiColumnRestriction implements SingleRestriction
             // c IN (x, y, z) and we can perform filtering
             if (getColumnDefs().size() == 1)
             {
-                List<List<ByteBuffer>> splitValues = splitValues(options);
+                List<List<ByteBuffer>> splitValues = values.bindAndGetElements(options);
                 List<ByteBuffer> values = new ArrayList<>(splitValues.size());
                 for (List<ByteBuffer> splitValue : splitValues)
                     values.add(splitValue.get(0));
 
-                ByteBuffer buffer = ListSerializer.pack(values, values.size());
+                ListType<?> type = ListType.getInstance(getFirstColumn().type, false);
+                ByteBuffer buffer = type.pack(values);
                 filter.add(getFirstColumn(), Operator.IN, buffer);
             }
             else
             {
                 throw invalidRequest("Multicolumn IN filters are not supported");
             }
-        }
-
-        protected abstract List<List<ByteBuffer>> splitValues(QueryOptions options);
-    }
-
-    /**
-     * An IN restriction that has a set of terms for in values.
-     * For example: "SELECT ... WHERE (a, b, c) IN ((1, 2, 3), (4, 5, 6))" or "WHERE (a, b, c) IN (?, ?)"
-     */
-    public static class InRestrictionWithValues extends INRestriction
-    {
-        protected final List<Term> values;
-
-        public InRestrictionWithValues(List<ColumnMetadata> columnDefs, List<Term> values)
-        {
-            super(columnDefs);
-            this.values = values;
-        }
-
-        @Override
-        public void addFunctionsTo(List<Function> functions)
-        {
-            Terms.addFunctions(values, functions);
-        }
-
-        @Override
-        public String toString()
-        {
-            return String.format("IN(%s)", values);
-        }
-
-        @Override
-        protected List<List<ByteBuffer>> splitValues(QueryOptions options)
-        {
-            List<List<ByteBuffer>> buffers = new ArrayList<>(values.size());
-            for (Term value : values)
-            {
-                Term.MultiItemTerminal term = (Term.MultiItemTerminal) value.bind(options);
-                buffers.add(term.getElements());
-            }
-            return buffers;
-        }
-    }
-
-    /**
-     * An IN restriction that uses a single marker for a set of IN values that are tuples.
-     * For example: "SELECT ... WHERE (a, b, c) IN ?"
-     */
-    public static class InRestrictionWithMarker extends INRestriction
-    {
-        protected final AbstractMarker marker;
-
-        public InRestrictionWithMarker(List<ColumnMetadata> columnDefs, AbstractMarker marker)
-        {
-            super(columnDefs);
-            this.marker = marker;
-        }
-
-        @Override
-        public void addFunctionsTo(List<Function> functions)
-        {
-        }
-
-        @Override
-        public String toString()
-        {
-            return "IN ?";
-        }
-
-        @Override
-        protected List<List<ByteBuffer>> splitValues(QueryOptions options)
-        {
-            Tuples.InMarker inMarker = (Tuples.InMarker) marker;
-            Tuples.InValue inValue = inMarker.bind(options);
-            checkNotNull(inValue, "Invalid null value for IN restriction");
-            return inValue.getSplitValues();
         }
     }
 
@@ -566,13 +504,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
                 return Collections.emptyList();
 
             Terminal terminal = slice.bound(b).bind(options);
-
-            if (terminal instanceof Tuples.Value)
-            {
-                return ((Tuples.Value) terminal).getElements();
-            }
-
-            return Collections.singletonList(terminal.get(options.getProtocolVersion()));
+            return terminal.getElements();
         }
 
         private boolean hasComponent(Bound b, int index, EnumMap<Bound, List<ByteBuffer>> componentBounds)

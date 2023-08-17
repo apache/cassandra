@@ -22,10 +22,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.terms.Term;
+import org.apache.cassandra.cql3.terms.Terms;
+import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.serializers.ListSerializer;
-import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.cql3.Term.Terminal;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.MultiCBuilder;
@@ -216,11 +218,26 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         }
     }
 
-    public static abstract class INRestriction extends SingleColumnRestriction
+    public static class INRestriction extends SingleColumnRestriction
     {
-        public INRestriction(ColumnMetadata columnDef)
+        private final Terms values;
+
+        public INRestriction(ColumnMetadata columnDef, Terms values)
         {
             super(columnDef);
+            this.values = values;
+        }
+
+        @Override
+        MultiColumnRestriction toMultiColumnRestriction()
+        {
+            return new MultiColumnRestriction.INRestriction(Collections.singletonList(columnDef), values);
+        }
+
+        @Override
+        public void addFunctionsTo(List<Function> functions)
+        {
+            values.addFunctionsTo(functions);
         }
 
         @Override
@@ -238,7 +255,10 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         @Override
         public MultiCBuilder appendTo(MultiCBuilder builder, QueryOptions options)
         {
-            builder.addEachElementToAll(getValues(options));
+            List<ByteBuffer> buffers = values.bindAndGet(options);
+            checkNotNull(buffers, "Invalid null value for column %s", columnDef.name);
+            checkFalse(buffers == Terms.UNSET_LIST, "Invalid unset value for column %s", columnDef.name);
+            builder.addEachElementToAll(buffers);
             checkFalse(builder.containsNull(), "Invalid null value in condition for column %s", columnDef.name);
             checkFalse(builder.containsUnset(), "Invalid unset value for column %s", columnDef.name);
             return builder;
@@ -249,8 +269,9 @@ public abstract class SingleColumnRestriction implements SingleRestriction
                                    IndexRegistry indexRegistry,
                                    QueryOptions options)
         {
-            List<ByteBuffer> values = getValues(options);
-            ByteBuffer buffer = ListSerializer.pack(values, values.size());
+            List<ByteBuffer> elements = values.bindAndGet(options);
+            ListType<?> type = ListType.getInstance(columnDef.type, false);
+            ByteBuffer buffer = type.pack(elements);
             filter.add(columnDef, Operator.IN, buffer);
         }
 
@@ -258,84 +279,6 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         protected final boolean isSupportedBy(Index index)
         {
             return index.supportsExpression(columnDef, Operator.IN);
-        }
-
-        protected abstract List<ByteBuffer> getValues(QueryOptions options);
-    }
-
-    public static class InRestrictionWithValues extends INRestriction
-    {
-        protected final List<Term> values;
-
-        public InRestrictionWithValues(ColumnMetadata columnDef, List<Term> values)
-        {
-            super(columnDef);
-            this.values = values;
-        }
-
-        @Override
-        MultiColumnRestriction toMultiColumnRestriction()
-        {
-            return new MultiColumnRestriction.InRestrictionWithValues(Collections.singletonList(columnDef), values);
-        }
-
-        @Override
-        public void addFunctionsTo(List<Function> functions)
-        {
-            Terms.addFunctions(values, functions);
-        }
-
-        @Override
-        protected List<ByteBuffer> getValues(QueryOptions options)
-        {
-            List<ByteBuffer> buffers = new ArrayList<>(values.size());
-            for (Term value : values)
-                buffers.add(value.bindAndGet(options));
-            return buffers;
-        }
-
-        @Override
-        public String toString()
-        {
-            return String.format("IN(%s)", values);
-        }
-    }
-
-    public static class InRestrictionWithMarker extends INRestriction
-    {
-        protected final AbstractMarker marker;
-
-        public InRestrictionWithMarker(ColumnMetadata columnDef, AbstractMarker marker)
-        {
-            super(columnDef);
-            this.marker = marker;
-        }
-
-        @Override
-        public void addFunctionsTo(List<Function> functions)
-        {
-        }
-
-        @Override
-        MultiColumnRestriction toMultiColumnRestriction()
-        {
-            return new MultiColumnRestriction.InRestrictionWithMarker(Collections.singletonList(columnDef), marker);
-        }
-
-        @Override
-        protected List<ByteBuffer> getValues(QueryOptions options)
-        {
-            Terminal term = marker.bind(options);
-            checkNotNull(term, "Invalid null value for column %s", columnDef.name);
-            checkFalse(term == Constants.UNSET_VALUE, "Invalid unset value for column %s", columnDef.name);
-            Term.MultiItemTerminal lval = (Term.MultiItemTerminal) term;
-            return lval.getElements();
-        }
-
-        @Override
-        public String toString()
-        {
-            return "IN ?";
         }
     }
 
@@ -711,12 +654,6 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         public void addFunctionsTo(List<Function> functions)
         {
             value.addFunctionsTo(functions);
-        }
-
-        @Override
-        public boolean isEQ()
-        {
-            return false;
         }
 
         @Override
