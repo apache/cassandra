@@ -1,6 +1,6 @@
 [NOTE]
 ====
-For information on how to configure your installation, see xref:cassandra:getting-started/configuring.adoc[Configuring Cassandra].
+See xref:cassandra:getting-started/configuring.adoc[configuring Cassandra] for configuration information.
 ====
 
 // [arabic, start=7]
@@ -11,8 +11,7 @@ For information on how to configure your installation, see xref:cassandra:gettin
 include::cassandra:example$BASH/nodetool_status_nobin.sh[]
 ----
 +
-The status column in the output should report `UN` which stands for
-"Up/Normal".
+The status column in the output should report `UN` which stands for "Up/Normal".
 +
 Alternatively, connect to the database with:
 +

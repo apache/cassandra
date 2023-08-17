@@ -1,6 +1,6 @@
-[arabic, start=6]
+// [arabic, start=6]
 . Monitor the progress of the startup with:
-
++
 [tabs]
 ====
 Command::
@@ -16,7 +16,7 @@ Result::
 +
 --
 Cassandra is ready when you see an entry like this in the `system.log`:
-
++
 [source,plaintext]
 ----
 include::cassandra:example$RESULTS/tail_syslog.result[]
