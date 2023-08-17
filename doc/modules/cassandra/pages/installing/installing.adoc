@@ -26,6 +26,7 @@ Java Standard Edition 8] / http://www.oracle.com/technetwork/java/javase/downloa
 or http://openjdk.java.net/[OpenJDK 8] / http://openjdk.java.net/[OpenJDK 11]. To
 verify that you have the correct version of java installed, type
 `java -version`.
+
 [NOTE]
 ====
 Experimental support for Java 11 was added in Cassandra {40_version}
@@ -66,6 +67,7 @@ Install the RPM build on CentOS and RHEL-based distributions if you want to
 install Cassandra using YUM. 
 Install the Debian build on Ubuntu and other Debian-based
 distributions if you want to install Cassandra using APT. 
+
 [WARNING]
 ====
 Note that both the YUM and APT methods required `root` permissions and 
@@ -73,6 +75,7 @@ will install the binaries and configuration files as the `cassandra` OS user.
 ====
 
 == Install with Docker
+
 // [arabic, start=1]
 . Pull the docker image. For the latest image, use:
 +
