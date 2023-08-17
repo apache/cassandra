@@ -23,6 +23,7 @@ import org.slf4j.Logger;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 
+@Shared
 public class SigarLibrary
 {
     private Logger logger = LoggerFactory.getLogger(SigarLibrary.class);
