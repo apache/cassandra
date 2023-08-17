@@ -455,10 +455,15 @@ public class QueryProcessor implements QueryHandler
             qualifiedStatement.setKeyspace(clientState);
             keyspace = qualifiedStatement.keyspace();
         }
-
         // Note: if 2 threads prepare the same query, we'll live so don't bother synchronizing
         CQLStatement statement = raw.prepare(clientState);
         statement.validate(clientState);
+
+        // Set CQL string for AlterSchemaStatement as this is used to serialize the transformation
+        // in the cluster metadata log
+        if (statement instanceof AlterSchemaStatement)
+            ((AlterSchemaStatement)statement).setCql(query);
+
 
         if (isInternal)
             return new Prepared(statement, "", fullyQualified, keyspace);
@@ -882,6 +887,8 @@ public class QueryProcessor implements QueryHandler
 
         Tracing.trace("Preparing statement");
         CQLStatement prepared = statement.prepare(clientState);
+        // Set CQL string for AlterSchemaStatement as this is used to serialize the transformation
+        // in the cluster metadata log
         if (prepared instanceof AlterSchemaStatement)
             ((AlterSchemaStatement) prepared).setCql(queryStr);
 
