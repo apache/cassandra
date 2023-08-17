@@ -163,4 +163,26 @@ public class UDFTest extends TestBaseImpl
             assertRows(cluster.coordinator(1).execute( "SELECT "+KEYSPACE+".city_measurements(city, measurement, 16.5) AS m FROM "+KEYSPACE+".current", ConsistencyLevel.ALL), row(map));
         }
     }
+
+    @Test
+    public void testUDFContextNotNull() throws IOException, ExecutionException, InterruptedException
+    {
+        String[] createStmts = {
+        "CREATE FUNCTION "+KEYSPACE+".udf_not_null ()\n" +
+        "RETURNS NULL ON NULL INPUT\n" +
+        "RETURNS BOOLEAN LANGUAGE java AS $$\n" +
+        "return udfContext != null;\n" +
+        "$$;",
+        };
+        try (Cluster cluster = init(Cluster.create(1, config -> config.set("enable_user_defined_functions", "true"))))
+        {
+            for (String stmt : createStmts) {
+                cluster.schemaChange(stmt);
+            }
+            assertRows(cluster.coordinator(1).execute( "SELECT "+KEYSPACE+".udf_not_null() AS m FROM system.local", ConsistencyLevel.ALL), row(true));
+            cluster.get(1).shutdown().get();
+            cluster.get(1).startup();
+            assertRows(cluster.coordinator(1).execute( "SELECT "+KEYSPACE+".udf_not_null() AS m FROM system.local", ConsistencyLevel.ALL), row(true));
+        }
+    }
 }
