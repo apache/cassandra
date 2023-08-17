@@ -16,7 +16,6 @@ Deploying on older Linux versions is not recommended unless you have previous ex
 == Prerequisites
 
 * Install the latest version of Java 11 or Java 17, from one of the following locations:
-
 ** https://www.oracle.com/java/technologies/javase/jdk11-archive-downloads.html[Oracle Java Standard Edition 11 Archived Version]
 ** https://www.oracle.com/java/technologies/downloads/#java17[Oracle Java Standard Edition 17] 
 ** https://jdk.java.net/archive/[OpenJDK 11]
