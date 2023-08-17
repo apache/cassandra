@@ -36,11 +36,11 @@ public abstract class VectorCache
 {
     public abstract float[] get(int ordinal);
 
-    public static VectorCache load(HnswGraph hnsw, OnDiskVectors vectors, int capacityRemaining) throws IOException
+    public static VectorCache load(HnswGraph hnsw, OnDiskVectors vectors, int capacity) throws IOException
     {
-        if (capacityRemaining <= 0)
+        if (capacity <= 0)
             return new EmptyVectorCache();
-        return new NBHMVectorCache(hnsw, vectors, capacityRemaining);
+        return new NBHMVectorCache(hnsw, vectors, capacity);
     }
 
     public abstract long ramBytesUsed();
