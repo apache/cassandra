@@ -72,8 +72,7 @@ Note that both the YUM and APT methods required `root` permissions and
 will install the binaries and configuration files as the `cassandra` OS user.
 ====
 
-== Installing the docker image
-
+== Install with Docker
 // [arabic, start=1]
 . Pull the docker image. For the latest image, use:
 +
@@ -103,7 +102,7 @@ The `--name` option will be the name of the Cassandra cluster created.
 include::cassandra:example$BASH/docker_cqlsh.sh[]
 ----
 
-== Installing the binary tarball
+== Install tarball file
 
 include::cassandra:partial$java_version.adoc[]
 
@@ -242,13 +241,12 @@ include::cassandra:example$RESULTS/tail_syslog.result[]
 +
 include::cassandra:partial$nodetool_and_cqlsh.adoc[]
 
-== Installing the Debian packages
+== Install as Debian package
 
 include::cassandra:partial$java_version.adoc[]
 
 // [arabic, start=2]
-. Add the Apache repository of Cassandra to the file
-`cassandra.sources.list`. 
+. Add the Apache repository of Cassandra to the file `cassandra.sources.list`. 
 include::cassandra:partial$package_versions.adoc[]
 +
 [source,shell]
@@ -304,7 +302,7 @@ include::cassandra:partial$tail_syslog.adoc[]
 
 include::cassandra:partial$nodetool_and_cqlsh_nobin.adoc[]
 
-== Installing the RPM packages
+== Install as RPM package
 
 include::cassandra:partial$java_version.adoc[]
 
