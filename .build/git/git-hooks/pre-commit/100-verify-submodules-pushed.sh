@@ -88,8 +88,9 @@ _main() {
       branch="$(git config -f .gitmodules "submodule.${file}.branch")"
       [[ -z "${branch:-}" ]] && error "Submodule ${file} does not define a branch"
       git_sha="$(git --git-dir "${git_sub_dir}" rev-parse HEAD)"
-      git --git-dir "${git_sub_dir}" fetch origin
-      git --git-dir "${git_sub_dir}" branch "origin/${branch}" --contains "${git_sha}" || error "Git commit ${git_sha} not found in $(git remote get-url origin) on branch ${branch}"
+      local remote="$(git --git-dir "${git_sub_dir}" config --get "branch.${branch}.remote" || error "Git branch ${branch} is not set up to track any remote in submodule ${file}")"
+      git --git-dir "${git_sub_dir}" fetch "${remote}"
+      git --git-dir "${git_sub_dir}" branch "${remote}/${branch}" --contains "${git_sha}" || error "Git commit ${git_sha} not found in $(git remote get-url "${remote}") on branch ${branch}"
     fi
   done < <(git diff --cached --name-status)
 }
