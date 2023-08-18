@@ -24,9 +24,7 @@
 #-----------------------------------------------------------------------------
 # IMPLEMENTATION REQUIRED PARAMETERS:
 #-----------------------------------------------------------------------------
-# REQUIRED ENV VAR FOR NORMAL TESTS:
-# TEST_SPLIT_FILE: the name of the files in which you'll be splitting out tests for parallelization
-#
+# TODO: Rewrite this section
 #
 # REQUIRED ENV VAR FOR REPEATED TESTS:
 # AGENT_COUNT: the count of agent executors you're running in your environment, used to constrain repeat runs to agent count
@@ -72,6 +70,7 @@ pipelines:
     jdk:
       - 11
     jobs:
+      - check
       - unit
       - jvm-dtest
       - python-dtest
@@ -98,7 +97,8 @@ pipelines:
       - test-oa
       - test-system-keyspace-directory
       - test-tries
-      - jvm-dtest
+      - jvm-dtest-novnode
+      - jvm-dtest-vnode
       - jvm-dtest-upgrade
       - dtest
       - dtest-novnode
@@ -140,22 +140,41 @@ repeat_tiny: &repeat_few 25
 # are welcome to change them here or in the local env as needed to set up their env.
 # Precedence is: env then override .yaml then values here
 default_env_vars: &default_env_vars
+  # General env params
   ANT_HOME: /usr/share/ant
   KEEP_TEST_DIR: true
   CASSANDRA_DIR: ~/cassandra
-  DIST_DIR: "${CASSANDRA_DIR}/build"
-  CCM_CONFIG_DIR: ${DIST_DIR}/.ccm
-  CASSANDRA_DTEST_DIR: ~/cassandra-dtest
+  RESULTS_DIR: "${CASSANDRA_DIR}/build"
+  CCM_CONFIG_DIR: ${RESULTS_DIR}/.ccm
   DTEST_JAR_PATH: ~/dtest_jars
-  CASSANDRA_CI_TMP_DIR: "$(mktemp -d)"
-  # Default to test.timeout as found in build.xml; should parse out of there in building local env and set this env var based on job
-  TEST_TIMEOUT: 480000
+  # The root structure where temp data for a CI run is held
+  CASSANDRA_CI_TMP_ROOT: "~/cassandra.tmp/"
+  # The temp dir specific to this run; initialized to mktemp during runtime
+  TMP_RUN_DIR: "UNINITIALIZED"
+  # Set this == the nunber of executing agents in your environment; test splitting and parallelization will happen per-agent based on this value
+  CI_AGENT_COUNT: 1
+  # 0-indexed count. This needs to be set on a per-agent basis in its env; this determines which test split to run
+  CI_AGENT_INDEX: -1
   # Whether the repeated test iterations should stop on the first failure by default.
   REPEATED_TESTS_STOP_ON_FAILURE: false
   NUM_TOKENS: "16"
+  TEST_TIMEOUT: test.timeout
+
+  # JVM test params
+  JVM_URL: "REPLACE_ME"
+  JVM_BRANCH: "REPLACE_ME_BRANCH"
+  # We use this to build reference dtest jars for cross-version jvm dtests
+  JVM_DTEST_REFERENCE_URL: "https://github.com/apache/cassandra.git"
+
+  # Python test params
+  PYTHON_DTEST_DIR: ~/cassandra-dtest
+  PYTHON_URL: "https://github.com/apache/cassandra-dtest"
+  PYTHON_BRANCH: "trunk"
   PYTHON_VERSION: "3.11"
-  URL_TO_TEST: "REPLACE_ME"
-  BRANCH_TO_TEST: "REPLACE_ME_BRANCH"
+  # We allow CI env to install python env in different locations; this is the prefix the PYTHON_SUPPORTED_VERSION can be appended to for sourcing activate
+  PYTHON_ENV_PREFIX: "${RESULTS_DIR}/env"
+  # An optional extra regex filter to run python dtest filenames through before writing the meta testlist
+  PYTHON_TEST_EXCLUSION_REGEX: ""
 
 # Anything specified in the required env vars SHOULD NOT BE CHANGED except for ASF CI; these are expected to have a
 # material impact on test correctness and changes to them on a downstream system will likely destabilize our reference
@@ -172,7 +191,7 @@ required_env_vars: &required_env_vars
   # TODO: Reconcile Circle and ASF:
   #   - 512 on ASF, 256 on circle. Using circle's here; is this correct?
   CCM_HEAP_NEWSIZE: "256"
-  PYTEST_OPTS: "-vv --log-cli-level=DEBUG --junit-xml=${DIST_DIR}/test/output/nosetests.xml --junit-prefix=${DTEST_TARGET} -s"
+  PYTEST_OPTS: "-vv --log-cli-level=DEBUG --junit-xml=${RESULTS_DIR}/test/output/nosetests.xml --junit-prefix=${DTEST_TARGET} -s"
   SUPPORTED_CASSANDRA_VERSIONS: "cassandra-3.0" "cassandra-3.11" "cassandra-4.0" "cassandra-4.1" "cassandra-5.0"
   SUPPORTED_PYTHON_VERSIONS: "python3.6" "python3.8" "python3.11"
 
@@ -214,27 +233,38 @@ jobs:
       # This is used as classlistprefix in the build.xml file
       REPEAT_COUNT: 500
       TEST_SPLITTER: split_jvm_tests
+      # We allow providing arbitrary arguments for the run: stage command
+      RUN_ARGUMENTS: ""
     # These reference methods found in ci_functions.sh and other .sh files in .build/*.sh. None take arguments and all
     # rely on the environment as setup in either the execution environment, env:, or env_overrides:
     before:
-    - setup_environment
-    - pretest_setup
+      - setup_environment
+      - pretest_setup
+      - build_cassandra
     run:
-    - run_jvm_tests
-    after:
-    - process_jvm_test_results
+      - run_jvm_tests
 
   # When we repeat tests, we want to repeat a specific list of tests
   - &repeat_jvm_diff
     env_overrides:
       TEST_SPLITTER: generate_diff_tests
-    run: repeat_junit_tests
+    run:
+    - repeat_junit_tests
+
+  # [check] --------------------
+  - <<: *jvm_base_job
+    name: check
+    before:
+      - setup_environment
+      - pretest_setup
+    run:
+      - check_style
 
   # [unit] --------------------
   - <<: *jvm_base_job
-    name: &unit unit
+    name: unit
 
-  - <<: *unit
+  - <<: *jvm_base_job
     name: unit-repeat
     <<: *repeat_jvm_diff
 
@@ -325,7 +355,6 @@ jobs:
   - <<: *jvm_base_job
     name: microbench
     env_overrides:
-      CLASSLIST_PREFIX: microbench
       TEST_DIR: microbench
 
 
@@ -347,15 +376,18 @@ jobs:
     before:
       - setup_environment
       - pretest_setup
-      - build_dtest_jars
+      - build_cassandra
     run:
-    - run_jvm_tests
-    after:
-    - process_jvm_test_results
+      - run_jvm_tests
 
   - <<: *jvm_dtest
     name: jvm-dtest-repeat
     <<: *repeat_jvm_diff
+
+  - <<: *jvm_dtest
+    name: jvm-dtest-vnode
+    env_overrides:
+      RUN_ARGUMENTS: "-Dtest.jvm.args='-Dcassandra.dtest.num_tokens=16'"
 
   - <<: *jvm_dtest
     name: &jvm_dtest_upgrade jvm-dtest-upgrade
@@ -363,6 +395,13 @@ jobs:
     env_overrides:
       TEST_FILTER: "| grep upgrade/ -e fuzz/"
       REPEAT_COUNT: *repeat_few
+    before:
+      - setup_environment
+      - pretest_setup
+      - build_cassandra
+      - build_dtest_jars
+    run:
+      - run_jvm_tests
 
   - <<: *jvm_dtest_upgrade
     name: jvm-dtest-upgrade-repeat
@@ -385,11 +424,13 @@ jobs:
       # Should not be changed for a given job tag downstream
       DTEST_ARGS: "--use-vnodes --num-tokens=${NUM_TOKENS} --skip-resource-intensive-tests"
       TEST_SPLITTER: split_python_tests
+      RUN_ARGUMENTS: ""
     before:
+      - setup_environment
+      - pretest_setup
+      - build_cassandra
     run:
     - run_python_tests
-    after:
-    - process_python_test_results
 
   - &repeat_python_diff
     env_overrides:

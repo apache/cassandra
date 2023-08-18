@@ -86,3 +86,73 @@ debug_log() {
         echo "DEBUG: $1"
     fi
 }
+
+# For a given environment variable, we assign based on the following fallthrough:
+# 1: If it's defined in the env, use that
+# 2: If it's defined in the yaml override, use that
+# 3: Else use what's in the base reference .yaml for CI
+init_env_var() {
+    local to_init=$(check_argument "$1" "the env var to set")
+    local yaml_path=$(check_argument "$2" "the optional yaml path to pull from if not set in local env")
+
+    if [ -z "${!to_init}" ]; then
+        local yaml_value=_retrieve_param_from_yaml "$yaml_path"
+        declare -g "$to_init=$yaml_value"
+    fi
+}
+
+# Will pull from the yaml override if present, defaults to base $DEFAULT_YAML if no override file is supplied.
+# This method does not allow for not finding the value inside either of the .yaml files. If it's not found it'll exit out.
+#
+# return value is a string expected to be captured in $()
+retrieve_param_from_yaml() {
+    local member=$(check_argument "$1" "the path to the member inside the .yaml to retrieve")
+
+    result=$(yq "$member" "$DEFAULT_YAML")
+    if [[ -n "${YAML_OVERRIDES}" ]]; then
+        override=$(yq "$member" "$YAML_OVERRIDES")
+        if [[ -n "$override" ]]; then
+            result="$override"
+        fi
+    fi
+
+    if [[ -z "$result" ]]; then
+        echo "ERROR. Cannot retrieve results from either ${DEFAULT_YAML} or ${YAML_OVERRIDES} for member: ${member}. Cannot proceed."
+        exit 1
+    fi
+
+    echo "$result"
+}
+
+retrieve_array_from_yaml() {
+    local key=$(check_argument "$1" "the key pointing to the array in the .yaml file")
+    local target=$(check_argument "$2" "the variable name of the global array in which to store the .yaml results")
+    mapfile -t temp_array < <(yq e ".${key}[]" "this.yaml")
+    declare -ag "${target}=(\"${temp_array[@]}\")"
+}
+
+retrieve_value_from_xml() {
+    local file=$(check_argument "$1" "the xml file to retrieve the value from")
+    local property_name=$(check_argument "$2" "the property name to extract")
+
+    if [ ! -f "$file" ]; then
+        echo "Cannot find xml file to retrieve value from: $file. Aborting." && exit 1
+    fi
+    grep "name=\"${property_name}\"" "$file" | awk -F'"' '{print $4}'
+}
+
+cd_with_check() {
+    local dest=$(check_argument "$1" "the path to change directory to")
+    if [ ! -d "${dest}" ]; then
+        echo "${dest} not found; cannot change directory to it."
+        exit 2
+    fi
+    cd "${dest}" || echo "Failed to cd to ${dest}: ${?}. Aborting." && exit 2
+}
+
+check_command() {
+    local to_check=$(check_argument "$1" "the command to check the environment for")
+    if ! type $to_check &> /dev/null; then
+        echo "Error: $to_check is not found in the environment." && exit 1
+    fi
+}
