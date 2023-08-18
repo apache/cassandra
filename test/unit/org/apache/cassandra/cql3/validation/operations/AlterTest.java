@@ -150,6 +150,50 @@ public class AlterTest extends CQLTester
     }
 
     @Test
+    public void testNonFrozenCollectionsAreIncompatibleWithBlob() throws Throwable
+    {
+        String[] collectionTypes = new String[] {"map<int, int>", "set<int>", "list<int>"};
+
+        for (String type : collectionTypes)
+        {
+            createTable("CREATE TABLE %s (a int, b " + type + ", PRIMARY KEY (a));");
+            alterTable("ALTER TABLE %s DROP b;");
+            assertInvalidMessage("Cannot re-add previously dropped column 'b' of type blob, incompatible with previous type " + type,
+                                 "ALTER TABLE %s ADD b blob;");
+        }
+
+        for (String type : collectionTypes)
+        {
+            createTable("CREATE TABLE %s (a int, b blob, PRIMARY KEY (a));");
+            alterTable("ALTER TABLE %s DROP b;");
+            assertInvalidMessage("Cannot re-add previously dropped column 'b' of type " + type + ", incompatible with previous type blob",
+                                 "ALTER TABLE %s ADD b " + type + ';');
+        }
+    }
+
+    @Test
+    public void testFrozenCollectionsAreCompatibleWithBlob()
+    {
+        String[] collectionTypes = new String[] {"frozen<map<int, int>>", "frozen<set<int>>", "frozen<list<int>>"};
+
+        for (String type : collectionTypes)
+        {
+            createTable("CREATE TABLE %s (a int, b " + type + ", PRIMARY KEY (a));");
+            alterTable("ALTER TABLE %s DROP b;");
+            alterTable("ALTER TABLE %s ADD b blob;");
+        }
+    }
+
+    @Test
+    public void testIllegalDropOfNonFrozenUDT() throws Throwable
+    {
+        String udt = createType("CREATE TYPE %s (v1 int)");
+        createTable("CREATE TABLE %s (a int, b " + udt + ", PRIMARY KEY (a));");
+        assertInvalidMessage("Cannot drop non-frozen column b of user type " + udt,
+                             "ALTER TABLE %s DROP b;");
+    }
+
+    @Test
     public void testDropStaticWithTimestamp() throws Throwable
     {
         createTable("CREATE TABLE %s (id int, c1 int, v1 int, todrop int static, PRIMARY KEY (id, c1));");
