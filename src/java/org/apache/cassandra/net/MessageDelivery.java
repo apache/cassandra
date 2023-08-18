@@ -29,6 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.Backoff;
@@ -63,7 +64,7 @@ public interface MessageDelivery
             }
 
             @Override
-            public void onFailure(InetAddressAndPort from, RequestFailureReason reason)
+            public void onFailure(InetAddressAndPort from, RequestFailure reason)
             {
                 logger.info("Received failure in response to {} from {}: {}", verb, from, reason);
                 cdl.decrement();
@@ -111,6 +112,11 @@ public interface MessageDelivery
     public <V> void respond(V response, Message<?> message);
     public default void respondWithFailure(RequestFailureReason reason, Message<?> message)
     {
+        respondWithFailure(RequestFailure.forReason(reason), message);
+    }
+
+    public default void respondWithFailure(RequestFailure reason, Message<?> message)
+    {
         send(Message.failureResponse(message.id(), message.expiresAtNanos(), reason), message.respondTo());
     }
 
@@ -121,12 +127,12 @@ public interface MessageDelivery
 
     interface RetryPredicate
     {
-        boolean test(int attempt, InetAddressAndPort from, RequestFailureReason failure);
+        boolean test(int attempt, InetAddressAndPort from, RequestFailure failure);
     }
 
     interface RetryErrorMessage
     {
-        String apply(int attempt, ResponseFailureReason retryFailure, @Nullable InetAddressAndPort from, @Nullable RequestFailureReason reason);
+        String apply(int attempt, ResponseFailureReason retryFailure, @Nullable InetAddressAndPort from, @Nullable RequestFailure reason);
     }
 
     private static <REQ, RSP> void sendWithRetries(MessageDelivery messaging,
@@ -157,7 +163,7 @@ public interface MessageDelivery
             }
 
             @Override
-            public void onFailure(InetAddressAndPort from, RequestFailureReason failure)
+            public void onFailure(InetAddressAndPort from, RequestFailure failure)
             {
                 if (!backoff.mayRetry(attempt))
                 {
@@ -212,11 +218,11 @@ public interface MessageDelivery
     class FailedResponseException extends IllegalStateException
     {
         public final InetAddressAndPort from;
-        public final RequestFailureReason failure;
+        public final RequestFailure failure;
 
-        public FailedResponseException(InetAddressAndPort from, RequestFailureReason failure, String message)
+        public FailedResponseException(InetAddressAndPort from, RequestFailure failure, String message)
         {
-            super(message);
+            super(message, failure.failure);
             this.from = from;
             this.failure = failure;
         }

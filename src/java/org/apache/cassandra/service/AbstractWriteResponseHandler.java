@@ -36,6 +36,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.WriteType;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.WriteFailureException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
@@ -295,7 +296,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     }
 
     @Override
-    public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+    public void onFailure(InetAddressAndPort from, RequestFailure failure)
     {
         logger.trace("Got failure from {}", from);
 
@@ -309,7 +310,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
                 if (failureReasonByEndpoint == null)
                     failureReasonByEndpoint = new ConcurrentHashMap<>();
             }
-        failureReasonByEndpoint.put(from, failureReason);
+        failureReasonByEndpoint.put(from, failure.reason);
 
         logFailureOrTimeoutToIdealCLDelegate();
 

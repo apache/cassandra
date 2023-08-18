@@ -26,8 +26,6 @@ import java.util.Set;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
-
-import org.apache.cassandra.net.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,7 +38,12 @@ import accord.messages.MessageType;
 import accord.messages.Reply;
 import accord.messages.ReplyContext;
 import accord.messages.Request;
+import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.net.Verb;
 
 public class AccordMessageSink implements MessageSink
 {
@@ -93,6 +96,9 @@ public class AccordMessageSink implements MessageSink
 
             for (MessageType type : MessageType.values())
             {
+                // Any request can receive a generic failure response
+                if (type == MessageType.FAILURE_RSP)
+                    continue;
                 if (!mapping.containsKey(type))
                     throw new AssertionError("Missing mapping for Accord MessageType " + type);
             }
@@ -150,6 +156,16 @@ public class AccordMessageSink implements MessageSink
         checkReplyType(reply, replyTo);
         InetAddressAndPort endpoint = endpointMapper.mappedEndpoint(replyingToNode);
         logger.debug("Replying {} {} to {}", replyMsg.verb(), replyMsg.payload, endpoint);
+        messaging.send(replyMsg, endpoint);
+    }
+
+    @Override
+    public void replyWithUnknownFailure(Node.Id replyingToNode, ReplyContext replyContext, Throwable failure)
+    {
+        Message<?> replyTo = (Message<?>) replyContext;
+        Message<?> replyMsg = replyTo.failureResponse(RequestFailureReason.UNKNOWN, failure);
+        InetAddressAndPort endpoint = endpointMapper.mappedEndpoint(replyingToNode);
+        logger.debug("Replying with failure {} {} to {}", replyMsg.verb(), replyMsg.payload, endpoint);
         messaging.send(replyMsg, endpoint);
     }
 

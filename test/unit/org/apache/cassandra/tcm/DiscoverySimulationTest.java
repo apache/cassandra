@@ -36,7 +36,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.ConnectionType;
 import org.apache.cassandra.net.IVerbHandler;
@@ -194,7 +194,7 @@ public class DiscoverySimulationTest
                 else
                 {
                     logger.info("{} simulating failure sending request to {}", addr, to);
-                    cb.onFailure(to, RequestFailureReason.TIMEOUT);
+                    cb.onFailure(to, RequestFailure.TIMEOUT);
                 }
             }
             catch (IOException e)

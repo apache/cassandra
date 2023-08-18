@@ -49,6 +49,13 @@ public enum RequestFailureReason
     COORDINATOR_BEHIND       (10),
     // The following codes have been ported from an external fork, where they were offset explicitly to avoid conflicts.
     INDEX_BUILD_IN_PROGRESS  (503);
+
+    static
+    {
+        // Load RequestFailure class to check that all request failure reasons are handled
+        RequestFailure.init();
+    }
+
     public static final Serializer serializer = new Serializer();
 
     public final int code;

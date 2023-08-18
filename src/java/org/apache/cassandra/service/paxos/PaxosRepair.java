@@ -45,7 +45,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -189,7 +189,7 @@ public class PaxosRepair extends AbstractPaxosRepair
         private Ballot clashingPromise;
 
         @Override
-        public void onFailure(InetAddressAndPort from, RequestFailureReason reason)
+        public void onFailure(InetAddressAndPort from, RequestFailure reason)
         {
             updateState(this, null, (i1, i2) -> i1.onFailure());
         }

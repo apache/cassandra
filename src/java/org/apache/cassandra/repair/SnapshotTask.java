@@ -19,10 +19,10 @@ package org.apache.cassandra.repair;
 
 import java.util.concurrent.RunnableFuture;
 
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.SnapshotMessage;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
@@ -81,9 +81,9 @@ public class SnapshotTask extends AsyncFuture<InetAddressAndPort> implements Run
         }
 
         @Override
-        public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+        public void onFailure(InetAddressAndPort from, RequestFailure failure)
         {
-            task.tryFailure(new RuntimeException("Could not create snapshot at " + from + "; " + failureReason));
+            task.tryFailure(new RuntimeException("Could not create snapshot at " + from + "; " + failure.reason));
         }
     }
 }

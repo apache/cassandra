@@ -37,7 +37,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.test.log.CMSTestBase;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.harry.gen.EntropySource;
 import org.apache.cassandra.harry.gen.Surjections;
 import org.apache.cassandra.harry.gen.rng.PCGFastPure;
@@ -147,7 +147,7 @@ public class ProgressBarrierTest extends CMSTestBase
                             }
                             else
                             {
-                                cb.onFailure(message.from(), RequestFailureReason.TIMEOUT);
+                                cb.onFailure(message.from(), RequestFailure.TIMEOUT);
                             }
                         }
 

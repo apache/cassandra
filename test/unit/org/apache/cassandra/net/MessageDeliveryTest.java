@@ -35,7 +35,7 @@ import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.SimulatedExecutorFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessageDelivery.FailedResponseException;
 import org.apache.cassandra.net.MessageDelivery.MaxRetriesException;
@@ -170,7 +170,7 @@ public class MessageDeliveryTest
             assertThat(result).isDone();
             FailedResponseException e = getFailedResponseException(result);
             assertThat(e.from).isEqualTo(ID1);
-            assertThat(e.failure).isEqualTo(RequestFailureReason.TIMEOUT);
+            assertThat(e.failure).isEqualTo(RequestFailure.TIMEOUT);
             Mockito.verify(backoff, Mockito.times(1)).mayRetry(Mockito.anyInt());
             Mockito.verify(backoff, Mockito.never()).computeWaitTime(Mockito.anyInt());
             Mockito.verify(backoff, Mockito.never()).unit();
