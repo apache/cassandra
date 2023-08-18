@@ -105,12 +105,6 @@ public class CompactionController implements AutoCloseable
             return;
         }
 
-        if (ignoreOverlaps())
-        {
-            logger.debug("not refreshing overlaps - running with ignoreOverlaps activated");
-            return;
-        }
-
         for (SSTableReader reader : overlappingSSTables)
         {
             if (reader.isMarkedCompacted())
@@ -129,7 +123,7 @@ public class CompactionController implements AutoCloseable
         if (this.overlappingSSTables != null)
             close();
 
-        if (compacting == null || ignoreOverlaps())
+        if (compacting == null)
             overlappingSSTables = Refs.tryRef(Collections.<SSTableReader>emptyList());
         else
             overlappingSSTables = cfs.getAndReferenceOverlappingLiveSSTables(compacting);
