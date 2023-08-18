@@ -10,6 +10,7 @@ data/
 conf/hotspot_compiler
 doc/cql3/CQL.html
 pylib/src/
+pylib/cqlshlib/serverversion.py
 lib/
 
 # C* debs
