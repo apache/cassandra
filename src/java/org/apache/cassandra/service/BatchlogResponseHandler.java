@@ -20,7 +20,7 @@ package org.apache.cassandra.service;
 
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.WriteFailureException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -54,9 +54,9 @@ public class BatchlogResponseHandler<T> extends AbstractWriteResponseHandler<T>
             cleanup.ackMutation();
     }
 
-    public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+    public void onFailure(InetAddressAndPort from, RequestFailure failure)
     {
-        wrapped.onFailure(from, failureReason);
+        wrapped.onFailure(from, failure);
     }
 
     public boolean invokeOnFailure()

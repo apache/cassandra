@@ -39,7 +39,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
@@ -544,10 +544,10 @@ public class ProgressBarrier
         }
 
         @Override
-        public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+        public void onFailure(InetAddressAndPort from, RequestFailure failure)
         {
-            logger.debug("Error response from {} with {}", from, failureReason);
-            condition.tryFailure(new TimeoutException(String.format("Watermark request did returned %s.", failureReason)));
+            logger.debug("Error response from {} with {}", from, failure);
+            condition.tryFailure(new TimeoutException(String.format("Watermark request did returned %s.", failure.reason)));
         }
 
         public void retry()

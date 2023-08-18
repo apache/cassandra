@@ -24,7 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tracing.Tracing;
@@ -73,7 +73,7 @@ class ResponseVerbHandler implements IVerbHandler
         RequestCallback cb = callbackInfo.callback;
         if (message.isFailureResponse())
         {
-            cb.onFailure(message.from(), (RequestFailureReason) message.payload);
+            cb.onFailure(message.from(), (RequestFailure) message.payload);
         }
         else
         {
