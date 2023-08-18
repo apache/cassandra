@@ -25,45 +25,43 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-
 import javax.annotation.Nullable;
 
-import org.apache.cassandra.db.ConsistencyLevel;
-
-import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.locator.EndpointsForToken;
-import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.locator.ReplicaPlan.ForWrite;
-import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.utils.concurrent.Condition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.IMutation;
+import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.WriteType;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.WriteFailureException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
+import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.net.RequestCallback;
+import org.apache.cassandra.locator.ReplicaPlan;
+import org.apache.cassandra.locator.ReplicaPlan.ForWrite;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.RequestCallback;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static java.lang.Long.MAX_VALUE;
 import static java.lang.Math.min;
 import static java.util.concurrent.TimeUnit.MICROSECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
-
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static java.util.stream.Collectors.toList;
 import static org.apache.cassandra.config.DatabaseDescriptor.getCounterWriteRpcTimeout;
 import static org.apache.cassandra.config.DatabaseDescriptor.getWriteRpcTimeout;
 import static org.apache.cassandra.db.WriteType.COUNTER;
+import static org.apache.cassandra.locator.Replicas.countInOurDc;
 import static org.apache.cassandra.schema.Schema.instance;
 import static org.apache.cassandra.service.StorageProxy.WritePerformer;
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
-import static org.apache.cassandra.locator.Replicas.countInOurDc;
 
 
 public abstract class AbstractWriteResponseHandler<T> implements RequestCallback<T>
@@ -283,7 +281,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
     }
 
     @Override
-    public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+    public void onFailure(InetAddressAndPort from, RequestFailure failure)
     {
         logger.trace("Got failure from {}", from);
 
@@ -291,7 +289,7 @@ public abstract class AbstractWriteResponseHandler<T> implements RequestCallback
                 ? failuresUpdater.incrementAndGet(this)
                 : failures;
 
-        failureReasonByEndpoint.put(from, failureReason);
+        failureReasonByEndpoint.put(from, failure.reason);
 
         if (blockFor() + n > candidateReplicaCount())
             signal();

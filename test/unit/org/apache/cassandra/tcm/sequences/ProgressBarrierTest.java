@@ -44,6 +44,7 @@ import org.apache.cassandra.harry.gen.Surjections;
 import org.apache.cassandra.harry.gen.rng.PCGFastPure;
 import org.apache.cassandra.harry.gen.rng.PcgRSUFast;
 import org.apache.cassandra.harry.sut.TokenPlacementModel;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.ConnectionType;
 import org.apache.cassandra.net.Message;
@@ -144,7 +145,7 @@ public class ProgressBarrierTest extends CMSTestBase
                             }
                             else
                             {
-                                cb.onFailure(message.from(), RequestFailureReason.TIMEOUT);
+                                cb.onFailure(message.from(), RequestFailure.TIMEOUT);
                             }
                         }
 

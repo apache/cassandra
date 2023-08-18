@@ -24,8 +24,9 @@ import org.slf4j.LoggerFactory;
 import accord.coordinate.Timeout;
 import accord.local.AgentExecutor;
 import accord.messages.Callback;
-import accord.messages.SafeCallback;
 import accord.messages.Reply;
+import accord.messages.SafeCallback;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
@@ -49,19 +50,19 @@ class AccordCallback<T extends Reply> extends SafeCallback<T> implements Request
         success(endpointMapper.mappedId(msg.from()), msg.payload);
     }
 
-    private static Throwable convertReason(RequestFailureReason reason)
+    private static Throwable convertFailureMessage(RequestFailure failure)
     {
-        return reason == RequestFailureReason.TIMEOUT ?
+        return failure.reason == RequestFailureReason.TIMEOUT ?
                new Timeout(null, null) :
-               new RuntimeException(reason.toString());
+               new RuntimeException(failure.failure);
     }
 
     @Override
-    public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+    public void onFailure(InetAddressAndPort from, RequestFailure failure)
     {
-        logger.debug("Received failure {} from {} for {}", failureReason, from, this);
+        logger.debug("Received failure {} from {} for {}", failure, from, this);
         // TODO (now): we should distinguish timeout failures with some placeholder Exception
-        failure(endpointMapper.mappedId(from), convertReason(failureReason));
+        failure(endpointMapper.mappedId(from), convertFailureMessage(failure));
     }
 
     @Override

@@ -32,7 +32,7 @@ import com.google.common.base.Preconditions;
 import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IMessage;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.RequestCallbacks;
@@ -396,7 +396,7 @@ public abstract class SimulatedAction extends Action implements InterceptorOfCon
                         if (callback != null)
                         {
                             RequestCallback<?> invokeOn = (RequestCallback<?>) callback.callback;
-                            RequestFailureReason reason = innerIsTimeout ? RequestFailureReason.TIMEOUT : RequestFailureReason.UNKNOWN;
+                            RequestFailure reason = innerIsTimeout ? RequestFailure.TIMEOUT : RequestFailure.UNKNOWN;
                             invokeOn.onFailure(address, reason);
                         }
                         return null;

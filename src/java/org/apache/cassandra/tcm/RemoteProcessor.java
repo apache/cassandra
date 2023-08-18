@@ -35,6 +35,7 @@ import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Timer;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -219,9 +220,9 @@ public final class RemoteProcessor implements Processor
             }
 
             @Override
-            public void onFailure(InetAddressAndPort from, RequestFailureReason reason)
+            public void onFailure(InetAddressAndPort from, RequestFailure failure)
             {
-                if (reason == RequestFailureReason.NOT_CMS)
+                if (failure.reason == RequestFailureReason.NOT_CMS)
                 {
                     logger.debug("{} is not a member of the CMS, querying it to discover current membership", from);
                     DiscoveredNodes cms = tryDiscover(from);
@@ -232,7 +233,7 @@ public final class RemoteProcessor implements Processor
                 else
                 {
                     candidates.timeout(from);
-                    logger.warn("Got error from {}: {} when sending {}, retrying on {}", from, reason, verb, candidates);
+                    logger.warn("Got error from {}: {} when sending {}, retrying on {}", from, failure.reason, verb, candidates);
                 }
 
                 if (retryPolicy.reachedMax())
@@ -258,7 +259,7 @@ public final class RemoteProcessor implements Processor
             }
 
             @Override
-            public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+            public void onFailure(InetAddressAndPort from, RequestFailure failure)
             {
                 // "success" - this lets us just try the next one in cmsIter
                 promise.setSuccess(new DiscoveredNodes(Collections.emptySet(), DiscoveredNodes.Kind.KNOWN_PEERS));

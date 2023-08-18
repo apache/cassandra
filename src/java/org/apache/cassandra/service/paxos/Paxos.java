@@ -28,13 +28,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-
 import javax.annotation.Nullable;
 
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Maps;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -73,6 +71,7 @@ import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestFailureException;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.exceptions.UnavailableException;
@@ -91,6 +90,8 @@ import org.apache.cassandra.service.FailureRecordingCallback.AsMap;
 import org.apache.cassandra.service.paxos.Commit.Proposal;
 import org.apache.cassandra.service.paxos.cleanup.PaxosRepairState;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.service.paxos.PaxosPrepare.FoundIncompleteAccepted;
+import org.apache.cassandra.service.paxos.PaxosPrepare.FoundIncompleteCommitted;
 import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.repair.NoopReadRepair;
 import org.apache.cassandra.tcm.Epoch;
@@ -99,8 +100,6 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.triggers.TriggerExecutor;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.service.paxos.PaxosPrepare.FoundIncompleteAccepted;
-import org.apache.cassandra.service.paxos.PaxosPrepare.FoundIncompleteCommitted;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 import static java.util.Collections.emptyMap;
@@ -109,10 +108,14 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_LOG_TTL_LINEARIZABILITY_VIOLATIONS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_MODERN_RELEASE;
 import static org.apache.cassandra.config.Config.PaxosVariant.v2_without_linearizable_reads_or_rejected_writes;
+import static org.apache.cassandra.config.DatabaseDescriptor.getCasContentionTimeout;
+import static org.apache.cassandra.config.DatabaseDescriptor.getWriteRpcTimeout;
+import static org.apache.cassandra.db.ConsistencyLevel.LOCAL_QUORUM;
+import static org.apache.cassandra.db.ConsistencyLevel.LOCAL_SERIAL;
+import static org.apache.cassandra.db.ConsistencyLevel.QUORUM;
+import static org.apache.cassandra.db.ConsistencyLevel.SERIAL;
 import static org.apache.cassandra.db.Keyspace.openAndGetStore;
 import static org.apache.cassandra.exceptions.RequestFailureReason.TIMEOUT;
-import static org.apache.cassandra.config.DatabaseDescriptor.*;
-import static org.apache.cassandra.db.ConsistencyLevel.*;
 import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
 import static org.apache.cassandra.locator.ReplicaLayout.forTokenWriteLiveAndDown;
 import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.casReadMetrics;
@@ -124,9 +127,9 @@ import static org.apache.cassandra.service.paxos.Ballot.Flag.GLOBAL;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.LOCAL;
 import static org.apache.cassandra.service.paxos.BallotGenerator.Global.nextBallot;
 import static org.apache.cassandra.service.paxos.BallotGenerator.Global.staleBallot;
-import static org.apache.cassandra.service.paxos.ContentionStrategy.*;
 import static org.apache.cassandra.service.paxos.ContentionStrategy.Type.READ;
 import static org.apache.cassandra.service.paxos.ContentionStrategy.Type.WRITE;
+import static org.apache.cassandra.service.paxos.ContentionStrategy.waitForContention;
 import static org.apache.cassandra.service.paxos.PaxosCommit.commit;
 import static org.apache.cassandra.service.paxos.PaxosCommitAndPrepare.commitAndPrepare;
 import static org.apache.cassandra.service.paxos.PaxosPrepare.prepare;
@@ -419,7 +422,7 @@ public class Paxos
         }
 
         @Override
-        public void collectFailure(InetAddressAndPort inetAddressAndPort, RequestFailureReason t)
+        public void collectFailure(InetAddressAndPort inetAddressAndPort, RequestFailure t)
         {
 
         }

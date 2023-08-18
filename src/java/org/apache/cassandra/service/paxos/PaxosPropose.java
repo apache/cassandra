@@ -29,7 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -43,8 +43,8 @@ import org.apache.cassandra.utils.concurrent.ConditionAsConsumer;
 import static java.util.Collections.emptyMap;
 import static org.apache.cassandra.exceptions.RequestFailureReason.UNKNOWN;
 import static org.apache.cassandra.net.Verb.PAXOS2_PROPOSE_REQ;
-import static org.apache.cassandra.service.paxos.PaxosPropose.Superseded.SideEffects.NO;
 import static org.apache.cassandra.service.paxos.PaxosPropose.Superseded.SideEffects.MAYBE;
+import static org.apache.cassandra.service.paxos.PaxosPropose.Superseded.SideEffects.NO;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.concurrent.ConditionAsConsumer.newConditionAsConsumer;
 
@@ -263,7 +263,7 @@ public class PaxosPropose<OnDone extends Consumer<? super PaxosPropose.Status>> 
     }
 
     @Override
-    public void onFailure(InetAddressAndPort from, RequestFailureReason reason)
+    public void onFailure(InetAddressAndPort from, RequestFailure reason)
     {
         if (logger.isTraceEnabled())
             logger.trace("{} {} failure from {}", proposal, reason, from);
