@@ -823,7 +823,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
         IndexContext numericIndexContext = createIndexContext(numericIndexName, Int32Type.instance);
         IndexContext stringIndexContext = createIndexContext(stringIndexName, UTF8Type.instance);
 
-        for (IndexComponent component : Version.LATEST.onDiskFormat().perSSTableIndexComponents())
+        for (IndexComponent component : Version.LATEST.onDiskFormat().perSSTableIndexComponents(false))
             verifyRebuildIndexComponent(numericIndexContext, stringIndexContext, component, null, corruptionType, true, true, rebuild);
 
         for (IndexComponent component : Version.LATEST.onDiskFormat().perColumnIndexComponents(numericIndexContext))
@@ -842,12 +842,14 @@ public class StorageAttachedIndexDDLTest extends SAITester
                                              boolean failedNumericIndex,
                                              boolean rebuild) throws Throwable
     {
-        // The completion markers are valid if they exist on the file system so we only need to test
+        // The completion markers are valid if they exist on the file system, so we only need to test
         // their removal. If we are testing with encryption then we don't want to test any components
         // that are encryptable unless they have been removed because encrypted components aren't
         // checksum validated.
 
-        if (component == IndexComponent.PRIMARY_KEY_TRIE || component == IndexComponent.PRIMARY_KEY_BLOCKS || component == IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS)
+        if (component == IndexComponent.PARTITION_SIZES || component == IndexComponent.PARTITION_KEY_BLOCKS ||
+            component == IndexComponent.PARTITION_KEY_BLOCK_OFFSETS || component == IndexComponent.CLUSTERING_KEY_BLOCKS ||
+            component == IndexComponent.CLUSTERING_KEY_BLOCK_OFFSETS)
             return;
 
         if (((component == IndexComponent.GROUP_COMPLETION_MARKER) ||
@@ -894,8 +896,8 @@ public class StorageAttachedIndexDDLTest extends SAITester
             reloadSSTableIndex();
 
             // Verify the index cannot be read:
-            verifySSTableIndexes(numericIndexContext.getIndexName(), Version.LATEST.onDiskFormat().perSSTableIndexComponents().contains(component) ? 0 : 1, failedNumericIndex ? 0 : 1);
-            verifySSTableIndexes(stringIndexContext.getIndexName(), Version.LATEST.onDiskFormat().perSSTableIndexComponents().contains(component) ? 0 : 1, failedStringIndex ? 0 : 1);
+            verifySSTableIndexes(numericIndexContext.getIndexName(), Version.LATEST.onDiskFormat().perSSTableIndexComponents(false).contains(component) ? 0 : 1, failedNumericIndex ? 0 : 1);
+            verifySSTableIndexes(stringIndexContext.getIndexName(), Version.LATEST.onDiskFormat().perSSTableIndexComponents(false).contains(component) ? 0 : 1, failedStringIndex ? 0 : 1);
 
             try
             {

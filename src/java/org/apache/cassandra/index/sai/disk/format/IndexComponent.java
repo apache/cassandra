@@ -68,19 +68,29 @@ public enum IndexComponent
     TOKEN_VALUES("TokenValues"),
 
     /**
-     * An on-disk trie containing the primary keys used for looking up the rowId from a partition key
+     * An on-disk block packed index containing the starting and ending rowIds for each partition.
      */
-    PRIMARY_KEY_TRIE("PrimaryKeyTrie"),
+    PARTITION_SIZES("PartitionSizes"),
 
     /**
-     * Prefix-compressed blocks of primary keys used for rowId to partition key lookups
+     * Prefix-compressed blocks of partition keys used for rowId to partition key lookups
      */
-    PRIMARY_KEY_BLOCKS("PrimaryKeyBlocks"),
+    PARTITION_KEY_BLOCKS("PartitionKeyBlocks"),
 
     /**
-     * Encoded sequence of offsets to primary key blocks
+     * Encoded sequence of offsets to partition key blocks
      */
-    PRIMARY_KEY_BLOCK_OFFSETS("PrimaryKeyBlockOffsets"),
+    PARTITION_KEY_BLOCK_OFFSETS("PartitionKeyBlockOffsets"),
+
+    /**
+     * Prefix-compressed blocks of clustering keys used for rowId to clustering key lookups
+     */
+    CLUSTERING_KEY_BLOCKS("ClusteringKeyBlocks"),
+
+    /**
+     * Encoded sequence of offsets to clustering key blocks
+     */
+    CLUSTERING_KEY_BLOCK_OFFSETS("ClusteringKeyBlockOffsets"),
 
     /**
      * Metadata for per-SSTable on-disk components.

@@ -437,6 +437,16 @@ public enum CassandraRelevantProperties
      */
     SAI_POSTINGS_SKIP("cassandra.sai.postings_skip", "3"),
 
+    /**
+     * Used to determine the block size and block mask for the clustering sorted terms.
+     */
+    SAI_SORTED_TERMS_CLUSTERING_BLOCK_SHIFT("cassandra.sai.sorted_terms_clustering_block_shift", "4"),
+
+    /**
+     * Used to determine the block size and block mask for the partition sorted terms.
+     */
+    SAI_SORTED_TERMS_PARTITION_BLOCK_SHIFT("cassandra.sai.sorted_terms_partition_block_shift", "4"),
+
     SAI_TEST_BALANCED_TREE_DEBUG_ENABLED("cassandra.sai.test.balanced_tree_debug_enabled", "false"),
     SAI_TEST_DISABLE_TIMEOUT("cassandra.sai.test.disable.timeout", "false"),
 
