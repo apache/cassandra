@@ -81,6 +81,8 @@ public class CompactionController implements AutoCloseable
 
     public CompactionController(ColumnFamilyStore cfs, Set<SSTableReader> compacting, int gcBefore, RateLimiter limiter, TombstoneOption tombstoneOption)
     {
+        //When making changes to the method, be aware that some of the state of the controller may still be uninitialized
+        //(e.g. TWCS sets up the value of ignoreOverlaps() after this completes)
         assert cfs != null;
         this.cfs = cfs;
         this.gcBefore = gcBefore;
@@ -105,12 +107,6 @@ public class CompactionController implements AutoCloseable
             return;
         }
 
-        if (ignoreOverlaps())
-        {
-            logger.debug("not refreshing overlaps - running with ignoreOverlaps activated");
-            return;
-        }
-
         for (SSTableReader reader : overlappingSSTables)
         {
             if (reader.isMarkedCompacted())
@@ -129,7 +125,7 @@ public class CompactionController implements AutoCloseable
         if (this.overlappingSSTables != null)
             close();
 
-        if (compacting == null || ignoreOverlaps())
+        if (compacting == null)
             overlappingSSTables = Refs.tryRef(Collections.<SSTableReader>emptyList());
         else
             overlappingSSTables = cfs.getAndReferenceOverlappingLiveSSTables(compacting);
@@ -357,6 +353,8 @@ public class CompactionController implements AutoCloseable
      * of this time range is fully expired before considering to drop the sstable.
      * This strategy can retain for a long time a lot of sstables on disk (see CASSANDRA-13418) so this option
      * control whether or not this check should be ignored.
+     *
+     * Do NOT call this method in the CompactionController constructor
      *
      * @return false by default
      */
