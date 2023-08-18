@@ -685,7 +685,6 @@ public abstract class CQLTester
     {
         String typeName = createTypeName();
         String fullQuery = String.format(query, keyspace + "." + typeName);
-        types.add(typeName);
         logger.info(fullQuery);
         schemaChange(fullQuery);
         return typeName;
