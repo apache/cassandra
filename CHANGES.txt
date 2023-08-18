@@ -1,3 +1,8 @@
+3.11.17
+Merged from 3.0:
+ * Fix missing speculative retries in tablestats (CASSANDRA-18767)
+
+
 3.11.16
  * Moved jflex from runtime to build dependencies (CASSANDRA-18664)
  * Fix CAST function for float to decimal (CASSANDRA-18647)

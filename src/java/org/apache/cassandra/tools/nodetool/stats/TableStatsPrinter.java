@@ -79,6 +79,7 @@ public class TableStatsPrinter
                     if (table.memtableOffHeapUsed)
                         out.println("\t\tMemtable off heap memory used: " + table.memtableOffHeapMemoryUsed);
                     out.println("\t\tMemtable switch count: " + table.memtableSwitchCount);
+                    out.println("\t\tSpeculative retries: " + table.speculativeRetries);
                     out.println("\t\tLocal read count: " + table.localReadCount);
                     out.printf("\t\tLocal read latency: %01.3f ms%n", table.localReadLatencyMs);
                     out.println("\t\tLocal write count: " + table.localWriteCount);
