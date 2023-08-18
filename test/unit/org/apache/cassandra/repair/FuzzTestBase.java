@@ -85,7 +85,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.HeartBeatState;
@@ -816,7 +816,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                 callback.onResponse(msg);
             }
 
-            public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+            public void onFailure(InetAddressAndPort from, RequestFailure failureReason)
             {
                 if (callback.invokeOnFailure()) callback.onFailure(from, failureReason);
             }
@@ -950,7 +950,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                                 assert ctx == cb;
                                 try
                                 {
-                                    ctx.onFailure(to, RequestFailureReason.TIMEOUT);
+                                    ctx.onFailure(to, RequestFailure.TIMEOUT);
                                 }
                                 catch (Throwable t)
                                 {
@@ -992,7 +992,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                     }
 
                     @Override
-                    public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+                    public void onFailure(InetAddressAndPort from, RequestFailure failureReason)
                     {
                         promise.tryFailure(new MessagingService.FailureResponseException(from, failureReason));
                     }
@@ -1177,7 +1177,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                         try
                         {
                             if (msg.isFailureResponse())
-                                callback.onFailure(msg.from(), (RequestFailureReason) msg.payload);
+                                callback.onFailure(msg.from(), (RequestFailure) msg.payload);
                             else callback.onResponse(msg);
                         }
                         catch (Throwable t)

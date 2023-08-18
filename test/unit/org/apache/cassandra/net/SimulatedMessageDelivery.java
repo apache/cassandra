@@ -31,7 +31,7 @@ import javax.annotation.Nullable;
 
 import accord.utilsfork.Gens;
 import accord.utilsfork.RandomSource;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -184,7 +184,7 @@ public class SimulatedMessageDelivery implements MessageDelivery
             }
 
             @Override
-            public void onFailure(InetAddressAndPort from, RequestFailureReason failure)
+            public void onFailure(InetAddressAndPort from, RequestFailure failure)
             {
                 promise.tryFailure(new MessagingService.FailureResponseException(from, failure));
             }
@@ -237,7 +237,7 @@ public class SimulatedMessageDelivery implements MessageDelivery
                 if (action == Action.FAILURE)
                     onDropped.onDrop(action, to, message);
                 if (callback != null)
-                    scheduler.schedule(() -> callback.onFailure(to, RequestFailureReason.UNKNOWN),
+                    scheduler.schedule(() -> callback.onFailure(to, RequestFailure.UNKNOWN),
                                        message.verb().expiresAfterNanos(), TimeUnit.NANOSECONDS);
                 return;
             default:
@@ -252,7 +252,7 @@ public class SimulatedMessageDelivery implements MessageDelivery
                     assert ctx == cb;
                     try
                     {
-                        ctx.onFailure(to, RequestFailureReason.TIMEOUT);
+                        ctx.onFailure(to, RequestFailure.TIMEOUT);
                     }
                     catch (Throwable t)
                     {
@@ -302,7 +302,7 @@ public class SimulatedMessageDelivery implements MessageDelivery
                     try
                     {
                         if (msg.isFailureResponse())
-                            callback.onFailure(msg.from(), (RequestFailureReason) msg.payload);
+                            callback.onFailure(msg.from(), (RequestFailure) msg.payload);
                         else callback.onResponse(msg);
                     }
                     catch (Throwable t)
@@ -364,7 +364,7 @@ public class SimulatedMessageDelivery implements MessageDelivery
             callback.onResponse(msg);
         }
 
-        public void onFailure(InetAddressAndPort from, RequestFailureReason failure)
+        public void onFailure(InetAddressAndPort from, RequestFailure failure)
         {
             if (callback.invokeOnFailure()) callback.onFailure(from, failure);
         }

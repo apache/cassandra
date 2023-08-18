@@ -19,6 +19,7 @@ package org.apache.cassandra.net;
 
 import java.util.Map;
 
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 
@@ -38,7 +39,7 @@ public interface RequestCallback<T>
     /**
      * Called when there is an exception on the remote node or timeout happens
      */
-    default void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+    default void onFailure(InetAddressAndPort from, RequestFailure failure)
     {
     }
 

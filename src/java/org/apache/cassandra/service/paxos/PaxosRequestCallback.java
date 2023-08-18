@@ -24,14 +24,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.service.FailureRecordingCallback;
 
-import static org.apache.cassandra.exceptions.RequestFailureReason.TIMEOUT;
-import static org.apache.cassandra.exceptions.RequestFailureReason.UNKNOWN;
+import static org.apache.cassandra.exceptions.RequestFailure.TIMEOUT;
+import static org.apache.cassandra.exceptions.RequestFailure.UNKNOWN;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
 public abstract class PaxosRequestCallback<T> extends FailureRecordingCallback<T>
@@ -58,7 +58,7 @@ public abstract class PaxosRequestCallback<T> extends FailureRecordingCallback<T
         }
         catch (Exception ex)
         {
-            RequestFailureReason reason = UNKNOWN;
+            RequestFailure reason = UNKNOWN;
             if (ex instanceof WriteTimeoutException) reason = TIMEOUT;
             else logger.error("Failed to apply {} locally", parameter, ex);
 

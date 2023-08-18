@@ -59,7 +59,7 @@ import org.apache.cassandra.concurrent.AdaptingScheduledExecutorPlus;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.gms.IFailureDetectionEventListener;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -289,10 +289,10 @@ public class AccordSyncPropagatorTest
                 switch (action)
                 {
                     case ERROR:
-                        cb.onFailure(to, RequestFailureReason.UNKNOWN);
+                        cb.onFailure(to, RequestFailure.UNKNOWN);
                         return;
                     case TIMEOUT:
-                        cb.onFailure(to, RequestFailureReason.TIMEOUT);
+                        cb.onFailure(to, RequestFailure.TIMEOUT);
                         return;
                     case DELIVER:
                         break;
@@ -304,7 +304,7 @@ public class AccordSyncPropagatorTest
                 scheduler.schedule(() -> {
                     RequestCallback<?> removed = callbacks.remove(message.id());
                     if (removed != null)
-                        removed.onFailure(to, RequestFailureReason.TIMEOUT);
+                        removed.onFailure(to, RequestFailure.TIMEOUT);
                 }, 1, TimeUnit.MINUTES);
             }
 

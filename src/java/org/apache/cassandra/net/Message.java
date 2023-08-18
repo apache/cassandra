@@ -36,6 +36,7 @@ import org.slf4j.LoggerFactory;
 
 import accord.messages.ReplyContext;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -353,12 +354,17 @@ public class Message<T> implements ReplyContext
     }
 
     /** Builds a failure response Message with an explicit reason, and fields inferred from request Message */
-    public Message<RequestFailureReason> failureResponse(RequestFailureReason reason)
+    public Message<RequestFailure> failureResponse(RequestFailureReason reason)
     {
-        return failureResponse(id(), expiresAtNanos(), reason);
+        return failureResponse(reason, null);
     }
 
-    static Message<RequestFailureReason> failureResponse(long id, long expiresAtNanos, RequestFailureReason reason)
+    public Message<RequestFailure> failureResponse(RequestFailureReason reason, @Nullable Throwable failure)
+    {
+        return failureResponse(id(), expiresAtNanos(), new RequestFailure(reason, failure));
+    }
+
+    static Message<RequestFailure> failureResponse(long id, long expiresAtNanos, RequestFailure reason)
     {
         return outWithParam(id, Verb.FAILURE_RSP, expiresAtNanos, reason, null, null);
     }

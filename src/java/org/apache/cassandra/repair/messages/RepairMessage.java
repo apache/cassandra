@@ -36,6 +36,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.RepairRetrySpec;
 import org.apache.cassandra.config.RetrySpec;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.metrics.RepairMetrics;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.exceptions.RepairException;
@@ -73,7 +74,7 @@ public abstract class RepairMessage
         }
 
         @Override
-        public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+        public void onFailure(InetAddressAndPort from, RequestFailure failureReason)
         {
         }
     };
@@ -217,9 +218,9 @@ public abstract class RepairMessage
                                                     finalCallback.onFailure(from, failure);
                                                     return false;
                                                 case RETRY:
-                                                    if (failure == RequestFailureReason.TIMEOUT && allowRetry.get())
+                                                    if (failure.reason == RequestFailureReason.TIMEOUT && allowRetry.get())
                                                         return true;
-                                                    maybeRecordRetry.accept(attempt, failure);
+                                                    maybeRecordRetry.accept(attempt, failure.reason);
                                                     finalCallback.onFailure(from, failure);
                                                     return false;
                                                 default:
@@ -230,7 +231,7 @@ public abstract class RepairMessage
                                             switch (retryReason)
                                             {
                                                 case MaxRetries:
-                                                    maybeRecordRetry.accept(attempt, failure);
+                                                    maybeRecordRetry.accept(attempt, failure.reason);
                                                     finalCallback.onFailure(from, failure);
                                                     return null;
                                                 case Interrupted:
@@ -255,7 +256,7 @@ public abstract class RepairMessage
             }
 
             @Override
-            public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+            public void onFailure(InetAddressAndPort from, RequestFailure failureReason)
             {
                 failureCallback.onFailure(RepairException.error(request.desc, PreviewKind.NONE, String.format("Got %s failure from %s: %s", verb, from, failureReason)));
             }

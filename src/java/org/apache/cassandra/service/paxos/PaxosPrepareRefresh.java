@@ -24,6 +24,7 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -38,8 +39,6 @@ import org.apache.cassandra.service.paxos.Commit.Agreed;
 import org.apache.cassandra.service.paxos.Commit.Committed;
 import org.apache.cassandra.tracing.Tracing;
 
-import static org.apache.cassandra.exceptions.RequestFailureReason.TIMEOUT;
-import static org.apache.cassandra.exceptions.RequestFailureReason.UNKNOWN;
 import static org.apache.cassandra.net.Verb.PAXOS2_PREPARE_REFRESH_REQ;
 import static org.apache.cassandra.service.paxos.Commit.isAfter;
 import static org.apache.cassandra.service.paxos.PaxosRequestCallback.shouldExecuteOnSelf;
@@ -65,7 +64,7 @@ public class PaxosPrepareRefresh implements RequestCallbackWithFailure<PaxosPrep
 
     interface Callbacks
     {
-        void onRefreshFailure(InetAddressAndPort from, RequestFailureReason reason);
+        void onRefreshFailure(InetAddressAndPort from, RequestFailure reason);
         void onRefreshSuccess(Ballot isSupersededBy, InetAddressAndPort from);
     }
 
@@ -102,7 +101,7 @@ public class PaxosPrepareRefresh implements RequestCallbackWithFailure<PaxosPrep
     }
 
     @Override
-    public void onFailure(InetAddressAndPort from, RequestFailureReason reason)
+    public void onFailure(InetAddressAndPort from, RequestFailure reason)
     {
         callbacks.onRefreshFailure(from, reason);
     }
@@ -124,8 +123,8 @@ public class PaxosPrepareRefresh implements RequestCallbackWithFailure<PaxosPrep
         }
         catch (Exception ex)
         {
-            RequestFailureReason reason = UNKNOWN;
-            if (ex instanceof WriteTimeoutException) reason = TIMEOUT;
+            RequestFailure reason = RequestFailure.UNKNOWN;
+            if (ex instanceof WriteTimeoutException) reason = RequestFailure.TIMEOUT;
             else logger.error("Failed to apply paxos refresh-prepare locally", ex);
 
             onFailure(getBroadcastAddressAndPort(), reason);
@@ -167,7 +166,7 @@ public class PaxosPrepareRefresh implements RequestCallbackWithFailure<PaxosPrep
         {
             Response response = execute(message.payload, message.from());
             if (response == null)
-                MessagingService.instance().respondWithFailure(UNKNOWN, message);
+                MessagingService.instance().respondWithFailure(RequestFailureReason.UNKNOWN, message);
             else
                 MessagingService.instance().respond(response, message);
         }
