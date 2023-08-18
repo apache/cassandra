@@ -456,7 +456,7 @@
     </target>
 
     <!-- create properties file with C version -->
-    <target name="_createVersionPropFile" depends="_get-git-sha">
+    <target name="_createVersionPropFile" depends="_get-git-sha,set-cqlsh-version">
       <taskdef name="propertyfile" classname="org.apache.tools.ant.taskdefs.optional.PropertyFile"/>
       <mkdir dir="${version.properties.dir}"/>
       <propertyfile file="${version.properties.dir}/version.properties">
@@ -2073,4 +2073,5 @@
   <import file="${build.helpers.dir}/build-owasp.xml"/>
   <import file="${build.helpers.dir}/build-git.xml"/>
   <import file="${build.helpers.dir}/build-checkstyle.xml"/>
+  <import file="${build.helpers.dir}/build-cqlsh.xml"/>
 </project>
