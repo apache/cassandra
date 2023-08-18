@@ -175,7 +175,7 @@ public abstract class CollectionType<T> extends AbstractType<T>
             return false;
 
         // the value comparator is only used for Cell values, so sorting doesn't matter
-        return this.valueComparator().isValueCompatibleWith(tprev.valueComparator());
+        return this.valueComparator().isSerializationCompatibleWith(tprev.valueComparator());
     }
 
     @Override
@@ -197,6 +197,15 @@ public abstract class CollectionType<T> extends AbstractType<T>
 
         // subclasses should handle compatibility checks for frozen collections
         return isValueCompatibleWithFrozen(tprev);
+    }
+
+    @Override
+    public boolean isSerializationCompatibleWith(AbstractType<?> previous)
+    {
+        if (!isValueCompatibleWith(previous))
+            return false;
+
+        return valueComparator().isSerializationCompatibleWith(((CollectionType<?>)previous).valueComparator());
     }
 
     /** A version of isCompatibleWith() to deal with non-multicell (frozen) collections */

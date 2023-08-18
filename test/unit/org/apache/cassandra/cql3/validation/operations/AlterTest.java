@@ -27,6 +27,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.OrderPreservingPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
@@ -429,6 +430,30 @@ public class AlterTest extends CQLTester
         flush();
         alterTable("alter table %s drop v");
         alterTable("alter table %s add v1 int");
+    }
+
+    @Test(expected = InvalidRequestException.class)
+    public void testDropFixedAddVariable() throws Throwable
+    {
+        createTable("create table %s (k int, c int, v int, PRIMARY KEY (k, c))");
+        execute("alter table %s drop v");
+        execute("alter table %s add v varint");
+    }
+
+    @Test(expected = InvalidRequestException.class)
+    public void testDropFixedCollectionAddVariableCollection() throws Throwable
+    {
+        createTable("create table %s (k int, c int, v list<int>, PRIMARY KEY (k, c))");
+        execute("alter table %s drop v");
+        execute("alter table %s add v list<varint>");
+    }
+
+    @Test(expected = InvalidRequestException.class)
+    public void testDropSimpleAddComplex() throws Throwable
+    {
+        createTable("create table %s (k int, c int, v set<text>, PRIMARY KEY (k, c))");
+        execute("alter table %s drop v");
+        execute("alter table %s add v blob");
     }
 
     @Test
