@@ -1,5 +1,7 @@
 3.11.17
 Merged from 3.0:
+3.0.30
+ * CQLSH emits a warning when the server version doesn't match (CASSANDRA-18745)
  * Fix missing speculative retries in tablestats (CASSANDRA-18767)
 
 

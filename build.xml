@@ -695,7 +695,7 @@
     </target>
 
     <!-- create properties file with C version -->
-    <target name="createVersionPropFile">
+    <target name="createVersionPropFile" depends="set-cqlsh-version">
       <taskdef name="propertyfile" classname="org.apache.tools.ant.taskdefs.optional.PropertyFile"/>
       <mkdir dir="${version.properties.dir}"/>
       <propertyfile file="${version.properties.dir}/version.properties">
@@ -1972,4 +1972,5 @@
   <import file="${basedir}/.build/build-resolver.xml"/>
   <import file="${basedir}/.build/build-rat.xml"/>
   <import file="${basedir}/.build/build-owasp.xml"/>
+  <import file="${basedir}/.build/build-cqlsh.xml"/>
 </project>
