@@ -82,6 +82,7 @@ public class TableStatsTestBase
         template.memtableCellCount = 0L;
         template.memtableDataSize = "0";
         template.memtableSwitchCount = 0L;
+        template.speculativeRetries = 0L;
         template.localReadCount =0L;
         template.localReadLatencyMs = Double.NaN;
         template.localWriteCount = 0L;
