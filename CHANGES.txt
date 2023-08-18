@@ -10,6 +10,7 @@ Merged from 4.1:
 Merged from 4.0:
 Merged from 3.11:
 Merged from 3.0:
+ * Fix missing speculative retries in tablestats (CASSANDRA-18767)
  * Fix Requires for Java for RPM package (CASSANDRA-18751)
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
