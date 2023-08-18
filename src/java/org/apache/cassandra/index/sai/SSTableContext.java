@@ -131,7 +131,7 @@ public class SSTableContext extends SharedCloseableImpl
      */
     public int openFilesPerSSTable()
     {
-        return indexDescriptor.version.onDiskFormat().openFilesPerSSTableIndex();
+        return indexDescriptor.version.onDiskFormat().openFilesPerSSTableIndex(indexDescriptor.hasClustering());
     }
 
     @Override

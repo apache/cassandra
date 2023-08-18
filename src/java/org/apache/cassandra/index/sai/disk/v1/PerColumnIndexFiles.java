@@ -46,13 +46,13 @@ public class PerColumnIndexFiles implements Closeable
         this.indexContext = indexContext;
         if (indexContext.isLiteral())
         {
-            files.put(IndexComponent.POSTING_LISTS, indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext));
-            files.put(IndexComponent.TERMS_DATA, indexDescriptor.createPerIndexFileHandle(IndexComponent.TERMS_DATA, indexContext));
+            files.put(IndexComponent.POSTING_LISTS, indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext, this::close));
+            files.put(IndexComponent.TERMS_DATA, indexDescriptor.createPerIndexFileHandle(IndexComponent.TERMS_DATA, indexContext, this::close));
         }
         else
         {
-            files.put(IndexComponent.BALANCED_TREE, indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexContext));
-            files.put(IndexComponent.POSTING_LISTS, indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext));
+            files.put(IndexComponent.BALANCED_TREE, indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexContext, this::close));
+            files.put(IndexComponent.POSTING_LISTS, indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext, this::close));
         }
     }
 

@@ -36,12 +36,12 @@ import org.apache.lucene.store.IndexInput;
 public class IndexFileUtils
 {
     @VisibleForTesting
-    protected static final SequentialWriterOption DEFAULT_WRITER_OPTION = SequentialWriterOption.newBuilder()
-                                                                                                .trickleFsync(DatabaseDescriptor.getTrickleFsync())
-                                                                                                .trickleFsyncByteInterval(DatabaseDescriptor.getTrickleFsyncIntervalInKiB() * 1024)
-                                                                                                .bufferType(BufferType.OFF_HEAP)
-                                                                                                .finishOnClose(true)
-                                                                                                .build();
+    public static final SequentialWriterOption DEFAULT_WRITER_OPTION = SequentialWriterOption.newBuilder()
+                                                                                             .trickleFsync(DatabaseDescriptor.getTrickleFsync())
+                                                                                             .trickleFsyncByteInterval(DatabaseDescriptor.getTrickleFsyncIntervalInKiB() * 1024)
+                                                                                             .bufferType(BufferType.OFF_HEAP)
+                                                                                             .finishOnClose(true)
+                                                                                             .build();
 
     public static final IndexFileUtils instance = new IndexFileUtils(DEFAULT_WRITER_OPTION);
 

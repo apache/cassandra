@@ -58,12 +58,23 @@ public class V1OnDiskFormat implements OnDiskFormat
     private static final Logger logger = LoggerFactory.getLogger(V1OnDiskFormat.class);
 
     @VisibleForTesting
-    public static final Set<IndexComponent> PER_SSTABLE_COMPONENTS = EnumSet.of(IndexComponent.GROUP_COMPLETION_MARKER,
-                                                                                IndexComponent.GROUP_META,
-                                                                                IndexComponent.TOKEN_VALUES,
-                                                                                IndexComponent.PRIMARY_KEY_TRIE,
-                                                                                IndexComponent.PRIMARY_KEY_BLOCKS,
-                                                                                IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS);
+    public static final Set<IndexComponent> SKINNY_PER_SSTABLE_COMPONENTS = EnumSet.of(IndexComponent.GROUP_COMPLETION_MARKER,
+                                                                                       IndexComponent.GROUP_META,
+                                                                                       IndexComponent.TOKEN_VALUES,
+                                                                                       IndexComponent.PARTITION_SIZES,
+                                                                                       IndexComponent.PARTITION_KEY_BLOCKS,
+                                                                                       IndexComponent.PARTITION_KEY_BLOCK_OFFSETS);
+
+    @VisibleForTesting
+    public static final Set<IndexComponent> WIDE_PER_SSTABLE_COMPONENTS = EnumSet.of(IndexComponent.GROUP_COMPLETION_MARKER,
+                                                                                     IndexComponent.GROUP_META,
+                                                                                     IndexComponent.TOKEN_VALUES,
+                                                                                     IndexComponent.PARTITION_SIZES,
+                                                                                     IndexComponent.PARTITION_KEY_BLOCKS,
+                                                                                     IndexComponent.PARTITION_KEY_BLOCK_OFFSETS,
+                                                                                     IndexComponent.CLUSTERING_KEY_BLOCKS,
+                                                                                     IndexComponent.CLUSTERING_KEY_BLOCK_OFFSETS);
+
     @VisibleForTesting
     public static final Set<IndexComponent> LITERAL_COMPONENTS = EnumSet.of(IndexComponent.COLUMN_COMPLETION_MARKER,
                                                                             IndexComponent.META,
@@ -112,7 +123,8 @@ public class V1OnDiskFormat implements OnDiskFormat
     @Override
     public PrimaryKeyMap.Factory newPrimaryKeyMapFactory(IndexDescriptor indexDescriptor, SSTableReader sstable)
     {
-        return new RowAwarePrimaryKeyMap.RowAwarePrimaryKeyMapFactory(indexDescriptor, sstable);
+        return indexDescriptor.hasClustering() ? new WidePrimaryKeyMap.Factory(indexDescriptor, sstable)
+                                               : new SkinnyPrimaryKeyMap.Factory(indexDescriptor, sstable);
     }
 
     @Override
@@ -165,7 +177,7 @@ public class V1OnDiskFormat implements OnDiskFormat
     @Override
     public void validatePerSSTableIndexComponents(IndexDescriptor indexDescriptor, boolean checksum)
     {
-        for (IndexComponent indexComponent : perSSTableIndexComponents())
+        for (IndexComponent indexComponent : perSSTableIndexComponents(indexDescriptor.hasClustering()))
         {
             if (isNotBuildCompletionMarker(indexComponent))
             {
@@ -224,9 +236,9 @@ public class V1OnDiskFormat implements OnDiskFormat
     }
 
     @Override
-    public Set<IndexComponent> perSSTableIndexComponents()
+    public Set<IndexComponent> perSSTableIndexComponents(boolean hasClustering)
     {
-        return PER_SSTABLE_COMPONENTS;
+        return hasClustering ? WIDE_PER_SSTABLE_COMPONENTS : SKINNY_PER_SSTABLE_COMPONENTS;
     }
 
     @Override
@@ -236,11 +248,14 @@ public class V1OnDiskFormat implements OnDiskFormat
     }
 
     @Override
-    public int openFilesPerSSTableIndex()
+    public int openFilesPerSSTableIndex(boolean hasClustering)
     {
-        // For the V1 format there are always 4 open files per SSTable - token values, primary key trie,
-        // primary key blocks, primary key block offsets
-        return 4;
+        // For the V1 format the number of open files depends on whether the table has clustering. For wide tables
+        // the number of open files will be 6 per SSTable - token values, partition sizes index, partition key blocks,
+        // partition key block offsets, clustering key blocks & clustering key block offsets and for skinny tables
+        // the number of files will be 4 per SSTable - token values, partition key sizes, partition key blocks &
+        // partition key block offsets.
+        return hasClustering ? 6 : 4;
     }
 
     @Override
