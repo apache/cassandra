@@ -1,4 +1,5 @@
 4.1.4
+ * Allow empty keystore_password in encryption_options (CASSANDRA-18778)
  * Skip ColumnFamilyStore#topPartitions initialization when client or tool mode (CASSANDRA-18697)
 Merged from 4.0:
  * Fix NTS log message when an unrecognized strategy option is passed (CASSANDRA-18679)
