@@ -44,6 +44,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tMemtable cell count: 111\n" +
         "\tMemtable data size: 0\n" +
         "\tMemtable switch count: 1\n" +
+        "\tSpeculative retries: 0\n" +
         "\tLocal read count: 0\n" +
         "\tLocal read latency: 2.000 ms\n" +
         "\tLocal write count: 5\n" +
@@ -81,6 +82,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tMemtable data size: 900\n" +
         "\tMemtable off heap memory used: 314159265\n" +
         "\tMemtable switch count: 22222\n" +
+        "\tSpeculative retries: 0\n" +
         "\tLocal read count: 1\n" +
         "\tLocal read latency: 3.000 ms\n" +
         "\tLocal write count: 4\n" +
@@ -119,6 +121,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tMemtable cell count: 333333\n" +
         "\tMemtable data size: 1999\n" +
         "\tMemtable switch count: 3333\n" +
+        "\tSpeculative retries: 0\n" +
         "\tLocal read count: 2\n" +
         "\tLocal read latency: 4.000 ms\n" +
         "\tLocal write count: 3\n" +
@@ -156,6 +159,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tMemtable data size: 3000\n" +
         "\tMemtable off heap memory used: 141421356\n" +
         "\tMemtable switch count: 444444\n" +
+        "\tSpeculative retries: 0\n" +
         "\tLocal read count: 3\n" +
         "\tLocal read latency: NaN ms\n" +
         "\tLocal write count: 2\n" +
@@ -194,6 +198,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tMemtable cell count: 55555\n" +
         "\tMemtable data size: 20000\n" +
         "\tMemtable switch count: 5\n" +
+        "\tSpeculative retries: 0\n" +
         "\tLocal read count: 4\n" +
         "\tLocal read latency: 0.000 ms\n" +
         "\tLocal write count: 1\n" +
@@ -231,6 +236,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
         "\tMemtable data size: 1000000\n" +
         "\tMemtable off heap memory used: 161803398\n" +
         "\tMemtable switch count: 6\n" +
+        "\tSpeculative retries: 0\n" +
         "\tLocal read count: 5\n" +
         "\tLocal read latency: 1.000 ms\n" +
         "\tLocal write count: 0\n" +
@@ -401,6 +407,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
                                  "        \"bloom_filter_off_heap_memory_used\" : \"667408\",\n" +
                                  "        \"bytes_pending_repair\" : 0,\n" +
                                  "        \"memtable_switch_count\" : 6,\n" +
+                                 "        \"speculative_retries\" : 0,\n" +
                                  "        \"maximum_tombstones_per_slice_last_five_minutes\" : 6,\n" +
                                  "        \"memtable_cell_count\" : 6666,\n" +
                                  "        \"memtable_data_size\" : \"1000000\",\n" +
@@ -467,6 +474,7 @@ public class TableStatsPrinterTest extends TableStatsTestBase
                                  "      bloom_filter_off_heap_memory_used: '667408'\n" +
                                  "      bytes_pending_repair: 0\n" +
                                  "      memtable_switch_count: 6\n" +
+                                 "      speculative_retries: 0\n" +
                                  "      maximum_tombstones_per_slice_last_five_minutes: 6\n" +
                                  "      memtable_cell_count: 6666\n" +
                                  "      memtable_data_size: '1000000'\n" +

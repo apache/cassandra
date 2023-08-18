@@ -43,6 +43,7 @@ public class StatsTable
     public boolean memtableOffHeapUsed = false;
     public String memtableOffHeapMemoryUsed;
     public Object memtableSwitchCount;
+    public Object speculativeRetries;
     public long localReadCount;
     public double localReadLatencyMs;
     public long localWriteCount;
