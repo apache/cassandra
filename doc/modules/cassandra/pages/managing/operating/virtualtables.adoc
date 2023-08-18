@@ -392,7 +392,6 @@ address | port | dc | rack | corrupt_frames_recovered | corrupt_frames_unrecover
 error_bytes | error_count | expired_bytes | expired_count | processed_bytes |
 processed_count | received_bytes | received_count | scheduled_bytes | scheduled_count | throttled_count | throttled_nanos | using_bytes | using_reserve_bytes
 ---------+------+----+------+--------------------------+----------------------------+-
-----------
 (0 rows)
 ----
 
