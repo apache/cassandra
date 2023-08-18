@@ -43,7 +43,7 @@ import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.test.log.CMSTestBase;
 import org.apache.cassandra.distributed.test.log.PlacementSimulator;
 import org.apache.cassandra.distributed.test.log.RngUtils;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.ConnectionType;
 import org.apache.cassandra.net.Message;
@@ -142,7 +142,7 @@ public class ProgressBarrierTest extends CMSTestBase
                             }
                             else
                             {
-                                cb.onFailure(message.from(), RequestFailureReason.TIMEOUT);
+                                cb.onFailure(message.from(), RequestFailure.TIMEOUT);
                             }
                         }
 

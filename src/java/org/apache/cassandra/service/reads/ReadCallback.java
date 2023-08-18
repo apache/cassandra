@@ -24,22 +24,21 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.MessageParams;
-import org.apache.cassandra.locator.ReplicaPlan;
-import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.utils.concurrent.Condition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.MessageParams;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadResponse;
 import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.Endpoints;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.ParamType;
 import org.apache.cassandra.net.RequestCallback;
@@ -47,7 +46,9 @@ import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.reads.thresholds.CoordinatorWarnings;
 import org.apache.cassandra.service.reads.thresholds.WarningContext;
 import org.apache.cassandra.service.reads.thresholds.WarningsSnapshot;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -170,7 +171,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         InetAddressAndPort from = message.from();
         if (WarningContext.isSupported(params.keySet()))
         {
-            RequestFailureReason reason = getWarningContext().updateCounters(params, from);
+            RequestFailure reason = getWarningContext().updateCounters(params, from);
             replicaPlan().collectFailure(message.from(), reason);
             if (reason != null)
             {
@@ -220,11 +221,11 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     }
 
     @Override
-    public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+    public void onFailure(InetAddressAndPort from, RequestFailure failure)
     {
         assertWaitingFor(from);
                 
-        failureReasonByEndpoint.put(from, failureReason);
+        failureReasonByEndpoint.put(from, failure.reason);
 
         if (replicaPlan().readQuorum() + failuresUpdater.incrementAndGet(this) > replicaPlan().contacts().size())
             condition.signalAll();

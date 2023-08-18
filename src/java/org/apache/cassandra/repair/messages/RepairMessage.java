@@ -34,7 +34,7 @@ import org.apache.cassandra.config.RepairRetrySpec;
 import org.apache.cassandra.config.RetrySpec;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.exceptions.RepairException;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.RequestCallback;
@@ -129,7 +129,7 @@ public abstract class RepairMessage
             }
 
             @Override
-            public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+            public void onFailure(InetAddressAndPort from, RequestFailure failure)
             {
             }
         }, 0);
@@ -146,26 +146,26 @@ public abstract class RepairMessage
             }
 
             @Override
-            public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+            public void onFailure(InetAddressAndPort from, RequestFailure failure)
             {
                 ErrorHandling allowed = errorHandlingSupported(ctx, endpoint, verb, request.parentRepairSession());
                 switch (allowed)
                 {
                     case NONE:
-                        logger.error("[#{}] {} failed on {}: {}", request.parentRepairSession(), verb, from, failureReason);
+                        logger.error("[#{}] {} failed on {}: {}", request.parentRepairSession(), verb, from, failure);
                         return;
                     case TIMEOUT:
-                        finalCallback.onFailure(from, failureReason);
+                        finalCallback.onFailure(from, failure);
                         return;
                     case RETRY:
                         int maxAttempts = backoff.maxAttempts();
-                        if (failureReason == RequestFailureReason.TIMEOUT && attempt < maxAttempts && allowRetry.get())
+                        if (failure == RequestFailure.TIMEOUT && attempt < maxAttempts && allowRetry.get())
                         {
                             ctx.optionalTasks().schedule(() -> sendMessageWithRetries(ctx, backoff, allowRetry, request, verb, endpoint, finalCallback, attempt + 1),
                                                          backoff.computeWaitTime(attempt), backoff.unit());
                             return;
                         }
-                        finalCallback.onFailure(from, failureReason);
+                        finalCallback.onFailure(from, failure);
                         return;
                     default:
                         throw new AssertionError("Unknown error handler: " + allowed);
@@ -195,7 +195,7 @@ public abstract class RepairMessage
             }
 
             @Override
-            public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+            public void onFailure(InetAddressAndPort from, RequestFailure failureReason)
             {
                 failureCallback.onFailure(RepairException.error(request.desc, PreviewKind.NONE, String.format("Got %s failure from %s: %s", verb, from, failureReason)));
             }

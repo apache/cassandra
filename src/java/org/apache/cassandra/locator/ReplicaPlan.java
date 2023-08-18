@@ -18,22 +18,23 @@
 
 package org.apache.cassandra.locator;
 
-import com.google.common.collect.Iterables;
-import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.PartitionPosition;
-import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.tcm.Epoch;
-import org.apache.cassandra.exceptions.RequestFailureReason;
-import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.utils.FBUtilities;
-
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+
+import com.google.common.collect.Iterables;
+
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.RequestFailure;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.utils.FBUtilities;
 
 public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>>
 {
@@ -48,7 +49,7 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
     P withContacts(E contacts);
 
     void collectSuccess(InetAddressAndPort inetAddressAndPort);
-    void collectFailure(InetAddressAndPort inetAddressAndPort, RequestFailureReason t);
+    void collectFailure(InetAddressAndPort inetAddressAndPort, RequestFailure t);
     boolean stillAppliesTo(ClusterMetadata newMetadata);
 
     interface ForRead<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<E, P>> extends ReplicaPlan<E, P>
@@ -115,7 +116,7 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
             contacted.add(addr);
         }
 
-        public void collectFailure(InetAddressAndPort inetAddressAndPort, RequestFailureReason t) {}
+        public void collectFailure(InetAddressAndPort inetAddressAndPort, RequestFailure t) {}
 
     }
 

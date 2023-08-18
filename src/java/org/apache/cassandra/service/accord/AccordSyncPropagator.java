@@ -37,7 +37,7 @@ import org.agrona.collections.Int2ObjectHashMap;
 import org.agrona.collections.Long2ObjectHashMap;
 import org.apache.cassandra.concurrent.ScheduledExecutorPlus;
 import org.apache.cassandra.db.TypeSizes;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -294,7 +294,7 @@ public class AccordSyncPropagator
             }
 
             @Override
-            public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+            public void onFailure(InetAddressAndPort from, RequestFailure failure)
             {
                 scheduler.schedule(() -> AccordSyncPropagator.this.notify(to, notifications), 1, TimeUnit.MINUTES);
             }

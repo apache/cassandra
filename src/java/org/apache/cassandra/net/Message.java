@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
-
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -36,6 +35,7 @@ import org.slf4j.LoggerFactory;
 
 import accord.messages.ReplyContext;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -43,11 +43,13 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.tracing.Tracing.TraceType;
-import org.apache.cassandra.utils.*;
+import org.apache.cassandra.utils.MonotonicClockTranslation;
+import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.utils.TimeUUID;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -57,7 +59,10 @@ import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.MessagingService.VERSION_50;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
-import static org.apache.cassandra.utils.vint.VIntCoding.*;
+import static org.apache.cassandra.utils.vint.VIntCoding.computeUnsignedVIntSize;
+import static org.apache.cassandra.utils.vint.VIntCoding.getUnsignedVInt;
+import static org.apache.cassandra.utils.vint.VIntCoding.getUnsignedVInt32;
+import static org.apache.cassandra.utils.vint.VIntCoding.skipUnsignedVInt;
 
 /**
  * Immutable main unit of internode communication - what used to be {@code MessageIn} and {@code MessageOut} fused
@@ -302,12 +307,17 @@ public class Message<T> implements ReplyContext
     }
 
     /** Builds a failure response Message with an explicit reason, and fields inferred from request Message */
-    public Message<RequestFailureReason> failureResponse(RequestFailureReason reason)
+    public Message<RequestFailure> failureResponse(RequestFailureReason reason)
     {
-        return failureResponse(id(), expiresAtNanos(), reason);
+        return failureResponse(reason, null);
     }
 
-    static Message<RequestFailureReason> failureResponse(long id, long expiresAtNanos, RequestFailureReason reason)
+    public Message<RequestFailure> failureResponse(RequestFailureReason reason, @Nullable Throwable failure)
+    {
+        return failureResponse(id(), expiresAtNanos(), new RequestFailure(reason, failure));
+    }
+
+    static Message<RequestFailure> failureResponse(long id, long expiresAtNanos, RequestFailure reason)
     {
         return outWithParam(id, Verb.FAILURE_RSP, expiresAtNanos, reason, null, null);
     }

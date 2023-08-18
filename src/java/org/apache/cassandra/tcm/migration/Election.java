@@ -32,28 +32,27 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Sets;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.tcm.Epoch;
-import org.apache.cassandra.tcm.Startup;
-import org.apache.cassandra.tcm.transformations.Register;
-import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.RequestCallbackWithFailure;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.Startup;
+import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDSerializer;
@@ -194,7 +193,7 @@ public class Election
             }
 
             @Override
-            public void onFailure(InetAddressAndPort from, RequestFailureReason reason)
+            public void onFailure(InetAddressAndPort from, RequestFailure reason)
             {
                 logger.info("Received failure in response to {} from {}: {}", verb, from, reason);
                 cdl.decrement();

@@ -29,7 +29,7 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InOurDc;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -43,13 +43,12 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.concurrent.ConditionAsConsumer;
 
 import static java.util.Collections.emptyMap;
-import static org.apache.cassandra.exceptions.RequestFailureReason.NODE_DOWN;
 import static org.apache.cassandra.exceptions.RequestFailureReason.UNKNOWN;
 import static org.apache.cassandra.net.Verb.PAXOS2_COMMIT_REMOTE_REQ;
 import static org.apache.cassandra.net.Verb.PAXOS_COMMIT_REQ;
 import static org.apache.cassandra.service.StorageProxy.shouldHint;
 import static org.apache.cassandra.service.StorageProxy.submitHint;
-import static org.apache.cassandra.service.paxos.Commit.*;
+import static org.apache.cassandra.service.paxos.Commit.Agreed;
 import static org.apache.cassandra.utils.concurrent.ConditionAsConsumer.newConditionAsConsumer;
 
 // Does not support EACH_QUORUM, as no such thing as EACH_SERIAL
@@ -183,7 +182,7 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
             executeOnSelf |= isSelfOrSend(commitMessage, mutationMessage, participants.allLive.endpoint(i));
 
         for (int i = 0, mi = participants.allDown.size(); i < mi ; ++i)
-            onFailure(participants.allDown.endpoint(i), NODE_DOWN);
+            onFailure(participants.allDown.endpoint(i), RequestFailure.NODE_DOWN);
 
         if (executeOnSelf)
         {
@@ -219,7 +218,7 @@ public class PaxosCommit<OnDone extends Consumer<? super PaxosCommit.Status>> ex
      * Record a failure or timeout, and maybe submit a hint to {@code from}
      */
     @Override
-    public void onFailure(InetAddressAndPort from, RequestFailureReason reason)
+    public void onFailure(InetAddressAndPort from, RequestFailure reason)
     {
         if (logger.isTraceEnabled())
             logger.trace("{} {} from {}", commit, reason, from);
