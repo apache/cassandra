@@ -175,6 +175,7 @@ from cqlshlib.formatting import (DEFAULT_DATE_FORMAT, DEFAULT_NANOTIME_FORMAT,
                                  format_by_type, formatter_for)
 from cqlshlib.tracing import print_trace, print_trace_session
 from cqlshlib.util import get_file_encoding_bomsize, trim_if_present
+from cqlshlib.serverversion import version as build_version
 
 DEFAULT_HOST = '127.0.0.1'
 DEFAULT_PORT = 9042
@@ -531,6 +532,8 @@ class Shell(cmd.Cmd):
         if stdin is None:
             stdin = sys.stdin
 
+        self.check_build_versions()
+
         if tty:
             self.reset_prompt()
             self.report_connection()
@@ -549,6 +552,14 @@ class Shell(cmd.Cmd):
     @property
     def batch_mode(self):
         return not self.tty
+
+    def check_build_versions(self):
+        baseversion = self.connection_versions['build']
+        extra = baseversion.rfind('-')
+        if extra:
+            baseversion = baseversion[0:extra]
+        if baseversion != build_version:
+            print("WARNING: cqlsh was built against {}, but this server is {}.  All features may not work!".format(baseversion, build_version))
 
     @property
     def is_using_utf8(self):
