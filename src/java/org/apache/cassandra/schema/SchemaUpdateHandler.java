@@ -26,7 +26,7 @@ import org.apache.cassandra.utils.concurrent.Awaitable;
 /**
  * Schema update handler is responsible for maintaining the shared schema and synchronizing it with other nodes in
  * the cluster, which means pushing and pulling changes, as well as tracking the current version in the cluster.
- * <p/>
+ * <p>
  * The interface has been extracted to abstract out that functionality. It allows for various implementations like
  * Gossip based (the default), ETCD, offline, etc., and make it easier for mocking in unit tests.
  */
@@ -71,7 +71,7 @@ public interface SchemaUpdateHandler
      * Marks the local schema to be cleared and refreshed. Since calling this method, the update handler tries to obtain
      * a fresh schema definition from a remote source. Once the schema definition is received, the local schema is
      * replaced (instead of being merged which usually happens when the update is received).
-     * <p/>
+     * <p>
      * The returned awaitable is fulfilled when the schema is received and applied.
      */
     Awaitable clear();

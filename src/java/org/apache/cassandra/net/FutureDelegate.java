@@ -27,7 +27,8 @@ import io.netty.util.concurrent.GenericFutureListener;
 /**
  * A delegating future, that we can extend to provide subtly modified behaviour.
  *
- * See {@link FutureCombiner} and {@link FutureResult}
+ * @see org.apache.cassandra.utils.concurrent.FutureCombiner
+ * @see org.apache.cassandra.net.FutureResult
  */
 public class FutureDelegate<V> implements Future<V>
 {

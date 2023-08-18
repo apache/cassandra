@@ -2877,8 +2877,8 @@ public class DatabaseDescriptor
     }
 
     /**
-     * If this value is set to <= 0 it will move auth requests to the standard request pool regardless of the current
-     * size of the {@link org.apache.cassandra.transport.Dispatcher#authExecutor}'s active size.
+     * If this value is set to {@code <=} 0 it will move auth requests to the standard request pool regardless of the current
+     * size of the {@code org.apache.cassandra.transport.Dispatcher#authExecutor}'s active size.
      *
      * see {@link org.apache.cassandra.transport.Dispatcher#dispatch} for executor selection
      */

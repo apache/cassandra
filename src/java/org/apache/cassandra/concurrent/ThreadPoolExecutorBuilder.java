@@ -32,6 +32,7 @@ import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQu
 
 /**
  * Configure a {@link ThreadPoolExecutorPlus}, applying Cassandra's best practices by default
+ * <ul>
  * <li>Core threads may timeout, and use a default {@link #keepAlive} time in {@link #keepAliveUnits}
  * <li>Threads share the same {@link ThreadGroup}, which may be configurably a child of a specified {@link ThreadGroup}
  *     descended from the same parent of the {@link MetaFactory}
@@ -39,6 +40,7 @@ import static org.apache.cassandra.utils.concurrent.BlockingQueues.newBlockingQu
  * <li>The default {@link RejectedExecutionHandler} is implementation dependent, but may be overridden
  * <li>The default {@link UncaughtExceptionHandler} is inherited from {@link MetaFactory}, which in turn receives it
  *     from the {@link ExecutorBuilderFactory}
+ * </ul>
  */
 public class ThreadPoolExecutorBuilder<E extends ExecutorPlus> extends MetaFactory implements ExecutorBuilder<E>
 {

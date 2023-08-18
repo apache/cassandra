@@ -49,7 +49,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.DECAYING_E
  * collected in the previous minute. Measured values are collected in variable sized buckets, using small buckets in the
  * lower range and larger buckets in the upper range. Use this histogram when you want to know if the distribution of
  * the underlying data stream has changed recently and you want high resolution on values in the lower range.
- * <p/>
+ * <p>
  * The histogram use forward decay [1] to make recent values more significant. The forward decay factor will be doubled
  * every minute (half-life time set to 60 seconds) [2]. The forward decay landmark is reset every 30 minutes (or at
  * first read/update after 30 minutes). During landmark reset, updates and reads in the reservoir will be blocked in a
@@ -57,26 +57,26 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.DECAYING_E
  * assumption that in an extreme case we would have to collect a metric 1M times for a single bucket each second. By the
  * end of the 30:th minute all collected values will roughly add up to 1.000.000 * 60 * pow(2, 30) which can be
  * represented with 56 bits giving us some head room in a signed 64 bit long.
- * <p/>
+ * <p>
  * Internally two reservoirs are maintained, one with decay and one without decay. All public getters in a {@link Snapshot}
  * will expose the decay functionality with the exception of the {@link Snapshot#getValues()} which will return values
  * from the reservoir without decay. This makes it possible for the caller to maintain precise deltas in an interval of
  * its choice.
- * <p/>
+ * <p>
  * The bucket size starts at 1 and grows by 1.2 each time (rounding and removing duplicates). It goes from 1 to around
  * 18T by default (creating 164+1 buckets), which will give a timing resolution from microseconds to roughly 210 days,
  * with less precision as the numbers get larger.
- * <p/>
+ * <p>
  * The series of values to which the counts in `decayingBuckets` correspond:
  * 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 17, 20, 24, 29, 35, 42, 50, 60, 72 etc.
  * Thus, a `decayingBuckets` of [0, 0, 1, 10] would mean we had seen 1 value of 3 and 10 values of 4.
- * <p/>
+ * <p>
  * Each bucket represents values from (previous bucket offset, current offset].
- * <p/>
+ * <p>
  * To reduce contention each logical bucket is striped accross a configurable number of stripes (default: 2). Threads are
  * assigned to specific stripes. In addition, logical buckets are distributed across the physical storage to reduce conention
  * when logically adjacent buckets are updated. See CASSANDRA-15213.
- * <p/>
+ * <p>
  * <ul>
  *   <li>[1]: http://dimacs.rutgers.edu/~graham/pubs/papers/fwddecay.pdf</li>
  *   <li>[2]: https://en.wikipedia.org/wiki/Half-life</li>

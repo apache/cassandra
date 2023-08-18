@@ -454,7 +454,7 @@ public class CassandraAuthorizer implements IAuthorizer
 
     /**
      * Get an initial set of permissions to load into the PermissionsCache at startup
-     * @return map of User/Resource -> Permissions for cache initialisation
+     * @return map of User/Resource {@code ->} Permissions for cache initialisation
      */
     public Supplier<Map<Pair<AuthenticatedUser, IResource>, Set<Permission>>> bulkLoader()
     {

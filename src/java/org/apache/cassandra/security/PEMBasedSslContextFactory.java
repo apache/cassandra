@@ -39,7 +39,7 @@ import org.apache.cassandra.io.util.File;
 
 
 /**
- * SslContextFactory for the <a href="">PEM standard</a> encoded PKCS#8 private keys and X509 certificates/public-keys.
+ * SslContextFactory for the <a href="https://en.wikipedia.org/wiki/Privacy-Enhanced_Mail">PEM standard</a> encoded PKCS#8 private keys and X509 certificates/public-keys.
  * It parses the key material based on the standard defined in the <a href="https://datatracker.ietf.org/doc/html/rfc7468">RFC 7468</a>.
  * It creates <a href="https://datatracker.ietf.org/doc/html/rfc5208">PKCS# 8</a> based private key and X509 certificate(s)
  * for the public key to build the required keystore and the truststore managers that are used for the SSL context creation.
@@ -54,7 +54,7 @@ import org.apache.cassandra.io.util.File;
  * below,
  *
  * <b>Configuration: PEM keys/certs defined inline (mind the spaces in the YAML!)</b>
- * <pre>
+ * <pre>{@code
  *     client/server_encryption_options:
  *      ssl_context_factory:
  *         class_name: org.apache.cassandra.security.PEMBasedSslContextFactory
@@ -73,17 +73,17 @@ import org.apache.cassandra.io.util.File;
  *               -----BEGIN CERTIFICATE-----
  *               <your base64 encoded certificate>
  *               -----END CERTIFICATE-----
- * </pre>
+ * }</pre>
  *
  * <b>Configuration: PEM keys/certs defined in files</b>
- * <pre>
+ * <pre>{@code
  *     client/server_encryption_options:
  *      ssl_context_factory:
  *         class_name: org.apache.cassandra.security.PEMBasedSslContextFactory
  *      keystore: <file path to the keystore file in the PEM format with the private key and the certificate chain>
  *      keystore_password: "<your password if the private key is encrypted with a password>"
  *      truststore: <file path to the truststore file in the PEM format>
- * </pre>
+ * }</pre>
  */
 public final class PEMBasedSslContextFactory extends FileBasedSslContextFactory
 {

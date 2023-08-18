@@ -51,7 +51,7 @@ public interface FunctionParameter
      * @param arg a parameter value in a specific function call
      * @param receiverType the type of the object that will receive the result of the function call
      * @param inferredTypes the types that have been inferred for the other parameters
-     * @return the inferred data type of the parameter, or {@link null} it isn't possible to infer it
+     * @return the inferred data type of the parameter, or {@code null} it isn't possible to infer it
      */
     @Nullable
     default AbstractType<?> inferType(String keyspace,

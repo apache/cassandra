@@ -54,7 +54,7 @@ public interface PostingList extends Closeable
      *
      * @param targetRowID target row ID to advance to
      *
-     * @return first segment row ID which is >= the target row ID or {@link PostingList#END_OF_STREAM} if one does not exist
+     * @return first segment row ID which is {@code >=} the target row ID or {@link PostingList#END_OF_STREAM} if one does not exist
      */
     long advance(long targetRowID) throws IOException;
 }

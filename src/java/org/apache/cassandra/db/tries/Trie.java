@@ -117,6 +117,7 @@ public abstract class Trie<T>
      *  u
      *   p *
      * the combined iteration will proceed as follows:
+     * {@code
      *  (0, -1)+    (0, -1)+               cursors equal, advance both
      *  (1, t)+     (1, t)+        t       cursors equal, advance both
      *  (2, r)+     (2, r)+        tr      cursors equal, advance both
@@ -133,6 +134,7 @@ public abstract class Trie<T>
      *  (2, i)+  <  (-1, -1)       wi      cursors not equal, advance smaller (2 > -1)
      *  (3, n)+  <  (-1, -1)       win*    cursors not equal, advance smaller (3 > -1)
      *  (-1, -1)    (-1, -1)               both exhasted
+     *  }
      */
     protected interface Cursor<T>
     {
@@ -164,7 +166,7 @@ public abstract class Trie<T>
          * It is an error to call this after the trie has already been exhausted (i.e. when depth() == -1);
          * for performance reasons we won't always check this.
          *
-         * @return depth (can be prev+1 or <=prev), -1 means that the trie is exhausted
+         * @return depth (can be {@code prev + 1} or {@code <= prev}), -1 means that the trie is exhausted
          */
         int advance();
 
@@ -227,7 +229,7 @@ public abstract class Trie<T>
          * It is an error to call this after the trie has already been exhausted (i.e. when depth() == -1);
          * for performance reasons we won't always check this.
          *
-         * @return the new depth, always <= previous depth; -1 if the trie is exhausted
+         * @return the new depth, always {@code <=} previous depth; -1 if the trie is exhausted
          */
         int skipChildren();
     }
@@ -277,7 +279,7 @@ public abstract class Trie<T>
      * with {@link #process}.
      *
      * This enables calls like
-     *     trie.forEachEntry(x -> System.out.println(x));
+     *     {@code trie.forEachEntry(x -> System.out.println(x));}
      * to be mapped directly to a single call to {@link #process} without extra allocations.
      */
     public interface ValueConsumer<T> extends Consumer<T>, Walker<T, Void>

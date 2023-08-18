@@ -46,7 +46,7 @@ public interface IInternodeAuthenticator
      * <p>
      * Default implementation calls authenticate method by IP and port method
      * <p>
-     * 1. If it is IP based authentication ignore the certificates & connectionType parameters in the implementation
+     * 1. If it is IP based authentication ignore the certificates and connectionType parameters in the implementation
      * of this method.
      * 2. For certificate based authentication like mTLS, server's identity for outbound connections is verified by the
      * trusted root certificates in the outbound_keystore. In such cases this method may be overridden to return true

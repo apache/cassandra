@@ -365,7 +365,7 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource
      */
     boolean accepts(OpOrder.Group opGroup, CommitLogPosition commitLogPosition);
 
-    /** Approximate commit log lower bound, <= getCommitLogLowerBound, used as a time stamp for ordering */
+    /** Approximate commit log lower bound, {@code <=} getCommitLogLowerBound, used as a time stamp for ordering */
     CommitLogPosition getApproximateCommitLogLowerBound();
 
     /** The commit log position at the time that this memtable was created */
@@ -406,14 +406,14 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource
 
     /**
      * Called when the table's metadata is updated. The memtable's metadata reference now points to the new version.
-     * This will not be called if {@link #shouldSwitch)(SCHEMA_CHANGE) returns true, as the memtable will be swapped out
+     * This will not be called if {@link Memtable#shouldSwitch(ColumnFamilyStore.FlushReason)}(SCHEMA_CHANGE) returns true, as the memtable will be swapped out
      * instead.
      */
     void metadataUpdated();
 
     /**
      * Called when the known ranges have been updated and owner.localRangeSplits() may return different values.
-     * This will not be called if {@link #shouldSwitch)(OWNED_RANGES_CHANGE) returns true, as the memtable will be
+     * This will not be called if {@code Memtable#shouldSwitch(ColumnFamilyStore.FlushReason))} (OWNED_RANGES_CHANGE) returns true, as the memtable will be
      * swapped out instead.
      */
     void localRangesUpdated();

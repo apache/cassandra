@@ -35,6 +35,7 @@ import javax.management.openmbean.TabularData;
 
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.repair.state.CoordinatorState;
 import org.apache.cassandra.utils.BreaksJMX;
 
 public interface StorageServiceMBean extends NotificationEmitter
@@ -477,7 +478,7 @@ public interface StorageServiceMBean extends NotificationEmitter
     /**
      * Get the status of a given parent repair session.
      * @param cmd the int reference returned when issuing the repair
-     * @return status of parent repair from enum {@link org.apache.cassandra.repair.RepairRunnable.Status}
+     * @return status of parent repair from enum {@link CoordinatorState.State}
      * followed by final message or messages of the session
      */
     @Nullable
@@ -1121,7 +1122,7 @@ public interface StorageServiceMBean extends NotificationEmitter
     /** Returns the resize factor to use when growing/resizing a RangeTombstoneList */
     public double getRangeTombstoneResizeListGrowthFactor();
 
-    /** Returns a map of schema version -> list of endpoints reporting that version that we need schema updates for */
+    /** Returns a map of schema version {@code ->} list of endpoints reporting that version that we need schema updates for */
     @Deprecated
     public Map<String, Set<InetAddress>> getOutstandingSchemaVersions();
     public Map<String, Set<String>> getOutstandingSchemaVersionsWithPort();

@@ -89,7 +89,7 @@ import static org.apache.cassandra.utils.Throwables.maybeFail;
  *
  * MessagingService will now automatically invoke your handler whenever a {@link Message} with this verb arrives.
  *
- * <h1>Architecture of MessagingService</h1>
+ * <h2>Architecture of MessagingService</h2>
  *
  * <h2>QOS</h2>
  *
@@ -123,7 +123,7 @@ import static org.apache.cassandra.utils.Throwables.maybeFail;
  *
  * Netty pipeline for outbound messaging connections generally consists of the following handlers:
  *
- * [(optional) SslHandler] <- [FrameEncoder]
+ * [(optional) SslHandler] {@code <-} [FrameEncoder]
  *
  * {@link OutboundConnection} handles the entire lifetime of a connection: from the very first handshake
  * to any necessary reconnects if necessary.
@@ -165,7 +165,7 @@ import static org.apache.cassandra.utils.Throwables.maybeFail;
  *
  * Netty pipeline for inbound messaging connections generally consists of the following handlers:
  *
- * [(optional) SslHandler] -> [FrameDecoder] -> [InboundMessageHandler]
+ * [(optional) SslHandler] {@code ->} [FrameDecoder] {@code ->} [InboundMessageHandler]
  *
  * {@link FrameDecoder} is responsible for decoding incoming frames and work stashing; {@link InboundMessageHandler}
  * then takes decoded frames from the decoder and processes the messages contained in them.

@@ -27,12 +27,16 @@ import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
  * Entry point for configuring and creating new executors.
  *
  * Supports quick and easy construction of default-configured executors via
+ * <ul>
  * <li>{@link #sequential(String)}
  * <li>{@link #pooled(String, int)}
+ * </ul>
  *
  * Supports custom configuration of executors via
+ * <ul>
  * <li>{@link #configureSequential(String)}
  * <li>{@link #configurePooled(String, int)}
+ * </ul>
  */
 @Shared(scope = SIMULATION, inner = INTERFACES)
 public interface ExecutorBuilderFactory<E extends ExecutorPlus, S extends SequentialExecutorPlus>
@@ -61,16 +65,22 @@ public interface ExecutorBuilderFactory<E extends ExecutorPlus, S extends Sequen
      * Entry point for configuring and creating new executors.
      *
      * Supports quick and easy construction of default-configured executors via
+     * <ul>
      * <li>{@link #sequential(String)}
      * <li>{@link #pooled(String, int)}
+     *</ul>
      *
      * Supports custom configuration of executors via
+     * <ul>
      * <li>{@link #configureSequential(String)}
      * <li>{@link #configurePooled(String, int)}
+     * </ul>
      *
      * Supports any of the above with added JMX registration via sub-factories
+     * <ul>
      * <li>{@link #withJmx(String)}
      * <li>{@link #withJmxInternal()}
+     * </ul>
      */
     interface Jmxable<E extends ExecutorPlus, S extends SequentialExecutorPlus> extends ExecutorBuilderFactory<E, S>
     {

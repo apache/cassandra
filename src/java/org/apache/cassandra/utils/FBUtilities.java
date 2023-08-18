@@ -885,7 +885,7 @@ public class FBUtilities
 
     /**
      * Convert the given value to a human-readable string using binary (i.e. 2^10-based) modifiers.
-     * If the number is outside the modifier range (i.e. < 1 qi or > 1 Qi), it will be printed as v*2^e where e is a
+     * If the number is outside the modifier range (i.e. {@code < 1 qi} or {@code > 1 Qi}), it will be printed as v*2^e where e is a
      * multiple of 10 with sign.
      * For example, 1.000KiB, 2.100 miB/s, 7.006*2^+150, -Infinity.
      * @param value     Number to convert.
@@ -912,7 +912,7 @@ public class FBUtilities
 
     /**
      * Convert the given value to a human-readable string using decimal (i.e. 10^3-based) modifiers.
-     * If the number is outside the modifier range (i.e. < 1 qi or > 1 Qi), it will be printed as vEe where e is a
+     * If the number is outside the modifier range (i.e. {@code < 1 qi} or {@code > 1 Qi}), it will be printed as vEe where e is a
      * multiple of 3 with sign.
      * For example, 1.000km, 2.100 ms, 10E+45, NaN.
      * @param value     Number to convert.

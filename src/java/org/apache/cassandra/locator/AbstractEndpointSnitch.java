@@ -25,10 +25,10 @@ public abstract class AbstractEndpointSnitch implements IEndpointSnitch
     public abstract int compareEndpoints(InetAddressAndPort target, Replica r1, Replica r2);
 
     /**
-     * Sorts the <tt>Collection</tt> of node addresses by proximity to the given address
+     * Sorts the {@code Collection} of node addresses by proximity to the given address
      * @param address the address to sort by proximity to
      * @param unsortedAddress the nodes to sort
-     * @return a new sorted <tt>List</tt>
+     * @return a new sorted {@code List}
      */
     public <C extends ReplicaCollection<? extends C>> C sortedByProximity(final InetAddressAndPort address, C unsortedAddress)
     {

@@ -92,13 +92,13 @@ import static org.apache.cassandra.db.compaction.AbstractStrategyHolder.GroupedS
  * pending repair id.
  *
  * Operations on this class are guarded by a {@link ReentrantReadWriteLock}. This lock performs mutual exclusion on
- * reads and writes to the following variables: {@link this#repaired}, {@link this#unrepaired}, {@link this#isActive},
- * {@link this#params}, {@link this#currentBoundaries}. Whenever performing reads on these variables,
- * the {@link this#readLock} should be acquired. Likewise, updates to these variables should be guarded by
- * {@link this#writeLock}.
+ * reads and writes to the following variables: {@link CompactionStrategyManager#repaired}, {@link CompactionStrategyManager#unrepaired}, {@link CompactionStrategyManager#isActive},
+ * {@link CompactionStrategyManager#params}, {@link CompactionStrategyManager#currentBoundaries}. Whenever performing reads on these variables,
+ * the {@link CompactionStrategyManager#readLock} should be acquired. Likewise, updates to these variables should be guarded by
+ * {@link CompactionStrategyManager#writeLock}.
  *
  * Whenever the {@link DiskBoundaries} change, the compaction strategies must be reloaded, so in order to ensure
- * the compaction strategy placement reflect most up-to-date disk boundaries, call {@link this#maybeReloadDiskBoundaries()}
+ * the compaction strategy placement reflect most up-to-date disk boundaries, call {@link CompactionStrategyManager#maybeReloadDiskBoundaries()}
  * before acquiring the read lock to acess the strategies.
  *
  */
@@ -550,11 +550,11 @@ public class CompactionStrategyManager implements INotificationConsumer
      * Checks if the disk boundaries changed and reloads the compaction strategies
      * to reflect the most up-to-date disk boundaries.
      * <p>
-     * This is typically called before acquiring the {@link this#readLock} to ensure the most up-to-date
+     * This is typically called before acquiring the {@link CompactionStrategyManager#readLock} to ensure the most up-to-date
      * disk locations and boundaries are used.
      * <p>
-     * This should *never* be called inside by a thread holding the {@link this#readLock}, since it
-     * will potentially acquire the {@link this#writeLock} to update the compaction strategies
+     * This should *never* be called inside by a thread holding the {@link CompactionStrategyManager#readLock}, since it
+     * will potentially acquire the {@link CompactionStrategyManager#writeLock} to update the compaction strategies
      * what can cause a deadlock.
      * <p>
      * TODO: improve this to reload after receiving a notification rather than trying to reload on every operation

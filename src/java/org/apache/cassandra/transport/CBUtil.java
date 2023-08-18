@@ -148,7 +148,7 @@ public abstract class CBUtil
     }
 
     /**
-     * Write US-ASCII strings. It does not work if containing any char > 0x007F (127)
+     * Write US-ASCII strings. It does not work if containing any char {@code > 0x007F (127)}
      * @param str, satisfies {@link org.apache.cassandra.db.marshal.AsciiType},
      *             i.e. seven-bit ASCII, a.k.a. ISO646-US
      */
@@ -171,7 +171,7 @@ public abstract class CBUtil
     }
 
     /**
-     * Returns the ecoding size of a US-ASCII string. It does not work if containing any char > 0x007F (127)
+     * Returns the ecoding size of a US-ASCII string. It does not work if containing any char {@code > 0x007F (127)}
      * @param str, satisfies {@link org.apache.cassandra.db.marshal.AsciiType},
      *             i.e. seven-bit ASCII, a.k.a. ISO646-US
      */

@@ -37,7 +37,7 @@ import org.apache.cassandra.utils.JavaDriverUtils;
 
 /**
  * Represents a data type used within the UDF/UDA.
- * </p>
+ * <p>
  * Internaly, UDFs and UDAs use the Java driver types. This class maintains the mapping between the C* type
  * and the corresponding java driver type.
  */

@@ -172,7 +172,7 @@ public class BlockingPartitionRepair
 
     /**
      * Wait for the repair to complete util a future time
-     * If the {@param timeoutAt} is a past time, the method returns immediately with the repair result.
+     * If the {@code timeoutAt} is a past time, the method returns immediately with the repair result.
      * @param timeoutAt, future time
      * @param timeUnit, the time unit of the future time
      * @return true if repair is done; otherwise, false.

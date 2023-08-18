@@ -185,8 +185,8 @@ public class KeyLookup
          * @param startingPointId the inclusive starting point for the partition
          * @param endingPointId the exclusive ending point for the partition.
          *                      Note: this can be equal to the number of keys if this is the last partition
-         * @return a {@code long} representing the pointId of the key that is >= to the key passed to the method, or
-         *         -1 if the key passed is > all the keys.
+         * @return a {@code long} representing the pointId of the key that is {@code >=} to the key passed to the method, or
+         *         -1 if the key passed is {@code >} all the keys.
          */
         public long clusteredSeekToKey(ByteComparable key, long startingPointId, long endingPointId)
         {
