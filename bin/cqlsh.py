@@ -546,7 +546,7 @@ class Shell(cmd.Cmd):
         if extra:
             baseversion = baseversion[0:extra]
         if baseversion != build_version:
-            print("WARNING: cqlsh was built against {}, but this server is {}.  All features may not work!".format(baseversion, build_version))
+            print("WARNING: cqlsh was built against {}, but this server is {}.  All features may not work!".format(build_version, baseversion))
 
     @property
     def batch_mode(self):
