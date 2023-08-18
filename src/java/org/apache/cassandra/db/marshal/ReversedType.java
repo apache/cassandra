@@ -110,12 +110,6 @@ public class ReversedType<T> extends AbstractType<T>
     }
 
     @Override
-    public boolean isValueCompatibleWith(AbstractType<?> otherType)
-    {
-        return this.baseType.isValueCompatibleWith(otherType);
-    }
-
-    @Override
     public CQL3Type asCQL3Type()
     {
         return baseType.asCQL3Type();
