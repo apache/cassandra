@@ -39,6 +39,7 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
@@ -71,7 +72,7 @@ import static org.apache.cassandra.utils.Throwables.maybeFail;
  *     message is received, {@link RequestCallback#onResponse(Message)} method will be invoked on the
  *     provided callback - in case of a success response. In case of a failure response (see {@link Verb#FAILURE_RSP}),
  *     or if a response doesn't arrive within verb's configured expiry time,
- *     {@link RequestCallback#onFailure(InetAddressAndPort, RequestFailureReason)} will be invoked instead.
+ *     {@link RequestCallback#onFailure(InetAddressAndPort, RequestFailure)} will be invoked instead.
  *  2. To send a response back, or a message that expects no response, use {@link #send(Message, InetAddressAndPort)}
  *     method.
  *
@@ -368,9 +369,9 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
             }
 
             @Override
-            public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+            public void onFailure(InetAddressAndPort from, RequestFailure failure)
             {
-                promise.tryFailure(new FailureResponseException(from, failureReason));
+                promise.tryFailure(new FailureResponseException(from, failure.reason));
             }
 
             @Override
@@ -497,7 +498,7 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
 
     public <V> void respondWithFailure(RequestFailureReason reason, Message<?> message)
     {
-        send(Message.failureResponse(message.id(), message.expiresAtNanos(), reason), message.respondTo());
+        send(Message.failureResponse(message.id(), message.expiresAtNanos(), new RequestFailure(reason, null)), message.respondTo());
     }
 
     public void send(Message message, InetAddressAndPort to, ConnectionType specifyConnection)

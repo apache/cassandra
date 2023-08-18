@@ -33,7 +33,7 @@ import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -48,8 +48,14 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.*;
 import static org.junit.Assert.assertEquals;
+
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.MessageDelivery;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.broadcastAddress;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.bytesToken;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.node1;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.randomInt;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.registerOutgoingMessageSink;
 
 public class PaxosVerbHandlerOutOfRangeTest // PaxosV1 out of range tests - V2 implements OOTR checks at the protocol level
 {
@@ -175,7 +181,7 @@ public class PaxosVerbHandlerOutOfRangeTest // PaxosV1 out of range tests - V2 i
         MessageDelivery response = messageSink.get(100, TimeUnit.MILLISECONDS);
         assertEquals(verb, response.message.verb());
         Assert.assertEquals(broadcastAddress, response.message.from());
-        assertEquals(isOutOfRange, response.message.payload instanceof RequestFailureReason);
+        assertEquals(isOutOfRange, response.message.payload instanceof RequestFailure);
         assertEquals(messageId, response.message.id());
         Assert.assertEquals(node1, response.to);
         assertEquals(startingTotalMetricCount + (isOutOfRange ? 1 : 0), StorageMetrics.totalOpsForInvalidToken.getCount());

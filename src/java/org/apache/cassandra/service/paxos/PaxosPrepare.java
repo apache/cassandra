@@ -34,9 +34,15 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.ReadResponse;
+import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
@@ -44,7 +50,6 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.metrics.PaxosMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
@@ -53,6 +58,7 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.paxos.PaxosPrepare.Status.Outcome;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.vint.VIntCoding;
@@ -63,13 +69,33 @@ import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAdd
 import static org.apache.cassandra.net.Verb.PAXOS2_PREPARE_REQ;
 import static org.apache.cassandra.net.Verb.PAXOS2_PREPARE_RSP;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.NONE;
-import static org.apache.cassandra.service.paxos.Commit.*;
-import static org.apache.cassandra.service.paxos.Paxos.*;
-import static org.apache.cassandra.service.paxos.PaxosPrepare.Status.Outcome.*;
+import static org.apache.cassandra.service.paxos.Commit.Accepted;
+import static org.apache.cassandra.service.paxos.Commit.Committed;
+import static org.apache.cassandra.service.paxos.Commit.CompareResult;
+import static org.apache.cassandra.service.paxos.Commit.isAfter;
+import static org.apache.cassandra.service.paxos.Paxos.Electorate;
+import static org.apache.cassandra.service.paxos.Paxos.LOG_TTL_LINEARIZABILITY_VIOLATIONS;
+import static org.apache.cassandra.service.paxos.Paxos.Participants;
+import static org.apache.cassandra.service.paxos.Paxos.consistency;
+import static org.apache.cassandra.service.paxos.Paxos.getPaxosVariant;
+import static org.apache.cassandra.service.paxos.Paxos.isInRangeAndShouldProcess;
+import static org.apache.cassandra.service.paxos.Paxos.newBallot;
+import static org.apache.cassandra.service.paxos.Paxos.verifyElectorate;
+import static org.apache.cassandra.service.paxos.PaxosPrepare.Status.Outcome.ELECTORATE_MISMATCH;
+import static org.apache.cassandra.service.paxos.PaxosPrepare.Status.Outcome.FOUND_INCOMPLETE_ACCEPTED;
+import static org.apache.cassandra.service.paxos.PaxosPrepare.Status.Outcome.FOUND_INCOMPLETE_COMMITTED;
+import static org.apache.cassandra.service.paxos.PaxosPrepare.Status.Outcome.MAYBE_FAILURE;
+import static org.apache.cassandra.service.paxos.PaxosPrepare.Status.Outcome.PROMISED;
+import static org.apache.cassandra.service.paxos.PaxosPrepare.Status.Outcome.READ_PERMITTED;
+import static org.apache.cassandra.service.paxos.PaxosPrepare.Status.Outcome.SUPERSEDED;
+import static org.apache.cassandra.service.paxos.PaxosState.MaybePromise;
+import static org.apache.cassandra.service.paxos.PaxosState.MaybePromise.Outcome.PERMIT_READ;
+import static org.apache.cassandra.service.paxos.PaxosState.MaybePromise.Outcome.PROMISE;
+import static org.apache.cassandra.service.paxos.PaxosState.MaybePromise.Outcome.REJECT;
+import static org.apache.cassandra.service.paxos.PaxosState.Snapshot;
+import static org.apache.cassandra.service.paxos.PaxosState.get;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
-import static org.apache.cassandra.service.paxos.PaxosState.*;
-import static org.apache.cassandra.service.paxos.PaxosState.MaybePromise.Outcome.*;
 import static org.apache.cassandra.utils.CollectionSerializers.deserializeMap;
 import static org.apache.cassandra.utils.CollectionSerializers.serializeMap;
 import static org.apache.cassandra.utils.CollectionSerializers.serializedMapSize;
@@ -772,7 +798,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
     }
 
     @Override
-    public synchronized void onFailure(InetAddressAndPort from, RequestFailureReason reason)
+    public synchronized void onFailure(InetAddressAndPort from, RequestFailure reason)
     {
         if (logger.isTraceEnabled())
             logger.trace("{} {} failure from {}", request, reason, from);
@@ -780,7 +806,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
         if (isDone())
             return;
 
-        super.onFailureWithMutex(from, reason);
+        super.onFailureWithMutex(from, reason.reason);
         ++failures;
 
         if (failures + participants.sizeOfConsensusQuorum == 1 + participants.sizeOfPoll())
@@ -843,7 +869,7 @@ public class PaxosPrepare extends PaxosRequestCallback<PaxosPrepare.Response> im
     }
 
     @Override
-    public void onRefreshFailure(InetAddressAndPort from, RequestFailureReason reason)
+    public void onRefreshFailure(InetAddressAndPort from, RequestFailure reason)
     {
         onFailure(from, reason);
     }

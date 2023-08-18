@@ -37,7 +37,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.InvalidRoutingException;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -50,9 +50,15 @@ import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.*;
-import static org.apache.cassandra.net.Verb.READ_REQ;
 import static org.junit.Assert.assertEquals;
+
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.MessageDelivery;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.broadcastAddress;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.bytesToken;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.node1;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.randomInt;
+import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.registerOutgoingMessageSink;
+import static org.apache.cassandra.net.Verb.READ_REQ;
 
 public class ReadCommandVerbHandlerOutOfRangeTest
 {
@@ -184,7 +190,7 @@ public class ReadCommandVerbHandlerOutOfRangeTest
         MessageDelivery response = messageSink.get(100, TimeUnit.MILLISECONDS);
         assertEquals(isOutOfRange ? Verb.FAILURE_RSP : Verb.READ_RSP, response.message.verb());
         assertEquals(broadcastAddress, response.message.from());
-        assertEquals(isOutOfRange, response.message.payload instanceof RequestFailureReason);
+        assertEquals(isOutOfRange, response.message.payload instanceof RequestFailure);
         assertEquals(messageId, response.message.id());
         assertEquals(node1, response.to);
         assertEquals(startingTotalMetricCount + (isOutOfRange ? 1 : 0), StorageMetrics.totalOpsForInvalidToken.getCount());
