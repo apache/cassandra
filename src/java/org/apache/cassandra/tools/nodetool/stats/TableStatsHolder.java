@@ -135,6 +135,7 @@ public class TableStatsHolder implements StatsHolder
         if (table.memtableOffHeapUsed)
             mpTable.put("memtable_off_heap_memory_used", table.memtableOffHeapMemoryUsed);
         mpTable.put("memtable_switch_count", table.memtableSwitchCount);
+        mpTable.put("speculative_retries", table.speculativeRetries);
         mpTable.put("local_read_count", table.localReadCount);
         mpTable.put("local_read_latency_ms", String.format("%01.3f", table.localReadLatencyMs));
         mpTable.put("local_write_count", table.localWriteCount);
@@ -329,6 +330,7 @@ public class TableStatsHolder implements StatsHolder
                     statsTable.memtableOffHeapMemoryUsed = format(memtableOffHeapSize, humanReadable);
                 }
                 statsTable.memtableSwitchCount = probe.getColumnFamilyMetric(keyspaceName, tableName, "MemtableSwitchCount");
+                statsTable.speculativeRetries = probe.getColumnFamilyMetric(keyspaceName, tableName, "SpeculativeRetries");
                 statsTable.localReadCount = ((CassandraMetricsRegistry.JmxTimerMBean) probe.getColumnFamilyMetric(keyspaceName, tableName, "ReadLatency")).getCount();
 
                 double localReadLatency = ((CassandraMetricsRegistry.JmxTimerMBean) probe.getColumnFamilyMetric(keyspaceName, tableName, "ReadLatency")).getMean() / 1000;
