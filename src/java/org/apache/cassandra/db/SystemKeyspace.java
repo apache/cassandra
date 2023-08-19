@@ -1678,6 +1678,15 @@ public final class SystemKeyspace
         availableRanges.truncateBlockingWithoutSnapshot();
     }
 
+    public static void resetTransferedRanges()
+    {
+        ColumnFamilyStore legacyTransferedRanges = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(LEGACY_TRANSFERRED_RANGES);
+        legacyTransferedRanges.truncateBlockingWithoutSnapshot();
+
+        ColumnFamilyStore transferedRangesV2 = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(TRANSFERRED_RANGES_V2);
+        transferedRangesV2.truncateBlockingWithoutSnapshot();
+    }
+
     public static void resetAvailableStreamedRangesForKeyspace(String keyspace)
     {
         String cql = "DELETE FROM %s.%s WHERE keyspace_name = ?";
