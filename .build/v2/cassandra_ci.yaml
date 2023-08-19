@@ -53,6 +53,8 @@ repos:
     url: &harry_url https://github.com/apache/cassandra-harry
     branch: &harry_branch trunk
     sha: &harry_sha HEAD
+  # This can serve to either run against jvm or python dtests based on your needs
+  # We use these artifacts to diff and determine which files have changed.
   repeat_diff:
     base_url: &base_url https://github.com/apache/cassandra
     base_branch: &base_branch trunk
@@ -146,7 +148,10 @@ default_env_vars: &env_default
   ANT_HOME: /usr/share/ant
   KEEP_TEST_DIR: true
   CASSANDRA_DIR: ~/cassandra
-  RESULTS_DIR: "${CASSANDRA_DIR}/build"
+  # Due to the hardcoded directory in build.xml, we have to set this here:
+  # <fileset dir="${build.test.dir}/output">
+  #   <include name="**/TEST-*.xml"/>
+  RESULTS_DIR: "${CASSANDRA_DIR}/build/test/output"
   CCM_CONFIG_DIR: ${RESULTS_DIR}/.ccm
   DTEST_JAR_PATH: ~/dtest_jars
   # The root structure where temp data for a CI run is held
@@ -161,6 +166,12 @@ default_env_vars: &env_default
   REPEATED_TESTS_STOP_ON_FAILURE: false
   NUM_TOKENS: "16"
   TEST_TIMEOUT: test.timeout
+  # This is the job.name[] value from the yaml here to pull params and job steps from
+  ACTIVE_JOB: unit
+  # List of [class],[class],[class] provided by user to be repeated REPEAT_COUNT based on suite
+  USER_REPEAT_CLASSES: ""
+  # List of [class#method],[class#method] pairs to be repeated
+  USER_REPEAT_METHODS: ""
 
   # JVM test params
   JVM_URL: *jvm_url
@@ -235,7 +246,12 @@ jobs:
       <<: *env_required
       ANT_TARGET: testclasslist
       ANT_TEST_OPTS: -Dno-build-test=true
-      TEST_DIR: unit
+      TEST_DIR: "test/unit"
+      # This corresponds to the test.classlistprefix in build.xml, which is effectively the test/{TEST_CLASSLIST_PREFIX}.
+      # While we could theoretically parse it out of TEST_DIR, or have the name overload or something, best to just keep it
+      # decoupled and explicit for now.
+      TEST_CLASSLIST_PREFIX: "unit"
+      TEST_PACKAGE: "org.apache.cassandra"
       TEST_FILTER: ""
       # Corresponds to the tag value in build.xml containing the timeout for this test suite
       TEST_TIMEOUT: test.timeout
@@ -322,15 +338,27 @@ jobs:
   - <<: *job_jvm_base
     name: fqltool
     resources: *small_executor
-    env_overrides:
+    env_overrides: &env_override_fqltool
       ANT_TARGET: fqltool-test
+      TEST_DIR: "tools/fqltool/test/unit"
+      TEST_PACKAGE: "org.apache.cassandra.fqltool"
+
+  - <<: *job_jvm_repeat
+    name: fqltool-repeat
+    env_overrides: [<<: *env_override_fqltool]
 
   # [stress] --------------------
   - <<: *job_jvm_base
     name: stress
     resources: *small_executor
-    env_overrides:
+    env_overrides: &env_override_stress
       ANT_TARGET: stress-test
+      TEST_DIR: "tools/stress/test/unit"
+      TEST_PACKAGE: "org.apache.cassandra.stress"
+
+  - <<: *job_jvm_repeat
+    name: stress-repeat
+    env_overrides: [<<: *env_override_stress]
 
   # [long] --------------------
   - <<: *job_jvm_base
@@ -338,7 +366,8 @@ jobs:
     env_overrides: &env_override_long
       REPEAT_COUNT: *repeat_moderate
       ANT_TARGET: long-test
-      TEST_DIR: long
+      TEST_DIR: "test/long"
+      TEST_CLASSLIST_PREFIX: "long"
       TEST_TIMEOUT: test.long.timeout
 
   - <<: *job_jvm_repeat
@@ -351,7 +380,7 @@ jobs:
     resources: *large_executor
     env_overrides:
       REPEAT_COUNT: *repeat_few
-      TEST_DIR: burn
+      TEST_DIR: "test/burn"
       ANT_TARGET: test-burn
       TEST_TIMEOUT: test.burn.timeout
 
@@ -359,7 +388,7 @@ jobs:
   - <<: *job_jvm_base
     name: microbench
     env_overrides:
-      TEST_DIR: microbench
+      TEST_DIR: "test/microbench"
 
 
   #-----------------------------------------------------------------------------
@@ -373,7 +402,9 @@ jobs:
     env: &env_jvm_dtest_base
       <<: *env_jvm_base
       ANT_TARGET: test-jvm-dtest-some
-      TEST_DIR: distributed
+      TEST_DIR: "test/distributed"
+      TEST_CLASSLIST_PREFIX: "distributed"
+      TEST_PACKAGE: "org.apache.cassandra.distributed.test"
       TEST_FILTER: "| grep -v -e upgrade/ -e fuzz/"
       TEST_TIMEOUT: test.distributed.timeout
       TEST_SPLITTER: split_jvm_tests
@@ -398,6 +429,15 @@ jobs:
     env_overrides:
       RUN_ARGUMENTS: "-Dtest.jvm.args='-Dcassandra.dtest.num_tokens=16'"
 
+  # [simulator] --------------------
+  - <<: *job_jvm_dtest_base
+    name: jvm-simulator-dtest
+    SPLIT_SIZE: 2
+    env:
+      <<: *env_jvm_dtest_base
+      TEST_DIR: "test/simulator/test"
+
+  # [upgrade] --------------------
   - &job_jvm_dtest_upgrade_base
     <<: *job_jvm_dtest_base
     name: jvm-dtest-upgrade

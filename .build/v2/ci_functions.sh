@@ -94,6 +94,7 @@ setup_environment() {
 
     CLASSLIST_FILE_JAVA="${TMP_RUN_DIR}/java_testnames.txt"
     CLASSLIST_FILE_PYTHON_DTESTS="${TMP_RUN_DIR}/tmp.python_testnames.txt"
+    REPEAT_TEST_LIST="${TMP_RUN_DIR}/repeat_testnames.txt"
 
     # Clear out any existing RESULTS_DIR
     rm -rf "${RESULTS_DIR}"
@@ -106,6 +107,8 @@ setup_environment() {
     mkdir -p "$JVM_RESULTS_DIR"
 
     BUILD_XML="${CASSANDRA_DIR}/build.xml"
+
+    _init_env_from_job
 }
 
 # A variety of metrics and versions we like to have documented on each build
@@ -210,10 +213,91 @@ build_dtest_jars() {
     ls -l "${CASSANDRA_DIR}/build"
 }
 
-repeat_jvm_tests() {
-}
-
 repeat_python_tests() {
+    _generate_python_diff_tests
+    echo "TODO: Implement"
+    # TODO: Implement
+    # [CIRCLECI reference]
+#  run_repeated_dtest:
+#    parameters:
+#      tests:
+#        type: string
+#      vnodes:
+#        type: string
+#      upgrade:
+#        type: string
+#      count:
+#        type: string
+#      stop_on_failure:
+#        type: string
+#      extra_dtest_args:
+#        type: string
+#        default: ""
+#    steps:
+#      - run:
+#          name: Run repeated Python DTests
+#          no_output_timeout: 15m
+#          command: |
+#            if [ "<<parameters.tests>>" == "<nil>" ]; then
+#              echo "Repeated dtest name hasn't been defined, exiting without running any test"
+#            elif [ "<<parameters.count>>" == "<nil>" ]; then
+#              echo "Repeated dtest count hasn't been defined, exiting without running any test"
+#            elif [ "<<parameters.count>>" -le 0 ]; then
+#              echo "Repeated dtest count is lesser or equals than zero, exiting without running any test"
+#            else
+#
+#              # Calculate the number of test iterations to be run by the current parallel runner.
+#              # Since we are running the same test multiple times there is no need to use `circleci tests split`.
+#              count=$((<<parameters.count>> / CIRCLE_NODE_TOTAL))
+#              if (($CIRCLE_NODE_INDEX < (<<parameters.count>> % CIRCLE_NODE_TOTAL))); then
+#                count=$((count+1))
+#              fi
+#
+#              if (($count <= 0)); then
+#                echo "No tests to run in this runner"
+#              else
+#                echo "Running <<parameters.tests>> $count times"
+#
+#                source ~/env3.6/bin/activate
+#                export PATH=$JAVA_HOME/bin:$PATH
+#
+#                java -version
+#                cd ~/cassandra-dtest
+#                mkdir -p /tmp/dtest
+#
+#                echo "env: $(env)"
+#                echo "** done env"
+#                mkdir -p /tmp/results/dtests
+#
+#                tests_arg=$(echo <<parameters.tests>> | sed -e "s/,/ /g")
+#
+#                stop_on_failure_arg=""
+#                if <<parameters.stop_on_failure>>; then
+#                  stop_on_failure_arg="-x"
+#                fi
+#
+#                vnodes_args=""
+#                if <<parameters.vnodes>>; then
+#                  vnodes_args="--use-vnodes --num-tokens=16"
+#                fi
+#
+#                upgrade_arg=""
+#                if <<parameters.upgrade>>; then
+#                  upgrade_arg="--execute-upgrade-tests --upgrade-target-version-only --upgrade-version-selection all"
+#                fi
+#
+#                # we need the "set -o pipefail" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee
+#                set -o pipefail && cd ~/cassandra-dtest && pytest $vnodes_args --count=$count $stop_on_failure_arg $upgrade_arg --log-cli-level=DEBUG --junit-xml=/tmp/results/dtests/pytest_result.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir <<parameters.extra_dtest_args>> $tests_arg | tee /tmp/dtest/stdout.txt
+#              fi
+#            fi
+#      - store_test_results:
+#          path: /tmp/results
+#      - store_artifacts:
+#          path: /tmp/dtest
+#          destination: dtest
+#      - store_artifacts:
+#          path: ~/cassandra-dtest/logs
+#          destination: dtest_logs
 }
 
 # For a given target, run the tests associated with them. This covers both unit and distributed jvm-based tests.
@@ -229,15 +313,56 @@ run_jvm_tests() {
         echo "WARNING: Failed to parse test timeout for $TEST_TIMEOUT. Defaulting to test.timeout value in build.xml: ${suite_timeout}"
     fi
 
-    ant "${ANT_TARGET}" "${RUN_ARGUMENTS}" \
-        -Dtest.timeout="${suite_timeout}" \
-        -Dtest.classlistfile="${split_test_file}" \
-        -Dtest.classlistprefix="${TEST_DIR}" \
-        -Dno-build-test=true \
-        || echo "failed ${ANT_TARGET} ${split_test_file}"
+    _run_jvm_ant "$suite_timeout" "$split_test_file"
 
     # merge all unit xml files into one, and print summary test numbers
     ant -quiet -silent generate-unified-test-report
+}
+
+repeat_jvm_tests() {
+    _generate_jvm_diff_tests
+
+    local suite_timeout="$TEST_TIMEOUT"
+    # Run the test target as many times as requested collecting the exit code,
+    # stopping the iteration only if stop_on_failure is set.
+    local exit_code="$?"
+    for i in $(seq -w 1 $count); do
+        echo "Running test iteration $i of $count"
+
+        # run the test
+        status="passes"
+        _run_jvm_ant "$suite_timeout" "$REPEAT_TEST_LIST" | tee stdout.txt
+        if [ "$?" != 0 ]; then
+            status="fails"
+            exit_code=1
+        fi
+
+        # Collect results based on our status and run number
+        dest="${RESULTS_DIR}/repeated_utest/stdout/${status}/${i}"
+        mkdir -p $dest
+
+        mv stdout.txt $dest/${ANT_TARGET}_stdout.txt
+        mv build/test/output/* $dest/
+        mv build/test/logs/* $dest/
+
+        # maybe stop iterations on test failure
+        if [[ "$REPEATED_TESTS_STOP_ON_FAILURE" = true ]] && (( $exit_code > 0 )); then
+            break
+        fi
+    done
+}
+
+# For our
+_run_jvm_ant() {
+    local suite_timeout=$(check_argument "$1" "timeout for the test in ms")
+    local test_file=$(check_argument "$2" "classlist file containing all the tests to run")
+
+    ant "${ANT_TARGET}" "${RUN_ARGUMENTS}" \
+            -Dtest.timeout="${suite_timeout}" \
+            -Dtest.classlistfile="${split_test_file}" \
+            -Dtest.classlistprefix="${TEST_CLASSLIST_PREFIX}" \
+            -Dno-build-test=true \
+        || echo "failed ${ANT_TARGET} ${split_test_file}"
 }
 
 # Runs the python dtests given the active PYTHON_VERSION
@@ -312,6 +437,14 @@ run_target_sequentially() {
 #
 # Do not rely on these within steps: inside a job in the .yaml file
 #-----------------------------------------------------------------------------
+
+_init_env_from_job() {
+    echo "TODO: Implement"
+    # TODO: Implement.
+    # 1. Pull env: values
+    # 2. Pull env_override values
+    # 3. Build out before, run, and after arrays from values on the job
+}
 
 _log_env_val() {
     local command=$(check_argument "$1" "command to log value")
@@ -421,38 +554,34 @@ _build_jvm_dtest() {
     ant jar dtest-jar -Dno-checkstyle=true -Drat.skip=true
 }
 
-_generate_diff_test_list() {
-    local file_regex=$(check_argument "$1" "regex to match files against on git diff output")
+# For the url, branch, and sha under test (JVM_*), we'll diff against the
+# indicated BASE_* (url, branch), and calculate what tests have changed (either added
+# or changed) between the two branches. That'll become our testclasslist that all agents
+# receive, and the number of times those agents run those tests will be determined based
+# on the CI_AGENT_COUNT vs. REPEAT_COUNT env.
+_generate_jvm_diff_tests() {
+    # Pull out only added, modified, or renamed files that differ between our base branch and patch for our active test suite
+    diff=$(git --no-pager diff --name-only --diff-filter=AMR ${$BASE_BRANCH}...HEAD ${TEST_DIR})
+    rm -rf "$REPEAT_TEST_LIST"
+    echo "$diff" | \
+        grep ".java" | \                # only include .java files
+        sed -e "s/\\.java}//" | \       # strip off file extension
+        sed -e "s,^${TEST_DIR},," | \   # Strip off the leading path for the TEST_DIR, leaving just package
+        tr '/' '.' | \                  # Turn / into .
+        awk '{sub(/^\./, ""); print}'   # And strip off our leading . so we get a full package name
+        >> "$REPEAT_TEST_LIST"
+}
 
-    BASE_CHECKOUT_DIR=$(mktemp -d ${CASSANDRA_CI_TMP_ROOT}/build.XXXX)
-    cd_with_check "$BASE_CHECKOUT_DIR"
-    _shallow_clone_branch "$BASE_URL" "$BASE_BRANCH"
-
-
-    # $1 string: regex for type of file to filter for (*.java, *.py, etc)
-    generate_diff_tests()
-    {
-        dir="${BASEDIR}/../${2}"
-        diff=$(git --no-pager diff --name-only --diff-filter=AMR ${BASE_BRANCH}...HEAD ${dir})
-        tests=$( echo "$diff" \
-               | grep "Test\\.java" \
-               | sed -e "s/\\.java//" \
-               | sed -e "s,^${2},," \
-               | tr  '/' '.' \
-               | grep ${3} )\
-               || : # avoid execution interruptions due to grep return codes and set -e
-        for test in $tests; do
-          echo "  $test"
-          has_env_vars=true
-          if echo "$env_vars" | grep -q "${1}="; then
-            env_vars=$(echo "$env_vars" | sed -e "s/${1}=/${1}=${test},/")
-          elif [ -z "$env_vars" ]; then
-            env_vars="${1}=${test}"
-          else
-            env_vars="$env_vars|${1}=${test}"
-          fi
-        done
-    }
+# See _generate_jvm_diff_tests. Substitute python.
+_generate_python_diff_tests() {
+    cd_with_check ${PYTHON_DTEST_DIR}
+    # Pull out only added, modified, or renamed files that differ between our base branch and patch for our active test suite
+    diff=$(git --no-pager diff --name-only --diff-filter=AMR ${$BASE_BRANCH}...HEAD .
+    rm -rf "$REPEAT_TEST_LIST"
+    echo "$diff" | \
+        grep ".py" | \      # only include .py files
+        sed -e "s/\\\.//g"  # Strip off the leading path, leaving just python file name
+        >> "$REPEAT_TEST_LIST"
 }
 
 # Nukes a venv if we have it, copying over an existing fresh one if it's there or setting up a new one. Then runs through
