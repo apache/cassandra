@@ -88,39 +88,43 @@ debug_log() {
 }
 
 # For a given environment variable, we assign based on the following fallthrough:
-# 1: If it's defined in the env, use that
-# 2: If it's defined in the yaml override, use that
-# 3: Else use what's in the base reference .yaml for CI
+#
+# Flow:
+#   1: Set in yaml override takes precedence
+#   2: Then set in the yaml
+#   3: Then finally the local env
 init_env_var() {
     local to_init=$(check_argument "$1" "the env var to set")
-    local yaml_path=$(check_argument "$2" "the optional yaml path to pull from if not set in local env")
+    local yaml_member_path=$(check_argument "$2" "the optional yaml path to pull from if not set in local env")
 
-    if [ -z "${!to_init}" ]; then
-        local yaml_value=_retrieve_param_from_yaml "$yaml_path"
-        declare -g "$to_init=$yaml_value"
+    local value=retrieve_param_from_yaml "$yaml_member_path"
+    if [[ -z "${value}" ]]; then
+        if [[ -z "${!to_init}" ]]; then
+            echo "Cannot find ${to_init} in basic yaml [$DEFAULT_YAML], yaml override [$YAML_OVERRIDES], or env: $(env). Aborting."
+            exit 1
+        fi
+        value="${!to_init}"
     fi
+
+    declare -g "$to_init=${value}"
 }
 
 # Will pull from the yaml override if present, defaults to base $DEFAULT_YAML if no override file is supplied.
 # This method does not allow for not finding the value inside either of the .yaml files. If it's not found it'll exit out.
 #
-# return value is a string expected to be captured in $()
-retrieve_param_from_yaml() {
+# return: value if found, empty string if none
+retrieve_param_from_yaml_with_override() {
     local member=$(check_argument "$1" "the path to the member inside the .yaml to retrieve")
 
-    result=$(yq "$member" "$DEFAULT_YAML")
+    result=yq "$member" "$DEFAULT_YAML"
     if [[ -n "${YAML_OVERRIDES}" ]]; then
-        override=$(yq "$member" "$YAML_OVERRIDES")
+        override=yq "$member" "$YAML_OVERRIDES"
         if [[ -n "$override" ]]; then
             result="$override"
         fi
     fi
 
-    if [[ -z "$result" ]]; then
-        echo "ERROR. Cannot retrieve results from either ${DEFAULT_YAML} or ${YAML_OVERRIDES} for member: ${member}. Cannot proceed."
-        exit 1
-    fi
-
+    if [[ -z "$result" ]]; then echo ""; fi
     echo "$result"
 }
 

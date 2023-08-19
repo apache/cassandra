@@ -32,46 +32,13 @@ usage() {
     exit 1
 }
 
-# $1 string: base dir
-# #2 string: base branch
-# #3 string: absolute path to reference to compare against
-add_diff_tests ()
-{
-dir="${BASEDIR}/../${2}"
-diff=$(git --no-pager diff --name-only --diff-filter=AMR ${BASE_BRANCH}...HEAD ${dir})
-tests=$( echo "$diff" \
-       | grep "Test\\.java" \
-       | sed -e "s/\\.java//" \
-       | sed -e "s,^${2},," \
-       | tr  '/' '.' \
-       | grep ${3} )\
-       || : # avoid execution interruptions due to grep return codes and set -e
-for test in $tests; do
-  echo "  $test"
-  has_env_vars=true
-  if echo "$env_vars" | grep -q "${1}="; then
-    env_vars=$(echo "$env_vars" | sed -e "s/${1}=/${1}=${test},/")
-  elif [ -z "$env_vars" ]; then
-    env_vars="${1}=${test}"
-  else
-    env_vars="$env_vars|${1}=${test}"
-  fi
-done
-}
-
-check_argument "$1" "Missing param 1: base branch. " + usage
-check_argument "$2" "Missing param 2: base dir " + usage
-check_argument "$3" "Missing param 2: type " + usage
-
-base_branch="$1"
-base_dir="$2"
 
 # Sanity check that the referenced branch exists
 if ! git show "${base_branch}" -- >&/dev/null; then
-echo -e "\n\nUnknown base branch: ${base_branch}. Unable to detect changed tests.\n"
-echo    "Please use the '-b' option to choose an existing branch name"
-echo    "(e.g. origin/${base_branch}, apache/${base_branch}, etc.)."
-exit 2
+    echo -e "\n\nUnknown base branch: ${base_branch}. Unable to detect changed tests.\n"
+    echo    "Please use the '-b' option to choose an existing branch name"
+    echo    "(e.g. origin/${base_branch}, apache/${base_branch}, etc.)."
+    exit 2
 fi
 
 echo

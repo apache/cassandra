@@ -210,6 +210,12 @@ build_dtest_jars() {
     ls -l "${CASSANDRA_DIR}/build"
 }
 
+repeat_jvm_tests() {
+}
+
+repeat_python_tests() {
+}
+
 # For a given target, run the tests associated with them. This covers both unit and distributed jvm-based tests.
 run_jvm_tests() {
     local split_test_file=$(_jvm_test_split_for_agent)
@@ -413,6 +419,40 @@ _python_test_split_for_agent() {
 _build_jvm_dtest() {
     ant realclean
     ant jar dtest-jar -Dno-checkstyle=true -Drat.skip=true
+}
+
+_generate_diff_test_list() {
+    local file_regex=$(check_argument "$1" "regex to match files against on git diff output")
+
+    BASE_CHECKOUT_DIR=$(mktemp -d ${CASSANDRA_CI_TMP_ROOT}/build.XXXX)
+    cd_with_check "$BASE_CHECKOUT_DIR"
+    _shallow_clone_branch "$BASE_URL" "$BASE_BRANCH"
+
+
+    # $1 string: regex for type of file to filter for (*.java, *.py, etc)
+    generate_diff_tests()
+    {
+        dir="${BASEDIR}/../${2}"
+        diff=$(git --no-pager diff --name-only --diff-filter=AMR ${BASE_BRANCH}...HEAD ${dir})
+        tests=$( echo "$diff" \
+               | grep "Test\\.java" \
+               | sed -e "s/\\.java//" \
+               | sed -e "s,^${2},," \
+               | tr  '/' '.' \
+               | grep ${3} )\
+               || : # avoid execution interruptions due to grep return codes and set -e
+        for test in $tests; do
+          echo "  $test"
+          has_env_vars=true
+          if echo "$env_vars" | grep -q "${1}="; then
+            env_vars=$(echo "$env_vars" | sed -e "s/${1}=/${1}=${test},/")
+          elif [ -z "$env_vars" ]; then
+            env_vars="${1}=${test}"
+          else
+            env_vars="$env_vars|${1}=${test}"
+          fi
+        done
+    }
 }
 
 # Nukes a venv if we have it, copying over an existing fresh one if it's there or setting up a new one. Then runs through
