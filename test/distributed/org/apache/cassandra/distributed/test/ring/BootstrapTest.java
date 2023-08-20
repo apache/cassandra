@@ -23,6 +23,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -32,6 +33,10 @@ import org.junit.AssumptionViolatedException;
 import org.junit.Before;
 import org.junit.Test;
 
+import net.bytebuddy.ByteBuddy;
+import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
+import net.bytebuddy.implementation.MethodDelegation;
+import net.bytebuddy.implementation.bind.annotation.SuperCall;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
@@ -45,10 +50,13 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.shared.WithProperties;
+import org.apache.cassandra.distributed.test.DecommissionTest;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.service.StorageService;
 
 import static java.util.Arrays.asList;
+import static net.bytebuddy.matcher.ElementMatchers.named;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JOIN_RING;
 import static org.apache.cassandra.config.CassandraRelevantProperties.MIGRATION_DELAY;
 import static org.apache.cassandra.config.CassandraRelevantProperties.RESET_BOOTSTRAP_PROGRESS;
@@ -58,6 +66,9 @@ import static org.apache.cassandra.distributed.action.GossipHelper.statusToBoots
 import static org.apache.cassandra.distributed.action.GossipHelper.withProperty;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class BootstrapTest extends TestBaseImpl
 {
@@ -141,8 +152,7 @@ public class BootstrapTest extends TestBaseImpl
 
             IInstanceConfig config = cluster.newInstanceConfig();
             IInvokableInstance newInstance = cluster.bootstrap(config);
-                withProperty(JOIN_RING, false, () -> newInstance.startup(cluster));
-
+            withProperty(JOIN_RING, false, () -> newInstance.startup(cluster));
             cluster.forEach(statusToBootstrap(newInstance));
 
             List<Token> tokens = cluster.tokens();
@@ -169,13 +179,13 @@ public class BootstrapTest extends TestBaseImpl
             // Note: these have to precisely overlap with the token ranges hit during streaming or they won't trigger the
             // availability logic on bootstrap to then except out; we can't just have _any_ range for a keyspace, but rather,
             // must have a range that overlaps with what we're trying to stream.
-            Set<Range <Token>> fullSet = new HashSet<>();
+            Set<Range<Token>> fullSet = new HashSet<>();
             fullSet.add(new Range<>(tokens.get(0), tokens.get(1)));
             fullSet.add(new Range<>(tokens.get(1), tokens.get(2)));
             fullSet.add(new Range<>(tokens.get(2), tokens.get(0)));
 
             // Should be fine to trigger on full ranges only but add a partial for good measure.
-            Set<Range <Token>> partialSet = new HashSet<>();
+            Set<Range<Token>> partialSet = new HashSet<>();
             partialSet.add(new Range<>(tokens.get(2), tokens.get(1)));
 
             String cql = String.format("INSERT INTO %s.%s (keyspace_name, full_ranges, transient_ranges) VALUES (?, ?, ?)",
@@ -262,6 +272,38 @@ public class BootstrapTest extends TestBaseImpl
         }
     }
 
+    @Test
+    public void bootstrapJMXStatus() throws Throwable
+    {
+        int originalNodeCount = 2;
+        int expandedNodeCount = originalNodeCount + 1;
+
+        RESET_BOOTSTRAP_PROGRESS.setBoolean(false);
+        try (Cluster cluster = builder().withNodes(originalNodeCount)
+                                        .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(expandedNodeCount))
+                                        .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                        .withInstanceInitializer(BootstrapTest.BB::install)
+                                        .start())
+        {
+            bootstrapAndJoinNode(cluster);
+
+            IInvokableInstance joiningInstance = cluster.get(3);
+
+            joiningInstance.runOnInstance(() -> {
+                assertEquals("IN_PROGRESS", StorageService.instance.getBootstrapState());
+                assertTrue(StorageService.instance.isBootstrapFailed());
+            });
+
+            joiningInstance.nodetoolResult("bootstrap", "resume").asserts().success();
+            joiningInstance.runOnInstance(() -> {
+                assertEquals("COMPLETED", StorageService.instance.getBootstrapState());
+                assertFalse(StorageService.instance.isBootstrapFailed());
+            });
+        }
+    }
+
+
     public static void populate(ICluster cluster, int from, int to)
     {
         populate(cluster, from, to, 1, 3, ConsistencyLevel.QUORUM);
@@ -286,4 +328,41 @@ public class BootstrapTest extends TestBaseImpl
                         .collect(Collectors.toMap(nodeId -> nodeId,
                                                   nodeId -> (Long) cluster.get(nodeId).executeInternal("SELECT count(*) FROM " + KEYSPACE + ".tbl")[0][0]));
     }
+
+    public static class BB
+    {
+        public static void install(ClassLoader classLoader, Integer num)
+        {
+            if (num != 3)
+            {
+                return;
+            }
+            new ByteBuddy().rebase(StorageService.class)
+                           .method(named("bootstrapFinished"))
+                           .intercept(MethodDelegation.to(DecommissionTest.BB.class))
+                           .make()
+                           .load(classLoader, ClassLoadingStrategy.Default.INJECTION);
+        }
+
+        private static int invocations = 0;
+
+        @SuppressWarnings("unused")
+        public static void bootstrapFinished(@SuperCall Callable<Void> zuper)
+        {
+            ++invocations;
+
+            if (invocations == 1)
+                throw new RuntimeException("simulated error in bootstrapFinished");
+
+            try
+            {
+                zuper.call();
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
 }
