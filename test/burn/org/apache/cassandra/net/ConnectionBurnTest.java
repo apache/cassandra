@@ -674,7 +674,7 @@ public class ConnectionBurnTest
             .inbound(inbound)
             .outbound(outbound)
             // change the following for a longer burn
-            .time(30L, TimeUnit.SECONDS)
+            .time(2L, TimeUnit.MINUTES)
             .build().run();
     }
 
