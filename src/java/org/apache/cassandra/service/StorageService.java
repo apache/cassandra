@@ -268,6 +268,7 @@ import static org.apache.cassandra.service.ActiveRepairService.ParentRepairStatu
 import static org.apache.cassandra.service.ActiveRepairService.repairCommandExecutor;
 import static org.apache.cassandra.service.StorageService.Mode.DECOMMISSIONED;
 import static org.apache.cassandra.service.StorageService.Mode.DECOMMISSION_FAILED;
+import static org.apache.cassandra.service.StorageService.Mode.JOINING_FAILED;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
@@ -419,7 +420,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     /* the probability for tracing any particular request, 0 disables tracing and 1 enables for all */
     private double traceProbability = 0.0;
 
-    public enum Mode { STARTING, NORMAL, JOINING, LEAVING, DECOMMISSIONED, DECOMMISSION_FAILED, MOVING, DRAINING, DRAINED }
+    public enum Mode { STARTING, NORMAL, JOINING, JOINING_FAILED, LEAVING, DECOMMISSIONED, DECOMMISSION_FAILED, MOVING, DRAINING, DRAINED }
     private volatile Mode operationMode = Mode.STARTING;
 
     /* Used for tracking drain progress */
@@ -2129,6 +2130,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         catch (Throwable e)
         {
             logger.error("Error while waiting on bootstrap to complete. Bootstrap will have to be restarted.", e);
+            setMode(JOINING_FAILED, true);
             return false;
         }
     }
@@ -5679,6 +5681,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public boolean isDecommissioning()
     {
         return isDecommissioning.get();
+    }
+
+    public boolean isBootstrapFailed()
+    {
+        return operationMode == JOINING_FAILED;
     }
 
     public String getDrainProgress()

@@ -1,5 +1,6 @@
 5.1
 Merged from 5.0:
+ * Expose bootstrap failure state via JMX and nodetool info (CASSANDRA-18749)
  * Reduce size of per-SSTable index components for SAI (CASSANDRA-18673)
  * Remove unnecessary Netty dependencies after upgrade to version 4.1.96 (CASSANDRA-18729)
  * Prevent InaccessibleObjectException when the Leak Detector is traversing objects (CASSANDRA-18708)
