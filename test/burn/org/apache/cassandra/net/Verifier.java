@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.Consumer;
 
+import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -461,6 +462,11 @@ public class Verifier
         logger.error("Connection: {}", currentConnection);
     }
 
+    public void interruptEventSequence()
+    {
+        events.eventWaitingInterrupted = true;
+    }
+
     private void failinfo(String message, Object ... params)
     {
         logger.error("{}", String.format(message, params));
@@ -622,7 +628,7 @@ public class Verifier
     private long outboundExpiredCount, outboundExpiredBytes;
     private long outboundErrorCount, outboundErrorBytes;
 
-    public void run(Runnable onFailure, long deadlineNanos)
+    public void run(Consumer<Throwable> onFailure, long deadlineNanos)
     {
         try
         {
@@ -1177,7 +1183,7 @@ public class Verifier
         catch (Throwable t)
         {
             logger.error("Unexpected error:", t);
-            onFailure.run();
+            onFailure.accept(t);
         }
     }
 
@@ -1288,6 +1294,7 @@ public class Verifier
 
         long readerWaitingFor;
         volatile Thread readerWaiting;
+        volatile boolean eventWaitingInterrupted;
 
         EventSequence()
         {
@@ -1296,19 +1303,12 @@ public class Verifier
 
         public void put(long sequenceId, Event event)
         {
+            if (eventWaitingInterrupted)
+                return;
             long chunkSequenceId = sequenceId & -CHUNK_SIZE;
             Chunk chunk = writerChunk;
             if (chunk.sequenceId != chunkSequenceId)
-            {
-                try
-                {
-                    chunk = ensureChunk(chunkSequenceId);
-                }
-                catch (InterruptedException e)
-                {
-                    throw new RuntimeException(e);
-                }
-            }
+                chunk = ensureChunk(chunkSequenceId);
 
             chunk.set(sequenceId, event);
 
@@ -1318,7 +1318,7 @@ public class Verifier
                 LockSupport.unpark(wake);
         }
 
-        Chunk ensureChunk(long chunkSequenceId) throws InterruptedException
+        Chunk ensureChunk(long chunkSequenceId)
         {
             Chunk chunk = chunkList.get(chunkSequenceId);
             if (chunk == null)
@@ -1326,9 +1326,11 @@ public class Verifier
                 Map.Entry<Long, Chunk> e;
                 while ( null != (e = chunkList.firstEntry()) && chunkSequenceId - e.getKey() > 1 << 12)
                 {
+                    if (eventWaitingInterrupted)
+                        throw new UncheckedInterruptedException();
                     WaitQueue.Signal signal = writerWaiting.register();
                     if (null != (e = chunkList.firstEntry()) && chunkSequenceId - e.getKey() > 1 << 12)
-                        signal.await();
+                        signal.awaitThrowUncheckedOnInterrupt(5L, TimeUnit.SECONDS);
                     else
                         signal.cancel();
                 }
@@ -1632,5 +1634,4 @@ public class Verifier
     {
         return message.expiresAtNanos();
     }
-
 }

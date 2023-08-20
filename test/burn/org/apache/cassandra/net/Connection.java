@@ -26,7 +26,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Consumer;
 
+import io.netty.util.concurrent.Future;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -82,7 +84,7 @@ public class Connection implements InboundMessageCallbacks, OutboundMessageCallb
         this.verifier = new Verifier(controller, outbound, inbound);
     }
 
-    void startVerifier(Runnable onFailure, Executor executor, long deadlineNanos)
+    void startVerifier(Consumer<Throwable> onFailure, Executor executor, long deadlineNanos)
     {
         executor.execute(runWithThreadName(() -> verifier.run(onFailure, deadlineNanos), "Verify-" + linkId));
     }
@@ -271,6 +273,12 @@ public class Connection implements InboundMessageCallbacks, OutboundMessageCallb
                 in.readByte();
         }
         return result;
+    }
+
+    public Future<Void> close()
+    {
+        verifier.interruptEventSequence();
+        return outbound.close(false);
     }
 
     public void process(Message message)
