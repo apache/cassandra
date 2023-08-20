@@ -703,7 +703,6 @@ public class ConnectionBurnTest
     public static void tearDown() throws InterruptedException
     {
         MessagingService.instance().socketFactory.shutdownNow();
-        CommitLog.instance.shutdownBlocking();
     }
 
     @org.junit.Test
@@ -718,6 +717,5 @@ public class ConnectionBurnTest
 
         test(inboundSettings, new OutboundConnectionSettings(null)
                               .withTcpUserTimeoutInMS(0));
-        MessagingService.instance().socketFactory.shutdownNow();
     }
 }
