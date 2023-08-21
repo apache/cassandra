@@ -419,6 +419,31 @@ public class UserTypesTest extends CQLTester
         execute("SELECT addresses FROM %s WHERE id = ? ", userID_1);
     }
 
+    @Test
+    public void testCreateTypeWithUndesiredFieldType() throws Throwable
+    {
+        String typeName = createTypeName();
+        assertInvalidMessage("A user type cannot contain counters", "CREATE TYPE " + typeWithKs(typeName) + " (f counter)");
+    }
+
+    @Test
+    public void testAlterTypeWithUndesiredFieldType() throws Throwable
+    {
+        String typeName = createType("CREATE TYPE %s (a int)");
+        assertInvalidMessage("A user type cannot contain counters", "ALTER TYPE " + typeWithKs(typeName) + " ADD f counter");
+    }
+
+    @Test
+    public void testInvalidAlterUDTStatements() throws Throwable
+    {
+        String typename = createType("CREATE TYPE %s (a int)");
+        String myType = KEYSPACE + '.' + typename;
+
+        String ut1 = createType("CREATE TYPE %s (a int)");
+        assertInvalidMessage("Non-frozen User-Defined types are not supported, please use frozen<>",
+                             "ALTER TYPE " + KEYSPACE + "." + ut1 + " ADD b " + myType);
+    }
+
     /**
      * Test user type test that does a little more nesting,
      * migrated from cql_tests.py:TestCQL.more_user_types_test()
