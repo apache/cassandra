@@ -75,7 +75,8 @@ if [ "$tag" ]; then
       echo "Error: could not recognize version from tag $tag">&2
       exit 2
    fi
-   CASSANDRA_VERSION=$git_version
+   # if CASSANDRA_VERSION is -alphaN, -betaN, -rcN, it fails on the '-' char; replace with '~'
+   CASSANDRA_VERSION=${git_version/-/\~}
    CASSANDRA_REVISION='1'
 else
    regx_branch="cassandra-([0-9.]+)$"
@@ -92,7 +93,7 @@ else
          echo "Warning: could not recognize version from branch. dpkg version is $git_version"
       fi
    fi
-    # if CASSANDRA_VERSION is -alphaN, -betaN, -rcN, then rpmbuild fails on the '-' char; replace with '~'
+    # if CASSANDRA_VERSION is -alphaN, -betaN, -rcN, it fails on the '-' char; replace with '~'
     CASSANDRA_VERSION=${buildxml_version/-/\~}
     dt=`date +"%Y%m%d"`
     ref=`git rev-parse --short HEAD`
@@ -120,7 +121,7 @@ fi
 dpkg-buildpackage -rfakeroot -uc -us -tc --source-option=--tar-ignore=.git
 
 # Move created artifacts to dist dir mapped to docker host directory (must have proper permissions)
-mv ../cassandra[-_]*${CASSANDRA_VERSION}-* "${DIST_DIR}"
+mv ../cassandra[-_]*${CASSANDRA_VERSION}* "${DIST_DIR}"
 # clean build deps
 rm -f cassandra-build-deps_*
 # restore debian/changelog
