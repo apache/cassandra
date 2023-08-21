@@ -230,6 +230,15 @@ public class AccordTestUtils
 
     }
 
+    public static String wrapInTxn(String query)
+    {
+        if (!query.endsWith(";"))
+            query += ";";
+        return "BEGIN TRANSACTION\n" +
+               query +
+               "\nCOMMIT TRANSACTION";
+    }
+
     public static Txn createTxn(String query)
     {
         return createTxn(query, QueryOptions.DEFAULT);
