@@ -35,15 +35,6 @@ source assert.sh
 ##############################################################################
 
 #-----------------------------------------------------------------------------
-# [ENVIRONMENT VARIABLES]
-# See cassandra_ci.yaml:*default_env_vars and cassandra_ci.yaml:*required_env_vars for available env vars in build scripts
-# You can provide a space delimited list of dtest test branches in your env and job, otherwise we'll default to supported branches
-if [ -z "$DTEST_TEST_BRANCHES" ]; then
-    DTEST_TEST_BRANCHES=("${SUPPORTED_BRANCHES[@]}")
-else
-    IFS=' ' read -ra DTEST_TEST_BRANCHES <<< "$DTEST_TEST_BRANCHES"
-fi
-
 # The base reference configuration .yaml; shouldn't need to change this
 DEFAULT_YAML=${DEFAULT_YAML:~"./cassandra_ci.yaml"}
 
@@ -152,8 +143,8 @@ pretest_setup() {
     _shallow_clone_branch "$JVM_URL" "$JVM_BRANCH" "$dest"
 
     # Clone our dtests if this is a python dtest
-    if [ -n "${CASSANDRA_DTEST_DIR}" ]; then
-        _shallow_clone_branch "$PYTHON_URL" "$PYTHON_BRANCH" "$CASSANDRA_DTEST_DIR"
+    if [ -n "${PYTHON_DTEST_DIR}" ]; then
+        _shallow_clone_branch "$PYTHON_URL" "$PYTHON_BRANCH" "$PYTHON_DTEST_DIR"
     fi
 
     cd_with_check "$dest"
@@ -213,93 +204,6 @@ build_dtest_jars() {
     ls -l "${CASSANDRA_DIR}/build"
 }
 
-repeat_python_tests() {
-    _generate_python_diff_tests
-    echo "TODO: Implement"
-    # TODO: Implement
-    # [CIRCLECI reference]
-#  run_repeated_dtest:
-#    parameters:
-#      tests:
-#        type: string
-#      vnodes:
-#        type: string
-#      upgrade:
-#        type: string
-#      count:
-#        type: string
-#      stop_on_failure:
-#        type: string
-#      extra_dtest_args:
-#        type: string
-#        default: ""
-#    steps:
-#      - run:
-#          name: Run repeated Python DTests
-#          no_output_timeout: 15m
-#          command: |
-#            if [ "<<parameters.tests>>" == "<nil>" ]; then
-#              echo "Repeated dtest name hasn't been defined, exiting without running any test"
-#            elif [ "<<parameters.count>>" == "<nil>" ]; then
-#              echo "Repeated dtest count hasn't been defined, exiting without running any test"
-#            elif [ "<<parameters.count>>" -le 0 ]; then
-#              echo "Repeated dtest count is lesser or equals than zero, exiting without running any test"
-#            else
-#
-#              # Calculate the number of test iterations to be run by the current parallel runner.
-#              # Since we are running the same test multiple times there is no need to use `circleci tests split`.
-#              count=$((<<parameters.count>> / CIRCLE_NODE_TOTAL))
-#              if (($CIRCLE_NODE_INDEX < (<<parameters.count>> % CIRCLE_NODE_TOTAL))); then
-#                count=$((count+1))
-#              fi
-#
-#              if (($count <= 0)); then
-#                echo "No tests to run in this runner"
-#              else
-#                echo "Running <<parameters.tests>> $count times"
-#
-#                source ~/env3.6/bin/activate
-#                export PATH=$JAVA_HOME/bin:$PATH
-#
-#                java -version
-#                cd ~/cassandra-dtest
-#                mkdir -p /tmp/dtest
-#
-#                echo "env: $(env)"
-#                echo "** done env"
-#                mkdir -p /tmp/results/dtests
-#
-#                tests_arg=$(echo <<parameters.tests>> | sed -e "s/,/ /g")
-#
-#                stop_on_failure_arg=""
-#                if <<parameters.stop_on_failure>>; then
-#                  stop_on_failure_arg="-x"
-#                fi
-#
-#                vnodes_args=""
-#                if <<parameters.vnodes>>; then
-#                  vnodes_args="--use-vnodes --num-tokens=16"
-#                fi
-#
-#                upgrade_arg=""
-#                if <<parameters.upgrade>>; then
-#                  upgrade_arg="--execute-upgrade-tests --upgrade-target-version-only --upgrade-version-selection all"
-#                fi
-#
-#                # we need the "set -o pipefail" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee
-#                set -o pipefail && cd ~/cassandra-dtest && pytest $vnodes_args --count=$count $stop_on_failure_arg $upgrade_arg --log-cli-level=DEBUG --junit-xml=/tmp/results/dtests/pytest_result.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir <<parameters.extra_dtest_args>> $tests_arg | tee /tmp/dtest/stdout.txt
-#              fi
-#            fi
-#      - store_test_results:
-#          path: /tmp/results
-#      - store_artifacts:
-#          path: /tmp/dtest
-#          destination: dtest
-#      - store_artifacts:
-#          path: ~/cassandra-dtest/logs
-#          destination: dtest_logs
-}
-
 # For a given target, run the tests associated with them. This covers both unit and distributed jvm-based tests.
 run_jvm_tests() {
     local split_test_file=$(_jvm_test_split_for_agent)
@@ -314,17 +218,20 @@ run_jvm_tests() {
     fi
 
     _run_jvm_ant "$suite_timeout" "$split_test_file"
-
-    # merge all unit xml files into one, and print summary test numbers
-    ant -quiet -silent generate-unified-test-report
+    _generate_test_report
 }
 
+# Generates diffs between BASE_* and checked out branch; the list of tests that comes out of this that are either
+# modified or new are then repeated to hit the REPEAT_COUNT for the job type.
 repeat_jvm_tests() {
     _generate_jvm_diff_tests
+    count=$(_repeat_count)
+    echo "Running $REPEAT_TEST_LIST ($(wc -l $REPEAT_TEST_LIST) tests) $count times"
 
-    local suite_timeout="$TEST_TIMEOUT"
-    # Run the test target as many times as requested collecting the exit code,
-    # stopping the iteration only if stop_on_failure is set.
+    local suite_timeout=_timeout_for $TEST_TIMEOUT
+    # Run the test target as many times as requested collecting the exit code, stopping the iteration only if
+    # stop_on_failure is set. This is a dumb loop at this point but should be sufficient since we won't go through
+    # the rebuild or check cycle on each run.
     local exit_code="$?"
     for i in $(seq -w 1 $count); do
         echo "Running test iteration $i of $count"
@@ -350,19 +257,7 @@ repeat_jvm_tests() {
             break
         fi
     done
-}
-
-# For our
-_run_jvm_ant() {
-    local suite_timeout=$(check_argument "$1" "timeout for the test in ms")
-    local test_file=$(check_argument "$2" "classlist file containing all the tests to run")
-
-    ant "${ANT_TARGET}" "${RUN_ARGUMENTS}" \
-            -Dtest.timeout="${suite_timeout}" \
-            -Dtest.classlistfile="${split_test_file}" \
-            -Dtest.classlistprefix="${TEST_CLASSLIST_PREFIX}" \
-            -Dno-build-test=true \
-        || echo "failed ${ANT_TARGET} ${split_test_file}"
+    _generate_test_report
 }
 
 # Runs the python dtests given the active PYTHON_VERSION
@@ -374,30 +269,48 @@ run_python_dtests() {
     if [ ! -f "$split_test_file" ]; then return; fi
 
     set -e #enable immediate exit if venv setup fails
-    source "${PYTHON_ENV_PREFIX}${PYTHON_VERSION}/bin/activate"
+    _source_python_env
     cd_with_check "${DTEST_PYTHON_PATH}"
 
+    _run_python_pytest
+    _clean_python_test_results
+    _generate_test_report
+}
+
+# Generates a diff from BASE_* to current branch under test, and based on that, repeats the list of tests REPEAT_COUNT
+# number of times div the # of agents in the environment to make sure the tests are executed to the frequency expected.
+repeat_python_dtests() {
+    _generate_python_diff_tests
+    count=$(_repeat_count)
+
+    test_count=$(wc -l $REPEAT_TEST_LIST)
+    echo "Running $REPEAT_TEST_LIST ($test_count unique tests)) $count times"
+    _source_python_env
+    cd_with_check ${PYTHON_DTEST_DIR}
+    # We need to get the contents of our $REPEAT_TEST_LIST into the tests_arg var
+    mapfile -t test_list < $REPEAT_TEST_LIST
+    _run_python_pytest $count
+}
+
+# Canonical reference on how we run the pytest command
+# $1 int: optional count to repeat tests; defaults to 1 if not provided
+_run_python_pytest() {
+    local count=1
+    if [[ -n "$1" ]]; then count=$1; fi
+
+    # we need the "set -o pipefail" here so that the exit code will be from pytest and not the code from tee
+    set -o pipefail
     pytest \
+        ${PYTEST_OPTS} \
         --cassandra-dir=${CASSANDRA_DIR} \
         --keep-failed-test-dir \
         --capture=no \
+        --count=$count \
         ${DTEST_ARGS} \
         --log-level="DEBUG" \
         --junit-xml=${PYTHON_RESULTS_DIR}/nosetests.xml \
         ${split_test_file} 2>&1 \
         | tee -a ${PYTHON_RESULTS_DIR}/pytest_stdout.txt
-
-    # remove <testsuites> wrapping elements. `ant generate-unified-test-report` doesn't like it`
-    pytest_junit="${PYTHON_RESULTS_DIR}/nosetests.xml"
-    if [ ! -f "$pytest_junit" ]; then
-        echo "Cannot find $pytest_junit. Cannot generate test report."
-        return
-    fi
-    sed -r "s/<[\/]?testsuites>//g" "$pytest_junit" > "$pytest_junit.cleaned"
-    cat "$pytest_junit.cleaned" > _test_dir "$pytest_junit"
-
-    # merge all unit xml files into one, and print summary test numbers
-    ant -quiet -silent generate-unified-test-report
 }
 
 # TODO:
@@ -435,9 +348,8 @@ run_target_sequentially() {
 #-----------------------------------------------------------------------------
 # PRIVATE FUNCTIONS
 #
-# Do not rely on these within steps: inside a job in the .yaml file
+# Do not rely on these within "steps:" within a job configuration in the cassandra_ci.yaml
 #-----------------------------------------------------------------------------
-
 _init_env_from_job() {
     echo "TODO: Implement"
     # TODO: Implement.
@@ -448,9 +360,8 @@ _init_env_from_job() {
 
 _log_env_val() {
     local command=$(check_argument "$1" "command to log value")
-
     echo "*** ${command} ***"
-    echo $(eval $command 2>&1)
+    eval $command 2>&1
 }
 
 # Does a shallow clone of the specified repo / branch
@@ -464,24 +375,8 @@ _shallow_clone_branch() {
     git clone --single-branch --depth 1 --branch "$branch" "$url" "$dest"
 }
 
-_jvm_test_split_for_agent() {
-    if [ ! -f "${CLASSLIST_FILE_JAVA}" ]; then
-        _split_jvm_tests
-    fi
-
-    local split_test_file="${TMP_RUN_DIR}/java_testnames_split_${CI_AGENT_INDEX}"
-    if [ ! -f "${split_test_file}" ]; then
-        echo "Cannot find jvm split for agent ${CI_AGENT_INDEX} on job ${ANT_TARGET}; you may have more agents than splits. \
-            Consider tuning your parallelism. \
-            File not found: ${split_test_file}."
-        echo ""
-    fi
-    cat "***Split file for agent ${CI_AGENT_INDEX}: $split_test_file. Test count: $(wc -l $split_test_file)***"
-    echo "$split_test_file"
-}
-
 # This code (along with all the steps) is expected to be independently executed on every agent. This relies on:
-#   1: the TEST_DIR being defined as the subdirectory under $CASSANDRA_DIR/test/$TEST_DIR
+#   1: the TEST_DIR being defined as the subdirectory under $CASSANDRA_DIR/test/$TEST_DIR of the suite
 #   2: an optional TEST_FILTER being defined as a filter to run the tests through before writing them to a file
 _split_jvm_tests() {
     seed=_seed_for_test_sort
@@ -499,7 +394,62 @@ _split_jvm_tests() {
     split -l $lines_per_file -d ${CLASSLIST_FILE_JAVA} "${TMP_RUN_DIR}/java_testnames_split_"
 }
 
-# This code (along with all the steps) is expected to be independently executed on every agent.
+# Wraps up the splitting and retrieval of a specific agent's split file into one convenient accessor
+_jvm_test_split_for_agent() {
+    if [ ! -f "${CLASSLIST_FILE_JAVA}" ]; then
+        _split_jvm_tests
+    fi
+
+    local split_test_file="${TMP_RUN_DIR}/java_testnames_split_${CI_AGENT_INDEX}"
+    if [ ! -f "${split_test_file}" ]; then
+        echo "Cannot find jvm split for agent ${CI_AGENT_INDEX} on job ${ANT_TARGET}; you may have more agents than splits. \
+            Consider tuning your parallelism. \
+            File not found: ${split_test_file}."
+        echo ""
+    fi
+    cat "***Split file for agent ${CI_AGENT_INDEX}: $split_test_file. Test count: $(wc -l $split_test_file)***"
+    echo "$split_test_file"
+}
+
+# Canonical reference on how we run ant for jvm-based tests. This specifically doesn't build the tests so expects them
+# to be built prior to this run.
+_run_jvm_ant() {
+    local suite_timeout=$(check_argument "$1" "timeout for the test in ms")
+    local test_file=$(check_argument "$2" "classlist file containing all the tests to run")
+
+    ant "${ANT_TARGET}" "${RUN_ARGUMENTS}" \
+            -Dtest.timeout="${suite_timeout}" \
+            -Dtest.classlistfile="${split_test_file}" \
+            -Dtest.classlistprefix="${TEST_CLASSLIST_PREFIX}" \
+            -Dno-build-test=true \
+        || echo "failed ${ANT_TARGET} ${split_test_file}"
+}
+
+# This is our canonical jvm dtest jar building set of commands
+_build_jvm_dtest() {
+    ant realclean
+    ant jar dtest-jar -Dno-checkstyle=true -Drat.skip=true
+}
+
+# For the url, branch, and sha under test (JVM_*), we'll diff against the
+# indicated BASE_* (url, branch), and calculate what tests have changed (either added
+# or changed) between the two branches. That'll become our testclasslist that all agents
+# receive, and the number of times those agents run those tests will be determined based
+# on the CI_AGENT_COUNT vs. REPEAT_COUNT env (see _repeat_count)
+_generate_jvm_diff_tests() {
+    # Pull out only added, modified, or renamed files that differ between our base branch and patch for our active test suite
+    diff=$(git --no-pager diff --name-only --diff-filter=AMR ${BASE_BRANCH}...HEAD ${TEST_DIR})
+    tests=$(echo "$diff" | \
+        grep ".java" | \                # only include .java files
+        sed -e "s/\\.java}//" | \       # strip off file extension
+        sed -e "s,^${TEST_DIR},," | \   # Strip off the leading path for the TEST_DIR, leaving just package
+        tr '/' '.' | \                  # Turn / into .
+        awk '{sub(/^\./, ""); print}')  # And strip off our leading . so we get a full package name
+    echo $tests > $REPEAT_TEST_LIST
+}
+
+# This code (along with all the steps) is expected to be independently executed on every agent, so it needs to be deterministic
+# for a given URL/BRANCH/SHA.
 _split_python_tests() {
     cd_with_check "$CASSANDRA_DTEST_DIR"
 
@@ -511,6 +461,7 @@ _split_python_tests() {
         --dtest-print-tests-output="${CLASSLIST_FILE_PYTHON_DTESTS}.RAW" \
         --cassandra-dir="${CASSANDRA_DIR}"
 
+    # We shuffle the test list up so we don't have back-to-back lexicographical test runs
     seed=_seed_for_test_sort
     shuf --random-source=$seed "${CLASSLIST_FILE_PYTHON_DTESTS}.RAW" > "${CLASSLIST_FILE_PYTHON_DTESTS}"
 
@@ -532,6 +483,7 @@ _split_python_tests() {
     split -l $lines_per_file -d ${CLASSLIST_FILE_PYTHON_DTESTS} "${TMP_RUN_DIR}/python_testnames_split_"
 }
 
+# Wraps up the splitting and retrieval of a specific agent's split file into one convenient accessor
 _python_test_split_for_agent() {
     if [ ! -f "${CLASSLIST_FILE_PYTHON_DTESTS}" ]; then
         _split_python_tests
@@ -548,40 +500,15 @@ _python_test_split_for_agent() {
     echo "$split_test_file"
 }
 
-# This is our canonical motion to build jar files for in-jvm dtest tests.
-_build_jvm_dtest() {
-    ant realclean
-    ant jar dtest-jar -Dno-checkstyle=true -Drat.skip=true
-}
-
-# For the url, branch, and sha under test (JVM_*), we'll diff against the
-# indicated BASE_* (url, branch), and calculate what tests have changed (either added
-# or changed) between the two branches. That'll become our testclasslist that all agents
-# receive, and the number of times those agents run those tests will be determined based
-# on the CI_AGENT_COUNT vs. REPEAT_COUNT env.
-_generate_jvm_diff_tests() {
-    # Pull out only added, modified, or renamed files that differ between our base branch and patch for our active test suite
-    diff=$(git --no-pager diff --name-only --diff-filter=AMR ${$BASE_BRANCH}...HEAD ${TEST_DIR})
-    rm -rf "$REPEAT_TEST_LIST"
-    echo "$diff" | \
-        grep ".java" | \                # only include .java files
-        sed -e "s/\\.java}//" | \       # strip off file extension
-        sed -e "s,^${TEST_DIR},," | \   # Strip off the leading path for the TEST_DIR, leaving just package
-        tr '/' '.' | \                  # Turn / into .
-        awk '{sub(/^\./, ""); print}'   # And strip off our leading . so we get a full package name
-        >> "$REPEAT_TEST_LIST"
-}
-
 # See _generate_jvm_diff_tests. Substitute python.
 _generate_python_diff_tests() {
     cd_with_check ${PYTHON_DTEST_DIR}
     # Pull out only added, modified, or renamed files that differ between our base branch and patch for our active test suite
-    diff=$(git --no-pager diff --name-only --diff-filter=AMR ${$BASE_BRANCH}...HEAD .
-    rm -rf "$REPEAT_TEST_LIST"
-    echo "$diff" | \
-        grep ".py" | \      # only include .py files
-        sed -e "s/\\\.//g"  # Strip off the leading path, leaving just python file name
-        >> "$REPEAT_TEST_LIST"
+    diff=$(git --no-pager diff --name-only --diff-filter=AMR ${BASE_BRANCH}...HEAD .)
+    tests=$(echo "$diff" | \
+            grep ".py" | \        # only include .py files
+            sed -e "s/\\\.//g")   # Strip off the leading path, leaving just python file name
+    echo $tests > "$REPEAT_TEST_LIST"
 }
 
 # Nukes a venv if we have it, copying over an existing fresh one if it's there or setting up a new one. Then runs through
@@ -603,7 +530,11 @@ _prep_virtualenv_and_deps() {
 # sha for a branch under test.
 # TODO: Consider providing a test_seed file with some randomized contents we can use as input to shuf to get full stability
 _seed_for_test_sort() {
-    echo $(md5 -q "${CASSANDRA_DIR}/build.xml")
+    if [ ! -f "${CASSANDRA_DIR}/build.xml" ]; then
+        echo "Cannot find build.xml in $CASSANDRA_DIR; cannot generate md5 to seed our test list sort. Aborting."
+        exit 1
+    fi
+    md5 -q "${CASSANDRA_DIR}/build.xml"
 }
 
 # For a given command, loops the provided number of times and notifies on return success or failure
@@ -632,17 +563,16 @@ _loop_command() {
 # return value is a string expected to be captured in $()
 _timeout_for() {
     local param=$(check_argument "$1" "full N.timeout string value to parse a timeout for out of $BUILD_XML")
-    retrieve_value_from_xml "$BUILD_XML" "$param"
+    retrieve_value_from_xml "$param" "$BUILD_XML"
 }
 
 # TODO: Look into this bash var name expansion from what's coming from the .xml. Probably not working here.
 _test_dir() {
-    base_dir=$(grep "name=\"basedir\"" "${CASSANDRA_DIR}/build.xml" | awk -F'"' '{print $4}')
-    base_dir=retrieve_value_from_xml "$BUILD_XML" "basedir"
-    build_dir=retrieve_value_from_xml "$BUILD_XML" "build.dir"
-    test_dir=retrieve_value_from_xml "$BUILD_XML" "test.dir"
-    echo "$test_dir"
-    echo "$test_dir"
+    local base_dir=retrieve_value_from_xml "basedir" "$BUILD_XML"
+    local build_dir=retrieve_value_from_xml "build.dir" "$BUILD_XML"
+    local test_dir=retrieve_value_from_xml "test.dir" "$BUILD_XML"
+    echo "test_dir: $test_dir"
+    echo ${!test_dir}
 }
 
 # Blasts out whatever the env has set for tmp dir; don't want build data to accumulate over time
@@ -650,4 +580,33 @@ _reset_temp() {
     rm -rf "${CASSANDRA_CI_TMP_ROOT}"
     mkdir -p "${CASSANDRA_CI_TMP_ROOT}"
     TMP_RUN_DIR=$(mktemp -d ${CASSANDRA_CI_TMP_ROOT}/build.XXXX)
+}
+
+_repeat_count() {
+    repeat_local=$REPEAT_COUNT / CI_AGENT_COUNT
+    if [ $repeat_local -eq 0 ]; then
+        echo "WARNING: repeat count is 0. Agent count: $CI_AGENT_COUNT, repeat count: $REPEAT_COUNT. Setting to 1."
+        repeat_local=1
+    fi
+    echo $repeat_local
+}
+
+_source_python_env() {
+    source "${PYTHON_ENV_PREFIX}${PYTHON_VERSION}/bin/activate"
+}
+
+_clean_python_test_results() {
+    # remove <testsuites> wrapping elements. `ant generate-unified-test-report` doesn't like it`
+    pytest_junit="${PYTHON_RESULTS_DIR}/nosetests.xml"
+    if [ ! -f "$pytest_junit" ]; then
+        echo "Cannot find $pytest_junit. Cannot generate test report."
+        return
+    fi
+    sed -r "s/<[\/]?testsuites>//g" "$pytest_junit" > "$pytest_junit.cleaned"
+    cat "$pytest_junit.cleaned" > _test_dir "$pytest_junit"
+}
+
+_generate_test_report() {
+    # merge all unit xml files into one, and print summary test numbers
+    ant -quiet -silent generate-unified-test-report
 }

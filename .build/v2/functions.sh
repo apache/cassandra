@@ -136,8 +136,8 @@ retrieve_array_from_yaml() {
 }
 
 retrieve_value_from_xml() {
-    local file=$(check_argument "$1" "the xml file to retrieve the value from")
-    local property_name=$(check_argument "$2" "the property name to extract")
+    local property_name=$(check_argument "$1" "the property name to extract")
+    local file=$(check_argument "$2" "the xml file to retrieve the value from")
 
     if [ ! -f "$file" ]; then
         echo "Cannot find xml file to retrieve value from: $file. Aborting." && exit 1
