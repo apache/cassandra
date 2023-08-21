@@ -19,7 +19,7 @@ The native types supported by CQL are:
 include::cassandra:example$BNF/native_type.bnf[]
 ----
 
-The following table gives additional informations on the native data
+The following table gives additional information on the native data
 types, and on which kind of xref:cassandra:developing/cql/definitions.adoc#constants[constants] each type supports:
 
 [cols=",,",options="header",]
