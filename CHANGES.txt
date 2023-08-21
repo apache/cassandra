@@ -11,6 +11,7 @@ Merged from 5.0:
 Merged from 4.1:
 Merged from 4.0:
 Merged from 3.11:
+ * Fix NPE when using udfContext in UDF after a restart of a node (CASSANDRA-18739)
 Merged from 3.0:
  * Fix missing speculative retries in tablestats (CASSANDRA-18767)
  * Fix Requires for Java for RPM package (CASSANDRA-18751)
