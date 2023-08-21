@@ -187,6 +187,7 @@ Merged from 4.1:
 Merged from 4.0:
  * Partial compaction can resurrect deleted data (CASSANDRA-18507)
 Merged from 3.11:
+ * Fix NPE when using udfContext in UDF after a restart of a node (CASSANDRA-18739)
 Merged from 3.0:
  * CQLSH emits a warning when the server version doesn't match (CASSANDRA-18745)
  * Fix missing speculative retries in tablestats (CASSANDRA-18767)
