@@ -635,10 +635,10 @@ public class AccordKeyspace
         return bytes != null && !ByteBufferAccessor.instance.isEmpty(bytes) ? deserialize(bytes, serializer) : null;
     }
 
-    private static WaitingOn deserializeWaitingOn(Deps deps, ByteBuffer bytes) throws IOException
+    private static WaitingOn deserializeWaitingOn(@Nullable Deps deps, @Nullable ByteBuffer bytes) throws IOException
     {
         if (bytes == null || !bytes.hasRemaining())
-            return WaitingOn.EMPTY;
+            return deps == null ? WaitingOn.EMPTY : WaitingOn.none(deps);
 
         return WaitingOnSerializer.deserialize(deps, new DataInputBuffer(bytes, false));
     }
