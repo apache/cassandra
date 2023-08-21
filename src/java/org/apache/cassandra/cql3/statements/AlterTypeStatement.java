@@ -271,6 +271,10 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
             newNames.add(fieldName.bytes);
 
             AbstractType<?> addType = type.prepare(keyspace()).getType();
+
+            if (addType.isCounter())
+                throw new InvalidRequestException("A user type cannot contain counters");
+
             if (addType.referencesUserType(toUpdate.getNameAsString()))
                 throw new InvalidRequestException(String.format("Cannot add new field %s of type %s to type %s as this would create a circular reference", fieldName, type, name));
 
