@@ -87,6 +87,8 @@ include::cassandra:example$BASH/docker_cqlsh.sh[]
 
 == Install tarball file
 
+include::cassandra:partial$java_version.adoc[]
+
 . Download the binary tarball from one of the mirrors on the {cass_url}download/[Apache Cassandra Download] site.
 For example, to download Cassandra {40_version}:
 +
@@ -235,12 +237,6 @@ include::cassandra:partial$tail_syslog.adoc[]
 include::cassandra:partial$nodetool_and_cqlsh_nobin.adoc[]
 
 == Install as RPM package
-
-include::cassandra:partial$tail_syslog.adoc[]
-
-include::cassandra:partial$nodetool_and_cqlsh_nobin.adoc[]
-
-== Installing the RPM packages
 
 include::cassandra:partial$java_version.adoc[]
 

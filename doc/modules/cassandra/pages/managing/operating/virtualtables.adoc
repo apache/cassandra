@@ -190,7 +190,7 @@ cqlsh> SELECT * FROM system_views.clients;
  username         | anonymous
 
 (4 rows)
-====
+----
 
 Some examples of how `clients` can be used are:
 
@@ -294,11 +294,11 @@ cqlsh> select * from system_views.cql_metrics ;
   regular_statements_executed |    17
 ----
 
-=======
 === CIDR filtering metrics Virtual Tables
 The `cidr_filtering_metrics_counts` virtual table lists counts metrics specific to CIDR filtering. A query on `cidr_filtering_metrics_counts` virtual table lists metrics similar to below.
 
-....
+[source, cql]
+----
 cqlsh> select * from system_views.cidr_filtering_metrics_counts;
  name                                                   | value
 --------------------------------------------------------+-------
@@ -306,23 +306,25 @@ cqlsh> select * from system_views.cidr_filtering_metrics_counts;
  Number of CIDR accesses accepted from CIDR group - aws |    15
  Number of CIDR accesses accepted from CIDR group - gcp |    30
  Number of CIDR accesses rejected from CIDR group - gcp |     6
-....
+----
 
 The `cidr_filtering_metrics_latencies` virtual table lists latencies metrics specific to CIDR filtering. A query on `cidr_filtering_metrics_latencies` virtual table lists below metrics.
 
-....
+[source, cql]
+----
 cqlsh> select * from system_views.cidr_filtering_metrics_latencies;
  name                                        | max   | p50th | p95th | p999th | p99th
 ---------------------------------------------+-------+-------+-------+--------+-------
                     CIDR checks latency (ns) | 24601 |     1 | 11864 |  24601 | 24601
        CIDR groups cache reload latency (ns) | 42510 | 42510 | 42510 |  42510 | 42510
  Lookup IP in CIDR groups cache latency (ns) |     1 |     1 |     1 |      1 |     1
-....
+----
 
 === CQL metrics Virtual Table
 The `cql_metrics` virtual table lists metrics specific to CQL prepared statement caching. A query on `cql_metrics` virtual table lists below metrics.
 
-....
+[source, cql]
+----
 cqlsh> select * from system_views.cql_metrics ;
 
  name                         | value
@@ -332,7 +334,7 @@ cqlsh> select * from system_views.cql_metrics ;
  prepared_statements_executed |     0
     prepared_statements_ratio |     0
   regular_statements_executed |    17
-....
+----
 
 === Settings Virtual Table
 
@@ -566,7 +568,7 @@ results in:
 [source, cql]
 ----
  address   | port  | connection_stage | driver_name            | driver_version | hostname  | protocol_version | request_count | ssl_cipher_suite | ssl_enabled | ssl_protocol | username
------------+-------+------------------+------------------------+----------------+-----------+------------------+---------------+------------------+-------------+--------------+-----------
+-----------+-------+------------------+------------------------+----------------+-----------|||+------------------+---------------+------------------+-------------+--------------+-----------
  127.0.0.1 | 37308 |            ready | DataStax Python Driver |   3.21.0.post0 | localhost |                4 |            17 |             null |       False |         null | anonymous
  127.0.0.1 | 37310 |            ready | DataStax Python Driver |   3.21.0.post0 | localhost |                4 |             8 |             null |       False |         null | anonymous
 
