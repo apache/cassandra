@@ -19,7 +19,7 @@ For that reason, when used in this document, these terms (tables, rows and colum
 * xref:cql/functions.adoc[Functions]
 * xref:cql/json.adoc[JSON]
 * xref:cql/security.adoc[CQL security]
-* xref:cql/dynamic_data_masking.adoc[Dynamic data masking]
+* xref:developing/cql/dynamic_data_masking.adoc[Dynamic data masking]
 * xref:cql/triggers.adoc[Triggers]
 * xref:cql/appendices.adoc[Appendices]
 * xref:cql/changes.adoc[Changes]
