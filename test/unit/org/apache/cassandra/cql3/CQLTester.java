@@ -574,11 +574,17 @@ public abstract class CQLTester
 
     protected String createType(String query)
     {
-        String typeName = "type_" + seqNumber.getAndIncrement();
+        String typeName = createTypeName();
         String fullQuery = String.format(query, KEYSPACE + "." + typeName);
-        types.add(typeName);
         logger.info(fullQuery);
         schemaChange(fullQuery);
+        return typeName;
+    }
+
+    protected String createTypeName()
+    {
+        String typeName = String.format("type_%02d", seqNumber.getAndIncrement());
+        types.add(typeName);
         return typeName;
     }
 
