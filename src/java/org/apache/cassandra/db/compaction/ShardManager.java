@@ -29,6 +29,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.tcm.ClusterMetadata;
 
 public interface ShardManager
 {
@@ -45,7 +46,7 @@ public interface ShardManager
     {
         final ImmutableList<PartitionPosition> diskPositions = cfs.getDiskBoundaries().positions;
         ColumnFamilyStore.VersionedLocalRanges localRanges = cfs.localRangesWeighted();
-        IPartitioner partitioner = cfs.getPartitioner();
+        IPartitioner partitioner = ClusterMetadata.current().partitioner;
 
         if (diskPositions != null && diskPositions.size() > 1)
             return new ShardManagerDiskAware(localRanges, diskPositions.stream()

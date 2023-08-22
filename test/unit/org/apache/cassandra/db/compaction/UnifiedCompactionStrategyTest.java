@@ -36,6 +36,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -110,7 +111,7 @@ public class UnifiedCompactionStrategyTest
         long seed = System.currentTimeMillis();
         random.setSeed(seed);
         System.out.println("Random seed: " + seed);
-
+        ServerTestUtils.prepareServerNoRegister();
         DatabaseDescriptor.daemonInitialization(); // because of all the static initialization in CFS
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
     }
