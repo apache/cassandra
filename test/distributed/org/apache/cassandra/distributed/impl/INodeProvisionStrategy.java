@@ -48,11 +48,7 @@ public interface INodeProvisionStrategy
                     @Override
                     public int seedPort()
                     {
-                        if (portMap != null)
-                        {
-                            return portMap.computeIfAbsent("seedPort", key -> SocketUtils.findAvailablePort(seedIp(), 7012));
-                        }
-                        return 7012;
+                        return storagePort(1);
                     }
 
                     @Override
@@ -64,12 +60,6 @@ public interface INodeProvisionStrategy
                     @Override
                     public int storagePort(int nodeNum)
                     {
-                        if (nodeNum == 1)
-                        {
-                            // for node 1 the storage port and seed ports are the same
-                            return seedPort();
-                        }
-
                         if (portMap != null)
                         {
                             return portMap.computeIfAbsent("storagePort:" + nodeNum, key -> SocketUtils.findAvailablePort(seedIp(), 7011 + nodeNum));
@@ -117,11 +107,7 @@ public interface INodeProvisionStrategy
                     @Override
                     public int seedPort()
                     {
-                        if (portMap != null)
-                        {
-                            return portMap.computeIfAbsent("seedPort", key -> SocketUtils.findAvailablePort(seedIp(), 7012));
-                        }
-                        return 7012;
+                        return storagePort(1);
                     }
 
                     @Override
@@ -133,15 +119,9 @@ public interface INodeProvisionStrategy
                     @Override
                     public int storagePort(int nodeNum)
                     {
-                        if (nodeNum == 1)
-                        {
-                            // for node 1 the storage port and seed ports are the same
-                            return seedPort();
-                        }
-
                         if (portMap != null)
                         {
-                            return portMap.computeIfAbsent("storagePort:" + nodeNum, key -> SocketUtils.findAvailablePort(ipAddress(nodeNum), 7012));
+                            return portMap.computeIfAbsent("storagePort" + nodeNum, key -> SocketUtils.findAvailablePort(ipAddress(nodeNum), 7012));
                         }
                         return 7012;
                     }
