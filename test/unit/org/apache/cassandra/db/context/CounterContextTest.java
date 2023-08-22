@@ -23,7 +23,6 @@ package org.apache.cassandra.db.context;
 import java.nio.ByteBuffer;
 
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;

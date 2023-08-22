@@ -218,7 +218,6 @@ import org.apache.cassandra.tcm.transformations.PrepareReplace;
 import org.apache.cassandra.tcm.transformations.Unregister;
 import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.Startup;
-import org.apache.cassandra.tcm.transformations.Unregister;
 import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 import org.apache.cassandra.tcm.transformations.cms.EntireRange;
 import org.apache.cassandra.tcm.transformations.cms.RemoveFromCMS;
@@ -1059,7 +1058,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             return;
         }
 
-        doAuthSetup();
+//        doAuthSetup();
         maybeInitializeServices();
         completeInitialization();
     }

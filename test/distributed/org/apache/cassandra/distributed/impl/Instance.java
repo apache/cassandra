@@ -613,8 +613,6 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     partialStartup(cluster);
                 }
                 StorageService.instance.startSnapshotManager();
-                if (config.has(JMX))
-                    startJmx();
             }
             catch (Throwable t)
             {
@@ -687,7 +685,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         assert config.networkTopology().contains(config.broadcastAddress()) : String.format("Network topology %s doesn't contain the address %s",
                                                                                             config.networkTopology(), config.broadcastAddress());
         DistributedTestSnitch.assign(config.networkTopology());
-
+        if (config.has(JMX))
+            startJmx();
         DatabaseDescriptor.daemonInitialization();
 
         LoggingSupportFactory.getLoggingSupport().onStartup();

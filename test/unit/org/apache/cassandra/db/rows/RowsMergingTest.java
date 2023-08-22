@@ -34,7 +34,6 @@ public class RowsMergingTest extends CQLTester
     public static void setSystemProps()
     {
         BTREE_BRANCH_SHIFT.setInt(2);
-        System.setProperty("cassandra.btree.branchshift", "2");
     }
 
     @Test

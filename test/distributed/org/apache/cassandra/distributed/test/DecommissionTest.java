@@ -18,8 +18,12 @@
 
 package org.apache.cassandra.distributed.test;
 
+import java.io.IOException;
 import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
+
+import javax.annotation.Nullable;
 
 import org.junit.Test;
 
@@ -28,8 +32,10 @@ import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
 import org.apache.cassandra.distributed.Cluster;
+import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.utils.concurrent.Future;
 
@@ -39,6 +45,7 @@ import static org.apache.cassandra.db.SystemKeyspace.BootstrapState.DECOMMISSION
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.stopUnchecked;
+import static org.apache.cassandra.distributed.test.ring.BootstrapTest.populate;
 import static org.apache.cassandra.service.StorageService.Mode.DECOMMISSION_FAILED;
 import static org.apache.cassandra.service.StorageService.Mode.NORMAL;
 import static org.junit.Assert.assertEquals;
@@ -207,6 +214,45 @@ public class DecommissionTest extends TestBaseImpl
             {
                 throw new RuntimeException(e);
             }
+        }
+    }
+
+    @Test
+    public void testResumableDecom() throws IOException
+    {
+        try (Cluster cluster = builder().withNodes(3)
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP))
+                                        .withInstanceInitializer(BBResumableDecom::install)
+                                        .start())
+        {
+            populate(cluster, 0, 100, 1, 2, ConsistencyLevel.QUORUM);
+            cluster.get(2).nodetoolResult("decommission", "--force").asserts().failure();
+            cluster.get(2).nodetoolResult("decommission", "--force").asserts().success();
+        }
+    }
+
+    public static class BBResumableDecom
+    {
+        static void install(ClassLoader cl, int nodeNumber)
+        {
+            if (nodeNumber != 2)
+                return;
+            new ByteBuddy().rebase(StreamSession.class)
+                           .method(named("startStreamingFiles"))
+                           .intercept(MethodDelegation.to(BB.class))
+                           .make()
+                           .load(cl, ClassLoadingStrategy.Default.INJECTION);
+        }
+        static AtomicBoolean first = new AtomicBoolean();
+
+        public static void startStreamingFiles(@Nullable StreamSession.PrepareDirection prepareDirection, @SuperCall Callable<Void> zuper) throws Exception
+        {
+            if (!first.get())
+            {
+                first.set(true);
+                throw new RuntimeException("Triggering streaming error");
+            }
+            zuper.call();
         }
     }
 }
