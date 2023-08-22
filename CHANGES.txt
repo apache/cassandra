@@ -1,4 +1,5 @@
 5.0-alpha2
+ * Update commons-lang3 to 3.13.0 (CASSANDRA-18789)
  * Forbid SAI indexes with analysis options on primary key columns (CASSANDRA-18782)
 Merged from 4.1:
  * Allow empty keystore_password in encryption_options (CASSANDRA-18778)
