@@ -123,7 +123,6 @@ public abstract class Rows
      * @param merged the result of merging {@code inputs}.
      * @param inputs the inputs whose merge yielded {@code merged}.
      */
-    @SuppressWarnings("resource")
     public static void diff(RowDiffListener diffListener, Row merged, Row...inputs)
     {
         Clustering<?> clustering = merged.clustering();

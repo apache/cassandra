@@ -98,7 +98,6 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
         FileUtils.closeQuietly(postingsFile);
     }
 
-    @SuppressWarnings({"resource", "RedundantSuppression"})
     public PostingList intersect(IntersectVisitor visitor, QueryEventListener.BalancedTreeEventListener listener, QueryContext context)
     {
         Relation relation = visitor.compare(minPackedValue, maxPackedValue);
@@ -229,7 +228,6 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
             state.pop();
         }
 
-        @SuppressWarnings({"resource", "RedundantSuppression"})
         private PeekablePostingList initPostingReader(long offset) throws IOException
         {
             final PostingsReader.BlocksSummary summary = new PostingsReader.BlocksSummary(postingsSummaryInput, offset);
@@ -336,7 +334,6 @@ public class BlockBalancedTreeReader extends BlockBalancedTreeWalker implements 
             state.pop();
         }
 
-        @SuppressWarnings({"resource", "RedundantSuppression"})
         private PeekablePostingList initFilteringPostingReader(long offset, FixedBitSet filter) throws IOException
         {
             final PostingsReader.BlocksSummary summary = new PostingsReader.BlocksSummary(postingsSummaryInput, offset);

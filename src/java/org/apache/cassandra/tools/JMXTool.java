@@ -132,7 +132,6 @@ public class JMXTool
             {
                 void dump(OutputStream output, Map<String, Info> map)
                 {
-                    @SuppressWarnings("resource")
                     // output should be released by caller
                     PrintStream out = toPrintStream(output);
                     for (Map.Entry<String, Info> e : map.entrySet())

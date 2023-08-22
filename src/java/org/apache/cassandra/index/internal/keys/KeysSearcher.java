@@ -93,7 +93,6 @@ public class KeysSearcher extends CassandraIndexSearcher
                                                                                            command.clusteringIndexFilter(key),
                                                                                            null);
 
-                    @SuppressWarnings("resource") // filterIfStale closes it's iterator if either it materialize it or if it returns null.
                                                   // Otherwise, we close right away if empty, and if it's assigned to next it will be called either
                                                   // by the next caller of next, or through closing this iterator is this come before.
                     UnfilteredRowIterator dataIter = filterIfStale(dataCmd.queryMemtableAndDisk(index.baseCfs, executionController),

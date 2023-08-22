@@ -160,7 +160,6 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         }
 
         @Override
-        @SuppressWarnings({"resource", "RedundantSuppression"}) // The iterator produced here has a nop close operation
         public UnfilteredRowIterator computeNext()
         {
             // IMPORTANT: The correctness of the entire query pipeline relies on the fact that we consume a token
@@ -478,7 +477,6 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
      * Used by {@link StorageAttachedIndexSearcher#filterReplicaFilteringProtection} to filter rows for columns that
      * have transformations so won't get handled correctly by the row filter.
      */
-    @SuppressWarnings({"resource", "RedundantSuppression"})
     private static PartitionIterator applyIndexFilter(PartitionIterator response, FilterTree tree, QueryContext queryContext)
     {
         return new PartitionIterator()

@@ -36,7 +36,6 @@ import org.apache.cassandra.tracing.Tracing;
  * initially sorting the ranges. This implementation also supports an intersection limit which limits
  * the number of ranges that will be included in the intersection. This currently defaults to 2.
  */
-@SuppressWarnings({"resource", "RedundantSuppression"})
 public class KeyRangeIntersectionIterator extends KeyRangeIterator
 {
     private static final Logger logger = LoggerFactory.getLogger(KeyRangeIntersectionIterator.class);

@@ -127,7 +127,6 @@ public class BigTableWriter extends SortedTableWriter<BigFormatPartitionWriter, 
         return entry;
     }
 
-    @SuppressWarnings({ "resource", "RedundantSuppression" })
     private BigTableReader openInternal(IndexSummaryBuilder.ReadableBoundary boundary, SSTableReader.OpenReason openReason)
     {
         assert boundary == null || (boundary.indexLength > 0 && boundary.dataLength > 0);

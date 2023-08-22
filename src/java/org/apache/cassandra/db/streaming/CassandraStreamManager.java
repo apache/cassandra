@@ -82,7 +82,6 @@ public class CassandraStreamManager implements TableStreamManager
         return new CassandraStreamReceiver(cfs, session, totalStreams);
     }
 
-    @SuppressWarnings("resource")   // references placed onto returned collection or closed on error
     @Override
     public Collection<OutgoingStream> createOutgoingStreams(StreamSession session, RangesAtEndpoint replicas, TimeUUID pendingRepair, PreviewKind previewKind)
     {

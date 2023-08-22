@@ -96,7 +96,6 @@ public class MergePostingList implements PostingList
         return maximum;
     }
 
-    @SuppressWarnings({ "resource", "RedundantSuppression"})
     @Override
     public long nextPosting() throws IOException
     {
@@ -126,7 +125,6 @@ public class MergePostingList implements PostingList
         return PostingList.END_OF_STREAM;
     }
 
-    @SuppressWarnings({"resource", "RedundantSuppression"})
     @Override
     public long advance(long targetRowID) throws IOException
     {

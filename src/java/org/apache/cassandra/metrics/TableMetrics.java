@@ -1030,7 +1030,6 @@ public class TableMetrics
                 // using SSTableSet.CANONICAL.
                 assert sstable.openReason != SSTableReader.OpenReason.EARLY;
 
-                @SuppressWarnings("resource")
                 CompressionMetadata compressionMetadata = sstable.getCompressionMetadata();
                 compressedLengthSum += compressionMetadata.compressedFileLength;
                 dataLengthSum += compressionMetadata.dataLength;

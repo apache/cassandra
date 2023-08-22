@@ -301,7 +301,6 @@ public class CommitLogSegmentReader implements Iterable<CommitLogSegmentReader.S
             nextLogicalStart = reader.getFilePointer();
         }
 
-        @SuppressWarnings("resource")
         public SyncSegment nextSegment(final int startPosition, final int nextSectionStartPosition) throws IOException
         {
             reader.seek(startPosition);
@@ -381,7 +380,6 @@ public class CommitLogSegmentReader implements Iterable<CommitLogSegmentReader.S
             };
         }
 
-        @SuppressWarnings("resource")
         public SyncSegment nextSegment(int startPosition, int nextSectionStartPosition) throws IOException
         {
             int totalPlainTextLength = reader.readInt();

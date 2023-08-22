@@ -1985,7 +1985,6 @@ public class StorageProxy implements StorageProxyMBean
         return result;
     }
 
-    @SuppressWarnings("resource")
     private static PartitionIterator readRegular(SinglePartitionReadCommand.Group group, ConsistencyLevel consistencyLevel, long queryStartNanoTime)
     throws UnavailableException, ReadFailureException, ReadTimeoutException
     {

@@ -118,7 +118,6 @@ public class UnfilteredRowIteratorWithLowerBound extends LazilyInitializedUnfilt
     @Override
     protected UnfilteredRowIterator initializeIterator()
     {
-        @SuppressWarnings("resource") // 'iter' is added to iterators which is closed on exception, or through the closing of the final merged iterator
         UnfilteredRowIterator iter = RTBoundValidator.validate(sstable.rowIterator(partitionKey(), slices, selectedColumns, isReverseOrder, listener),
                                                                RTBoundValidator.Stage.SSTABLE, false);
         return iter;

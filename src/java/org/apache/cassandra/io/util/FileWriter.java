@@ -25,13 +25,11 @@ import org.apache.cassandra.io.util.File.WriteMode;
 
 public class FileWriter extends OutputStreamWriter
 {
-    @SuppressWarnings("resource") // FOSP is closed by OSW::close
     public FileWriter(File file) throws IOException
     {
         super(new FileOutputStreamPlus(file));
     }
 
-    @SuppressWarnings("resource") // FOSP is closed by OSW::close
     public FileWriter(File file, WriteMode mode) throws IOException
     {
         super(new FileOutputStreamPlus(file, mode));

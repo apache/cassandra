@@ -224,7 +224,6 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         return resolveInternal(context, listener, responseProvider, preCountFilter);
     }
 
-    @SuppressWarnings("resource")
     private PartitionIterator resolveWithReplicaFilteringProtection(E replicas, RepairedDataTracker repairedDataTracker)
     {
         // Protecting against inconsistent replica filtering (some replica returning a row that is outdated but that
@@ -280,7 +279,6 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         };
     }
 
-    @SuppressWarnings("resource")
     private PartitionIterator resolveInternal(ResolveContext context,
                                               UnfilteredPartitionIterators.MergeListener mergeListener,
                                               ResponseProvider responseProvider,

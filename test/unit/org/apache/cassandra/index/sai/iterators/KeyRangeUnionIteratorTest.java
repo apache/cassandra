@@ -307,7 +307,6 @@ public class KeyRangeUnionIteratorTest extends AbstractKeyRangeIteratorTester
     }
 
     @Test
-    @SuppressWarnings("resource")
     public void emptyRangeTest()
     {
         KeyRangeIterator.Builder builder;

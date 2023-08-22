@@ -102,7 +102,6 @@ public class ClientResourceLimitsTest extends CQLTester
         }
     }
 
-    @SuppressWarnings("resource")
     private SimpleClient client(boolean throwOnOverload)
     {
         try
@@ -119,7 +118,7 @@ public class ClientResourceLimitsTest extends CQLTester
         }
     }
 
-    @SuppressWarnings({"resource", "SameParameterValue"})
+    @SuppressWarnings("SameParameterValue")
     private SimpleClient client(boolean throwOnOverload, int largeMessageThreshold)
     {
         try

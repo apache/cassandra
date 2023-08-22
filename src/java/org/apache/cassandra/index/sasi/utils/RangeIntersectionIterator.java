@@ -28,7 +28,6 @@ import org.apache.cassandra.io.util.FileUtils;
 
 import com.google.common.annotations.VisibleForTesting;
 
-@SuppressWarnings("resource")
 public class RangeIntersectionIterator
 {
     protected enum Strategy

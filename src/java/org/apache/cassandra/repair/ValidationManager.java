@@ -97,7 +97,6 @@ public class ValidationManager implements IValidationManager
      * Performs a readonly "compaction" of all sstables in order to validate complete rows,
      * but without writing the merge result
      */
-    @SuppressWarnings("resource")
     public static void doValidation(ColumnFamilyStore cfs, Validator validator) throws IOException, NoSuchRepairSessionException
     {
         SharedContext ctx = validator.ctx;

@@ -340,7 +340,6 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public abstract boolean isReversed();
 
-    @SuppressWarnings("resource")
     public ReadResponse createResponse(UnfilteredPartitionIterator iterator, RepairedDataInfo rdi)
     {
         // validate that the sequence of RT markers is correct: open is followed by close, deletion times for both
@@ -352,7 +351,6 @@ public abstract class ReadCommand extends AbstractReadQuery
                : ReadResponse.createDataResponse(iterator, this, rdi);
     }
 
-    @SuppressWarnings("resource") // We don't need to close an empty iterator.
     public ReadResponse createEmptyResponse()
     {
         UnfilteredPartitionIterator iterator = EmptyIterators.unfilteredPartition(metadata());
@@ -400,7 +398,6 @@ public abstract class ReadCommand extends AbstractReadQuery
      *
      * @return an iterator over the result of executing this command locally.
      */
-    @SuppressWarnings("resource") // The result iterator is closed upon exceptions (we know it's fine to potentially not close the intermediary
                                   // iterators created inside the try as long as we do close the original resultIterator), or by closing the result.
     public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController)
     {
@@ -851,7 +848,6 @@ public abstract class ReadCommand extends AbstractReadQuery
         return toCQLString();
     }
 
-    @SuppressWarnings("resource") // resultant iterators are closed by their callers
     InputCollector<UnfilteredRowIterator> iteratorsForPartition(ColumnFamilyStore.ViewFragment view, ReadExecutionController controller)
     {
         final BiFunction<List<UnfilteredRowIterator>, RepairedDataInfo, UnfilteredRowIterator> merge =
@@ -868,7 +864,6 @@ public abstract class ReadCommand extends AbstractReadQuery
         return new InputCollector<>(view, controller, merge, postLimitPartitions);
     }
 
-    @SuppressWarnings("resource") // resultant iterators are closed by their callers
     InputCollector<UnfilteredPartitionIterator> iteratorsForRange(ColumnFamilyStore.ViewFragment view, ReadExecutionController controller)
     {
         final BiFunction<List<UnfilteredPartitionIterator>, RepairedDataInfo, UnfilteredPartitionIterator> merge =
@@ -952,7 +947,6 @@ public abstract class ReadCommand extends AbstractReadQuery
                 unrepairedIters.add(iter);
         }
 
-        @SuppressWarnings("resource") // the returned iterators are closed by the caller
         List<T> finalizeIterators(ColumnFamilyStore cfs, long nowInSec, long oldestUnrepairedTombstone)
         {
             if (repairedIters.isEmpty())

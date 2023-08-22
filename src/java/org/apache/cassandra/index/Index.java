@@ -194,7 +194,6 @@ public interface Index
      */
     public static class CollatedViewIndexBuildingSupport implements IndexBuildingSupport
     {
-        @SuppressWarnings({"resource", "RedundantSuppression"})
         public SecondaryIndexBuilder getIndexBuildTask(ColumnFamilyStore cfs, Set<Index> indexes, Collection<SSTableReader> sstables, boolean isFullRebuild)
         {
             return new CollatedViewIndexBuilder(cfs, indexes, new ReducingKeyIterator(sstables), sstables);

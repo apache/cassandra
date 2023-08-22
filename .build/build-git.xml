@@ -51,5 +51,20 @@
         </condition>
         <echo level="warning" if:true="${is-dirty}">Repository state is dirty</echo>
         <echo level="warning" if:true="${is-dirty}">${git.diffstat}</echo>
+
+        <exec if:true="${git.is-available}" executable="bash" dir="${basedir}" logError="true" failonerror="false" failifexecutionfails="false">
+            <arg value="-c"/>
+            <arg value="([[ -f .git ]] &amp;&amp; (basename `cat .git | cut -f 2 -d ' '`)) || (basename `pwd`)"/>
+            <redirector outputproperty="git.worktree.name"/>
+        </exec>
+        <echo message="git.worktree.name=${git.worktree.name}"/>
+
+        <exec if:true="${git.is-available}" executable="bash" dir="${basedir}" logError="true" failonerror="false" failifexecutionfails="false">
+            <arg value="-c"/>
+            <arg value="git branch --show-current"/>
+            <redirector outputproperty="git.branch.name"/>
+        </exec>
+        <echo message="git.branch.name=${git.branch.name}"/>
+
     </target>
 </project>

@@ -1,0 +1,247 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  ~ Licensed to the Apache Software Foundation (ASF) under one
+  ~ or more contributor license agreements.  See the NOTICE file
+  ~ distributed with this work for additional information
+  ~ regarding copyright ownership.  The ASF licenses this file
+  ~ to you under the Apache License, Version 2.0 (the
+  ~ "License"); you may not use this file except in compliance
+  ~ with the License.  You may obtain a copy of the License at
+  ~
+  ~     http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  -->
+<project basedir="." name="apache-cassandra-sonar-tasks" xmlns:if="ant:if" xmlns:unless="ant:unless">
+    <property name="sonar-scanner-cli.version" value="5.0.1.3006"/>
+    
+    <property name="sonar.workdir" value="${build.dir}/sonar"/>
+    <property name="sonar.download.dir" value="${tmp.dir}/sonar"/>
+    <property name="sonar-scanner.home" value="${sonar.download.dir}/sonar-scanner-${sonar-scanner-cli.version}"/>
+    <property name="sonar.mainBranch" value="trunk"/>
+    <property name="sonar.host.url.default" value="http://127.0.0.1:9000"/>
+
+    <target name="-sonar-init" depends="_get-git-sha">
+        <exec executable="date" failifexecutionfails="true" failonerror="true" logerror="true">
+            <arg value="+%Y-%m-%d-%H-%M-%S"/>
+            <redirector outputproperty="timestamp" alwayslog="true">
+            </redirector>
+        </exec>
+
+        <mkdir dir="${sonar.download.dir}"/>
+        <mkdir dir="${sonar-scanner.home}"/>
+        <mkdir dir="${sonar.workdir}"/>
+        <mkdir dir="${sonar.workdir}/scanner"/>
+        <mkdir dir="${sonar.workdir}/scanner/fake"/>
+        <condition property="git.repo.version" value="${git.sha}" else="${git.branch.name}">
+            <equals arg1="${git.branch.name}" arg2=""/>
+        </condition>
+        <condition property="sonar.projectKey" value="${env.SONAR_PROJECT_KEY}" else="${git.repo.version}-${git.worktree.name}">
+            <isset property="env.SONAR_PROJECT_KEY"/>
+        </condition>
+        <echo message="sonar.projectKey=${sonar.projectKey}"/>
+    </target>
+
+    <target name="-init-sonar-scanner-cli" depends="-sonar-init" unless="sonar-scanner.downloaded">
+        <local name="sonar-scanner.downloaded"/>
+        <available file="${sonar-scanner.home}/bin/sonar-scanner" property="sonar-scanner.downloaded"/>
+
+        <sequential unless:set="sonar-scanner.downloaded">
+            <echo>Downloading Sonar-Scanner CLI...</echo>
+            <retry retrycount="3" retrydelay="5000" >
+                <get src="https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${sonar-scanner-cli.version}.zip"
+                     dest="${sonar.download.dir}/sonar-scanner-cli-${sonar-scanner-cli.version}.zip"/>
+            </retry>
+            <unzip src="${sonar.download.dir}/sonar-scanner-cli-${sonar-scanner-cli.version}.zip" dest="${sonar.download.dir}" overwrite="true"/>
+            <setpermissions mode="755" failonerror="false">
+                <!-- unzip task in Ant does not preserve file permissions, so we need to make those files executable explicitly -->
+                <file file="${sonar-scanner.home}/bin/sonar-scanner" />
+            </setpermissions>
+        </sequential>
+
+        <!-- Sonar Scanner CLI needs to run with Java 17 - we either use the current java.home or env.JAVA17_HOME -->
+        <condition property="sonarJavaHome" value="${java.home}">
+            <or>
+                <equals arg1="${ant.java.version}" arg2="17"/>
+            </or>
+        </condition>
+        <condition property="sonarJavaHome" value="${env.JAVA17_HOME}">
+            <and>
+                <not>
+                    <equals arg1="${ant.java.version}" arg2="17"/>
+                </not>
+                <isset property="env.JAVA17_HOME"/>
+            </and>
+        </condition>
+
+        <fail unless="sonarJavaHome"
+              message="You must either run Ant with Java 17 or point Java 17 home in JAVA17_HOME env variable"/>
+
+        <echo message="Using Java home: ${sonarJavaHome}"/>
+    </target>
+
+    <macrodef name="check-server-status">
+        <attribute name="url"/>
+        <sequential>
+            <local name="sonar.server.status"/>
+            <exec executable="curl" failifexecutionfails="false" failonerror="false" logerror="false">
+                <arg value="-s"/>
+                <arg value="@{url}/api/system/status"/>
+                <redirector outputproperty="sonar.server.status" alwayslog="true">
+                    <outputfilterchain>
+                        <tokenfilter>
+                            <replaceregex pattern=".*&quot;status&quot;:&quot;([^&quot;]+)&quot;.*" replace="\1"/>
+                        </tokenfilter>
+                    </outputfilterchain>
+                </redirector>
+            </exec>
+            <echo message="SonarQube server status: ${sonar.server.status}"/>
+            <condition property="sonar.server.running" value="true">
+                <equals arg1="${sonar.server.status}" arg2="UP"/>
+            </condition>
+            <fail unless="sonar.server.running" message="Running SonarQube server is not available at ${sonar.host.url}. You can create a SonarQube server container using `ant sonar-create-server` task, or if you did that before, start it using `docker container start sonarqube` and wait until the web service is available."/>
+        </sequential>
+    </macrodef>
+
+    <target name="-init-sonar-server" depends="-sonar-init,-maybe-set-external-sonar-server-url,-maybe-setup-local-sonar-server">
+        <check-server-status url="${sonar.host.url}"/>
+    </target>
+
+    <target name="-maybe-set-external-sonar-server-url" depends="-sonar-init" if="env.SONAR_HOST_URL">
+        <property name="sonar.host.url" value="${env.SONAR_HOST_URL}"/>
+        <fail unless="env.SONAR_CASSANDRA_TOKEN" message="SONAR_CASSANDRA_TOKEN environment variable must be set when using Sonar server defined in env SONAR_HOST_URL"/>
+        <property name="sonar.token" value="${env.SONAR_CASSANDRA_TOKEN}"/>
+    </target>
+
+    <!-- We run this target only if we are using the local server - that is, a custom SONAR_HOST_URL env is not provided -->
+    <target name="-maybe-setup-local-sonar-server" depends="-sonar-init" unless="env.SONAR_HOST_URL">
+        <property name="sonar.host.url" value="${sonar.host.url.default}"/>
+
+        <!-- Fail if the server is not running -->
+        <check-server-status url="${sonar.host.url}"/>
+
+        <exec executable="${build.helpers.dir}/sonar/sonar-setup-local.sh" failifexecutionfails="true" failonerror="true" logerror="true">
+            <env key="SONAR_HOST_URL" value="${sonar.host.url}"/>
+            <env key="SONAR_PROJECT_KEY" value="${sonar.projectKey}"/>
+            <arg line="admin:password"/>
+            <arg line="${build.helpers.dir}/sonar/sonar-quality-profile.xml"/>
+            <arg line="${build.helpers.dir}/sonar/sonar-quality-gate.json"/>
+            <redirector outputproperty="sonar.token"/>
+        </exec>
+    </target>
+
+    <target name="sonar-stop-server" depends="-sonar-init" description="Stos the local Sonar server without removing the container">
+        <exec executable="docker" dir="${sonar.workdir}" failifexecutionfails="true" failonerror="true" logerror="true">
+            <arg value="stop"/>
+            <arg value="sonarqube"/>
+        </exec>
+
+        <echo message="SonarQube server stopped. To start the container again to inspect the analysis results, run `docker start sonarqube`. To remove the container entirely run `docker rm sonarqube`"/>
+    </target>
+
+    <target name="sonar-create-server" depends="-sonar-init" description="Create a Docker container with SonarQube community server. This task will fail if the server named sonarqube already exists">
+        <property name="sonar.host.url" value="${sonar.host.url.default}"/>
+
+        <!-- Create docker container-->
+        <exec executable="docker" dir="${sonar.workdir}" failifexecutionfails="true" failonerror="true" logerror="true">
+            <arg value="run"/>
+            <arg value="-d"/>
+            <arg value="--name"/>
+            <arg value="sonarqube"/>
+            <arg value="-e"/>
+            <arg value="SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true"/>
+            <arg value="-p"/>
+            <arg value="9000:9000"/>
+            <arg value="-v"/>
+            <arg value="/opt/sonarqube/data"/>
+            <arg value="-v"/>
+            <arg value="/opt/sonarqube/logs"/>
+            <arg value="-v"/>
+            <arg value="/opt/sonarqube/extensions"/>
+            <arg value="sonarqube:community"/>
+        </exec>
+
+        <!-- Wait for SonarQube server to be ready-->
+        <retry retrycount="60" retrydelay="1000">
+            <check-server-status url="${sonar.host.url}"/>
+        </retry>
+
+        <!-- A fresh SonarQube server requires changing the initial admin credentials - we update it here to admin:password -->
+        <exec executable="curl" failifexecutionfails="true" failonerror="true" logerror="true">
+            <arg line="-u admin:admin"/>
+            <arg line="-X POST"/>
+            <arg line="-s"/>
+            <arg value="${sonar.host.url}/api/users/change_password?login=admin&amp;password=password&amp;previousPassword=admin"/>
+        </exec>
+
+        <!-- Disable forcing authentication for browsing analysis -->
+        <exec executable="curl" failifexecutionfails="true" failonerror="true" logerror="true">
+            <arg line="-u admin:password"/>
+            <arg line="-X POST"/>
+            <arg line="-s"/>
+            <arg value="${sonar.host.url}/api/settings/set?key=sonar.forceAuthentication&amp;value=false"/>
+        </exec>
+    </target>
+
+    <macrodef name="sonar-report" description="Creates the offline report by fetching all project issues and converting them into HTML">
+        <sequential>
+            <echo message="Generating SonarQube analysis offline report"/>
+            <exec executable="${build.helpers.dir}/sonar/sonar-report.sh" failifexecutionfails="false" failonerror="false" logerror="true">
+                <env key="SONAR_HOST_URL" value="${sonar.host.url}"/>
+                <env key="SONAR_CASSANDRA_TOKEN" value="${sonar.token}"/>
+                <env key="SONAR_PROJECT_KEY" value="${sonar.projectKey}"/>
+                <arg value="${sonar.workdir}/sonar-report-main.json"/>
+                <arg value="BLOCKER,CRITICAL,MAJOR"/>
+                <arg value="MAIN"/>
+            </exec>
+            <echo message="SonarQube report saved to file://${sonar.workdir}/sonar-report-main.json"/>
+        </sequential>
+    </macrodef>
+
+    <target name="sonar" depends="_get-git-sha,-init-sonar-scanner-cli,-init-sonar-server" description="Run the Sonar analysis on the project">
+        <fail unless="sonar.token" message="sonar.token property must be set"/>
+
+        <condition property="should_run_preanalysis" value="true">
+            <and>
+                <not>
+                    <isset property="env.SONAR_HOST_URL"/>
+                </not>
+                <not>
+                    <isset property="env.SONAR_PROJECT_KEY"/>
+                </not>
+            </and>
+        </condition>
+
+        <!-- Run the analysis on the project -->
+        <echo message="Running Sonar analysis on the project"/>
+        <exec executable="${sonar-scanner.home}/bin/sonar-scanner" failifexecutionfails="true" failonerror="false" logerror="true" resultproperty="analysis_result">
+            <env key="JAVA_HOME" value="${sonarJavaHome}"/>
+            <arg value="-Dsonar.host.url=${sonar.host.url}"/>
+            <arg value="-Dsonar.token=${sonar.token}"/>
+            <arg value="-Dsonar.projectKey=${sonar.projectKey}"/>
+            <arg value="-Dsonar.working.directory=${sonar.workdir}/scanner"/>
+            <arg value="-Dsonar.sourceEncoding=UTF-8"/>
+            <arg value="-Dsonar.scm.disabled=true"/>
+            <arg value="-Dsonar.sources=${build.src.java},${fqltool.build.src},${stress.build.src}"/>
+            <arg value="-Dsonar.java.libraries=${build.dir.lib}/jars/jsr305-*.jar"/>
+            <arg value="-Dsonar.java.binaries=${build.classes.main},${fqltool.build.classes},${stress.build.classes}"/>
+            <arg value="-Dsonar.java.source=11"/>
+            <arg value="-Dsonar.projectVersion=${timestamp}"/>
+            <arg value="-Dsonar.qualitygate.wait=true"/>
+        </exec>
+
+        <!-- Generate a simplified report which will be available even when the Sonar server contianer is stopped -->
+        <sonar-report/>
+
+        <!-- We postponed faling the build until the offline report is created -->
+        <condition property="analysis_succeeded" value="true">
+            <equals arg1="${analysis_result}" arg2="0"/>
+        </condition>
+        <fail unless="analysis_succeeded" message="Sonar analysis failed"/>
+    </target>
+
+</project>

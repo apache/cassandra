@@ -189,7 +189,6 @@ public class PendingAntiCompaction
             this.acquireSleepMillis = acquireSleepMillis;
         }
 
-        @SuppressWarnings("resource")
         private AcquireResult acquireTuple()
         {
             // this method runs with compactions stopped & disabled
