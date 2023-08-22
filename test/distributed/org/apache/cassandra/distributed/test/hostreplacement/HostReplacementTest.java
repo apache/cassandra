@@ -222,8 +222,6 @@ public class HostReplacementTest extends TestBaseImpl
         fixDistributedSchemas(cluster);
         init(cluster);
 
-        ClusterUtils.awaitGossipSchemaMatch(cluster);
-
         populate(cluster);
         cluster.forEach(i -> i.flush(KEYSPACE));
     }
