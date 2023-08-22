@@ -21,6 +21,7 @@ package org.apache.cassandra.service.reads.range;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -172,6 +173,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
         {
             rangeMetrics.failures.mark();
             StorageProxyMetricsManager.getMetrics(command.metadata().keyspace, consistencyLevel).rangeMetrics.failures.mark();
+            StorageProxy.throwOverloadExceptionIfNecessary(e.failureReasonByEndpoint);
             throw e;
         }
     }

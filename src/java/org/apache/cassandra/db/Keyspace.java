@@ -48,6 +48,7 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.repair.CassandraKeyspaceRepairManager;
 import org.apache.cassandra.db.view.ViewManager;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexManager;
@@ -67,6 +68,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.snapshot.TableSnapshot;
+import org.apache.cassandra.service.throttler.dynamic.CassandraResourceUtilization;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -580,6 +582,26 @@ public class Keyspace
                                                boolean isDeferrable,
                                                Promise<?> future)
     {
+        try
+        {
+            // throttle internal traffic received as part of the replication
+            CassandraResourceUtilization.instance.throttle(mutation.getKeyspaceName(), false);
+        }
+        catch (OverloadedException e)
+        {
+            Tracing.trace("Mutation throttled");
+            logger.debug("Mutation throttled");
+            if (future != null)
+            {
+                future.tryFailure(e);
+                return future;
+            }
+            else
+            {
+                throw e;
+            }
+        }
+
         if (TEST_FAIL_WRITES && metadata.name.equals(TEST_FAIL_WRITES_KS))
             throw new RuntimeException("Testing write failures");
 

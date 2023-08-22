@@ -68,6 +68,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.SchemaProvider;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.ClientWarn;
+import org.apache.cassandra.service.throttler.dynamic.CassandraResourceUtilization;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.FBUtilities;
@@ -412,6 +413,8 @@ public abstract class ReadCommand extends AbstractReadQuery
                                   // iterators created inside the try as long as we do close the original resultIterator), or by closing the result.
     public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController)
     {
+        // throttle internal traffic received as part of the replication
+        CassandraResourceUtilization.instance.throttle(metadata().keyspace, true);
         long startTimeNanos = nanoTime();
 
         COMMAND.set(this);

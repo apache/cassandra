@@ -41,6 +41,7 @@ import org.apache.cassandra.service.throttler.dynamic.metrics.KeyspaceThrottling
 import org.apache.cassandra.service.throttler.dynamic.metrics.ThrottlingMetrics;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.throttler.dynamic.metrics.KeyspaceThrottlingMetricsManager;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
@@ -53,7 +54,7 @@ public class CassandraResourceUtilization
     private final ScheduledExecutorPlus reportThread = executorFactory().scheduled(false, "CassandraResourceUtilization", Thread.MAX_PRIORITY);
     private static final DecimalFormat df = new DecimalFormat("0");
 
-    public static final String THROW_MESSAGE = "from dynamic throttler";
+    public static final String THROW_MESSAGE = "from dynamic throttler: %s";
 
     // TODO: make this configurable
     public final IResourceUtilzation resourceUtilzation = new NativeResourceUtilization();
@@ -283,7 +284,6 @@ public class CassandraResourceUtilization
         if (!throttlingOptions.isEnabled())
         {
             throttlingMetrics.disableThrottling.inc();
-            logger.info("Throttling is disabled, reads: {}....", reads);
             return false;
         }
         KeyspaceThrottlingMetrics ksThrottlingMetrics = KeyspaceThrottlingMetricsManager.getMetrics(keyspaceName);
@@ -301,10 +301,10 @@ public class CassandraResourceUtilization
         return false;
     }
 
-    public void throttleUserTrafficWithThrow(String keyspaceName, boolean reads) throws OverloadedException
+    public void throttle(String keyspaceName, boolean reads) throws OverloadedException
     {
         if (throttleUserTraffic(keyspaceName, reads)) {
-            throw new OverloadedException(THROW_MESSAGE);
+            throw new OverloadedException(String.format(THROW_MESSAGE, FBUtilities.getJustLocalAddress().getHostAddress()));
         }
     }
 

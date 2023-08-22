@@ -186,6 +186,7 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
+import static org.apache.cassandra.service.throttler.dynamic.CassandraResourceUtilization.THROW_MESSAGE;
 
 public class StorageProxy implements StorageProxyMBean
 {
@@ -345,7 +346,7 @@ public class StorageProxy implements StorageProxyMBean
     {
         try
         {
-            CassandraResourceUtilization.instance.throttleUserTrafficWithThrow(keyspaceName, true);
+            CassandraResourceUtilization.instance.throttle(keyspaceName, true);
             SinglePartitionReadCommand readCommandForThrottle = (SinglePartitionReadCommand) request.readCommand(nowInSeconds);
             DatabaseDescriptor.getRequestThrottler().maybeThrottleRead(readCommandForThrottle, consistencyForPaxos);
             TableMetadata metadata = Schema.instance.validateTable(keyspaceName, cfName);
@@ -449,6 +450,7 @@ public class StorageProxy implements StorageProxyMBean
             casWriteMetrics.failures.mark();
             writeMetricsForLevel(consistencyForPaxos).failures.mark();
             StorageProxyMetricsManager.getMetrics(keyspaceName, consistencyForPaxos).casWriteMetrics.failures.mark();
+            throwOverloadExceptionIfNecessary(e.failureReasonByEndpoint);
             throw e;
         }
         catch (UnavailableException e)
@@ -926,7 +928,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             for (IMutation mutation : mutations)
             {
-                CassandraResourceUtilization.instance.throttleUserTrafficWithThrow(keyspaceName, false);
+                CassandraResourceUtilization.instance.throttle(keyspaceName, false);
                 DatabaseDescriptor.getRequestThrottler().maybeThrottleMutation(mutation, consistencyLevel);
                 if (mutation instanceof CounterMutation)
                     responseHandlers.add(mutateCounter((CounterMutation)mutation, localDataCenter, requestTime));
@@ -968,6 +970,7 @@ public class StorageProxy implements StorageProxyMBean
                     WriteFailureException fe = (WriteFailureException)ex;
                     Tracing.trace("Write failure; received {} of {} required replies, failed {} requests",
                                   fe.received, fe.blockFor, fe.failureReasonByEndpoint.size());
+                    throwOverloadExceptionIfNecessary(((WriteFailureException) ex).failureReasonByEndpoint);
                 }
                 else
                 {
@@ -990,11 +993,12 @@ public class StorageProxy implements StorageProxyMBean
         }
         catch (OverloadedException e)
         {
-            if (e.getMessage().contains(CassandraResourceUtilization.THROW_MESSAGE))
+            // TODO: Needs some rework here as we should distinguish the exceptions better
+            if (e.getMessage().contains("from dynamic throttler"))
             {
                 // TODO: update writeMetrics
                 Tracing.trace("Throttling write request due to overload");
-                logger.debug("Throttling write request due to overload");
+                logger.trace("Throttling write request due to overload");
                 throw e;
             }
             else
@@ -1280,7 +1284,7 @@ public class StorageProxy implements StorageProxyMBean
             // add a handler for each mutation - includes checking availability, but doesn't initiate any writes, yet
             for (Mutation mutation : mutations)
             {
-                CassandraResourceUtilization.instance.throttleUserTrafficWithThrow(keyspaceName, false);
+                CassandraResourceUtilization.instance.throttle(keyspaceName, false);
                 DatabaseDescriptor.getRequestThrottler().maybeThrottleMutation(mutation, consistency_level);
                 WriteResponseHandlerWrapper wrapper = wrapBatchResponseHandler(mutation,
                                                                                consistency_level,
@@ -1335,6 +1339,7 @@ public class StorageProxy implements StorageProxyMBean
             writeMetricsForLevel(consistency_level).failures.mark();
             StorageProxyMetricsManager.getMetrics(keyspaceName, consistency_level).writeMetrics.failures.mark();
             Tracing.trace("Write failure; received {} of {} required replies", e.received, e.blockFor);
+            throwOverloadExceptionIfNecessary(e.failureReasonByEndpoint);
             throw e;
         }
         finally
@@ -1983,7 +1988,7 @@ public class StorageProxy implements StorageProxyMBean
 
             for (SinglePartitionReadCommand cmd : group.queries)
             {
-                CassandraResourceUtilization.instance.throttleUserTrafficWithThrow(metadata.keyspace, true);
+                CassandraResourceUtilization.instance.throttle(metadata.keyspace, true);
                 DatabaseDescriptor.getRequestThrottler().maybeThrottleRead(cmd, consistencyLevel);
             }
             final ConsistencyLevel consistencyForReplayCommitsOrFetch = consistencyLevel == ConsistencyLevel.LOCAL_SERIAL
@@ -2077,6 +2082,7 @@ public class StorageProxy implements StorageProxyMBean
             readMetricsForLevel(consistencyLevel).failures.mark();
             StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).readMetrics.failures.mark();
             StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).casReadMetrics.failures.mark();
+            throwOverloadExceptionIfNecessary(e.failureReasonByEndpoint);
             throw e;
         }
         finally
@@ -2105,7 +2111,7 @@ public class StorageProxy implements StorageProxyMBean
         try
         {
             for (SinglePartitionReadCommand cmd : group.queries) {
-                CassandraResourceUtilization.instance.throttleUserTrafficWithThrow(group.queries.get(0).metadata().keyspace, true);
+                CassandraResourceUtilization.instance.throttle(group.queries.get(0).metadata().keyspace, true);
                 DatabaseDescriptor.getRequestThrottler().maybeThrottleRead(cmd, consistencyLevel);
             }
             PartitionIterator result = fetchRows(group.queries, consistencyLevel, requestTime);
@@ -2160,6 +2166,7 @@ public class StorageProxy implements StorageProxyMBean
             readMetrics.failures.mark();
             readMetricsForLevel(consistencyLevel).failures.mark();
             StorageProxyMetricsManager.getMetrics(group.queries.get(0).metadata().keyspace, consistencyLevel).readMetrics.failures.mark();
+            throwOverloadExceptionIfNecessary(e.failureReasonByEndpoint);
             throw e;
         }
         finally
@@ -2358,6 +2365,11 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     handler.onFailure(FBUtilities.getBroadcastAddressAndPort(), RequestFailureReason.READ_TOO_MANY_TOMBSTONES);
                     logger.error(t.getMessage());
+                }
+                else if (t instanceof OverloadedException)
+                {
+                     handler.onFailure(FBUtilities.getBroadcastAddressAndPort(), RequestFailureReason.TRAFFIC_THROTTLED);
+                     logger.error(t.getMessage());
                 }
                 else
                 {
@@ -3340,5 +3352,20 @@ public class StorageProxy implements StorageProxyMBean
     public boolean getPaxosCoordinatorLockingDisabled()
     {
         return PaxosState.getDisableCoordinatorLocking();
+    }
+
+    public static void throwOverloadExceptionIfNecessary(Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint) throws OverloadedException
+    {
+        // When any exception occurs as part of the internal requests (peer requests), then those exceptions are not
+        // directly throws. Instead, "failureReasonByEndpoint" is updated with the exception's originating IP address and reason.
+        // If failure happens on a peer node due to "throttling", then we should throw an OverloadedException instead of a generic
+        // WriteFailureException
+        for (Map.Entry<InetAddressAndPort, RequestFailureReason> failureReasonEndpoint : failureReasonByEndpoint.entrySet())
+        {
+            if (failureReasonEndpoint.getValue() == RequestFailureReason.TRAFFIC_THROTTLED)
+            {
+                throw new OverloadedException(String.format(THROW_MESSAGE, failureReasonEndpoint.getKey().getHostAddress(false)));
+            }
+        }
     }
 }

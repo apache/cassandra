@@ -245,7 +245,7 @@ public class Message<T>
     }
 
     @VisibleForTesting
-    static <T> Message<T> outWithParam(long id, Verb verb, T payload, ParamType paramType, Object paramValue)
+    public static <T> Message<T> outWithParam(long id, Verb verb, T payload, ParamType paramType, Object paramValue)
     {
         return outWithParam(id, verb, 0, payload, paramType, paramValue);
     }

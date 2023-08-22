@@ -17,10 +17,17 @@
  */
 package org.apache.cassandra.db;
 
+import java.util.concurrent.CompletionException;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.concurrent.Future;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.ENTRY_OVERHEAD_SIZE;
@@ -28,6 +35,7 @@ import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 public class MutationVerbHandler extends AbstractMutationVerbHandler<Mutation>
 {
+    private static final Logger logger = LoggerFactory.getLogger(MutationVerbHandler.class);
     public static final MutationVerbHandler instance = new MutationVerbHandler();
 
     private void respond(Message<?> respondTo, InetAddressAndPort respondToAddress)
@@ -36,13 +44,13 @@ public class MutationVerbHandler extends AbstractMutationVerbHandler<Mutation>
         MessagingService.instance().send(respondTo.emptyResponse(), respondToAddress);
     }
 
-    private void failed()
+    private void failed(String reason)
     {
-        Tracing.trace("Payload application resulted in WriteTimeout, not replying");
+        Tracing.trace(String.format("Payload application resulted in %s, not replying", reason));
     }
 
     @Override
-    public void doVerb(Message<Mutation> message)
+    public void doVerb(Message<Mutation> message) throws OverloadedException
     {
         if (approxTime.now() > message.expiresAtNanos())
         {
@@ -65,14 +73,27 @@ public class MutationVerbHandler extends AbstractMutationVerbHandler<Mutation>
         }
         catch (WriteTimeoutException wto)
         {
-            failed();
+            failed("WriteTimeout");
         }
     }
 
     @Override
     protected void applyMutation(Message<Mutation> message, InetAddressAndPort respondToAddress)
     {
-        message.payload.applyFuture().addCallback(o -> respond(message, respondToAddress), wto -> failed());
+        Future f = message.payload.applyFuture().addCallback(o -> respond(message, respondToAddress), wto -> failed("WriteTimeout"));
+        try
+        {
+            // retrieve the future to see if there was any exception
+            f.get();
+        }
+        catch (Exception e)
+        {
+            if (e.getCause() != null && e.getCause() instanceof OverloadedException)
+            {
+                logger.error("Exception in MutationVerbHandler ", e);
+                throw (OverloadedException) e.getCause();
+            }
+        }
     }
 
     private static void forwardToLocalNodes(Message<Mutation> originalMessage, ForwardingInfo forwardTo)

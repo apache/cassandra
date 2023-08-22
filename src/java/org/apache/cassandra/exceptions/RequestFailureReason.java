@@ -37,7 +37,8 @@ public enum RequestFailureReason
     TIMEOUT                  (2),
     INCOMPATIBLE_SCHEMA      (3),
     READ_SIZE                (4),
-    NODE_DOWN                (5);
+    NODE_DOWN                (5),
+    TRAFFIC_THROTTLED        (6);
 
     public static final Serializer serializer = new Serializer();
 
@@ -86,6 +87,9 @@ public enum RequestFailureReason
 
         if (t instanceof IncompatibleSchemaException)
             return INCOMPATIBLE_SCHEMA;
+
+        if (t instanceof OverloadedException)
+            return TRAFFIC_THROTTLED;
 
         return UNKNOWN;
     }
