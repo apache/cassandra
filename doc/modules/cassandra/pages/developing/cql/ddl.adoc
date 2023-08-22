@@ -790,7 +790,7 @@ If the table does not exist, the statement will return an error, unless
 `IF EXISTS` is used, when the operation is a no-op.
 
 [[truncate-statement]]
-== TRUNCATE
+== TRUNCATE TABLE
 
 A table can be truncated using the `TRUNCATE` statement:
 

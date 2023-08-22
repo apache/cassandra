@@ -1,0 +1,21 @@
+= Secondary indexes (2i) overview
+:description: Secondary indexes (2i).
+
+Secondary indexes (2i) allow you create one or multiple secondary indexes on the same database table, with each 2i based on any column.
+
+*Exception:* There is no need to define an 2i based on a single-column partition key.
+
+xref:developing/cql/indexing/2i/2i-concepts.adoc[Concepts]::
+How 2i works and when to use this type of indexing.
+
+// LLP: Should add a quickstart for 2i here.
+// xref:getting-started/2i-quickstart.adoc[Quick start]::
+// Quickstart for creating and using secondary indexes (2i).
+
+xref:developing/cql/indexing/2i/2i-working-with.adoc[Working with 2i]::
+Create, check, alter, drop, and query secondary indexes (2i).
+
+xref:developing/cql/indexing/2i/operations/2i-build.adoc[2i operations]::
+Rebuilding and maintaining 2i indexes.
+
+*Reference:* xref:cassandra:reference/cql-commands/create-index.adoc[CREATE INDEX], xref:cassandra:reference/cql-commands/drop-index.adoc[DROP INDEX]

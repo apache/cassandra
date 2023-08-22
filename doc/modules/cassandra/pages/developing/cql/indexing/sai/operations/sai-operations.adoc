@@ -1,0 +1,5 @@
+= SAI operations
+:description: Describes how to configure and monitor SAI operations.
+
+* xref:cassandra:developing/cql/indexing/sai/operations/configuring.adoc[Configuring SAI operations]
+* xref:cassandra:developing/cql/indexing/sai/operations/monitoring.adoc[Monitoring SAI operations]

@@ -1,0 +1,30 @@
+= Query vector data with CQL
+
+To query data using Vector Search, use a `SELECT` query: 
+
+[tabs]
+====
+CQL::
++
+--
+[source,cql]
+----
+include::cassandra:example$CQL/sai/select-vsearch-cycling.cql[]
+----
+--
+Result::
++
+--
+[source,cql]
+----
+include::cassandra:example$RESULTS/sai/select-vsearch-cycling.result[]
+----
+--
+====
+
+[NOTE]
+====
+The limit has to be 1,000 or fewer.
+====
+
+Scrolling to the right on the results shows the comments from the table that most closely matched the embeddings used for the query.

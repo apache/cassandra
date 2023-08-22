@@ -1,0 +1,27 @@
+= Storage-Attached Indexing (SAI) Overview
+:navtitle: SAI Overview
+:description: Storage-attached indexes (SAI).
+
+Storage-Attached Indexing (SAI) lets you create one or multiple secondary indexes on the same database table, with each SAI index based on any single column.
+
+*Exception:* There is no need to define an SAI index based on a single-column partition key.
+
+xref:cassandra:developing/cql/indexing/sai/sai-concepts.adoc[SAI concepts]::
+Use Storage-Attached Indexing (SAI) to create multiple secondary indexes on the same table.
+
+xref:cassandra:getting-started/sai-quickstart.adoc[SAI quickstart]::
+Follow the steps to get started quickly with SAI.
+
+xref:cassandra:developing/cql/indexing/sai/sai-faq.adoc[SAI FAQs]::
+Frequently asked questions about SAI.
+
+xref:developing/cql/indexing/sai/sai-working-with.adoc[Working with SAI]::
+Create, check, alter, drop, and query SAI.
+
+xref:developing/cql/indexing/sai/operations/sai-operations.adoc[SAI operations]::
+Configuring and monitoring SAI indexes.
+
+xref:cassandra:developing/cql/indexing/sai/sai-query.adoc[Querying with SAI]::
+Understand the columns on which you can define SAI indexes and run queries.
+
+*Reference:* xref:cassandra:reference/cql-commands/create-custom-index.adoc[CREATE CUSTOM INDEX], xref:cassandra:reference/cql-commands/drop-index.adoc[DROP INDEX]

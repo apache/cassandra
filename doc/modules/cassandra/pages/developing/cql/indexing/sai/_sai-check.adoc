@@ -1,0 +1,25 @@
+= Check Storage-attached index (SAI)) existence
+:navtitle: Check SAI
+
+Verify that an index exists:
+
+[tabs]
+====
+CQL::
++
+--
+[source,language-bash]
+----
+include::cassandra:example$CQL/sai/sai-check.cql[]
+----
+--
+
+Result::
++
+--
+[source,console]
+----
+include::cassandra:example$RESULTS/sai/sai-check.result[]
+----
+--
+====

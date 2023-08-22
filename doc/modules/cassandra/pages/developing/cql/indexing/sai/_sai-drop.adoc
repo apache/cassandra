@@ -1,0 +1,13 @@
+= Drop SAI index
+:description: Drop an SAI index for a CQL table.
+
+SAI indexes can be dropped (deleted). 
+
+To drop an SAI index:
+
+[source, language-cql]
+----
+include::cassandra:example$CQL/sai/drop-sai-index.cql[]
+----
+
+This command does not return a result.

@@ -1,4 +1,4 @@
-= Defining Application Queries
+= Defining application queries
 
 Let's try the query-first approach to start designing the data model for
 a hotel application. The user interface design for the application is

@@ -1,0 +1,4 @@
+= Alter a secondary index (2i)
+
+Secondary indexes cannot be altered. 
+If you wish to change a 2i, you need to xref:developing/cql/indexing/2i/2i-drop.adoc[drop the index] and xref:developing/cql/indexing/2i/2i-create.adoc[create a new one].

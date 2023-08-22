@@ -1,0 +1,1 @@
+SELECT * FROM cyclist_teams WHERE teams CONTAINS 'Team Garmin - Cervelo';

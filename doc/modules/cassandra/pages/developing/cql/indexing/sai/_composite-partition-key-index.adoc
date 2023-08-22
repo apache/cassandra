@@ -1,0 +1,65 @@
+= Index match on a composite partition key column
+
+This example uses the following table and indexes:
+
+[source,sql]
+----
+include::cassandra:example$CQL/sai/rank_by_year_and_name-table.cql[tag=compositepk]
+include::cassandra:example$CQL/sai/index-sai-composite-partition-key-index-match.cql[]
+----
+
+Composite partition keys have a partition defined by multiple columns in a table.
+Normally, you would need to specify all the columns in the partition key to query the table with a `WHERE` clause.
+However, an SAI index makes it possible to define an index using a single column in the table's composite partition key.
+You can create an SAI index on each column in the composite partition key, if you need to query based on just one column.
+
+SAI indexes also allow you to query tables without using the inefficient `ALLOW FILTERING` directive. 
+The `ALLOW FILTERING` directive requires scanning all the partitions in a table, leading to poor performance.
+
+The `race_year` and `race_name` columns comprise the composite partition key for the `cycling.rank_by_year_and_name` table.
+
+Query for a match on the column `race_name`:
+
+[tabs]
+====
+Query::
++
+--
+[source, console]
+----
+include::cassandra:example$CQL/sai/index-sai-select-composite-partition-key-race-name.cql[]
+----
+--
+
+Result::
++
+--
+[source,results]
+----
+include::cassandra:example$RESULTS/sai/index-sai-select-composite-partition-key-race-name.result[]
+----
+--
+====
+
+Query for a match on the column `race_year`:
+
+[tabs]
+====
+Query::
++
+--
+[source, console]
+----
+include::cassandra:example$CQL/sai/index-sai-select-composite-partition-key-race-year.cql[]
+----
+--
+
+Result::
++
+--
+[source,results]
+----
+include::cassandra:example$RESULTS/sai/index-sai-select-composite-partition-key-race-year.result[]
+----
+--
+====

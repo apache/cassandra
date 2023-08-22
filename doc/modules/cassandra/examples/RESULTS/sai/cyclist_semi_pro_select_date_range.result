@@ -1,0 +1,16 @@
+SOURCE '0_create_keyspace.cql';
+
+// SELECT * FROM cycling.cyclist_semi_pro WHERE registration > '2010-01-01' AND registration < '2015-12-31' LIMIT 10;
+
+
+// tag::cyclistSelectDateRangeResults[]
+ id | affiliation         | age | country | firstname | lastname | registration
+----+---------------------+-----+---------+-----------+----------+--------------
+  5 |       Como Velocità |  24 |     ITA |     Irene |  Cantona |   2012-07-22
+ 16 | CU Alums Crankworkz |  28 |     USA |     Jenny |   Hamler |   2012-07-22
+ 15 |      Exeter Academy |  27 |     USA |    Thomas |   Fulton |   2012-12-15
+ 20 |     London Cyclists |  18 |     GBR |    Leslie |     Boyd |   2012-12-15
+  9 |       Normandy Club |  24 |     FRA |    Richie |  Draxler |   2011-02-26
+
+(5 rows)
+// end::cyclistSelectDateRangeResults[]

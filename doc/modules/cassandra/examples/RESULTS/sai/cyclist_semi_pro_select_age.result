@@ -1,0 +1,19 @@
+SOURCE '0_create_keyspace.cql';
+
+// SELECT * FROM cycling.cyclist_semi_pro WHERE age <= 23;
+
+// tag::cyclistSelectAgeResults[]
+ id | affiliation        | age | country | firstname | lastname | registration
+----+--------------------+-----+---------+-----------+----------+--------------
+ 10 |  Chamonix Hauteurs |  22 |     FRA |     Agnes |   Cavani |   2020-01-02
+ 11 |  Chamonix Hauteurs |  19 |     FRA |     Pablo | Verratti |   2006-05-15
+  1 |         Recco Club |  22 |     ITA |    Carlos |  Perotti |   2020-01-12
+  8 |     Nice Cavaliers |  19 |     FRA |      Theo |   Bernat |   2007-05-15
+  2 |   Venezia Velocità |  19 |     ITA |   Giovani |     Pasi |   2016-05-15
+  4 | Portofino Ciclisti |  19 |     ITA |      Mark |  Pastore |   2017-06-16
+ 20 |    London Cyclists |  18 |     GBR |    Leslie |     Boyd |   2012-12-15
+  7 |    Paris Cyclistes |  21 |     FRA |    Marcel |    Silva |   2018-04-28
+  6 |  Bellagio Ciclisti |  23 |     ITA |      Hugo |  Herrera |   2004-02-12
+
+(9 rows)
+// end::cyclistSelectAgeResults[]

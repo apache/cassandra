@@ -1,0 +1,6 @@
+By default in {product}:
+
+* The maximum number of SAI indexes per table is 10.
+The limit is set by `sai_indexes_per_table_failure_threshold` in cassandra.yaml.
+* The maximum number of SAI indexes in the entire cluster is 100, as set by `sai_indexes_total_failure_threshold` in cassandra.yaml.
+// See the https://docs.datastax.com/en/dse/6.8/dse-admin/datastax_enterprise/config/configCassandra_yaml.html#configCassandra_yaml__guardrailsYaml[guardrails] section of the cassandra.yaml reference topic.

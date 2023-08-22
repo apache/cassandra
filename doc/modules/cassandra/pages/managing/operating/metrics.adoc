@@ -1,15 +1,13 @@
 = Monitoring
 
-Metrics in Cassandra are managed using the
-http://metrics.dropwizard.io[Dropwizard Metrics] library. These metrics
-can be queried via JMX or pushed to external monitoring systems using a
-number of
-http://metrics.dropwizard.io/3.1.0/getting-started/#other-reporting[built
+Metrics in Cassandra are managed using the http://metrics.dropwizard.io[Dropwizard Metrics] library. 
+These metrics can be queried via JMX or pushed to external monitoring systems using a
+number of http://metrics.dropwizard.io/3.1.0/getting-started/#other-reporting[built
 in] and http://metrics.dropwizard.io/3.1.0/manual/third-party/[third
 party] reporter plugins.
 
-Metrics are collected for a single node. It's up to the operator to use
-an external monitoring system to aggregate them.
+Metrics are collected for a single node. 
+It's up to the operator to use an external monitoring system to aggregate them.
 
 == Metric Types
 

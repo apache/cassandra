@@ -1,0 +1,10 @@
+== Create vector search index
+
+Create the custom index called `comment_vector` with Storage Attached Indexing (SAI):
+
+[source,cql]
+----
+include::cassandra:example$CQL/create-vector-index-cycling.cql[]
+----
+
+For more about SAI, see the xref:developing:indexing/sai/sai-overview.adoc[Storage Attached Index] documentation.

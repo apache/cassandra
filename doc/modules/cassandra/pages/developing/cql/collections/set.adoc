@@ -1,0 +1,38 @@
+= `set` column
+:description: Use the set data type to store unordered multiple items.
+
+A `set` consists of a unordered group of elements with unique values.
+Duplicate values will not be stored distinctly.
+The values of a `set` are stored unordered, but will return the elements in sorted order when queried.
+Use the `set` data type to store data that has a many-to-one relationship with another column.
+
+== Prerequisite
+
+* xref:developing/cql/keyspace-check.adoc[Keyspace] must exist
+
+In the following example, a `set` called `teams` stores all the teams that a cyclist has been a member of during their career.
+The table is `cyclist_career_teams`.
+Each team listed in the `set` will have a `text` data type.
+
+The following example shows the table and the initial rows.
+
+[tabs]
+====
+CQL::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/cyclist_career_teams-table.cql[tag=setColumn]
+----
+--
+
+Result::
++
+--
+[source,results]
+----
+include::cassandra:example$RESULTS/sai/select_all_from_cyclist_career_teams.result[]
+----
+--
+====
