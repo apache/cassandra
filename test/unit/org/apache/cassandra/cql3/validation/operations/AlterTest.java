@@ -294,11 +294,6 @@ public class AlterTest extends CQLTester
     {
         // Node 1 is added automatically during setup, add another node in a different dc/rack
         ClusterMetadataTestHelper.register(4, DATA_CENTER_REMOTE, RACK1);
-                /*
-        // todo (rebase) we also need these
-        metadata.updateNormalToken(Util.token("A"), local);
-        metadata.updateNormalToken(Util.token("B"), remote);
-         */
         // With two datacenters we should respect anything passed in as a manual override
         String ks1 = createKeyspace("CREATE KEYSPACE %s WITH replication={ 'class' : 'NetworkTopologyStrategy', 'replication_factor' : 1, '" + DATA_CENTER_REMOTE + "': 3}");
 

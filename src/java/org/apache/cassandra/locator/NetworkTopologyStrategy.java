@@ -383,17 +383,15 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
     {
         if (!SchemaConstants.isSystemKeyspace(keyspaceName))
         {
-            // note: this includes all registered nodes, not only joined ones
-            Multimap<String, InetAddressAndPort> dcsNodes = HashMultimap.create();
             Directory directory = ClusterMetadata.current().directory;
-            directory.peerIds().forEach(id -> dcsNodes.put(directory.location(id).datacenter, directory.endpoint(id)));
+            Multimap<String, InetAddressAndPort> dcsNodes = directory.allDatacenterEndpoints();
             for (Entry<String, String> e : this.configOptions.entrySet())
             {
                 String dc = e.getKey();
                 ReplicationFactor rf = getReplicationFactor(dc);
                 Guardrails.minimumReplicationFactor.guard(rf.fullReplicas, keyspaceName, false, state);
                 Guardrails.maximumReplicationFactor.guard(rf.fullReplicas, keyspaceName, false, state);
-                int nodeCount = dcsNodes.get(dc).size();
+                int nodeCount = dcsNodes.containsKey(dc) ? dcsNodes.get(dc).size() : 0;
                 // nodeCount==0 on many tests
                 if (rf.fullReplicas > nodeCount && nodeCount != 0)
                 {

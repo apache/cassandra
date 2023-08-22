@@ -56,6 +56,7 @@ import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
+import org.apache.cassandra.schema.MemtableParams;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.schema.ViewMetadata;
@@ -522,7 +523,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         public void validate(ClientState state)
         {
             super.validate(state);
-
+            // If a memtable configuration is specified, validate it against config
+            if (attrs.hasOption(TableParams.Option.MEMTABLE))
+                MemtableParams.get(attrs.getString(TableParams.Option.MEMTABLE.toString()));
             Guardrails.tableProperties.guard(attrs.updatedProperties(), attrs::removeProperty, state);
 
             validateDefaultTimeToLive(attrs.asNewTableParams());

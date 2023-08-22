@@ -129,6 +129,10 @@ public final class CreateTableStatement extends AlterSchemaStatement
     {
         super.validate(state);
 
+        // If a memtable configuration is specified, validate it against config
+        if (attrs.hasOption(TableParams.Option.MEMTABLE))
+            MemtableParams.get(attrs.getString(TableParams.Option.MEMTABLE.toString()));
+
         // Guardrail on table properties
         Guardrails.tableProperties.guard(attrs.updatedProperties(), attrs::removeProperty, state);
 

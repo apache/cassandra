@@ -127,7 +127,19 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
             throw ire("Virtual keyspace '%s' is not user-modifiable", keyspaceName);
 
         validateKeyspaceName();
-        Keyspaces before = ClusterMetadata.current().schema.getKeyspaces();
+        ClusterMetadata metadata = ClusterMetadata.current();
+        Keyspaces before = metadata.schema.getKeyspaces();
+
+        // Perform a 'dry-run' attempt to apply the transformation locally before submitting to the CMS. This can save a
+        // round trip to the CMS for things syntax errors, but also fail fast for things like configuration errors.
+        // Such failures may be dependent on the specific node's config (for things like guardrails/memtable
+        // config/etc), but executing a schema change which has already been committed by the CMS should always succeed
+        // or else the node cannot make progress on any subsequent metadata changes. For this reason, validation errors
+        // during execution are trapped and the node will fall back to safe default config wherever possible. Attempting
+        // to apply the SchemaTransformation at this point will catch any such error which occurs locally before
+        // submission to the CMS, but it can't guarantee that the statement can be applied as-is on every node in the
+        // cluster, as config can be heterogenous falling back to safe defaults may occur on some nodes.
+        apply(metadata, before);
 
         ClusterMetadata result = Schema.instance.submit(this);
 

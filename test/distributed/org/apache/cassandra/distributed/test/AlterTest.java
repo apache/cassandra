@@ -98,17 +98,6 @@ public class AlterTest extends TestBaseImpl
             IInstanceConfig config = cluster.newInstanceConfig();
             IInvokableInstance gossippingOnlyMember = cluster.bootstrap(config);
             withProperty(JOIN_RING, false, () -> gossippingOnlyMember.startup(cluster));
-
-            int attempts = 0;
-            // it takes some time the underlying structure is populated otherwise the test is flaky
-            // todo (rebase)
-//            while (((IInvokableInstance) (cluster.get(2))).callOnInstance(() -> StorageService.instance.getTokenMetadata().getAllMembers().isEmpty()))
-//            {
-//                if (attempts++ > 30)
-//                    throw new RuntimeException("timeouted on waiting for a member");
-//                Thread.sleep(1000);
-//            }
-
             for (String operation : new String[] { "CREATE", "ALTER" })
             {
                 SimpleQueryResult result = cluster.coordinator(2)
