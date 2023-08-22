@@ -1,50 +1,29 @@
-= Support for Java 11
-
-In the new Java release cadence a new Java version is made available
-every six months. The more frequent release cycle is favored as it
-brings new Java features to the developers as and when they are
-developed without the wait that the earlier 3 year release model
-incurred. Not every Java version is a Long Term Support (LTS) version.
-After Java 8 the next LTS version is Java 11. Java 9, 10, 12 and 13 are
-all non-LTS versions.
-
-One of the objectives of the Apache Cassandra 4.0 version is to support
-the recent LTS Java versions 8 and 11
-(https://issues.apache.org/jira/browse/CASSANDRA-9608[CASSANDRA-9608]).
-Java 8 and Java 11 may be used to build and run Apache Cassandra 4.0. Effective Cassandra
-4.0.2 there is full Java 11 support, it is not experimental anymore.
-
-== Support Matrix
+= Support for Java
 
 The support matrix for the Java versions for compiling and running
-Apache Cassandra 4.0 is detailed in Table 1. The build version is along
+{product} is detailed in Table 1. The build version is along
 the vertical axis and the run version is along the horizontal axis.
 
-Table 1 : Support Matrix for Java
-
+.Support Matrix for Java
 [width="68%",cols="34%,30%,36%",]
 |===
-| |Java 8 (Run) |Java 11 (Run)
-|Java 8 (Build) |Supported |Supported
-|Java 11(Build) |Not Supported |Experimental
+| |Java 11 (Run) |Java 17 (Run)
+|Java 11 (Build) |Supported |Supported
+|Java 17(Build) |Not Supported |Experimental
 |===
 
-Apache 4.0 source code built with Java 11 cannot be run with
-Java 8.
+Apache 4.0 source code built with Java 17 cannot be run with Java 11.
+All binary releases are built with Java 11.
 
-All binary releases are built with Java 8.
+== Using Java 11 to Build
 
-Next, we shall discuss using each of Java 8 and 11 to build and
-run Apache Cassandra 4.0.
+To start with, install Java 11. 
+As an example, for installing Java 11 on RedHat Linux the command is as follows:
 
-== Using Java 8 to Build
-
-To start with, install Java 8. As an example, for installing Java 8 on
-RedHat Linux the command is as follows:
-
-....
+[source, console]
+----
 $ sudo yum install java-1.8.0-openjdk-devel
-....
+----
 
 Set the environment variables `JAVA_HOME` and `PATH`.
 
@@ -185,7 +164,8 @@ The Java 11 built Apache Cassandra 4.0 source code may be run with Java
 11 only. If a Java 11 built code is run with Java 8 the following error
 message gets output.
 
-....
+[source, shell]
+----
 # ssh -i cassandra.pem ec2-user@ec2-3-85-85-75.compute-1.amazonaws.com
 Last login: Wed Jul 31 20:47:26 2019 from 75.155.255.51
 $ echo $JAVA_HOME
@@ -202,5 +182,4 @@ class file versions up to 52.0
   at java.lang.ClassLoader.defineClass(ClassLoader.java:763)
   at ...
 ...
-....
-
+----

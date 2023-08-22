@@ -1,0 +1,38 @@
+= User-defined type
+
+SAI can index either a single field of a user-defined type (UDT) or a list of UDTs.
+This example shows how to index a list of UDTs.
+
+This example uses the following user-defined type (UDT), table and index:
+
+[source,sql]
+----
+include::cassandra:example$CQL/sai/race-type.cql[tag=racetype]
+include::cassandra:example$CQL/sai/cyclist_races-table.cql[tag=frozenlist]
+include::cassandra:example$CQL/sai/index-sai-udt-match.cql[]
+----
+
+An index is created on the list of UDTs column `races` in the `cycling.cyclist_races` table.
+
+Query with `CONTAINS` from the list `races` column:
+
+[tabs]
+====
+CQL::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/index-sai-select-udt-match.cql[]
+----
+--
+
+Result::
++
+--
+[source,console]
+----
+include::cassandra:example$RESULTS/sai/index-sai-select-udt-match.result[]
+----
+--
+====

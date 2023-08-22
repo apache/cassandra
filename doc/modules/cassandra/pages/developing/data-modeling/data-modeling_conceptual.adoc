@@ -1,4 +1,4 @@
-= Conceptual Data Modeling
+= Conceptual data modeling
 
 First, let’s create a simple domain model that is easy to understand in
 the relational world, and then see how you might map it from a

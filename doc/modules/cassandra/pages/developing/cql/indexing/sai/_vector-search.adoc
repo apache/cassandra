@@ -1,0 +1,11 @@
+= Vector search
+
+This example uses the following table and index:
+
+[source, sql]
+----
+include::cassandra:example$CQL/sai/create-vector-table-cycling.cql[tag=createvstable]
+include::cassandra:example$CQL/sai/create-vector-index-cycling.cql[]
+----
+
+include::cassandra:partial$sai/query-vector-data.adoc[leveloffset=+1]

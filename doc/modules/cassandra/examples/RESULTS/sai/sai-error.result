@@ -1,0 +1,1 @@
+InvalidRequest: Error from server: code=2200 [Invalid query] message="Cannot create secondary index on the only partition key column id"

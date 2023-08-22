@@ -1,0 +1,45 @@
+= Creating collections
+:description: Collection types provide a way to group and store data together in a table column.
+
+CQL defines the following collection data types:
+
+* xref:developing/cql/collections/set.adoc[set: store unordered items]
+* xref:developing/cql/collections/list.adoc[list: store ordered items]
+* xref:developing/cql/collections/map.adoc[map: store key-value pairs]
+
+Collections are intended for insertion and retrieval as a collection. 
+Thus, {product} reads collections in their entirety, and can affect retrieval performance.
+A good rule of thumb is that sets are more performant than lists, so use a set if you can.
+Collections should be smaller than the following maximum size to prevent querying delays.
+
+// DISCUSS FROZEN VS NON-FROZEN!!!
+
+Guard rails for non-frozen collections:
+
+* No more than 2 billion items in a collection.
+* Maximum size of an item in a `set` is 65,535 bytes.
+* Maximum size of an item in a `list` or `map` is 2 GB.
+* Maximum number of keys in a `map` is 65,535.
+* Lists can incur a read-before-write operation for some insertions.
+
+[IMPORTANT]
+====
+Collections are not paged internally.
+====
+
+Collections cannot be _sliced_;
+
+
+[NOTE]
+====
+The limits specified for collections are for non-frozen collections.
+====
+
+// You can xref:developing/cql/deleting/data-expire-with-ttl.adoc[expire each element] of a collection by setting an individual time-to-live (TTL) property.
+
+// Also, see xref:reference:collection-type.adoc#using-frozen-in-collection[Using frozen in a collection].
+
+'''
+
+// xref:reference:collection-type.adoc[Freezing collection types] ::
+// A collection column is declared using the collection type, followed by another type.

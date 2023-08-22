@@ -1,4 +1,4 @@
-= Evaluating and Refining Data Models
+= Evaluating and refining data models
 :stem: latexmath
 
 Once you've created a physical model, there are some steps you'll want
