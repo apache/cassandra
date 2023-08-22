@@ -687,7 +687,7 @@ public class Config
 
     public Integer auto_repair_sstable_upper_threshold = 10000;
 
-    public String auto_repair_ignore_keyspaces = "system.*|.*staging.*|.*test.*|health|pingless";
+    public String auto_repair_ignore_keyspaces = "\\b(?!system_auth\\b)system\\w+|.*staging.*|.*test.*|health|pingless";
 
     public String auto_repair_only_keyspaces = "";
 

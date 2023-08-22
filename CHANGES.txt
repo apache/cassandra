@@ -176,6 +176,8 @@ Merged from 3.0:
  * Remove unused suppressions (CASSANDRA-18724)
 
 Unreleased
+4.0.6.7
+ * [SO-22674] Bug fix: Do not ignore system_auth keyspace for auto repair
  * [SO-23070] Add metric for bulk load
  * [SO-22847] Add ability to disable tracing on server side
  * [SO-22598] Bug fix for system_throttle and system_monitor keyspaces so table id won't change
