@@ -55,6 +55,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaTestUtil;
 import org.apache.cassandra.service.CacheService;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.reads.range.TokenUpdater;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -82,6 +83,7 @@ public class RowCacheTest
                                     SchemaLoader.standardCFMD(KEYSPACE_CACHED, CF_CACHED).caching(CachingParams.CACHE_EVERYTHING),
                                     SchemaLoader.standardCFMD(KEYSPACE_CACHED, CF_CACHEDINT, 1, IntegerType.instance)
                                                 .caching(new CachingParams(true, 100)));
+        StorageService.instance.initServer();
     }
 
     @AfterClass

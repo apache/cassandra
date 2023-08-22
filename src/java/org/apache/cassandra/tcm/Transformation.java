@@ -192,6 +192,8 @@ public interface Transformation
 
         STARTUP(() -> Startup.serializer),
 
+        ADD_ACCORD_KEYSPACE(() -> AddAccordKeyspace.serializer),
+
         CUSTOM(() -> CustomTransformation.serializer);
 
         private final Supplier<AsymmetricMetadataSerializer<Transformation, ? extends Transformation>> serializer;

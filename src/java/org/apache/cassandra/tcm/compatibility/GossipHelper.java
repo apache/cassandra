@@ -64,6 +64,7 @@ import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
+import org.apache.cassandra.tcm.ownership.AccordKeyspaces;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.TokenMap;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
@@ -282,6 +283,7 @@ public class GossipHelper
                                    Directory.EMPTY,
                                    new TokenMap(DatabaseDescriptor.getPartitioner()),
                                    DataPlacements.empty(),
+                                   AccordKeyspaces.EMPTY,
                                    LockedRanges.EMPTY,
                                    InProgressSequences.EMPTY,
                                    Collections.emptyMap());
@@ -348,6 +350,7 @@ public class GossipHelper
                                                                       directory,
                                                                       tokenMap,
                                                                       DataPlacements.empty(),
+                                                                      AccordKeyspaces.EMPTY,
                                                                       LockedRanges.EMPTY,
                                                                       InProgressSequences.EMPTY,
                                                                       extensions);
@@ -359,6 +362,7 @@ public class GossipHelper
                                    directory,
                                    tokenMap,
                                    new UniformRangePlacement().calculatePlacements(Epoch.UPGRADE_GOSSIP, forPlacementCalculation, schema.getKeyspaces()),
+                                   AccordKeyspaces.EMPTY,
                                    LockedRanges.EMPTY,
                                    InProgressSequences.EMPTY,
                                    extensions);
