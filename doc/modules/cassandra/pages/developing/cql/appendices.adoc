@@ -8,7 +8,7 @@ Reserved keywords cannot be used as identifier, they are truly reserved
 for the language (but one can enclose a reserved keyword by
 double-quotes to use it as an identifier). Non-reserved keywords however
 only have a specific meaning in certain context but can used as
-identifier otherwise. The only _raison d’être_ of these non-reserved
+identifier otherwise. The only _raison d'être_ of these non-reserved
 keywords is convenience: some keyword are non-reserved when it was
 always easy for the parser to decide whether they were used as keywords
 or not.

@@ -1,4 +1,4 @@
-= Cassandra Data Modeling Tools
+= Cassandra data modeling tools
 
 There are several tools available to help you design and manage your
 Cassandra schema and build queries.

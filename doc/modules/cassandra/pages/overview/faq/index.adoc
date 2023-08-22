@@ -1,4 +1,5 @@
 = Frequently Asked Questions
+:navtitle: FAQ
 
 [[why-cant-list-all]]
 == Why can't I set `listen_address` to listen on 0.0.0.0 (all my addresses)?

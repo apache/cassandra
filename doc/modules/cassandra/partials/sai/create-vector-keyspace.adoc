@@ -1,0 +1,8 @@
+== Create vector search keyspace 
+
+Create a new vector search keyspace called `cycling`:
+
+[source,cql]
+----
+include::cassandra:getting-started/example$CQL/create-vector-keyspace-cycling.cql[]
+----

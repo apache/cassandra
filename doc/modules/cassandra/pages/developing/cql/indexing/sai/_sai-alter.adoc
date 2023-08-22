@@ -1,0 +1,20 @@
+= Alter SAI index
+:description: Discuss why an SAI index for a CQL table cannot be modified.
+
+SAI indexes cannot be altered. 
+If you need to modify an SAI index, you will need to drop the current index, create a new index, and rebuild the cycling.
+
+. Drop index
++
+[source, language-cql]
+----
+include::cassandra:example$CQL/sai/drop-sai-index.cql[]
+----
+
+. Create new index  
++ 
+[source, language-cql]
+----
+include::cassandra:example$CQL/sai/cyclist_semi_pro_sai_indices.cql[tag=createQuickStartIndices]
+----
+
