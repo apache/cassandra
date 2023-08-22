@@ -23,9 +23,11 @@ import java.util.HashSet;
 import java.util.Set;
 
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
@@ -70,6 +72,12 @@ public class Ec2SnitchTest
     public static void tearDown()
     {
         StorageService.instance.stopClient();
+    }
+
+    @Before
+    public void resetCMS()
+    {
+        ServerTestUtils.resetCMS();
     }
 
     @Test

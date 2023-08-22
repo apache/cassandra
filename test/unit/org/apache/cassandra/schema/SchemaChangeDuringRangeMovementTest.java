@@ -58,8 +58,8 @@ public class SchemaChangeDuringRangeMovementTest extends CQLTester
                                       "CREATE OR REPLACE FUNCTION %s(state double, val double) " +
                                       "RETURNS NULL ON NULL INPUT " +
                                       "RETURNS double " +
-                                      "LANGUAGE javascript " +
-                                      "AS '\"string\";';");
+                                      "LANGUAGE java " +
+                                      "AS 'return 0.0;';");
 
             String a = createAggregate(KEYSPACE,
                                        "double",

@@ -27,11 +27,12 @@ import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
-import org.apache.cassandra.cql3.statements.schema.AlterSchemaStatement;
+import org.apache.cassandra.cql3.statements.schema.CreateKeyspaceStatement;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.test.log.FuzzTestBase;
-import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.schema.Keyspaces;
+import org.apache.cassandra.tcm.ClusterMetadata;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
 
@@ -57,8 +58,8 @@ public class StopProcessingExceptionTest extends FuzzTestBase
         static void install(ClassLoader cl, int nodeNumber)
         {
             if (nodeNumber == 2)
-                new ByteBuddy().rebase(AlterSchemaStatement.class)
-                               .method(named("rejectReplicationStrategy"))
+                new ByteBuddy().rebase(CreateKeyspaceStatement.class)
+                               .method(named("apply"))
                                .intercept(MethodDelegation.to(BBFailHelper.class))
                                .make()
                                .load(cl, ClassLoadingStrategy.Default.INJECTION);
@@ -66,10 +67,10 @@ public class StopProcessingExceptionTest extends FuzzTestBase
 
         public static AtomicBoolean enabled = new AtomicBoolean(false);
 
-        public static boolean rejectReplicationStrategy(String replicationStrategyClass, @SuperCall Callable<Boolean> zuper) throws Exception
+        public static Keyspaces apply(ClusterMetadata metadata, Keyspaces schema, @SuperCall Callable<Keyspaces> zuper) throws Exception
         {
-            if (replicationStrategyClass.toLowerCase().contains(SimpleStrategy.class.getSimpleName().toLowerCase()) && enabled.get())
-                return true;
+            if (enabled.get())
+                throw new RuntimeException();
 
             return zuper.call();
         }

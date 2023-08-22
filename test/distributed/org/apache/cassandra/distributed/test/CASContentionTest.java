@@ -20,6 +20,7 @@ package org.apache.cassandra.distributed.test;
 
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.service.paxos.ContentionStrategy;
@@ -42,6 +43,11 @@ import static org.apache.cassandra.net.Verb.PAXOS2_PREPARE_REQ;
 public class CASContentionTest extends CASTestBase
 {
     private static Cluster THREE_NODES;
+
+    static
+    {
+        CassandraRelevantProperties.TCM_USE_ATOMIC_LONG_PROCESSOR.setBoolean(true);
+    }
 
     @BeforeClass
     public static void beforeClass() throws Throwable

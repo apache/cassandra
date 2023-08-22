@@ -31,10 +31,6 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -266,13 +262,13 @@ import static org.apache.cassandra.service.ActiveRepairService.repairCommandExec
 import static org.apache.cassandra.service.StorageService.Mode.DECOMMISSIONED;
 import static org.apache.cassandra.service.StorageService.Mode.DECOMMISSION_FAILED;
 import static org.apache.cassandra.service.StorageService.Mode.JOINING_FAILED;
+import static org.apache.cassandra.service.StorageService.Mode.NORMAL;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.tcm.Transformation.Kind.FINISH_JOIN;
 import static org.apache.cassandra.tcm.Transformation.Kind.FINISH_REPLACE;
 import static org.apache.cassandra.tcm.membership.NodeState.BOOTSTRAPPING;
 import static org.apache.cassandra.tcm.membership.NodeState.BOOT_REPLACING;
 import static org.apache.cassandra.tcm.membership.NodeState.JOINED;
-import static org.apache.cassandra.tcm.membership.NodeState.LEAVING;
 import static org.apache.cassandra.tcm.membership.NodeState.MOVING;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 import static org.apache.cassandra.utils.FBUtilities.now;
@@ -851,7 +847,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             case JOINED:
                 // JOINED appears before BOOTSTRAPPING & BOOT_REPLACE so we can fall
                 // through when we start as REGISTERED/LEFT and complete a full startup
-                logger.info("{}", Mode.NORMAL);
+                logger.info("{}", NORMAL);
                 break;
             case BOOTSTRAPPING:
             case BOOT_REPLACING:
@@ -2413,12 +2409,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Deprecated
     public List<String> getLeavingNodes()
     {
-        return stringify(endpointsWithState(LEAVING), false);
+        return stringify(endpointsWithState(NodeState.LEAVING), false);
     }
 
     public List<String> getLeavingNodesWithPort()
     {
-        return stringify(endpointsWithState(LEAVING), true);
+        return stringify(endpointsWithState(NodeState.LEAVING), true);
     }
 
     @Deprecated
@@ -3632,7 +3628,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         if (ClusterMetadataService.instance().isMigrating() || ClusterMetadataService.state() == ClusterMetadataService.State.GOSSIP)
             throw new IllegalStateException("This cluster is migrating to cluster metadata, can't decommission until that is done.");
-        if (!EnumSet.of(Mode.LEAVING, Mode.NORMAL).contains(operationMode()))
+        if (!EnumSet.of(Mode.LEAVING, NORMAL, DECOMMISSION_FAILED).contains(operationMode()))
             throw new UnsupportedOperationException("Node in " + operationMode() + " state; wait for status to become normal");
         logger.debug("DECOMMISSIONING");
         ClusterMetadata metadata = ClusterMetadata.current();
@@ -3814,7 +3810,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             NodeId nodeId = stateEntry.getKey();
             NodeState state = stateEntry.getValue();
-            if (state == LEAVING)
+            if (state == NodeState.LEAVING)
             {
                 InProgressSequence<?> seq = metadata.inProgressSequences.get(nodeId);
                 if (seq != null && seq.kind() == InProgressSequences.Kind.REMOVE)
@@ -3873,7 +3869,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         NodeState removeState = metadata.directory.peerState(toRemove);
         if (removeState == null)
             throw new UnsupportedOperationException("Node to be removed is not a member of the token ring");
-        if (removeState == LEAVING)
+        if (removeState == NodeState.LEAVING)
             logger.warn("Node {} is already leaving or being removed, continuing removal anyway", endpoint);
 
         if (metadata.inProgressSequences.contains(toRemove))
@@ -3976,7 +3972,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             case BOOTSTRAPPING:
                 return Mode.JOINING;
             case JOINED:
-                return Mode.NORMAL;
+                return NORMAL;
             case LEAVING:
                 return Mode.LEAVING;
             case LEFT:
@@ -4014,7 +4010,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public boolean isNormal()
     {
-        return operationMode() == Mode.NORMAL;
+        return operationMode() == NORMAL;
     }
 
     public boolean isDecommissioned()

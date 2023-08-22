@@ -30,6 +30,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import org.agrona.collections.IntArrayList;
+import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -64,6 +65,7 @@ public class ShardManagerTest
     {
         DatabaseDescriptor.daemonInitialization(); // because of all the static initialization in CFS
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
+        ServerTestUtils.prepareServerNoRegister();
         weightedRanges = new ColumnFamilyStore.VersionedLocalRanges(RING_VERSION_IRRELEVANT, 16);
     }
 

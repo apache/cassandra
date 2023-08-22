@@ -53,11 +53,11 @@ public class PartialCompactionsTest extends SchemaLoader
     @BeforeClass
     public static void initSchema()
     {
-        CompactionManager.instance.disableAutoCompaction();
-
+        SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE, TABLE));
+        CompactionManager.instance.disableAutoCompaction();
 
         LimitableDataDirectory.applyTo(KEYSPACE, TABLE);
     }

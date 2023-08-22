@@ -46,8 +46,8 @@ public class MutualTlsWithPasswordFallbackAuthenticatorTest
     @BeforeClass
     public static void initialize()
     {
+        DatabaseDescriptor.daemonInitialization();
         SchemaLoader.loadSchema();
-        SchemaLoader.prepareServer();
         Config config = DatabaseDescriptor.getRawConfig();
         config.client_encryption_options = config.client_encryption_options.withEnabled(true)
                                                                            .withRequireClientAuth(true);

@@ -115,7 +115,6 @@ public class SimpleStrategyTest
     {
         IPartitioner partitioner = OrderPreservingPartitioner.instance;
         withPartitioner(partitioner);
-        DatabaseDescriptor.setPartitionerUnsafe(partitioner);
         List<Token> endpointTokens = new ArrayList<Token>();
         List<Token> keyTokens = new ArrayList<Token>();
         for (int i = 0; i < 5; i++) {
@@ -231,22 +230,26 @@ public class SimpleStrategyTest
         ClusterMetadata metadata = ClusterMetadata.current();
         for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces().names())
         {
+            ReplicationParams replication = Schema.instance.getKeyspaceMetadata(keyspaceName).params.replication;
+            if (replication.isMeta())
+                continue;
+
             strategy = getStrategy(keyspaceName);
 
             int replicationFactor = strategy.getReplicationFactor().allReplicas;
 
             for (int i = 0; i < keyTokens.length; i++)
             {
-                EndpointsForToken replicas = getWriteEndpoints(metadata, ReplicationParams.fromMap(strategy.configOptions), keyTokens[i]);
+                EndpointsForToken replicas = getWriteEndpoints(metadata, replication, keyTokens[i]);
                 assertTrue(replicas.size() >= replicationFactor);
 
                 for (int j = 0; j < replicationFactor; j++)
                 {
-                   InetAddressAndPort host = hosts.get((i + j + 1) % hosts.size());
+                    InetAddressAndPort host = hosts.get((i + j + 1) % hosts.size());
                     //Check that the old nodes are definitely included
-                   assertTrue(String.format("%s should contain %s but it did not. RF=%d \n%s",
-                                            replicas, host, replicationFactor, metadata),
-                              replicas.endpoints().contains(host));
+                    assertTrue(String.format("%s should contain %s but it did not. RF=%d \n%s",
+                                             replicas, host, replicationFactor, metadata),
+                               replicas.endpoints().contains(host));
                 }
 
                 // bootstrapEndpoint should be in the endpoints for i in MAX-RF to MAX, but not in any earlier ep.
@@ -288,11 +291,11 @@ public class SimpleStrategyTest
         tokens.forEach(ClusterMetadataTestHelper::addEndpoint);
 
         Map<String, String> configOptions = new HashMap<String, String>();
+        configOptions.put(ReplicationParams.CLASS, SimpleStrategy.class.getName());
         configOptions.put("replication_factor", "3/1");
+        SchemaLoader.createKeyspace("ks", KeyspaceParams.create(false, configOptions));
+        Range<Token> range1 = range(Murmur3Partitioner.MINIMUM.token, 100);
 
-        SimpleStrategy strategy = new SimpleStrategy("ks", configOptions);
-
-        Range<Token> range1 = range(400, 100);
         Util.assertRCEquals(EndpointsForToken.of(range1.right,
                                                  Replica.fullReplica(endpoints.get(0), range1),
                                                  Replica.fullReplica(endpoints.get(1), range1),

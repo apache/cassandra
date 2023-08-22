@@ -24,6 +24,7 @@ import java.util.*;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -53,6 +54,7 @@ public class SystemKeyspaceTest
     {
         DatabaseDescriptor.daemonInitialization();
         CommitLog.instance.start();
+        SchemaLoader.prepareServer();
     }
 
     @Test

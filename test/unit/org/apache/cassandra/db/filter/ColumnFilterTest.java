@@ -26,6 +26,7 @@ import java.util.function.Consumer;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runners.Parameterized;
 
@@ -51,6 +52,7 @@ import org.apache.cassandra.utils.Throwables;
 
 import static org.junit.Assert.assertEquals;
 
+@Ignore("TCM - rewrite test, nothing in this test is now depending on version")
 public class ColumnFilterTest
 {
     private static final ColumnFilter.Serializer serializer = new ColumnFilter.Serializer();

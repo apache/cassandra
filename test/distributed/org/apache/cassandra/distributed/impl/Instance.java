@@ -175,6 +175,7 @@ import static org.apache.cassandra.distributed.api.Feature.NETWORK;
 import static org.apache.cassandra.distributed.impl.DistributedTestSnitch.fromCassandraInetAddressAndPort;
 import static org.apache.cassandra.distributed.impl.DistributedTestSnitch.toCassandraInetAddressAndPort;
 import static org.apache.cassandra.net.Verb.BATCH_STORE_REQ;
+import static org.apache.cassandra.service.CassandraDaemon.logSystemInfo;
 
 /**
  * This class is instantiated on the relevant classloader, so its methods invoke the correct target classes automatically
@@ -688,8 +689,8 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         if (config.has(JMX))
             startJmx();
         DatabaseDescriptor.daemonInitialization();
-
         LoggingSupportFactory.getLoggingSupport().onStartup();
+        logSystemInfo(inInstancelogger);
 
         FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
         DatabaseDescriptor.createAllDirectories();
