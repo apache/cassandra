@@ -94,7 +94,7 @@ public class InvertedIndexSearcher extends IndexSearcher
         if (logger.isTraceEnabled())
             logger.trace(indexContext.logMessage("Searching on expression '{}'..."), exp);
 
-        if (!exp.getOp().isEquality())
+        if (!exp.getOp().isEquality() && exp.getOp() != Expression.Op.MATCH)
             throw new IllegalArgumentException(indexContext.logMessage("Unsupported expression: " + exp));
 
         final ByteComparable term = ByteComparable.fixedLength(exp.lower.value.encoded);

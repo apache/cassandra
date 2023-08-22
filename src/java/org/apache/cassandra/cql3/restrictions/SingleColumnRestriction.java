@@ -866,4 +866,86 @@ public abstract class SingleColumnRestriction implements SingleRestriction
             return index.supportsExpression(columnDef, Operator.ANN);
         }
     }
+
+    public static final class AnalyzerMatchesRestriction extends SingleColumnRestriction
+    {
+        private final List<Term> values;
+
+        public AnalyzerMatchesRestriction(ColumnMetadata columnDef, Term value)
+        {
+            super(columnDef);
+            this.values = Collections.singletonList(value);
+        }
+
+        public AnalyzerMatchesRestriction(ColumnMetadata columnDef, List<Term> values)
+        {
+            super(columnDef);
+            this.values = values;
+        }
+
+        List<Term> getValues()
+        {
+            return values;
+        }
+
+        @Override
+        public void addFunctionsTo(List<Function> functions)
+        {
+            for (Term value : values)
+            {
+                value.addFunctionsTo(functions);
+            }
+        }
+
+        @Override
+        MultiColumnRestriction toMultiColumnRestriction()
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void addToRowFilter(RowFilter.Builder filter,
+                                   IndexRegistry indexRegistry,
+                                   QueryOptions options)
+        {
+            for (Term value : values)
+            {
+                filter.add(columnDef, Operator.ANALYZER_MATCHES, value.bindAndGet(options));
+            }
+        }
+
+        @Override
+        public MultiCBuilder appendTo(MultiCBuilder builder, QueryOptions options)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String toString()
+        {
+            return String.format("ANALYZER_MATCHES(%s)", values);
+        }
+
+        /**
+         * Merges this restriction with another restriction. Only called for conjuctive restrictions.
+         */
+        @Override
+        public SingleRestriction doMergeWith(SingleRestriction otherRestriction)
+        {
+            if (!(otherRestriction instanceof AnalyzerMatchesRestriction))
+                throw new UnsupportedOperationException();
+            List<Term> otherValues = ((AnalyzerMatchesRestriction) otherRestriction).getValues();
+            List<Term> newValues = new ArrayList<>(values.size() + otherValues.size());
+            newValues.addAll(values);
+            newValues.addAll(otherValues);
+            return new AnalyzerMatchesRestriction(columnDef, newValues);
+        }
+
+
+        @Override
+        protected boolean isSupportedBy(Index index)
+        {
+            return index.supportsExpression(columnDef, Operator.ANALYZER_MATCHES);
+        }
+    }
 }

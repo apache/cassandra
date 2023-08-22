@@ -275,6 +275,18 @@ public final class SingleColumnRelation extends Relation
         return new SingleColumnRestriction.AnnRestriction(columnDef, term);
     }
 
+    @Override
+    protected Restriction newAnalyzerMatchesRestriction(TableMetadata table, VariableSpecifications boundNames)
+    {
+        if (mapKey != null)
+            throw invalidRequest("%s can't be used with collections.", operator());
+
+        ColumnMetadata columnDef = table.getExistingColumn(entity);
+        Term term = toTerm(toReceivers(columnDef), value, table.keyspace, boundNames);
+
+        return new SingleColumnRestriction.AnalyzerMatchesRestriction(columnDef, term);
+    }
+
     /**
      * Returns the receivers for this relation.
      * @param columnDef the column definition

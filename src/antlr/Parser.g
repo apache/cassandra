@@ -1684,6 +1684,7 @@ relationType returns [Operator op]
     | '>'  { $op = Operator.GT; }
     | '>=' { $op = Operator.GTE; }
     | '!=' { $op = Operator.NEQ; }
+    | ':'  { $op = Operator.ANALYZER_MATCHES; }
     ;
 
 relation[WhereClause.Builder clauses]

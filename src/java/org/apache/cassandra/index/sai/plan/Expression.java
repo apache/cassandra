@@ -76,6 +76,7 @@ public class Expression
                     return PREFIX;
 
                 case LIKE_MATCHES:
+                case ANALYZER_MATCHES:
                     return MATCH;
 
                 case IN:
@@ -133,6 +134,7 @@ public class Expression
         {
             case LIKE_PREFIX:
             case LIKE_MATCHES:
+            case ANALYZER_MATCHES:
             case EQ:
             case CONTAINS:
             case CONTAINS_KEY:
