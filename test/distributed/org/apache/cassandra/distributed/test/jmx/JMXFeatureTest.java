@@ -56,6 +56,7 @@ public class JMXFeatureTest extends TestBaseImpl
         for (int i = 0; i < iterations; i++)
         {
             try (Cluster cluster = Cluster.build(2)
+                                          .withDynamicPortAllocation(true)
                                           .withNodeProvisionStrategy(INodeProvisionStrategy.Strategy.MultipleNetworkInterfaces)
                                           .withConfig(c -> c.with(Feature.values())).start())
             {
@@ -79,6 +80,7 @@ public class JMXFeatureTest extends TestBaseImpl
         for (int i = 0; i < iterations; i++)
         {
             try (Cluster cluster = Cluster.build(2)
+                                          .withDynamicPortAllocation(true)
                                           .withNodeProvisionStrategy(INodeProvisionStrategy.Strategy.OneNetworkInterface)
                                           .withConfig(c -> c.with(Feature.values())).start())
             {
@@ -107,7 +109,7 @@ public class JMXFeatureTest extends TestBaseImpl
             // to check that we are actually connecting to the correct instance
             String defaultDomain = mbsc.getDefaultDomain();
             instancesContacted.add(defaultDomain);
-            Assert.assertThat(defaultDomain, startsWith(JMXUtil.getJmxHost(config) + ":" + config.jmxPort()));
+            Assert.assertThat(defaultDomain, startsWith(JMXUtil.getJmxHost(config) + ':' + config.jmxPort()));
         }
     }
 }
