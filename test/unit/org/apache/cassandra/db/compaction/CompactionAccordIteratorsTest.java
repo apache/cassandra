@@ -358,22 +358,25 @@ public class CompactionAccordIteratorsTest
                 CheckedCommands.commit(safe, txnId, route, null, partialTxn, txnId, partialDeps);
                 Pair<Writes, Result> result = AccordTestUtils.processTxnResultDirect(safe, txnId, partialTxn, txnId);
                 CheckedCommands.apply(safe, txnId, route, null, txnId, partialDeps, partialTxn, result.left, result.right);
-
-                // clear cache
-                long cacheSize = commandStore.getCacheSize();
-                commandStore.setCacheSize(0);
-                commandStore.setCacheSize(cacheSize);
-
                 return safe.get(txnId, homeKey).current();
             }).beginAsResult());
         }
+
+        commandStore.executeBlocking(() -> {
+            // clear cache and wait for post-eviction writes to complete
+            long cacheSize = commandStore.getCacheSize();
+            commandStore.setCacheSize(0);
+            commandStore.setCacheSize(cacheSize);
+            commandStore.cache().awaitSaveResults();
+        });
+
         UntypedResultSet commandsTable = QueryProcessor.executeInternal("SELECT * FROM " + ACCORD_KEYSPACE_NAME + "." + COMMANDS + ";");
-        assertEquals(commandsTable.size(), txnIds.length);
+        assertEquals(txnIds.length, commandsTable.size());
         Iterator<UntypedResultSet.Row> commandsTableIterator = commandsTable.iterator();
         for (TxnId txnId : txnIds)
             assertEquals(txnId, AccordKeyspace.deserializeTimestampOrNull(commandsTableIterator.next().getBytes("txn_id"), TxnId::fromBits));
         UntypedResultSet commandsForKeyTable = QueryProcessor.executeInternal("SELECT * FROM " + ACCORD_KEYSPACE_NAME + "." + COMMANDS_FOR_KEY + ";");
-        assertEquals(commandsForKeyTable.size(), txnIds.length * 2);
+        assertEquals(txnIds.length * 2, commandsForKeyTable.size());
         Iterator<UntypedResultSet.Row> commandsForKeyTableIterator = commandsTable.iterator();
         for (TxnId txnId : txnIds)
             assertEquals(txnId, AccordKeyspace.deserializeTimestampOrNull(commandsForKeyTableIterator.next().getBytes("txn_id"), TxnId::fromBits));

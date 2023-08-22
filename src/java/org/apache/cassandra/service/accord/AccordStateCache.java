@@ -31,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.utils.IntrusiveLinkedList;
+import accord.utils.async.AsyncChains;
 import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.service.accord.AccordCachingState.Status;
 
@@ -452,6 +453,14 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
         while (iter.hasNext())
             last = iter.next();
         return last;
+    }
+
+    @VisibleForTesting
+    public void awaitSaveResults()
+    {
+        for (AccordCachingState<?, ?> node : this)
+            if (node.status() == SAVING)
+                AsyncChains.awaitUninterruptibly(node.saving());
     }
 
     @VisibleForTesting
