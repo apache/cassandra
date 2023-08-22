@@ -43,6 +43,7 @@ import org.slf4j.LoggerFactory;
 import accord.api.Key;
 import accord.primitives.Keys;
 import accord.primitives.Txn;
+import accord.utils.Invariants;
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -61,10 +62,12 @@ import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.SinglePartitionReadQuery;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.partitions.FilteredPartition;
+import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.service.accord.api.AccordRoutableKey;
 import org.apache.cassandra.service.accord.txn.TxnCondition;
 import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.service.accord.txn.TxnDataName;
@@ -74,6 +77,9 @@ import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.service.accord.txn.TxnReference;
 import org.apache.cassandra.service.accord.txn.TxnUpdate;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.transformations.AddAccordKeyspace;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -350,6 +356,40 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
         return select.getLimit(options) != 1;
     }
 
+    private void maybeConvertTablesToAccord(Txn txn)
+    {
+        Set<String> allKeyspaces = new HashSet<>();
+        Set<String> newKeyspaces = new HashSet<>();
+        txn.keys().forEach(key -> {
+            String keyspace = ((AccordRoutableKey) key).keyspace();
+            if (allKeyspaces.add(keyspace) && !AccordService.instance().isAccordManagedKeyspace(keyspace))
+                newKeyspaces.add(keyspace);
+        });
+
+        if (newKeyspaces.isEmpty())
+            return;
+
+        for (String keyspace : newKeyspaces)
+        {
+            ClusterMetadataService.instance().commit(new AddAccordKeyspace(keyspace),
+                                                     metadata -> null,
+                                                     (metadata, code, message) -> {
+                                                         Invariants.checkState(code == ExceptionCode.ALREADY_EXISTS,
+                                                                               "Expected %s, got %s", ExceptionCode.ALREADY_EXISTS, code);
+                                                         return null;
+                                                     });
+        }
+
+        // we need to avoid creating a txnId in an epoch when no one has any ranges
+        FBUtilities.waitOnFuture(AccordService.instance().epochReady(ClusterMetadata.current().epoch));
+
+        for (String keyspace : allKeyspaces)
+        {
+            if (!AccordService.instance().isAccordManagedKeyspace(keyspace))
+                throw new IllegalStateException(keyspace + " is not an accord managed keyspace");
+        }
+    }
+
     @Override
     public ResultMessage execute(QueryState state, QueryOptions options, long queryStartNanoTime)
     {
@@ -364,7 +404,11 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
             if (returningSelect != null)
                 checkFalse(isSelectingMultipleClusterings(returningSelect.select, options), INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE, "returning SELECT", returningSelect.select.source);
 
-            TxnData data = AccordService.instance().coordinate(createTxn(state.getClientState(), options), options.getConsistency());
+            Txn txn = createTxn(state.getClientState(), options);
+
+            maybeConvertTablesToAccord(txn);
+
+            TxnData data = AccordService.instance().coordinate(txn, options.getConsistency());
 
             if (returningSelect != null)
             {

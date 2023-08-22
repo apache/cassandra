@@ -206,6 +206,8 @@ public interface Transformation
 
         STARTUP(() -> Startup.serializer),
 
+        ADD_ACCORD_KEYSPACE(() -> AddAccordKeyspace.serializer),
+
         CUSTOM(() -> CustomTransformation.serializer),
 
         PREPARE_SIMPLE_CMS_RECONFIGURATION(() -> PrepareCMSReconfiguration.Simple.serializer),

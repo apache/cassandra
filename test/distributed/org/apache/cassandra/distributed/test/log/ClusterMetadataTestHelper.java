@@ -67,6 +67,7 @@ import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
+import org.apache.cassandra.tcm.ownership.AccordKeyspaces;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
@@ -163,6 +164,7 @@ public class ClusterMetadataTestHelper
                                    null,
                                    null,
                                    DataPlacements.empty(),
+                                   AccordKeyspaces.EMPTY,
                                    null,
                                    null,
                                    ImmutableMap.of());
@@ -196,6 +198,7 @@ public class ClusterMetadataTestHelper
                                        metadata.directory,
                                        metadata.tokenMap,
                                        metadata.placements,
+                                       AccordKeyspaces.EMPTY,
                                        metadata.lockedRanges,
                                        metadata.inProgressSequences,
                                        metadata.extensions);
