@@ -51,7 +51,7 @@ public class LuceneAnalyzerTest extends SAITester
         // TODO: randomize flushing... not sure how
         flush();
 
-        assertEquals(0, execute("SELECT * FROM %s WHERE val = 'query'").size());
+        assertEquals(0, execute("SELECT * FROM %s WHERE val : 'query'").size());
     }
 
     @Test
@@ -67,10 +67,22 @@ public class LuceneAnalyzerTest extends SAITester
 
         execute("INSERT INTO %s (id, val) VALUES ('1', 'The quick brown fox jumps over the lazy DOG.')");
 
-        assertEquals(1, execute("SELECT * FROM %s WHERE val = 'dog'").size());
+        assertEquals(1, execute("SELECT * FROM %s WHERE val = 'The quick brown fox jumps over the lazy DOG.' ALLOW FILTERING").size());
 
         flush();
-        assertEquals(1, execute("SELECT * FROM %s WHERE val = 'dog'").size());
+        assertEquals(1, execute("SELECT * FROM %s WHERE val : 'dog'").size());
+        assertEquals(1, execute("SELECT * FROM %s WHERE val : 'dog' OR val : 'missing'").size());
+        assertEquals(0, execute("SELECT * FROM %s WHERE val : 'missing1' OR val : 'missing2'").size());
+        assertEquals(0, execute("SELECT * FROM %s WHERE val : 'dog' AND val : 'missing'").size());
+        assertEquals(1, execute("SELECT * FROM %s WHERE val : 'dog' AND val : 'lazy'").size());
+        assertEquals(1, execute("SELECT * FROM %s WHERE val : 'dog' AND val : 'quick' AND val : 'fox'").size());
+        assertEquals(1, execute("SELECT * FROM %s WHERE val : 'dog' AND val : 'quick' OR val : 'missing'").size());
+
+        // EQ operator is not supported for analyzed columns unless ALLOW FILTERING is used
+        assertThatThrownBy(() -> execute("SELECT * FROM %s WHERE val = 'dog'")).isInstanceOf(InvalidRequestException.class);
+        assertEquals(1, execute("SELECT * FROM %s WHERE val = 'The quick brown fox jumps over the lazy DOG.' ALLOW FILTERING").size());
+        // EQ is a raw equality check, so a token like 'dog' should not return any results
+        assertEquals(0, execute("SELECT * FROM %s WHERE val = 'dog' ALLOW FILTERING").size());
     }
 
     // Technically, the NoopAnalyzer is applied, but that maps each field without modification, so any operator
@@ -87,9 +99,11 @@ public class LuceneAnalyzerTest extends SAITester
 
         execute("INSERT INTO %s (id, val) VALUES (1, 'dog')");
 
-        assertEquals(1, execute("SELECT * FROM %s WHERE val = 'dog'").size());
+        assertThatThrownBy(() -> execute("SELECT * FROM %s WHERE val : 'dog'"))
+        .isInstanceOf(InvalidRequestException.class);;
 
-        flush();
+        // Equality still works because indexed value is not analyzed, and so the search can be performed without
+        // filtering.
         assertEquals(1, execute("SELECT * FROM %s WHERE val = 'dog'").size());
     }
 
@@ -153,7 +167,7 @@ public class LuceneAnalyzerTest extends SAITester
 
         flush();
 
-        assertEquals(1, execute("SELECT * FROM %s WHERE val = 'hello'").size());
+        assertEquals(1, execute("SELECT * FROM %s WHERE val : 'hello'").size());
     }
 
     @Test
@@ -173,9 +187,9 @@ public class LuceneAnalyzerTest extends SAITester
 
         flush();
 
-        assertEquals(1, execute("SELECT * FROM %s WHERE val = 'do'").size());
-        assertEquals(1, execute("SELECT * FROM %s WHERE val = 'og'").size());
-        assertEquals(1, execute("SELECT * FROM %s WHERE val = 'dog'").size());
+        assertEquals(1, execute("SELECT * FROM %s WHERE val : 'do'").size());
+        assertEquals(1, execute("SELECT * FROM %s WHERE val : 'og'").size());
+        assertEquals(1, execute("SELECT * FROM %s WHERE val : 'dog'").size());
     }
 
     @Test
@@ -192,9 +206,9 @@ public class LuceneAnalyzerTest extends SAITester
 
         execute("INSERT INTO %s (id, val) VALUES ('1', 'DoG')");
 
-        assertEquals(1, execute("SELECT * FROM %s WHERE val = 'do'").size());
-        assertEquals(1, execute("SELECT * FROM %s WHERE val = 'og'").size());
-        assertEquals(1, execute("SELECT * FROM %s WHERE val = 'dog'").size());
+        assertEquals(1, execute("SELECT * FROM %s WHERE val : 'do'").size());
+        assertEquals(1, execute("SELECT * FROM %s WHERE val : 'og'").size());
+        assertEquals(1, execute("SELECT * FROM %s WHERE val : 'dog'").size());
     }
 
     @Test
@@ -212,10 +226,10 @@ public class LuceneAnalyzerTest extends SAITester
 
         flush();
 
-        assertEquals(1, execute("SELECT * FROM %s WHERE val = 'hello'").size());
-        assertEquals(1, execute("SELECT * FROM %s WHERE val = 'twice'").size());
-        assertEquals(1, execute("SELECT * FROM %s WHERE val = 'the'").size()); // test stop word
-        assertEquals(1, execute("SELECT * FROM %s WHERE val = 'and'").size()); // test stop word
+        assertEquals(1, execute("SELECT * FROM %s WHERE val : 'hello'").size());
+        assertEquals(1, execute("SELECT * FROM %s WHERE val : 'twice'").size());
+        assertEquals(1, execute("SELECT * FROM %s WHERE val : 'the'").size()); // test stop word
+        assertEquals(1, execute("SELECT * FROM %s WHERE val : 'and'").size()); // test stop word
     }
 
     @Test
@@ -234,10 +248,10 @@ public class LuceneAnalyzerTest extends SAITester
 
         flush();
 
-        assertEquals(1, execute("SELECT * FROM %s WHERE val = 'hello'").size());
-        assertEquals(1, execute("SELECT * FROM %s WHERE val = 'twice'").size());
-        assertEquals(1, execute("SELECT * FROM %s WHERE val = 'the'").size()); // test stop word
-        assertEquals(1, execute("SELECT * FROM %s WHERE val = 'and'").size()); // test stop word
+        assertEquals(1, execute("SELECT * FROM %s WHERE val : 'hello'").size());
+        assertEquals(1, execute("SELECT * FROM %s WHERE val : 'twice'").size());
+        assertEquals(1, execute("SELECT * FROM %s WHERE val : 'the'").size()); // test stop word
+        assertEquals(1, execute("SELECT * FROM %s WHERE val : 'and'").size()); // test stop word
     }
 
     @Test
@@ -252,12 +266,33 @@ public class LuceneAnalyzerTest extends SAITester
 
         waitForIndexQueryable();
 
-        execute("INSERT INTO %s (id, val) VALUES ('1', 'the queries')");
+        execute("INSERT INTO %s (id, val) VALUES ('1', 'the queries test')");
 
         flush();
 
-        assertEquals(1, execute("SELECT * FROM %s WHERE val = 'the'").size()); // stop word test
-        assertEquals(1, execute("SELECT * FROM %s WHERE val = 'query'").size());
-        assertEquals(1, execute("SELECT * FROM %s WHERE val = 'queries'").size());
+        assertEquals(1, execute("SELECT * FROM %s WHERE val : 'the'").size()); // stop word test
+        assertEquals(1, execute("SELECT * FROM %s WHERE val : 'query'").size());
+        assertEquals(1, execute("SELECT * FROM %s WHERE val : 'query' OR val : 'missing'").size());
+        assertEquals(1, execute("SELECT * FROM %s WHERE val : 'queries' AND val : 'the' AND val : 'test'").size());
+    }
+
+    @Test
+    public void testAnalyzerMatchesAndEqualityFailForConjunction() throws Throwable
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
+
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = {'index_analyzer':'[\n" +
+                    "\t{\"tokenizer\":\"whitespace\"},\n" +
+                    "\t{\"filter\":\"porterstem\"}\n" +
+                    "]'}");
+
+        waitForIndexQueryable();
+
+        execute("INSERT INTO %s (id, val) VALUES ('1', 'the queries test')");
+
+        assertThatThrownBy(() -> execute("SELECT * FROM %s WHERE val : 'queries' AND val : 'the' AND val = 'the queries test'"))
+        .isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> execute("SELECT * FROM %s WHERE val : 'queries' AND val : 'the' AND val = 'the queries test' ALLOW FILTERING"))
+        .isInstanceOf(UnsupportedOperationException.class);
     }
 }
