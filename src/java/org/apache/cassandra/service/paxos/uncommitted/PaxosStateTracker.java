@@ -160,7 +160,6 @@ public class PaxosStateTracker
         return create(dataDirectories.getAllDirectories().stream().map(d -> d.location).toArray(File[]::new));
     }
 
-    @SuppressWarnings("resource")
     private void rebuildUncommittedData() throws IOException
     {
         logger.info("Beginning uncommitted paxos data rebuild. Set -D{}=true and restart to skip", SKIP_PAXOS_STATE_REBUILD.getKey());

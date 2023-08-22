@@ -72,7 +72,6 @@ public abstract class AbstractSSTableIterator<RIE extends AbstractRowIndexEntry>
 
     protected final Slices slices;
 
-    @SuppressWarnings("resource") // We need this because the analysis is not able to determine that we do close
                                   // file on every path where we created it.
     protected AbstractSSTableIterator(SSTableReader sstable,
                                       FileDataInput file,

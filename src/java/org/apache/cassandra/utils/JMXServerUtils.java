@@ -78,7 +78,6 @@ public class JMXServerUtils
      * Creates a server programmatically. This allows us to set parameters which normally are
      * inaccessable.
      */
-    @SuppressWarnings("resource")
     @VisibleForTesting
     public static JMXConnectorServer createJMXServer(int port, String hostname, boolean local)
     throws IOException
@@ -150,7 +149,6 @@ public class JMXServerUtils
         return jmxServer;
     }
 
-    @SuppressWarnings("resource")
     public static JMXConnectorServer createJMXServer(int port, boolean local) throws IOException
     {
         return createJMXServer(port, null, local);

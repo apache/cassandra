@@ -196,7 +196,6 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         return cacheLoad;
     }
 
-    @SuppressWarnings("resource")
     public int loadSaved()
     {
         int count = 0;

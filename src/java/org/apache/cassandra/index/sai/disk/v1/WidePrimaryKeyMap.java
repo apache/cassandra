@@ -82,7 +82,7 @@ public class WidePrimaryKeyMap extends SkinnyPrimaryKeyMap
         }
 
         @Override
-        @SuppressWarnings({ "resource", "RedundantSuppression" })
+        @SuppressWarnings({ "resource", "RedundantSuppression" }) // deferred long arrays and cursors are closed in the WidePrimaryKeyMap#close method
         public PrimaryKeyMap newPerSSTablePrimaryKeyMap() throws IOException
         {
             LongArray rowIdToToken = new LongArray.DeferredLongArray(tokenReaderFactory::open);

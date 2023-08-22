@@ -23,7 +23,6 @@ import java.util.List;
 import org.apache.cassandra.concurrent.ExecutorLocals;
 import org.apache.cassandra.utils.FBUtilities;
 
-@SuppressWarnings("resource")
 public class ClientWarn extends ExecutorLocals.Impl
 {
     private static final String TRUNCATED = " [truncated]";

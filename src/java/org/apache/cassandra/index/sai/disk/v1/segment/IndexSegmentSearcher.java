@@ -56,7 +56,6 @@ public abstract class IndexSegmentSearcher implements SegmentOrdering, Closeable
         this.indexContext = indexContext;
     }
 
-    @SuppressWarnings({"resource", "RedundantSuppression"})
     public static IndexSegmentSearcher open(PrimaryKeyMap.Factory primaryKeyMapFactory,
                                             PerColumnIndexFiles indexFiles,
                                             SegmentMetadata segmentMetadata,

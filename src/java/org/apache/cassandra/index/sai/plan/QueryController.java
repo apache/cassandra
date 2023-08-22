@@ -203,7 +203,6 @@ public class QueryController
         {
             for (Pair<Expression, Collection<SSTableIndex>> queryViewPair : queryView.view)
             {
-                @SuppressWarnings({"resource", "RedundantSuppression"}) // RangeIterators are closed by releaseIndexes
                 KeyRangeIterator indexIterator = IndexSearchResultIterator.build(queryViewPair.left, queryViewPair.right, mergeRange, queryContext);
 
                 builder.add(indexIterator);
