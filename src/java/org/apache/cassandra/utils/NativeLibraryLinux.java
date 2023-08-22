@@ -42,7 +42,6 @@ import com.sun.jna.Pointer;
  * @see org.apache.cassandra.utils.NativeLibraryWrapper
  * @see INativeLibrary
  */
-@Shared
 public class NativeLibraryLinux implements NativeLibraryWrapper
 {
     private static boolean available;
