@@ -2359,64 +2359,69 @@ public class NodeProbe implements AutoCloseable
         rateLimiterProxy.setEnabled(enabled);
     }
     
-    public void setThrottlingOptionsCpuThresholdCur(long cpu_threshold_cur)
+    public void setThrottlingOptionsCpuThresholdCur(long cpuThresholdCur)
     {
-        rateLimiterProxy.setCpuThresholdCur(cpu_threshold_cur);
+        rateLimiterProxy.setCpuThresholdCur(cpuThresholdCur);
     }
 
-    public void setThrottlingOptionsCpuThresholdOneMinute(long cpu_threshold_one_minute)
+    public void setThrottlingOptionsCpuThresholdOneMinute(long cpuThresholdOneMinute)
     {
-        rateLimiterProxy.setCpuThresholdOneMinute(cpu_threshold_one_minute);
+        rateLimiterProxy.setCpuThresholdOneMinute(cpuThresholdOneMinute);
     }
 
-    public void setThrottlingOptionsNrThrottlingThresholdCur(long nr_throttling_threshold_cur)
+    public void setThrottlingOptionsNrThrottlingThresholdCur(long nrThrottlingThresholdCur)
     {
-        rateLimiterProxy.setNrThrottlingThresholdCur(nr_throttling_threshold_cur);
+        rateLimiterProxy.setNrThrottlingThresholdCur(nrThrottlingThresholdCur);
     }
 
-    public void setThrottlingOptionsNrThrottlingThresholdOneMinute(long nr_throttling_threshold_one_minute)
+    public void setThrottlingOptionsNrThrottlingThresholdOneMinute(long nrThrottlingThresholdOneMinute)
     {
-        rateLimiterProxy.setNrThrottlingThresholdOneMinute(nr_throttling_threshold_one_minute);
+        rateLimiterProxy.setNrThrottlingThresholdOneMinute(nrThrottlingThresholdOneMinute);
     }
 
-    public void setThrottlingOptionsPendingReadsThresholdCur(int pending_reads_threshold_cur)
+    public void setThrottlingOptionsPendingReadsThresholdCur(int pendingReadsThresholdCur)
     {
-        rateLimiterProxy.setPendingReadsThresholdCur(pending_reads_threshold_cur);
+        rateLimiterProxy.setPendingReadsThresholdCur(pendingReadsThresholdCur);
     }
 
-    public void setThrottlingOptionsPendingReadsThresholdOneMinute(int pending_reads_threshold_one_minute)
+    public void setThrottlingOptionsPendingReadsThresholdOneMinute(int pendingReadsThresholdOneMinute)
     {
-        rateLimiterProxy.setPendingReadsThresholdOneMinute(pending_reads_threshold_one_minute);
+        rateLimiterProxy.setPendingReadsThresholdOneMinute(pendingReadsThresholdOneMinute);
     }
 
-    public void setThrottlingOptionsPendingMutationsThresholdCur(int pending_mutations_threshold_cur)
+    public void setThrottlingOptionsPendingMutationsThresholdCur(int pendingMutationsThresholdCur)
     {
-        rateLimiterProxy.setPendingMutationsThresholdCur(pending_mutations_threshold_cur);
+        rateLimiterProxy.setPendingMutationsThresholdCur(pendingMutationsThresholdCur);
     }
 
-    public void setThrottlingOptionsPendingMutationsThresholdOneMinute(int pending_mutations_threshold_one_minute)
+    public void setThrottlingOptionsPendingMutationsThresholdOneMinute(int pendingMutationsThresholdOneMinute)
     {
-        rateLimiterProxy.setPendingMutationsThresholdOneMinute(pending_mutations_threshold_one_minute);
+        rateLimiterProxy.setPendingMutationsThresholdOneMinute(pendingMutationsThresholdOneMinute);
     }
 
-    public void setThrottlingOptionsPercentageOfTrafficeToThrottling(double percentage_of_traffice_to_throttling)
+    public void setThrottlingOptionsPercentageOfTrafficeToThrottling(double percentageOfTrafficeToThrottling)
     {
-        rateLimiterProxy.setPercentageOfTrafficeToThrottling(percentage_of_traffice_to_throttling);
+        rateLimiterProxy.setPercentageOfTrafficeToThrottling(percentageOfTrafficeToThrottling);
     }
 
-    public void setThrottlingOptionsMoreAggressiveThrottlingAfterInSec(int more_aggressive_throttling_after_in_sec)
+    public void setThrottlingOptionsMoreAggressiveThrottlingAfterInSec(int moreAggressiveThrottlingAfterInSec)
     {
-        rateLimiterProxy.setMoreAggressiveThrottlingAfterInSec(more_aggressive_throttling_after_in_sec);
+        rateLimiterProxy.setMoreAggressiveThrottlingAfterInSec(moreAggressiveThrottlingAfterInSec);
     }
 
-    public void setThrottlingOptionsResetAfterNoThrottlingSeenInSec(int reset_after_no_throttling_seen_in_sec)
+    public void setThrottlingOptionsResetAfterNoThrottlingSeenInSec(int resetAfterNoThrottlingSeenInSec)
     {
-        rateLimiterProxy.setResetAfterNoThrottlingSeenInSec(reset_after_no_throttling_seen_in_sec);
+        rateLimiterProxy.setResetAfterNoThrottlingSeenInSec(resetAfterNoThrottlingSeenInSec);
     }
 
-    public void setThrottlingOptionsAggressiveThrottlingQpsRatio(double aggressive_throttling_qps_ratio)
+    public void setThrottlingOptionsAggressiveThrottlingQpsRatio(double aggressiveThrottlingQpsRatio)
     {
-        rateLimiterProxy.setAggressiveThrottlingQpsRatio(aggressive_throttling_qps_ratio);
+        rateLimiterProxy.setAggressiveThrottlingQpsRatio(aggressiveThrottlingQpsRatio);
+    }
+
+    public void setThrottlingOptionsAggressiveThrottlingLatencyRatio(double aggressiveThrottlingLatencyRatio)
+    {
+        rateLimiterProxy.setAggressiveThrottlingLatencyRatio(aggressiveThrottlingLatencyRatio);
     }
     
     public ThrottlingOptions getThrottlingOptions()

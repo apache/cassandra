@@ -27,19 +27,19 @@ public class ThrottlingOptionsTest
     public void testThrottlingOptions()
     {
         ThrottlingOptions throttlingOptions = new ThrottlingOptions();
-        Assert.assertFalse(throttlingOptions.enabled);
-        Assert.assertEquals(35, throttlingOptions.cpu_threshold_cur);
-        Assert.assertEquals(35, throttlingOptions.cpu_threshold_one_minute);
-        Assert.assertEquals(1, throttlingOptions.nr_throttling_threshold_cur);
-        Assert.assertEquals(1, throttlingOptions.nr_throttling_threshold_one_minute);
-        Assert.assertEquals(0, throttlingOptions.pending_reads_threshold_cur);
-        Assert.assertEquals(0, throttlingOptions.pending_reads_threshold_one_minute);
-        Assert.assertEquals(0, throttlingOptions.pending_mutations_threshold_cur);
-        Assert.assertEquals(0, throttlingOptions.pending_mutations_threshold_one_minute);
-        Assert.assertEquals(0.1, throttlingOptions.percentage_of_traffice_to_throttling, 0.0);
-        Assert.assertEquals(1 * 60, throttlingOptions.more_aggressive_throttling_after_in_sec = 1 * 60);
-        Assert.assertEquals(15 * 60, throttlingOptions.reset_after_no_throttling_seen_in_sec = 15 * 60);
-        Assert.assertEquals(4, throttlingOptions.aggressive_throttling_qps_ratio, 0.0);
-        Assert.assertEquals(4, throttlingOptions.aggressive_throttling_latency_ratio, 0.0);
+        Assert.assertFalse(throttlingOptions.isEnabled());
+        Assert.assertEquals(35, throttlingOptions.getCpuThresholdCur());
+        Assert.assertEquals(35, throttlingOptions.getCpuThresholdOneMinute());
+        Assert.assertEquals(1, throttlingOptions.getNrThrottlingThresholdCur());
+        Assert.assertEquals(1, throttlingOptions.getNrThrottlingThresholdOneMinute());
+        Assert.assertEquals(0, throttlingOptions.getPendingReadsThresholdCur());
+        Assert.assertEquals(0, throttlingOptions.getPendingReadsThresholdOneMinute());
+        Assert.assertEquals(0, throttlingOptions.getPendingMutationsThresholdCur());
+        Assert.assertEquals(0, throttlingOptions.getPendingMutationsThresholdOneMinute());
+        Assert.assertEquals(0.1, throttlingOptions.getPercentageOfTrafficeToThrottling(), 0.0);
+        Assert.assertEquals(1 * 60, throttlingOptions.getMoreAggressiveThrottlingAfterInSec());
+        Assert.assertEquals(15 * 60, throttlingOptions.getResetAfterNoThrottlingSeenInSec());
+        Assert.assertEquals(4, throttlingOptions.getAggressiveThrottlingQpsRatio(), 0.0);
+        Assert.assertEquals(4, throttlingOptions.getAggressiveThrottlingLatencyRatio(), 0.0);
     }
 }

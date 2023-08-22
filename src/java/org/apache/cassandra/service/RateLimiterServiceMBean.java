@@ -39,60 +39,65 @@ public interface RateLimiterServiceMBean
     /**
      * Set cpu_threshold_cur
      */
-    public void setCpuThresholdCur(long cpu_threshold_cur);
+    public void setCpuThresholdCur(long cpuThresholdCur);
 
     /**
      * Set cpu_threshold_one_minute
      */
-    public void setCpuThresholdOneMinute(long cpu_threshold_one_minute);
+    public void setCpuThresholdOneMinute(long cpuThresholdOneMinute);
 
     /**
      * Set nr_throttling_threshold_cur
      */
-    public void setNrThrottlingThresholdCur(long nr_throttling_threshold_cur);
+    public void setNrThrottlingThresholdCur(long nrThrottlingThresholdCur);
 
     /**
      * Set nr_throttling_threshold_one_minute
      */
-    public void setNrThrottlingThresholdOneMinute(long nr_throttling_threshold_one_minute);
+    public void setNrThrottlingThresholdOneMinute(long nrThrottlingThresholdOneMinute);
 
     /**
      * Set pending_reads_threshold_cur
      */
-    public void setPendingReadsThresholdCur(int pending_reads_threshold_cur);
+    public void setPendingReadsThresholdCur(int pendingReadsThresholdCur);
 
     /**
      * Set pending_reads_threshold_one_minute
      */
-    public void setPendingReadsThresholdOneMinute(int pending_reads_threshold_one_minute);
+    public void setPendingReadsThresholdOneMinute(int pendingReadsThresholdOneMinute);
 
     /**
      * Set pending_mutations_threshold_cur
      */
-    public void setPendingMutationsThresholdCur(int pending_mutations_threshold_cur);
+    public void setPendingMutationsThresholdCur(int pendingMutationsThresholdCur);
 
     /**
      * Set pending_mutations_threshold_one_minute
      */
-    public void setPendingMutationsThresholdOneMinute(int pending_mutations_threshold_one_minute);
+    public void setPendingMutationsThresholdOneMinute(int pendingMutationsThresholdOneMinute);
 
     /**
      * Set percentage_of_traffice_to_throttling
      */
-    public void setPercentageOfTrafficeToThrottling(double percentage_of_traffice_to_throttling);
+    public void setPercentageOfTrafficeToThrottling(double percentageOfTrafficeToThrottling);
 
     /**
      * Set more_aggressive_throttling_after_in_sec
      */
-    public void setMoreAggressiveThrottlingAfterInSec(int more_aggressive_throttling_after_in_sec);
+    public void setMoreAggressiveThrottlingAfterInSec(int moreAggressiveThrottlingAfterInSec);
 
     /**
      * Set reset_after_no_throttling_seen_in_sec
      */
-    public void setResetAfterNoThrottlingSeenInSec(int reset_after_no_throttling_seen_in_sec);
+    public void setResetAfterNoThrottlingSeenInSec(int resetAfterNoThrottlingSeenInSec);
 
     /**
      * Set aggressive_throttling_qps_ratio
      */
-    public void setAggressiveThrottlingQpsRatio(double aggressive_throttling_qps_ratio);
+    public void setAggressiveThrottlingQpsRatio(double aggressiveThrottlingQpsRatio);
+
+    /**
+     * Set aggressive_throttling_latency_ratio
+     */
+    public void setAggressiveThrottlingLatencyRatio(double aggressiveThrottlingLatencyRatio);
 }

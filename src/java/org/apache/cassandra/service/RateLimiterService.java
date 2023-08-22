@@ -51,78 +51,84 @@ public class RateLimiterService implements RateLimiterServiceMBean {
     @Override
     public void setEnabled(boolean enabled)
     {
-        this.throttlingOptions.enabled = enabled;
+        this.throttlingOptions.setEnabled(enabled);
     }
 
     @Override
-    public void setCpuThresholdCur(long cpu_threshold_cur)
+    public void setCpuThresholdCur(long cpuThresholdCur)
     {
-        this.throttlingOptions.cpu_threshold_cur = cpu_threshold_cur;
+        this.throttlingOptions.setCpuThresholdCur(cpuThresholdCur);
     }
 
     @Override
-    public void setCpuThresholdOneMinute(long cpu_threshold_one_minute)
+    public void setCpuThresholdOneMinute(long cpuThresholdOneMinute)
     {
-        this.throttlingOptions.cpu_threshold_one_minute = cpu_threshold_one_minute;
+        this.throttlingOptions.setCpuThresholdOneMinute(cpuThresholdOneMinute);
     }
 
     @Override
-    public void setNrThrottlingThresholdCur(long nr_throttling_threshold_cur)
+    public void setNrThrottlingThresholdCur(long nrThrottlingThresholdCur)
     {
-        this.throttlingOptions.nr_throttling_threshold_cur = nr_throttling_threshold_cur;
+        this.throttlingOptions.setNrThrottlingThresholdCur(nrThrottlingThresholdCur);
     }
 
     @Override
-    public void setNrThrottlingThresholdOneMinute(long nr_throttling_threshold_one_minute)
+    public void setNrThrottlingThresholdOneMinute(long nrThrottlingThresholdOneMinute)
     {
-        this.throttlingOptions.nr_throttling_threshold_one_minute = nr_throttling_threshold_one_minute;
+        this.throttlingOptions.setNrThrottlingThresholdOneMinute(nrThrottlingThresholdOneMinute);
     }
 
     @Override
-    public void setPendingReadsThresholdCur(int pending_reads_threshold_cur)
+    public void setPendingReadsThresholdCur(int pendingReadsThresholdCur)
     {
-        this.throttlingOptions.pending_reads_threshold_cur = pending_reads_threshold_cur;
+        this.throttlingOptions.setPendingReadsThresholdCur(pendingReadsThresholdCur);
     }
 
     @Override
-    public void setPendingReadsThresholdOneMinute(int pending_reads_threshold_one_minute)
+    public void setPendingReadsThresholdOneMinute(int pendingReadsThresholdOneMinute)
     {
-        this.throttlingOptions.pending_reads_threshold_one_minute = pending_reads_threshold_one_minute;
+        this.throttlingOptions.setPendingReadsThresholdOneMinute(pendingReadsThresholdOneMinute);
     }
 
     @Override
-    public void setPendingMutationsThresholdCur(int pending_mutations_threshold_cur)
+    public void setPendingMutationsThresholdCur(int pendingMutationsThresholdCur)
     {
-        this.throttlingOptions.pending_mutations_threshold_cur = pending_mutations_threshold_cur;
+        this.throttlingOptions.setPendingMutationsThresholdCur(pendingMutationsThresholdCur);
     }
 
     @Override
-    public void setPendingMutationsThresholdOneMinute(int pending_mutations_threshold_one_minute)
+    public void setPendingMutationsThresholdOneMinute(int pendingMutationsThresholdOneMinute)
     {
-        this.throttlingOptions.pending_mutations_threshold_one_minute = pending_mutations_threshold_one_minute;
+        this.throttlingOptions.setPendingMutationsThresholdOneMinute(pendingMutationsThresholdOneMinute);
     }
 
     @Override
-    public void setPercentageOfTrafficeToThrottling(double percentage_of_traffice_to_throttling)
+    public void setPercentageOfTrafficeToThrottling(double percentageOfTrafficeToThrottling)
     {
-        this.throttlingOptions.percentage_of_traffice_to_throttling = percentage_of_traffice_to_throttling;
+        this.throttlingOptions.setPercentageOfTrafficeToThrottling(percentageOfTrafficeToThrottling);
     }
 
     @Override
-    public void setMoreAggressiveThrottlingAfterInSec(int more_aggressive_throttling_after_in_sec)
+    public void setMoreAggressiveThrottlingAfterInSec(int moreAggressiveThrottlingAfterInSec)
     {
-        this.throttlingOptions.more_aggressive_throttling_after_in_sec = more_aggressive_throttling_after_in_sec;
+        this.throttlingOptions.setMoreAggressiveThrottlingAfterInSec(moreAggressiveThrottlingAfterInSec);
     }
 
     @Override
-    public void setResetAfterNoThrottlingSeenInSec(int reset_after_no_throttling_seen_in_sec)
+    public void setResetAfterNoThrottlingSeenInSec(int resetAfterNoThrottlingSeenInSec)
     {
-        this.throttlingOptions.reset_after_no_throttling_seen_in_sec = reset_after_no_throttling_seen_in_sec;
+        this.throttlingOptions.setResetAfterNoThrottlingSeenInSec(resetAfterNoThrottlingSeenInSec);
     }
 
     @Override
-    public void setAggressiveThrottlingQpsRatio(double aggressive_throttling_qps_ratio)
+    public void setAggressiveThrottlingQpsRatio(double aggressiveThrottlingQpsRatio)
     {
-        this.throttlingOptions.aggressive_throttling_qps_ratio = aggressive_throttling_qps_ratio;
+        this.throttlingOptions.setAggressiveThrottlingQpsRatio(aggressiveThrottlingQpsRatio);
+    }
+
+    @Override
+    public void setAggressiveThrottlingLatencyRatio(double aggressiveThrottlingLatencyRatio)
+    {
+        this.throttlingOptions.setAggressiveThrottlingLatencyRatio(aggressiveThrottlingLatencyRatio);
     }
 }

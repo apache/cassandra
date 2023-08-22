@@ -145,32 +145,32 @@ public class CassandraResourceUtilization
     public void checkSignals()
     {
         boolean cpuUtilSignal1 = false;
-        if (resourcesStats.getCpuUtil1Cur() >= throttlingOptions.cpu_threshold_cur && resourcesStats.getCpuUtil1OneMinute() >= throttlingOptions.cpu_threshold_one_minute)
+        if (resourcesStats.getCpuUtil1Cur() >= throttlingOptions.getCpuThresholdCur() && resourcesStats.getCpuUtil1OneMinute() >= throttlingOptions.getCpuThresholdOneMinute())
         {
             cpuUtilSignal1 = true;
         }
         boolean cpuUtilSignal2 = false;
-        if (resourcesStats.getCpuUtil2Cur() == -1 || (resourcesStats.getCpuUtil2Cur() >= throttlingOptions.cpu_threshold_cur && resourcesStats.getCpuUtil2OneMinute() >= throttlingOptions.cpu_threshold_one_minute))
+        if (resourcesStats.getCpuUtil2Cur() == -1 || (resourcesStats.getCpuUtil2Cur() >= throttlingOptions.getCpuThresholdCur() && resourcesStats.getCpuUtil2OneMinute() >= throttlingOptions.getCpuThresholdOneMinute()))
         {
             cpuUtilSignal2 = true;
         }
         boolean nrThrottlingSignal1 = false;
-        if (resourcesStats.getNrThrottled1Cur() >= throttlingOptions.nr_throttling_threshold_cur && resourcesStats.getNrThrottled1OneMinute() >= throttlingOptions.nr_throttling_threshold_one_minute)
+        if (resourcesStats.getNrThrottled1Cur() >= throttlingOptions.getNrThrottlingThresholdCur() && resourcesStats.getNrThrottled1OneMinute() >= throttlingOptions.getNrThrottlingThresholdOneMinute())
         {
             nrThrottlingSignal1 = true;
         }
         boolean nrThrottlingSignal2 = false;
-        if (resourcesStats.getNrThrottled2Cur() == -1 || (resourcesStats.getNrThrottled2Cur() >= throttlingOptions.nr_throttling_threshold_cur && resourcesStats.getNrThrottled2OneMinute() >= throttlingOptions.nr_throttling_threshold_one_minute))
+        if (resourcesStats.getNrThrottled2Cur() == -1 || (resourcesStats.getNrThrottled2Cur() >= throttlingOptions.getNrThrottlingThresholdCur() && resourcesStats.getNrThrottled2OneMinute() >= throttlingOptions.getNrThrottlingThresholdOneMinute()))
         {
             nrThrottlingSignal2 = true;
         }
         boolean pendingReadsSignal = false;
-        if (resourcesStats.getPendingReadsCur() >= throttlingOptions.pending_reads_threshold_cur && resourcesStats.getPendingReadsOneMinute() >= throttlingOptions.pending_reads_threshold_one_minute)
+        if (resourcesStats.getPendingReadsCur() >= throttlingOptions.getPendingReadsThresholdCur() && resourcesStats.getPendingReadsOneMinute() >= throttlingOptions.getPendingReadsThresholdOneMinute())
         {
             pendingReadsSignal = true;
         }
         boolean pendingMutationsSignal = false;
-        if (resourcesStats.getPendingMutationsCur() >= throttlingOptions.pending_mutations_threshold_cur && resourcesStats.getPendingMutationsOneMinute() >= throttlingOptions.pending_mutations_threshold_one_minute)
+        if (resourcesStats.getPendingMutationsCur() >= throttlingOptions.getPendingMutationsThresholdCur() && resourcesStats.getPendingMutationsOneMinute() >= throttlingOptions.getPendingMutationsThresholdOneMinute())
         {
             pendingMutationsSignal = true;
         }
@@ -208,7 +208,7 @@ public class CassandraResourceUtilization
         // reset everything as the system seems to have recovered
         lastThrottlingCheckPointTimeInMS = 0;
         lastThrottlingIndicatorTimeInMS = 0;
-        throttlingPercentageCur = throttlingOptions.percentage_of_traffice_to_throttling;
+        throttlingPercentageCur = throttlingOptions.getPercentageOfTrafficeToThrottling();
         readAggressiveThorttlingKeyspaces.clear();
         mutationAggressiveThorttlingKeyspaces.clear();
         shouldThrottle = false;
@@ -216,9 +216,9 @@ public class CassandraResourceUtilization
 
     public void adjustThrottling()
     {
-        if (lastThrottlingCheckPointTimeInMS != 0 && MILLISECONDS.toSeconds(System.currentTimeMillis() - lastThrottlingCheckPointTimeInMS) >= throttlingOptions.more_aggressive_throttling_after_in_sec)
+        if (lastThrottlingCheckPointTimeInMS != 0 && MILLISECONDS.toSeconds(System.currentTimeMillis() - lastThrottlingCheckPointTimeInMS) >= throttlingOptions.getMoreAggressiveThrottlingAfterInSec())
         {
-            if (MILLISECONDS.toSeconds(System.currentTimeMillis() - lastThrottlingCheckPointTimeInMS) >= throttlingOptions.reset_after_no_throttling_seen_in_sec)
+            if (MILLISECONDS.toSeconds(System.currentTimeMillis() - lastThrottlingCheckPointTimeInMS) >= throttlingOptions.getResetAfterNoThrottlingSeenInSec())
             {
                 resetThrottlingParams();
             }
@@ -280,7 +280,7 @@ public class CassandraResourceUtilization
 
     public boolean throttleUserTraffic(String keyspaceName, boolean reads)
     {
-        if (!throttlingOptions.enabled)
+        if (!throttlingOptions.isEnabled())
         {
             throttlingMetrics.disableThrottling.inc();
             logger.info("Throttling is disabled, reads: {}....", reads);
@@ -369,7 +369,7 @@ public class CassandraResourceUtilization
             double ratio = oneMinuteRate / fifteenMinuteRate;
             logger.info("Trending requests upward keyspace: {}, ratio: {}, oneMinuteRate: {}, fiveMinuteRate: {}, fifteenMinuteRate: {}",
                         ksName, ratio, oneMinuteRate, fiveMinuteRate, fifteenMinuteRate);
-            if (ratio >= throttlingOptions.aggressive_throttling_qps_ratio)
+            if (ratio >= throttlingOptions.getAggressiveThrottlingQpsRatio())
             {
                 return true;
             }
@@ -402,7 +402,7 @@ public class CassandraResourceUtilization
             double ratio = oneMinuteRate / fifteenMinuteRate;
             logger.info("Trending latency upward keyspace: {}, ratio: {}, oneMinuteRate: {}, fiveMinuteRate: {}, fifteenMinuteRate: {}",
                         ksName, ratio, oneMinuteRate, fiveMinuteRate, fifteenMinuteRate);
-            if (ratio >= throttlingOptions.aggressive_throttling_latency_ratio)
+            if (ratio >= throttlingOptions.getAggressiveThrottlingLatencyRatio())
             {
                 return true;
             }
