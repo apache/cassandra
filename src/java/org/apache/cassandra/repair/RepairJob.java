@@ -101,7 +101,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             }
             // When all snapshot complete, send validation requests
             ListenableFuture<List<InetAddress>> allSnapshotTasks = Futures.allAsList(snapshotTasks);
-            validations = Futures.transform(allSnapshotTasks, new AsyncFunction<List<InetAddress>, List<TreeResponse>>()
+            validations = Futures.transformAsync(allSnapshotTasks, new AsyncFunction<List<InetAddress>, List<TreeResponse>>()
             {
                 public ListenableFuture<List<TreeResponse>> apply(List<InetAddress> endpoints)
                 {
@@ -119,7 +119,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         }
 
         // When all validations complete, submit sync tasks
-        ListenableFuture<List<SyncStat>> syncResults = Futures.transform(validations, new AsyncFunction<List<TreeResponse>, List<SyncStat>>()
+        ListenableFuture<List<SyncStat>> syncResults = Futures.transformAsync(validations, new AsyncFunction<List<TreeResponse>, List<SyncStat>>()
         {
             public ListenableFuture<List<SyncStat>> apply(List<TreeResponse> trees)
             {

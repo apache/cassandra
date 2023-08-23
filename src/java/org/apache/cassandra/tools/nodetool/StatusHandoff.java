@@ -19,7 +19,7 @@ package org.apache.cassandra.tools.nodetool;
 
 import java.io.PrintStream;
 
-import io.airlift.command.Command;
+import io.airlift.airline.Command;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;

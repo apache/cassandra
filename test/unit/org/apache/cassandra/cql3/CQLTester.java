@@ -403,12 +403,14 @@ public abstract class CQLTester
             if (version.isGreaterThan(protocolVersionLimit.getMaxVersion()))
                 continue;
 
-            Cluster cluster = Cluster.builder()
+            Cluster.Builder b = Cluster.builder()
                                      .addContactPoints(nativeAddr)
                                      .withClusterName("Test Cluster-" + version.name())
-                                     .withPort(nativePort)
-                                     .withProtocolVersion(com.datastax.driver.core.ProtocolVersion.fromInt(version.asInt()))
-                                     .build();
+                                     .withPort(nativePort);
+            b = version.isBeta() ?
+                    b.allowBetaProtocolVersion() :
+                    b.withProtocolVersion(com.datastax.driver.core.ProtocolVersion.fromInt(version.asInt()));
+            Cluster cluster = b.build();
             clusters.put(version, cluster);
             sessions.put(version, cluster.connect());
 

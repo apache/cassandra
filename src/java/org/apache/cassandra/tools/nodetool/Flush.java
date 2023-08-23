@@ -17,8 +17,8 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.command.Arguments;
-import io.airlift.command.Command;
+import io.airlift.airline.Arguments;
+import io.airlift.airline.Command;
 
 import java.util.ArrayList;
 import java.util.List;

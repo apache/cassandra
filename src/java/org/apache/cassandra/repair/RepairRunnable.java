@@ -318,7 +318,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
         final Collection<Range<Token>> successfulRanges = new ArrayList<>();
         final AtomicBoolean hasFailure = new AtomicBoolean();
         final ListenableFuture<List<RepairSessionResult>> allSessions = Futures.successfulAsList(futures);
-        ListenableFuture anticompactionResult = Futures.transform(allSessions, new AsyncFunction<List<RepairSessionResult>, Object>()
+        ListenableFuture anticompactionResult = Futures.transformAsync(allSessions, new AsyncFunction<List<RepairSessionResult>, Object>()
         {
             @SuppressWarnings("unchecked")
             public ListenableFuture apply(List<RepairSessionResult> results)
