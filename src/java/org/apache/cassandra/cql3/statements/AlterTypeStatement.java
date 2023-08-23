@@ -255,6 +255,12 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
 
         protected UserType makeUpdatedType(UserType toUpdate, KeyspaceMetadata ksm) throws InvalidRequestException
         {
+            if (type.isCounter())
+                throw new InvalidRequestException("A user type cannot contain counters");
+
+            if (type.isUDT() && !type.isFrozen())
+                throw new InvalidRequestException("A user type cannot contain non-frozen UDTs");
+
             if (toUpdate.fieldPosition(fieldName) >= 0)
                 throw new InvalidRequestException(String.format("Cannot add new field %s to type %s: a field of the same name already exists", fieldName, name));
 
