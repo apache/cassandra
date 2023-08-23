@@ -1222,4 +1222,6 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     public void setSkipStreamDiskSpaceCheck(boolean value);
     public boolean getSkipStreamDiskSpaceCheck();
+
+    public boolean skipNotificationListeners(boolean skip);
 }
