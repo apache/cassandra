@@ -305,7 +305,7 @@ public final class CreateViewStatement extends AlterSchemaStatement
          * Validate WITH params
          */
 
-        attrs.validate();
+        attrs.validate(keyspaceName, viewName);
 
         if (attrs.hasOption(TableParams.Option.DEFAULT_TIME_TO_LIVE)
             && attrs.getInt(TableParams.Option.DEFAULT_TIME_TO_LIVE.toString(), 0) != 0)
@@ -324,7 +324,7 @@ public final class CreateViewStatement extends AlterSchemaStatement
         if (attrs.hasProperty(TableAttributes.ID))
             builder.id(attrs.getId());
 
-        builder.params(attrs.asNewTableParams())
+        builder.params(attrs.asNewTableParams(keyspaceName, viewName))
                .kind(TableMetadata.Kind.VIEW);
 
         partitionKeyColumns.stream()

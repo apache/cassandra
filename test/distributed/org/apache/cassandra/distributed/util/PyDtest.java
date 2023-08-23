@@ -160,7 +160,7 @@ public class PyDtest
                 query += String.format(" AND CLUSTERING ORDER BY (%s)", clustering);
 
             if (compression != null)
-                query += String.format(" AND compression = { \'sstable_compression\': \'%sCompressor\' }", compression);
+                query += String.format(" AND compression = { \'class\': \'%sCompressor\' }", compression);
             else
                 query += " AND compression = {}";
 

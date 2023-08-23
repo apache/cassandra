@@ -1110,6 +1110,9 @@ public class Config
      */
     public ParameterizedClass default_compaction = null;
 
+    @Nullable
+    public ParameterizedClass sstable_compression;
+
     public static Supplier<Config> getOverrideLoadConfig()
     {
         return overrideLoadConfig;

@@ -1046,6 +1046,10 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     @Override
     public void close()
     {
+        close(true);
+    }
+
+    public void close(boolean deleteRoot) {
         logger.info("Closing cluster {}", this.clusterId);
         FBUtilities.closeQuietly(instanceInitializer);
         FBUtilities.waitOnFutures(instances.stream()
@@ -1058,7 +1062,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         instanceMap.clear();
         PathUtils.setDeletionListener(ignore -> {});
         // Make sure to only delete directory when threads are stopped
-        if (Files.exists(root))
+        if (deleteRoot && Files.exists(root))
             PathUtils.deleteRecursive(root);
         Thread.setDefaultUncaughtExceptionHandler(previousHandler);
         previousHandler = null;

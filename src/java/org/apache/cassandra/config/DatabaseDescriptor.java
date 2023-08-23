@@ -226,6 +226,8 @@ public class DatabaseDescriptor
     private static ImmutableMap<String, SSTableFormat<?, ?>> sstableFormats;
     private static volatile SSTableFormat<?, ?> selectedSSTableFormat;
 
+    private static ParameterizedClass sstableCompression;
+
     private static Function<CommitLog, AbstractCommitLogSegmentManager> commitLogSegmentMgrProvider = c -> DatabaseDescriptor.isCDCEnabled()
                                                                                                            ? new CommitLogSegmentManagerCDC(c, DatabaseDescriptor.getCommitLogLocation())
                                                                                                            : new CommitLogSegmentManagerStandard(c, DatabaseDescriptor.getCommitLogLocation());
@@ -867,7 +869,7 @@ public class DatabaseDescriptor
         if (conf.allow_extra_insecure_udfs)
             logger.warn("Allowing java.lang.System.* access in UDFs is dangerous and not recommended. Set allow_extra_insecure_udfs: false to disable.");
 
-        if(conf.scripted_user_defined_functions_enabled)
+        if (conf.scripted_user_defined_functions_enabled)
             throw new ConfigurationException("JavaScript user-defined functions were removed in CASSANDRA-18252. " +
                                              "Hooks are planned to be introduced as part of CASSANDRA-17280");
 
@@ -965,6 +967,8 @@ public class DatabaseDescriptor
         Paxos.setPaxosVariant(conf.paxos_variant);
         if (conf.paxos_state_purging == null)
             conf.paxos_state_purging = PaxosStatePurging.legacy;
+
+        sstableCompression = conf.sstable_compression;
 
         logInitializationOutcome(logger);
 
@@ -2567,6 +2571,16 @@ public class DatabaseDescriptor
     public static void setFlushCompression(Config.FlushCompression compression)
     {
         conf.flush_compression = compression;
+    }
+
+    public static ParameterizedClass getSSTableCompression()
+    {
+        return sstableCompression;
+    }
+
+    public static void setSSTableCompression(ParameterizedClass compressor)
+    {
+        conf.sstable_compression = compressor;
     }
 
    /**

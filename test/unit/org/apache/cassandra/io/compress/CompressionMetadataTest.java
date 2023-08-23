@@ -24,6 +24,7 @@ import org.junit.Test;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.Memory;
 import org.apache.cassandra.schema.CompressionParams;
+import org.apache.cassandra.schema.TestCompressionParamsFactory;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
@@ -31,7 +32,7 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 public class CompressionMetadataTest
 {
     File chunksIndexFile = new File("/path/to/metadata");
-    CompressionParams params = CompressionParams.zstd();
+    CompressionParams params = TestCompressionParamsFactory.zstd();
     long dataLength = 1000;
     long compressedFileLength = 100;
 
