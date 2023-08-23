@@ -51,7 +51,7 @@ server side problem as the default values are usually multiple seconds.
 
 == Metrics
 
-If you have Cassandra xref:operating/metrics.adoc[`metrics`] reporting to a
+If you have Cassandra xref:cassandra:managing/operating/metrics.adoc[`metrics`] reporting to a
 centralized location such as https://graphiteapp.org/[Graphite] or
 https://grafana.com/[Grafana] you can typically use those to narrow down
 the problem. At this stage narrowing down the issue to a particular
@@ -61,13 +61,13 @@ metrics to look at are:
 === Errors
 
 Cassandra refers to internode messaging errors as "drops", and provided
-a number of xref:operating/metrics.adoc#droppedmessage-metrics[`Dropped Message Metrics`] to help narrow
+a number of xref:cassandra:managing/operating/metrics.adoc#droppedmessage-metrics[`Dropped Message Metrics`] to help narrow
 down errors. If particular nodes are dropping messages actively, they
 are likely related to the issue.
 
 === Latency
 
-For timeouts or latency related issues you can start with operating/metrics.adoc#table-metrics[`table metrics`] 
+For timeouts or latency related issues you can start with operating/metrics.adoc#table-metrics[`table metrics`]
 by comparing Coordinator level metrics e.g.
 `CoordinatorReadLatency` or `CoordinatorWriteLatency` with their
 associated replica metrics e.g. `ReadLatency` or `WriteLatency`. Issues
@@ -114,7 +114,7 @@ replica latencies will rise together with little correlation.
 
 === Query Rates
 
-Sometimes the xref:operating/metrics.adoc#table-metrics[`table metric`] query rate metrics can help narrow
+Sometimes the xref:cassandra:managing/operating/metrics.adoc#table-metrics[`table metric`] query rate metrics can help narrow
 down load issues as "small" increase in coordinator queries per second
 (QPS) may correlate with a very large increase in replica level QPS.
 This most often happens with `BATCH` writes, where a client may send a
@@ -129,5 +129,5 @@ exhaust significant CPU capacitity with a "single" query.
 Once you have narrowed down the problem as much as possible (datacenter,
 rack , node), login to one of the nodes using SSH and proceed to debug
 using xref:reading_logs.adoc[`logs`], xref:use_nodetooladoc[`nodetool`], and
-xref:use_tools.adoc[`os tools`]. 
+xref:use_tools.adoc[`os tools`].
 If you are not able to login you may still have access to `logs` and `nodetool` remotely.

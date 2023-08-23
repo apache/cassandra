@@ -98,11 +98,11 @@ getting started. As an example if Java 11 is used, the run output should
 include similar to the following output snippet:
 
 ....
-INFO  [main] 2019-07-31 21:18:16,862 CassandraDaemon.java:480 - Hostname: ip-172-30-3- 
+INFO  [main] 2019-07-31 21:18:16,862 CassandraDaemon.java:480 - Hostname: ip-172-30-3-
 146.ec2.internal:7000:7001
-INFO  [main] 2019-07-31 21:18:16,862 CassandraDaemon.java:487 - JVM vendor/version: OpenJDK 
+INFO  [main] 2019-07-31 21:18:16,862 CassandraDaemon.java:487 - JVM vendor/version: OpenJDK
 64-Bit Server VM/11.0.3
-INFO  [main] 2019-07-31 21:18:16,863 CassandraDaemon.java:488 - Heap size: 
+INFO  [main] 2019-07-31 21:18:16,863 CassandraDaemon.java:488 - Heap size:
 1004.000MiB/1004.000MiB
 ....
 
@@ -110,22 +110,22 @@ The following output indicates a single node Cassandra 4.0 cluster has
 started.
 
 ....
-INFO  [main] 2019-07-31 21:18:19,687 InboundConnectionInitiator.java:130 - Listening on 
+INFO  [main] 2019-07-31 21:18:19,687 InboundConnectionInitiator.java:130 - Listening on
 address: (127.0.0.1:7000), nic: lo, encryption: enabled (openssl)
 ...
 ...
-INFO  [main] 2019-07-31 21:18:19,850 StorageService.java:512 - Unable to gossip with any 
+INFO  [main] 2019-07-31 21:18:19,850 StorageService.java:512 - Unable to gossip with any
 peers but continuing anyway since node is in its own seed list
 INFO  [main] 2019-07-31 21:18:19,864 StorageService.java:695 - Loading persisted ring state
 INFO  [main] 2019-07-31 21:18:19,865 StorageService.java:814 - Starting up server gossip
-INFO  [main] 2019-07-31 21:18:20,088 BufferPool.java:216 - Global buffer pool is enabled,  
+INFO  [main] 2019-07-31 21:18:20,088 BufferPool.java:216 - Global buffer pool is enabled,
 when pool is exhausted (max is 251.000MiB) it will allocate on heap
-INFO  [main] 2019-07-31 21:18:20,110 StorageService.java:875 - This node will not auto 
+INFO  [main] 2019-07-31 21:18:20,110 StorageService.java:875 - This node will not auto
 bootstrap because it is configured to be a seed node.
 ...
 ...
 INFO  [main] 2019-07-31 21:18:20,809 StorageService.java:1507 - JOINING: Finish joining ring
-INFO  [main] 2019-07-31 21:18:20,921 StorageService.java:2508 - Node 127.0.0.1:7000 state 
+INFO  [main] 2019-07-31 21:18:20,921 StorageService.java:2508 - Node 127.0.0.1:7000 state
 jump to NORMAL
 ....
 
@@ -190,13 +190,13 @@ message gets output.
 Last login: Wed Jul 31 20:47:26 2019 from 75.155.255.51
 $ echo $JAVA_HOME
 /usr/lib/jvm/java-1.8.0-openjdk
-$ cassandra 
+$ cassandra
 ...
 ...
 Error: A JNI error has occurred, please check your installation and try again
-Exception in thread "main" java.lang.UnsupportedClassVersionError: 
-org/apache/cassandra/service/CassandraDaemon has been compiled by a more recent version of 
-the Java Runtime (class file version 55.0), this version of the Java Runtime only recognizes 
+Exception in thread "main" java.lang.UnsupportedClassVersionError:
+org/apache/cassandra/service/CassandraDaemon has been compiled by a more recent version of
+the Java Runtime (class file version 55.0), this version of the Java Runtime only recognizes
 class file versions up to 52.0
   at java.lang.ClassLoader.defineClass1(Native Method)
   at java.lang.ClassLoader.defineClass(ClassLoader.java:763)
