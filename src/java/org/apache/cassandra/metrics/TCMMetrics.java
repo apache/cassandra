@@ -27,6 +27,7 @@ import com.codahale.metrics.Timer;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
@@ -39,6 +40,7 @@ public class TCMMetrics
     public final Gauge<Long> currentEpochGauge;
     public final Gauge<Long> currentCMSSize;
     public final Gauge<Long> unreachableCMSMembers;
+    public final Gauge<Integer> isCMSMember;
     public final Histogram fetchedPeerLogEntries;
     public final Histogram fetchedCMSLogEntries;
     public final Timer fetchPeerLogLatency;
@@ -79,6 +81,11 @@ public class TCMMetrics
             if (metadata == null)
                 return 0L;
             return metadata.fullCMSMembers().stream().filter(FailureDetector.isEndpointAlive.negate()).count();
+        });
+
+        isCMSMember = Metrics.register(factory.createMetricName("IsCMSMember"), () -> {
+            ClusterMetadata metadata =  ClusterMetadata.currentNullable();
+            return metadata != null && metadata.isCMSMember(FBUtilities.getBroadcastAddressAndPort()) ? 1 : 0;
         });
 
         fetchedPeerLogEntries = Metrics.histogram(factory.createMetricName("FetchedPeerLogEntries"), false);

@@ -45,14 +45,19 @@ public class CMSMembershipMetricsTest extends TestBaseImpl
         {
             cluster.forEach(i -> assertMembershipSize(1, i));
             cluster.forEach(i -> assertUnreachableCMSMembers(0, i));
+            assertCMSMembership(1, cluster.get(1));
+            assertCMSMembership(0, cluster.get(2), cluster.get(3));
 
             cluster.get(2).nodetoolResult("addtocms").asserts().success();
             cluster.forEach(i -> assertMembershipSize(2, i));
             cluster.forEach(i -> assertUnreachableCMSMembers(0, i));
+            assertCMSMembership(1, cluster.get(1), cluster.get(2));
+            assertCMSMembership(0, cluster.get(3));
 
             cluster.get(3).nodetoolResult("addtocms").asserts().success();
             cluster.forEach(i -> assertMembershipSize(3, i));
             cluster.forEach(i -> assertUnreachableCMSMembers(0, i));
+            assertCMSMembership(1, cluster.get(1), cluster.get(2), cluster.get(3));
 
             // mark node3 down and ensure it stays that way
             cluster.filters().allVerbs().from(3).to(1,2).drop();
@@ -85,6 +90,16 @@ public class CMSMembershipMetricsTest extends TestBaseImpl
         long actual = instance.callOnInstance(() -> TCMMetrics.instance.unreachableCMSMembers.getValue());
         assertEquals(String.format("Expected %s down CMS members, node %s disagrees", expected, instance.config().num()),
                      expected, actual);
+    }
+
+    void assertCMSMembership(int expected, IInvokableInstance... instances)
+    {
+        for(IInvokableInstance instance: instances)
+        {
+            int actual = instance.callOnInstance(() -> TCMMetrics.instance.isCMSMember.getValue());
+            assertEquals(String.format("Expected isCMSMember value to be %s, node %s disagrees", expected, instance.config().num()),
+                         expected, actual);
+        }
     }
 
     private void markDown(IInvokableInstance down, IInvokableInstance inst)
