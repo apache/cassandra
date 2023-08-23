@@ -107,6 +107,12 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
 
         UserType apply(KeyspaceMetadata keyspace, UserType userType)
         {
+            if (type.isCounter())
+                throw ire("A user type cannot contain counters");
+
+            if (type.isUDT() && !type.isFrozen())
+                throw ire("A user type cannot contain non-frozen UDTs");
+
             if (userType.fieldPosition(fieldName) >= 0)
                 throw ire("Cannot add field %s to type %s: a field with name %s already exists", fieldName, userType.getCqlTypeName(), fieldName);
 
