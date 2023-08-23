@@ -44,7 +44,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.fail;
@@ -101,7 +101,7 @@ public class DiskBoundaryManagerTest extends CQLTester
         DiskBoundaries dbv1 = dbm.getDiskBoundaries(mock);
         StorageService.instance.getTokenMetadata().updateNormalTokens(BootStrapper.getRandomTokens(StorageService.instance.getTokenMetadata(), 10), InetAddressAndPort.getByName("127.0.0.10"));
         DiskBoundaries dbv2 = dbm.getDiskBoundaries(mock);
-        assertFalse(dbv1.equals(dbv2));
+        assertNotEquals(dbv1, dbv2);
     }
 
     @Test
