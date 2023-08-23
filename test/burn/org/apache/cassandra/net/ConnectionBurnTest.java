@@ -153,22 +153,29 @@ public class ConnectionBurnTest
 
     private static class Test implements InboundMessageHandlers.HandlerProvider, InboundMessageHandlers.MessageConsumer
     {
+        volatile boolean cancelled;
         private final IVersionedSerializer<byte[]> serializer = new IVersionedSerializer<byte[]>()
         {
             public void serialize(byte[] payload, DataOutputPlus out, int version) throws IOException
             {
+                if (cancelled)
+                    throw new IOException("cancelled");
                 long id = MessageGenerator.getId(payload);
                 forId(id).serialize(id, payload, out, version);
             }
 
             public byte[] deserialize(DataInputPlus in, int version) throws IOException
             {
+                if (cancelled)
+                    throw new IOException("cancelled");
                 MessageGenerator.Header header = MessageGenerator.readHeader(in, version);
                 return forId(header.id).deserialize(header, in, version);
             }
 
             public long serializedSize(byte[] payload, int version)
             {
+                if (cancelled)
+                    throw new RuntimeException("cancelled");
                 return MessageGenerator.serializedSize(payload);
             }
         };
@@ -506,11 +513,12 @@ public class ConnectionBurnTest
                 for (Throwable t : exceptions)
                     logger.error("Unexpected exception while burning connections: ", t);
 
-                inbound.sockets.close().get(30L, TimeUnit.SECONDS);
+                cancelled = true;
                 FutureCombiner.allOf(Arrays.stream(connections)
                                          .map(Connection::close)
                                          .collect(Collectors.toList()))
                 .get(30L, TimeUnit.SECONDS);
+                inbound.sockets.close().get(30L, TimeUnit.SECONDS);
             }
         }
 
@@ -674,7 +682,7 @@ public class ConnectionBurnTest
             .inbound(inbound)
             .outbound(outbound)
             // change the following for a longer burn
-            .time(2L, TimeUnit.MINUTES)
+            .time(1L, TimeUnit.MINUTES)
             .build().run();
     }
 

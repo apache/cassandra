@@ -1303,8 +1303,6 @@ public class Verifier
 
         public void put(long sequenceId, Event event)
         {
-            if (eventWaitingInterrupted)
-                return;
             long chunkSequenceId = sequenceId & -CHUNK_SIZE;
             Chunk chunk = writerChunk;
             if (chunk.sequenceId != chunkSequenceId)
@@ -1634,4 +1632,5 @@ public class Verifier
     {
         return message.expiresAtNanos();
     }
+
 }
