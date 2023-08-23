@@ -37,8 +37,11 @@ import static org.apache.cassandra.cql3.statements.TransactionStatement.DUPLICAT
 import static org.apache.cassandra.cql3.statements.TransactionStatement.EMPTY_TRANSACTION_MESSAGE;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.ILLEGAL_RANGE_QUERY_MESSAGE;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.INCOMPLETE_PRIMARY_KEY_SELECT_MESSAGE;
+import static org.apache.cassandra.cql3.statements.TransactionStatement.MISSING_DEFAULT_BRANCH_MESSAGE;
+import static org.apache.cassandra.cql3.statements.TransactionStatement.MISSING_SELECT_IN_BRANCH_MESSAGE;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.NO_CONDITIONS_IN_UPDATES_MESSAGE;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.NO_TIMESTAMPS_IN_UPDATES_MESSAGE;
+import static org.apache.cassandra.cql3.statements.TransactionStatement.SELECT_ALREADY_DEFINED_MESSAGE;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.SELECT_REFS_NEED_COLUMN_MESSAGE;
 import static org.apache.cassandra.cql3.statements.UpdateStatement.CANNOT_SET_KEY_WITH_REFERENCE_MESSAGE;
 import static org.apache.cassandra.cql3.statements.UpdateStatement.UPDATING_PRIMARY_KEY_MESSAGE;
@@ -46,6 +49,7 @@ import static org.apache.cassandra.cql3.statements.schema.CreateTableStatement.p
 import static org.apache.cassandra.cql3.transactions.RowDataReference.CANNOT_FIND_TUPLE_MESSAGE;
 import static org.apache.cassandra.cql3.transactions.RowDataReference.COLUMN_NOT_IN_TUPLE_MESSAGE;
 import static org.apache.cassandra.schema.TableMetadata.UNDEFINED_COLUMN_NAME_MESSAGE;
+import static org.assertj.core.api.Assertions.assertThat;
 
 public class TransactionStatementTest
 {
@@ -95,7 +99,18 @@ public class TransactionStatementTest
 
         Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(SyntaxException.class)
-                  .hasMessageContaining("failed predicate");
+                  .hasMessageContaining("expecting K_END");
+    }
+
+    @Test
+    public void validTest()
+    {
+        String query = "BEGIN TRANSACTION\n" +
+                       "  LET row1 = (SELECT * FROM ks.tbl1 WHERE k=1 AND c=2);\n" +
+                       "  SELECT row1.v;\n" +
+                       "COMMIT TRANSACTION";
+
+        prepare(query);
     }
 
     @Test
@@ -108,7 +123,7 @@ public class TransactionStatementTest
 
         Assertions.assertThatThrownBy(() -> prepare(query))
                   .isInstanceOf(SyntaxException.class)
-                  .hasMessageContaining("failed predicate");
+                  .hasMessageContaining("expecting K_COMMIT");
     }
 
     @Test
@@ -359,12 +374,214 @@ public class TransactionStatementTest
                   .hasMessageContaining(String.format(ILLEGAL_RANGE_QUERY_MESSAGE, "LET assignment row1", "at [2:15]"));
     }
 
+    @Test
+    public void shouldRejectSelectDefinedOnTopLevelAndInBranches()
+    {
+        String query = "BEGIN TRANSACTION\n" +
+                       "  LET a = (SELECT * FROM ks.tbl1 WHERE k = 0 AND c = 0);\n" +
+                       "  LET b = (SELECT * FROM ks.tbl1 WHERE k = 1 AND c = 0);\n" +
+                       "  SELECT a.v;\n" +
+                       "  IF a.v = 1 THEN\n" +
+                       "    SELECT b.v;\n" +
+                       "    UPDATE ks.tbl1 SET v = a.v WHERE k=1 AND c=2;\n" +
+                       "  ELSE IF a.v = 2 THEN\n" +
+                       "    SELECT a.v;\n" +
+                       "    UPDATE ks.tbl1 SET v = b.v WHERE k=1 AND c=2;\n" +
+                       "  ELSE\n" +
+                       "    SELECT b.v;\n" +
+                       "  END IF\n" +
+                       "COMMIT TRANSACTION";
+
+        Assertions.assertThatThrownBy(() -> prepare(query))
+                    .isInstanceOf(InvalidRequestException.class)
+                    .hasMessageContaining(String.format(SELECT_ALREADY_DEFINED_MESSAGE, "at [5:3]"));
+    }
+
+    @Test
+    public void shouldRejectSelectDefinedAfterUpdate()
+    {
+        String query = "BEGIN TRANSACTION\n" +
+                       "  LET a = (SELECT * FROM ks.tbl1 WHERE k = 0 AND c = 0);\n" +
+                       "  LET b = (SELECT * FROM ks.tbl1 WHERE k = 1 AND c = 0);\n" +
+                       "  IF a.v = 1 THEN\n" +
+                       "    UPDATE ks.tbl1 SET v = a.v WHERE k=1 AND c=2;\n" +
+                       "    SELECT b.value, a.value;\n" +   // <-- SELECT defined after UPDATE
+                       "  ELSE IF a.v = 2 THEN\n" +
+                       "    SELECT a.value, b.value;\n" +
+                       "    UPDATE ks.tbl1 SET v = b.v WHERE k=1 AND c=2;\n" +
+                       "  ELSE\n" +
+                       "    SELECT a.value, b.value;\n" +
+                       "  END IF\n" +
+                       "COMMIT TRANSACTION";
+
+        Assertions.assertThatThrownBy(() -> prepare(query))
+                  .isInstanceOf(SyntaxException.class)
+                  .hasMessageContaining("mismatched input 'SELECT' expecting K_END");
+    }
+
+    @Test
+    public void shouldAcceptMissingSelectInBranch()
+    {
+        String query = "BEGIN TRANSACTION\n" +
+                       "  LET a = (SELECT * FROM ks.tbl1 WHERE k = 0 AND c = 0);\n" +
+                       "  LET b = (SELECT * FROM ks.tbl1 WHERE k = 1 AND c = 0);\n" +
+                       "  IF a.v = 1 THEN\n" +
+                       "    SELECT a.v;\n" +
+                       "    UPDATE ks.tbl1 SET v = a.v WHERE k=1 AND c=2;\n" +
+                       "  ELSE IF a.v = 2 THEN\n" +
+                       "    UPDATE ks.tbl1 SET v = b.v WHERE k=1 AND c=2;\n" +
+                       "  ELSE\n" +
+                       "    SELECT b.v;\n" +
+                       "  END IF\n" +
+                       "COMMIT TRANSACTION";
+
+        TransactionStatement txn = (TransactionStatement) prepare(query);
+        assertThat(txn).isNotNull();
+    }
+
+    @Test
+    public void shouldAcceptMissingSelectInImplicitBranch()
+    {
+        String query = "BEGIN TRANSACTION\n" +
+                       "  LET a = (SELECT * FROM ks.tbl1 WHERE k = 0 AND c = 0);\n" +
+                       "  LET b = (SELECT * FROM ks.tbl1 WHERE k = 1 AND c = 0);\n" +
+                       "  IF a.v = 1 THEN\n" +
+                       "    SELECT a.v;\n" +
+                       "    UPDATE ks.tbl1 SET v = a.v WHERE k=1 AND c=2;\n" +
+                       "  END IF\n" +
+                       "COMMIT TRANSACTION";
+
+        TransactionStatement txn = (TransactionStatement) prepare(query);
+        assertThat(txn).isNotNull();
+    }
+
+    @Test
+    public void shouldRejectInconsistentSelectionsInBranches()
+    {
+        String query = "BEGIN TRANSACTION\n" +
+                       "  LET a = (SELECT * FROM ks.tbl1 WHERE k = 0 AND c = 0);\n" +
+                       "  LET b = (SELECT * FROM ks.tbl1 WHERE k = 1 AND c = 0);\n" +
+                       "  IF a.v = 1 THEN\n" +
+                       "    SELECT b.v;\n" +
+                       "    UPDATE ks.tbl1 SET v = a.v WHERE k=1 AND c=2;\n" +
+                       "  ELSE IF a.v = 2 THEN\n" +
+                       "    SELECT a.v, b.v;\n" +
+                       "    UPDATE ks.tbl1 SET v = b.v WHERE k=1 AND c=2;\n" +
+                       "  ELSE\n" +
+                       "    SELECT a.v;\n" +
+                       "  END IF\n" +
+                       "COMMIT TRANSACTION";
+
+        Assertions.assertThatThrownBy(() -> prepare(query))
+                  .isInstanceOf(InvalidRequestException.class)
+                  .hasMessageContaining("Conditional block at [7:8] have inconsistent result set - column [2]: <missing selection> != org.apache.cassandra.db.marshal.Int32Type");
+    }
+
+    @Test
+    public void shouldAcceptTxnWithMultipleConditionalBlocks()
+    {
+        String query = "BEGIN TRANSACTION\n" +
+                       "  LET a = (SELECT * FROM ks.tbl1 WHERE k = 0 AND c = 0);\n" +
+                       "  LET b = (SELECT * FROM ks.tbl1 WHERE k = 1 AND c = 0);\n" +
+                       "  IF a.v = 1 AND b.v = 1 THEN\n" +
+                       "    SELECT a.v, b.v;\n" +
+                       "    UPDATE ks.tbl1 SET v = a.v WHERE k=1 AND c=2;\n" +
+                       "    UPDATE ks.tbl1 SET v = b.v WHERE k=2 AND c=1;\n" +
+                       "  ELSE IF a.v = 2 THEN\n" +
+                       "    SELECT a.v, b.k;\n" +
+                       "    UPDATE ks.tbl1 SET v = b.v WHERE k=3 AND c=1;\n" +
+                       "  ELSE\n" +
+                       "    SELECT b.v, a.v;\n" +
+                       "    UPDATE ks.tbl2 SET v = b.v WHERE k=1 AND c=1;\n" +
+                       "  END IF\n" +
+                       "COMMIT TRANSACTION";
+
+        TransactionStatement txn = (TransactionStatement) prepare(query);
+        assertThat(txn).isNotNull();
+    }
+
+    @Test
+    public void shouldAcceptTxnWithImplicitDefaultBlock()
+    {
+        String query = "BEGIN TRANSACTION\n" +
+                       "  LET a = (SELECT * FROM ks.tbl1 WHERE k = 0 AND c = 0);\n" +
+                       "  LET b = (SELECT * FROM ks.tbl1 WHERE k = 1 AND c = 0);\n" +
+                       "  SELECT a.v, b.v;\n" +
+                       "  IF a.v = 1 AND b.v = 1 THEN\n" +
+                       "    UPDATE ks.tbl1 SET v = a.v WHERE k=1 AND c=2;\n" +
+                       "    UPDATE ks.tbl1 SET v = b.v WHERE k=2 AND c=1;\n" +
+                       "  END IF\n" +
+                       "COMMIT TRANSACTION";
+
+        TransactionStatement txn = (TransactionStatement) prepare(query);
+        assertThat(txn).isNotNull();
+    }
+
+    @Test
+    public void shouldAcceptTxnWithoutConditions()
+    {
+        String query = "BEGIN TRANSACTION\n" +
+                       "  LET a = (SELECT * FROM ks.tbl1 WHERE k = 0 AND c = 0);\n" +
+                       "  LET b = (SELECT * FROM ks.tbl1 WHERE k = 1 AND c = 0);\n" +
+                       "  SELECT a.v, b.v, 1, 'abc';\n" +
+                       "  UPDATE ks.tbl1 SET v = a.v WHERE k=1 AND c=2;\n" +
+                       "  UPDATE ks.tbl1 SET v = b.v WHERE k=2 AND c=1;\n" +
+                       "COMMIT TRANSACTION";
+
+        TransactionStatement txn = (TransactionStatement) prepare(query);
+        assertThat(txn).isNotNull();
+    }
+
+    @Test
+    public void shouldAcceptReadOnlyTxn()
+    {
+        String query = "BEGIN TRANSACTION\n" +
+                       "  LET a = (SELECT * FROM ks.tbl1 WHERE k = 0 AND c = 0);\n" +
+                       "  LET b = (SELECT * FROM ks.tbl1 WHERE k = 1 AND c = 0);\n" +
+                       "  SELECT a.v, b.v, 1, 'abc';\n" +
+                       "COMMIT TRANSACTION";
+
+        TransactionStatement txn = (TransactionStatement) prepare(query);
+        assertThat(txn).isNotNull();
+    }
+
+    @Test
+    public void shouldAcceptWriteOnlyTxn()
+    {
+        String query = "BEGIN TRANSACTION\n" +
+                       "  LET a = (SELECT * FROM ks.tbl1 WHERE k = 0 AND c = 0);\n" +
+                       "  LET b = (SELECT * FROM ks.tbl1 WHERE k = 1 AND c = 0);\n" +
+                       "  UPDATE ks.tbl1 SET v = a.v WHERE k=1 AND c=2;\n" +
+                       "  UPDATE ks.tbl1 SET v = b.v WHERE k=2 AND c=1;\n" +
+                       "COMMIT TRANSACTION";
+
+        TransactionStatement txn = (TransactionStatement) prepare(query);
+        assertThat(txn).isNotNull();
+    }
+
+    @Test
+    public void shouldAcceptConditionalWriteOnlyTxn()
+    {
+        String query = "BEGIN TRANSACTION\n" +
+                       "  LET a = (SELECT * FROM ks.tbl1 WHERE k = 0 AND c = 0);\n" +
+                       "  LET b = (SELECT * FROM ks.tbl1 WHERE k = 1 AND c = 0);\n" +
+                       "  IF a.v = 1 AND b.v = 1 THEN\n" +
+                       "    UPDATE ks.tbl1 SET v = a.v WHERE k=1 AND c=2;\n" +
+                       "    UPDATE ks.tbl1 SET v = b.v WHERE k=2 AND c=1;\n" +
+                       "  END IF\n" +
+                       "COMMIT TRANSACTION";
+
+        TransactionStatement txn = (TransactionStatement) prepare(query);
+        assertThat(txn).isNotNull();
+    }
+
     private static CQLStatement prepare(String query)
     {
         TransactionStatement.Parsed parsed = (TransactionStatement.Parsed) QueryProcessor.parseStatement(query);
         return parsed.prepare(ClientState.forInternalCalls());
     }
 
+    @SuppressWarnings("UnusedReturnValue")
     private static ResultMessage execute(String query, Object... binds)
     {
         CQLStatement stmt = prepare(query);

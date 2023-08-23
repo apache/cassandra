@@ -44,7 +44,7 @@ public class TxnUpdateTest
     public void predicateSerializer()
     {
         Txn txn = AccordTestUtils.createTxn(0, 0);
-        TxnUpdate update = (TxnUpdate) txn.update();
-        assertSerializerIOEquality(update, TxnUpdate.serializer);
+        TxnMultiUpdate update = (TxnMultiUpdate) txn.update();
+        assertSerializerIOEquality(update, TxnMultiUpdate.serializer);
     }
 }

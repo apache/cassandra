@@ -39,9 +39,9 @@ import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.service.accord.txn.TxnMultiUpdate;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
-import org.apache.cassandra.service.accord.txn.TxnUpdate;
 import org.apache.cassandra.service.accord.txn.TxnWrite;
 
 public class CommandSerializers
@@ -130,7 +130,7 @@ public class CommandSerializers
             TxnQuery.serializer.serialize((TxnQuery) txn.query(), out, version);
             out.writeBoolean(txn.update() != null);
             if (txn.update() != null)
-                TxnUpdate.serializer.serialize((TxnUpdate) txn.update(), out, version);
+                TxnMultiUpdate.serializer.serialize((TxnMultiUpdate) txn.update(), out, version);
         }
 
         @Override
@@ -141,7 +141,7 @@ public class CommandSerializers
             Seekables<?, ?> keys = KeySerializers.seekables.deserialize(in, version);
             TxnRead read = TxnRead.serializer.deserialize(in, version);
             TxnQuery query = TxnQuery.serializer.deserialize(in, version);
-            TxnUpdate update = in.readBoolean() ? TxnUpdate.serializer.deserialize(in, version) : null;
+            TxnMultiUpdate update = in.readBoolean() ? TxnMultiUpdate.serializer.deserialize(in, version) : null;
             return new PartialTxn.InMemory(covering, kind, keys, read, query, update);
         }
 
@@ -155,7 +155,7 @@ public class CommandSerializers
             size += TxnQuery.serializer.serializedSize((TxnQuery) txn.query(), version);
             size += TypeSizes.sizeof(txn.update() != null);
             if (txn.update() != null)
-                size += TxnUpdate.serializer.serializedSize((TxnUpdate) txn.update(), version);
+                size += TxnMultiUpdate.serializer.serializedSize((TxnMultiUpdate) txn.update(), version);
             return size;
         }
     };

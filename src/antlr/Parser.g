@@ -31,6 +31,8 @@ options {
     protected boolean isParsingTxn = false;
     // tracks whether a txn has conditional updates
     protected boolean isTxnConditional = false;
+    // tracks whether a txn has a default block
+    protected boolean hasTxnDefaultBlock = false;
 
     protected List<RowDataReference.Raw> references;
 
@@ -93,6 +95,15 @@ options {
         RowDataReference.Raw reference = RowDataReference.Raw.fromSelectable(tuple, selectable);
         references.add(reference);
         return reference;
+    }
+
+    public void maybeAddDefaultConditionalBlock(List<TransactionStatement.ConditionalBlock.Raw> blocks)
+    {
+        if (isTxnConditional && !hasTxnDefaultBlock)
+        {
+            stmtBegins();
+            blocks.add(new TransactionStatement.ConditionalBlock.Raw(null, null, null, stmtSrc()));
+        }
     }
 
     public void addErrorListener(ErrorListener listener)
@@ -754,6 +765,21 @@ batchStatementObjective returns [ModificationStatement.Parsed statement]
  *   END IF
  * COMMIT TRANSACTION
  *
+ * BEGIN TRANSACTION
+ *   LET row1 = (SELECT * FROM <table> WHERE k=1 AND c=2);
+ *   LET row2 = (SELECT * FROM <table> WHERE k=2 AND c=2);
+ *   IF row1.v = 2 THEN
+ *     SELECT row1.v, row2.v;
+ *     UPDATE <table> SET v = row1.v + 1 WHERE k = 1 AND c = 2;
+ *   ELSE IF row1.v = 3 THEN
+ *     SELECT row1.v, row2.v;
+ *     UPDATE <table> SET v = row1.v + 2 WHERE k = 1 AND c = 2;
+ *   ELSE
+ *     SELECT row1.v, row2.v;
+ *     UPDATE <table> SET v = row1.v + 3 WHERE k = 1 AND c = 2;
+ *   END IF
+ * COMMIT TRANSACTION
+ *
  * ex. read-only transaction
  * 
  * BEGIN TRANSACTION
@@ -769,25 +795,61 @@ batchStatementObjective returns [ModificationStatement.Parsed statement]
 batchTxnStatement returns [TransactionStatement.Parsed expr]
     @init {
         isParsingTxn = true;
+        hasTxnDefaultBlock = false;
         List<SelectStatement.RawStatement> assignments = new ArrayList<>();
         SelectStatement.RawStatement select = null;
-        List<RowDataReference.Raw> returning = null;
-        List<ModificationStatement.Parsed> updates = new ArrayList<>();
+        List<Term.Raw> returning = null;
+        List<ModificationStatement.Parsed> unconditionalUpdates = new ArrayList<>();
+        List<TransactionStatement.ConditionalBlock.Raw> blocks = new ArrayList<>();
     }
     : K_BEGIN K_TRANSACTION
       ( let=letStatement ';' { assignments.add(let); })*
+
+      // top level select / returning references
       ( ( (selectStatement) => s=selectStatement ';' { select = s; }) | ( K_SELECT drs=rowDataReferences ';' { returning = drs; }) )?
-      ( K_IF conditions=txnConditions K_THEN { isTxnConditional = true; } )?
-      ( upd=batchStatementObjective ';' { updates.add(upd); } )*
-      ( {!isTxnConditional}? (K_COMMIT K_TRANSACTION) | {isTxnConditional}? (K_END K_IF K_COMMIT K_TRANSACTION))
+
+      // conditional blocks
+      ( { stmtBegins(); } K_IF block=conditionalBlock[true] { isTxnConditional = true; blocks.add(block); }
+        (K_ELSE { stmtBegins(); } K_IF block=conditionalBlock[true] { blocks.add(block); } )*
+        (K_ELSE { stmtBegins(); } block=conditionalBlock[false] { blocks.add(block); hasTxnDefaultBlock = true; } )?
+        K_END K_IF
+      )?
+
+      // if the default conditional block is not defiend we add it
+      { maybeAddDefaultConditionalBlock(blocks); }
+
+      // unconditional block
+      ({!isTxnConditional}? ( upd=batchStatementObjective ';' { unconditionalUpdates.add(upd); } )* | {} )
+
+      K_COMMIT K_TRANSACTION
     {
-        $expr = new TransactionStatement.Parsed(assignments, select, returning, updates, conditions, references);
+        $expr = new TransactionStatement.Parsed(assignments, select, returning, unconditionalUpdates, blocks, references);
     }
     ;
     finally { isParsingTxn = false; }
 
-rowDataReferences returns [List<RowDataReference.Raw> refs]
-    : r1=rowDataReference { refs = new ArrayList<RowDataReference.Raw>(); refs.add(r1); } (',' rN=rowDataReference { refs.add(rN); })*
+conditionalBlock[boolean requiresCondition] returns [TransactionStatement.ConditionalBlock.Raw block]
+    @init {
+        List<Term.Raw> returning = null;
+        List<ModificationStatement.Parsed> updates = new ArrayList<>();
+        StatementSource source = null;
+    }
+    : ( {requiresCondition}? conditions=txnConditions K_THEN )?
+    { source = stmtSrc(); }
+      ( K_SELECT drs=rowDataReferences ';' { returning = drs; } )?
+    ( upd=batchStatementObjective ';' { updates.add(upd); } )*
+    {
+        $block = new TransactionStatement.ConditionalBlock.Raw(returning, updates, conditions, source);
+    }
+    ;
+
+rowDataReferences returns [List<Term.Raw> refs]
+    : r1=selectableRowDataReference { refs = new ArrayList<Term.Raw>(); refs.add(r1); } (',' rN=selectableRowDataReference { refs.add(rN); })*
+    ;
+
+selectableRowDataReference returns [Term.Raw raw]
+    : t=sident ('.' s=referenceSelection)? { $raw = newRowDataReference(t, s); }
+    | c=constant { $raw = c; }
     ;
 
 rowDataReference returns [RowDataReference.Raw rawRef]
