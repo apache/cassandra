@@ -3,7 +3,7 @@
 This section covers how to get started using Apache Cassandra and should
 be the first thing to read if you are new to Cassandra.
 
-* xref:installing/installing.adoc[Installing Cassandra]: Installation instructions plus information on choosing a method.  
+* xref:installing/installing.adoc[Installing Cassandra]: Installation instructions plus information on choosing a method.
 ** [ xref:installing/installing.adoc#installing-the-docker-image[Docker] ]
 [ xref:installing/installing.adoc#installing-the-binary-tarball[tarball] ]
 [ xref:installing/installing.adoc#installing-the-debian-packages[Debian] ]

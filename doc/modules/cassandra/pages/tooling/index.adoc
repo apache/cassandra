@@ -1,0 +1,5 @@
+= Tools and resources
+
+* xref:tooling/hash-password.adoc[]
+* xref:tooling/generate-tokens.adoc[]
+* xref:tooling/cassandra-stress.adoc[]

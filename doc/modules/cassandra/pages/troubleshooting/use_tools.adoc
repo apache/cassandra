@@ -483,7 +483,7 @@ $ ./vmtouch /var/lib/cassandra/data/
 
 In this case almost the entire dataset is hot in OS page Cache.
 Generally speaking the percentage doesn't really matter unless reads are
-missing the cache (per e.g. xref:cql/troubleshooting/use_tools.adoc#use-bcc-tools[cachestat] in which case
+missing the cache (per e.g. xref:cassandra:developing/cql/troubleshooting/use_tools.adoc#use-bcc-tools[cachestat] in which case
 having additional memory may help read performance.
 
 === CPU Flamegraphs

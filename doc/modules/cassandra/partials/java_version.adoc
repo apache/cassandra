@@ -1,14 +1,14 @@
 [arabic, start=1]
 . Verify the version of Java installed. For example:
 
-[{tabs}]
+[tabs]
 ====
 Command::
 +
 --
 [source,shell]
 ----
-include::example$BASH/java_verify.sh[]
+include::cassandra:example$BASH/java_verify.sh[]
 ----
 --
 
@@ -17,7 +17,7 @@ Result::
 --
 [source,plaintext]
 ----
-include::example$RESULTS/java_verify.result[]
+include::cassandra:example$RESULTS/java_verify.result[]
 ----
 --
 ====

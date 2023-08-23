@@ -6,8 +6,8 @@ Change data capture (CDC) provides a mechanism to flag specific tables
 for archival as well as rejecting writes to those tables once a
 configurable size-on-disk for the CDC log is reached. An operator can
 enable CDC on a table by setting the table property `cdc=true` (either
-when xref:cql/ddl.adoc#create-table[`creating the table`] or
-xref:cql/ddl.adoc#alter-table[`altering it`]). Upon CommitLogSegment creation,
+when xref:cassandra:developing/cql/ddl.adoc#create-table[`creating the table`] or
+xref:cassandra:developing/cql/ddl.adoc#alter-table[`altering it`]). Upon CommitLogSegment creation,
 a hard-link to the segment is created in the directory specified in
 `cassandra.yaml`. On segment fsync to disk, if CDC data is present
 anywhere in the segment a <segment_name>_cdc.idx file is also created

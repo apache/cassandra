@@ -251,15 +251,15 @@ Estimated tombstone drop times:
 $ echo $(date +%s)
 1536602005
 
-# if gc_grace_seconds was configured at 100, all of the tombstones would be currently droppable 
+# if gc_grace_seconds was configured at 100, all of the tombstones would be currently droppable
 $ sstablemetadata --gc_grace_seconds 100 /var/lib/cassandra/data/keyspace1/standard1-41b52700b4ed11e896476d2c86545d91/mc-12-big-Data.db | grep "Estimated droppable tombstones"
 Estimated droppable tombstones: 4.0E-5
 
-# if gc_grace_seconds was configured at 4700, some of the tombstones would be currently droppable 
+# if gc_grace_seconds was configured at 4700, some of the tombstones would be currently droppable
 $ sstablemetadata --gc_grace_seconds 4700 /var/lib/cassandra/data/keyspace1/standard1-41b52700b4ed11e896476d2c86545d91/mc-12-big-Data.db | grep "Estimated droppable tombstones"
 Estimated droppable tombstones: 9.61111111111111E-6
 
-# if gc_grace_seconds was configured at 100, none of the tombstones would be currently droppable 
+# if gc_grace_seconds was configured at 100, none of the tombstones would be currently droppable
 $ sstablemetadata --gc_grace_seconds 5000 /var/lib/cassandra/data/keyspace1/standard1-41b52700b4ed11e896476d2c86545d91/mc-12-big-Data.db | grep "Estimated droppable tombstones"
 Estimated droppable tombstones: 0.0
 ....
@@ -298,57 +298,57 @@ Largest Partitions:
 
 |SSTable |prefix of the sstable filenames related to this sstable
 |Partitioner |partitioner type used to distribute data across nodes;
-defined in cassandra.yaml 
+defined in cassandra.yaml
 |Bloom Filter FP |precision of Bloom filter used
-in reads; defined in the table definition 
+in reads; defined in the table definition
 |Minimum timestamp |minimum
-timestamp of any entry in this sstable, in epoch microseconds 
+timestamp of any entry in this sstable, in epoch microseconds
 |Maximum
 timestamp |maximum timestamp of any entry in this sstable, in epoch
 microseconds
 |Duration |Difference between Maximum timestamp and Minimum timestamp
 |SSTable min local deletion time |minimum timestamp of
-deletion date, based on TTL, in epoch seconds 
+deletion date, based on TTL, in epoch seconds
 |SSTable max local deletion
 time |maximum timestamp of deletion date, based on TTL, in epoch seconds
 |Compressor |blank (-) by default; if not blank, indicates type of
-compression enabled on the table 
+compression enabled on the table
 |TTL min |time-to-live in seconds;
-default 0 unless defined in the table definition 
+default 0 unless defined in the table definition
 |TTL max |time-to-live in
-seconds; default 0 unless defined in the table definition 
-|First token |lowest token and related key found in the sstable summary 
-|Last token |highest token and related key found in the sstable summary 
+seconds; default 0 unless defined in the table definition
+|First token |lowest token and related key found in the sstable summary
+|Last token |highest token and related key found in the sstable summary
 |Estimated
 droppable tombstones |ratio of tombstones to columns, using configured gc
-grace seconds if relevant 
+grace seconds if relevant
 |SSTable level |compaction level of this
-sstable, if leveled compaction (LCS) is used 
+sstable, if leveled compaction (LCS) is used
 |Repaired at |the timestamp
 this sstable was marked as repaired via sstablerepairedset, in epoch
-milliseconds 
+milliseconds
 |Replay positions covered |the interval of time and commitlog
 positions related to this sstable
 |totalColumnsSet |number of cells in the table
 |totalRows |number of rows in the table
 |Estimated tombstone drop
 times |approximate number of rows that will expire, ordered by epoch
-seconds 
+seconds
 |Count Row Size Cell Count |two histograms in two columns; one
 represents distribution of Row Size and the other represents
-distribution of Cell Count 
+distribution of Cell Count
 |Estimated cardinality an estimate of unique
-values, used for compaction 
+values, used for compaction
 |EncodingStats* minTTL |in epoch milliseconds
-|EncodingStats* minLocalDeletionTime |in epoch seconds 
+|EncodingStats* minLocalDeletionTime |in epoch seconds
 |EncodingStats*
-minTimestamp |in epoch microseconds 
+minTimestamp |in epoch microseconds
 |KeyType |the type of partition key,
 useful in reading and writing data from/to storage; defined in the table
-definition 
+definition
 |ClusteringTypes |the type of clustering key, useful in reading
 and writing data from/to storage; defined in the table definition
-|StaticColumns |a list of the shared columns in the table 
+|StaticColumns |a list of the shared columns in the table
 |RegularColumns |a
 list of non-static, non-key columns in the table
 |===

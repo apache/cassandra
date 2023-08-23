@@ -114,7 +114,7 @@ Users can set compression using the following syntax:
 
 [source,cql]
 ----
-CREATE TABLE keyspace.table (id int PRIMARY KEY) 
+CREATE TABLE keyspace.table (id int PRIMARY KEY)
    WITH compression = {'class': 'LZ4Compressor'};
 ----
 
@@ -122,7 +122,7 @@ Or
 
 [source,cql]
 ----
-ALTER TABLE keyspace.table 
+ALTER TABLE keyspace.table
    WITH compression = {'class': 'LZ4Compressor', 'chunk_length_in_kb': 64, 'crc_check_chance': 0.5};
 ----
 
@@ -131,7 +131,7 @@ Once enabled, compression can be disabled with `ALTER TABLE` setting
 
 [source,cql]
 ----
-ALTER TABLE keyspace.table 
+ALTER TABLE keyspace.table
    WITH compression = {'enabled':'false'};
 ----
 
@@ -171,8 +171,8 @@ the CPU overhead of compression can be a limiting factor.
 * To prevent slow compressors (`Zstd`, `Deflate`, `LZ4HC`) from blocking
 flushes for too long, all three flush with the default fast `LZ4`
 compressor and then rely on normal compaction to re-compress the data
-into the desired compression strategy. See [.title-ref]#CASSANDRA-15379
-<https://issues.apache.org/jira/browse/CASSANDRA-15379># for more
+into the desired compression strategy.
+See https://issues.apache.org/jira/browse/CASSANDRA-15379[CASSANDRA-15379] for more
 details.
 * The compression path checksums data to ensure correctness - while the
 traditional Cassandra read path does not have a way to ensure

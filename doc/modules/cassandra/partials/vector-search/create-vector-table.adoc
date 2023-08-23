@@ -1,0 +1,6 @@
+. Create a new table in your keyspace, including the `item_vector` column for vector. The code below creates a vector with five values:
++
+[source,cql]
+----
+include::cassandra:example$CQL/vector-search/create-vector-table-products.cql[]
+----

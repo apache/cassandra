@@ -3,7 +3,7 @@
 The `PropertyFileSnitch` `snitch` option uses the
 `cassandra-topologies.properties` configuration file to determine which
 `datacenters` and racks cluster nodes belong to. If other snitches are
-used, the xref:configuration/cass_rackdc_file.adoc[cassandra-rackdc.properties] must be used. The snitch determines
+used, the xref:cassandra:managing/configuration/cass_rackdc_file.adoc[cassandra-rackdc.properties] must be used. The snitch determines
 network topology (proximity by rack and datacenter) so that requests are
 routed efficiently and allows the database to distribute replicas
 evenly.
@@ -47,6 +47,6 @@ This example uses three datacenters:
 172.106.12.121=DC3:RAC1
 172.106.12.122=DC3:RAC1
 
-# default for unknown nodes 
+# default for unknown nodes
 default =DC3:RAC1
 ----

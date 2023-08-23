@@ -1,21 +1,21 @@
-NOTE: For information on how to configure your installation, see
-{cass_url}doc/latest/getting-started/configuring.html[Configuring
-Cassandra].
+[NOTE]
+====
+See xref:cassandra:getting-started/configuring.adoc[configuring Cassandra] for configuration information.
+====
 
-[arabic, start=7]
+// [arabic, start=7]
 . Check the status of Cassandra:
-
++
 [source,shell]
 ----
-include::example$BASH/nodetool_status.sh[]
+include::cassandra:example$BASH/nodetool_status.sh[]
 ----
-
-The status column in the output should report `UN` which stands for
-"Up/Normal".
-
++
+The status column in the output should report `UN` which stands for "Up/Normal".
++
 Alternatively, connect to the database with:
-
++
 [source,shell]
 ----
-include::example$BASH/run_cqlsh.sh[]
+include::cassandra:example$BASH/run_cqlsh.sh[]
 ----

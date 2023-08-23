@@ -13,7 +13,7 @@ don't have access to the machines running Cassandra, or are running on
 Windows or another operating system you may not be able to use the exact
 commands but there are likely equivalent tools you can use.
 
-* xref:troubleshooting/finding_nodes.adoc[Finding nodes] 
-* xref:troubleshooting/reading_logs.adoc[Reading logs] 
-* xref:troubleshooting/use_nodetool.adoc[Using nodetool] 
+* xref:troubleshooting/finding_nodes.adoc[Finding nodes]
+* xref:troubleshooting/reading_logs.adoc[Reading logs]
+* xref:troubleshooting/use_nodetool.adoc[Using nodetool]
 * xref:troubleshooting/use_tools.adoc[Using tools]

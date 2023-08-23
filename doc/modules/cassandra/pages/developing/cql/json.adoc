@@ -1,19 +1,19 @@
 = JSON Support
 
 Cassandra 2.2 introduces JSON support to `SELECT <select-statement>` and
-`INSERT <insert-statement>` statements. 
+`INSERT <insert-statement>` statements.
 This support does not fundamentally alter the CQL API (for example, the schema is still
 enforced).
 It simply provides a convenient way to work with JSON documents.
 
 == SELECT JSON
 
-With `SELECT` statements, the `JSON` keyword is used to return each row as a single `JSON` encoded map. 
+With `SELECT` statements, the `JSON` keyword is used to return each row as a single `JSON` encoded map.
 The remainder of the `SELECT` statement behavior is the same.
 
-The result map keys match the column names in a normal result set. 
-For example, a statement like `SELECT JSON a, ttl(b) FROM ...` would result in a map with keys `"a"` and `"ttl(b)"`. 
-However, there is one notable exception: for symmetry with `INSERT JSON` behavior, case-sensitive column names with upper-case letters will be surrounded with double quotes. 
+The result map keys match the column names in a normal result set.
+For example, a statement like `SELECT JSON a, ttl(b) FROM ...` would result in a map with keys `"a"` and `"ttl(b)"`.
+However, there is one notable exception: for symmetry with `INSERT JSON` behavior, case-sensitive column names with upper-case letters will be surrounded with double quotes.
 For example, `SELECT JSON myColumn FROM ...` would result in a map key `"\"myColumn\""` with escaped quotes).
 
 The map values will JSON-encoded representations (as described below) of the result set values.
@@ -29,7 +29,7 @@ two columns named "myKey" and "value", you would do the following:
 
 [source,cql]
 ----
-include::example$CQL/insert_json.cql[]
+include::cassandra:example$CQL/insert_json.cql[]
 ----
 
 By default (or if `DEFAULT NULL` is explicitly used), a column omitted
