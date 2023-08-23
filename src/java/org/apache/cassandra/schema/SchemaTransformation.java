@@ -50,6 +50,38 @@ public interface SchemaTransformation
         return "null";
     }
 
+    /**
+     * SchemaTransformation::apply should be side effect free, as it may be called repeatedly for any given
+     * transformation.
+     * <ul>
+     *   <li>On receiving a CQL DDL statement, the coordinator pre-emptively applies it using its own current cluster
+     *   metadata for validation. The result of this transformation is discarded and the coordinator submits to the CMS.
+     *   </li>
+     *   <li>A CMS member, receiving a Commit containing an AlterSchema, applies the enclosed SchemaTransformation before
+     *   committing to the metadata log. There may be multiple attempts to commit, and so multiple applications, if
+     *   there is contention on the metadata log.
+     *   </li>
+     *   <li>Following commit, all peers should receive the committed log entry and they will then execute the AlterSchema,
+     *   applying the SchemaTransformation locally. The result of this application then becomes the current published
+     *   cluster metadata for the peer.
+     *   </li>
+     * </ul>
+     * At the moment, not all SchemaTransformation are entirely free of side effects, because both client warnings and
+     * guardrails are tightly coupled to the ST implementations and they do produce side effects. Ideally, ClientWarn
+     * and Guardrails can be reworked to decouple them from ClientState and threadlocals. In the meantime, we can hint
+     * to them that SchemaTransformation::apply is being called in the context of AlterSchema::execute and so they
+     * should not produce their side effects. The default impl is a no-op, but AlterSchemaStatement which has access to
+     * a ClientState, is able to pause both warnings and guardrails.
+     * @see org.apache.cassandra.cql3.statements.schema.AlterSchemaStatement#enterExecution()
+     */
+    default void enterExecution()
+    {
+    }
+
+    default void exitExecution()
+    {
+    }
+
     default String keyspace()
     {
         return null;

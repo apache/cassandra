@@ -92,7 +92,7 @@ public abstract class Guardrail
      */
     public boolean enabled(@Nullable ClientState state)
     {
-        return DatabaseDescriptor.isDaemonInitialized() && (state == null || state.isOrdinaryUser());
+        return DatabaseDescriptor.isDaemonInitialized() && (state == null || (state.isOrdinaryUser() && state.applyGuardrails()));
     }
 
     protected void warn(String message)

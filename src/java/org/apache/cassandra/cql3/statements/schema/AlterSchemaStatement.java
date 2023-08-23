@@ -63,6 +63,24 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
         return cql;
     }
 
+    @Override
+    public void enterExecution()
+    {
+        ClientWarn.instance.pauseCapture();
+        ClientState localState = state;
+        if (localState != null)
+            localState.pauseGuardrails();
+    }
+
+    @Override
+    public void exitExecution()
+    {
+        ClientWarn.instance.resumeCapture();
+        ClientState localState = state;
+        if (localState != null)
+            localState.resumeGuardrails();
+    }
+
     // TODO: validation should be performed during application
     public void validate(ClientState state)
     {

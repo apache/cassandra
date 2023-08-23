@@ -86,6 +86,15 @@ public class AlterSchema implements Transformation
         Keyspaces newKeyspaces;
         try
         {
+            // Applying the schema transformation may produce client warnings. If this is being executed by a follower
+            // of the cluster metadata log, there is no client or ClientState, so warning collection is a no-op.
+            // When a DDL statement is received from an actual client, the transformation is checked for validation
+            // and warnings are captured at that point, before being submitted to the CMS.
+            // If the coordinator is a CMS member, then this method will be called as part of committing to the metadata
+            // log. In this case, there is a connected client and associated ClientState, so to avoid duplicate warnings
+            // pause capture and resume after in applying the schema change.
+            schemaTransformation.enterExecution();
+
             // Guard against an invalid SchemaTransformation supplying a TableMetadata with a future epoch
             newKeyspaces = schemaTransformation.apply(prev, prev.schema.getKeyspaces());
             newKeyspaces.forEach(ksm -> {
@@ -119,6 +128,10 @@ public class AlterSchema implements Transformation
         {
             JVMStabilityInspector.inspectThrowable(t);
             return new Rejected(SERVER_ERROR, t.getMessage());
+        }
+        finally
+        {
+            schemaTransformation.exitExecution();
         }
 
         Keyspaces.KeyspacesDiff diff = Keyspaces.diff(prev.schema.getKeyspaces(), newKeyspaces);

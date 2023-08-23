@@ -97,6 +97,7 @@ public final class CreateTableStatement extends AlterSchemaStatement
 
     public Keyspaces apply(ClusterMetadata metadata, Keyspaces schema)
     {
+
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
         if (null == keyspace)
             throw ire("Keyspace '%s' doesn't exist", keyspaceName);

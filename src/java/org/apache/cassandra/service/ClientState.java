@@ -140,6 +140,27 @@ public class ClientState
     // is unrealistic expectation, doing it node-wise is easy).
     private static final AtomicLong lastTimestampMicros = new AtomicLong(0);
 
+    private boolean applyGuardrails = true;
+    /**
+     * Provides an additional control on the checking of guardrails. When executing SchemaTransformations in the
+     * metadata log follower or when committing on a CMS member, we don't want guardrails to fire warnings.
+     * @see org.apache.cassandra.schema.SchemaTransformation#enterExecution()
+     **/
+    public void pauseGuardrails()
+    {
+        applyGuardrails = false;
+    }
+
+    public void resumeGuardrails()
+    {
+        applyGuardrails = true;
+    }
+
+    public boolean applyGuardrails()
+    {
+        return applyGuardrails;
+    }
+
     @VisibleForTesting
     public static void resetLastTimestamp(long nowMillis)
     {
