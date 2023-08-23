@@ -62,7 +62,7 @@ public interface INodeProvisionStrategy
                     {
                         if (portMap != null)
                         {
-                            return portMap.computeIfAbsent("storagePort:" + nodeNum, key -> SocketUtils.findAvailablePort(seedIp(), 7011 + nodeNum));
+                            return portMap.computeIfAbsent("storagePort@node" + nodeNum, key -> SocketUtils.findAvailablePort(seedIp(), 7011 + nodeNum));
                         }
                         return 7011 + nodeNum;
                     }
@@ -72,7 +72,7 @@ public interface INodeProvisionStrategy
                     {
                         if (portMap != null)
                         {
-                            return portMap.computeIfAbsent("nativeTransportPort:" + nodeNum, key -> SocketUtils.findAvailablePort(seedIp(), 9041 + nodeNum));
+                            return portMap.computeIfAbsent("nativeTransportPort@node" + nodeNum, key -> SocketUtils.findAvailablePort(seedIp(), 9041 + nodeNum));
                         }
                         return 9041 + nodeNum;
                     }
@@ -82,7 +82,7 @@ public interface INodeProvisionStrategy
                     {
                         if (portMap != null)
                         {
-                            return portMap.computeIfAbsent("jmxPort:" + nodeNum, key -> SocketUtils.findAvailablePort(seedIp(), 7199 + nodeNum));
+                            return portMap.computeIfAbsent("jmxPort@node" + nodeNum, key -> SocketUtils.findAvailablePort(seedIp(), 7199 + nodeNum));
                         }
                         return 7199 + nodeNum;
                     }
@@ -121,7 +121,7 @@ public interface INodeProvisionStrategy
                     {
                         if (portMap != null)
                         {
-                            return portMap.computeIfAbsent("storagePort" + nodeNum, key -> SocketUtils.findAvailablePort(ipAddress(nodeNum), 7012));
+                            return portMap.computeIfAbsent("storagePort@node" + nodeNum, key -> SocketUtils.findAvailablePort(ipAddress(nodeNum), 7012));
                         }
                         return 7012;
                     }
@@ -131,7 +131,7 @@ public interface INodeProvisionStrategy
                     {
                         if (portMap != null)
                         {
-                            return portMap.computeIfAbsent("nativeTransportPort:" + nodeNum, key -> SocketUtils.findAvailablePort(ipAddress(nodeNum), 9042));
+                            return portMap.computeIfAbsent("nativeTransportPort@node" + nodeNum, key -> SocketUtils.findAvailablePort(ipAddress(nodeNum), 9042));
                         }
                         return 9042;
                     }
@@ -141,7 +141,7 @@ public interface INodeProvisionStrategy
                     {
                         if (portMap != null)
                         {
-                            return portMap.computeIfAbsent("jmxPort:" + nodeNum, key -> SocketUtils.findAvailablePort(ipAddress(nodeNum), 7199));
+                            return portMap.computeIfAbsent("jmxPort@node" + nodeNum, key -> SocketUtils.findAvailablePort(ipAddress(nodeNum), 7199));
                         }
                         return 7199;
                     }
