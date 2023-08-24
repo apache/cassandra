@@ -47,7 +47,6 @@ import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.RequestCallbackWithFailure;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.ReplicationParams;
@@ -514,7 +513,7 @@ public class ProgressBarrier
         int waitFor();
     }
 
-    private static class WatermarkRequest implements RequestCallbackWithFailure<NoPayload>
+    private static class WatermarkRequest implements RequestCallbackWithFailure<Epoch>
     {
         private AsyncPromise<Void> condition = null;
         private final InetAddressAndPort to;
@@ -530,9 +529,9 @@ public class ProgressBarrier
         }
 
         @Override
-        public void onResponse(Message<NoPayload> msg)
+        public void onResponse(Message<Epoch> msg)
         {
-            Epoch remote = msg.epoch();
+            Epoch remote = msg.payload;
             if (remote.isEqualOrAfter(waitFor))
             {
                 logger.debug("Received watermark response from {} with epoch {}", msg.from(), remote);
@@ -540,7 +539,7 @@ public class ProgressBarrier
             }
             else
             {
-                condition.tryFailure(new TimeoutException(String.format("Watermark request did returned epoch %s while least %s was expected.", remote, waitFor)));
+                condition.tryFailure(new TimeoutException(String.format("Watermark request returned epoch %s while least %s was expected.", remote, waitFor)));
             }
         }
 
@@ -554,7 +553,7 @@ public class ProgressBarrier
         public void retry()
         {
             condition = new AsyncPromise<>();
-            messagingService.sendWithCallback(Message.out(Verb.TCM_CURRENT_EPOCH_REQ, NoPayload.noPayload), to, this);
+            messagingService.sendWithCallback(Message.out(Verb.TCM_CURRENT_EPOCH_REQ, ClusterMetadata.current().epoch), to, this);
         }
     }
 

@@ -35,8 +35,8 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ExceptionCode;
 import org.apache.cassandra.io.util.FileInputStreamPlus;
@@ -44,7 +44,6 @@ import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LocalLog;
@@ -120,7 +119,7 @@ public class ClusterMetadataService
     private final Replication.LogNotifyHandler logNotifyHandler;
     private final IVerbHandler<FetchCMSLog> fetchLogHandler;
     private final IVerbHandler<Commit> commitRequestHandler;
-    private final IVerbHandler<NoPayload> currentEpochHandler;
+    private final CurrentEpochRequestHandler currentEpochHandler;
 
     private final PeerLogFetcher peerLogFetcher;
 
@@ -555,7 +554,7 @@ public class ClusterMetadataService
         return instance.commitRequestHandler;
     }
 
-    public static IVerbHandler<NoPayload> currentEpochRequestHandler()
+    public static CurrentEpochRequestHandler currentEpochRequestHandler()
     {
         // Make it possible to get Verb without throwing NPE during simulation
         ClusterMetadataService instance = ClusterMetadataService.instance();

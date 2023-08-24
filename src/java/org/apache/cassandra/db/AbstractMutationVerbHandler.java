@@ -49,9 +49,12 @@ public abstract class AbstractMutationVerbHandler<T extends IMutation> implement
 
     protected void processMessage(Message<T> message, InetAddressAndPort respondTo)
     {
-        ClusterMetadata metadata = ClusterMetadata.current();
-        metadata = checkTokenOwnership(metadata, message);
-        metadata = checkSchemaVersion(metadata, message);
+        if (message.epoch().isAfter(Epoch.EMPTY))
+        {
+            ClusterMetadata metadata = ClusterMetadata.current();
+            metadata = checkTokenOwnership(metadata, message);
+            metadata = checkSchemaVersion(metadata, message);
+        }
         applyMutation(message, respondTo);
     }
 

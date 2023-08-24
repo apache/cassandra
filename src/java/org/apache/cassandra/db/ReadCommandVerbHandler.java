@@ -50,9 +50,13 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
 
     public void doVerb(Message<ReadCommand> message)
     {
-        ClusterMetadata metadata = ClusterMetadata.current();
-        metadata = checkTokenOwnership(metadata, message);
-        metadata = checkSchemaVersion(metadata, message);
+        if (message.epoch().isAfter(Epoch.EMPTY))
+        {
+            ClusterMetadata metadata = ClusterMetadata.current();
+            metadata = checkTokenOwnership(metadata, message);
+            metadata = checkSchemaVersion(metadata, message);
+        }
+
         MessageParams.reset();
 
         long timeout = message.expiresAtNanos() - message.createdAtNanos();

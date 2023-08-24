@@ -26,18 +26,17 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.NoPayload;
 
 // The cluster metadata equivalent of a Gossip PING; used to exchange the current epochs on
 // two peers via a pair of empty messages
-public class CurrentEpochRequestHandler implements IVerbHandler<NoPayload>
+public class CurrentEpochRequestHandler implements IVerbHandler<Epoch>
 {
     private static final Logger logger = LoggerFactory.getLogger(CurrentEpochRequestHandler.class);
-    public void doVerb(Message<NoPayload> message) throws IOException
+    public void doVerb(Message<Epoch> message) throws IOException
     {
-        Message<NoPayload> response = message.emptyResponse();
+        Message<Epoch> response = message.responseWith(ClusterMetadata.current().epoch);
         MessagingService.instance().send(response, message.from());
         // We try to catch up after responding, as watermark request is going to get retried
-        ClusterMetadataService.instance().fetchLogFromPeerOrCMSAsync(ClusterMetadata.current(), message.from(), message.epoch());
+        ClusterMetadataService.instance().fetchLogFromPeerOrCMSAsync(ClusterMetadata.current(), message.from(), message.payload);
     }
 }

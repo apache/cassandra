@@ -69,7 +69,6 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -639,9 +638,9 @@ public class ClusterUtils
             CountDownLatch latch = CountDownLatch.newCountDownLatch(peers.size());
             Map<String, Long> epochs = new ConcurrentHashMap<>(peers.size());
             peers.forEach(peer -> {
-                Message<NoPayload> request = Message.out(Verb.TCM_CURRENT_EPOCH_REQ, NoPayload.noPayload);
-                RequestCallback<NoPayload> callback = response -> {
-                    epochs.put(peer.toString(), encode(response.epoch()));
+                Message<Epoch> request = Message.out(Verb.TCM_CURRENT_EPOCH_REQ, ClusterMetadata.current().epoch);
+                RequestCallback<Epoch> callback = response -> {
+                    epochs.put(peer.toString(), encode(response.payload));
                     latch.decrement();
                 };
                 MessagingService.instance().sendWithCallback(request, peer, callback);

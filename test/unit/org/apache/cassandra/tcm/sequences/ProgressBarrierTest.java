@@ -138,7 +138,7 @@ public class ProgressBarrierTest extends CMSTestBase
                             if (respond.get())
                             {
                                 responded.add(to);
-                                cb.onResponse((Message<RSP>) message.emptyResponse());
+                                cb.onResponse((Message<RSP>) message.responseWith(message.epoch()));
                             }
                             else
                             {
@@ -297,7 +297,7 @@ public class ProgressBarrierTest extends CMSTestBase
                     if (counter.getAndIncrement() == 0)
                     {
                         responded.add(to);
-                        cb.onResponse((Message<RSP>) message.emptyResponse());
+                        cb.onResponse((Message<RSP>) message.responseWith(message.epoch()));
                     }
                 }
 
