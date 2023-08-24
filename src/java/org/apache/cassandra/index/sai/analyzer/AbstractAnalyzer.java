@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.stream.Collectors;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.StringType;
@@ -103,9 +104,14 @@ public abstract class AbstractAnalyzer implements Iterator<ByteBuffer>
 
     private static boolean hasNonTokenizingOptions(Map<String, String> options)
     {
-        return options.get(NonTokenizingOptions.ASCII) != null ||
-               options.containsKey(NonTokenizingOptions.CASE_SENSITIVE) ||
-               options.containsKey(NonTokenizingOptions.NORMALIZE);
+        return options.keySet().stream().anyMatch(NonTokenizingOptions::hasOption);
+    }
+
+    public static Map<String, String> getAnalyzerOptions(Map<String, String> options)
+    {
+        return options.entrySet().stream()
+                      .filter(e -> NonTokenizingOptions.hasOption(e.getKey()))
+                      .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
 }
