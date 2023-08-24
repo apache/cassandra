@@ -383,7 +383,7 @@
             <exclusion groupId="org.hamcrest" artifactId="hamcrest-core"/>
           </dependency>
           <dependency groupId="org.mockito" artifactId="mockito-core" version="3.2.4" scope="test"/>
-          <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.15" scope="test"/>
+          <dependency groupId="org.apache.cassandra" artifactId="dtest-api" version="0.0.16" scope="test"/>
           <dependency groupId="org.reflections" artifactId="reflections" version="0.10.2" scope="test"/>
           <dependency groupId="org.quicktheories" artifactId="quicktheories" version="0.25" scope="test"/>
           <dependency groupId="org.apache.hadoop" artifactId="hadoop-core" version="1.0.3" scope="provided">

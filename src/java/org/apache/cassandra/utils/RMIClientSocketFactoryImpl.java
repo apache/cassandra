@@ -21,8 +21,11 @@ package org.apache.cassandra.utils;
 import java.io.IOException;
 import java.io.Serializable;
 import java.net.InetAddress;
+import java.net.ServerSocket;
 import java.net.Socket;
 import java.rmi.server.RMIClientSocketFactory;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -32,6 +35,7 @@ import java.util.Objects;
  */
 public class RMIClientSocketFactoryImpl implements RMIClientSocketFactory, Serializable
 {
+    List<Socket> sockets = new ArrayList<>();
     private final InetAddress localAddress;
 
     public RMIClientSocketFactoryImpl(InetAddress localAddress)
@@ -42,7 +46,24 @@ public class RMIClientSocketFactoryImpl implements RMIClientSocketFactory, Seria
     @Override
     public Socket createSocket(String host, int port) throws IOException
     {
-        return new Socket(localAddress, port);
+        Socket socket = new Socket(localAddress, port);
+        sockets.add(socket);
+        return socket;
+    }
+
+    public void close() throws IOException
+    {
+        for (Socket socket: sockets)
+        {
+            try
+            {
+                socket.close();
+            }
+            catch (IOException ignored)
+            {
+                // intentionally ignored
+            }
+        }
     }
 
     @Override
