@@ -1,7 +1,7 @@
 = Dynamic Data Masking
 
 Dynamic data masking (DDM) allows to obscure sensitive information while still allowing access to the masked columns.
-DDM doesn't change the stored data. Instead, it just presents the data on their obscured form during `SELECT` queries.
+DDM doesn't change the stored data. Instead, it just presents the data in its obscured form during `SELECT` queries.
 This aims to provide some degree of protection against accidental data exposure. However, it's important to know that
 anyone with direct access to the sstable files will be able to read the clear data.
 
@@ -20,10 +20,10 @@ include::example$CQL/select_with_mask_functions.cql[]
 
 == Attaching masking functions to table columns
 
-The masking functions can be permanently attached to the columns of a table.
-In that case, `SELECT` queries will always return the column values in their masked form.
-The masking will be transparent for the users running `SELECT` queries,
-so their only way to know that a column is masked will be consulting the table definition.
+The masking functions can be permanently attached to any column of a table.
+If a masking columns is defined, `SELECT` queries will always return the column values in their masked form.
+The masking will be transparent to the users running `SELECT` queries,
+so their only way to know that a column is masked will be to consult the table definition.
 
 This is an optional feature that should be enabled with the `dynamic_data_masking_enabled` property in `cassandra.yaml`,
 since it's disabled by default.
@@ -74,8 +74,9 @@ include::example$CQL/ddm_drop_mask.cql[]
 == Permissions
 
 The `UNMASK` permission allows users to retrieve the unmasked values of masked columns.
-The masks will only be applied to the results of a `SELECT` query if the user doesn't have the `UNMASK` permission.
-Ordinary users are created without the `UNMASK` permission, whereas superusers do have it.
+Ordinary users are created without the `UNMASK` permission and will see masked values.
+Superusers are created with the `UNMASK` permission,
+and will be able to see the unmasked values in a SELECT query results.
 
 As an example, suppose that we have a table with masked columns:
 
@@ -104,7 +105,7 @@ the users:
 include::example$CQL/ddm_create_users.cql[]
 ----
 
-We can now see that the user with the `UNMASK` permission can see the clear data, without any masking:
+We can now see that the user with the `UNMASK` permission can see the clear data, unmasked:
 
 [source,cql]
 ----
@@ -130,7 +131,7 @@ Since it includes the `UNMASK` permission, that anonymous user will always see t
 In other words, attaching data masking functions to columns only makes sense if authentication is enabled.
 
 Users without the `UNMASK` permission are not allowed to use masked columns in the `WHERE` clause of a `SELECT` query.
-This prevents malicious users from figuring out the clear data by running exhaustive queries. For instance:
+This prevents malicious users from figuring out the clear data by running exhaustive queries. For example:
 
 [source,cql]
 ----
