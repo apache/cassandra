@@ -277,7 +277,7 @@ public class Connection implements InboundMessageCallbacks, OutboundMessageCallb
 
     public Future<Void> close()
     {
-        verifier.interruptEventSequence();
+        verifier.doCancel();
         return outbound.close(false);
     }
 
