@@ -208,7 +208,7 @@ public class NativeIndexDDLTest extends SAITester
 
         assertThatThrownBy(() -> executeNet("CREATE CUSTOM INDEX ON %s(val) " +
                                             "USING 'StorageAttachedIndex' " +
-                                            "WITH OPTIONS = { 'case_sensitive' : true }")).isInstanceOf(InvalidQueryException.class);
+                                            "WITH OPTIONS = { 'case_sensitive' : false }")).isInstanceOf(InvalidQueryException.class);
     }
 
     @Test
@@ -290,14 +290,16 @@ public class NativeIndexDDLTest extends SAITester
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
 
+        // Case sensitive search is the default, and as such, it does not make the SAI qualify as "analyzed".
+        // The queries below use '=' and not ':' because : is limited to analyzed indexes.
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = { 'case_sensitive' : true }");
         waitForIndexQueryable();
 
         execute("INSERT INTO %s (id, val) VALUES ('1', 'Camel')");
 
-        assertEquals(1, execute("SELECT id FROM %s WHERE val : 'Camel'").size());
+        assertEquals(1, execute("SELECT id FROM %s WHERE val = 'Camel'").size());
 
-        assertEquals(0, execute("SELECT id FROM %s WHERE val : 'camel'").size());
+        assertEquals(0, execute("SELECT id FROM %s WHERE val = 'camel'").size());
     }
 
     @Test
@@ -334,15 +336,17 @@ public class NativeIndexDDLTest extends SAITester
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
 
+        // Normalize search is disabled by default, and as such, it does not make the SAI qualify as "analyzed".
+        // The queries below use '=' and not ':' because : is limited to analyzed indexes.
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = { 'normalize' : false }");
         waitForIndexQueryable();
 
         execute("INSERT INTO %s (id, val) VALUES ('1', 'Cam\u00E1l')");
 
-        assertEquals(1, execute("SELECT id FROM %s WHERE val : 'Cam\u00E1l'").size());
+        assertEquals(1, execute("SELECT id FROM %s WHERE val = 'Cam\u00E1l'").size());
 
         // Both \u00E1 and \u0061\u0301 are visible as the character á, but without NFC normalization, they won't match.
-        assertEquals(0, execute("SELECT id FROM %s WHERE val : 'Cam\u0061\u0301l'").size());
+        assertEquals(0, execute("SELECT id FROM %s WHERE val = 'Cam\u0061\u0301l'").size());
     }
 
     @Test
