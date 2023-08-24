@@ -24,11 +24,13 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
+import com.google.common.collect.ImmutableMap;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -40,6 +42,7 @@ import com.datastax.driver.core.exceptions.ReadFailureException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.cql3.restrictions.IndexRestrictions;
 import org.apache.cassandra.cql3.statements.schema.CreateIndexStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -58,6 +61,7 @@ import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndexBuilder;
+import org.apache.cassandra.index.sai.analyzer.NonTokenizingOptions;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentBuilder;
@@ -415,6 +419,33 @@ public class StorageAttachedIndexDDLTest extends SAITester
         execute("INSERT INTO %s (id, val) VALUES ('1', 'Éppinger')");
 
         assertEquals(1, execute("SELECT id FROM %s WHERE val = 'eppinger'").size());
+    }
+
+    @Test
+    public void shouldRejectAnalysisOnPrimaryKeyColumns()
+    {
+        createTable("CREATE TABLE %s (k1 text, k2 text, c1 text, c2 text, PRIMARY KEY((k1, k2), c1, c2))");
+
+        for (String column : Arrays.asList("k1", "k2", "c1", "c2"))
+        {
+            for (String enabled : Arrays.asList("true", "false"))
+            {
+                assertRejectsAnalysisOnPrimaryKeyColumns(column, ImmutableMap.of(NonTokenizingOptions.NORMALIZE, enabled));
+                assertRejectsAnalysisOnPrimaryKeyColumns(column, ImmutableMap.of(NonTokenizingOptions.CASE_SENSITIVE, enabled));
+                assertRejectsAnalysisOnPrimaryKeyColumns(column, ImmutableMap.of(NonTokenizingOptions.ASCII, enabled));
+                assertRejectsAnalysisOnPrimaryKeyColumns(column, ImmutableMap.of(NonTokenizingOptions.NORMALIZE, enabled,
+                                                                                 NonTokenizingOptions.CASE_SENSITIVE, enabled,
+                                                                                 NonTokenizingOptions.ASCII, enabled));
+            }
+        }
+    }
+
+    private void assertRejectsAnalysisOnPrimaryKeyColumns(String column, Map<String, String> optionsMap)
+    {
+        String options = new CqlBuilder().append(optionsMap).toString();
+        Assertions.assertThatThrownBy(() -> createIndex("CREATE INDEX ON %s(" + column + ") USING 'sai' WITH OPTIONS = " + options))
+                  .hasRootCauseInstanceOf(InvalidRequestException.class)
+                  .hasRootCauseMessage(StorageAttachedIndex.ANALYSIS_ON_KEY_COLUMNS_MESSAGE + options);
     }
 
     @Test
