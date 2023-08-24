@@ -433,6 +433,20 @@ public class ClusterUtils
     }
 
     /**
+     * Wait for the ring to have the target instance with the provided status.
+     *
+     * @param instance instance to check on
+     * @param expectedInRing to look for
+     * @param status expected
+     * @return the ring
+     */
+    public static List<RingInstanceDetails> awaitRingStatus(IInstance instance, IInstance expectedInRing, String status)
+    {
+        return awaitInstanceMatching(instance, expectedInRing, d -> d.status.equals(status),
+                                     "Timeout waiting for " + expectedInRing + " to have status " + status);
+    }
+
+    /**
      * Wait for the ring to have the target instance with the provided state.
      *
      * @param instance instance to check on
@@ -442,12 +456,20 @@ public class ClusterUtils
      */
     public static List<RingInstanceDetails> awaitRingState(IInstance instance, IInstance expectedInRing, String state)
     {
-        return awaitRing(instance, "Timeout waiting for " + expectedInRing + " to have state " + state,
-                         ring ->
-                         ring.stream()
-                             .filter(d -> d.address.equals(getBroadcastAddressHostString(expectedInRing)))
-                             .filter(d -> d.state.equals(state))
-                             .findAny().isPresent());
+        return awaitInstanceMatching(instance, expectedInRing, d -> d.state.equals(state),
+                                     "Timeout waiting for " + expectedInRing + " to have state " + state);
+    }
+
+    private static List<RingInstanceDetails> awaitInstanceMatching(IInstance instance,
+                                                                   IInstance expectedInRing,
+                                                                   Predicate<RingInstanceDetails> predicate,
+                                                                   String errorMessage)
+    {
+        return awaitRing(instance,
+                         errorMessage,
+                         ring -> ring.stream()
+                                     .filter(d -> d.address.equals(getBroadcastAddressHostString(expectedInRing)))
+                                     .anyMatch(predicate));
     }
 
     /**
