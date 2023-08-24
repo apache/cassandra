@@ -50,6 +50,7 @@
     <property name="build.lib" value="${basedir}/lib"/>
     <property name="build.dir" value="${basedir}/build"/>
     <property name="build.dir.lib" value="${basedir}/build/lib"/>
+    <property name="target.dir" value="${basedir}/target"/>
     <property name="build.test.dir" value="${build.dir}/test"/>
     <property name="build.classes" value="${build.dir}/classes"/>
     <property name="build.classes.main" value="${build.classes}/main" />
@@ -2106,6 +2107,43 @@
       </jar>
   </target>
 
+    <target name="version-require-shaded">
+        <fail message="Version should contain SHADED">
+            <condition>
+                <not>
+                    <matches pattern=".*SHADED.*" string="${version}">
+                    </matches>
+                </not>
+            </condition>
+        </fail>
+    </target>
+
+    <target name="shaded-jar"
+            depends="version-require-shaded,build,write-poms"
+            description="Assemble Cassandra JAR files with some extra third party jars">
+        <mkdir dir="${build.classes.main}/META-INF" />
+        <copy file="LICENSE.txt"
+              tofile="${build.classes.main}/META-INF/LICENSE.txt"/>
+        <copy file="NOTICE.txt"
+              tofile="${build.classes.main}/META-INF/NOTICE.txt"/>
+
+        <!-- Main Jar -->
+        <jar jarfile="${build.dir}/shaded-${base.version}.jar">
+            <zipgroupfileset dir="${build.lib}" includes="*.jar" excludes="META-INF/*.SF"/>
+            <zipgroupfileset dir="${build.dir.lib}/jars" includes="netty-all*.jar" excludes="META-INF/*.SF"/>
+            <fileset dir="${build.classes.main}">
+            </fileset>
+            <manifest>
+                <!-- <section name="org/apache/cassandra/infrastructure"> -->
+                <attribute name="Multi-Release" value="true"/>
+                <attribute name="Implementation-Title" value="Cassandra"/>
+                <attribute name="Implementation-Version" value="${version}"/>
+                <attribute name="Implementation-Vendor" value="Apache"/>
+                <!-- </section> -->
+            </manifest>
+        </jar>
+    </target>
+
   <target name="test-jvm-dtest" depends="maybe-build-test" description="Execute in-jvm dtests">
     <testmacro inputdir="${test.distributed.src}" timeout="${test.distributed.timeout}" forkmode="once" showoutput="true" filter="**/test/${test.name}.java">
       <jvmarg value="-Dlogback.configurationFile=test/conf/logback-dtest.xml"/>
@@ -2388,6 +2426,21 @@
       </checkstyle>
   </target>
 
+<!-- Installs shaded artifacts to local Maven repository -->
+<target name="mvn-install-shaded"
+        depends="maven-declare-dependencies,shaded-jar"
+        description="Installs the artifacts in the Maven Local Repository">
+
+    <!-- the parent -->
+    <install pomFile="${build.dir}/${final.name}-parent.pom"
+             file="${build.dir}/${final.name}-parent.pom"
+             packaging="pom"/>
+
+    <!-- the shaded cassandra-all jar -->
+    <install pomFile="${build.dir}/${final.name}.pom"
+             file="${target.dir}/cassandra-all-shaded-4.0.1-SNAPSHOT.jar"/>
+</target>
+
   <!-- Installs artifacts to local Maven repository -->
   <target name="mvn-install"
           depends="maven-declare-dependencies,jar,sources-jar,javadoc-jar"
@@ -2407,6 +2460,21 @@
     <install pomFile="${build.dir}/${final.name}.pom"
              file="${build.dir}/${final.name}-javadoc.jar"
              classifier="javadoc"/>
+  </target>
+
+    <!-- Publish shaded artifacts to remote Maven repository -->
+  <target name="publish-shaded"
+          depends="mvn-install-shaded"
+          description="Publishes the artifacts to the Maven repository">
+
+    <!-- the parent -->
+    <deploy pomFile="${build.dir}/${final.name}-parent.pom"
+            file="${build.dir}/${final.name}-parent.pom"
+            packaging="pom"/>
+
+    <!-- the cassandra-all jar -->
+    <deploy pomFile="${build.dir}/${final.name}.pom"
+            file="${target.dir}/cassandra-all-shaded-4.0.1-SNAPSHOT.jar"/>
   </target>
 
   <!-- Publish artifacts to remote Maven repository -->
