@@ -2109,4 +2109,4 @@ drop_compact_storage_enabled: false
 # - Do a rolling restart with all nodes starting with NONE. This sheds the extra cost of checking nodes versions and ensures 
 #   a stable cluster. If a node from a previous version was started by accident we won't any longer toggle behaviors as when UPGRADING.
 #
-storage_compatibility_mode: CASSANDRA_4
+storage_compatibility_mode: NONE
