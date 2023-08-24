@@ -22,6 +22,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Queues;
 import com.google.common.util.concurrent.Uninterruptibles;
 import io.netty.channel.Channel;
+import io.netty.util.concurrent.Future;
 import net.openhft.chronicle.core.util.ThrowingBiConsumer;
 import net.openhft.chronicle.core.util.ThrowingRunnable;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -50,6 +51,7 @@ import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -57,6 +59,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -69,11 +72,13 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.lang.Math.min;
+import static java.util.Collections.synchronizedList;
 import static org.apache.cassandra.net.ConnectionType.LARGE_MESSAGES;
 import static org.apache.cassandra.net.MessagingService.current_version;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 import static org.apache.cassandra.utils.MonotonicClock.Global.preciseTime;
+import static org.apache.cassandra.utils.Throwables.maybeFail;
 
 public class ConnectionBurnTest
 {
@@ -159,7 +164,7 @@ public class ConnectionBurnTest
             public void serialize(byte[] payload, DataOutputPlus out, int version) throws IOException
             {
                 if (cancelled)
-                    throw new IOException("cancelled");
+                    return;
                 long id = MessageGenerator.getId(payload);
                 forId(id).serialize(id, payload, out, version);
             }
@@ -167,15 +172,13 @@ public class ConnectionBurnTest
             public byte[] deserialize(DataInputPlus in, int version) throws IOException
             {
                 if (cancelled)
-                    throw new IOException("cancelled");
+                    return null;
                 MessageGenerator.Header header = MessageGenerator.readHeader(in, version);
                 return forId(header.id).deserialize(header, in, version);
             }
 
             public long serializedSize(byte[] payload, int version)
             {
-                if (cancelled)
-                    throw new RuntimeException("cancelled");
                 return MessageGenerator.serializedSize(payload);
             }
         };
@@ -506,19 +509,26 @@ public class ConnectionBurnTest
             }
             finally
             {
-                reporters.update();
-                reporters.print();
-
                 // Report unexpected exceptions
                 for (Throwable t : exceptions)
                     logger.error("Unexpected exception while burning connections: ", t);
 
                 cancelled = true;
-                FutureCombiner.allOf(Arrays.stream(connections)
-                                         .map(Connection::close)
-                                         .collect(Collectors.toList()))
-                .get(30L, TimeUnit.SECONDS);
-                inbound.sockets.close().get(30L, TimeUnit.SECONDS);
+
+                List<Future<Void>> closing = new ArrayList<>();
+                List<ExecutorService> inboundExecutors = new CopyOnWriteArrayList<>();
+                closing.add(inbound.sockets.close(inboundExecutors::add));
+
+                for (Connection connection : connections)
+                    closing.add(connection.close());
+
+                maybeFail(() -> inboundExecutors.forEach(ExecutorUtils::shutdownNow),
+                        () -> ExecutorUtils.awaitTermination(30, TimeUnit.SECONDS, inboundExecutors));
+
+                FutureCombiner.allOf(closing).get(30L, TimeUnit.SECONDS);
+
+                reporters.update();
+                reporters.print();
             }
         }
 
