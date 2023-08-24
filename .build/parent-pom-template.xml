@@ -534,7 +534,7 @@
       <dependency>
         <groupId>org.apache.cassandra</groupId>
         <artifactId>dtest-api</artifactId>
-        <version>0.0.15</version>
+        <version>0.0.16</version>
         <scope>test</scope>
       </dependency>
       <dependency>

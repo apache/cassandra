@@ -26,7 +26,7 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
-import com.google.monitoring.runtime.instrumentation.common.util.concurrent.Uninterruptibles;
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileReader;
