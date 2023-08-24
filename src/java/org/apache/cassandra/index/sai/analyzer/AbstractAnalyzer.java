@@ -141,7 +141,7 @@ public abstract class AbstractAnalyzer implements Iterator<ByteBuffer>
     }
 
     public static boolean isAnalyzed(Map<String, String> options) {
-        return options.containsKey(LuceneAnalyzer.INDEX_ANALYZER) || hasNonTokenizingOptions(options);
+        return options.containsKey(LuceneAnalyzer.INDEX_ANALYZER) || NonTokenizingOptions.hasNonDefaultOptions(options);
     }
 
     public static AnalyzerFactory fromOptions(AbstractType<?> type, Map<String, String> options)
@@ -159,7 +159,7 @@ public abstract class AbstractAnalyzer implements Iterator<ByteBuffer>
             }
         }
 
-        if (hasNonTokenizingOptions(options))
+        if (NonTokenizingOptions.hasNonDefaultOptions(options))
         {
             if (TypeUtil.isIn(type, ANALYZABLE_TYPES))
             {
@@ -174,10 +174,5 @@ public abstract class AbstractAnalyzer implements Iterator<ByteBuffer>
             }
         }
         return NoOpAnalyzer::new;
-    }
-
-    private static boolean hasNonTokenizingOptions(Map<String, String> options)
-    {
-        return options.get(NonTokenizingOptions.ASCII) != null || options.containsKey(NonTokenizingOptions.CASE_SENSITIVE) || options.containsKey(NonTokenizingOptions.NORMALIZE);
     }
 }
