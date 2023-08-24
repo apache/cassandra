@@ -641,17 +641,18 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         initialized = true;
     }
 
-    private void startJmx()
+    private synchronized void startJmx()
     {
         isolatedJmx = new IsolatedJmx(this, inInstancelogger);
         isolatedJmx.startJmx();
     }
 
-    private void stopJmx() throws NoSuchFieldException, InterruptedException, IllegalAccessException
+    private synchronized void stopJmx()
     {
         if (config.has(JMX))
         {
             isolatedJmx.stopJmx();
+            isolatedJmx = null;
         }
     }
 
