@@ -18,7 +18,7 @@
 #
 
 BASEDIR=`dirname $0`
-BASE_BRANCH=trunk
+BASE_BRANCH=cassandra-5.0
 set -e
 
 die ()
