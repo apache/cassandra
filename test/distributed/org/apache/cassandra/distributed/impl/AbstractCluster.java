@@ -140,6 +140,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     private final Map<Integer, NetworkTopology.DcAndRack> nodeIdTopology;
     private final Consumer<IInstanceConfig> configUpdater;
     private final int broadcastPort;
+    private final Map<String, Integer> portMap;
 
     // mutated by starting/stopping a node
     private final List<I> instances;
@@ -163,6 +164,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         extends org.apache.cassandra.distributed.shared.AbstractBuilder<I, C, B>
     {
         private INodeProvisionStrategy.Strategy nodeProvisionStrategy = INodeProvisionStrategy.Strategy.MultipleNetworkInterfaces;
+        private boolean dynamicPortAllocation = false;
 
         {
             // Indicate that we are running in the in-jvm dtest environment
@@ -177,10 +179,32 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             super(factory);
         }
 
+        @SuppressWarnings("unchecked")
+        private B self()
+        {
+            return (B) this;
+        }
+
         public B withNodeProvisionStrategy(INodeProvisionStrategy.Strategy nodeProvisionStrategy)
         {
             this.nodeProvisionStrategy = nodeProvisionStrategy;
-            return (B) this;
+            return self();
+        }
+
+        /**
+         * When {@code dynamicPortAllocation} is {@code true}, it will ask {@link INodeProvisionStrategy} to provision
+         * available storage, native and JMX ports in the given interface. When {@code dynamicPortAllocation} is
+         * {@code false} (the default behavior), it will use statically allocated ports based on the number of
+         * interfaces available and the node number.
+         *
+         * @param dynamicPortAllocation {@code true} for dynamic port allocation, {@code false} for static port
+         *                              allocation
+         * @return a reference to this Builder
+         */
+        public B withDynamicPortAllocation(boolean dynamicPortAllocation)
+        {
+            this.dynamicPortAllocation = dynamicPortAllocation;
+            return self();
         }
     }
 
@@ -408,6 +432,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         this.filters = new MessageFilters();
         this.instanceInitializer = builder.getInstanceInitializer();
         this.datadirCount = builder.getDatadirCount();
+        this.portMap = builder.dynamicPortAllocation ? new ConcurrentHashMap<>() : null;
 
         int generation = GENERATION.incrementAndGet();
         for (int i = 0; i < builder.getNodeCount(); ++i)
@@ -431,7 +456,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     private InstanceConfig createInstanceConfig(int nodeNum)
     {
-        INodeProvisionStrategy provisionStrategy = nodeProvisionStrategy.create(subnet);
+        INodeProvisionStrategy provisionStrategy = nodeProvisionStrategy.create(subnet, portMap);
         long token = tokenSupplier.token(nodeNum);
         NetworkTopology topology = buildNetworkTopology(provisionStrategy, nodeIdTopology);
         InstanceConfig config = InstanceConfig.generate(nodeNum, provisionStrategy, topology, root, Long.toString(token), datadirCount);
