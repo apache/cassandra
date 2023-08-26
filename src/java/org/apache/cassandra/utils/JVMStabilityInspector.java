@@ -155,6 +155,10 @@ public final class JVMStabilityInspector
             isUnstable = true;
         }
 
+        if (DatabaseDescriptor.getDiskFailurePolicy() == Config.DiskFailurePolicy.die)
+            if (t instanceof FSError || t instanceof CorruptSSTableException)
+                isUnstable = true;
+
         // Check for file handle exhaustion
         if (t instanceof FileNotFoundException || t instanceof FileSystemException || t instanceof SocketException)
             if (t.getMessage() != null && t.getMessage().contains("Too many open files"))

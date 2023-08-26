@@ -69,25 +69,25 @@ public class JVMStabilityInspectorTest
             killerForTests.reset();
             Mockito.reset(diskErrorHandler);
             JVMStabilityInspector.inspectThrowable(new FSReadError(new IOException(), "blah"));
-            assertFalse(killerForTests.wasKilled());
+            assertTrue(killerForTests.wasKilled());
             Mockito.verify(diskErrorHandler).accept(ArgumentMatchers.any(FSReadError.class));
 
             killerForTests.reset();
             Mockito.reset(diskErrorHandler);
             JVMStabilityInspector.inspectThrowable(new FSWriteError(new IOException(), "blah"));
-            assertFalse(killerForTests.wasKilled());
+            assertTrue(killerForTests.wasKilled());
             Mockito.verify(diskErrorHandler).accept(ArgumentMatchers.any(FSWriteError.class));
 
             killerForTests.reset();
             Mockito.reset(diskErrorHandler);
             JVMStabilityInspector.inspectThrowable(new CorruptSSTableException(new IOException(), "blah"));
-            assertFalse(killerForTests.wasKilled());
+            assertTrue(killerForTests.wasKilled());
             Mockito.verify(diskErrorHandler).accept(ArgumentMatchers.any(CorruptSSTableException.class));
 
             killerForTests.reset();
             Mockito.reset(diskErrorHandler);
             JVMStabilityInspector.inspectThrowable(new RuntimeException(new CorruptSSTableException(new IOException(), "blah")));
-            assertFalse(killerForTests.wasKilled());
+            assertTrue(killerForTests.wasKilled());
             Mockito.verify(diskErrorHandler).accept(ArgumentMatchers.any(CorruptSSTableException.class));
 
             DatabaseDescriptor.setCommitFailurePolicy(Config.CommitFailurePolicy.die);

@@ -119,7 +119,6 @@ public class DiskFailurePolicyTest
             daemon.completeSetup(); //mark startup completed
         StorageService.instance.registerDaemon(daemon);
         killerForTests = new KillerForTests();
-        JVMKiller x = JVMStabilityInspector.replaceKiller(killerForTests);
         originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
         originalDiskFailurePolicy = DatabaseDescriptor.getDiskFailurePolicy();
         StorageService.instance.startGossiping();
