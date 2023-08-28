@@ -422,4 +422,19 @@ public class AllowFilteringTest extends SAITester
         assertInvalidMessage(String.format(StatementRestrictions.INDEX_DOES_NOT_SUPPORT_LIKE_MESSAGE, "c"), "SELECT * FROM %s WHERE c LIKE 'Test'");
         assertInvalidMessage(String.format(StatementRestrictions.INDEX_DOES_NOT_SUPPORT_LIKE_MESSAGE, "d"), "SELECT * FROM %s WHERE d LIKE 'Test'");
     }
+
+    @Test
+    public void testIndexedColumnDoesNotSupportAnalyzerRestriction() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a text, b text, c text, d text, PRIMARY KEY (a, b))");
+        createIndex(String.format("CREATE CUSTOM INDEX ON %%s(b) USING '%s'", StorageAttachedIndex.class.getName()));
+        createIndex(String.format("CREATE CUSTOM INDEX ON %%s(c) USING '%s'", StorageAttachedIndex.class.getName()));
+        createIndex(String.format("CREATE CUSTOM INDEX ON %%s(d) USING '%s'", StorageAttachedIndex.class.getName()));
+
+        // Analyzer restriction
+        assertInvalidMessage(String.format(": restriction is only supported on properly indexed columns. a : 'Test' is not valid."), "SELECT * FROM %s WHERE a : 'Test'");
+        assertInvalidMessage(String.format(StatementRestrictions.INDEX_DOES_NOT_SUPPORT_ANALYZER_MATCHES_MESSAGE, 'b'), "SELECT * FROM %s WHERE b : 'Test'");
+        assertInvalidMessage(String.format(StatementRestrictions.INDEX_DOES_NOT_SUPPORT_ANALYZER_MATCHES_MESSAGE, 'c'), "SELECT * FROM %s WHERE c : 'Test'");
+        assertInvalidMessage(String.format(StatementRestrictions.INDEX_DOES_NOT_SUPPORT_ANALYZER_MATCHES_MESSAGE, 'd'), "SELECT * FROM %s WHERE d : 'Test'");
+    }
 }
