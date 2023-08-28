@@ -10,6 +10,7 @@ Merged from 5.0:
  * Upgrade JMH from 1.21 to 1.36 (CASSANDRA-18696)
  * Add guardrail for vector dimensions (CASSANDRA-18730)
 Merged from 4.1:
+ * Allow empty keystore_password in encryption_options (CASSANDRA-18778)
 Merged from 4.0:
 Merged from 3.11:
  * Fix NPE when using udfContext in UDF after a restart of a node (CASSANDRA-18739)

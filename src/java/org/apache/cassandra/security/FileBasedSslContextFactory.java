@@ -128,12 +128,11 @@ public abstract class FileBasedSslContextFactory extends AbstractSslContextFacto
      *
      * @param isOutboundKeystore {@code true} for the {@code outbound_keystore_password};{@code false} otherwise
      * @param password           value
-     * @throws IllegalArgumentException if the {@code password} is empty as per the definition of {@link StringUtils#isEmpty(CharSequence)}
+     * @throws IllegalArgumentException if the {@code password} is null
      */
     protected void validatePassword(boolean isOutboundKeystore, String password)
     {
-        boolean keystorePasswordEmpty = StringUtils.isEmpty(password);
-        if (keystorePasswordEmpty)
+        if (password == null)
         {
             String keyName = isOutboundKeystore ? "outbound_" : "";
             final String msg = String.format("'%skeystore_password' must be specified", keyName);
@@ -205,14 +204,15 @@ public abstract class FileBasedSslContextFactory extends AbstractSslContextFacto
             final String algorithm = this.algorithm == null ? KeyManagerFactory.getDefaultAlgorithm() : this.algorithm;
             KeyManagerFactory kmf = KeyManagerFactory.getInstance(algorithm);
             KeyStore ks = KeyStore.getInstance(store_type);
-            ks.load(ksf, context.password.toCharArray());
+            final char[] password = context.password.toCharArray();
+            ks.load(ksf, password);
 
             if (!context.checkedExpiry)
             {
                 checkExpiredCerts(ks);
                 context.checkedExpiry = true;
             }
-            kmf.init(ks, context.password.toCharArray());
+            kmf.init(ks, password);
             return kmf;
         }
         catch (Exception e)
