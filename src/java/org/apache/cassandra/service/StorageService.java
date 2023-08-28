@@ -1308,29 +1308,21 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void rebuild(String sourceDc)
     {
-        try
+        if (sourceDc != null)
         {
-            // check ongoing rebuild
-            if (!isRebuilding.compareAndSet(false, true))
+            TokenMetadata.Topology topology = getTokenMetadata().cloneOnlyTokenMap().getTopology();
+            Set<String> availableDCs = topology.getDatacenterEndpoints().keySet();
+            if (!availableDCs.contains(sourceDc))
             {
-                throw new IllegalStateException("Node is still rebuilding. Check nodetool netstats.");
-            }
-
-            if (sourceDc != null)
-            {
-                TokenMetadata.Topology topology = getTokenMetadata().cloneOnlyTokenMap().getTopology();
-                Set<String> availableDCs = topology.getDatacenterEndpoints().keySet();
-                if (!availableDCs.contains(sourceDc))
-                {
-                    throw new IllegalArgumentException(String.format("Provided datacenter '%s' is not a valid datacenter, available datacenters are: %s",
-                                                                     sourceDc, String.join(",", availableDCs)));
-                }
+                throw new IllegalArgumentException(String.format("Provided datacenter '%s' is not a valid datacenter, available datacenters are: %s",
+                                                                 sourceDc, String.join(",", availableDCs)));
             }
         }
-        catch (Throwable ex)
+
+        // check ongoing rebuild
+        if (!isRebuilding.compareAndSet(false, true))
         {
-            isRebuilding.set(false);
-            throw ex;
+            throw new IllegalStateException("Node is still rebuilding. Check nodetool netstats.");
         }
 
         logger.info("rebuild from dc: {}", sourceDc == null ? "(any dc)" : sourceDc);
