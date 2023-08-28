@@ -21,14 +21,48 @@ package org.apache.cassandra.index.sai.cql;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.sai.SAITester;
 
 import static org.apache.cassandra.index.sai.cql.VectorTypeTest.assertContainsInt;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 
 public class LuceneUpdateDeleteTest extends SAITester
 {
+    @Test
+    public void updateAndDeleteWithAnalyzerRestrictionQueryShouldFail() throws Throwable
+    {
+        createTable("CREATE TABLE %s (id int PRIMARY KEY, val text)");
+
+        createIndex("CREATE CUSTOM INDEX ON %s(val) " +
+                    "USING 'org.apache.cassandra.index.sai.StorageAttachedIndex' " +
+                    "WITH OPTIONS = { 'index_analyzer': '[{\"tokenizer\": \"standard\"}, {\"filter\": \"lowercase\"}]' }");
+
+        waitForIndexQueryable();
+
+        execute("INSERT INTO %s (id, val) VALUES (0, 'a sad doG.')");
+
+        // Prove we can get the row back
+        assertEquals(1, execute("SELECT * FROM %s WHERE val : 'dog'").size());
+
+        // DELETE fails
+        assertThatThrownBy(() -> execute("DELETE FROM %s WHERE val : 'dog'"))
+        .isInstanceOf(InvalidRequestException.class)
+        .hasMessageContaining("Invalid query. DELETE does not support use of secondary indices, but val : 'dog' restriction requires a secondary index.");
+
+        // UPDATE fails
+        assertThatThrownBy(() -> execute("UPDATE %s SET val = 'something new' WHERE val : 'dog'"))
+        .isInstanceOf(InvalidRequestException.class)
+        .hasMessageContaining("Invalid query. UPDATE does not support use of secondary indices, but val : 'dog' restriction requires a secondary index.");
+
+        // UPDATE with LWT fails (different error message because it fails at a different point)
+        assertThatThrownBy(() -> execute("UPDATE %s SET val = 'something new' WHERE id = 0 IF val : 'dog'"))
+        .isInstanceOf(InvalidRequestException.class)
+        .hasMessageContaining("LWT Conditions do not support the : operator");
+    }
+
     // No flushes
     @Test
     public void removeUpdateAndDeleteTextInMemoryTest() throws Throwable

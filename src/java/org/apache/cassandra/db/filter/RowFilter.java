@@ -922,7 +922,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                         return foundValue != null && mapType.getSerializer().getSerializedValue(foundValue, value, mapType.getKeysType()) != null;
                     }
             }
-            throw new AssertionError();
+            throw new AssertionError("Unsupported operator: " + operator);
         }
 
         @Override
