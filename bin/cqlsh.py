@@ -225,7 +225,7 @@ parser.add_argument('--cqlversion', default=None,
                     help='Specify a particular CQL version, '
                     'by default the highest version supported by the server will be used.'
                     ' Examples: "3.0.3", "3.1.0"')
-parser.add_argument("--protocol-version", type="int", default=None,
+parser.add_argument("--protocol-version", type=int, default=None,
                     help='Specify a specific protcol version otherwise the client will default and downgrade as necessary')
 
 parser.add_argument("-e", "--execute", help='Execute the statement and quit.')
