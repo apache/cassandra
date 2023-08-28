@@ -176,13 +176,12 @@ public class StorageProxy implements StorageProxyMBean
 
     private StorageProxy()
     {
+        MBeanWrapper.instance.registerMBean(this, MBEAN_NAME);
+        HintsService.instance.registerMBean();
     }
 
     static
     {
-        MBeanWrapper.instance.registerMBean(instance, MBEAN_NAME);
-        HintsService.instance.registerMBean();
-
         standardWritePerformer = (mutation, targets, responseHandler, localDataCenter) ->
         {
             assert mutation instanceof Mutation;
