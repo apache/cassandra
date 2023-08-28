@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.throttler.dynamic;
 
 import java.io.Serializable;
+import java.util.regex.Pattern;
 
 public class ThrottlingOptions implements Serializable
 {
@@ -43,6 +44,9 @@ public class ThrottlingOptions implements Serializable
     public int reset_after_no_throttling_seen_in_sec = 15 * 60; // 15 minutes
     public double aggressive_throttling_qps_ratio = 4;
     public double aggressive_throttling_latency_ratio = 4;
+    public String ignore_keyspaces = "system.*|pingless";
+
+    private Pattern ignoreKeyspacesPattern = Pattern.compile(ignore_keyspaces);
 
     public boolean isEnabled()
     {
@@ -184,6 +188,17 @@ public class ThrottlingOptions implements Serializable
         this.aggressive_throttling_latency_ratio = aggressive_throttling_latency_ratio;
     }
 
+    public Pattern getIgnoreKeyspacesPattern()
+    {
+        return ignoreKeyspacesPattern;
+    }
+
+    public void setIgnoreKeyspaces(String ignoreKeyspaces)
+    {
+        ignore_keyspaces = ignoreKeyspaces;
+        ignoreKeyspacesPattern = Pattern.compile(ignoreKeyspaces);
+    }
+
     public String toString()
     {
         return "enabled: " + enabled + "\n" +
@@ -199,6 +214,7 @@ public class ThrottlingOptions implements Serializable
                 "more aggressive throttling after in seconds: " + more_aggressive_throttling_after_in_sec + "\n" +
                 "reset after no throttling seen in seconds: " + reset_after_no_throttling_seen_in_sec + "\n" +
                 "aggressive throttling qps ratio: " + aggressive_throttling_qps_ratio + "\n" +
-                "aggressive throttling latency ratio: " + aggressive_throttling_latency_ratio + "\n";
+                "aggressive throttling latency ratio: " + aggressive_throttling_latency_ratio + "\n" +
+                "ignore keyspaces: '" + ignore_keyspaces.toString() + '\'';
     }
 }

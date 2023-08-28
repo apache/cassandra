@@ -131,4 +131,9 @@ public class RateLimiterService implements RateLimiterServiceMBean {
     {
         this.throttlingOptions.setAggressiveThrottlingLatencyRatio(aggressiveThrottlingLatencyRatio);
     }
+
+    public void setIgnoreKeyspaces(String ignoreKeyspaces)
+    {
+        this.throttlingOptions.setIgnoreKeyspaces(ignoreKeyspaces);
+    }
 }

@@ -23,11 +23,11 @@ import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 
 public class KeyspaceThrottlingMetrics
 {
-    private KeyspaceThrottlingMetricsFactory factory;
+    public KeyspaceThrottlingMetricsFactory factory;
 
     public Counter addKSForReadThrottling;
     public Counter addKSForWriteThrottling;
-    public Counter skipSystemKSThrottling;
+    public Counter skipKSThrottling;
     public Counter readRequestsTrendingUpward;
     public Counter writeRequestsTrendingUpward;
     public Counter readLatencyTrendingUpward;
@@ -38,6 +38,7 @@ public class KeyspaceThrottlingMetrics
     public Counter maxWriteThrottling;
     public Counter noReadThrottling;
     public Counter noWriteThrottling;
+    public Counter aggressiveThrottling;
 
 
     public KeyspaceThrottlingMetrics(String ksName) {
@@ -45,7 +46,7 @@ public class KeyspaceThrottlingMetrics
 
         addKSForReadThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("AddKSForReadThrottling"));
         addKSForWriteThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("AddKSForWriteThrottling"));
-        skipSystemKSThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("SkipSystemKSThrottling"));
+        skipKSThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("SkipKSThrottling"));
         readRequestsTrendingUpward = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("ReadRequestsTrendingUpward"));
         writeRequestsTrendingUpward = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("WriteRequestsTrendingUpward"));
         readLatencyTrendingUpward = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("ReadLatencyTrendingUpward"));
@@ -56,5 +57,6 @@ public class KeyspaceThrottlingMetrics
         maxWriteThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("MaxWriteThrottling"));
         noReadThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("NoReadThrottling"));
         noWriteThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("NoWriteThrottling"));
+        aggressiveThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("AggressiveThrottling"));
     }
 }

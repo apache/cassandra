@@ -36,7 +36,7 @@ public class SetRateLimiterConfig extends NodeTool.NodeToolCmd
                     "nrthrottlingthresholdoneminute|pendingreadsthresholdcur|pendingreadsthresholdoneminute|" +
                     "pendingmutationsthresholdcur|pendingmutationsthresholdoneminute|" +
                     "percentageoftraffictothrottling|moreaggressivethrottlingafterinsec|" +
-                    "resetafternothrottlingseeninsec|aggressivethrottlingqpsratio|aggressivethrottlinglatencyratio]",
+                    "resetafternothrottlingseeninsec|aggressivethrottlingqpsratio|aggressivethrottlinglatencyratio|ignorekeyspaces]",
             required = true)
     private List<String> args = new ArrayList<>();
 
@@ -102,6 +102,10 @@ public class SetRateLimiterConfig extends NodeTool.NodeToolCmd
         else if (paramType.equals("aggressivethrottlinglatencyratio"))
         {
             probe.setThrottlingOptionsAggressiveThrottlingLatencyRatio(Double.parseDouble(paramVal));
+        }
+        else if (paramType.equals("ignorekeyspaces"))
+        {
+            probe.setIgnoreKeyspaces(paramVal);
         }
         else
         {

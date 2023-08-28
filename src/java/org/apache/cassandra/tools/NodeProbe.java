@@ -2423,7 +2423,13 @@ public class NodeProbe implements AutoCloseable
     {
         rateLimiterProxy.setAggressiveThrottlingLatencyRatio(aggressiveThrottlingLatencyRatio);
     }
-    
+
+    public void setIgnoreKeyspaces(String ignoreKeyspaces)
+    {
+        rateLimiterProxy.setIgnoreKeyspaces(ignoreKeyspaces);
+    }
+
+
     public ThrottlingOptions getThrottlingOptions()
     {
         return rateLimiterProxy.getThrottlingOptions();

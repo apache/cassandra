@@ -100,4 +100,9 @@ public interface RateLimiterServiceMBean
      * Set aggressive_throttling_latency_ratio
      */
     public void setAggressiveThrottlingLatencyRatio(double aggressiveThrottlingLatencyRatio);
+
+    /**
+     * Set ignore_keyspaces
+     */
+    public void setIgnoreKeyspaces(String ignoreKeyspaces);
 }

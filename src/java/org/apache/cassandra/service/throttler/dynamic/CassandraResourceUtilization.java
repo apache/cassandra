@@ -39,7 +39,6 @@ import org.apache.cassandra.metrics.KeyspaceMetrics;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.throttler.dynamic.metrics.KeyspaceThrottlingMetrics;
 import org.apache.cassandra.service.throttler.dynamic.metrics.ThrottlingMetrics;
-import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.throttler.dynamic.metrics.KeyspaceThrottlingMetricsManager;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -63,6 +62,7 @@ public class CassandraResourceUtilization
     private static final String MUTATION_THREAD_POOL = "MutationStage";
     private static double MAX_THROTTLING = 1.0;
 
+    public volatile double currentThrottlingPercentage;
     // Maintain 1 minute, 5 minutes, and 15 minutes history
     public long nrThrottled1Prev = -1;
     public long nrThrottled2Prev = -1;
@@ -85,6 +85,7 @@ public class CassandraResourceUtilization
         RateLimiterService.instance.setThrottlingOptions(DatabaseDescriptor.getThrottlingOptions());
         throttlingOptions = RateLimiterService.instance.getThrottlingOptions();
         throttlingMetrics = new ThrottlingMetrics();
+        currentThrottlingPercentage = throttlingOptions.getPercentageOfTrafficToThrottling();
     }
 
     public void setup(boolean continuousHealthCheck)
@@ -135,10 +136,6 @@ public class CassandraResourceUtilization
 
             // TODO: Eventually, change this to Debug to avoid log flooding
             logger.info("CassandraResourceUtilization {}", this);
-        }
-        else
-        {
-            resetThrottlingParams();
         }
     }
 
@@ -203,13 +200,12 @@ public class CassandraResourceUtilization
 
     private void resetThrottlingParams()
     {
-        throttlingMetrics.resetThrottling.inc();
         logger.info("Reset everything....");
+        throttlingMetrics.resetThrottling.inc();
         // reset everything as the system seems to have recovered
         lastThrottlingCheckPointTimeInMS = 0;
         lastThrottlingIndicatorTimeInMS = 0;
-        // TODO: make this configurable
-        throttlingOptions.setPercentageOfTrafficToThrottling(0.1);
+        currentThrottlingPercentage = throttlingOptions.getPercentageOfTrafficToThrottling();
         readAggressiveThorttlingKeyspaces.clear();
         mutationAggressiveThorttlingKeyspaces.clear();
         shouldThrottle = false;
@@ -226,20 +222,25 @@ public class CassandraResourceUtilization
             else if (lastThrottlingIndicatorTimeInMS != 0)
             {
                 lastThrottlingCheckPointTimeInMS = lastThrottlingIndicatorTimeInMS;
-                if (throttlingOptions.getPercentageOfTrafficToThrottling() < MAX_THROTTLING)
+                if (currentThrottlingPercentage < MAX_THROTTLING)
                 {
-                    throttlingMetrics.doubleThrottling.inc();
                     // more aggressive throttling
-                    double previous = throttlingOptions.getPercentageOfTrafficToThrottling();
-                    double newlimit = Math.min(MAX_THROTTLING, previous * 2);
-                    throttlingOptions.setPercentageOfTrafficToThrottling(newlimit);
-                    logger.info("Double min throttling previous: {}, now: {}", previous, newlimit);
+                    throttlingMetrics.doubleThrottling.inc();
+                    double previous = currentThrottlingPercentage;
+                    currentThrottlingPercentage = Math.min(MAX_THROTTLING, previous * 2);
+                    logger.info("Double min throttling previous: {}, now: {}", previous, currentThrottlingPercentage);
                 }
             }
         }
         if (lastThrottlingCheckPointTimeInMS == 0 && lastThrottlingIndicatorTimeInMS != 0)
         {
             lastThrottlingCheckPointTimeInMS = lastThrottlingIndicatorTimeInMS;
+        }
+        if (lastThrottlingCheckPointTimeInMS == 0 && lastThrottlingIndicatorTimeInMS == 0 && currentThrottlingPercentage != throttlingOptions.getPercentageOfTrafficToThrottling())
+        {
+            // if we are not having any throttling, and in between, an operator adjusts the throttling percentage
+            // then we need to adjust the value accordingly
+            currentThrottlingPercentage = throttlingOptions.getPercentageOfTrafficToThrottling();
         }
     }
 
@@ -288,9 +289,9 @@ public class CassandraResourceUtilization
             return false;
         }
         KeyspaceThrottlingMetrics ksThrottlingMetrics = KeyspaceThrottlingMetricsManager.getMetrics(keyspaceName);
-        if (SchemaConstants.isSystemKeyspace(keyspaceName))
+        if (throttlingOptions.getIgnoreKeyspacesPattern().matcher(keyspaceName.toLowerCase()).matches())
         {
-            ksThrottlingMetrics.skipSystemKSThrottling.inc();
+            ksThrottlingMetrics.skipKSThrottling.inc();
             return false;
         }
 
@@ -311,10 +312,15 @@ public class CassandraResourceUtilization
 
     public boolean decideThrottling(String ksName, KeyspaceMetrics metrics, boolean reads, KeyspaceThrottlingMetrics ksThrottlingMetrics)
     {
-        if (throttlingOptions.getPercentageOfTrafficToThrottling() < MAX_THROTTLING &&
-            ((reads && !readAggressiveThorttlingKeyspaces.containsKey(ksName.toLowerCase())) || (!reads && !mutationAggressiveThorttlingKeyspaces.containsKey(ksName.toLowerCase()))))
+        double throttlingPercentage = currentThrottlingPercentage;
+        if (throttlingPercentage < MAX_THROTTLING)
         {
-            if (spikeInRequestRate(ksName, metrics, reads, ksThrottlingMetrics) || spikeInLatency(ksName, metrics, reads, ksThrottlingMetrics))
+            if ((reads && readAggressiveThorttlingKeyspaces.containsKey(ksName.toLowerCase())) || (!reads && mutationAggressiveThorttlingKeyspaces.containsKey(ksName.toLowerCase())))
+            {
+                throttlingPercentage *= 2;
+                ksThrottlingMetrics.aggressiveThrottling.inc();
+            }
+            else if(spikeInRequestRate(ksName, metrics, reads, ksThrottlingMetrics) || spikeInLatency(ksName, metrics, reads, ksThrottlingMetrics))
             {
                 // if we find that there is a keyspace, which is the root cause, then throttle it more aggressively
                 if (reads)
@@ -327,9 +333,11 @@ public class CassandraResourceUtilization
                     ksThrottlingMetrics.addKSForWriteThrottling.inc();
                     mutationAggressiveThorttlingKeyspaces.put(ksName.toLowerCase(), true);
                 }
-                return true;
             }
-            if (ThreadLocalRandom.current().nextDouble() <= throttlingOptions.getPercentageOfTrafficToThrottling())
+        }
+        if (throttlingPercentage < MAX_THROTTLING)
+        {
+            if (ThreadLocalRandom.current().nextDouble() <= throttlingPercentage)
             {
                 if (reads)
                 {
@@ -339,7 +347,7 @@ public class CassandraResourceUtilization
                 {
                     ksThrottlingMetrics.minWriteThrottling.inc();
                 }
-                logger.info("Do minimum throttling read op: {}, keyspace: {}", reads, ksName);
+                logger.info("Do minimum throttling read op: {}, percentage: {}, keyspace: {}", reads, throttlingPercentage, ksName);
                 return true;
             }
             else
@@ -396,11 +404,17 @@ public class CassandraResourceUtilization
             {
                 ksThrottlingMetrics.writeRequestsTrendingUpward.inc();
             }
-            double ratio = oneMinuteRate / fifteenMinuteRate;
+            double ratio = oneMinuteRate;
+            if (Double.compare(fifteenMinuteRate, 0.0) != 0)
+            {
+                ratio = oneMinuteRate / fifteenMinuteRate;
+            }
             logger.info("Trending requests upward read op: {} keyspace: {}, ratio: {}, oneMinuteRate: {}, fiveMinuteRate: {}, fifteenMinuteRate: {}",
                         reads, ksName, ratio, oneMinuteRate, fiveMinuteRate, fifteenMinuteRate);
             if (ratio >= throttlingOptions.getAggressiveThrottlingQpsRatio())
             {
+                logger.info("Trending qualified latency upward read op: {}, keyspace: {}, ratio: {}, oneMinuteRate: {}, fiveMinuteRate: {}, fifteenMinuteRate: {}",
+                            reads, ksName, ratio, oneMinuteRate, fiveMinuteRate, fifteenMinuteRate);
                 return true;
             }
         }
@@ -436,11 +450,17 @@ public class CassandraResourceUtilization
             {
                 ksThrottlingMetrics.writeLatencyTrendingUpward.inc();
             }
-            double ratio = oneMinuteRate / fifteenMinuteRate;
+            double ratio = oneMinuteRate;
+            if (Double.compare(fifteenMinuteRate, 0.0) != 0)
+            {
+                ratio = oneMinuteRate / fifteenMinuteRate;
+            }
             logger.info("Trending latency upward read op: {}, keyspace: {}, ratio: {}, oneMinuteRate: {}, fiveMinuteRate: {}, fifteenMinuteRate: {}",
                         reads, ksName, ratio, oneMinuteRate, fiveMinuteRate, fifteenMinuteRate);
             if (ratio >= throttlingOptions.getAggressiveThrottlingLatencyRatio())
             {
+                logger.info("Trending qualified latency upward read op: {}, keyspace: {}, ratio: {}, oneMinuteRate: {}, fiveMinuteRate: {}, fifteenMinuteRate: {}",
+                            reads, ksName, ratio, oneMinuteRate, fiveMinuteRate, fifteenMinuteRate);
                 return true;
             }
         }
