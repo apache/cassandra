@@ -53,6 +53,8 @@ import static org.junit.Assert.assertEquals;
  *
  * <p>The tests below use "drivers" sessions to ensure that queries go through {@link StorageProxy}, where
  * {@link QueryInfoTracker} is setup.
+ *
+ * @see ReadQueryTrackingTest for additional scenarios with different data models
  */
 @RunWith(BMUnitRunner.class)
 public class QueryInfoTrackerTest extends CQLTester
@@ -113,11 +115,11 @@ public class QueryInfoTrackerTest extends CQLTester
     }
 
     @Test
-    public void testReadQueryTracingWithStaticRows()
+    public void testReadQueryTracingWithStaticRowsClusteringColumnsAndRegularRows()
     {
         int keys = 4;
         int clustering = 3;
-        String table = KEYSPACE + ".qit_read_static";
+        String table = KEYSPACE + ".qit_read_static_clustering_regular";
         session.execute("CREATE TABLE " + table + "(k int, c int, v int, sv int static, PRIMARY KEY (k, c))");
         for (int k = 0; k < keys; k++)
         {
