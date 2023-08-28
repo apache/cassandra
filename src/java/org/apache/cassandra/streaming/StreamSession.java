@@ -189,6 +189,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     // receiving peer's CompleteMessage.
     private boolean maybeCompleted = false;
     private Future<?> closeFuture;
+    private final Object closeFutureLock = new Object();
 
     private final TimeUUID pendingRepair;
     private final PreviewKind previewKind;
@@ -496,35 +497,43 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         }
     }
 
-    private synchronized Future<?> closeSession(State finalState)
+    private Future<?> closeSession(State finalState)
     {
-        // it's session is already closed
-        if (closeFuture != null)
-            return closeFuture;
-
-        state(finalState);
-
-        List<Future<?>> futures = new ArrayList<>();
-
-        // ensure aborting the tasks do not happen on the network IO thread (read: netty event loop)
-        // as we don't want any blocking disk IO to stop the network thread
-        if (finalState == State.FAILED || finalState == State.ABORTED)
-            futures.add(ScheduledExecutors.nonPeriodicTasks.submit(this::abortTasks));
-
-        // Channels should only be closed by the initiator; but, if this session closed
-        // due to failure, channels should be always closed regardless, even if this is not the initator.
-        if (!isFollower || state != State.COMPLETE)
+        // Keep a separate lock on the closeFuture so that we create it once and only once.
+        // Cannot use the StreamSession monitor here as StreamDeserializingTask/StreamSession.messageReceived
+        // holds it while calling syncUninterruptibly on sendMessage which can trigger a closeSession in
+        // the Netty event loop on error and cause a deadlock.
+        synchronized (closeFutureLock)
         {
-            logger.debug("[Stream #{}] Will close attached inbound {} and outbound {} channels", planId(), inbound, outbound);
-            inbound.values().forEach(channel -> futures.add(channel.close()));
-            outbound.values().forEach(channel -> futures.add(channel.close()));
+            if (closeFuture != null)
+                return closeFuture;
+
+            closeFuture = ScheduledExecutors.nonPeriodicTasks.submit(() -> {
+                synchronized (this) {
+                    state(finalState);
+
+                    sink.onClose(peer);
+                    streamResult.handleSessionComplete(this);
+                }}).flatMap(ignore -> {
+                    List<Future<?>> futures = new ArrayList<>();
+                    // ensure aborting the tasks do not happen on the network IO thread (read: netty event loop)
+                    // as we don't want any blocking disk IO to stop the network thread
+                    if (finalState == State.FAILED || finalState == State.ABORTED)
+                        futures.add(ScheduledExecutors.nonPeriodicTasks.submit(this::abortTasks));
+
+                    // Channels should only be closed by the initiator; but, if this session closed
+                    // due to failure, channels should be always closed regardless, even if this is not the initator.
+                    if (!isFollower || state != State.COMPLETE)
+                    {
+                        logger.debug("[Stream #{}] Will close attached inbound {} and outbound {} channels", planId(), inbound, outbound);
+                        inbound.values().forEach(channel -> futures.add(channel.close()));
+                        outbound.values().forEach(channel -> futures.add(channel.close()));
+                    }
+                    return FutureCombiner.allOf(futures);
+                });
+
+            return closeFuture;
         }
-
-        sink.onClose(peer);
-        streamResult.handleSessionComplete(this);
-        closeFuture = FutureCombiner.allOf(futures);
-
-        return closeFuture;
     }
 
     private void abortTasks()
@@ -982,7 +991,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     {
         try
         {
-            state(State.WAIT_COMPLETE);
+            if (state != State.COMPLETE) // mark as waiting to complete while closeSession futures run.
+                state(State.WAIT_COMPLETE);
             closeSession(State.COMPLETE);
         }
         finally
