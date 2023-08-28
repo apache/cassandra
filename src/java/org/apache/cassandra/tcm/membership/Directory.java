@@ -43,12 +43,14 @@ import org.apache.cassandra.tcm.MetadataValue;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDSerializer;
 import org.apache.cassandra.utils.btree.BTreeBiMap;
 import org.apache.cassandra.utils.btree.BTreeMap;
 import org.apache.cassandra.utils.btree.BTreeMultimap;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
+import static org.apache.cassandra.tcm.membership.NodeVersion.CURRENT;
 
 public class Directory implements MetadataValue<Directory>
 {
@@ -66,6 +68,8 @@ public class Directory implements MetadataValue<Directory>
     private final BTreeBiMap<NodeId, UUID> hostIds;
     private final BTreeMultimap<String, InetAddressAndPort> endpointsByDC;
     private final BTreeMap<String, Multimap<String, InetAddressAndPort>> racksByDC;
+    public final NodeVersion clusterMinVersion;
+    public final NodeVersion clusterMaxVersion;
 
     public Directory()
     {
@@ -102,6 +106,9 @@ public class Directory implements MetadataValue<Directory>
         this.addresses = addresses;
         this.endpointsByDC = endpointsByDC;
         this.racksByDC = racksByDC;
+        Pair<NodeVersion, NodeVersion> minMaxVer = minMaxVersions(states, versions);
+        clusterMinVersion = minMaxVer.left;
+        clusterMaxVersion = minMaxVer.right;
     }
 
     @Override
@@ -146,12 +153,14 @@ public class Directory implements MetadataValue<Directory>
     @VisibleForTesting
     public Directory with(NodeAddresses addresses, Location location)
     {
-        return with(addresses, location, NodeVersion.CURRENT);
+        return with(addresses, location, CURRENT);
     }
 
     public Directory with(NodeAddresses addresses, Location location, NodeVersion nodeVersion)
     {
         NodeId id = new NodeId(nextId);
+        if (peers.containsKey(id))
+            throw new IllegalStateException("Directory already contains a node with id " + id);
         return with(addresses, id, id.toUUID(), location, nodeVersion);
     }
 
@@ -508,6 +517,8 @@ public class Directory implements MetadataValue<Directory>
     {
         public void serialize(Directory t, DataOutputPlus out, Version version) throws IOException
         {
+            if (version.isAtLeast(Version.V1))
+                out.writeInt(t.nextId);
             out.writeInt(t.states.size());
             for (NodeId nodeId : t.states.keySet())
                 Node.serializer.serialize(t.getNode(nodeId), out, version);
@@ -535,8 +546,12 @@ public class Directory implements MetadataValue<Directory>
 
         public Directory deserialize(DataInputPlus in, Version version) throws IOException
         {
+            int nextId = -1;
+            if (version.isAtLeast(Version.V1))
+                nextId = in.readInt();
             int count = in.readInt();
             Directory newDir = new Directory();
+
             for (int i = 0; i < count; i++)
             {
                 Node n = Node.serializer.deserialize(in, version);
@@ -568,7 +583,21 @@ public class Directory implements MetadataValue<Directory>
             }
 
             Epoch lastModified = Epoch.serializer.deserialize(in, version);
-            return new Directory(newDir.nextId,
+            if (version.isBefore(Version.V1))
+            {
+                NodeId maxId = null;
+                for (NodeId id : newDir.peers.keySet())
+                {
+                    if (maxId == null || id.compareTo(maxId) > 0)
+                        maxId = id;
+                }
+
+                if (maxId == null)
+                    nextId = 1;
+                else
+                    nextId = maxId.id() + 1;
+            }
+            return new Directory(nextId,
                                  lastModified,
                                  newDir.peers,
                                  newDir.locations,
@@ -582,7 +611,11 @@ public class Directory implements MetadataValue<Directory>
 
         public long serializedSize(Directory t, Version version)
         {
-            int size = sizeof(t.states.size());
+            int size = 0;
+            if (version.isAtLeast(Version.V1))
+                size += sizeof(t.nextId);
+
+            size += sizeof(t.states.size());
             for (NodeId nodeId : t.states.keySet())
                 size += Node.serializer.serializedSize(t.getNode(nodeId), version);
 
@@ -619,12 +652,24 @@ public class Directory implements MetadataValue<Directory>
                isEquivalent(directory);
     }
 
-    public Optional<NodeVersion> minVersion()
+    private static Pair<NodeVersion, NodeVersion> minMaxVersions(BTreeMap<NodeId, NodeState> states, BTreeMap<NodeId, NodeVersion> versions)
     {
-        return versions.values()
-                       .stream()
-                       .sorted()
-                       .min(NodeVersion::compareTo);
+        NodeVersion minVersion = null;
+        NodeVersion maxVersion = null;
+        for (Map.Entry<NodeId, NodeState> entry : states.entrySet())
+        {
+            if (entry.getValue() != NodeState.LEFT)
+            {
+                NodeVersion ver = versions.get(entry.getKey());
+                if (minVersion == null || ver.compareTo(minVersion) < 0)
+                    minVersion = ver;
+                if (maxVersion == null || ver.compareTo(maxVersion) > 0)
+                    maxVersion = ver;
+            }
+        }
+        if (minVersion == null)
+            return Pair.create(CURRENT, CURRENT);
+        return Pair.create(minVersion, maxVersion);
     }
 
     @Override

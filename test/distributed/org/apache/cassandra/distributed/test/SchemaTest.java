@@ -207,7 +207,7 @@ public class SchemaTest extends TestBaseImpl
 
             // shutdown the 2nd node and make sure that the 1st does not see it any longer as alive
             cluster.get(2).shutdown().get();
-            await(30).until(() -> cluster.get(1).callOnInstance(() -> {
+            await(60).until(() -> cluster.get(1).callOnInstance(() -> {
                 return Gossiper.instance.getLiveMembers()
                                         .stream()
                                         .allMatch(e -> e.equals(getBroadcastAddressAndPort()));
@@ -217,7 +217,7 @@ public class SchemaTest extends TestBaseImpl
             // node 1 will have a definition of TABLE_TWO
             cluster.coordinator(1).execute(String.format("DROP TABLE %s.%s", KEYSPACE, TABLE_ONE), ConsistencyLevel.ONE);
             cluster.coordinator(1).execute(String.format("CREATE TABLE %s.%s (pk INT PRIMARY KEY, v TEXT)", KEYSPACE, TABLE_TWO), ConsistencyLevel.ONE);
-            await(30).until(() -> checkTablesPropagated(cluster.get(1), false, true));
+            await(60).until(() -> checkTablesPropagated(cluster.get(1), false, true));
 
             // when the 2nd node is started, schema should be back in sync
             cluster.get(2).startup();

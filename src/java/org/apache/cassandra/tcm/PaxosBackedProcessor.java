@@ -29,9 +29,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.datastax.driver.core.ConsistencyLevel;
-import com.datastax.driver.core.exceptions.ReadTimeoutException;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
@@ -75,19 +75,22 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
     {
         ClusterMetadata metadata = log.waitForHighestConsecutive();
 
-        try
+        // We can perform a local-only read without going through paxos subsystem in case of a single CMS node.
+        if (metadata.fullCMSMembers().size() > 1)
         {
-            // Attempt to perform a consistent fetch
-            log.append(DistributedMetadataLogKeyspace.getLogState(metadata.epoch, true));
-            return log.waitForHighestConsecutive();
+            try
+            {
+                // Attempt to perform a consistent fetch
+                log.append(DistributedMetadataLogKeyspace.getLogState(metadata.epoch, true));
+                return log.waitForHighestConsecutive();
+            }
+            catch (Throwable t)
+            {
+                JVMStabilityInspector.inspectThrowable(t);
+                TCMMetrics.instance.fetchCMSLogConsistencyDowngrade.mark();
+                logger.warn("Could not perform consistent fetch, downgrading to fetching from CMS peers.", t);
+            }
         }
-        catch (Throwable t)
-        {
-            JVMStabilityInspector.inspectThrowable(t);
-            TCMMetrics.instance.fetchCMSLogConsistencyDowngrade.mark();
-            logger.warn("Could not perform consistent fetch, downgrading to fetching from CMS peers: " + t.getMessage());
-        }
-
         Set<Replica> replicas = metadata.fullCMSMembersAsReplicas();
 
         // We prefer to always perform a consistent fetch (i.e. Paxos read of the distributed log state table).

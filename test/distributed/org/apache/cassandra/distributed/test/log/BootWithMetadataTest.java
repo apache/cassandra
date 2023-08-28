@@ -67,7 +67,7 @@ public class BootWithMetadataTest extends TestBaseImpl
             String filename = cluster.get(1).callOnInstance(() -> {
                 try
                 {
-                    return StorageService.instance.dumpClusterMetadata(resetEpoch, 1000, "V0");
+                    return StorageService.instance.dumpClusterMetadata(resetEpoch, 1000, "V2");
                 }
                 catch (IOException e)
                 {

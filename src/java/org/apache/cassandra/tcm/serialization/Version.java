@@ -18,10 +18,26 @@
 
 package org.apache.cassandra.tcm.serialization;
 
+import java.util.HashMap;
+import java.util.Map;
+
+import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.membership.NodeVersion;
+
 public enum Version
 {
     OLD(-1),
-    V0(0);
+    V0(0),
+    V1(1),
+
+    UNKNOWN(Integer.MAX_VALUE);
+
+    private static Map<Integer, Version> values = new HashMap<>();
+    static
+    {
+        for (Version v : values())
+            values.put(v.version, v);
+    }
 
     private final int version;
     Version(int version)
@@ -29,18 +45,44 @@ public enum Version
         this.version = version;
     }
 
+    /**
+     * Minimum serialization version known to all nodes in the cluster.
+     */
+    public static Version minCommonSerializationVersion()
+    {
+        ClusterMetadata metadata = ClusterMetadata.currentNullable();
+        if (metadata != null)
+            return metadata.directory.clusterMinVersion.serializationVersion();
+        return NodeVersion.CURRENT.serializationVersion();
+
+    }
+
     public int asInt()
     {
         return version;
     }
 
+    public boolean equals(Version other)
+    {
+        return version == other.version;
+    }
+
+    public boolean isAtLeast(Version other)
+    {
+        return version >= other.version;
+    }
+
+    public boolean isBefore(Version other)
+    {
+        return version < other.version;
+    }
+
     public static Version fromInt(int i)
     {
-        if (i == V0.version)
-            return V0;
-        else if (i == OLD.version)
-            return OLD;
-        else
-            throw new IllegalArgumentException("Unsupported metadata version (" + i + ")");
+        Version v = values.get(i);
+        if (v != null)
+            return v;
+
+        throw new IllegalArgumentException("Unsupported metadata version (" + i + ")");
     }
 }

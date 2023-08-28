@@ -432,7 +432,7 @@ public abstract class CoordinatorPathTestBase extends FuzzTestBase
         public <T> void sendFrom(int from, T payload)
         {
             sendFrom(from,
-                     Message.out(classToVerb.get(payload.getClass()), payload, Long.MAX_VALUE));
+                     Message.out(classToVerb.get(payload.getClass()), payload, 0));
         }
 
         /**

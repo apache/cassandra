@@ -73,10 +73,13 @@ public class Message<T>
     public final Header header;
     public final T payload;
 
+    private final IVersionedAsymmetricSerializer<T, ?> payloadSerializer;
+
     Message(Header header, T payload)
     {
         this.header = header;
         this.payload = payload;
+        this.payloadSerializer = verb().serializer();
     }
 
     /** Sender of the message. */
@@ -1142,7 +1145,7 @@ public class Message<T>
 
     private IVersionedAsymmetricSerializer<T, ?> getPayloadSerializer()
     {
-        return verb().serializer();
+        return payloadSerializer;
     }
 
     private int serializedSize40;

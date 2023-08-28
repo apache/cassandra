@@ -18,26 +18,18 @@
 
 package org.apache.cassandra.distributed.test.ring;
 
-import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import org.junit.AssumptionViolatedException;
 import org.junit.Test;
 
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.dynamic.loading.ClassLoadingStrategy;
 import net.bytebuddy.implementation.MethodDelegation;
 import net.bytebuddy.implementation.bind.annotation.SuperCall;
-import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
+
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
@@ -48,7 +40,6 @@ import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.DecommissionTest;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
-import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 
 import static net.bytebuddy.matcher.ElementMatchers.named;
@@ -282,9 +273,9 @@ public class BootstrapTest extends TestBaseImpl
         populateExistingTable(cluster, from, to, coord, cl);
         for (int i = from; i < to; i++)
         {
-            cluster.coordinator(coord).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (?, ?, ?)",
-                                               cl,
-                                               i, i, i);
+            cluster.coordinator(coord).executeWithRetries("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (?, ?, ?)",
+                                                          cl,
+                                                          i, i, i);
         }
     }
 
@@ -292,9 +283,9 @@ public class BootstrapTest extends TestBaseImpl
     {
         for (int i = from; i < to; i++)
         {
-            cluster.coordinator(coord).execute("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (?, ?, ?)",
-                                               cl,
-                                               i, i, i);
+            cluster.coordinator(coord).executeWithRetries("INSERT INTO " + KEYSPACE + ".tbl (pk, ck, v) VALUES (?, ?, ?)",
+                                                          cl,
+                                                          i, i, i);
         }
     }
 

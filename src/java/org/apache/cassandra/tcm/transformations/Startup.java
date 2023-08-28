@@ -105,6 +105,12 @@ public class Startup implements Transformation
                '}';
     }
 
+    @Override
+    public boolean allowDuringUpgrades()
+    {
+        return true;
+    }
+
     public static void maybeExecuteStartupTransformation(NodeId localNodeId)
     {
         Directory directory = ClusterMetadata.current().directory;

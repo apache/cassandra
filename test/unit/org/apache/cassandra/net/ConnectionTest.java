@@ -361,6 +361,25 @@ public class ConnectionTest
                                          .withApplicationSendQueueCapacityInBytes(1 << 16)),
              (inbound, outbound, endpoint) -> {
 
+            unsafeSetSerializer(Verb._TEST_1, () -> new IVersionedSerializer<Object>()
+            {
+                public void serialize(Object o, DataOutputPlus out, int version) throws IOException
+                {
+                    for (int i = 0; i <= 4 << 16; i += 8L)
+                        out.writeLong(1L);
+                }
+
+                public Object deserialize(DataInputPlus in, int version) throws IOException
+                {
+                    in.skipBytesFully(4 << 16);
+                    return null;
+                }
+
+                public long serializedSize(Object o, int version)
+                {
+                    return 4 << 16;
+                }
+            });
             CountDownLatch done = new CountDownLatch(1);
             Message<?> message = Message.out(Verb._TEST_1, new Object());
             MessagingService.instance().callbacks.addWithExpiration(new RequestCallback()
@@ -385,25 +404,7 @@ public class ConnectionTest
 
             }, message, endpoint);
             AtomicInteger delivered = new AtomicInteger();
-            unsafeSetSerializer(Verb._TEST_1, () -> new IVersionedSerializer<Object>()
-            {
-                public void serialize(Object o, DataOutputPlus out, int version) throws IOException
-                {
-                    for (int i = 0 ; i <= 4 << 16 ; i += 8L)
-                        out.writeLong(1L);
-                }
 
-                public Object deserialize(DataInputPlus in, int version) throws IOException
-                {
-                    in.skipBytesFully(4 << 16);
-                    return null;
-                }
-
-                public long serializedSize(Object o, int version)
-                {
-                    return 4 << 16;
-                }
-            });
             unsafeSetHandler(Verb._TEST_1, () -> msg -> delivered.incrementAndGet());
             outbound.enqueue(message);
             Assert.assertTrue(done.await(10, SECONDS));
@@ -435,9 +436,6 @@ public class ConnectionTest
             CountDownLatch receiveDone = new CountDownLatch(90);
 
             AtomicInteger serialized = new AtomicInteger();
-            Message<?> message = Message.builder(Verb._TEST_1, new Object())
-                                        .withExpiresAt(nanoTime() + SECONDS.toNanos(30L))
-                                        .build();
             unsafeSetSerializer(Verb._TEST_1, () -> new IVersionedSerializer<Object>()
             {
                 public void serialize(Object o, DataOutputPlus out, int version) throws IOException
@@ -465,6 +463,9 @@ public class ConnectionTest
                     return 1;
                 }
             });
+            Message<?> message = Message.builder(Verb._TEST_1, new Object())
+                                        .withExpiresAt(nanoTime() + SECONDS.toNanos(30L))
+                                        .build();
 
             unsafeSetHandler(Verb._TEST_1, () -> msg -> receiveDone.countDown());
             for (int i = 0 ; i < count ; ++i)

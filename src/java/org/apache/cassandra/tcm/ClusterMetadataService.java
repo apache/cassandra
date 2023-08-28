@@ -115,8 +115,8 @@ public class ClusterMetadataService
     private final LocalLog log;
     private final MetadataSnapshots snapshots;
 
-    private final Replication.ReplicationHandler replicationHandler;
-    private final Replication.LogNotifyHandler logNotifyHandler;
+    private final IVerbHandler<Replication> replicationHandler;
+    private final IVerbHandler<LogState> logNotifyHandler;
     private final IVerbHandler<FetchCMSLog> fetchLogHandler;
     private final IVerbHandler<Commit> commitRequestHandler;
     private final CurrentEpochRequestHandler currentEpochHandler;
@@ -518,7 +518,7 @@ public class ClusterMetadataService
      * Accessors
      */
 
-    public static Replication.ReplicationHandler replicationHandler()
+    public static IVerbHandler<Replication> replicationHandler()
     {
         // Make it possible to get Verb without throwing NPE during simulation
         ClusterMetadataService instance = ClusterMetadataService.instance();
@@ -527,7 +527,7 @@ public class ClusterMetadataService
         return instance.replicationHandler;
     }
 
-    public static Replication.LogNotifyHandler logNotifyHandler()
+    public static IVerbHandler<LogState> logNotifyHandler()
     {
         // Make it possible to get Verb without throwing NPE during simulation
         ClusterMetadataService instance = ClusterMetadataService.instance();

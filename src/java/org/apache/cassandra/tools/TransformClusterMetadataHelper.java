@@ -31,6 +31,7 @@ import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
@@ -40,12 +41,15 @@ public class TransformClusterMetadataHelper
 {
     public static void main(String ... args) throws IOException
     {
-        if (args.length != 2)
+        if (args.length < 2)
         {
-            System.err.println("Usage: addtocmstool <path to dumped metadata> <ip of host to make CMS>");
+            System.err.println("Usage: addtocmstool <path to dumped metadata> <ip of host to make CMS> [<serialization version>]");
             System.exit(1);
         }
         String sourceFile = args[0];
+        Version serializationVersion = NodeVersion.CURRENT.serializationVersion();
+        if (args.length > 2)
+            serializationVersion = Version.valueOf(args[2]);
 
         // Make sure the partitioner we use to manipulate the metadata is the same one used to generate it
         IPartitioner partitioner = null;
@@ -53,7 +57,7 @@ public class TransformClusterMetadataHelper
         {
             // skip over the prefix specifying the metadata version
             fisp.readUnsignedVInt32();
-            partitioner = ClusterMetadata.Serializer.getPartitioner(fisp, Version.V0);
+            partitioner = ClusterMetadata.Serializer.getPartitioner(fisp, serializationVersion);
         }
         DatabaseDescriptor.toolInitialization();
         DatabaseDescriptor.setPartitionerUnsafe(partitioner);
@@ -65,7 +69,7 @@ public class TransformClusterMetadataHelper
         Path p = Files.createTempFile("clustermetadata", "dump");
         try (FileOutputStreamPlus out = new FileOutputStreamPlus(p))
         {
-            VerboseMetadataSerializer.serialize(ClusterMetadata.serializer, metadata, out, Version.V0);
+            VerboseMetadataSerializer.serialize(ClusterMetadata.serializer, metadata, out, serializationVersion);
         }
         System.out.println(p.toString());
     }

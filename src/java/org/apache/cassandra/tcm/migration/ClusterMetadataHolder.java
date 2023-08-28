@@ -23,12 +23,25 @@ import java.io.IOException;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.serialization.Version;
 
 public class ClusterMetadataHolder
 {
-    public static final ClusterMetadataHolder.Serializer serializer = new ClusterMetadataHolder.Serializer();
+    public static final ClusterMetadataHolder.Serializer defaultMessageSerializer = new ClusterMetadataHolder.Serializer(NodeVersion.CURRENT.serializationVersion());
+
+    private static volatile Serializer serializerCache;
+    public static IVersionedSerializer<ClusterMetadataHolder> messageSerializer(Version version)
+    {
+        Serializer cached = serializerCache;
+        if (cached != null && cached.serializationVersion.equals(version))
+            return cached;
+        cached = new Serializer(version);
+        serializerCache = cached;
+        return cached;
+    }
 
     public final Election.Initiator coordinator;
     public final ClusterMetadata metadata;
@@ -50,11 +63,18 @@ public class ClusterMetadataHolder
 
     private static class Serializer implements IVersionedSerializer<ClusterMetadataHolder>
     {
+        private final Version serializationVersion;
+
+        public Serializer(Version serializationVersion)
+        {
+            this.serializationVersion = serializationVersion;
+        }
+
         @Override
         public void serialize(ClusterMetadataHolder t, DataOutputPlus out, int version) throws IOException
         {
             Election.Initiator.serializer.serialize(t.coordinator, out, version);
-            VerboseMetadataSerializer.serialize(ClusterMetadata.serializer, t.metadata, out);
+            VerboseMetadataSerializer.serialize(ClusterMetadata.serializer, t.metadata, out, serializationVersion);
         }
 
         @Override
@@ -69,7 +89,7 @@ public class ClusterMetadataHolder
         public long serializedSize(ClusterMetadataHolder t, int version)
         {
             return Election.Initiator.serializer.serializedSize(t.coordinator, version) +
-                   VerboseMetadataSerializer.serializedSize(ClusterMetadata.serializer, t.metadata);
+                   VerboseMetadataSerializer.serializedSize(ClusterMetadata.serializer, t.metadata, serializationVersion);
         }
     }
 }

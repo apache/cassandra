@@ -21,24 +21,31 @@ package org.apache.cassandra.tcm;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
+import org.apache.cassandra.tcm.serialization.Version;
 
 public interface MetadataSnapshots
 {
+    Logger logger = LoggerFactory.getLogger(MetadataSnapshots.class);
+
     ClusterMetadata getLatestSnapshotAfter(Epoch epoch);
     ClusterMetadata getSnapshot(Epoch epoch);
     void storeSnapshot(ClusterMetadata metadata);
 
     static ByteBuffer toBytes(ClusterMetadata metadata) throws IOException
     {
-        long serializedSize = VerboseMetadataSerializer.serializedSize(ClusterMetadata.serializer, metadata);
+        Version serializationVersion = Version.minCommonSerializationVersion();
+        long serializedSize = VerboseMetadataSerializer.serializedSize(ClusterMetadata.serializer, metadata, serializationVersion);
         ByteBuffer bytes = ByteBuffer.allocate((int) serializedSize);
         try (DataOutputBuffer dob = new DataOutputBuffer(bytes))
         {
-            VerboseMetadataSerializer.serialize(ClusterMetadata.serializer, metadata, dob);
+            VerboseMetadataSerializer.serialize(ClusterMetadata.serializer, metadata, dob, serializationVersion);
         }
         bytes.flip().rewind();
         return bytes;
@@ -93,7 +100,8 @@ public interface MetadataSnapshots
             }
             catch (IOException e)
             {
-                throw new RuntimeException(e);
+                logger.error("Could not load snapshot", e);
+                return null;
             }
         }
 

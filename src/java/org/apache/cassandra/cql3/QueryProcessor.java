@@ -673,7 +673,7 @@ public class QueryProcessor implements QueryHandler
 
         synchronized (this)
         {
-            CassandraVersion minVersion = ClusterMetadata.current().directory.minVersion().map((v) -> v.cassandraVersion).orElse(null);
+            CassandraVersion minVersion = ClusterMetadata.current().directory.clusterMinVersion.cassandraVersion;
             if (minVersion != null && minVersion.compareTo(NEW_PREPARED_STATEMENT_BEHAVIOUR_SINCE_40, true) >= 0)
             {
                 logger.info("Fully upgraded to at least {}", minVersion);

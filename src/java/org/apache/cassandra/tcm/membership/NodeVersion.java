@@ -34,22 +34,37 @@ import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 public class NodeVersion implements Comparable<NodeVersion>
 {
     public static final Serializer serializer = new Serializer();
-    public static final NodeVersion CURRENT = new NodeVersion(new CassandraVersion(FBUtilities.getReleaseVersionString()), Version.V0);
+    public static final NodeVersion CURRENT = new NodeVersion(new CassandraVersion(FBUtilities.getReleaseVersionString()), Version.V1);
 
     private static final CassandraVersion SINCE_VERSION = CassandraVersion.CASSANDRA_5_0;
 
     public final CassandraVersion cassandraVersion;
-    public final Version serializationVersion;
+    public final int serializationVersion;
 
     public NodeVersion(CassandraVersion cassandraVersion, Version serializationVersion)
+    {
+        assert serializationVersion != Version.UNKNOWN;
+        this.cassandraVersion = cassandraVersion;
+        this.serializationVersion = serializationVersion.asInt();
+    }
+
+    private NodeVersion(CassandraVersion cassandraVersion, int serializationVersion)
     {
         this.cassandraVersion = cassandraVersion;
         this.serializationVersion = serializationVersion;
     }
 
+    public Version serializationVersion()
+    {
+        if (serializationVersion <= CURRENT.serializationVersion)
+            return Version.fromInt(serializationVersion);
+
+        return Version.UNKNOWN;
+    }
+
     public boolean isUpgraded()
     {
-        return serializationVersion.asInt() >= Version.V0.asInt();
+        return serializationVersion >= Version.V0.asInt();
     }
 
     @Override
@@ -74,7 +89,7 @@ public class NodeVersion implements Comparable<NodeVersion>
             return CURRENT;
         Version version = Version.OLD;
         if (cv.compareTo(SINCE_VERSION, true) >= 0)
-            version = Version.V0;
+            version = Version.V1;
         return new NodeVersion(cv, version);
     }
 
@@ -99,14 +114,16 @@ public class NodeVersion implements Comparable<NodeVersion>
         public void serialize(NodeVersion t, DataOutputPlus out, Version version) throws IOException
         {
             out.writeUTF(t.cassandraVersion.toString());
-            out.writeUnsignedVInt32(t.serializationVersion.asInt());
+            if (t.serializationVersion == Version.UNKNOWN.asInt())
+                throw new IllegalStateException("Should not serialize UNKNOWN version");
+            out.writeUnsignedVInt32(t.serializationVersion);
         }
 
         @Override
         public NodeVersion deserialize(DataInputPlus in, Version version) throws IOException
         {
             CassandraVersion cassandraVersion = new CassandraVersion(in.readUTF());
-            Version serializationVersion = Version.fromInt(in.readUnsignedVInt32());
+            int serializationVersion = in.readUnsignedVInt32();
             return new NodeVersion(cassandraVersion, serializationVersion);
         }
 
@@ -114,7 +131,7 @@ public class NodeVersion implements Comparable<NodeVersion>
         public long serializedSize(NodeVersion t, Version version)
         {
             return sizeof(t.cassandraVersion.toString()) +
-                   sizeofUnsignedVInt(t.serializationVersion.asInt());
+                   sizeofUnsignedVInt(t.serializationVersion);
         }
     }
 }

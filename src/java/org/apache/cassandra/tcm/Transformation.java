@@ -51,6 +51,11 @@ public interface Transformation
 
     Result execute(ClusterMetadata metadata);
 
+    default boolean allowDuringUpgrades()
+    {
+        return false;
+    }
+
     default Success success(ClusterMetadata.Transformer transformer, LockedRanges.AffectedRanges affectedRanges)
     {
         ClusterMetadata.Transformer.Transformed transformed = transformer.build();
@@ -203,11 +208,12 @@ public interface Transformation
 
         public ByteBuffer toVersionedBytes(Transformation transform) throws IOException
         {
-            long size = VerboseMetadataSerializer.serializedSize(serializer.get(), transform);
+            Version serializationVersion = Version.minCommonSerializationVersion();
+            long size = VerboseMetadataSerializer.serializedSize(serializer.get(), transform, serializationVersion);
             ByteBuffer bb = ByteBuffer.allocate(Ints.checkedCast(size));
             try (DataOutputBuffer out = new DataOutputBuffer(bb))
             {
-                VerboseMetadataSerializer.serialize(serializer.get(), transform, out);
+                VerboseMetadataSerializer.serialize(serializer.get(), transform, out, serializationVersion);
             }
             bb.flip();
             return bb;

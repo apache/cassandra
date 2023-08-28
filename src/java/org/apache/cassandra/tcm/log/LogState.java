@@ -37,14 +37,27 @@ import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.MetadataSnapshots;
 import org.apache.cassandra.tcm.Period;
 import org.apache.cassandra.tcm.Sealed;
+import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
+import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 public class LogState
 {
     private static final Logger logger = LoggerFactory.getLogger(LogState.class);
     public static LogState EMPTY = new LogState(null, Replication.EMPTY);
-    public static final Serializer serializer = new Serializer();
+    public static final IVersionedSerializer<LogState> defaultMessageSerializer = new Serializer(NodeVersion.CURRENT.serializationVersion());
+
+    private static volatile Serializer serializerCache;
+    public static IVersionedSerializer<LogState> messageSerializer(Version version)
+    {
+        Serializer cached = serializerCache;
+        if (cached != null && cached.serializationVersion.equals(version))
+            return cached;
+        cached = new Serializer(version);
+        serializerCache = cached;
+        return cached;
+    }
 
     public final ClusterMetadata baseState;
     public final Replication transformations;
@@ -143,7 +156,7 @@ public class LogState
         catch (Throwable t)
         {
             JVMStabilityInspector.inspectThrowable(t);
-            logger.error("Could not restore the state: ", t.getMessage());
+            logger.error("Could not restore the state.", t);
             throw new RuntimeException(t);
         }
     }
@@ -214,13 +227,20 @@ public class LogState
 
     static final class Serializer implements IVersionedSerializer<LogState>
     {
+        private final Version serializationVersion;
+
+        public Serializer(Version serializationVersion)
+        {
+            this.serializationVersion = serializationVersion;
+        }
+
         @Override
         public void serialize(LogState t, DataOutputPlus out, int version) throws IOException
         {
             out.writeBoolean(t.baseState != null);
             if (t.baseState != null)
-                VerboseMetadataSerializer.serialize(ClusterMetadata.serializer, t.baseState, out);
-            VerboseMetadataSerializer.serialize(Replication.serializer, t.transformations, out);
+                VerboseMetadataSerializer.serialize(ClusterMetadata.serializer, t.baseState, out, serializationVersion);
+            VerboseMetadataSerializer.serialize(Replication.serializer, t.transformations, out, serializationVersion);
         }
 
         @Override
@@ -239,8 +259,8 @@ public class LogState
         {
             long size = TypeSizes.BOOL_SIZE;
             if (t.baseState != null)
-                size += VerboseMetadataSerializer.serializedSize(ClusterMetadata.serializer, t.baseState);
-            size += VerboseMetadataSerializer.serializedSize(Replication.serializer, t.transformations);
+                size += VerboseMetadataSerializer.serializedSize(ClusterMetadata.serializer, t.baseState, serializationVersion);
+            size += VerboseMetadataSerializer.serializedSize(Replication.serializer, t.transformations, serializationVersion);
             return size;
         }
     }

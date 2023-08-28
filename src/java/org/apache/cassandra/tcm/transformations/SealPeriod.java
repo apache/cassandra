@@ -50,6 +50,12 @@ public class SealPeriod implements Transformation
     }
 
     @Override
+    public boolean allowDuringUpgrades()
+    {
+        return true;
+    }
+
+    @Override
     public Result execute(ClusterMetadata prev)
     {
         if (prev.lastInPeriod)

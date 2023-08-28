@@ -826,16 +826,26 @@ public class ClusterMetadata
         return null;
     }
 
+    public boolean metadataSerializationUpgradeInProgress()
+    {
+        return !directory.clusterMaxVersion.serializationVersion().equals(directory.clusterMinVersion.serializationVersion());
+    }
+
     public static class Serializer implements MetadataSerializer<ClusterMetadata>
     {
         @Override
         public void serialize(ClusterMetadata metadata, DataOutputPlus out, Version version) throws IOException
         {
+            if (version.isAtLeast(Version.V1))
+                out.writeUTF(metadata.partitioner.getClass().getCanonicalName());
+
             Epoch.serializer.serialize(metadata.epoch, out);
             out.writeUnsignedVInt(metadata.period);
             out.writeBoolean(metadata.lastInPeriod);
-            // todo: move partitioner to be first in the serialization format when we are forced to make a non-backwards compatible change
-            out.writeUTF(metadata.partitioner.getClass().getCanonicalName());
+
+            if (version.isBefore(Version.V1))
+                out.writeUTF(metadata.partitioner.getClass().getCanonicalName());
+
             DistributedSchema.serializer.serialize(metadata.schema, out, version);
             Directory.serializer.serialize(metadata.directory, out, version);
             TokenMap.serializer.serialize(metadata.tokenMap, out, version);
@@ -856,10 +866,17 @@ public class ClusterMetadata
         @Override
         public ClusterMetadata deserialize(DataInputPlus in, Version version) throws IOException
         {
+            IPartitioner partitioner = null;
+            if (version.isAtLeast(Version.V1))
+                partitioner = FBUtilities.newPartitioner(in.readUTF());
+
             Epoch epoch = Epoch.serializer.deserialize(in);
             long period = in.readUnsignedVInt();
             boolean lastInPeriod = in.readBoolean();
-            IPartitioner partitioner = FBUtilities.newPartitioner(in.readUTF());
+
+            if (version.isBefore(Version.V1))
+                partitioner = FBUtilities.newPartitioner(in.readUTF());
+
             DistributedSchema schema = DistributedSchema.serializer.deserialize(in, version);
             Directory dir = Directory.serializer.deserialize(in, version);
             TokenMap tokenMap = TokenMap.serializer.deserialize(in, version);
@@ -912,6 +929,9 @@ public class ClusterMetadata
 
         public static IPartitioner getPartitioner(DataInputPlus in, Version version) throws IOException
         {
+            if (version.isAtLeast(Version.V1))
+                return FBUtilities.newPartitioner(in.readUTF());
+
             Epoch.serializer.deserialize(in);
             in.readUnsignedVInt();
             in.readBoolean();

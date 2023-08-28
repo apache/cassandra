@@ -196,6 +196,7 @@ import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeState;
+import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.migration.GossipCMSListener;
 import org.apache.cassandra.tcm.ownership.MovementMap;
 import org.apache.cassandra.tcm.ownership.TokenMap;
@@ -5895,7 +5896,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @Override
     public String dumpClusterMetadata() throws IOException
     {
-        return dumpClusterMetadata(Epoch.EMPTY.getEpoch(), ClusterMetadata.current().epoch.getEpoch() + 1000, org.apache.cassandra.tcm.serialization.Version.V0.toString());
+        return dumpClusterMetadata(Epoch.EMPTY.getEpoch(), ClusterMetadata.current().epoch.getEpoch() + 1000, NodeVersion.CURRENT.serializationVersion().toString());
     }
 
     @Override

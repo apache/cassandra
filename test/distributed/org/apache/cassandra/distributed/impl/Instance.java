@@ -795,7 +795,16 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             {
                 ClusterMetadataService.instance().commit(new UnsafeJoin(self,
                                                                         new HashSet<>(BootStrapper.getBootstrapTokens(ClusterMetadata.current(), FBUtilities.getBroadcastAddressAndPort())),
-                                                                        ClusterMetadataService.instance().placementProvider()));
+                                                                        ClusterMetadataService.instance().placementProvider()),
+                                                         (metadata) -> metadata,
+                                                         (metadata, code, reason) -> {
+                                                             // We might have discovered a committed unsafe join
+                                                             if (metadata.myNodeState() == NodeState.JOINED)
+                                                                 return metadata;
+
+                                                             throw new IllegalStateException(String.format("Can not join the node: %s (%s)", reason, code));
+                                                         });
+
                 SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.COMPLETED);
                 if (config.has(BLANK_GOSSIP))
                     peers.forEach(peer -> GossipHelper.statusToBlank((IInvokableInstance) peer).accept(this));

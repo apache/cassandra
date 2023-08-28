@@ -34,6 +34,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.tcm.log.Replication;
+import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.tcm.membership.Directory;
@@ -48,9 +49,19 @@ public class Commit
 {
     private static final Logger logger = LoggerFactory.getLogger(Commit.class);
 
-    public static final Serializer serializer = new Serializer();
+    public static final IVersionedSerializer<Commit> defaultMessageSerializer = new Serializer(NodeVersion.CURRENT.serializationVersion());
 
-    private final Version metadataVersion = Version.V0;
+    private static volatile Serializer serializerCache;
+    public static IVersionedSerializer<Commit> messageSerializer(Version version)
+    {
+        Serializer cached = serializerCache;
+        if (cached != null && cached.serializationVersion.equals(version))
+            return cached;
+        cached = new Serializer(version);
+        serializerCache = cached;
+        return cached;
+    }
+
     private final Entry.Id entryId;
     private final Transformation transform;
     private final Epoch lastKnown;
@@ -72,32 +83,40 @@ public class Commit
 
     static class Serializer implements IVersionedSerializer<Commit>
     {
+        private final Version serializationVersion;
+
+        public Serializer(Version serializationVersion)
+        {
+            this.serializationVersion = serializationVersion;
+        }
+
         public void serialize(Commit t, DataOutputPlus out, int version) throws IOException
         {
-            out.writeInt(t.metadataVersion.asInt());
-            Entry.Id.serializer.serialize(t.entryId, out, t.metadataVersion);
-            Transformation.serializer.serialize(t.transform, out, t.metadataVersion);
-            Epoch.serializer.serialize(t.lastKnown, out, t.metadataVersion);
+            out.writeInt(serializationVersion.asInt());
+            Entry.Id.serializer.serialize(t.entryId, out, serializationVersion);
+            Transformation.serializer.serialize(t.transform, out, serializationVersion);
+            Epoch.serializer.serialize(t.lastKnown, out, serializationVersion);
         }
 
         public Commit deserialize(DataInputPlus in, int version) throws IOException
         {
-            Version metadataVersion = Version.fromInt(in.readInt());
-            Entry.Id entryId = Entry.Id.serializer.deserialize(in, metadataVersion);
-            Transformation transform = Transformation.serializer.deserialize(in, metadataVersion);
-            Epoch lastKnown = Epoch.serializer.deserialize(in, metadataVersion);
+            Version deserializationVersion = Version.fromInt(in.readInt());
+            Entry.Id entryId = Entry.Id.serializer.deserialize(in, deserializationVersion);
+            Transformation transform = Transformation.serializer.deserialize(in, deserializationVersion);
+            Epoch lastKnown = Epoch.serializer.deserialize(in, deserializationVersion);
             return new Commit(entryId, transform, lastKnown);
         }
 
         public long serializedSize(Commit t, int version)
         {
-            return TypeSizes.sizeof(t.metadataVersion.asInt()) +
-                   Transformation.serializer.serializedSize(t.transform, t.metadataVersion) +
-                   Entry.Id.serializer.serializedSize(t.entryId, t.metadataVersion) +
-                   Epoch.serializer.serializedSize(t.lastKnown, t.metadataVersion);
+            return TypeSizes.sizeof(serializationVersion.asInt()) +
+                   Transformation.serializer.serializedSize(t.transform, serializationVersion) +
+                   Entry.Id.serializer.serializedSize(t.entryId, serializationVersion) +
+                   Epoch.serializer.serializedSize(t.lastKnown, serializationVersion);
         }
     }
 
+    static volatile Result.Serializer resultSerializerCache;
     public static interface Result
     {
         boolean isSuccess();
@@ -112,11 +131,20 @@ public class Commit
         {
             return (Failure) this;
         }
-        Serializer serializer = new Serializer();
+        IVersionedSerializer<Result> defaultMessageSerializer = new Serializer(NodeVersion.CURRENT.serializationVersion());
+
+        static IVersionedSerializer<Result> messageSerializer(Version version)
+        {
+            Serializer cached = resultSerializerCache;
+            if (cached != null && cached.serializationVersion.equals(version))
+                return cached;
+            cached = new Serializer(version);
+            resultSerializerCache = cached;
+            return cached;
+        }
 
         final class Success implements Result
         {
-            public final Version metadataVersion = Version.V0;
             public final Epoch epoch;
             public final Replication replication;
 
@@ -198,16 +226,23 @@ public class Commit
             private static final byte SUCCESS = 1;
             private static final byte REJECTED = 2;
             private static final byte FAILED = 3;
+
+            private final Version serializationVersion;
+
+            public Serializer(Version serializationVersion)
+            {
+                this.serializationVersion = serializationVersion;
+            }
+
             @Override
             public void serialize(Result t, DataOutputPlus out, int version) throws IOException
             {
                 if (t instanceof Success)
                 {
                     out.writeByte(SUCCESS);
-                    Version metadataVersion = t.success().metadataVersion;
-                    out.writeUnsignedVInt32(metadataVersion.asInt());
-                    Replication.serializer.serialize(t.success().replication, out, metadataVersion);
-                    Epoch.serializer.serialize(t.success().epoch, out, metadataVersion);
+                    out.writeUnsignedVInt32(serializationVersion.asInt());
+                    Replication.serializer.serialize(t.success().replication, out, serializationVersion);
+                    Epoch.serializer.serialize(t.success().epoch, out, serializationVersion);
                 }
                 else
                 {
@@ -225,9 +260,9 @@ public class Commit
                 int b = in.readByte();
                 if (b == SUCCESS)
                 {
-                    Version metadataVersion = Version.fromInt(in.readUnsignedVInt32());
-                    Replication delta = Replication.serializer.deserialize(in, metadataVersion);
-                    Epoch epoch = Epoch.serializer.deserialize(in, metadataVersion);
+                    Version deserializationVersion = Version.fromInt(in.readUnsignedVInt32());
+                    Replication delta = Replication.serializer.deserialize(in, deserializationVersion);
+                    Epoch epoch = Epoch.serializer.deserialize(in, deserializationVersion);
                     return new Success(epoch, delta);
                 }
                 else
@@ -244,10 +279,9 @@ public class Commit
                 long size = TypeSizes.BYTE_SIZE;
                 if (t instanceof Success)
                 {
-                    Version metadataVersion = t.success().metadataVersion;
-                    size += VIntCoding.computeUnsignedVIntSize(metadataVersion.asInt());
-                    size += Replication.serializer.serializedSize(t.success().replication, metadataVersion);
-                    size += Epoch.serializer.serializedSize(t.success().epoch, metadataVersion);
+                    size += VIntCoding.computeUnsignedVIntSize(serializationVersion.asInt());
+                    size += Replication.serializer.serializedSize(t.success().replication, serializationVersion);
+                    size += Epoch.serializer.serializedSize(t.success().epoch, serializationVersion);
                 }
                 else
                 {

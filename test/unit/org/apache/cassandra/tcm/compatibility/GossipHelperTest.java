@@ -87,7 +87,7 @@ public class GossipHelperTest
         assertEquals(token, metadata.tokenMap.tokens(nodeId).iterator().next());
         assertEquals("dc1", metadata.directory.location(nodeId).datacenter);
         assertEquals("rack1", metadata.directory.location(nodeId).rack);
-        assertEquals(Version.OLD, metadata.directory.versions.get(nodeId).serializationVersion);
+        assertEquals(Version.OLD, metadata.directory.versions.get(nodeId).serializationVersion());
         assertEquals(new CassandraVersion("3.0.24"), metadata.directory.versions.get(nodeId).cassandraVersion);
         assertEquals(internal, metadata.directory.addresses.get(nodeId).localAddress);
         assertEquals(nativeAddress, metadata.directory.addresses.get(nodeId).nativeAddress);

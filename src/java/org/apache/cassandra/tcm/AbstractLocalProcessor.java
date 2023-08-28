@@ -20,6 +20,8 @@ package org.apache.cassandra.tcm;
 
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.exceptions.ExceptionCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,7 +56,17 @@ public abstract class AbstractLocalProcessor implements Processor
             ClusterMetadata previous = log.waitForHighestConsecutive();
             if (!previous.fullCMSMembers().contains(FBUtilities.getBroadcastAddressAndPort()))
                 throw new IllegalStateException("Node is not a member of CMS anymore");
-            Transformation.Result result = transform.execute(previous);
+            Transformation.Result result;
+            if (!CassandraRelevantProperties.TCM_ALLOW_TRANSFORMATIONS_DURING_UPGRADES.getBoolean() &&
+                !transform.allowDuringUpgrades() &&
+                previous.metadataSerializationUpgradeInProgress())
+            {
+                result = new Transformation.Rejected(ExceptionCode.INVALID, "Upgrade in progress, can't commit " + transform);
+            }
+            else
+            {
+                result = transform.execute(previous);
+            }
             // If we got a rejection, it could be that _we_ are not aware of the highest epoch.
             // Just try to catch up to the latest distributed state.
             if (result.isRejected())
@@ -89,7 +101,6 @@ public abstract class AbstractLocalProcessor implements Processor
                 }
                 else
                 {
-
                     retryPolicy.maybeSleep();
                     // TODO: could also add epoch from mis-application from [applied].
                     fetchLogAndWait(null, retryPolicy);

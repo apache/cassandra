@@ -26,32 +26,6 @@ import org.apache.cassandra.utils.vint.VIntCoding;
 
 public class VerboseMetadataSerializer
 {
-
-    // These first two methods, which don't accept a version are just for inital
-    // convenience and should be removed when we have multiple supported metadata
-    // versions. At that point, callers of this should discover the lowest supported
-    // metadata version across the cluster and supply that directly.
-
-    // We don't want to necessarily do that lookup in the methods themselves as these
-    // two are often used together, and when this is the case, they should always be
-    // called with the same version.
-    // e.g.:
-    // 1) call to serializedSize with V0 returns X
-    // 2) allocate a buffer B of size X
-    // 3) lowest supported version changes to V1, which requires X + 1 bytes
-    // 4) call to serialize, with V1 and buffer B
-    public static <In, Out> void serialize(AsymmetricMetadataSerializer<In, Out> base,
-                                           In t,
-                                           DataOutputPlus out) throws IOException
-    {
-        serialize(base, t, out, Version.V0);
-    }
-
-    public static <In, Out> long serializedSize(AsymmetricMetadataSerializer<In, Out> base, In t)
-    {
-        return serializedSize(base, t, Version.V0);
-    }
-
     public static <In, Out> void serialize(AsymmetricMetadataSerializer<In, Out> base,
                                            In t,
                                            DataOutputPlus out,

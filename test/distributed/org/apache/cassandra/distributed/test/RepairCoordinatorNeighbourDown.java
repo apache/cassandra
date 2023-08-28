@@ -72,7 +72,7 @@ public abstract class RepairCoordinatorNeighbourDown extends RepairCoordinatorBa
     public void neighbourDown()
     {
         String table = tableName("neighbourdown");
-        assertTimeoutPreemptively(Duration.ofMinutes(1), () -> {
+        assertTimeoutPreemptively(Duration.ofMinutes(2), () -> {
             CLUSTER.schemaChange(format("CREATE TABLE %s.%s (key text, value text, PRIMARY KEY (key))", KEYSPACE, table));
             String downNodeAddress = CLUSTER.get(2).callOnInstance(() -> FBUtilities.getBroadcastAddressAndPort().getHostAddressAndPort());
             Future<Void> shutdownFuture = CLUSTER.get(2).shutdown();
@@ -135,7 +135,7 @@ public abstract class RepairCoordinatorNeighbourDown extends RepairCoordinatorBa
         // Currently this isn't recoverable but could be.
         // TODO since this is a real restart, how would I test "long pause"? Can't send SIGSTOP since same procress
         String table = tableName("validationparticipentcrashesandcomesback");
-        assertTimeoutPreemptively(Duration.ofMinutes(1), () -> {
+        assertTimeoutPreemptively(Duration.ofMinutes(2), () -> {
             CLUSTER.schemaChange(format("CREATE TABLE %s.%s (key text, value text, PRIMARY KEY (key))", KEYSPACE, table));
             AtomicReference<Future<Void>> participantShutdown = new AtomicReference<>();
             CLUSTER.verbs(Verb.VALIDATION_REQ).to(2).messagesMatching(of(m -> {

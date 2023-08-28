@@ -39,6 +39,7 @@ import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
@@ -49,7 +50,19 @@ public class Replication
     public static Replication EMPTY = new Replication(ImmutableList.<Entry>builder().build());
 
     public static final Serializer serializer = new Serializer();
-    public static final MessageSerializer messageSerializer = new MessageSerializer();
+    public static final IVersionedSerializer<Replication> defaultMessageSerializer = new MessageSerializer(NodeVersion.CURRENT.serializationVersion());
+
+    private static volatile MessageSerializer serializerCache;
+    public static IVersionedSerializer<Replication> messageSerializer(Version version)
+    {
+        MessageSerializer cached = serializerCache;
+        if (cached != null && cached.serializationVersion.equals(version))
+            return cached;
+        cached = new MessageSerializer(version);
+        serializerCache = cached;
+        return cached;
+    }
+
 
     private final ImmutableList<Entry> entries;
 
@@ -153,14 +166,20 @@ public class Replication
     }
 
     // Used only in Verbs where Replication is the entire payload of a Message. The metadata version is prefixed to the
-    // actual serialized bytes. The version is currently hardcoded to the only supported version, V0, but should be
-    // determined from ClusterMetadata when calling serialize.
+    // actual serialized bytes.
     static final class MessageSerializer implements IVersionedSerializer<Replication>
     {
+        private final Version serializationVersion;
+
+        public MessageSerializer(Version serializationVersion)
+        {
+            this.serializationVersion = serializationVersion;
+        }
+
         @Override
         public void serialize(Replication t, DataOutputPlus out, int version) throws IOException
         {
-            VerboseMetadataSerializer.serialize(serializer, t, out);
+            VerboseMetadataSerializer.serialize(serializer, t, out, serializationVersion);
         }
 
         @Override
@@ -172,7 +191,7 @@ public class Replication
         @Override
         public long serializedSize(Replication t, int version)
         {
-            return VerboseMetadataSerializer.serializedSize(serializer, t);
+            return VerboseMetadataSerializer.serializedSize(serializer, t, serializationVersion);
         }
     }
 

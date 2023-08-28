@@ -130,7 +130,7 @@ public abstract class Retry
         private Deadline(long deadlineNanos, Retry delegate)
         {
             super(delegate.maxTries, delegate.retryMeter);
-            assert deadlineNanos > 0;
+            assert deadlineNanos > 0 : String.format("Deadline should be strictly positive but was %d.", deadlineNanos);
             this.deadlineNanos = deadlineNanos;
             this.delegate = delegate;
         }
