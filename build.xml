@@ -90,7 +90,10 @@
     <property name="test.jvm.args" value="" />
     <property name="testtag.extra" value="" />
     <property name="dist.dir" value="${build.dir}/dist"/>
-    <property name="tmp.dir" value="${java.io.tmpdir}"/>
+
+    <!-- Use build/tmp for temp files if not otherwise specified. Because Ant properties are immutable, this has no effect if
+         the user specifies the tmp.dir property -->
+    <property name="tmp.dir" value="${build.dir}/tmp"/>
 
     <property name="doc.dir" value="${basedir}/doc"/>
 
@@ -381,6 +384,7 @@
 
     <target name="clean" description="Remove all locally created artifacts">
         <delete dir="${build.test.dir}" />
+        <delete dir="${build.dir}/tmp" />
         <delete dir="${build.classes}" />
         <delete dir="${build.src.gen-java}" />
         <delete dir="${version.properties.dir}" />
@@ -1112,6 +1116,7 @@
       <mkdir dir="${build.test.dir}/cassandra"/>
       <mkdir dir="${build.test.dir}/output"/>
       <mkdir dir="${build.test.dir}/output/@{testtag}"/>
+      <mkdir dir="${tmp.dir}"/>
       <junit-timeout fork="on" forkmode="@{forkmode}" failureproperty="testfailed" maxmemory="1024m" timeout="@{timeout}" showoutput="@{showoutput}">
         <formatter classname="org.apache.cassandra.CassandraXMLJUnitResultFormatter" extension=".xml" usefile="true"/>
         <formatter classname="org.apache.cassandra.CassandraBriefJUnitResultFormatter" usefile="false"/>
