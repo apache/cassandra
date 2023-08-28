@@ -195,12 +195,6 @@ public class SamplingManager
     {
         return () ->
         {
-            if (cancelingTasks.contains(jobId))
-            {
-                logger.debug("The sampling job of {} is currently canceling. Not issuing a new run.", jobId);
-                activeSamplingTasks.remove(jobId);
-                return;
-            }
             List<String> tableNames = StreamSupport.stream(tables.spliterator(), false)
                                                    .map(cfs -> String.format("%s.%s", cfs.keyspace, cfs.name))
                                                    .collect(Collectors.toList());
