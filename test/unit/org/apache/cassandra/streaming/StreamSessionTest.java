@@ -20,6 +20,8 @@ package org.apache.cassandra.streaming;
 
 import java.io.IOException;
 import java.nio.file.FileStore;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.attribute.FileAttributeView;
 import java.nio.file.attribute.FileStoreAttributeView;
 import java.util.HashMap;
@@ -65,7 +67,7 @@ public class StreamSessionTest extends CQLTester
     private static List<FakeFileStore> filestores = Lists.newArrayList(new FakeFileStore(), new FakeFileStore(), new FakeFileStore());
 
     @BeforeClass
-    public static void before()
+    public static void before() throws IOException
     {
         DatabaseDescriptor.daemonInitialization();
         ByteBuddyAgent.install();
@@ -74,9 +76,10 @@ public class StreamSessionTest extends CQLTester
                        .intercept(MethodDelegation.to(BBKeyspaceHelper.class))
                        .make()
                        .load(ColumnFamilyStore.class.getClassLoader(), ClassReloadingStrategy.fromInstalledAgent());
-        files = Lists.newArrayList(new File("/tmp/1"),
-                                   new File("/tmp/2"),
-                                   new File("/tmp/3"));
+        Path tmpDir = Files.createTempDirectory("StreamSessionTest");
+        files = Lists.newArrayList(new File(tmpDir, "1"),
+                                   new File(tmpDir, "2"),
+                                   new File(tmpDir, "3"));
         datadirs = files.stream().map(Directories.DataDirectory::new).collect(Collectors.toList());
         DatabaseDescriptor.setMinFreeSpacePerDriveInMebibytes(0);
         DatabaseDescriptor.setMaxSpaceForCompactionsPerDrive(1.0);

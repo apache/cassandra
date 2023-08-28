@@ -711,12 +711,14 @@ public class DirectoriesTest
     }
 
     @Test
-    public void testGetLocationForDisk()
+    public void testGetLocationForDisk() throws IOException
     {
         Collection<DataDirectory> paths = new ArrayList<>();
-        paths.add(new DataDirectory(new File("/tmp/aaa")));
-        paths.add(new DataDirectory(new File("/tmp/aa")));
-        paths.add(new DataDirectory(new File("/tmp/a")));
+
+        Path tmpDir = Files.createTempDirectory("testGetLocationForDisk");
+        paths.add(new DataDirectory(tmpDir.resolve("aaa")));
+        paths.add(new DataDirectory(tmpDir.resolve("aa")));
+        paths.add(new DataDirectory(tmpDir.resolve("a")));
 
         for (TableMetadata cfm : CFM)
         {
@@ -751,12 +753,14 @@ public class DirectoriesTest
     }
 
     @Test
-    public void getDataDirectoryForFile()
+    public void getDataDirectoryForFile() throws IOException
     {
         Collection<DataDirectory> paths = new ArrayList<>();
-        paths.add(new DataDirectory("/tmp/a"));
-        paths.add(new DataDirectory("/tmp/aa"));
-        paths.add(new DataDirectory("/tmp/aaa"));
+
+        Path tmpDir = Files.createTempDirectory("getDataDirectoryForFile");
+        paths.add(new DataDirectory(tmpDir.resolve("a")));
+        paths.add(new DataDirectory(tmpDir.resolve("aa")));
+        paths.add(new DataDirectory(tmpDir.resolve("aaa")));
 
         for (TableMetadata cfm : CFM)
         {
