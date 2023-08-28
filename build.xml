@@ -245,9 +245,9 @@
         <string>--add-exports java.base/java.lang.ref=ALL-UNNAMED</string>
         <string>--add-exports jdk.unsupported/sun.misc=ALL-UNNAMED</string>
         <string>--add-exports jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED</string>
+        <string>--add-exports jdk.attach/sun.tools.attach=ALL-UNNAMED</string>
 
         <string>--add-opens java.base/java.lang.module=ALL-UNNAMED</string>
-        <string>--add-opens java.base/java.net=ALL-UNNAMED</string>
         <string>--add-opens java.base/jdk.internal.loader=ALL-UNNAMED</string>
         <string>--add-opens java.base/jdk.internal.ref=ALL-UNNAMED</string>
         <string>--add-opens java.base/jdk.internal.reflect=ALL-UNNAMED</string>
@@ -255,17 +255,12 @@
         <string>--add-opens java.base/jdk.internal.module=ALL-UNNAMED</string>
         <string>--add-opens java.base/jdk.internal.util.jar=ALL-UNNAMED</string>
         <string>--add-opens jdk.management/com.sun.management.internal=ALL-UNNAMED</string>
-        <string>--add-opens jdk.management/com.sun.management.internal=ALL-UNNAMED</string>
-
         <string>--add-opens java.base/sun.nio.ch=ALL-UNNAMED</string>
         <string>--add-opens java.base/java.io=ALL-UNNAMED</string>
-        <string>--add-opens java.base/java.util.concurrent=ALL-UNNAMED</string>
-        <string>--add-opens java.base/java.util=ALL-UNNAMED</string>
-        <string>--add-opens java.base/java.util.concurrent.atomic=ALL-UNNAMED</string>
-        <string>--add-opens java.base/java.lang=ALL-UNNAMED</string>
-        <string>--add-opens java.base/java.math=ALL-UNNAMED</string>
         <string>--add-opens java.base/java.lang.reflect=ALL-UNNAMED</string>
-        <string>--add-opens java.base/java.net=ALL-UNNAMED</string>
+        <string>--add-opens jdk.compiler/com.sun.tools.javac=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.lang=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.util=ALL-UNNAMED</string>
 
         <string>--add-opens java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED</string>
     </resources>
