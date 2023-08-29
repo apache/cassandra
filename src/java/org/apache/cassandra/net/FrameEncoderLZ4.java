@@ -17,10 +17,6 @@
  */
 package org.apache.cassandra.net;
 
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.util.zip.CRC32;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandler;
 import net.jpountz.lz4.LZ4Compressor;
@@ -28,7 +24,11 @@ import net.jpountz.lz4.LZ4Factory;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static org.apache.cassandra.net.Crc.*;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.zip.Checksum;
+
+import static org.apache.cassandra.net.Crc.crc24;
 
 /**
  * Please see {@link FrameDecoderLZ4} for description of the framing produced by this encoder.
@@ -87,7 +87,7 @@ class FrameEncoderLZ4 extends FrameEncoder
 
             writeHeader(frame, isSelfContained, compressedLength, uncompressedLength);
 
-            CRC32 crc = crc32();
+            Checksum crc = crc32factory.get();
             frame.position(HEADER_LENGTH);
             frame.limit(compressedLength + HEADER_LENGTH);
             crc.update(frame);
@@ -112,7 +112,7 @@ class FrameEncoderLZ4 extends FrameEncoder
         }
         finally
         {
-            bufferPool.put(in);
+//            bufferPool.put(in);
         }
     }
 }

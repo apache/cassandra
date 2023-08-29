@@ -82,7 +82,7 @@ public abstract class FrameDecoder extends ChannelInboundHandlerAdapter
             this.frameSize = frameSize;
         }
 
-        abstract void release();
+        public abstract void release();
         abstract boolean isConsumed();
     }
 
@@ -105,7 +105,7 @@ public abstract class FrameDecoder extends ChannelInboundHandlerAdapter
             this.contents = contents;
         }
 
-        void release()
+        public void release()
         {
             contents.release();
         }
@@ -159,7 +159,7 @@ public abstract class FrameDecoder extends ChannelInboundHandlerAdapter
             return frameSize != Integer.MIN_VALUE;
         }
 
-        void release() { }
+        public void release() { }
 
         boolean isConsumed()
         {
@@ -183,7 +183,7 @@ public abstract class FrameDecoder extends ChannelInboundHandlerAdapter
         this.allocator = allocator;
     }
 
-    abstract void decode(Collection<Frame> into, ShareableBytes bytes);
+    public abstract void decode(Collection<Frame> into, ShareableBytes bytes);
     abstract void addLastTo(ChannelPipeline pipeline);
 
     /**

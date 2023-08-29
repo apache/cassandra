@@ -17,14 +17,15 @@
  */
 package org.apache.cassandra.net;
 
+import io.netty.channel.ChannelPipeline;
+
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Collection;
-import java.util.zip.CRC32;
+import java.util.zip.Checksum;
 
-import io.netty.channel.ChannelPipeline;
-
-import static org.apache.cassandra.net.Crc.*;
+import static org.apache.cassandra.net.Crc.crc24;
+import static org.apache.cassandra.net.Crc.updateCrc32;
 
 /**
  * Framing format that protects integrity of data in movement with CRCs (of both header and payload).
@@ -60,7 +61,7 @@ public final class FrameDecoderCrc extends FrameDecoderWith8bHeader
         super(allocator);
     }
 
-    public static FrameDecoderCrc create(BufferPoolAllocator allocator)
+    public static FrameDecoder create(BufferPoolAllocator allocator)
     {
         return new FrameDecoderCrc(allocator);
     }
@@ -131,7 +132,7 @@ public final class FrameDecoderCrc extends FrameDecoderWith8bHeader
         ByteBuffer in = bytes.get();
         boolean isSelfContained = isSelfContained(header6b);
 
-        CRC32 crc = crc32();
+        Checksum crc = FrameEncoder.crc32factory.get();
         int readFullCrc = in.getInt(end - TRAILER_LENGTH);
         if (in.order() == ByteOrder.BIG_ENDIAN)
             readFullCrc = Integer.reverseBytes(readFullCrc);
@@ -145,7 +146,7 @@ public final class FrameDecoderCrc extends FrameDecoderWith8bHeader
         return new IntactFrame(isSelfContained, bytes.slice(begin + HEADER_LENGTH, end - TRAILER_LENGTH));
     }
 
-    void decode(Collection<Frame> into, ShareableBytes bytes)
+    public void decode(Collection<Frame> into, ShareableBytes bytes)
     {
         decode(into, bytes, HEADER_LENGTH);
     }

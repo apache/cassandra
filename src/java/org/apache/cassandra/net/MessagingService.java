@@ -216,8 +216,9 @@ public class MessagingService extends MessagingServiceMBeanImpl
     public static final int VERSION_3014 = 11;
     public static final int VERSION_40 = 12;
     public static final int VERSION_50 = 13; // c14227 TTL overflow, 'uint' timestamps
+    public static final int VERSION_501 = 14;
     public static final int minimum_version = VERSION_40;
-    public static final int current_version = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? VERSION_40 : VERSION_50;
+    public static final int current_version = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? VERSION_40 : VERSION_501;
     static AcceptVersions accept_messaging = new AcceptVersions(minimum_version, current_version);
     static AcceptVersions accept_streaming = new AcceptVersions(current_version, current_version);
     static Map<Integer, Integer> versionOrdinalMap = Arrays.stream(Version.values()).collect(Collectors.toMap(v -> v.value, v -> v.ordinal()));
@@ -245,7 +246,8 @@ public class MessagingService extends MessagingServiceMBeanImpl
         @Deprecated
         VERSION_3014(11),
         VERSION_40(12),
-        VERSION_50(13);
+        VERSION_50(13),
+        VERSION_501(14);
 
         public final int value;
 
@@ -262,6 +264,19 @@ public class MessagingService extends MessagingServiceMBeanImpl
                     versions.add(version);
 
             return Collections.unmodifiableList(versions);
+        }
+
+        public boolean greaterOrEquals(int version)
+        {
+            return this.value >= version;
+        }
+
+        public static Version from(int intVersion)
+        {
+            for (Version version : values())
+                if (version.value == intVersion)
+                    return version;
+            throw new IllegalArgumentException("Unknown version " + intVersion);
         }
     }
 

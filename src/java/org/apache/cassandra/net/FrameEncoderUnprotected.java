@@ -33,9 +33,9 @@ import static org.apache.cassandra.net.FrameEncoderCrc.writeHeader;
  * Please see {@link FrameDecoderUnprotected} for description of the framing produced by this encoder.
  */
 @ChannelHandler.Sharable
-class FrameEncoderUnprotected extends FrameEncoder
+public class FrameEncoderUnprotected extends FrameEncoder
 {
-    static final FrameEncoderUnprotected instance = new FrameEncoderUnprotected();
+    public static final FrameEncoderUnprotected instance = new FrameEncoderUnprotected();
     static final PayloadAllocator allocator = (isSelfContained, capacity) ->
         new Payload(isSelfContained, capacity, HEADER_LENGTH, 0);
 
@@ -44,7 +44,7 @@ class FrameEncoderUnprotected extends FrameEncoder
         return allocator;
     }
 
-    ByteBuf encode(boolean isSelfContained, ByteBuffer frame)
+    public ByteBuf encode(boolean isSelfContained, ByteBuffer frame)
     {
         try
         {

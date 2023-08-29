@@ -1077,7 +1077,7 @@ public class FBUtilities
       * Resets position and limit back to their original values on return.
       * This method is *NOT* thread-safe.
       */
-    public static void updateChecksum(CRC32 checksum, ByteBuffer buffer, int offset, int length)
+    public static void updateChecksum(Checksum checksum, ByteBuffer buffer, int offset, int length)
     {
         int position = buffer.position();
         int limit = buffer.limit();

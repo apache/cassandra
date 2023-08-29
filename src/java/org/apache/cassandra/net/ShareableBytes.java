@@ -159,7 +159,7 @@ public class ShareableBytes
     /**
      * Create a new slice, incrementing the number of owners (making it shared if it was previously unshared)
      */
-    ShareableBytes slice(int begin, int end)
+    public ShareableBytes slice(int begin, int end)
     {
         ByteBuffer slice = bytes.duplicate();
         slice.position(begin).limit(end);

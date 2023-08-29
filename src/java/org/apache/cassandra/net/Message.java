@@ -52,6 +52,7 @@ import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 import static org.apache.cassandra.net.MessagingService.VERSION_40;
 import static org.apache.cassandra.net.MessagingService.VERSION_50;
+import static org.apache.cassandra.net.MessagingService.VERSION_501;
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 import static org.apache.cassandra.utils.vint.VIntCoding.*;
@@ -1080,8 +1081,9 @@ public class Message<T>
                     serializedSize40 = serializer.serializedSize(this, VERSION_40);
                 return serializedSize40;
             case VERSION_50:
+            case VERSION_501:
                 if (serializedSize50 == 0)
-                    serializedSize50 = serializer.serializedSize(this, VERSION_50);
+                    serializedSize50 = serializer.serializedSize(this, version);
                 return serializedSize50;
             default:
                 throw new IllegalStateException("Unkown serialization version " + version);
@@ -1100,8 +1102,9 @@ public class Message<T>
                     payloadSize40 = serializer.payloadSize(this, VERSION_40);
                 return payloadSize40;
             case VERSION_50:
+            case VERSION_501:
                 if (payloadSize50 < 0)
-                    payloadSize50 = serializer.payloadSize(this, VERSION_50);
+                    payloadSize50 = serializer.payloadSize(this, version);
                 return payloadSize50;
 
             default:

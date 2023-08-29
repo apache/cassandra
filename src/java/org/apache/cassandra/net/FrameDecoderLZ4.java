@@ -17,16 +17,17 @@
  */
 package org.apache.cassandra.net;
 
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.util.Collection;
-import java.util.zip.CRC32;
-
 import io.netty.channel.ChannelPipeline;
 import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.lz4.LZ4SafeDecompressor;
 
-import static org.apache.cassandra.net.Crc.*;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.Collection;
+import java.util.zip.Checksum;
+
+import static org.apache.cassandra.net.Crc.crc24;
+import static org.apache.cassandra.net.Crc.updateCrc32;
 
 /**
  * Framing format that compresses payloads with LZ4, and protects integrity of data in movement with CRCs
@@ -121,7 +122,7 @@ public final class FrameDecoderLZ4 extends FrameDecoderWith8bHeader
         boolean isSelfContained = isSelfContained(header8b);
         int uncompressedLength = uncompressedLength(header8b);
 
-        CRC32 crc = crc32();
+        Checksum crc = FrameEncoder.crc32factory.get();
         int readFullCrc = input.getInt(end - TRAILER_LENGTH);
         if (input.order() == ByteOrder.BIG_ENDIAN)
             readFullCrc = Integer.reverseBytes(readFullCrc);
@@ -153,7 +154,7 @@ public final class FrameDecoderLZ4 extends FrameDecoderWith8bHeader
         }
     }
 
-    void decode(Collection<Frame> into, ShareableBytes bytes)
+    public void decode(Collection<Frame> into, ShareableBytes bytes)
     {
         // TODO: confirm in assembly output that we inline the relevant nested method calls
         decode(into, bytes, HEADER_LENGTH);
