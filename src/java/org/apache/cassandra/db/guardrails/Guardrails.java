@@ -185,6 +185,15 @@ public final class Guardrails implements GuardrailsMBean
                     "DROP KEYSPACE functionality");
 
     /**
+     * Guardrail disabling bulk loading of SSTables
+     */
+    public static final EnableFlag bulkLoadEnabled =
+    (EnableFlag) new EnableFlag("bulk_load_enabled",
+                   "Bulk loading of SSTables might potentially destabilize the node.",
+                   state -> CONFIG_PROVIDER.getOrCreate(state).getBulkLoadEnabled(),
+                   "Bulk loading of SSTables").throwOnNullClientState(true);
+
+    /**
      * Guardrail disabling user's ability to turn off compression
      */
     public static final EnableFlag uncompressedTablesEnabled =
@@ -777,6 +786,18 @@ public final class Guardrails implements GuardrailsMBean
     public void setDropKeyspaceEnabled(boolean enabled)
     {
         DEFAULT_CONFIG.setDropKeyspaceEnabled(enabled);
+    }
+
+    @Override
+    public boolean getBulkLoadEnabled()
+    {
+        return DEFAULT_CONFIG.getBulkLoadEnabled();
+    }
+
+    @Override
+    public void setBulkLoadEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setBulkLoadEnabled(enabled);
     }
 
     @Override

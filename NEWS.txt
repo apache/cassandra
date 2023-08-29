@@ -71,6 +71,8 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - New Guardrails added:
+      - Whether bulk loading of SSTables is allowed.
 
 Upgrading
 ---------
