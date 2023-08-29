@@ -19,7 +19,6 @@ package org.apache.cassandra.metrics;
 
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
-import java.nio.charset.CharacterCodingException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumMap;
@@ -322,7 +321,7 @@ public class TableMetrics
     public final Counter speculativeFailedRetries;
     public final Counter speculativeInsufficientReplicas;
     public final Gauge<Long> speculativeSampleLatencyNanos;
-
+    public final TableHistogram coordinatorReadSize;
     public final Counter additionalWrites;
     public final Gauge<Long> additionalWriteLatencyNanos;
 
@@ -950,6 +949,7 @@ public class TableMetrics
         coordinatorScanLatency = createTableTimer("CoordinatorScanLatency", cfs.getKeyspaceMetrics().coordinatorReadLatency);
         coordinatorWriteLatency = createTableTimer("CoordinatorWriteLatency", cfs.getKeyspaceMetrics().coordinatorWriteLatency);
         waitingOnFreeMemtableSpace = createTableHistogram("WaitingOnFreeMemtableSpace", cfs.getKeyspaceMetrics().waitingOnFreeMemtableSpace, false);
+        coordinatorReadSize = createTableHistogram("CoordinatorReadSize", cfs.getKeyspaceMetrics().coordinatorReadSize, false);
 
         // We do not want to capture view mutation specific metrics for a view
         // They only makes sense to capture on the base table
