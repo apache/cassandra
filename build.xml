@@ -235,8 +235,6 @@
         <string>-XX:G1HeapRegionSize=16m</string>
 
         <string>--add-exports java.base/jdk.internal.misc=ALL-UNNAMED</string>
-        <string>--add-exports java.base/jdk.internal.ref=ALL-UNNAMED</string>
-        <string>--add-exports java.base/sun.nio.ch=ALL-UNNAMED</string>
         <string>--add-exports java.management.rmi/com.sun.jmx.remote.internal.rmi=ALL-UNNAMED</string>
         <string>--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED</string>
         <string>--add-exports java.rmi/sun.rmi.server=ALL-UNNAMED</string>
