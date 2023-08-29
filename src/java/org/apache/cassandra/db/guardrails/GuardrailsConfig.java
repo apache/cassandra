@@ -161,6 +161,13 @@ public interface GuardrailsConfig
     boolean getDropTruncateTableEnabled();
 
     /**
+     * Returns whether bulk load of SSTables is allowed
+     *
+     * @return {@code true} if allowed, {@code false} otherwise.
+     */
+    boolean getBulkLoadEnabled();
+
+    /**
      * @return The threshold to warn when page size exceeds given size.
      */
     int getPageSizeWarnThreshold();

@@ -50,7 +50,7 @@ public final class Guardrails implements GuardrailsMBean
     private static final GuardrailsOptions DEFAULT_CONFIG = DatabaseDescriptor.getGuardrailsConfig();
 
     @VisibleForTesting
-    static final Guardrails instance = new Guardrails();
+    public static final Guardrails instance = new Guardrails();
 
     /**
      * Guardrail on the total number of user keyspaces.
@@ -149,6 +149,14 @@ public final class Guardrails implements GuardrailsMBean
     new DisableFlag("drop_truncate_table_enabled",
                     state -> !CONFIG_PROVIDER.getOrCreate(state).getDropTruncateTableEnabled(),
                     "DROP and TRUNCATE TABLE functionality");
+
+    /**
+     * Guardrail disabling bulk loading of SSTables
+     */
+    public static final DisableFlag bulkLoadEnabled =
+    (DisableFlag) new DisableFlag("bulk_load_enabled",
+                   state -> !CONFIG_PROVIDER.getOrCreate(state).getBulkLoadEnabled(),
+                   "Bulk loading of SSTables").throwOnNullClientState(true);
 
     /**
      * Guardrail disabling user's ability to turn off compression
@@ -597,6 +605,18 @@ public final class Guardrails implements GuardrailsMBean
     public void setDropTruncateTableEnabled(boolean enabled)
     {
         DEFAULT_CONFIG.setDropTruncateTableEnabled(enabled);
+    }
+
+    @Override
+    public boolean getBulkLoadEnabled()
+    {
+        return DEFAULT_CONFIG.getBulkLoadEnabled();
+    }
+
+    @Override
+    public void setBulkLoadEnabled(boolean enabled)
+    {
+        DEFAULT_CONFIG.setBulkLoadEnabled(enabled);
     }
 
     @Override

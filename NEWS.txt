@@ -82,6 +82,11 @@ Upgrading
 4.1.3
 =====
 
+New features
+------------
+    - New Guardrails added:
+      - Whether bulk loading of SSTables is allowed.
+
 Upgrading
 ---------
     - Please beware that if you use Ec2Snitch or Ec2MultiRegionSnitch, by default it will 

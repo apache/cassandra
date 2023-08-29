@@ -60,6 +60,8 @@ public abstract class Guardrail
     /** Time of last failure in milliseconds. */
     private volatile long lastFailInMs = 0;
 
+    /** Should throw exception if null client state is provided. */
+    private volatile boolean throwOnNullClientState = false;
     Guardrail(String name)
     {
         this.name = name;
@@ -131,7 +133,7 @@ public abstract class Guardrail
             GuardrailsDiagnostics.failed(name, decorateMessage(redactedMessage));
         }
 
-        if (state != null)
+        if (state != null || throwOnNullClientState)
             throw new GuardrailViolatedException(message);
     }
 
@@ -153,6 +155,19 @@ public abstract class Guardrail
     {
         assert minNotifyIntervalInMs >= 0;
         this.minNotifyIntervalInMs = minNotifyIntervalInMs;
+        return this;
+    }
+
+    /**
+     * Note: this method is not thread safe and should only be used during guardrail initialization
+     *
+     * @param shouldThrow if exception should throw when Guardrail is violated,
+     *                    default false means don't throw expection when client state is not provided.
+     * @return current guardrail
+     */
+    Guardrail throwOnNullClientState(boolean shouldThrow)
+    {
+        this.throwOnNullClientState = shouldThrow;
         return this;
     }
 

@@ -188,6 +188,7 @@ Unreleased
 
 Uber specific changes:
 <begin>
+ * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * [SO-19793] Correct the invalid usernames for m3 metrics
  * [SO-19594] Add Cassandra version validate before building
  * [SO-19475] Assign wrong-auth user as super user when auth_enforcement_flag = soft
