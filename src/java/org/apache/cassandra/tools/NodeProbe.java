@@ -75,7 +75,7 @@ import org.apache.cassandra.auth.RolesCacheMBean;
 import org.apache.cassandra.auth.jmx.AuthorizationProxy;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.batchlog.BatchlogManagerMBean;
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Config.LCSEnforcementLevel;
 import org.apache.cassandra.config.Config.AuthEnforcementFlag;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -1307,6 +1307,10 @@ public class NodeProbe implements AutoCloseable
     {
         return ssProxy.getCompactionThroughtputBytesPerSec();
     }
+
+    public void setLCSEnforcementLevel(LCSEnforcementLevel level) { ssProxy.setLCSEnforcementLevel(level); }
+
+    public LCSEnforcementLevel getLCSEnforcementLevel() { return ssProxy.getLCSEnforcementLevel(); }
 
     public void setBatchlogReplayThrottle(int value)
     {

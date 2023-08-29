@@ -35,6 +35,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.CQLStatement;
@@ -60,11 +61,13 @@ import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.schema.ViewMetadata;
 import org.apache.cassandra.schema.Views;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
+import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 import static java.lang.String.format;
@@ -441,6 +444,24 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             super.validate(state);
 
             Guardrails.tableProperties.guard(attrs.updatedProperties(), attrs::removeProperty, state);
+        }
+
+        @Override
+        public ResultMessage execute(QueryState state, boolean locally)
+        {
+            if (DatabaseDescriptor.getLCSEnforcementLevel() == Config.LCSEnforcementLevel.none)
+            {
+                return super.execute(state, locally);
+            }
+            // Don't allow user to alter comapction option on the fly
+            // This will start recompaction in all nodes immediately
+            attrs.validate();
+            if (attrs.hasOption(TableParams.Option.COMPACTION))
+            {
+                throw ire("LCS enforcement is enabled. You're trying to mutate compaction strategy for %s.%s, which " +
+                          "is not allowed.", keyspaceName, tableName);
+            }
+            return super.execute(state, locally);
         }
 
         public KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table)

@@ -115,6 +115,7 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.Config.PaxosStatePurging;
 import org.apache.cassandra.config.DataStorageSpec;
+import org.apache.cassandra.config.Config.LCSEnforcementLevel;
 import org.apache.cassandra.config.Config.AuthEnforcementFlag;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
@@ -1881,6 +1882,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("compactionthroughput: throttle set to {} mebibytes per second (was {} mebibytes per second)",
                     value, oldValue);
     }
+
+    public LCSEnforcementLevel getLCSEnforcementLevel() { return DatabaseDescriptor.getLCSEnforcementLevel(); }
+
+    public void setLCSEnforcementLevel(LCSEnforcementLevel level) { DatabaseDescriptor.setLCSEnforcementLevel(level); }
 
     public int getBatchlogReplayThrottleInKB()
     {

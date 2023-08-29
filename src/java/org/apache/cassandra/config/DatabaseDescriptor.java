@@ -2198,6 +2198,9 @@ public class DatabaseDescriptor
         conf.compaction_tombstone_warning_threshold = count;
     }
 
+    public static Config.LCSEnforcementLevel getLCSEnforcementLevel() { return conf.lcs_compaction_level; }
+    public static void setLCSEnforcementLevel(Config.LCSEnforcementLevel level) { conf.lcs_compaction_level = level; }
+
     public static int getConcurrentValidations()
     {
         return conf.concurrent_validations;

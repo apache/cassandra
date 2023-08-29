@@ -332,6 +332,8 @@ public class Config
     public DataStorageSpec.IntMebibytesBound min_free_space_per_drive = new DataStorageSpec.IntMebibytesBound("50MiB");
     public volatile Integer compaction_tombstone_warning_threshold = 100000;
 
+    public volatile LCSEnforcementLevel lcs_compaction_level = LCSEnforcementLevel.none;
+
     public volatile int concurrent_materialized_view_builders = 1;
     public volatile int reject_repair_compaction_threshold = Integer.MAX_VALUE;
 
@@ -1166,6 +1168,19 @@ public class Config
     // if a hint file is found orphan and older than these many days (from the current time), then it is considered safe to purge
     // there is no specific logic behind the default value - it is intentionally set higher on the conservative side
     public Integer orphan_node_hint_files_age_in_days = 15;
+
+    /**
+     * Different level of LCSEnforcement:
+     * 1. hard: rejects non-LCS CREATE, rejects ALTER on any compaction strategy option
+     * 2. soft: silently transfer non-LCS CREATE to LCS, rejects ALTER on any compaction strategy option
+     * 3. none: will not check the DDLs and will do nothing
+     */
+    public enum LCSEnforcementLevel
+    {
+        hard,
+        soft,
+        none
+    }
 
     public enum AuthEnforcementFlag
     {

@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3.statements.schema;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -218,5 +219,21 @@ public final class TableAttributes extends PropertyDefinitions
     public boolean hasOption(Option option)
     {
         return hasProperty(option.toString());
+    }
+
+    /**
+     * Overwrite the TableAttribtues properties. Use LCS with default settings.
+     */
+    public void setLCS(Map<String, String> options)
+    {
+        Map<String, String> defaultLCSOptions = new HashMap<>(options);
+        defaultLCSOptions.put(CompactionParams.Option.CLASS.toString(), "LeveledCompactionStrategy");
+        properties.put(Option.COMPACTION.toString(), defaultLCSOptions);
+    }
+
+    public String getCompactionStrategy()
+    {
+        Map<String, String> csOptions = getMap(Option.COMPACTION);
+        return csOptions.get(CompactionParams.Option.CLASS.toString());
     }
 }

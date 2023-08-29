@@ -20,6 +20,8 @@ package org.apache.cassandra.cql3.statements.schema;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import javax.xml.crypto.Data;
+
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.commons.lang3.StringUtils;
@@ -32,6 +34,7 @@ import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.auth.IResource;
 import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.Keyspace;
@@ -41,10 +44,12 @@ import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.reads.repair.ReadRepairStrategy;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.Event.SchemaChange.Change;
 import org.apache.cassandra.transport.Event.SchemaChange.Target;
+import org.apache.cassandra.transport.messages.ResultMessage;
 
 import static java.util.Comparator.comparing;
 
@@ -93,6 +98,38 @@ public final class CreateTableStatement extends AlterSchemaStatement
 
         this.ifNotExists = ifNotExists;
         this.useCompactStorage = useCompactStorage;
+    }
+
+    @Override
+    public ResultMessage execute(QueryState state, boolean locally)
+    {
+        if (DatabaseDescriptor.getLCSEnforcementLevel() == Config.LCSEnforcementLevel.none) {
+            return super.execute(state, locally);
+        }
+
+        attrs.validate();
+        if (!attrs.hasOption(TableParams.Option.COMPACTION))
+        {
+            // set LCS if statement with no comapction strategy declared
+            attrs.setLCS(Collections.emptyMap());
+            logger.info(String.format("LCS enforcement is enabled (level=%s). Setting LCS for %s.%s as no compaction strategy is specified.",
+                                      DatabaseDescriptor.getLCSEnforcementLevel().name()), keyspaceName, tableName);
+        } else if (!Objects.equals(attrs.getCompactionStrategy(), "LeveledCompactionStrategy") &&
+                   !Objects.equals(attrs.getCompactionStrategy(), "org.apache.cassandra.db.compaction.LeveledCompactionStrategy"))
+        {
+            if (DatabaseDescriptor.getLCSEnforcementLevel() == Config.LCSEnforcementLevel.hard) {
+                // throw exception hard flag is used for LCS enforcement
+                throw ire("LCS enforcement is enabled. You're trying to create schema with %s for %s.%s. Please use " +
+                          "LeveledCompactionStrategy for your schema, or contact Cassandra " +
+                          "team for assistance creating non-LCS schema.", attrs.getCompactionStrategy(), keyspaceName, tableName);
+            } else if (DatabaseDescriptor.getLCSEnforcementLevel() == Config.LCSEnforcementLevel.soft) {
+                // silently transform to LCS if soft flag is used for LCS enforcement
+                attrs.setLCS(Collections.emptyMap());
+                logger.info(String.format("LCS enforcement is enabled (level=%s). Transforming to LCS for %s.%s.",
+                                          DatabaseDescriptor.getLCSEnforcementLevel().name(), keyspaceName, tableName));
+            }
+        }
+        return super.execute(state, locally);
     }
 
     public Keyspaces apply(Keyspaces schema)

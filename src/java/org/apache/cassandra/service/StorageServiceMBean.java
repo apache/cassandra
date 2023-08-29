@@ -30,6 +30,7 @@ import java.util.concurrent.TimeoutException;
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.config.Config.AuthEnforcementFlag;
+import org.apache.cassandra.config.Config.LCSEnforcementLevel;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import javax.management.NotificationEmitter;
 import javax.management.openmbean.CompositeData;
@@ -708,6 +709,9 @@ public interface StorageServiceMBean extends NotificationEmitter
     @Deprecated
     public int getCompactionThroughputMbPerSec();
     public void setCompactionThroughputMbPerSec(int value);
+
+    public LCSEnforcementLevel getLCSEnforcementLevel();
+    public void setLCSEnforcementLevel(LCSEnforcementLevel level);
 
     public int getBatchlogReplayThrottleInKB();
     public void setBatchlogReplayThrottleInKB(int value);
