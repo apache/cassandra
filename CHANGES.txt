@@ -1,4 +1,5 @@
 5.0-alpha2
+ * Upgrade caffeine cache and fix CIDR permissions cache invalidation (CASSANDRA-18805)
  * Remove deprecated properties in CompressionParams (CASSANDRA-18742)
  * Add support for repair coordinator to retry messages that timeout (CASSANDRA-18816)
  * Upgrade slf4j-api to 1.7.36 (CASSANDRA-18882)
