@@ -79,6 +79,14 @@ public class CompactionController implements AutoCloseable
              cfs.getCompactionStrategyManager().getCompactionParams().tombstoneOption());
     }
 
+    /**
+     * Make sure all parameters are properly initialized
+     * @param cfs
+     * @param compacting
+     * @param gcBefore
+     * @param limiter
+     * @param tombstoneOption
+     */
     public CompactionController(ColumnFamilyStore cfs, Set<SSTableReader> compacting, int gcBefore, RateLimiter limiter, TombstoneOption tombstoneOption)
     {
         assert cfs != null;
@@ -351,6 +359,8 @@ public class CompactionController implements AutoCloseable
      * of this time range is fully expired before considering to drop the sstable.
      * This strategy can retain for a long time a lot of sstables on disk (see CASSANDRA-13418) so this option
      * control whether or not this check should be ignored.
+     *
+     * Do NOT call this method in the CompactionController constructor
      *
      * @return false by default
      */

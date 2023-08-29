@@ -64,11 +64,11 @@ public class CompactionControllerTest extends SchemaLoader
     private static final String CF1 = "Standard1";
     private static final String CF2 = "Standard2";
     private static final int TTL_SECONDS = 10;
-    private static final CountDownLatch latch = new CountDownLatch(1);
-    private static final CountDownLatch latch2 = new CountDownLatch(1);
-    private static final CountDownLatch latch3 = new CountDownLatch(1);
-    private static final CountDownLatch latch4 = new CountDownLatch(1);
-    private static final CountDownLatch latch5 = new CountDownLatch(1);
+    private static CountDownLatch compaction2FinishLatch = new CountDownLatch(1);
+    private static CountDownLatch createCompactionControllerLatch = new CountDownLatch(1);
+    private static CountDownLatch compaction1RefreshLatch = new CountDownLatch(1);
+    private static CountDownLatch refreshCheckLatch = new CountDownLatch(1);
+    private static CountDownLatch compaction1FinishLatch = new CountDownLatch(1);
     private static int overlapRefreshCounter = 0;
 
     @BeforeClass
@@ -207,26 +207,38 @@ public class CompactionControllerTest extends SchemaLoader
     @BMRule(name = "Pause compaction",
     targetClass = "CompactionTask",
     targetMethod = "runMayThrow",
-    targetLocation = "AT LINE 165",
+    targetLocation = "AFTER INVOKE getCompactionController",
     condition = "Thread.currentThread().getName().equals(\"compaction1\")",
-    action = "org.apache.cassandra.db.compaction.CompactionControllerTest.latch2.countDown();" +
+    action = "org.apache.cassandra.db.compaction.CompactionControllerTest.createCompactionControllerLatch.countDown();" +
              "com.google.common.util.concurrent.Uninterruptibles.awaitUninterruptibly" +
-             "(org.apache.cassandra.db.compaction.CompactionControllerTest.latch);"),
+             "(org.apache.cassandra.db.compaction.CompactionControllerTest.compaction2FinishLatch);"),
     @BMRule(name = "Check overlaps",
     targetClass = "CompactionTask",
     targetMethod = "runMayThrow",
-    targetLocation = "AT LINE 222",
+    targetLocation = "INVOKE finish",
     condition = "Thread.currentThread().getName().equals(\"compaction1\")",
-    action = "org.apache.cassandra.db.compaction.CompactionControllerTest.latch3.countDown();" +
+    action = "org.apache.cassandra.db.compaction.CompactionControllerTest.compaction1RefreshLatch.countDown();" +
              "com.google.common.util.concurrent.Uninterruptibles.awaitUninterruptibly" +
-             "(org.apache.cassandra.db.compaction.CompactionControllerTest.latch4);"),
+             "(org.apache.cassandra.db.compaction.CompactionControllerTest.refreshCheckLatch);"),
     @BMRule(name = "Increment overlap refresh counter",
     targetClass = "ColumnFamilyStore",
     targetMethod = "getAndReferenceOverlappingLiveSSTables",
     condition = "Thread.currentThread().getName().equals(\"compaction1\")",
     action = "org.apache.cassandra.db.compaction.CompactionControllerTest.incrementOverlapRefreshCounter();")
     })
-    public void testOverlapIterator() throws Exception
+    public void testIgnoreOverlaps() throws Exception
+    {
+        testOverlapIterator(true);
+        overlapRefreshCounter = 0;
+        compaction2FinishLatch = new CountDownLatch(1);
+        createCompactionControllerLatch = new CountDownLatch(1);
+        compaction1RefreshLatch = new CountDownLatch(1);
+        refreshCheckLatch = new CountDownLatch(1);
+        compaction1FinishLatch = new CountDownLatch(1);
+        testOverlapIterator(false);
+    }
+
+    public void testOverlapIterator(boolean ignoreOverlaps) throws Exception
     {
 
         Keyspace keyspace = Keyspace.open(KEYSPACE);
@@ -254,7 +266,7 @@ public class CompactionControllerTest extends SchemaLoader
         options.put(TimeWindowCompactionStrategyOptions.COMPACTION_WINDOW_UNIT_KEY, "SECONDS");
         options.put(TimeWindowCompactionStrategyOptions.TIMESTAMP_RESOLUTION_KEY, "MILLISECONDS");
         options.put(TimeWindowCompactionStrategyOptions.EXPIRED_SSTABLE_CHECK_FREQUENCY_SECONDS_KEY, "0");
-        options.put(TimeWindowCompactionStrategyOptions.UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION_KEY, "true");
+        options.put(TimeWindowCompactionStrategyOptions.UNSAFE_AGGRESSIVE_SSTABLE_EXPIRATION_KEY, Boolean.toString(ignoreOverlaps));
         TimeWindowCompactionStrategy twcs = new TimeWindowCompactionStrategy(cfs, options);
         for (SSTableReader sstable : cfs.getLiveSSTables())
             twcs.addSSTable(sstable);
@@ -271,14 +283,14 @@ public class CompactionControllerTest extends SchemaLoader
         //this compaction will be paused by the BMRule
         Thread t = new Thread(() -> {
             task.run();
-            latch5.countDown();
+            compaction1FinishLatch.countDown();
         });
 
         //start a compaction for the second sstable (compaction2)
         //the overlap iterator should contain sstable1
         //this compaction should complete as normal
         Thread t2 = new Thread(() -> {
-            Uninterruptibles.awaitUninterruptibly(latch2);
+            Uninterruptibles.awaitUninterruptibly(createCompactionControllerLatch);
             assertEquals(1, overlapRefreshCounter);
             CompactionManager.instance.forceUserDefinedCompaction(sstable2);
 
@@ -293,21 +305,21 @@ public class CompactionControllerTest extends SchemaLoader
             {
                 throw new RuntimeException(e);
             }
-            latch.countDown();
+            compaction2FinishLatch.countDown();
         });
 
         t.setName("compaction1");
         t.start();
         t2.start();
 
-        latch3.await();
+        compaction1RefreshLatch.await();
         //at this point, the overlap iterator for compaction1 should be refreshed
 
         //verify that the overlap iterator for compaction1 is refreshed twice, (once during the constructor, and again after compaction2 finishes)
         assertEquals(2, overlapRefreshCounter);
 
-        latch4.countDown();
-        latch5.await();
+        refreshCheckLatch.countDown();
+        compaction1FinishLatch.await();
     }
 
     private void applyMutation(CFMetaData cfm, DecoratedKey key, long timestamp)
