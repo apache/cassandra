@@ -71,8 +71,9 @@ public abstract class AlterTypeStatement extends AlterSchemaStatement
     }
 
     @Override
-    public Keyspaces apply(ClusterMetadata metadata, Keyspaces schema)
+    public Keyspaces apply(ClusterMetadata metadata)
     {
+        Keyspaces schema = metadata.schema.getKeyspaces();
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
 
         UserType type = null == keyspace

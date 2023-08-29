@@ -112,7 +112,7 @@ public final class CreateViewStatement extends AlterSchemaStatement
     }
 
     @Override
-    public Keyspaces apply(ClusterMetadata metadata, Keyspaces schema)
+    public Keyspaces apply(ClusterMetadata metadata)
     {
         if (!DatabaseDescriptor.getMaterializedViewsEnabled())
             throw ire("Materialized views are disabled. Enable in cassandra.yaml to use.");
@@ -121,6 +121,7 @@ public final class CreateViewStatement extends AlterSchemaStatement
          * Basic dependency validations
          */
 
+        Keyspaces schema = metadata.schema.getKeyspaces();
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
         if (null == keyspace)
             throw ire("Keyspace '%s' doesn't exist", keyspaceName);

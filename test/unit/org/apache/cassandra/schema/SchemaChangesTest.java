@@ -41,6 +41,7 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.marshal.ByteType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
@@ -521,7 +522,7 @@ public class SchemaChangesTest
 
         SchemaTransformation transformation = SchemaTransformations.updateSystemKeyspace(keyspace, 0);
         Keyspaces before = Keyspaces.none();
-        Keyspaces after = transformation.apply(null, before);
+        Keyspaces after = transformation.apply(ClusterMetadataTestHelper.minimalForTesting(before));
         Keyspaces.KeyspacesDiff diff = Keyspaces.diff(before, after);
 
         assertTrue(diff.altered.isEmpty());
@@ -537,7 +538,7 @@ public class SchemaChangesTest
 
         SchemaTransformation transformation = SchemaTransformations.updateSystemKeyspace(keyspace, 0);
         Keyspaces before = Keyspaces.of(keyspace);
-        Keyspaces after = transformation.apply(null, before);
+        Keyspaces after = transformation.apply(ClusterMetadataTestHelper.minimalForTesting(before));
         Keyspaces.KeyspacesDiff diff = Keyspaces.diff(before, after);
 
         assertTrue(diff.isEmpty());
@@ -554,7 +555,7 @@ public class SchemaChangesTest
 
         SchemaTransformation transformation = SchemaTransformations.updateSystemKeyspace(keyspace1, 1);
         Keyspaces before = Keyspaces.of(keyspace0);
-        Keyspaces after = transformation.apply(null, before);
+        Keyspaces after = transformation.apply(ClusterMetadataTestHelper.minimalForTesting(before));
         Keyspaces.KeyspacesDiff diff = Keyspaces.diff(before, after);
 
         assertTrue(diff.created.isEmpty());

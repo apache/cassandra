@@ -67,7 +67,7 @@ public class StopProcessingExceptionTest extends FuzzTestBase
 
         public static AtomicBoolean enabled = new AtomicBoolean(false);
 
-        public static Keyspaces apply(ClusterMetadata metadata, Keyspaces schema, @SuperCall Callable<Keyspaces> zuper) throws Exception
+        public static Keyspaces apply(ClusterMetadata metadata, @SuperCall Callable<Keyspaces> zuper) throws Exception
         {
             if (enabled.get())
                 throw new RuntimeException();

@@ -44,8 +44,9 @@ public final class DropIndexStatement extends AlterSchemaStatement
     }
 
     @Override
-    public Keyspaces apply(ClusterMetadata metadata, Keyspaces schema)
+    public Keyspaces apply(ClusterMetadata metadata)
     {
+        Keyspaces schema = metadata.schema.getKeyspaces();
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
 
         TableMetadata table = null == keyspace

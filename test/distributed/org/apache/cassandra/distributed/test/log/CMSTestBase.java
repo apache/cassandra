@@ -117,8 +117,8 @@ public class CMSTestBase
                 }
 
             });
-            service.commit(new AlterSchema((cm, schema) -> {
-                return schema.with(Keyspaces.of(KeyspaceMetadata.create("test", rf.asKeyspaceParams())));
+            service.commit(new AlterSchema((cm) -> {
+                return cm.schema.getKeyspaces().with(Keyspaces.of(KeyspaceMetadata.create("test", rf.asKeyspaceParams())));
             }, schemaProvider));
         }
 

@@ -114,7 +114,7 @@ public final class CreateIndexStatement extends AlterSchemaStatement
     }
 
     @Override
-    public Keyspaces apply(ClusterMetadata metadata, Keyspaces schema)
+    public Keyspaces apply(ClusterMetadata metadata)
     {
         attrs.validate();
 
@@ -123,6 +123,7 @@ public final class CreateIndexStatement extends AlterSchemaStatement
         if (attrs.isCustom && attrs.customClass.equals(SASIIndex.class.getName()) && !DatabaseDescriptor.getSASIIndexesEnabled())
             throw new InvalidRequestException(SASI_INDEX_DISABLED);
 
+        Keyspaces schema = metadata.schema.getKeyspaces();
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
         if (null == keyspace)
             throw ire(KEYSPACE_DOES_NOT_EXIST, keyspaceName);

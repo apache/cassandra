@@ -65,13 +65,14 @@ public final class DropAggregateStatement extends AlterSchemaStatement
         this.ifExists = ifExists;
     }
 
-    public Keyspaces apply(ClusterMetadata metadata, Keyspaces schema)
+    public Keyspaces apply(ClusterMetadata metadata)
     {
         String name =
             argumentsSpeficied
           ? format("%s.%s(%s)", keyspaceName, aggregateName, join(", ", transform(arguments, CQL3Type.Raw::toString)))
           : format("%s.%s", keyspaceName, aggregateName);
 
+        Keyspaces schema = metadata.schema.getKeyspaces();
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
         if (null == keyspace)
         {

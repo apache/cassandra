@@ -57,10 +57,11 @@ public final class DropTypeStatement extends AlterSchemaStatement
 
     // TODO: expand types into tuples in all dropped columns of all tables
     @Override
-    public Keyspaces apply(ClusterMetadata metadata, Keyspaces schema)
+    public Keyspaces apply(ClusterMetadata metadata)
     {
         ByteBuffer name = bytes(typeName);
 
+        Keyspaces schema = metadata.schema.getKeyspaces();
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
 
         UserType type = null == keyspace

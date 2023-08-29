@@ -48,10 +48,11 @@ public final class DropTableStatement extends AlterSchemaStatement
         this.ifExists = ifExists;
     }
 
-    public Keyspaces apply(ClusterMetadata metadata, Keyspaces schema)
+    public Keyspaces apply(ClusterMetadata metadata)
     {
         Guardrails.dropTruncateTableEnabled.ensureEnabled(state);
 
+        Keyspaces schema = metadata.schema.getKeyspaces();
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
 
         TableMetadata table = null == keyspace

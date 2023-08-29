@@ -54,8 +54,9 @@ public class SchemaTransformations
      */
     public static SchemaTransformation addKeyspace(KeyspaceMetadata keyspace, boolean ignoreIfExists)
     {
-        return (metadata, schema) ->
+        return (metadata) ->
         {
+            Keyspaces schema = metadata.schema.getKeyspaces();
             KeyspaceMetadata existing = schema.getNullable(keyspace.name);
             if (existing != null)
             {
@@ -80,8 +81,9 @@ public class SchemaTransformations
      */
     public static SchemaTransformation addTable(TableMetadata table, boolean ignoreIfExists)
     {
-        return (metadata, schema) ->
+        return (metadata) ->
         {
+            Keyspaces schema = metadata.schema.getKeyspaces();
             KeyspaceMetadata keyspace = schema.getNullable(table.keyspace);
             if (keyspace == null)
                 throw invalidRequest("Keyspace '%s' doesn't exist", table.keyspace);
@@ -102,8 +104,9 @@ public class SchemaTransformations
 
     public static SchemaTransformation addTypes(Types toAdd, boolean ignoreIfExists)
     {
-        return (metadata, schema) ->
+        return (metadata) ->
         {
+            Keyspaces schema = metadata.schema.getKeyspaces();
             if (toAdd.isEmpty())
                 return schema;
 
@@ -140,8 +143,9 @@ public class SchemaTransformations
      */
     public static SchemaTransformation addView(ViewMetadata view, boolean ignoreIfExists)
     {
-        return (metadata, schema) ->
+        return (metadata) ->
         {
+            Keyspaces schema = metadata.schema.getKeyspaces();
             KeyspaceMetadata keyspace = schema.getNullable(view.keyspace());
             if (keyspace == null)
                 throw invalidRequest("Cannot add view to non existing keyspace '%s'", view.keyspace());
@@ -181,8 +185,9 @@ public class SchemaTransformations
             }
 
             @Override
-            public Keyspaces apply(ClusterMetadata metadata, Keyspaces schema)
+            public Keyspaces apply(ClusterMetadata metadata)
             {
+                Keyspaces schema = metadata.schema.getKeyspaces();
                 KeyspaceMetadata updatedKeyspace = keyspace;
                 KeyspaceMetadata curKeyspace = schema.getNullable(keyspace.name);
                 if (curKeyspace != null)

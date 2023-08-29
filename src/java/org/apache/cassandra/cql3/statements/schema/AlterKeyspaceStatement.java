@@ -69,10 +69,11 @@ public final class AlterKeyspaceStatement extends AlterSchemaStatement
         this.ifExists = ifExists;
     }
 
-    public Keyspaces apply(ClusterMetadata metadata, Keyspaces schema)
+    public Keyspaces apply(ClusterMetadata metadata)
     {
         attrs.validate();
 
+        Keyspaces schema = metadata.schema.getKeyspaces();
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);
         if (null == keyspace)
         {

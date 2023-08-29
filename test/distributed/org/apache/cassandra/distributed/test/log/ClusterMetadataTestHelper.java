@@ -49,6 +49,8 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.DistributedSchema;
+import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaTransformation;
 import org.apache.cassandra.service.ClientState;
@@ -167,6 +169,20 @@ public class ClusterMetadataTestHelper
                                    ImmutableMap.of());
     }
 
+    public static ClusterMetadata minimalForTesting(Keyspaces keyspaces)
+    {
+        return new ClusterMetadata(Epoch.EMPTY,
+                                   Period.EMPTY,
+                                   false,
+                                   Murmur3Partitioner.instance,
+                                   new DistributedSchema(keyspaces),
+                                   null,
+                                   null,
+                                   DataPlacements.empty(),
+                                   null,
+                                   null,
+                                   ImmutableMap.of());
+    }
     public static void forceCurrentPeriodTo(long period)
     {
         ClusterMetadata metadata = ClusterMetadata.currentNullable();
@@ -818,7 +834,7 @@ public class ClusterMetadataTestHelper
     {
         try
         {
-            SchemaTransformation transformation = (cm, schema) -> schema.withAddedOrUpdated(keyspace);
+            SchemaTransformation transformation = (cm) -> cm.schema.getKeyspaces().withAddedOrUpdated(keyspace);
             commit(new AlterSchema(transformation, Schema.instance));
         }
         catch (Exception e)

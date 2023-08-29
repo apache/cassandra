@@ -40,10 +40,11 @@ public interface SchemaTransformation
      * Implementing methods should be side-effect free (outside of throwing exceptions if the transformation cannot
      * be successfully applied to the provided schema).
      *
-     * @param schema Keyspaces to base the transformation on
+     * @param metadata Cluster metadata representing the current state, including the DistributedSchema with the
+     *                 Keyspaces to base the transformation on
      * @return Keyspaces transformed by the statement
      */
-    Keyspaces apply(ClusterMetadata metadata, Keyspaces schema);
+    Keyspaces apply(ClusterMetadata metadata);
 
     default String cql()
     {

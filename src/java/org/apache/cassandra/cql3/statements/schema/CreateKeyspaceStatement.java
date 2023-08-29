@@ -57,7 +57,7 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
         this.ifNotExists = ifNotExists;
     }
 
-    public Keyspaces apply(ClusterMetadata metadata, Keyspaces schema)
+    public Keyspaces apply(ClusterMetadata metadata)
     {
         attrs.validate();
 
@@ -67,6 +67,7 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
         if (attrs.getReplicationStrategyClass() != null && attrs.getReplicationStrategyClass().equals(SimpleStrategy.class.getSimpleName()))
             Guardrails.simpleStrategyEnabled.ensureEnabled("SimpleStrategy", state);
 
+        Keyspaces schema = metadata.schema.getKeyspaces();
         if (schema.containsKeyspace(keyspaceName))
         {
             if (ifNotExists)

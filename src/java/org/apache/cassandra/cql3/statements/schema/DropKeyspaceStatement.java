@@ -40,10 +40,11 @@ public final class DropKeyspaceStatement extends AlterSchemaStatement
     }
 
     @Override
-    public Keyspaces apply(ClusterMetadata metadata, Keyspaces schema)
+    public Keyspaces apply(ClusterMetadata metadata)
     {
         Guardrails.dropKeyspaceEnabled.ensureEnabled(state);
 
+        Keyspaces schema = metadata.schema.getKeyspaces();
         if (schema.containsKeyspace(keyspaceName))
             return schema.without(keyspaceName);
 
