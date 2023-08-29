@@ -19,58 +19,84 @@
 package org.apache.cassandra.index.sai.analyzer;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import com.google.common.collect.Sets;
 
-import org.apache.cassandra.cql3.Json;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.index.sai.analyzer.filter.BuiltInAnalyzers;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.custom.CustomAnalyzer;
 
 public class JSONAnalyzerParser
 {
+    private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
+
     // unsupported because these filters open external files such as stop words
     public static final Set<String> unsupportedFilters =
     Sets.newHashSet("synonymgraph", // same as synonym
                     "synonym", // replaces words, loads external file, could be implemented
                     "commongrams", // loads external file terms, search feature
-                    "stop", // stop words remove terms which doens't make sense for a database index
+                    "stop", // the stop words opens an arbitrary file and reads as stop words, so we don't yet support
+                    // arbitrary stop words. We do allow Lucene's built-in stop words, though.
                     "snowballporter"); // bug in reflection instantiation
 
     public static Analyzer parse(String json) throws IOException
     {
-        List<Map<String,String>> list = (List<Map<String,String>>) Json.decodeJson(json);
-        CustomAnalyzer.Builder builder = CustomAnalyzer.builder();
-        for (int x = 0; x < list.size(); x++)
+        Analyzer analyzer = matchBuiltInAnalzyer(json.toUpperCase());
+        if (analyzer != null)
         {
-            final Map<String,String> map = list.get(x);
+            return analyzer;
+        }
 
-            // remove from the map to avoid passing as parameters to the TokenFilterFactory
-            final String tokenizer = map.remove("tokenizer");
-            if (tokenizer != null)
-            {
-                builder.withTokenizer(tokenizer, map);
-            }
-            final String filter = map.remove("filter");
-            if (filter != null)
-            {
-                if (unsupportedFilters.contains(filter))
-                {
-                    throw new InvalidRequestException("filter=" + filter + " is unsupported.");
-                }
-                builder.addTokenFilter(filter, map);
-            }
+        // Don't have built in analyzer, parse JSON
+        LuceneCustomAnalyzerConfig analyzerModel = JSON_MAPPER.readValue(json, LuceneCustomAnalyzerConfig.class);
 
-            final String charfilter = map.remove("charfilter");
-            if (charfilter != null)
+        CustomAnalyzer.Builder builder = CustomAnalyzer.builder();
+        // An ommitted tokenizer maps directly to the keyword tokenizer, which is an identity map on input terms
+        if (analyzerModel.getTokenizer() == null)
+        {
+            if (analyzerModel.getFilters().isEmpty() && analyzerModel.getCharFilters().isEmpty())
             {
-                builder.addCharFilter(charfilter, map);
+                throw new InvalidRequestException("Analzyer config requires at least a tokenizer, a filter, or a charFilter, but none found. config=" + json);
             }
+            builder.withTokenizer("keyword");
+        }
+        else
+        {
+            builder.withTokenizer(analyzerModel.getTokenizer().getName(), analyzerModel.getTokenizer().getArgs());
+        }
+        for (LuceneClassNameAndArgs filter : analyzerModel.getFilters())
+        {
+            if (filter.getName() == null)
+            {
+                throw new InvalidRequestException("filter 'name' field is required for options=" + json);
+            }
+            if (unsupportedFilters.contains(filter.getName()))
+            {
+                throw new InvalidRequestException("filter=" + filter.getName() + " is unsupported.");
+            }
+            builder.addTokenFilter(filter.getName(), filter.getArgs());
+        }
+
+        for (LuceneClassNameAndArgs charFilter : analyzerModel.getCharFilters())
+        {
+            if (charFilter.getName() == null)
+            {
+                throw new InvalidRequestException("charFilter 'name' field is required for options=" + json);
+            }
+            builder.addCharFilter(charFilter.getName(), charFilter.getArgs());
         }
         return builder.build();
+    }
+
+    private static Analyzer matchBuiltInAnalzyer(String maybeAnalyzer) {
+        for (BuiltInAnalyzers analyzer : BuiltInAnalyzers.values()) {
+            if (analyzer.name().equals(maybeAnalyzer)) {
+                return analyzer.getNewAnalyzer();
+            }
+        }
+        return null;
     }
 }
