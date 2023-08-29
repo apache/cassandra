@@ -580,8 +580,8 @@ public class UnfilteredSerializer
 
             if (header.isForSSTable())
             {
-                int rowSize = Math.toIntExact(undecoratedInput.readUnsignedVInt());
-                in = new TrackedDataInputPlus(undecoratedInput, rowSize);
+                int rowSize = Math.toIntExact(in.readUnsignedVInt());
+                in = new TrackedDataInputPlus(in, rowSize);
                 in.readUnsignedVInt(); // previous unfiltered size
             }
 
