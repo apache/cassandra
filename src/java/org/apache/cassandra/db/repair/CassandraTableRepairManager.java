@@ -118,6 +118,8 @@ public class CassandraTableRepairManager implements TableRepairManager
         }
         catch (Exception ex)
         {
+            if (ex instanceof InterruptedException)
+                Thread.currentThread().interrupt();
             throw new RuntimeException(String.format("Unable to take a snapshot %s on %s.%s", name, cfs.metadata.keyspace, cfs.metadata.name), ex);
         }
 
