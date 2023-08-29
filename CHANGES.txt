@@ -2,6 +2,7 @@
  * Update commons-lang3 to 3.13.0 (CASSANDRA-18789)
  * Forbid SAI indexes with analysis options on primary key columns (CASSANDRA-18782)
 Merged from 4.1:
+ * Waiting indefinitely on ReceivedMessage response in StreamSession#receive() can cause deadlock (CASSANDRA-18733)
  * Allow empty keystore_password in encryption_options (CASSANDRA-18778)
 Merged from 4.0:
 Merged from 3.11:
