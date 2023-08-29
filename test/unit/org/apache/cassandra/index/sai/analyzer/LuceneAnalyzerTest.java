@@ -45,11 +45,10 @@ public class LuceneAnalyzerTest
     @Test
     public void testCzechStem() throws Exception
     {
-        String json = "[\n" +
-                      "{\"tokenizer\":\"standard\"},\n" +
-                      "{\"filter\":\"lowercase\"},\n" +
-                      "{\"filter\":\"czechstem\"}\n" +
-                      "]\n";
+        String json = "{\n" +
+                      "\"tokenizer\":{\"name\":\"standard\"},\n" +
+                      "\"filters\":[{\"name\":\"czechstem\"}]\n" +
+                      "}\n";
         String testString = "pánové";
         String[] expected = new String[]{ "pán" };
         List<String> list = tokenize(testString, json);
@@ -59,9 +58,8 @@ public class LuceneAnalyzerTest
     @Test
     public void testPattern() throws Exception
     {
-        String json = "[\n" +
-                      "{\"tokenizer\":\"simplepattern\", \"pattern\":\"[0123456789]{3}\"}" +
-                      "]";
+        String json = "{\n" +
+                      "\"tokenizer\":{\"name\":\"simplepattern\", \"args\":{\"pattern\":\"[0123456789]{3}\"}}}";
         String testString = "fd-786-335-514-x";
         String[] expected = new String[]{ "786", "335", "514"  };
         List<String> list = tokenize(testString, json);
@@ -71,10 +69,10 @@ public class LuceneAnalyzerTest
     @Test
     public void testNgram() throws Exception
     {
-        String json = "[\n" +
-                      "{\"tokenizer\":\"ngram\", \"minGramSize\":\"2\", \"maxGramSize\":\"3\"},\n" +
-                      "{\"filter\":\"lowercase\"}\n" +
-                      "]";
+        String json = "{\n" +
+                      "\"tokenizer\":{\"name\":\"ngram\", \"args\":{\"minGramSize\":\"2\", \"maxGramSize\":\"3\"}},\n" +
+                      "\"filters\":[{\"name\":\"lowercase\"}]\n" +
+                      "}";
         String testString = "DoG";
         String[] expected = new String[]{ "do", "dog", "og" };
         List<String> list = tokenize(testString, json);
@@ -84,10 +82,10 @@ public class LuceneAnalyzerTest
     @Test
     public void testPorterStem1() throws Exception
     {
-        String json = "[\n" +
-                      "{\"tokenizer\":\"whitespace\"},\n" +
-                      "{\"filter\":\"porterstem\"}\n" +
-                      "]";
+        String json = "{\n" +
+                      "\"tokenizer\":{\"name\":\"whitespace\"},\n" +
+                      "\"filters\":[{\"name\":\"porterstem\"}]\n" +
+                      "}";
         String testString = "dogs withering in the windy";
         String[] expected = new String[]{ "dog", "wither", "in", "the", "windi" };
         List<String> list = tokenize(testString, json);
@@ -97,10 +95,10 @@ public class LuceneAnalyzerTest
     @Test
     public void testPorterStem2() throws Exception
     {
-        String json = "[\n" +
-                      "{\"tokenizer\":\"whitespace\"},\n" +
-                      "{\"filter\":\"porterstem\"}\n" +
-                      "]";
+        String json = "{\n" +
+                      "\"tokenizer\":{\"name\":\"whitespace\"},\n" +
+                      "\"filters\":[{\"name\":\"porterstem\"}]\n" +
+                      "}";
         String testString = "apples orcharding";
         String[] expected = new String[]{ "appl", "orchard"};
         List<String> list = tokenize(testString, json);

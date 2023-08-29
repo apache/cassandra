@@ -35,7 +35,7 @@ public class VectorAndLuceneTest extends VectorTester
         createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         createIndex("CREATE CUSTOM INDEX ON %s(str_val) USING 'StorageAttachedIndex'" +
-                    " WITH OPTIONS = { 'index_analyzer': '[{\"tokenizer\": \"standard\"}, {\"filter\": \"lowercase\"}]' }");
+                    " WITH OPTIONS = { 'index_analyzer': 'standard' }");
         waitForIndexQueryable();
 
         // The str_val is set up to make sure that tokens are properly analyzed and lowercased.
@@ -76,7 +76,7 @@ public class VectorAndLuceneTest extends VectorTester
         createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         createIndex("CREATE CUSTOM INDEX ON %s(str_val) USING 'StorageAttachedIndex'" +
-                    " WITH OPTIONS = { 'index_analyzer': '[{\"tokenizer\": \"standard\"}, {\"filter\": \"lowercase\"}]' }");
+                    " WITH OPTIONS = { 'index_analyzer': 'standard' }");
         waitForIndexQueryable();
 
         execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'this test has tokens', [1.0, 2.0, 3.0])");
