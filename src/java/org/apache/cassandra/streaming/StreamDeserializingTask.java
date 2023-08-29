@@ -22,6 +22,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.streaming.messages.KeepAliveMessage;
 import org.apache.cassandra.streaming.messages.StreamMessage;
@@ -69,6 +70,9 @@ public class StreamDeserializingTask implements Runnable
 
                 if (session == null)
                     session = deriveSession(message);
+
+                if (session.getStreamOperation() == StreamOperation.BULK_LOAD)
+                    Guardrails.bulkLoadEnabled.ensureEnabled("Bulk load of SSTables", null);
 
                 if (logger.isDebugEnabled())
                     logger.debug("{} Received {}", createLogTag(session, channel), message);
