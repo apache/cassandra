@@ -64,11 +64,10 @@ public class PostingListRangeIterator extends KeyRangeIterator
     private final PostingList postingList;
     private final IndexContext indexContext;
     private final PrimaryKeyMap primaryKeyMap;
-    private final IndexSegmentSearcherContext searcherContext;
+    private final long rowIdOffset;
 
     private boolean needsSkipping = false;
     private PrimaryKey skipToToken = null;
-
 
     /**
      * Create a direct PostingListRangeIterator where the underlying PostingList is materialised
@@ -83,8 +82,23 @@ public class PostingListRangeIterator extends KeyRangeIterator
         this.indexContext = indexContext;
         this.primaryKeyMap = primaryKeyMap;
         this.postingList = searcherContext.postingList;
-        this.searcherContext = searcherContext;
+        this.rowIdOffset = searcherContext.segmentRowIdOffset;
         this.queryContext = searcherContext.context;
+    }
+
+    public PostingListRangeIterator(IndexContext indexContext,
+                                    PrimaryKeyMap primaryKeyMap,
+                                    PostingList postingList,
+                                    QueryContext queryContext)
+    {
+        super(primaryKeyMap.primaryKeyFromRowId(postingList.minimum()),
+              primaryKeyMap.primaryKeyFromRowId(postingList.maximum()),
+              postingList.size());
+        this.indexContext = indexContext;
+        this.primaryKeyMap = primaryKeyMap;
+        this.postingList = postingList;
+        this.rowIdOffset = 0;
+        this.queryContext = queryContext;
     }
 
     @Override
@@ -155,7 +169,7 @@ public class PostingListRangeIterator extends KeyRangeIterator
                 return PostingList.END_OF_STREAM;
             }
 
-            segmentRowId = postingList.advance(targetRowID - searcherContext.segmentRowIdOffset);
+            segmentRowId = postingList.advance(targetRowID - rowIdOffset);
 
             needsSkipping = false;
         }
@@ -165,7 +179,7 @@ public class PostingListRangeIterator extends KeyRangeIterator
         }
 
         return segmentRowId != PostingList.END_OF_STREAM
-               ? segmentRowId + searcherContext.segmentRowIdOffset
+               ? segmentRowId + rowIdOffset
                : PostingList.END_OF_STREAM;
     }
 }

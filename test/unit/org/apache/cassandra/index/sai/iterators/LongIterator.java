@@ -107,7 +107,7 @@ public class LongIterator extends KeyRangeIterator
 
     public static List<Long> convert(final long... nums)
     {
-        return new ArrayList<Long>(nums.length)
+        return new ArrayList<>(nums.length)
         {{
             for (long n : nums)
                 add(n);

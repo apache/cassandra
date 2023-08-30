@@ -361,6 +361,9 @@ public interface ValueAccessor<V>
     /** returns a TimeUUID from offset 0 */
     Ballot toBallot(V value);
 
+    /** returns a float[] from offset 0 */
+    float[] toFloatArray(V value, int dimension);
+
     /**
      * writes the byte value {@param value} to {@param dst} at offset {@param offset}
      * @return the number of bytes written to {@param value}

@@ -102,6 +102,12 @@ public final class AggregationQueryPager implements QueryPager
         throw new UnsupportedOperationException();
     }
 
+    @Override
+    public boolean isTopK()
+    {
+        return subPager.isTopK();
+    }
+
     /**
      * <code>PartitionIterator</code> that automatically fetch a new sub-page of data if needed when the current iterator is
      * exhausted.

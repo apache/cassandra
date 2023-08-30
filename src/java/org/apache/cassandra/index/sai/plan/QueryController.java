@@ -18,12 +18,17 @@
 
 package org.apache.cassandra.index.sai.plan;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.Lists;
 
+import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
@@ -43,18 +48,27 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
+import org.apache.cassandra.index.sai.VectorQueryContext;
 import org.apache.cassandra.index.sai.disk.IndexSearchResultIterator;
 import org.apache.cassandra.index.sai.disk.SSTableIndex;
+import org.apache.cassandra.index.sai.iterators.KeyRangeConcatIterator;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIntersectionIterator;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
+import org.apache.cassandra.index.sai.iterators.KeyRangeOrderingIterator;
+import org.apache.cassandra.index.sai.iterators.KeyRangeUnionIterator;
 import org.apache.cassandra.index.sai.metrics.TableQueryMetrics;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.Throwables;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_VECTOR_SEARCH_ORDER_CHUNK_SIZE;
 
 public class QueryController
 {
+    public static final int ORDER_CHUNK_SIZE = SAI_VECTOR_SEARCH_ORDER_CHUNK_SIZE.getInt();
+
     private final ColumnFamilyStore cfs;
     private final ReadCommand command;
     private final QueryContext queryContext;
@@ -62,6 +76,9 @@ public class QueryController
     private final RowFilter filterOperation;
     private final List<DataRange> ranges;
     private final AbstractBounds<PartitionPosition> mergeRange;
+    private final PrimaryKey.Factory keyFactory;
+    private final PrimaryKey firstPrimaryKey;
+    private final PrimaryKey lastPrimaryKey;
 
     public QueryController(ColumnFamilyStore cfs,
                            ReadCommand command,
@@ -78,6 +95,24 @@ public class QueryController
         DataRange first = ranges.get(0);
         DataRange last = ranges.get(ranges.size() - 1);
         this.mergeRange = ranges.size() == 1 ? first.keyRange() : first.keyRange().withNewRight(last.keyRange().right);
+        this.keyFactory = new PrimaryKey.Factory(cfs.getPartitioner(), cfs.getComparator());
+        this.firstPrimaryKey = keyFactory.create(mergeRange.left.getToken());
+        this.lastPrimaryKey = keyFactory.create(mergeRange.right.getToken());
+    }
+
+    public PrimaryKey.Factory primaryKeyFactory()
+    {
+        return keyFactory;
+    }
+
+    public PrimaryKey firstPrimaryKeyInRange()
+    {
+        return firstPrimaryKey;
+    }
+
+    public PrimaryKey lastPrimaryKeyInRange()
+    {
+        return lastPrimaryKey;
     }
 
     public TableMetadata metadata()
@@ -85,7 +120,7 @@ public class QueryController
         return command.metadata();
     }
 
-    RowFilter filterOperation()
+    public RowFilter filterOperation()
     {
         return this.filterOperation;
     }
@@ -93,20 +128,9 @@ public class QueryController
     /**
      * @return token ranges used in the read command
      */
-    List<DataRange> dataRanges()
+    public List<DataRange> dataRanges()
     {
         return ranges;
-    }
-
-    /**
-     * Note: merged range may contain subrange that no longer belongs to the local node after range movement.
-     * It should only be used as an optimization to reduce search space. Use {@link #dataRanges()} instead to filter data.
-     *
-     * @return merged token range
-     */
-    AbstractBounds<PartitionPosition> mergeRange()
-    {
-        return mergeRange;
     }
 
     /**
@@ -116,11 +140,11 @@ public class QueryController
     {
         Set<StorageAttachedIndex> indexes = cfs.indexManager.getBestIndexFor(expression, StorageAttachedIndex.class);
 
-        return indexes.isEmpty() ? new IndexContext(cfs.metadata().keyspace,
-                                                    cfs.metadata().name,
+        return indexes.isEmpty() ? new IndexContext(cfs.getKeyspaceName(),
+                                                    cfs.getTableName(),
                                                     cfs.metadata().partitionKeyType,
                                                     cfs.getPartitioner(),
-                                                    cfs.metadata().comparator,
+                                                    cfs.getComparator(),
                                                     expression.column(),
                                                     IndexTarget.Type.VALUES,
                                                     null)
@@ -166,27 +190,30 @@ public class QueryController
      */
     public KeyRangeIterator.Builder getIndexQueryResults(Collection<Expression> expressions)
     {
+        // VSTODO move ANN out of expressions and into its own abstraction? That will help get generic ORDER BY support
+        expressions = expressions.stream().filter(e -> e.getOp() != Expression.IndexOperator.ANN).collect(Collectors.toList());
+
         KeyRangeIterator.Builder builder = KeyRangeIntersectionIterator.builder(expressions.size());
 
         QueryViewBuilder queryViewBuilder = new QueryViewBuilder(expressions, mergeRange);
 
-        Collection<Pair<Expression, Collection<SSTableIndex>>> queryView = queryViewBuilder.build();
+        QueryViewBuilder.QueryView queryView = queryViewBuilder.build();
 
         try
         {
-            for (Pair<Expression, Collection<SSTableIndex>> queryViewPair : queryView)
+            for (Pair<Expression, Collection<SSTableIndex>> queryViewPair : queryView.view)
             {
                 @SuppressWarnings({"resource", "RedundantSuppression"}) // RangeIterators are closed by releaseIndexes
-                KeyRangeIterator index = IndexSearchResultIterator.build(queryViewPair.left, queryViewPair.right, mergeRange, queryContext);
+                KeyRangeIterator indexIterator = IndexSearchResultIterator.build(queryViewPair.left, queryViewPair.right, mergeRange, queryContext);
 
-                builder.add(index);
+                builder.add(indexIterator);
             }
         }
         catch (Throwable t)
         {
             // all sstable indexes in view have been referenced, need to clean up when exception is thrown
             builder.cleanup();
-            queryView.forEach(pair -> pair.right.forEach(SSTableIndex::releaseQuietly));
+            queryView.referencedIndexes.forEach(SSTableIndex::releaseQuietly);
             throw t;
         }
         return builder;
@@ -210,6 +237,112 @@ public class QueryController
         return key.kind() == PrimaryKey.Kind.WIDE && !command.clusteringIndexFilter(key.partitionKey()).selects(key.clustering());
     }
 
+    /**
+     * Used to release all resources and record metrics when query finishes.
+     */
+    public void finish()
+    {
+        if (tableQueryMetrics != null) tableQueryMetrics.record(queryContext);
+    }
+
+    // This is an ANN only query
+    public KeyRangeIterator getTopKRows(RowFilter.Expression expression)
+    {
+        assert expression.operator() == Operator.ANN;
+        var planExpression = new Expression(getContext(expression))
+                             .add(Operator.ANN, expression.getIndexValue().duplicate());
+        // search memtable before referencing sstable indexes; otherwise we may miss newly flushed memtable index
+        KeyRangeIterator memtableResults = getContext(expression).getMemtableIndexManager().searchMemtableIndexes(queryContext, planExpression, mergeRange);
+
+        QueryViewBuilder.QueryView queryView = new QueryViewBuilder(Collections.singleton(planExpression), mergeRange).build();
+
+        try
+        {
+            List<KeyRangeIterator> sstableIntersections = queryView.view
+                                                                   .stream()
+                                                                   .map(this::createRowIdIterator)
+                                                                   .collect(Collectors.toList());
+            return IndexSearchResultIterator.build(sstableIntersections, memtableResults, queryView.referencedIndexes, queryContext);
+        }
+        catch (Throwable t)
+        {
+            // all sstable indexes in view have been referenced, need to clean up when exception is thrown
+            queryView.referencedIndexes.forEach(SSTableIndex::release);
+            throw t;
+        }
+    }
+
+    // This is a hybrid query. We apply all other predicates before ordering and limiting.
+    public KeyRangeIterator getTopKRows(KeyRangeIterator source, RowFilter.Expression expression)
+    {
+        return new KeyRangeOrderingIterator(source, ORDER_CHUNK_SIZE, list -> this.getTopKRows(list, expression));
+    }
+
+    private KeyRangeIterator getTopKRows(List<PrimaryKey> rawSourceKeys, RowFilter.Expression expression)
+    {
+        VectorQueryContext vectorQueryContext = queryContext.vectorContext();
+        // Filter out PKs now. Each PK is passed to every segment of the ANN index, so filtering shadowed keys
+        // eagerly can save some work when going from PK to row id for on disk segments.
+        // Since the result is shared with multiple streams, we use an unmodifiable list.
+        var sourceKeys = rawSourceKeys.stream().filter(vectorQueryContext::shouldInclude).collect(Collectors.toList());
+        var planExpression = new Expression(this.getContext(expression));
+        planExpression.add(Operator.ANN, expression.getIndexValue().duplicate());
+
+        // search memtable before referencing sstable indexes; otherwise we may miss newly flushed memtable index
+        KeyRangeIterator memtableResults = this.getContext(expression).getMemtableIndexManager().limitToTopResults(queryContext, sourceKeys, planExpression);
+        QueryViewBuilder.QueryView queryView = new QueryViewBuilder(Collections.singleton(planExpression), mergeRange).build();
+
+        try
+        {
+            List<KeyRangeIterator> sstableIntersections = queryView.view
+                                                                   .stream()
+                                                                   .flatMap(pair -> pair.right.stream())
+                                                                   .map(index -> {
+                                                                       try
+                                                                       {
+                                                                           return index.limitToTopKResults(queryContext, sourceKeys, planExpression);
+                                                                       }
+                                                                       catch (IOException e)
+                                                                       {
+                                                                           throw new UncheckedIOException(e);
+                                                                       }
+                                                                   })
+                                                                   .collect(Collectors.toList());
+
+            return IndexSearchResultIterator.build(sstableIntersections, memtableResults, queryView.referencedIndexes, queryContext);
+        }
+        catch (Throwable t)
+        {
+            // all sstable indexes in view have been referenced, need to clean up when exception is thrown
+            queryView.referencedIndexes.forEach(SSTableIndex::release);
+            throw t;
+        }
+    }
+
+    /**
+     * Create row id iterator from different indexes' on-disk searcher of the same sstable
+     */
+    private KeyRangeIterator createRowIdIterator(Pair<Expression, Collection<SSTableIndex>> indexExpression)
+    {
+        var subIterators = indexExpression.right
+                           .stream()
+                           .map(index ->
+                                {
+                                    try
+                                    {
+                                        List<KeyRangeIterator> iterators = index.search(indexExpression.left, mergeRange, queryContext);
+                                        // concat the result from multiple segments for the same index
+                                        return KeyRangeConcatIterator.builder(iterators.size()).add(iterators).build();
+                                    }
+                                    catch (Throwable ex)
+                                    {
+                                        throw Throwables.cleaned(ex);
+                                    }
+                                }).collect(Collectors.toList());
+
+        return KeyRangeUnionIterator.build(subIterators);
+    }
+
     // Note: This method assumes that the selects method has already been called for the
     // key to avoid having to (potentially) call selects twice
     private ClusteringIndexFilter makeFilter(PrimaryKey key)
@@ -227,14 +360,6 @@ public class QueryController
         else
             return new ClusteringIndexNamesFilter(FBUtilities.singleton(key.clustering(), cfs.metadata().comparator),
                                                   clusteringIndexFilter.isReversed());
-    }
-
-    /**
-     * Used to release all resources and record metrics when query finishes.
-     */
-    public void finish()
-    {
-        if (tableQueryMetrics != null) tableQueryMetrics.record(queryContext);
     }
 
     /**

@@ -133,6 +133,24 @@ public abstract class MultiColumnRestriction implements SingleRestriction
     }
 
     @Override
+    public final Index findSupportingIndex(IndexRegistry indexRegistry)
+    {
+        for (Index index : indexRegistry.listIndexes())
+            if (isSupportedBy(index))
+                return index;
+        return null;
+    }
+
+    @Override
+    public Index findSupportingIndexFromQueryPlan(Index.QueryPlan indexQueryPlan)
+    {
+        for (Index index : indexQueryPlan.getIndexes())
+            if (isSupportedBy(index))
+                return index;
+        return null;
+    }
+
+    @Override
     public boolean needsFiltering(Index.Group indexGroup)
     {
         for (ColumnMetadata column : columnDefs)

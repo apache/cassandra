@@ -372,5 +372,9 @@
       <groupId>org.apache.lucene</groupId>
       <artifactId>lucene-analysis-common</artifactId>
     </dependency>
+    <dependency>
+      <groupId>io.github.jbellis</groupId>
+      <artifactId>jvector</artifactId>
+    </dependency>
   </dependencies>
 </project>

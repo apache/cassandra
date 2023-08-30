@@ -37,7 +37,9 @@ import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.index.sai.disk.v1.segment.Segment;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
+import org.apache.cassandra.index.sai.iterators.KeyRangeUnionIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
@@ -166,11 +168,21 @@ public class V1SSTableIndex extends SSTableIndex
         {
             if (segment.intersects(keyRange))
             {
-                segmentIterators.add(segment.search(expression, context));
+                segmentIterators.add(segment.search(expression, keyRange, context));
             }
         }
 
         return segmentIterators;
+    }
+
+    @Override
+    public KeyRangeIterator limitToTopKResults(QueryContext context, List<PrimaryKey> primaryKeys, Expression expression) throws IOException
+    {
+        KeyRangeUnionIterator.Builder unionIteratorBuilder = KeyRangeUnionIterator.builder(segments.size());
+        for (Segment segment : segments)
+            unionIteratorBuilder.add(segment.limitToTopKResults(context, primaryKeys, expression));
+
+        return unionIteratorBuilder.build();
     }
 
     @Override

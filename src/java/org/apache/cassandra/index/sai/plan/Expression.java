@@ -21,7 +21,6 @@ package org.apache.cassandra.index.sai.plan;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 
-import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,7 +37,7 @@ public class Expression
 
     public enum IndexOperator
     {
-        EQ, RANGE, CONTAINS_KEY, CONTAINS_VALUE;
+        EQ, RANGE, CONTAINS_KEY, CONTAINS_VALUE, ANN;
 
         public static IndexOperator valueOf(Operator operator)
         {
@@ -58,6 +57,9 @@ public class Expression
                 case LTE:
                 case GTE:
                     return RANGE;
+
+                case ANN:
+                    return ANN;
 
                 default:
                     return null;
@@ -80,7 +82,6 @@ public class Expression
     public final IndexContext context;
     public final AbstractType<?> validator;
 
-    @VisibleForTesting
     protected IndexOperator operator;
 
     public Bound lower, upper;
@@ -160,6 +161,11 @@ public class Expression
                 else
                     lower = new Bound(value, validator, lowerInclusive);
                 break;
+            case ANN:
+                operator = IndexOperator.ANN;
+                lower = new Bound(value, validator, true);
+                upper = lower;
+                break;
         }
 
         assert operator != null;
@@ -172,6 +178,11 @@ public class Expression
      */
     public boolean isSatisfiedBy(ByteBuffer columnValue)
     {
+        // If the expression represents an ANN ordering then we return true because the actual result
+        // is approximate and will rarely / never match the expression value
+        if (validator.isVector())
+            return true;
+
         if (!TypeUtil.isValid(columnValue, validator))
         {
             logger.error(context.logMessage("Value is not valid for indexed column {} with {}"), context.getColumnName(), validator);

@@ -73,14 +73,16 @@ public abstract class AbstractBlockPackedReader implements LongArray
     @Override
     public long indexOf(long value)
     {
+        // If we are searching backwards, we need to reset the lastIndex. This is not normal since we normally move
+        // forwards when searching for tokens. We only (may) search backwards in vector searchs where we need the
+        // primary key ranges presented as row IDs.
+        if (value < previousValue)
+            lastIndex = 0;
+
         // already out of range
         if (lastIndex >= valueCount)
             return -1;
 
-        // We keep track previous returned value in lastIndex, so searching backward will not return correct result.
-        // Also it's logically wrong to search backward during token iteration in PostingListRangeIterator.
-        if (value < previousValue)
-            throw new IllegalArgumentException(String.format("%d is smaller than prev token value %d", value, previousValue));
         previousValue = value;
 
         int blockIndex = binarySearchBlockMinValues(value);

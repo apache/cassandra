@@ -23,8 +23,6 @@ import java.io.IOException;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.agrona.collections.LongArrayList;
 import org.apache.cassandra.index.sai.IndexContext;
@@ -87,8 +85,6 @@ import static java.lang.Math.max;
 @NotThreadSafe
 public class PostingsWriter implements Closeable
 {
-    protected static final Logger logger = LoggerFactory.getLogger(PostingsWriter.class);
-
     // import static org.apache.lucene.codecs.lucene50.Lucene50PostingsFormat.BLOCK_SIZE;
     private final static int BLOCK_SIZE = 128;
 

@@ -24,6 +24,7 @@ import java.io.IOException;
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.annotation.concurrent.ThreadSafe;
 
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 
 /**
@@ -69,6 +70,24 @@ public interface PrimaryKeyMap extends Closeable
      * @return the row ID associated with the {@link PrimaryKey}
      */
     long rowIdFromPrimaryKey(PrimaryKey key);
+
+    /**
+     * Returns the first row ID of the nearest {@link Token} greater than or equal to the given {@link Token},
+     * or a negative value if not found
+     *
+     * @param token the {@link Token} to lookup
+     * @return the ceiling row ID associated with the {@link Token} or a negative value
+     */
+    long ceiling(Token token);
+
+    /**
+     * Returns the last row ID of the nearest {@link Token} less than or equal to the given {@link Token},
+     * or a negative value if the {@link Token} is at its minimum value
+     *
+     * @param token the {@link Token} to lookup
+     * @return the floor row ID associated with the {@link Token}
+     */
+    long floor(Token token);
 
     @Override
     default void close()

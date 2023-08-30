@@ -256,4 +256,15 @@ public interface ReadQuery
     default void trackWarnings()
     {
     }
+
+    /**
+     * The query is a top-k query if the query has an {@link org.apache.cassandra.index.Index.QueryPlan} that
+     * supports top-k ordering.
+     *
+     * @return {@code true} if this is a top-k query
+     */
+    default boolean isTopK()
+    {
+        return false;
+    }
 }

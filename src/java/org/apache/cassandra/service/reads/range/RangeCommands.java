@@ -79,6 +79,9 @@ public class RangeCommands
                                                                    keyspace,
                                                                    consistencyLevel);
 
+        if (command.isTopK())
+            return new ScanAllRangesCommandIterator(keyspace, replicaPlans, command, replicaPlans.size(), queryStartNanoTime);
+
         int maxConcurrencyFactor = Math.min(replicaPlans.size(), MAX_CONCURRENT_RANGE_REQUESTS);
         int concurrencyFactor = maxConcurrencyFactor;
         Index.QueryPlan queryPlan = command.indexQueryPlan();

@@ -20,6 +20,8 @@ package org.apache.cassandra.index.sai.disk;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,7 +66,7 @@ public class IndexSearchResultIterator extends KeyRangeIterator
     {
         List<KeyRangeIterator> subIterators = new ArrayList<>(1 + sstableIndexes.size());
 
-        KeyRangeIterator memtableIterator = expression.context.getMemtableIndexManager().searchMemtableIndexes(expression, keyRange);
+        KeyRangeIterator memtableIterator = expression.context.getMemtableIndexManager().searchMemtableIndexes(queryContext, expression, keyRange);
         if (memtableIterator != null)
             subIterators.add(memtableIterator);
 
@@ -78,10 +80,10 @@ public class IndexSearchResultIterator extends KeyRangeIterator
                 if (sstableIndex.isReleased())
                     throw new IllegalStateException(sstableIndex.getIndexContext().logMessage("Index was released from the view during the query"));
 
-                List<KeyRangeIterator> segmentIterators = sstableIndex.search(expression, keyRange, queryContext);
+                List<KeyRangeIterator> indexIterators = sstableIndex.search(expression, keyRange, queryContext);
 
-                if (!segmentIterators.isEmpty())
-                    subIterators.addAll(segmentIterators);
+                if (!indexIterators.isEmpty())
+                    subIterators.addAll(indexIterators);
             }
             catch (Throwable e)
             {
@@ -94,6 +96,22 @@ public class IndexSearchResultIterator extends KeyRangeIterator
 
         KeyRangeIterator union = KeyRangeUnionIterator.build(subIterators);
         return new IndexSearchResultIterator(union, sstableIndexes, queryContext);
+    }
+
+    public static IndexSearchResultIterator build(List<KeyRangeIterator> sstableIntersections,
+                                                  KeyRangeIterator memtableResults,
+                                                  Set<SSTableIndex> referencedIndexes,
+                                                  QueryContext queryContext)
+    {
+        queryContext.sstablesHit += referencedIndexes
+                                    .stream()
+                                    .map(SSTableIndex::getSSTable).collect(Collectors.toSet()).size();
+        queryContext.checkpoint();
+        KeyRangeIterator union = KeyRangeUnionIterator.builder(sstableIntersections.size() + 1)
+                                                      .add(sstableIntersections)
+                                                      .add(memtableResults)
+                                                      .build();
+        return new IndexSearchResultIterator(union, referencedIndexes, queryContext);
     }
 
     protected PrimaryKey computeNext()
