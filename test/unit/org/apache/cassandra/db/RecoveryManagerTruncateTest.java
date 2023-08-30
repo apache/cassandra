@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.Before;
@@ -37,6 +38,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogReplayer;
+import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.compress.DeflateCompressor;
@@ -48,7 +50,7 @@ import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.EncryptionContextGenerator;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -112,7 +114,8 @@ public class RecoveryManagerTruncateTest
         // and now truncate it
         cfs.truncateBlocking();
         Map<Keyspace, Integer> replayed = CommitLog.instance.resetUnsafe(false);
-        assertFalse("Expected mutations to be replayed, but got " + replayed, replayed.isEmpty());
+        assertNull("Expected no mutations to be replayed for " + keyspace + " keyspace, but got " + replayed,
+                     replayed.get(keyspace));
 
         // and validate truncation.
         Util.assertEmptyUnfiltered(Util.cmd(cfs).build());
