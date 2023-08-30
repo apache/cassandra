@@ -51,6 +51,7 @@ import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sai.metrics.TableQueryMetrics;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
+import org.apache.cassandra.index.sai.plan.vector.VectorTopKProcessor;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.TableMetadata;
@@ -61,7 +62,6 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
     private final ReadCommand command;
     private final QueryController queryController;
     private final QueryContext queryContext;
-    private final PrimaryKey.Factory keyFactory;
 
     public StorageAttachedIndexSearcher(ColumnFamilyStore cfs,
                                         TableQueryMetrics tableQueryMetrics,
@@ -71,8 +71,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
     {
         this.command = command;
         this.queryContext = new QueryContext(command, executionQuotaMs);
-        this.queryController = new QueryController(cfs, command, filterOperation, queryContext, tableQueryMetrics);
-        this.keyFactory = new PrimaryKey.Factory(cfs.getPartitioner(), cfs.metadata().comparator);
+        this.queryController = QueryController.create(cfs, command, filterOperation, queryContext, tableQueryMetrics);
     }
 
     @Override
@@ -105,7 +104,25 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
     @Override
     public UnfilteredPartitionIterator search(ReadExecutionController executionController) throws RequestTimeoutException
     {
-        return new ResultRetriever(queryController, executionController, queryContext, keyFactory);
+        if (!command.isTopK())
+            return new ResultRetriever(queryController, executionController, queryContext, false);
+        else
+        {
+            Supplier<ResultRetriever> resultSupplier = () -> new ResultRetriever(queryController, executionController, queryContext, true);
+
+            // VSTODO performance: if there is shadowed primary keys, we have to at least query twice.
+            //  First time to find out there are shawdow keys, second time to find out there are no more shadow keys.
+            while (true)
+            {
+                long lastShadowedKeysCount = queryContext.vectorContext().getShadowedPrimaryKeys().size();
+                ResultRetriever result = resultSupplier.get();
+                UnfilteredPartitionIterator topK = (UnfilteredPartitionIterator) new VectorTopKProcessor(command).filter(result);
+
+                long currentShadowedKeysCount = queryContext.vectorContext().getShadowedPrimaryKeys().size();
+                if (lastShadowedKeysCount == currentShadowedKeysCount)
+                    return topK;
+            }
+        }
     }
 
     private static class ResultRetriever extends AbstractIterator<UnfilteredRowIterator> implements UnfilteredPartitionIterator
@@ -115,31 +132,32 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         private final Iterator<DataRange> keyRanges;
         private AbstractBounds<PartitionPosition> currentKeyRange;
 
-        private final KeyRangeIterator resultKeyIterator;
+        private final KeyRangeIterator<PrimaryKey> resultKeyIterator;
         private final FilterTree filterTree;
         private final QueryController queryController;
         private final ReadExecutionController executionController;
         private final QueryContext queryContext;
         private final PrimaryKey.Factory keyFactory;
+        private final boolean topK;
+
         private PrimaryKey lastKey;
 
         private ResultRetriever(QueryController queryController,
                                 ReadExecutionController executionController,
                                 QueryContext queryContext,
-                                PrimaryKey.Factory keyFactory)
+                                boolean topK)
         {
             this.keyRanges = queryController.dataRanges().iterator();
             this.currentKeyRange = keyRanges.next().keyRange();
-
             this.resultKeyIterator = Operation.buildIterator(queryController);
             this.filterTree = Operation.buildFilter(queryController);
             this.queryController = queryController;
             this.executionController = executionController;
             this.queryContext = queryContext;
-            this.keyFactory = keyFactory;
-
-            this.firstPrimaryKey = keyFactory.create(queryController.mergeRange().left.getToken());
-            this.lastPrimaryKey = keyFactory.create(queryController.mergeRange().right.getToken());
+            this.keyFactory = queryController.primaryKeyFactory();
+            this.firstPrimaryKey = queryController.firstPrimaryKeyInRange();
+            this.lastPrimaryKey = queryController.lastPrimaryKeyInRange();
+            this.topK = topK;
         }
 
         @Override
@@ -373,11 +391,11 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
             {
                 queryContext.partitionsRead++;
 
-                return applyIndexFilter(partition, filterTree, queryContext);
+                return applyIndexFilter(key, partition, filterTree, queryContext);
             }
         }
 
-        private static UnfilteredRowIterator applyIndexFilter(UnfilteredRowIterator partition, FilterTree tree, QueryContext queryContext)
+        private UnfilteredRowIterator applyIndexFilter(PrimaryKey key, UnfilteredRowIterator partition, FilterTree tree, QueryContext queryContext)
         {
             Row staticRow = partition.staticRow();
 
@@ -409,6 +427,10 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
              */
             if (clusters.isEmpty())
             {
+                // shadowed by expired TTL or row tombstone or range tombstone
+                if (topK)
+                    queryContext.vectorContext().recordShadowedPrimaryKey(key);
+
                 return null;
             }
 

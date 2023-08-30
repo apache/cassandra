@@ -37,8 +37,10 @@ import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SSTableContext;
 import org.apache.cassandra.index.sai.disk.format.Version;
+import org.apache.cassandra.index.sai.disk.v1.segment.SegmentOrdering;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.sstable.SSTableIdFactory;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 
@@ -50,7 +52,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
  *     <li>Exposes the index metadata for the column index</li>
  * </ul>
  */
-public abstract class SSTableIndex
+public abstract class SSTableIndex implements SegmentOrdering
 {
     private static final Logger logger = LoggerFactory.getLogger(SSTableIndex.class);
 
@@ -135,9 +137,27 @@ public abstract class SSTableIndex
      * @return a {@link List} of {@link KeyRangeIterator}s containing the results
      * of the search
      */
-    public abstract List<KeyRangeIterator> search(Expression expression,
-                                                  AbstractBounds<PartitionPosition> keyRange,
-                                                  QueryContext context) throws IOException;
+    public abstract List<KeyRangeIterator<PrimaryKey>> search(Expression expression,
+                                                              AbstractBounds<PartitionPosition> keyRange,
+                                                              QueryContext context) throws IOException;
+
+    /**
+     * Perform a search on the index for a single expression and keyRange.
+     * <p>
+     * The result is a {@link List} of {@link KeyRangeIterator} because there will
+     * be a {@link KeyRangeIterator} for each segment in the index. The result
+     * will never be null but may be an empty {@link List}.
+     *
+     * @param expression The {@link Expression} to be searched for
+     * @param keyRange The {@link AbstractBounds<PartitionPosition>} defining the
+     *                 token range for the search
+     * @param context The {@link QueryContext} holding the per-query state
+     * @return a {@link List} of {@link KeyRangeIterator}s containing the results
+     * of the search
+     */
+    public abstract List<KeyRangeIterator<Long>> searchSSTableRowIds(Expression expression,
+                                                                     AbstractBounds<PartitionPosition> keyRange,
+                                                                     QueryContext context) throws IOException;
 
     /**
      * Populates a virtual table using the index metadata owned by the index

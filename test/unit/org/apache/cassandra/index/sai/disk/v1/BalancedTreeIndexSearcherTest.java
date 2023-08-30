@@ -148,23 +148,23 @@ public class BalancedTreeIndexSearcherTest extends SAIRandomizedTester
                                                   final NumberType<T> rawType, final NumberType<?> encodedType,
                                                   final Function<Short, T> rawValueProducer) throws Exception
     {
-        try (KeyRangeIterator results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
+        try (KeyRangeIterator<Long> results = indexSearcher.searchSSTableRowIDs(new Expression(SAITester.createIndexContext("meh", rawType))
         {{
             operator = IndexOperator.EQ;
             lower = upper = new Bound(rawType.decompose(rawValueProducer.apply(EQ_TEST_LOWER_BOUND_INCLUSIVE)), encodedType, true);
-        }}, mock(QueryContext.class)))
+        }}, null, mock(QueryContext.class)))
         {
             assertEquals(results.getMinimum(), results.getCurrent());
             assertTrue(results.hasNext());
 
-            assertEquals(0L, results.next().token().getLongValue());
+            assertEquals(Long.valueOf(0), results.next());
         }
 
-        try (KeyRangeIterator results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
+        try (KeyRangeIterator results = indexSearcher.searchSSTableRowIDs(new Expression(SAITester.createIndexContext("meh", rawType))
         {{
             operator = IndexOperator.EQ;
             lower = upper = new Bound(rawType.decompose(rawValueProducer.apply(EQ_TEST_UPPER_BOUND_EXCLUSIVE)), encodedType, true);
-        }}, mock(QueryContext.class)))
+        }}, null, mock(QueryContext.class)))
         {
             assertFalse(results.hasNext());
             indexSearcher.close();
@@ -184,35 +184,35 @@ public class BalancedTreeIndexSearcherTest extends SAIRandomizedTester
                                                      final NumberType<T> rawType, final NumberType<?> encodedType,
                                                      final Function<Short, T> rawValueProducer, List<Long> expectedTokenList) throws Exception
     {
-        try (KeyRangeIterator results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
+        try (KeyRangeIterator<Long> results = indexSearcher.searchSSTableRowIDs(new Expression(SAITester.createIndexContext("meh", rawType))
         {{
             operator = IndexOperator.RANGE;
 
             lower = new Bound(rawType.decompose(rawValueProducer.apply((short)2)), encodedType, false);
             upper = new Bound(rawType.decompose(rawValueProducer.apply((short)7)), encodedType, true);
-        }}, mock(QueryContext.class)))
+        }}, null, mock(QueryContext.class)))
         {
             assertEquals(results.getMinimum(), results.getCurrent());
             assertTrue(results.hasNext());
 
-            List<Long> actualTokenList = Lists.newArrayList(Iterators.transform(results, key -> key.token().getLongValue()));
+            List<Long> actualTokenList = Lists.newArrayList(Iterators.transform(results, key -> key));
             assertEquals(expectedTokenList, actualTokenList);
         }
 
-        try (KeyRangeIterator results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
+        try (KeyRangeIterator results = indexSearcher.searchSSTableRowIDs(new Expression(SAITester.createIndexContext("meh", rawType))
         {{
             operator = IndexOperator.RANGE;
             lower = new Bound(rawType.decompose(rawValueProducer.apply(RANGE_TEST_UPPER_BOUND_EXCLUSIVE)), encodedType, true);
-        }}, mock(QueryContext.class)))
+        }}, null, mock(QueryContext.class)))
         {
             assertFalse(results.hasNext());
         }
 
-        try (KeyRangeIterator results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
+        try (KeyRangeIterator results = indexSearcher.searchSSTableRowIDs(new Expression(SAITester.createIndexContext("meh", rawType))
         {{
             operator = IndexOperator.RANGE;
             upper = new Bound(rawType.decompose(rawValueProducer.apply(RANGE_TEST_LOWER_BOUND_INCLUSIVE)), encodedType, false);
-        }}, mock(QueryContext.class)))
+        }}, null, mock(QueryContext.class)))
         {
             assertFalse(results.hasNext());
             indexSearcher.close();

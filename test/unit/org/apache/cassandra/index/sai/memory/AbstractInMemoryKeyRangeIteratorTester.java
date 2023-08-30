@@ -154,7 +154,7 @@ public abstract class AbstractInMemoryKeyRangeIteratorTester
         assertIterator(iterator, 2, 3);
     }
 
-    private void assertIterator(KeyRangeIterator iterator, long... tokens)
+    private void assertIterator(KeyRangeIterator<PrimaryKey> iterator, long... tokens)
     {
         for(long token : tokens)
         {
@@ -164,7 +164,7 @@ public abstract class AbstractInMemoryKeyRangeIteratorTester
     }
 
 
-    protected abstract KeyRangeIterator makeIterator(long minimumTokenValue, long maximumTokenValue, long... tokens);
+    protected abstract KeyRangeIterator<PrimaryKey> makeIterator(long minimumTokenValue, long maximumTokenValue, long... tokens);
 
     protected PrimaryKey keyForToken(long token)
     {

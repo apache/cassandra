@@ -179,7 +179,7 @@ public class QueryViewBuilder
         return mostSelectiveExpression == null ? null : Pair.create(mostSelectiveExpression, mostSelectiveIndexes);
     }
 
-    private List<SSTableIndex> selectIndexesInRange(List<SSTableIndex> indexes)
+    private List<SSTableIndex> selectIndexesInRange(Collection<SSTableIndex> indexes)
     {
         return indexes.stream().filter(this::indexInRange).collect(Collectors.toList());
     }

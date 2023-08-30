@@ -24,6 +24,8 @@ import javax.annotation.concurrent.NotThreadSafe;
 import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
@@ -156,6 +158,18 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
             return rowId;
         // Otherwise we need to check for token collision.
         return tokenCollisionDetection(primaryKey, rowId);
+    }
+
+    @Override
+    public long firstRowIdForRange(AbstractBounds<PartitionPosition> range)
+    {
+        return range.left.isMinimum() ? Long.MIN_VALUE : tokenArray.indexOf(range.left.getToken().getLongValue());
+    }
+
+    @Override
+    public long lastRowIdForRange(AbstractBounds<PartitionPosition> range)
+    {
+        return range.right.isMinimum() ? Long.MAX_VALUE : tokenArray.indexOf(range.right.getToken().getLongValue());
     }
 
     @Override

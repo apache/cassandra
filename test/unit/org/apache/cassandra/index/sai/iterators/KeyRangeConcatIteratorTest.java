@@ -55,7 +55,7 @@ public class KeyRangeConcatIteratorTest extends AbstractKeyRangeIteratorTester
                                                                            .hasMessage(createErrorMessage(4, 0));
 
         // allow min boundary included
-        KeyRangeIterator concat = buildConcat(build(1L, 4L), build(4L, 5L));
+        KeyRangeIterator<PrimaryKey> concat = buildConcat(build(1L, 4L), build(4L, 5L));
         assertEquals(convert(1L, 4L, 4L, 5L), convert(concat));
 
         // with empty iterator
@@ -76,8 +76,8 @@ public class KeyRangeConcatIteratorTest extends AbstractKeyRangeIteratorTester
     @Test
     public void testSingleIterator()
     {
-        KeyRangeIterator origin = build(1L, 2L, 4L, 9L );
-        KeyRangeIterator concat = buildConcat(origin);
+        KeyRangeIterator<PrimaryKey> origin = build(1L, 2L, 4L, 9L );
+        KeyRangeIterator<PrimaryKey> concat = buildConcat(origin);
         assertSame(origin, concat);
         assertEquals(convert(1L, 2L, 4L, 9L), convert(concat));
     }
@@ -85,7 +85,7 @@ public class KeyRangeConcatIteratorTest extends AbstractKeyRangeIteratorTester
     @Test
     public void testNoOverlappingSortedRanges()
     {
-        KeyRangeIterator concat = buildConcat(build(1L, 2L, 3L),
+        KeyRangeIterator<PrimaryKey> concat = buildConcat(build(1L, 2L, 3L),
                                               build(4L, 5L),
                                               build(7L, 8L, 9L, 10L));
 
@@ -95,7 +95,7 @@ public class KeyRangeConcatIteratorTest extends AbstractKeyRangeIteratorTester
     @Test
     public void testMinMaxAndCount()
     {
-        KeyRangeIterator.Builder builder = getConcatBuilder();
+        KeyRangeIterator.Builder<PrimaryKey> builder = getConcatBuilder();
 
         builder.add(build(1L, 2L, 3L));
         builder.add(build(4L, 5L, 6L));
@@ -104,7 +104,7 @@ public class KeyRangeConcatIteratorTest extends AbstractKeyRangeIteratorTester
         assertEquals(9L, builder.getMaximum().token().getLongValue());
         assertEquals(9L, builder.getCount());
 
-        KeyRangeIterator keyIterator = builder.build();
+        KeyRangeIterator<PrimaryKey> keyIterator = builder.build();
 
         assertNotNull(keyIterator);
         assertEquals(1L, keyIterator.getMinimum().token().getLongValue());
@@ -124,11 +124,11 @@ public class KeyRangeConcatIteratorTest extends AbstractKeyRangeIteratorTester
     @Test
     public void testSkipTo()
     {
-        Supplier<KeyRangeIterator> init = () ->  buildConcat(build(1L, 2L, 3L),
+        Supplier<KeyRangeIterator<PrimaryKey>> init = () ->  buildConcat(build(1L, 2L, 3L),
                                                              build( 4L, 5L, 6L),
                                                              build( 7L, 8L, 9L));
 
-        KeyRangeIterator keyIterator;
+        KeyRangeIterator<PrimaryKey> keyIterator;
 
         keyIterator = init.get();
         keyIterator.skipTo(LongIterator.fromToken(5));
@@ -152,9 +152,9 @@ public class KeyRangeConcatIteratorTest extends AbstractKeyRangeIteratorTester
     @Test
     public void testSkipToWithGaps()
     {
-        Supplier<KeyRangeIterator> init = () ->  buildConcat(build(1L, 2L, 3L), build(4L, 6L), build(8L, 9L));
+        Supplier<KeyRangeIterator<PrimaryKey>> init = () ->  buildConcat(build(1L, 2L, 3L), build(4L, 6L), build(8L, 9L));
 
-        KeyRangeIterator keyIterator;
+        KeyRangeIterator<PrimaryKey> keyIterator;
 
         keyIterator = init.get();
         keyIterator.skipTo(LongIterator.fromToken(5L));
@@ -178,8 +178,8 @@ public class KeyRangeConcatIteratorTest extends AbstractKeyRangeIteratorTester
     @Test
     public void testMergingMultipleIterators()
     {
-        KeyRangeIterator concatA = buildConcat(build(1L, 3L, 5L), build(8L, 10L, 12L));
-        KeyRangeIterator concatB = buildConcat(build(7L, 9L, 11L), build(12L, 14L, 16L));
+        KeyRangeIterator<PrimaryKey> concatA = buildConcat(build(1L, 3L, 5L), build(8L, 10L, 12L));
+        KeyRangeIterator<PrimaryKey> concatB = buildConcat(build(7L, 9L, 11L), build(12L, 14L, 16L));
 
         assertEquals(convert(1L, 3L, 5L, 7L, 8L, 9L, 10L, 11L, 12L, 14L, 16L), convert(buildUnion(concatA, concatB)));
     }
@@ -188,12 +188,12 @@ public class KeyRangeConcatIteratorTest extends AbstractKeyRangeIteratorTester
     @SuppressWarnings("resource")
     public void testEmptyThenManyNonEmpty()
     {
-        final KeyRangeIterator.Builder builder = getConcatBuilder();
+        final KeyRangeIterator.Builder<PrimaryKey> builder = getConcatBuilder();
 
         builder.add(build());
         IntStream.range(10, 20).forEach(value -> builder.add(build(value)));
 
-        KeyRangeIterator keyIterator = builder.build();
+        KeyRangeIterator<PrimaryKey> keyIterator = builder.build();
         assertEquals(10L, keyIterator.getMinimum().token().getLongValue());
         assertEquals(19L, keyIterator.getMaximum().token().getLongValue());
         assertTrue(keyIterator.hasNext());
@@ -204,12 +204,12 @@ public class KeyRangeConcatIteratorTest extends AbstractKeyRangeIteratorTester
     @SuppressWarnings("resource")
     public void testEmptyThenSingleNonEmpty()
     {
-        KeyRangeIterator.Builder builder = getConcatBuilder();
+        KeyRangeIterator.Builder<PrimaryKey> builder = getConcatBuilder();
 
         builder.add(build());
         builder.add(build(10));
 
-        KeyRangeIterator keyIterator = builder.build();
+        KeyRangeIterator<PrimaryKey> keyIterator = builder.build();
         assertEquals(10L, keyIterator.getMinimum().token().getLongValue());
         assertEquals(10L, keyIterator.getMaximum().token().getLongValue());
         assertTrue(keyIterator.hasNext());
@@ -220,12 +220,12 @@ public class KeyRangeConcatIteratorTest extends AbstractKeyRangeIteratorTester
     @SuppressWarnings("resource")
     public void testManyNonEmptyThenEmpty()
     {
-        final KeyRangeIterator.Builder builder = getConcatBuilder();
+        final KeyRangeIterator.Builder<PrimaryKey> builder = getConcatBuilder();
 
         IntStream.range(10, 20).forEach(value -> builder.add(build(value)));
         builder.add(build());
 
-        KeyRangeIterator keyIterator = builder.build();
+        KeyRangeIterator<PrimaryKey> keyIterator = builder.build();
         assertEquals(10L, keyIterator.getMinimum().token().getLongValue());
         assertEquals(19L, keyIterator.getMaximum().token().getLongValue());
         assertTrue(keyIterator.hasNext());
@@ -236,12 +236,12 @@ public class KeyRangeConcatIteratorTest extends AbstractKeyRangeIteratorTester
     @SuppressWarnings("resource")
     public void testSingleNonEmptyThenEmpty()
     {
-        KeyRangeIterator.Builder builder = getConcatBuilder();
+        KeyRangeIterator.Builder<PrimaryKey> builder = getConcatBuilder();
 
         builder.add(build(10));
         builder.add(build());
 
-        KeyRangeIterator keyIterator = builder.build();
+        KeyRangeIterator<PrimaryKey> keyIterator = builder.build();
         assertEquals(10L, keyIterator.getMinimum().token().getLongValue());
         assertEquals(10L, keyIterator.getMaximum().token().getLongValue());
         assertTrue(keyIterator.hasNext());
@@ -252,13 +252,13 @@ public class KeyRangeConcatIteratorTest extends AbstractKeyRangeIteratorTester
     @SuppressWarnings("resource")
     public void testEmptyNonEmptyEmpty()
     {
-        final KeyRangeIterator.Builder builder = getConcatBuilder();
+        final KeyRangeIterator.Builder<PrimaryKey> builder = getConcatBuilder();
 
         builder.add(build());
         IntStream.range(10, 20).forEach(value -> builder.add(build(value)));
         builder.add(build());
 
-        KeyRangeIterator keyIterator = builder.build();
+        KeyRangeIterator<PrimaryKey> keyIterator = builder.build();
         assertEquals(10L, keyIterator.getMinimum().token().getLongValue());
         assertEquals(19L, keyIterator.getMaximum().token().getLongValue());
         assertTrue(keyIterator.hasNext());
@@ -269,13 +269,13 @@ public class KeyRangeConcatIteratorTest extends AbstractKeyRangeIteratorTester
     @SuppressWarnings("resource")
     public void testNonEmptyEmptyNonEmpty()
     {
-        final KeyRangeIterator.Builder builder = getConcatBuilder();
+        final KeyRangeIterator.Builder<PrimaryKey> builder = getConcatBuilder();
 
         IntStream.range(10, 15).forEach(value -> builder.add(build(value)));
         builder.add(build());
         IntStream.range(15, 20).forEach(value -> builder.add(build(value)));
 
-        KeyRangeIterator keyIterator = builder.build();
+        KeyRangeIterator<PrimaryKey> keyIterator = builder.build();
         assertEquals(10L, keyIterator.getMinimum().token().getLongValue());
         assertEquals(19L, keyIterator.getMaximum().token().getLongValue());
         assertTrue(keyIterator.hasNext());
@@ -286,8 +286,8 @@ public class KeyRangeConcatIteratorTest extends AbstractKeyRangeIteratorTester
     public void testConcatOfIntersection()
     {
         // concat of two non-intersected intersections
-        KeyRangeIterator intersectionA = buildIntersection(build(1L, 2L, 3L), build(4L, 5L, 6L));
-        KeyRangeIterator intersectionB = buildIntersection(build(6L, 7L, 8L), build(9L, 10L, 11L));
+        KeyRangeIterator<PrimaryKey> intersectionA = buildIntersection(build(1L, 2L, 3L), build(4L, 5L, 6L));
+        KeyRangeIterator<PrimaryKey> intersectionB = buildIntersection(build(6L, 7L, 8L), build(9L, 10L, 11L));
         assertEquals(convert(), convert(buildConcat(intersectionA, intersectionB)));
 
         // concat of two intersected intersections
@@ -310,16 +310,16 @@ public class KeyRangeConcatIteratorTest extends AbstractKeyRangeIteratorTester
     @Test
     public void testIntersectionOfConcat()
     {
-        KeyRangeIterator rangeA = build(1L, 2L, 3L);
-        KeyRangeIterator rangeB = build(4L, 5L, 6L);
-        KeyRangeIterator rangeC = build(7L);
-        KeyRangeIterator rangeD = build(8L);
-        KeyRangeIterator rangeE = build(9L);
-        KeyRangeIterator concatA = buildConcat(rangeA, rangeB, rangeC, rangeD, rangeE);
+        KeyRangeIterator<PrimaryKey> rangeA = build(1L, 2L, 3L);
+        KeyRangeIterator<PrimaryKey> rangeB = build(4L, 5L, 6L);
+        KeyRangeIterator<PrimaryKey> rangeC = build(7L);
+        KeyRangeIterator<PrimaryKey> rangeD = build(8L);
+        KeyRangeIterator<PrimaryKey> rangeE = build(9L);
+        KeyRangeIterator<PrimaryKey> concatA = buildConcat(rangeA, rangeB, rangeC, rangeD, rangeE);
 
         rangeA = build( 1L, 3L);
         rangeB = build( 5L, 7L, 9L);
-        KeyRangeIterator concatB = buildConcat(rangeA, rangeB);
+        KeyRangeIterator<PrimaryKey> concatB = buildConcat(rangeA, rangeB);
 
         assertEquals(convert(1L, 3L, 5L, 7L, 9L), convert(buildIntersection(concatA, concatB)));
     }
@@ -334,8 +334,8 @@ public class KeyRangeConcatIteratorTest extends AbstractKeyRangeIteratorTester
     @Test
     public void testConcatOfUnionsOnError()
     {
-        KeyRangeIterator unionA = buildUnion(arr(1L, 2L, 3L), arr(4L));
-        KeyRangeIterator unionB = buildOnErrorB(this::buildUnion, arr(6L), arr(8L, 9L));
+        KeyRangeIterator<PrimaryKey> unionA = buildUnion(arr(1L, 2L, 3L), arr(4L));
+        KeyRangeIterator<PrimaryKey> unionB = buildOnErrorB(this::buildUnion, arr(6L), arr(8L, 9L));
         assertOnError(buildConcat(unionA, unionB));
 
         unionA = buildOnErrorA(this::buildUnion, arr( 1L, 2L, 3L), arr( 4L));
@@ -346,8 +346,8 @@ public class KeyRangeConcatIteratorTest extends AbstractKeyRangeIteratorTester
     @Test
     public void testConcatOfIntersectionsOnError()
     {
-        KeyRangeIterator intersectionA = buildOnErrorA(this::buildIntersection, arr(1L, 2L, 3L), arr(2L, 3L, 4L));
-        KeyRangeIterator intersectionB = buildIntersection(arr(6L, 7L, 8L), arr(7L, 8L, 9L));
+        KeyRangeIterator<PrimaryKey> intersectionA = buildOnErrorA(this::buildIntersection, arr(1L, 2L, 3L), arr(2L, 3L, 4L));
+        KeyRangeIterator<PrimaryKey> intersectionB = buildIntersection(arr(6L, 7L, 8L), arr(7L, 8L, 9L));
         assertOnError(buildConcat(intersectionA, intersectionB));
 
         intersectionA = buildIntersection(arr( 1L, 2L, 3L), arr( 2L, 3L, 4L));
@@ -359,10 +359,10 @@ public class KeyRangeConcatIteratorTest extends AbstractKeyRangeIteratorTester
     public void testDuplicatedElementsInTheSameIterator()
     {
         // In real case, we should not have duplicated elements from the same PostingListRangeIterator
-        KeyRangeIterator rangeA = build(1L, 2L, 3L, 3L, 4L, 4L);
-        KeyRangeIterator rangeB = build(6L, 6L, 7L, 7L);
-        KeyRangeIterator rangeC = build(8L, 8L);
-        KeyRangeIterator concatA = buildConcat(rangeA, rangeB, rangeC);
+        KeyRangeIterator<PrimaryKey> rangeA = build(1L, 2L, 3L, 3L, 4L, 4L);
+        KeyRangeIterator<PrimaryKey> rangeB = build(6L, 6L, 7L, 7L);
+        KeyRangeIterator<PrimaryKey> rangeC = build(8L, 8L);
+        KeyRangeIterator<PrimaryKey> concatA = buildConcat(rangeA, rangeB, rangeC);
 
         assertEquals(convert(1L, 2L, 3L, 3L, 4L, 4L, 6L, 6L, 7L, 7L, 8L, 8L), convert(concatA));
     }
@@ -370,14 +370,14 @@ public class KeyRangeConcatIteratorTest extends AbstractKeyRangeIteratorTester
     @Test
     public void testOverlappingBoundaries()
     {
-        KeyRangeIterator rangeA = build(1L, 2L, 3L);
-        KeyRangeIterator rangeB = build(3L, 4L, 6L, 7L);
-        KeyRangeIterator rangeC = build(7L, 8L);
-        KeyRangeIterator rangeD = build(8L, 9L);
-        KeyRangeIterator rangeE = build(9L);
-        KeyRangeIterator rangeF = build(9L);
-        KeyRangeIterator rangeG = build(9L, 10L);
-        KeyRangeIterator concatA = buildConcat(rangeA, rangeB, rangeC, rangeD, rangeE, rangeF, rangeG);
+        KeyRangeIterator<PrimaryKey> rangeA = build(1L, 2L, 3L);
+        KeyRangeIterator<PrimaryKey> rangeB = build(3L, 4L, 6L, 7L);
+        KeyRangeIterator<PrimaryKey> rangeC = build(7L, 8L);
+        KeyRangeIterator<PrimaryKey> rangeD = build(8L, 9L);
+        KeyRangeIterator<PrimaryKey> rangeE = build(9L);
+        KeyRangeIterator<PrimaryKey> rangeF = build(9L);
+        KeyRangeIterator<PrimaryKey> rangeG = build(9L, 10L);
+        KeyRangeIterator<PrimaryKey> concatA = buildConcat(rangeA, rangeB, rangeC, rangeD, rangeE, rangeF, rangeG);
 
         assertEquals(convert(1L, 2L, 3L, 3L, 4L, 6L, 7L, 7L, 8L, 8L, 9L, 9L, 9L, 9L, 10L), convert(concatA));
     }
@@ -385,17 +385,17 @@ public class KeyRangeConcatIteratorTest extends AbstractKeyRangeIteratorTester
     @Test
     public void testDuplicatedElementsAndOverlappingBoundaries()
     {
-        KeyRangeIterator rangeA = build(1L, 2L, 2L, 3L);
-        KeyRangeIterator rangeB = build(3L, 4L, 4L, 6L, 6L, 7L);
+        KeyRangeIterator<PrimaryKey> rangeA = build(1L, 2L, 2L, 3L);
+        KeyRangeIterator<PrimaryKey> rangeB = build(3L, 4L, 4L, 6L, 6L, 7L);
         assertEquals(convert(1L, 2L, 2L, 3L, 3L, 4L, 4L, 6L, 6L, 7L), convert(buildConcat(rangeA, rangeB)));
 
         rangeA = build(1L, 2L, 2L, 3L);
         rangeB = build(3L);
-        KeyRangeIterator rangeC = build(3L, 4L, 4L, 6L, 6L, 7L);
-        KeyRangeIterator rangeD = build(7L, 7L, 8L);
-        KeyRangeIterator rangeE = build(8L, 9L, 9L);
-        KeyRangeIterator rangeF = build(9L, 10L);
-        KeyRangeIterator concatA = buildConcat(rangeA, rangeB, rangeC, rangeD, rangeE, rangeF);
+        KeyRangeIterator<PrimaryKey> rangeC = build(3L, 4L, 4L, 6L, 6L, 7L);
+        KeyRangeIterator<PrimaryKey> rangeD = build(7L, 7L, 8L);
+        KeyRangeIterator<PrimaryKey> rangeE = build(8L, 9L, 9L);
+        KeyRangeIterator<PrimaryKey> rangeF = build(9L, 10L);
+        KeyRangeIterator<PrimaryKey> concatA = buildConcat(rangeA, rangeB, rangeC, rangeD, rangeE, rangeF);
 
         assertEquals(convert(1L, 2L, 2L, 3L, 3L, 3L, 4L, 4L, 6L, 6L, 7L, 7L, 7L, 8L, 8L, 9L, 9L, 9L, 10L), convert(concatA));
     }
@@ -404,8 +404,8 @@ public class KeyRangeConcatIteratorTest extends AbstractKeyRangeIteratorTester
     public void testDuplicateElementsAtBoundary()
     {
         // Duplicate on the right:
-        KeyRangeIterator rangeA = build(1L, 2L, 3L);
-        KeyRangeIterator rangeB = build(3L, 3L, 4L, 5L);
+        KeyRangeIterator<PrimaryKey> rangeA = build(1L, 2L, 3L);
+        KeyRangeIterator<PrimaryKey> rangeB = build(3L, 3L, 4L, 5L);
         assertEquals(convert(1L, 2L, 3L, 3L, 3L, 4L, 5L), convert(buildConcat(rangeA, rangeB)));
 
         // Duplicate on the left:
@@ -419,7 +419,7 @@ public class KeyRangeConcatIteratorTest extends AbstractKeyRangeIteratorTester
         assertEquals(convert(1L, 2L, 3L, 3L, 3L, 3L, 4L, 5L), convert(buildConcat(rangeA, rangeB)));
     }
 
-    private KeyRangeIterator.Builder getConcatBuilder()
+    private KeyRangeIterator.Builder<PrimaryKey> getConcatBuilder()
     {
         return KeyRangeConcatIterator.builder(16);
     }

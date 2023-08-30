@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.index.sai;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -40,6 +41,7 @@ import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.Futures; // checkstyle: permit this import
 import com.google.common.util.concurrent.ListenableFuture; // checkstyle: permit this import
@@ -50,6 +52,9 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.restrictions.Restriction;
+import org.apache.cassandra.cql3.restrictions.SingleColumnRestriction;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.CassandraWriteContext;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -79,6 +84,7 @@ import org.apache.cassandra.index.sai.analyzer.NonTokenizingOptions;
 import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.format.Version;
+import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.index.sai.view.View;
 import org.apache.cassandra.index.transactions.IndexTransaction;
@@ -93,6 +99,9 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.apache.lucene.index.VectorSimilarityFunction;
+
+import static org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig.MAX_TOP_K;
 
 public class StorageAttachedIndex implements Index
 {
@@ -147,6 +156,9 @@ public class StorageAttachedIndex implements Index
 
     private static final Set<String> VALID_OPTIONS = ImmutableSet.of(IndexTarget.TARGET_OPTION_NAME,
                                                                      IndexTarget.CUSTOM_INDEX_OPTION_NAME,
+                                                                     IndexWriterConfig.MAXIMUM_NODE_CONNECTIONS,
+                                                                     IndexWriterConfig.CONSTRUCTION_BEAM_WIDTH,
+                                                                     IndexWriterConfig.SIMILARITY_FUNCTION,
                                                                      NonTokenizingOptions.CASE_SENSITIVE,
                                                                      NonTokenizingOptions.NORMALIZE,
                                                                      NonTokenizingOptions.ASCII);
@@ -264,6 +276,7 @@ public class StorageAttachedIndex implements Index
             throw new InvalidRequestException(ANALYSIS_ON_KEY_COLUMNS_MESSAGE + new CqlBuilder().append(analysisOptions));
         }
         AbstractAnalyzer.fromOptions(type, analysisOptions);
+        IndexWriterConfig.fromOptions(null, type, options);
 
         return Collections.emptyMap();
     }
@@ -529,6 +542,41 @@ public class StorageAttachedIndex implements Index
     }
 
     @Override
+    public Comparator<List<ByteBuffer>> getPostQueryOrdering(Restriction restriction, int columnIndex, QueryOptions options)
+    {
+        // For now, only support ANN
+        assert restriction instanceof SingleColumnRestriction.AnnRestriction;
+
+        Preconditions.checkState(indexContext.isVector());
+
+        SingleColumnRestriction.AnnRestriction annRestriction = (SingleColumnRestriction.AnnRestriction) restriction;
+        VectorSimilarityFunction function = indexContext.getIndexWriterConfig().getSimilarityFunction();
+
+        float[] target = TypeUtil.decomposeVector(indexContext, annRestriction.value(options).duplicate());
+
+        return (leftBuf, rightBuf) -> {
+            float[] left = TypeUtil.decomposeVector(indexContext, leftBuf.get(columnIndex).duplicate());
+            double scoreLeft = function.compare(left, target);
+
+            float[] right = TypeUtil.decomposeVector(indexContext, rightBuf.get(columnIndex).duplicate());
+            double scoreRight = function.compare(right, target);
+            return Double.compare(scoreRight, scoreLeft); // descending order
+        };
+    }
+
+    @Override
+    public void validate(ReadCommand command) throws InvalidRequestException
+    {
+        if (!getIndexContext().isVector())
+            return;
+
+        // to avoid overflow HNSW internal data structure and avoid OOM when filtering top-k
+        if (command.limits().isUnlimited() || command.limits().count() > MAX_TOP_K)
+            throw new InvalidRequestException(String.format("Use of ANN OF in an ORDER BY clause requires a LIMIT that is not greater than %s. LIMIT was %s",
+                                                            MAX_TOP_K, command.limits().isUnlimited() ? "NO LIMIT" : command.limits().count()));
+    }
+
+    @Override
     public long getEstimatedResultRows()
     {
         throw new UnsupportedOperationException("Use StorageAttachedIndexQueryPlan#getEstimatedResultRows() instead.");
@@ -670,7 +718,7 @@ public class StorageAttachedIndex implements Index
         @Override
         public void updateRow(Row oldRow, Row newRow)
         {
-            insertRow(newRow);
+            indexContext.getMemtableIndexManager().update(key, oldRow, newRow, memtable);
         }
 
         void adjustMemtableSize(long additionalSpace, OpOrder.Group opGroup)

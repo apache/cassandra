@@ -25,6 +25,8 @@ import java.io.IOException;
  */
 public interface PostingList extends Closeable
 {
+    PostingList EMPTY = new EmptyPostingList();
+
     long OFFSET_NOT_FOUND = -1;
     long END_OF_STREAM = Long.MAX_VALUE;
 
@@ -57,4 +59,25 @@ public interface PostingList extends Closeable
      * @return first segment row ID which is >= the target row ID or {@link PostingList#END_OF_STREAM} if one does not exist
      */
     long advance(long targetRowID) throws IOException;
+
+    class EmptyPostingList implements PostingList
+    {
+        @Override
+        public long nextPosting() throws IOException
+        {
+            return END_OF_STREAM;
+        }
+
+        @Override
+        public long size()
+        {
+            return 0;
+        }
+
+        @Override
+        public long advance(long targetRowID) throws IOException
+        {
+            return END_OF_STREAM;
+        }
+    }
 }

@@ -18,30 +18,36 @@
 
 package org.apache.cassandra.index.sai.memory;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.function.Function;
 
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.IndexContext;
+import org.apache.cassandra.index.sai.QueryContext;
+import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.index.sai.plan.Expression;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.PrimaryKeys;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
-public class MemtableIndex
+public class MemtableIndex implements MemtableOrdering
 {
-    private final TrieMemoryIndex index;
+    private final MemoryIndex index;
     private final LongAdder writeCount = new LongAdder();
     private final LongAdder estimatedMemoryUsed = new LongAdder();
 
     public MemtableIndex(IndexContext indexContext)
     {
-        this.index = new TrieMemoryIndex(indexContext);
+        this.index = indexContext.isVector() ? new VectorMemtableIndex(indexContext) : new TrieMemoryIndex(indexContext);
     }
 
     public long writeCount()
@@ -56,7 +62,7 @@ public class MemtableIndex
 
     public boolean isEmpty()
     {
-        return getMinTerm() == null;
+        return index.isEmpty();
     }
 
     public ByteBuffer getMinTerm()
@@ -80,13 +86,31 @@ public class MemtableIndex
         return ram;
     }
 
-    public KeyRangeIterator search(Expression expression, AbstractBounds<PartitionPosition> keyRange)
+    public void update(DecoratedKey key, Clustering<?> clustering, ByteBuffer oldValue, ByteBuffer newValue)
     {
-        return index.search(expression, keyRange);
+        index.update(key, clustering, oldValue, newValue);
+    }
+
+    public KeyRangeIterator<PrimaryKey> search(QueryContext queryContext, Expression expression, AbstractBounds<PartitionPosition> keyRange)
+    {
+        return index.search(queryContext, expression, keyRange);
     }
 
     public Iterator<Pair<ByteComparable, PrimaryKeys>> iterator()
     {
         return index.iterator();
+    }
+
+    public SegmentMetadata.ComponentMetadataMap writeDirect(IndexDescriptor indexDescriptor,
+                                                            IndexContext indexContext,
+                                                            Function<PrimaryKey, Integer> postingTransformer) throws IOException
+    {
+        return index.writeDirect(indexDescriptor, indexContext, postingTransformer);
+    }
+
+    @Override
+    public KeyRangeIterator<PrimaryKey> limitToTopResults(QueryContext context, KeyRangeIterator<PrimaryKey> iterator, Expression exp)
+    {
+        return index.limitToTopResults(context, iterator, exp);
     }
 }

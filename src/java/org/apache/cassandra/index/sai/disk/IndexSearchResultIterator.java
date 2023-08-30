@@ -35,15 +35,15 @@ import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Throwables;
 
-public class IndexSearchResultIterator extends KeyRangeIterator
+public class IndexSearchResultIterator extends KeyRangeIterator<PrimaryKey>
 {
     private static final Logger logger = LoggerFactory.getLogger(IndexSearchResultIterator.class);
 
     private final QueryContext context;
-    private final KeyRangeIterator union;
+    private final KeyRangeIterator<PrimaryKey> union;
     private final Collection<SSTableIndex> referencedIndexes;
 
-    private IndexSearchResultIterator(KeyRangeIterator union, Collection<SSTableIndex> referencedIndexes, QueryContext queryContext)
+    private IndexSearchResultIterator(KeyRangeIterator<PrimaryKey> union, Collection<SSTableIndex> referencedIndexes, QueryContext queryContext)
     {
         super(union.getMinimum(), union.getMaximum(), union.getCount());
 
@@ -62,9 +62,9 @@ public class IndexSearchResultIterator extends KeyRangeIterator
                                                   AbstractBounds<PartitionPosition> keyRange,
                                                   QueryContext queryContext)
     {
-        List<KeyRangeIterator> subIterators = new ArrayList<>(1 + sstableIndexes.size());
+        List<KeyRangeIterator<PrimaryKey>> subIterators = new ArrayList<>(1 + sstableIndexes.size());
 
-        KeyRangeIterator memtableIterator = expression.context.getMemtableIndexManager().searchMemtableIndexes(expression, keyRange);
+        KeyRangeIterator<PrimaryKey> memtableIterator = expression.context.getMemtableIndexManager().searchMemtableIndexes(queryContext, expression, keyRange);
         if (memtableIterator != null)
             subIterators.add(memtableIterator);
 
@@ -78,7 +78,7 @@ public class IndexSearchResultIterator extends KeyRangeIterator
                 if (sstableIndex.isReleased())
                     throw new IllegalStateException(sstableIndex.getIndexContext().logMessage("Index was released from the view during the query"));
 
-                List<KeyRangeIterator> segmentIterators = sstableIndex.search(expression, keyRange, queryContext);
+                List<KeyRangeIterator<PrimaryKey>> segmentIterators = sstableIndex.search(expression, keyRange, queryContext);
 
                 if (!segmentIterators.isEmpty())
                     subIterators.addAll(segmentIterators);
@@ -92,7 +92,7 @@ public class IndexSearchResultIterator extends KeyRangeIterator
             }
         }
 
-        KeyRangeIterator union = KeyRangeUnionIterator.build(subIterators);
+        KeyRangeIterator<PrimaryKey> union = KeyRangeUnionIterator.build(subIterators);
         return new IndexSearchResultIterator(union, sstableIndexes, queryContext);
     }
 

@@ -28,6 +28,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -87,6 +89,11 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
     public boolean isEmpty()
     {
         return size() == 0;
+    }
+
+    public Stream<Row> stream()
+    {
+        return StreamSupport.stream(spliterator(), false);
     }
 
     public abstract int size();

@@ -25,6 +25,8 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringComparator;
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
@@ -142,6 +144,15 @@ public class WidePrimaryKeyMap extends SkinnyPrimaryKeyMap
 
         // Search the key store for the key in the same partition
         return clusteringKeyCursor.clusteredSeekToKey(clusteringComparator.asByteComparable(primaryKey.clustering()), rowId, startOfNextPartition(rowId));
+    }
+
+    @Override
+    public long lastRowIdForRange(AbstractBounds<PartitionPosition> range)
+    {
+        if (range.right.isMinimum())
+            return Long.MAX_VALUE;
+        long rowId = tokenArray.indexOf(range.right.getToken().getLongValue());
+        return rowId < 0 ? rowId : startOfNextPartition(rowId) - 1;
     }
 
     @Override

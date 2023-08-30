@@ -81,6 +81,11 @@ public class ReadExecutionController implements AutoCloseable
         }
     }
 
+    public boolean isRangeCommand()
+    {
+        return command != null && command.isRangeRequest();
+    }
+
     public ReadExecutionController indexReadController()
     {
         return indexController;

@@ -44,7 +44,13 @@ public class PerColumnIndexFiles implements Closeable
     {
         this.indexDescriptor = indexDescriptor;
         this.indexContext = indexContext;
-        if (indexContext.isLiteral())
+        if (indexContext.isVector())
+        {
+            files.put(IndexComponent.POSTING_LISTS, indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext, this::close));
+            files.put(IndexComponent.TERMS_DATA, indexDescriptor.createPerIndexFileHandle(IndexComponent.TERMS_DATA, indexContext, this::close));
+            files.put(IndexComponent.VECTOR, indexDescriptor.createPerIndexFileHandle(IndexComponent.VECTOR, indexContext, this::close));
+        }
+        else if (indexContext.isLiteral())
         {
             files.put(IndexComponent.POSTING_LISTS, indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext, this::close));
             files.put(IndexComponent.TERMS_DATA, indexDescriptor.createPerIndexFileHandle(IndexComponent.TERMS_DATA, indexContext, this::close));
@@ -69,6 +75,11 @@ public class PerColumnIndexFiles implements Closeable
     public FileHandle balancedTree()
     {
         return getFile(IndexComponent.BALANCED_TREE);
+    }
+
+    public FileHandle vectors()
+    {
+        return getFile(IndexComponent.VECTOR);
     }
 
     @SuppressWarnings({"resource", "RedundantSuppression"})

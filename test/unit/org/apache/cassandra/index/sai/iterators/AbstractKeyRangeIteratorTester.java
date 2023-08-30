@@ -20,6 +20,7 @@ package org.apache.cassandra.index.sai.iterators;
 import java.util.Arrays;
 import java.util.function.BiFunction;
 
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -36,52 +37,53 @@ public class AbstractKeyRangeIteratorTester extends SAIRandomizedTester
         return Arrays.stream(intArray).mapToLong(i -> i).toArray();
     }
 
-    void assertOnError(KeyRangeIterator range)
+    void assertOnError(KeyRangeIterator<PrimaryKey> range)
     {
         assertThatThrownBy(() -> LongIterator.convert(range)).isInstanceOf(RuntimeException.class);
     }
 
-    final KeyRangeIterator buildIntersection(KeyRangeIterator... ranges)
+    final KeyRangeIterator<PrimaryKey> buildIntersection(KeyRangeIterator<PrimaryKey>... ranges)
     {
-        return KeyRangeIntersectionIterator.builder(16, Integer.MAX_VALUE).add(Arrays.asList(ranges)).build();
+        return KeyRangeIntersectionIterator.<PrimaryKey>builder(16, Integer.MAX_VALUE).add(Arrays.asList(ranges)).build();
     }
 
-    final KeyRangeIterator buildSelectiveIntersection(int limit, KeyRangeIterator... ranges)
+    final KeyRangeIterator<PrimaryKey> buildSelectiveIntersection(int limit, KeyRangeIterator<PrimaryKey>... ranges)
     {
-        return KeyRangeIntersectionIterator.builder(16, limit).add(Arrays.asList(ranges)).build();
+        return KeyRangeIntersectionIterator.<PrimaryKey>builder(16, limit).add(Arrays.asList(ranges)).build();
     }
 
-    final KeyRangeIterator buildIntersection(long[]... ranges)
+    final KeyRangeIterator<PrimaryKey> buildIntersection(long[]... ranges)
     {
         return buildIntersection(toRangeIterator(ranges));
     }
 
-    final KeyRangeIterator buildSelectiveIntersection(int limit, long[]... ranges)
+    final KeyRangeIterator<PrimaryKey> buildSelectiveIntersection(int limit, long[]... ranges)
     {
         return buildSelectiveIntersection(limit, toRangeIterator(ranges));
     }
 
-    final KeyRangeIterator buildUnion(KeyRangeIterator... ranges)
+    final KeyRangeIterator<PrimaryKey> buildUnion(KeyRangeIterator<PrimaryKey>... ranges)
     {
-        return KeyRangeUnionIterator.builder(ranges.length).add(Arrays.asList(ranges)).build();
+        return KeyRangeUnionIterator.<PrimaryKey>builder(ranges.length).add(Arrays.asList(ranges)).build();
     }
 
-    final KeyRangeIterator buildUnion(long[]... ranges)
+    final KeyRangeIterator<PrimaryKey> buildUnion(long[]... ranges)
     {
         return buildUnion(toRangeIterator(ranges));
     }
 
-    final KeyRangeIterator buildConcat(KeyRangeIterator... ranges)
+    @SafeVarargs
+    final KeyRangeIterator<PrimaryKey> buildConcat(KeyRangeIterator<PrimaryKey>... ranges)
     {
-        return KeyRangeConcatIterator.builder(ranges.length).add(Arrays.asList(ranges)).build();
+        return KeyRangeConcatIterator.<PrimaryKey>builder(ranges.length).add(Arrays.asList(ranges)).build();
     }
 
-    final KeyRangeIterator buildConcat(long[]... ranges)
+    final KeyRangeIterator<PrimaryKey> buildConcat(long[]... ranges)
     {
         return buildConcat(toRangeIterator(ranges));
     }
 
-    private KeyRangeIterator[] toRangeIterator(long[]... ranges)
+    private KeyRangeIterator<PrimaryKey>[] toRangeIterator(long[]... ranges)
     {
         return Arrays.stream(ranges).map(this::build).toArray(KeyRangeIterator[]::new);
     }
@@ -101,22 +103,22 @@ public class AbstractKeyRangeIteratorTester extends SAIRandomizedTester
         return rangeA;
     }
 
-    protected KeyRangeIterator buildOnError(BiFunction<KeyRangeIterator, KeyRangeIterator, KeyRangeIterator> builder, long[] tokensA, long[] tokensB)
+    protected KeyRangeIterator<PrimaryKey> buildOnError(BiFunction<KeyRangeIterator<PrimaryKey>, KeyRangeIterator<PrimaryKey>, KeyRangeIterator<PrimaryKey>> builder, long[] tokensA, long[] tokensB)
     {
         return build(builder, tokensA, true, tokensB, true);
     }
 
-    protected KeyRangeIterator buildOnErrorA(BiFunction<KeyRangeIterator, KeyRangeIterator, KeyRangeIterator> builder, long[] tokensA, long[] tokensB)
+    protected KeyRangeIterator<PrimaryKey> buildOnErrorA(BiFunction<KeyRangeIterator<PrimaryKey>, KeyRangeIterator<PrimaryKey>, KeyRangeIterator<PrimaryKey>> builder, long[] tokensA, long[] tokensB)
     {
         return build(builder, tokensA, true, tokensB, false);
     }
 
-    protected KeyRangeIterator buildOnErrorB(BiFunction<KeyRangeIterator, KeyRangeIterator, KeyRangeIterator> builder, long[] tokensA, long[] tokensB)
+    protected KeyRangeIterator<PrimaryKey> buildOnErrorB(BiFunction<KeyRangeIterator<PrimaryKey>, KeyRangeIterator<PrimaryKey>, KeyRangeIterator<PrimaryKey>> builder, long[] tokensA, long[] tokensB)
     {
         return build(builder, tokensA, false, tokensB, true);
     }
 
-    protected KeyRangeIterator build(BiFunction<KeyRangeIterator, KeyRangeIterator, KeyRangeIterator> builder,
+    protected KeyRangeIterator<PrimaryKey> build(BiFunction<KeyRangeIterator<PrimaryKey>, KeyRangeIterator<PrimaryKey>, KeyRangeIterator<PrimaryKey>> builder,
                                      long[] tokensA,
                                      boolean onErrorA,
                                      long[] tokensB,
