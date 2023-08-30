@@ -24,6 +24,7 @@ import javax.net.ssl.SSLException;
 
 import io.netty.handler.ssl.CipherSuiteFilter;
 import io.netty.handler.ssl.SslContext;
+import org.apache.cassandra.config.EncryptionOptions;
 
 /**
  * The purpose of this interface is to provide pluggable mechanism for creating custom JSSE and Netty SSLContext
@@ -58,7 +59,29 @@ public interface ISslContextFactory
      * @return JSSE's {@link SSLContext}
      * @throws SSLException in case the Ssl Context creation fails for some reason
      */
+    @Deprecated
     SSLContext createJSSESslContext(boolean verifyPeerCertificate) throws SSLException;
+
+    /**
+     * Creates JSSE SSLContext.
+     *
+     * @param clientAuth {@code REQUIRED} if SSL peer's certificate needs to be verified; {@code OPTIONAL} if peer's
+     *                                   certificate needs to be optionally verfied; {@code NOT_REQUIRED} otherwise.
+     * @return JSSE's {@link SSLContext}
+     * @throws SSLException in case the Ssl Context creation fails for some reason
+     */
+    default SSLContext createJSSESslContext(EncryptionOptions.ClientAuth clientAuth) throws SSLException
+    {
+        switch (clientAuth)
+        {
+            case REQUIRED:
+                return createJSSESslContext(true);
+            case NOT_REQUIRED:
+            case OPTIONAL:
+            default:
+                return createJSSESslContext(false);
+        }
+    }
 
     /**
      * Creates Netty's SslContext object.
@@ -70,8 +93,34 @@ public interface ISslContextFactory
      * @return Netty's {@link SslContext}
      * @throws SSLException in case the Ssl Context creation fails for some reason
      */
+    @Deprecated
     SslContext createNettySslContext(boolean verifyPeerCertificate, SocketType socketType,
                                      CipherSuiteFilter cipherFilter) throws SSLException;
+
+    /**
+     * Creates Netty's SslContext object.
+     *
+     * @param clientAuth {@code REQUIRED} if SSL peer's certificate needs to be verified; {@code OPTIONAL} if peer's
+     *      *                             certificate needs to be optionally verfied; {@code NOT_REQUIRED} otherwise.
+     * @param socketType            {@link SocketType} for Netty's Inbound or Outbound channels
+     * @param cipherFilter          to allow Netty's cipher suite filtering, e.g.
+     *                              {@link io.netty.handler.ssl.SslContextBuilder#ciphers(Iterable, CipherSuiteFilter)}
+     * @return Netty's {@link SslContext}
+     * @throws SSLException in case the Ssl Context creation fails for some reason
+     */
+    default SslContext createNettySslContext(EncryptionOptions.ClientAuth clientAuth, SocketType socketType,
+                                             CipherSuiteFilter cipherFilter) throws SSLException
+    {
+        switch (clientAuth)
+        {
+            case REQUIRED:
+                return createNettySslContext(true, socketType, cipherFilter);
+            case NOT_REQUIRED:
+            case OPTIONAL:
+            default:
+                return createNettySslContext(false, socketType, cipherFilter);
+        }
+    }
 
     /**
      * Initializes hot reloading of the security keys/certs. The implementation must guarantee this to be thread safe.

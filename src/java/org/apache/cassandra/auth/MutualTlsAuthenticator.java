@@ -40,6 +40,8 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.utils.NoSpamLogger;
 
+import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
+
 /*
  * Performs mTLS authentication for client connections by extracting identities from client certificate
  * and verifying them against the authorized identities in IdentityCache. IdentityCache is a loading cache that
@@ -79,7 +81,6 @@ public class MutualTlsAuthenticator implements IAuthenticator
         }
         certificateValidator = ParameterizedClass.newInstance(new ParameterizedClass(certificateValidatorClassName),
                                                               Arrays.asList("", AuthConfig.class.getPackage().getName()));
-        checkMtlsConfigurationIsValid(DatabaseDescriptor.getRawConfig());
         AuthCacheService.instance.register(identityCache);
     }
 
@@ -98,7 +99,14 @@ public class MutualTlsAuthenticator implements IAuthenticator
     @Override
     public void validateConfiguration() throws ConfigurationException
     {
-
+        Config config = DatabaseDescriptor.getRawConfig();
+        if (!config.client_encryption_options.getEnabled() || config.client_encryption_options.getClientAuth() != REQUIRED)
+        {
+            String msg = "MutualTlsAuthenticator requires client_encryption_options.enabled to be true" +
+                         " & client_encryption_options.require_client_auth to be true";
+            logger.error(msg);
+            throw new ConfigurationException(msg);
+        }
     }
 
     @Override
@@ -172,17 +180,6 @@ public class MutualTlsAuthenticator implements IAuthenticator
                 throw new AuthenticationException(MessageFormatter.format(msg, identity).getMessage());
             }
             return new AuthenticatedUser(role);
-        }
-    }
-
-    private void checkMtlsConfigurationIsValid(Config config)
-    {
-        if (!config.client_encryption_options.getEnabled() || !config.client_encryption_options.require_client_auth)
-        {
-            String msg = "MutualTlsAuthenticator requires client_encryption_options.enabled to be true" +
-                         " & client_encryption_options.require_client_auth to be true";
-            logger.error(msg);
-            throw new ConfigurationException(msg);
         }
     }
 

@@ -37,6 +37,9 @@ import org.apache.cassandra.distributed.shared.WithProperties;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_TCACTIVE_OPENSSL;
 
+import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.NOT_REQUIRED;
+import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
+
 public class DefaultSslContextFactoryTest
 {
     private Map<String,Object> commonConfig = new HashMap<>();
@@ -46,7 +49,7 @@ public class DefaultSslContextFactoryTest
     {
         commonConfig.put("truststore", "test/conf/cassandra_ssl_test.truststore");
         commonConfig.put("truststore_password", "cassandra");
-        commonConfig.put("require_client_auth", Boolean.FALSE);
+        commonConfig.put("require_client_auth", "false");
         commonConfig.put("cipher_suites", Arrays.asList("TLS_RSA_WITH_AES_128_CBC_SHA"));
     }
 
@@ -71,9 +74,9 @@ public class DefaultSslContextFactoryTest
                                                                                                            .withKeyStorePassword("cassandra")
                                                                                                            .withOutboundKeystore("test/conf/cassandra_ssl_test_outbound.keystore")
                                                                                                            .withOutboundKeystorePassword("cassandra")
-                                                                                                           .withRequireClientAuth(false)
+                                                                                                           .withRequireClientAuth(NOT_REQUIRED)
                                                                                                            .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA");
-        SslContext sslContext = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT, "test");
+        SslContext sslContext = SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
         Assert.assertNotNull(sslContext);
         if (OpenSsl.isAvailable())
             Assert.assertTrue(sslContext instanceof OpenSslContext);

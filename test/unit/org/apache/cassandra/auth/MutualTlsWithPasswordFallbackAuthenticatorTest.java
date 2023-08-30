@@ -33,6 +33,7 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.EncryptionOptions;
 
 import static org.apache.cassandra.auth.AuthTestUtils.getMockInetAddress;
 import static org.junit.Assert.assertNotNull;
@@ -50,7 +51,7 @@ public class MutualTlsWithPasswordFallbackAuthenticatorTest
         SchemaLoader.loadSchema();
         Config config = DatabaseDescriptor.getRawConfig();
         config.client_encryption_options = config.client_encryption_options.withEnabled(true)
-                                                                           .withRequireClientAuth(true);
+                                                                           .withRequireClientAuth(EncryptionOptions.ClientAuth.OPTIONAL);
         Map<String, String> parameters = Collections.singletonMap("validator_class_name", "org.apache.cassandra.auth.SpiffeCertificateValidator");
         fallbackAuthenticator = new MutualTlsWithPasswordFallbackAuthenticator(parameters);
         fallbackAuthenticator.setup();
@@ -87,5 +88,12 @@ public class MutualTlsWithPasswordFallbackAuthenticatorTest
         // If client certificate chain present and valid use mTLS authentication
         IAuthenticator.SaslNegotiator mutualtlsAuthenticator = fallbackAuthenticator.newSaslNegotiator(getMockInetAddress(), clientCertificatesCorp);
         assertTrue(mutualtlsAuthenticator instanceof MutualTlsAuthenticator.CertificateNegotiator);
+    }
+
+    @Test
+    public void testValidateConfiguration()
+    {
+        // In optional mTLS mode fallback authenticator should not check for require_client_auth to be true
+        fallbackAuthenticator.validateConfiguration();
     }
 }
