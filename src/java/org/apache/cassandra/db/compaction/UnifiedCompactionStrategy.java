@@ -802,6 +802,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
                                           ArenaSelector arenaSelector,
                                           boolean filterUnsuitable)
     {
+        maybeUpdateSelector();
         Map<CompactionSSTable, Arena> arenasBySSTables = new TreeMap<>(arenaSelector);
         Set<? extends CompactionSSTable> compacting = realm.getCompactingSSTables();
         for (CompactionSSTable sstable : sstables)
