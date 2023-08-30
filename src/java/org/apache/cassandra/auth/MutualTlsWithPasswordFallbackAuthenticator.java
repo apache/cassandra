@@ -22,6 +22,11 @@ import java.net.InetAddress;
 import java.security.cert.Certificate;
 import java.util.Map;
 
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.exceptions.ConfigurationException;
+
 /**
  * This authenticator can be used in optional mTLS mode, If the client doesn't make an mTLS connection
  * this fallbacks to password authentication.
@@ -49,5 +54,16 @@ public class MutualTlsWithPasswordFallbackAuthenticator extends PasswordAuthenti
             return newSaslNegotiator(clientAddress);
         }
         return mutualTlsAuthenticator.newSaslNegotiator(clientAddress, certificates);
+    }
+
+    @Override
+    public void validateConfiguration() throws ConfigurationException
+    {
+        Config config = DatabaseDescriptor.getRawConfig();
+        if (config.client_encryption_options.getClientAuth() == EncryptionOptions.ClientAuth.NOT_REQUIRED)
+        {
+            String msg = "MutualTlsWithPasswordFallbackAuthenticator requires client_encryption_options.require_client_auth to be optional/true";
+            throw new ConfigurationException(msg);
+        }
     }
 }

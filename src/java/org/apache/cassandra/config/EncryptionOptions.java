@@ -33,6 +33,7 @@ import com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.security.DisableSslContextFactory;
@@ -67,6 +68,42 @@ public class EncryptionOptions
         }
     }
 
+    public enum ClientAuth
+    {
+        REQUIRED("true"),
+        NOT_REQUIRED("false"),
+        OPTIONAL("optional");
+        private final String value;
+        private static final Map<String, ClientAuth> VALUES = new HashMap<>();
+        static
+        {
+            for (ClientAuth clientAuth : ClientAuth.values())
+            {
+                VALUES.put(clientAuth.value, clientAuth);
+                VALUES.put(clientAuth.name().toLowerCase(), clientAuth);
+            }
+        }
+
+        ClientAuth(String value)
+        {
+            this.value = value;
+        }
+
+        public static ClientAuth from(String value)
+        {
+            if (VALUES.containsKey(value.toLowerCase()))
+            {
+                return VALUES.get(value.toLowerCase());
+            }
+            throw new ConfigurationException(value + " is not a valid ClientAuth option");
+        }
+
+        public String value()
+        {
+            return value;
+        }
+    }
+
     /*
      * If the ssl_context_factory is configured, most likely it won't use file based keystores and truststores and
      * can choose to completely customize SSL context's creation. Most likely it won't also use keystore_password and
@@ -84,7 +121,7 @@ public class EncryptionOptions
     protected List<String> accepted_protocols;
     public final String algorithm;
     public final String store_type;
-    public final boolean require_client_auth;
+    public final String require_client_auth;
     public final boolean require_endpoint_verification;
     // ServerEncryptionOptions does not use the enabled flag at all instead using the existing
     // internode_encryption option. So we force this private and expose through isEnabled
@@ -159,7 +196,7 @@ public class EncryptionOptions
         accepted_protocols = null;
         algorithm = null;
         store_type = "JKS";
-        require_client_auth = false;
+        require_client_auth = "false";
         require_endpoint_verification = false;
         enabled = null;
         optional = null;
@@ -168,7 +205,7 @@ public class EncryptionOptions
     public EncryptionOptions(ParameterizedClass ssl_context_factory, String keystore, String keystore_password,
                              String truststore, String truststore_password, List<String> cipher_suites,
                              String protocol, List<String> accepted_protocols, String algorithm, String store_type,
-                             boolean require_client_auth, boolean require_endpoint_verification, Boolean enabled,
+                             String require_client_auth, boolean require_endpoint_verification, Boolean enabled,
                              Boolean optional)
     {
         this.ssl_context_factory = ssl_context_factory;
@@ -402,6 +439,11 @@ public class EncryptionOptions
         return sslContextFactoryInstance == null ? null : sslContextFactoryInstance.getAcceptedProtocols();
     }
 
+    public ClientAuth getClientAuth()
+    {
+        return this.require_client_auth == null ? ClientAuth.NOT_REQUIRED : ClientAuth.from(this.require_client_auth);
+    }
+
     public String[] acceptedProtocolsArray()
     {
         List<String> ap = getAcceptedProtocols();
@@ -520,11 +562,11 @@ public class EncryptionOptions
                                      optional).applyConfig();
     }
 
-    public EncryptionOptions withRequireClientAuth(boolean require_client_auth)
+    public EncryptionOptions withRequireClientAuth(ClientAuth require_client_auth)
     {
         return new EncryptionOptions(ssl_context_factory, keystore, keystore_password, truststore,
                                      truststore_password, cipher_suites, protocol, accepted_protocols, algorithm,
-                                     store_type, require_client_auth, require_endpoint_verification, enabled,
+                                     store_type, require_client_auth.value, require_endpoint_verification, enabled,
                                      optional).applyConfig();
     }
 
@@ -567,7 +609,7 @@ public class EncryptionOptions
         EncryptionOptions opt = (EncryptionOptions)o;
         return enabled == opt.enabled &&
                optional == opt.optional &&
-               require_client_auth == opt.require_client_auth &&
+               require_client_auth.equals(opt.require_client_auth) &&
                require_endpoint_verification == opt.require_endpoint_verification &&
                Objects.equals(keystore, opt.keystore) &&
                Objects.equals(keystore_password, opt.keystore_password) &&
@@ -600,7 +642,7 @@ public class EncryptionOptions
         result += 31 * (enabled == null ? 0 : Boolean.hashCode(enabled));
         result += 31 * (optional == null ? 0 : Boolean.hashCode(optional));
         result += 31 * (cipher_suites == null ? 0 : cipher_suites.hashCode());
-        result += 31 * Boolean.hashCode(require_client_auth);
+        result += 31 * require_client_auth.hashCode();
         result += 31 * Boolean.hashCode(require_endpoint_verification);
         result += 31 * (ssl_context_factory == null ? 0 : ssl_context_factory.hashCode());
         return result;
@@ -632,7 +674,7 @@ public class EncryptionOptions
                                        String keystore_password,String outbound_keystore,
                                        String outbound_keystore_password, String truststore, String truststore_password,
                                        List<String> cipher_suites, String protocol, List<String> accepted_protocols,
-                                       String algorithm, String store_type, boolean require_client_auth,
+                                       String algorithm, String store_type, String require_client_auth,
                                        boolean require_endpoint_verification, Boolean optional,
                                        InternodeEncryption internode_encryption, boolean legacy_ssl_storage_port_enabled)
         {
@@ -679,7 +721,7 @@ public class EncryptionOptions
                 logger.warn("Setting server_encryption_options.enabled has no effect, use internode_encryption");
             }
 
-            if (require_client_auth && (internode_encryption == InternodeEncryption.rack || internode_encryption == InternodeEncryption.dc))
+            if (getClientAuth() != ClientAuth.NOT_REQUIRED && (internode_encryption == InternodeEncryption.rack || internode_encryption == InternodeEncryption.dc))
             {
                 logger.warn("Setting require_client_auth is incompatible with 'rack' and 'dc' internode_encryption values."
                           + " It is possible for an internode connection to pretend to be in the same rack/dc by spoofing"
@@ -875,12 +917,12 @@ public class EncryptionOptions
                                                legacy_ssl_storage_port_enabled).applyConfigInternal();
         }
 
-        public ServerEncryptionOptions withRequireClientAuth(boolean require_client_auth)
+        public ServerEncryptionOptions withRequireClientAuth(ClientAuth require_client_auth)
         {
             return new ServerEncryptionOptions(ssl_context_factory, keystore, keystore_password,
                                                outbound_keystore, outbound_keystore_password, truststore,
                                                truststore_password, cipher_suites, protocol, accepted_protocols,
-                                               algorithm, store_type, require_client_auth,
+                                               algorithm, store_type, require_client_auth.value,
                                                require_endpoint_verification, optional, internode_encryption,
                                                legacy_ssl_storage_port_enabled).applyConfigInternal();
         }

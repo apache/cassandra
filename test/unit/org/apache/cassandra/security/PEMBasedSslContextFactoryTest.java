@@ -38,6 +38,8 @@ import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.distributed.shared.WithProperties;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_TCACTIVE_OPENSSL;
+import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.NOT_REQUIRED;
+import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
 import static org.apache.cassandra.security.PEMBasedSslContextFactory.ConfigKey.ENCODED_CERTIFICATES;
 import static org.apache.cassandra.security.PEMBasedSslContextFactory.ConfigKey.ENCODED_KEY;
 import static org.apache.cassandra.security.PEMBasedSslContextFactory.ConfigKey.KEY_PASSWORD;
@@ -176,7 +178,7 @@ public class PEMBasedSslContextFactoryTest
     public void setup()
     {
         commonConfig.put(ENCODED_CERTIFICATES.getKeyName(), trusted_certificates);
-        commonConfig.put("require_client_auth", Boolean.FALSE);
+        commonConfig.put("require_client_auth", "false");
         commonConfig.put("cipher_suites", Arrays.asList("TLS_RSA_WITH_AES_128_CBC_SHA"));
     }
 
@@ -215,10 +217,10 @@ public class PEMBasedSslContextFactoryTest
         EncryptionOptions options = new EncryptionOptions().withTrustStore("test/conf/cassandra_ssl_test.truststore.pem")
                                                            .withKeyStore("test/conf/cassandra_ssl_test.keystore.pem")
                                                            .withKeyStorePassword("cassandra")
-                                                           .withRequireClientAuth(false)
+                                                           .withRequireClientAuth(NOT_REQUIRED)
                                                            .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA")
                                                            .withSslContextFactory(sslContextFactory);
-        SslContext sslContext = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.SERVER, "test");
+        SslContext sslContext = SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.SERVER, "test");
         Assert.assertNotNull(sslContext);
         if (OpenSsl.isAvailable())
             Assert.assertTrue(sslContext instanceof OpenSslContext);
@@ -236,10 +238,10 @@ public class PEMBasedSslContextFactoryTest
                                                                                                            .withKeyStorePassword("cassandra")
                                                                                                            .withOutboundKeystore("test/conf/cassandra_ssl_test.keystore.pem")
                                                                                                            .withOutboundKeystorePassword("cassandra")
-                                                                                                           .withRequireClientAuth(false)
+                                                                                                           .withRequireClientAuth(NOT_REQUIRED)
                                                                                                            .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA")
                                                                                                            .withSslContextFactory(sslContextFactory);
-        SslContext sslContext = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT, "test");
+        SslContext sslContext = SSLFactory.getOrCreateSslContext(options, REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
         Assert.assertNotNull(sslContext);
         if (OpenSsl.isAvailable())
             Assert.assertTrue(sslContext instanceof OpenSslContext);

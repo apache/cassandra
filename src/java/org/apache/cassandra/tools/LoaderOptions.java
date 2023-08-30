@@ -52,6 +52,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tools.BulkLoader.CmdLineOptions;
 
 import static org.apache.cassandra.config.DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND;
+import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
 
 public class LoaderOptions
 {
@@ -648,7 +649,7 @@ public class LoaderOptions
                 {
                     // if a keystore was provided, lets assume we'll need to use
                     clientEncOptions = clientEncOptions.withKeyStore(cmd.getOptionValue(SSL_KEYSTORE))
-                                                       .withRequireClientAuth(true);
+                                                       .withRequireClientAuth(REQUIRED);
                 }
 
                 if (cmd.hasOption(SSL_KEYSTORE_PW))

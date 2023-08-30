@@ -46,6 +46,8 @@ import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.NoSpamLogger;
 
+import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
+
 /*
  * Performs mTLS authentication for internode connections by extracting identities from the certificates of incoming
  * connection and verifying them against a list of authorized peers. Authorized peers can be configured in
@@ -89,7 +91,6 @@ public class MutualTlsInternodeAuthenticator implements IInternodeAuthenticator
         certificateValidator = ParameterizedClass.newInstance(new ParameterizedClass(certificateValidatorClassName),
                                                               Arrays.asList("", AuthConfig.class.getPackage().getName()));
         Config config = DatabaseDescriptor.getRawConfig();
-        checkInternodeMtlsConfigurationIsValid(config);
 
         if (parameters.containsKey(TRUSTED_PEER_IDENTITIES))
         {
@@ -146,6 +147,15 @@ public class MutualTlsInternodeAuthenticator implements IInternodeAuthenticator
     @Override
     public void validateConfiguration() throws ConfigurationException
     {
+        Config config = DatabaseDescriptor.getRawConfig();
+        if (config.server_encryption_options.internode_encryption == EncryptionOptions.ServerEncryptionOptions.InternodeEncryption.none
+            || config.server_encryption_options.getClientAuth() != REQUIRED)
+        {
+            String msg = "MutualTlsInternodeAuthenticator requires server_encryption_options.internode_encryption to be enabled" +
+                         " & server_encryption_options.require_client_auth to be true";
+            logger.error(msg);
+            throw new ConfigurationException(msg);
+        }
 
     }
 
@@ -212,15 +222,4 @@ public class MutualTlsInternodeAuthenticator implements IInternodeAuthenticator
         return allUsers;
     }
 
-    private void checkInternodeMtlsConfigurationIsValid(Config config)
-    {
-        if (config.server_encryption_options.internode_encryption == EncryptionOptions.ServerEncryptionOptions.InternodeEncryption.none
-            || !config.server_encryption_options.require_client_auth)
-        {
-            String msg = "MutualTlsInternodeAuthenticator requires server_encryption_options.internode_encryption to be enabled" +
-                         " & server_encryption_options.require_client_auth to be true";
-            logger.error(msg);
-            throw new ConfigurationException(msg);
-        }
-    }
 }

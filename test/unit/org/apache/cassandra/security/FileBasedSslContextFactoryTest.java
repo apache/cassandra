@@ -36,6 +36,8 @@ import org.apache.cassandra.distributed.shared.WithProperties;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
 
+import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.NOT_REQUIRED;
+
 public class FileBasedSslContextFactoryTest
 {
     private static final Logger logger = LoggerFactory.getLogger(FileBasedSslContextFactoryTest.class);
@@ -65,7 +67,7 @@ public class FileBasedSslContextFactoryTest
                                                                           new HashMap<>()))
                             .withTrustStore("test/conf/cassandra_ssl_test.truststore")
                             .withTrustStorePassword("cassandra")
-                            .withRequireClientAuth(false)
+                            .withRequireClientAuth(NOT_REQUIRED)
                             .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA")
                             .withKeyStore("test/conf/cassandra_ssl_test.keystore")
                             .withKeyStorePassword("cassandra")

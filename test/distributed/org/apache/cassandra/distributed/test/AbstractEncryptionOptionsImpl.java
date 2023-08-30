@@ -54,6 +54,7 @@ import org.apache.cassandra.security.ISslContextFactory;
 import org.apache.cassandra.security.SSLFactory;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
 import static org.apache.cassandra.distributed.test.AbstractEncryptionOptionsImpl.ConnectResult.CONNECTING;
 import static org.apache.cassandra.distributed.test.AbstractEncryptionOptionsImpl.ConnectResult.UNINITIALIZED;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
@@ -199,8 +200,8 @@ public class AbstractEncryptionOptionsImpl extends TestBaseImpl
             setProtocolAndCipher(null, null);
 
             SslContext sslContext = SSLFactory.getOrCreateSslContext(
-                encryptionOptions.withAcceptedProtocols(acceptedProtocols).withCipherSuites(cipherSuites),
-                true, ISslContextFactory.SocketType.CLIENT, "test");
+            encryptionOptions.withAcceptedProtocols(acceptedProtocols).withCipherSuites(cipherSuites),
+            REQUIRED, ISslContextFactory.SocketType.CLIENT, "test");
 
             EventLoopGroup workerGroup = new NioEventLoopGroup();
             Bootstrap b = new Bootstrap();

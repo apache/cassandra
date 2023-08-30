@@ -48,6 +48,7 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NativeSSTableLoaderClient;
 import org.apache.cassandra.utils.OutputHandler;
 
+import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class BulkLoader
@@ -264,7 +265,7 @@ public class BulkLoader
         SSLContext sslContext;
         try
         {
-            sslContext = SSLFactory.createSSLContext(clientEncryptionOptions, true);
+            sslContext = SSLFactory.createSSLContext(clientEncryptionOptions, REQUIRED);
         }
         catch (IOException e)
         {
