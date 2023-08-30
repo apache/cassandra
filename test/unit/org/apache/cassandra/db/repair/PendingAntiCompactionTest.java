@@ -142,7 +142,7 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
 
         // create a session so the anti compaction can fine it
         TimeUUID sessionID = nextTimeUUID();
-        ActiveRepairService.instance.registerParentRepairSession(sessionID, InetAddressAndPort.getLocalHost(), tables, ranges, true, 1, true, PreviewKind.NONE);
+        ActiveRepairService.instance().registerParentRepairSession(sessionID, InetAddressAndPort.getLocalHost(), tables, ranges, true, 1, true, PreviewKind.NONE);
 
         PendingAntiCompaction pac;
         ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -370,13 +370,13 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
         PendingAntiCompaction.AcquisitionCallable acquisitionCallable = new PendingAntiCompaction.AcquisitionCallable(cfs, FULL_RANGE, nextTimeUUID(), 0, 0);
         PendingAntiCompaction.AcquireResult result = acquisitionCallable.call();
         TimeUUID sessionID = nextTimeUUID();
-        ActiveRepairService.instance.registerParentRepairSession(sessionID,
-                                                                 InetAddressAndPort.getByName("127.0.0.1"),
-                                                                 Lists.newArrayList(cfs),
-                                                                 FULL_RANGE,
-                                                                 true,0,
-                                                                 true,
-                                                                 PreviewKind.NONE);
+        ActiveRepairService.instance().registerParentRepairSession(sessionID,
+                                                                   InetAddressAndPort.getByName("127.0.0.1"),
+                                                                   Lists.newArrayList(cfs),
+                                                                   FULL_RANGE,
+                                                                   true, 0,
+                                                                   true,
+                                                                   PreviewKind.NONE);
         CompactionManager.instance.performAnticompaction(result.cfs, atEndpoint(FULL_RANGE, NO_RANGES), result.refs, result.txn, sessionID, () -> false);
 
     }
@@ -390,13 +390,13 @@ public class PendingAntiCompactionTest extends AbstractPendingAntiCompactionTest
         PendingAntiCompaction.AcquisitionCallable acquisitionCallable = new PendingAntiCompaction.AcquisitionCallable(cfs, FULL_RANGE, nextTimeUUID(), 0, 0);
         PendingAntiCompaction.AcquireResult result = acquisitionCallable.call();
         TimeUUID sessionID = nextTimeUUID();
-        ActiveRepairService.instance.registerParentRepairSession(sessionID,
-                                                                 InetAddressAndPort.getByName("127.0.0.1"),
-                                                                 Lists.newArrayList(cfs),
-                                                                 FULL_RANGE,
-                                                                 true,0,
-                                                                 true,
-                                                                 PreviewKind.NONE);
+        ActiveRepairService.instance().registerParentRepairSession(sessionID,
+                                                                   InetAddressAndPort.getByName("127.0.0.1"),
+                                                                   Lists.newArrayList(cfs),
+                                                                   FULL_RANGE,
+                                                                   true, 0,
+                                                                   true,
+                                                                   PreviewKind.NONE);
 
         // attempt to anti-compact the sstable in half
         SSTableReader sstable = Iterables.getOnlyElement(cfs.getLiveSSTables());

@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,10 +38,10 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.TopPartitionTracker;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.ValidationResponse;
 import org.apache.cassandra.repair.state.ValidationState;
 import org.apache.cassandra.streaming.PreviewKind;
-import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTree;
@@ -66,6 +67,7 @@ public class Validator implements Runnable
     public final long nowInSec;
     private final boolean evenTreeDistribution;
     public final boolean isIncremental;
+    public final SharedContext ctx;
 
     // null when all rows with the min token have been consumed
     private long validated;
@@ -83,16 +85,22 @@ public class Validator implements Runnable
 
     public Validator(ValidationState state, long nowInSec, PreviewKind previewKind)
     {
-        this(state, nowInSec, false, false, previewKind);
+        this(SharedContext.Global.instance, state, nowInSec, false, false, previewKind);
+    }
+
+    public Validator(SharedContext ctx, ValidationState state, long nowInSec, boolean isIncremental, PreviewKind previewKind)
+    {
+        this(ctx, state, nowInSec, false, isIncremental, previewKind);
     }
 
     public Validator(ValidationState state, long nowInSec, boolean isIncremental, PreviewKind previewKind)
     {
-        this(state, nowInSec, false, isIncremental, previewKind);
+        this(SharedContext.Global.instance, state, nowInSec, false, isIncremental, previewKind);
     }
 
-    public Validator(ValidationState state, long nowInSec, boolean evenTreeDistribution, boolean isIncremental, PreviewKind previewKind)
+    public Validator(SharedContext ctx, ValidationState state, long nowInSec, boolean evenTreeDistribution, boolean isIncremental, PreviewKind previewKind)
     {
+        this.ctx = ctx;
         this.state = state;
         this.desc = state.desc;
         this.initiator = state.initiator;
@@ -118,7 +126,7 @@ public class Validator implements Runnable
         else
         {
             List<DecoratedKey> keys = new ArrayList<>();
-            Random random = new Random();
+            Random random = ctx.random().get();
 
             for (Range<Token> range : trees.ranges())
             {
@@ -269,11 +277,12 @@ public class Validator implements Runnable
         return !FBUtilities.getBroadcastAddressAndPort().equals(initiator);
     }
 
-    private void respond(ValidationResponse response)
+    @VisibleForTesting
+    void respond(ValidationResponse response)
     {
         if (initiatorIsRemote())
         {
-            MessagingService.instance().send(Message.out(VALIDATION_RSP, response), initiator);
+            RepairMessage.sendMessageWithRetries(ctx, response, VALIDATION_RSP, initiator);
             return;
         }
 
@@ -294,7 +303,7 @@ public class Validator implements Runnable
             {
                 logger.error("Failed to move local merkle tree for {} off heap", desc, e);
             }
-            ActiveRepairService.instance.handleMessage(Message.out(VALIDATION_RSP, movedResponse));
+            ctx.repair().handleMessage(Message.out(VALIDATION_RSP, movedResponse));
         });
     }
 }

@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.repair.state;
 
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.utils.Clock;
@@ -78,24 +79,48 @@ public interface Completable<I>
             this.message = message;
         }
 
-        protected static Result success()
+        public static Result success()
         {
             return new Result(Result.Kind.SUCCESS, null);
         }
 
-        protected static Result success(String msg)
+        public static Result success(String msg)
         {
             return new Result(Result.Kind.SUCCESS, msg);
         }
 
-        protected static Result skip(String msg)
+        public static Result skip(String msg)
         {
             return new Result(Result.Kind.SKIPPED, msg);
         }
 
-        protected static Result fail(String msg)
+        public static Result fail(String msg)
         {
             return new Result(Result.Kind.FAILURE, msg);
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Result result = (Result) o;
+            return kind == result.kind && Objects.equals(message, result.message);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(kind, message);
+        }
+
+        @Override
+        public String toString()
+        {
+            return "Result{" +
+                   "kind=" + kind +
+                   ", message='" + message + '\'' +
+                   '}';
         }
     }
 }

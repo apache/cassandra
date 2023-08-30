@@ -261,10 +261,10 @@ public class CassandraStreamManagerTest
     @Test
     public void checkAvailableDiskSpaceAndCompactionsFailing()
     {
-        int threshold = ActiveRepairService.instance.getRepairPendingCompactionRejectThreshold();
-        ActiveRepairService.instance.setRepairPendingCompactionRejectThreshold(1);
+        int threshold = ActiveRepairService.instance().getRepairPendingCompactionRejectThreshold();
+        ActiveRepairService.instance().setRepairPendingCompactionRejectThreshold(1);
         assertFalse(StreamSession.checkAvailableDiskSpaceAndCompactions(createSummaries(), nextTimeUUID(), null, false));
-        ActiveRepairService.instance.setRepairPendingCompactionRejectThreshold(threshold);
+        ActiveRepairService.instance().setRepairPendingCompactionRejectThreshold(threshold);
     }
 
     private Collection<StreamSummary> createSummaries()

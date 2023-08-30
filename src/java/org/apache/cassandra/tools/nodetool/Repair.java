@@ -20,6 +20,7 @@ package org.apache.cassandra.tools.nodetool;
 import static com.google.common.collect.Lists.newArrayList;
 import static org.apache.commons.lang3.StringUtils.EMPTY;
 import io.airlift.airline.Arguments;
+import io.airlift.airline.Cli;
 import io.airlift.airline.Command;
 import io.airlift.airline.Option;
 
@@ -28,6 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import com.google.common.collect.Sets;
 
@@ -141,39 +143,7 @@ public class Repair extends NodeToolCmd
             if ((args == null || args.isEmpty()) && ONLY_EXPLICITLY_REPAIRED.contains(keyspace))
                 continue;
 
-            Map<String, String> options = new HashMap<>();
-            RepairParallelism parallelismDegree = RepairParallelism.PARALLEL;
-            if (sequential)
-                parallelismDegree = RepairParallelism.SEQUENTIAL;
-            else if (dcParallel)
-                parallelismDegree = RepairParallelism.DATACENTER_AWARE;
-            options.put(RepairOption.PARALLELISM_KEY, parallelismDegree.getName());
-            options.put(RepairOption.PRIMARY_RANGE_KEY, Boolean.toString(primaryRange));
-            options.put(RepairOption.INCREMENTAL_KEY, Boolean.toString(!fullRepair && !(paxosOnly && getPreviewKind() == PreviewKind.NONE)));
-            options.put(RepairOption.JOB_THREADS_KEY, Integer.toString(numJobThreads));
-            options.put(RepairOption.TRACE_KEY, Boolean.toString(trace));
-            options.put(RepairOption.COLUMNFAMILIES_KEY, StringUtils.join(cfnames, ","));
-            options.put(RepairOption.PULL_REPAIR_KEY, Boolean.toString(pullRepair));
-            options.put(RepairOption.FORCE_REPAIR_KEY, Boolean.toString(force));
-            options.put(RepairOption.PREVIEW, getPreviewKind().toString());
-            options.put(RepairOption.OPTIMISE_STREAMS_KEY, Boolean.toString(optimiseStreams));
-            options.put(RepairOption.IGNORE_UNREPLICATED_KS, Boolean.toString(ignoreUnreplicatedKeyspaces));
-            options.put(RepairOption.REPAIR_PAXOS_KEY, Boolean.toString(!skipPaxos && getPreviewKind() == PreviewKind.NONE));
-            options.put(RepairOption.PAXOS_ONLY_KEY, Boolean.toString(paxosOnly && getPreviewKind() == PreviewKind.NONE));
-
-            if (!startToken.isEmpty() || !endToken.isEmpty())
-            {
-                options.put(RepairOption.RANGES_KEY, startToken + ":" + endToken);
-            }
-            if (localDC)
-            {
-                options.put(RepairOption.DATACENTERS_KEY, StringUtils.join(newArrayList(probe.getDataCenter()), ","));
-            }
-            else
-            {
-                options.put(RepairOption.DATACENTERS_KEY, StringUtils.join(specificDataCenters, ","));
-            }
-            options.put(RepairOption.HOSTS_KEY, StringUtils.join(specificHosts, ","));
+            Map<String, String> options = createOptions(probe::getDataCenter, cfnames);
             try
             {
                 probe.repairAsync(probe.output().out, keyspace, options);
@@ -182,5 +152,54 @@ public class Repair extends NodeToolCmd
                 throw new RuntimeException("Error occurred during repair", e);
             }
         }
+    }
+
+    public static Map<String, String> parseOptionMap(Supplier<String> localDCOption, List<String> args)
+    {
+        List<String> realArgs = new ArrayList<>(args.size() + 1);
+        realArgs.add("repair");
+        realArgs.addAll(args);
+        Cli<Object> parser = Cli.builder("fortesting").withCommand(Repair.class).build();
+        Repair repair = (Repair) parser.parse(realArgs);
+        String[] cfnames = repair.parseOptionalTables(repair.args);
+        return repair.createOptions(localDCOption, cfnames);
+    }
+
+    private Map<String, String> createOptions(Supplier<String> localDCOption, String[] cfnames)
+    {
+        Map<String, String> options = new HashMap<>();
+        RepairParallelism parallelismDegree = RepairParallelism.PARALLEL;
+        if (sequential)
+            parallelismDegree = RepairParallelism.SEQUENTIAL;
+        else if (dcParallel)
+            parallelismDegree = RepairParallelism.DATACENTER_AWARE;
+        options.put(RepairOption.PARALLELISM_KEY, parallelismDegree.getName());
+        options.put(RepairOption.PRIMARY_RANGE_KEY, Boolean.toString(primaryRange));
+        options.put(RepairOption.INCREMENTAL_KEY, Boolean.toString(!fullRepair && !(paxosOnly && getPreviewKind() == PreviewKind.NONE)));
+        options.put(RepairOption.JOB_THREADS_KEY, Integer.toString(numJobThreads));
+        options.put(RepairOption.TRACE_KEY, Boolean.toString(trace));
+        options.put(RepairOption.COLUMNFAMILIES_KEY, StringUtils.join(cfnames, ","));
+        options.put(RepairOption.PULL_REPAIR_KEY, Boolean.toString(pullRepair));
+        options.put(RepairOption.FORCE_REPAIR_KEY, Boolean.toString(force));
+        options.put(RepairOption.PREVIEW, getPreviewKind().toString());
+        options.put(RepairOption.OPTIMISE_STREAMS_KEY, Boolean.toString(optimiseStreams));
+        options.put(RepairOption.IGNORE_UNREPLICATED_KS, Boolean.toString(ignoreUnreplicatedKeyspaces));
+        options.put(RepairOption.REPAIR_PAXOS_KEY, Boolean.toString(!skipPaxos && getPreviewKind() == PreviewKind.NONE));
+        options.put(RepairOption.PAXOS_ONLY_KEY, Boolean.toString(paxosOnly && getPreviewKind() == PreviewKind.NONE));
+
+        if (!startToken.isEmpty() || !endToken.isEmpty())
+        {
+            options.put(RepairOption.RANGES_KEY, startToken + ":" + endToken);
+        }
+        if (localDC)
+        {
+            options.put(RepairOption.DATACENTERS_KEY, StringUtils.join(newArrayList(localDCOption.get()), ","));
+        }
+        else
+        {
+            options.put(RepairOption.DATACENTERS_KEY, StringUtils.join(specificDataCenters, ","));
+        }
+        options.put(RepairOption.HOSTS_KEY, StringUtils.join(specificHosts, ","));
+        return options;
     }
 }

@@ -747,7 +747,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                     FBUtilities.getBroadcastAddressAndPort().getPort() != broadcastAddress().getPort())
                     throw new IllegalStateException(String.format("%s != %s", FBUtilities.getBroadcastAddressAndPort(), broadcastAddress()));
 
-                ActiveRepairService.instance.start();
+                ActiveRepairService.instance().start();
                 StreamManager.instance.start();
 
                 PaxosState.startAutoRepairs();
@@ -898,7 +898,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> DiagnosticSnapshotService.instance.shutdownAndWait(1L, MINUTES),
                                 () -> SSTableReader.shutdownBlocking(1L, MINUTES),
                                 () -> shutdownAndWait(Collections.singletonList(ActiveRepairService.repairCommandExecutor())),
-                                () -> ActiveRepairService.instance.shutdownNowAndWait(1L, MINUTES),
+                                () -> ActiveRepairService.instance().shutdownNowAndWait(1L, MINUTES),
                                 () -> SnapshotManager.shutdownAndWait(1L, MINUTES)
             );
 

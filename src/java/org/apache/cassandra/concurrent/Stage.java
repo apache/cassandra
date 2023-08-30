@@ -144,6 +144,12 @@ public enum Stage
         return executor;
     }
 
+    @VisibleForTesting
+    public void unsafeSetExecutor(ExecutorPlus executor)
+    {
+        this.executor = executor;
+    }
+
     private static List<ExecutorPlus> executors()
     {
         return Stream.of(Stage.values())

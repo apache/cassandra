@@ -196,6 +196,11 @@ public class ToolRunner
         return invoke(args.toArray(new String[args.size()]));
     }
 
+    public static ToolResult invoke(Map<String, String> env, List<String> args)
+    {
+        return invoke(env, args.toArray(new String[args.size()]));
+    }
+
     public static ToolResult invoke(String... args) 
     {
         try (ObservableTool  t = invokeAsync(args))
@@ -204,9 +209,22 @@ public class ToolRunner
         }
     }
 
+    public static ToolResult invoke(Map<String, String> env, String... args)
+    {
+        try (ObservableTool  t = invokeAsync(env, args))
+        {
+            return t.waitComplete();
+        }
+    }
+
     public static ObservableTool invokeAsync(String... args)
     {
         return invokeAsync(Collections.emptyMap(), null, Arrays.asList(args));
+    }
+
+    public static ObservableTool invokeAsync(Map<String, String> env, String... args)
+    {
+        return invokeAsync(env, null, Arrays.asList(args));
     }
 
     public static ToolResult invoke(Map<String, String> env, InputStream stdin, List<String> args)

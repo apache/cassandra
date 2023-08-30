@@ -29,6 +29,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 
@@ -187,6 +188,7 @@ public abstract class ConsistentSession
     }
 
     private volatile State state;
+    public final SharedContext ctx;
     public final TimeUUID sessionID;
     public final InetAddressAndPort coordinator;
     public final ImmutableSet<TableId> tableIds;
@@ -197,6 +199,7 @@ public abstract class ConsistentSession
     ConsistentSession(AbstractBuilder builder)
     {
         builder.validate();
+        this.ctx = builder.ctx;
         this.state = builder.state;
         this.sessionID = builder.sessionID;
         this.coordinator = builder.coordinator;
@@ -264,6 +267,7 @@ public abstract class ConsistentSession
 
     abstract static class AbstractBuilder
     {
+        private final SharedContext ctx;
         private State state;
         private TimeUUID sessionID;
         private InetAddressAndPort coordinator;
@@ -271,6 +275,11 @@ public abstract class ConsistentSession
         private long repairedAt;
         private Collection<Range<Token>> ranges;
         private Set<InetAddressAndPort> participants;
+
+        protected AbstractBuilder(SharedContext ctx)
+        {
+            this.ctx = ctx;
+        }
 
         void withState(State state)
         {
