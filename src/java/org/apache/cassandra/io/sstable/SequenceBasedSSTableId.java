@@ -31,7 +31,7 @@ import com.google.common.base.Preconditions;
  * Generation identifier based on sequence of integers.
  * This has been the standard implementation in C* since inception.
  */
-public class SequenceBasedSSTableId implements SSTableId, Comparable<SequenceBasedSSTableId>
+public class SequenceBasedSSTableId implements SSTableId<SequenceBasedSSTableId>
 {
     public final int generation;
 

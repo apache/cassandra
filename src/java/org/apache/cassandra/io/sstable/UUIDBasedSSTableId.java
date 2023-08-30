@@ -36,7 +36,7 @@ import org.apache.cassandra.utils.TimeUUID;
  * <p>
  * Uses the UUID v1 identifiers
  */
-public final class UUIDBasedSSTableId implements SSTableId, Comparable<UUIDBasedSSTableId>
+public final class UUIDBasedSSTableId implements SSTableId<UUIDBasedSSTableId>
 {
     public final static int STRING_LEN = 28;
     public final static int BYTES_LEN = 16;
