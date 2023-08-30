@@ -111,15 +111,15 @@ public final class JVMStabilityInspector
 
     public static void inspectThrowable(Throwable t, Consumer<Throwable> additionalHandler) throws OutOfMemoryError
     {
+        if (t == null)
+            return;
         additionalHandler.accept(t);
         globalHandler.accept(t);
 
-        if (t.getSuppressed() != null)
-            for (Throwable suppressed : t.getSuppressed())
-                inspectThrowable(suppressed, additionalHandler);
+        for (Throwable suppressed : t.getSuppressed())
+            inspectThrowable(suppressed, additionalHandler);
 
-        if (t.getCause() != null)
-            inspectThrowable(t.getCause(), additionalHandler);
+        inspectThrowable(t.getCause(), additionalHandler);
     }
 
     private static void defaultGlobalErrorHandler(Throwable t)

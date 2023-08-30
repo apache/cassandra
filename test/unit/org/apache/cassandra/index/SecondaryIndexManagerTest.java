@@ -43,6 +43,7 @@ import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.notifications.SSTableAddedNotification;
+import org.apache.cassandra.notifications.SSTableListChangedNotification;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.utils.JVMKiller;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -169,8 +170,52 @@ public class SecondaryIndexManagerTest extends CQLTester
 
         // remote reload should trigger index rebuild
         cfs.getTracker().notifySSTablesChanged(Collections.emptySet(), sstables, OperationType.REMOTE_RELOAD, Optional.empty(), null);
+        waitForIndex(KEYSPACE, tableName, indexName); // this is needed because index build on remote reload is async
         assertRows(execute("SELECT * FROM %s WHERE a=1"), row(1, 1, 1));
         assertRows(execute("SELECT * FROM %s WHERE c=1"), row(1, 1, 1));
+    }
+
+
+    @Test
+    public void remoteReloadOnSSTableAddMarksTheIndexAsBuilt() throws Throwable
+    {
+        String tableName = createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b))");
+        String indexName = createIndex("CREATE INDEX ON %s(c)");
+
+        waitForIndex(KEYSPACE, tableName, indexName);
+        assertMarkedAsBuilt(indexName);
+
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.indexManager.markAllIndexesRemoved();
+        assertNotMarkedAsBuilt(indexName);
+
+        try (Refs<SSTableReader> sstables = Refs.ref(cfs.getSSTables(SSTableSet.CANONICAL)))
+        {
+            cfs.indexManager.handleNotification(new SSTableAddedNotification(sstables, null, OperationType.REMOTE_RELOAD, Optional.empty()), cfs.getTracker());
+            waitForIndex(KEYSPACE, tableName, indexName); // this is needed because index build on remote reload is async
+            assertMarkedAsBuilt(indexName);
+        }
+    }
+
+    @Test
+    public void remoteReloadOnSSTableListChangeMarksTheIndexAsBuilt() throws Throwable
+    {
+        String tableName = createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b))");
+        String indexName = createIndex("CREATE INDEX ON %s(c)");
+
+        waitForIndex(KEYSPACE, tableName, indexName);
+        assertMarkedAsBuilt(indexName);
+
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.indexManager.markAllIndexesRemoved();
+        assertNotMarkedAsBuilt(indexName);
+
+        try (Refs<SSTableReader> sstables = Refs.ref(cfs.getSSTables(SSTableSet.CANONICAL)))
+        {
+            cfs.indexManager.handleNotification(new SSTableListChangedNotification(sstables, null, OperationType.REMOTE_RELOAD, Optional.empty()), cfs.getTracker());
+            waitForIndex(KEYSPACE, tableName, indexName); // this is needed because index build on remote reload is async
+            assertMarkedAsBuilt(indexName);
+        }
     }
 
     @Test
@@ -497,6 +542,7 @@ public class SecondaryIndexManagerTest extends CQLTester
         }
         catch (Throwable ex)
         {
+            ex.printStackTrace();
             assertTrue(ex.getMessage().contains("configured to fail"));
         }
         assertFalse(isQueryable(defaultIndexName));

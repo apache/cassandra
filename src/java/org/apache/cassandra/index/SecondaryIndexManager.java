@@ -31,6 +31,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -578,8 +579,20 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     @SuppressWarnings({ "unchecked" })
     private void buildIndexesBlocking(Collection<SSTableReader> sstables, Set<Index> indexes, boolean isFullRebuild)
     {
+        FBUtilities.waitOnFuture(buildIndexesAsync(sstables, indexes, isFullRebuild));
+    }
+
+    /**
+     * Performs an asynchronous (re)indexing of the specified SSTables for the specified indexes.
+     *
+     * @param sstables the SSTables to be (re)indexed
+     * @param indexes the indexes to be (re)built for the specified SSTables
+     * @param isFullRebuild True if this method is invoked as a full index rebuild, false otherwise
+     */
+    private Future<?> buildIndexesAsync(Collection<SSTableReader> sstables, Set<Index> indexes, boolean isFullRebuild)
+    {
         if (indexes.isEmpty())
-            return;
+            return CompletableFuture.completedFuture(null);
 
         // Mark all indexes as building: this step must happen first, because if any index can't be marked, the whole
         // process needs to abort
@@ -589,104 +602,107 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         final Set<Index> builtIndexes = Sets.newConcurrentHashSet();
         final Set<Index> unbuiltIndexes = Sets.newConcurrentHashSet();
 
-        // Any exception thrown during index building that could be suppressed by the finally block
-        Exception accumulatedFail = null;
+        logger.info("Submitting index {} of {} for data in {}",
+                    isFullRebuild ? "recovery" : "build",
+                    commaSeparated(indexes),
+                    sstables.stream().map(SSTableReader::toString).collect(Collectors.joining(",")));
 
+        // Group all building tasks
+        Map<Index.IndexBuildingSupport, Set<Index>> byType = new HashMap<>();
+        for (Index index : indexes)
+        {
+            IndexBuildingSupport buildOrRecoveryTask = isFullRebuild
+                                                       ? index.getBuildTaskSupport()
+                                                       : index.getRecoveryTaskSupport();
+            Set<Index> stored = byType.computeIfAbsent(buildOrRecoveryTask, i -> new HashSet<>());
+            stored.add(index);
+        }
+
+        // Schedule all index building tasks with a callback to mark them as built or failed
+        List<ListenableFuture<?>> futures = new ArrayList<>(byType.size());
+        byType.forEach((buildingSupport, groupedIndexes) ->
+                       {
+                           SecondaryIndexBuilder builder = buildingSupport.getIndexBuildTask(baseCfs, groupedIndexes, sstables, isFullRebuild);
+                           final SettableFuture build = SettableFuture.create();
+                           Futures.addCallback(CompactionManager.instance.submitIndexBuild(builder), new FutureCallback()
+                           {
+                               @Override
+                               public void onFailure(Throwable t)
+                               {
+                                   logAndMarkIndexesFailed(groupedIndexes, t, false);
+                                   unbuiltIndexes.addAll(groupedIndexes);
+                                   build.setException(t);
+                               }
+
+                               @Override
+                               public void onSuccess(Object o)
+                               {
+                                   groupedIndexes.forEach(i -> markIndexBuilt(i, isFullRebuild));
+                                   logger.info("Index build of {} completed", getIndexNames(groupedIndexes));
+                                   builtIndexes.addAll(groupedIndexes);
+                                   build.set(o);
+                               }
+                           }, MoreExecutors.directExecutor());
+                           futures.add(build);
+                       });
+
+        ListenableFuture<List<Object>> allIndexBuilds = Futures.allAsList(futures);
+        SettableFuture finalResult = SettableFuture.create();
+        allIndexBuilds.addListener(() -> {
+            try
+            {
+                finalizeIndexBuild(indexes, builtIndexes, unbuiltIndexes);
+                finalResult.setFuture(allIndexBuilds);
+            }
+            catch (Exception ex)
+            {
+                finalResult.setException(ex);
+            }
+        }, MoreExecutors.directExecutor());
+        return finalResult;
+    }
+
+    private void finalizeIndexBuild(Set<Index> indexes, Set<Index> builtIndexes, Set<Index> unbuiltIndexes)
+    {
+        Exception accumulatedFail = null;
         try
         {
-            logger.info("Submitting index {} of {} for data in {}",
-                        isFullRebuild ? "recovery" : "build",
-                        commaSeparated(indexes),
-                        sstables.stream().map(SSTableReader::toString).collect(Collectors.joining(",")));
-
-            // Group all building tasks
-            Map<Index.IndexBuildingSupport, Set<Index>> byType = new HashMap<>();
-            for (Index index : indexes)
+            // Fail any indexes that couldn't be marked
+            Set<Index> failedIndexes = Sets.difference(indexes, Sets.union(builtIndexes, unbuiltIndexes));
+            if (!failedIndexes.isEmpty())
             {
-                IndexBuildingSupport buildOrRecoveryTask = isFullRebuild
-                                                           ? index.getBuildTaskSupport()
-                                                           : index.getRecoveryTaskSupport();
-                Set<Index> stored = byType.computeIfAbsent(buildOrRecoveryTask, i -> new HashSet<>());
-                stored.add(index);
+                logAndMarkIndexesFailed(failedIndexes, accumulatedFail, false);
             }
 
-            // Schedule all index building tasks with a callback to mark them as built or failed
-            List<Future<?>> futures = new ArrayList<>(byType.size());
-            byType.forEach((buildingSupport, groupedIndexes) ->
-                           {
-                               SecondaryIndexBuilder builder = buildingSupport.getIndexBuildTask(baseCfs, groupedIndexes, sstables, isFullRebuild);
-                               final SettableFuture build = SettableFuture.create();
-                               Futures.addCallback(CompactionManager.instance.submitIndexBuild(builder), new FutureCallback()
-                               {
-                                   @Override
-                                   public void onFailure(Throwable t)
-                                   {
-                                       logAndMarkIndexesFailed(groupedIndexes, t, false);
-                                       unbuiltIndexes.addAll(groupedIndexes);
-                                       build.setException(t);
-                                   }
+            // Flush all built indexes with an aynchronous callback to log the success or failure of the flush
+            flushIndexesBlocking(builtIndexes, new FutureCallback()
+            {
+                String indexNames = StringUtils.join(builtIndexes.stream()
+                                                                 .map(i -> i.getIndexMetadata().name)
+                                                                 .collect(Collectors.toList()), ',');
 
-                                   @Override
-                                   public void onSuccess(Object o)
-                                   {
-                                       groupedIndexes.forEach(i -> markIndexBuilt(i, isFullRebuild));
-                                       logger.info("Index build of {} completed", getIndexNames(groupedIndexes));
-                                       builtIndexes.addAll(groupedIndexes);
-                                       build.set(o);
-                                   }
-                               }, MoreExecutors.directExecutor());
-                               futures.add(build);
-                           });
+                @Override
+                public void onFailure(Throwable ignored)
+                {
+                    logger.info("Index flush of {} failed", indexNames);
+                }
 
-            // Finally wait for the index builds to finish and flush the indexes that built successfully
-            FBUtilities.waitOnFutures(futures);
+                @Override
+                public void onSuccess(Object ignored)
+                {
+                    logger.info("Index flush of {} completed", indexNames);
+                }
+            });
         }
         catch (Exception e)
         {
-            accumulatedFail = e;
-            throw e;
-        }
-        finally
-        {
-            try
+            if (accumulatedFail != null)
             {
-                // Fail any indexes that couldn't be marked
-                Set<Index> failedIndexes = Sets.difference(indexes, Sets.union(builtIndexes, unbuiltIndexes));
-                if (!failedIndexes.isEmpty())
-                {
-                    logAndMarkIndexesFailed(failedIndexes, accumulatedFail, false);
-                }
-
-                // Flush all built indexes with an aynchronous callback to log the success or failure of the flush
-                flushIndexesBlocking(builtIndexes, new FutureCallback()
-                {
-                    String indexNames = StringUtils.join(builtIndexes.stream()
-                                                                     .map(i -> i.getIndexMetadata().name)
-                                                                     .collect(Collectors.toList()), ',');
-
-                    @Override
-                    public void onFailure(Throwable ignored)
-                    {
-                        logger.info("Index flush of {} failed", indexNames);
-                    }
-
-                    @Override
-                    public void onSuccess(Object ignored)
-                    {
-                        logger.info("Index flush of {} completed", indexNames);
-                    }
-                });
+                accumulatedFail.addSuppressed(e);
             }
-            catch (Exception e)
+            else
             {
-                if (accumulatedFail != null)
-                {
-                    accumulatedFail.addSuppressed(e);
-                }
-                else
-                {
-                    throw e;
-                }
+                throw e;
             }
         }
     }
@@ -1745,12 +1761,26 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
 
             // SSTables asociated to a memtable come from a flush, so their contents have already been indexed
             if (!notice.memtable().isPresent())
-                buildIndexesBlocking(Lists.newArrayList(notice.added),
-                                     indexes.values()
-                                            .stream()
-                                            .filter(Index::shouldBuildBlocking)
-                                            .collect(Collectors.toSet()),
-                                     false);
+            {
+                if (notice.operationType == OperationType.REMOTE_RELOAD)
+                {
+                    buildIndexesAsync(Lists.newArrayList(notice.added),
+                                      indexes.values()
+                                             .stream()
+                                             .filter(Index::shouldBuildBlocking)
+                                             .collect(Collectors.toSet()),
+                                      false);
+                }
+                else
+                {
+                    buildIndexesBlocking(Lists.newArrayList(notice.added),
+                                         indexes.values()
+                                                .stream()
+                                                .filter(Index::shouldBuildBlocking)
+                                                .collect(Collectors.toSet()),
+                                         false);
+                }
+            }
         }
         else if (notification instanceof SSTableListChangedNotification)
         {
@@ -1758,7 +1788,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             SSTableListChangedNotification notice = (SSTableListChangedNotification) notification;
             if (notice.operationType == OperationType.REMOTE_RELOAD)
             {
-                buildIndexesBlocking(Lists.newArrayList(notice.added),
+                buildIndexesAsync(Lists.newArrayList(notice.added),
                                      indexes.values()
                                             .stream()
                                             .filter(Index::shouldBuildBlocking)

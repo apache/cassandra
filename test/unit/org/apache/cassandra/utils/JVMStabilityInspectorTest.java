@@ -217,4 +217,10 @@ public class JVMStabilityInspectorTest
         Mockito.verify(globalHandler).accept(Mockito.eq(suppressedThrowable));
         Mockito.verify(globalHandler).accept(Mockito.eq(causeThrowable));
     }
+
+    @Test
+    public void testInspectingNull()
+    {
+        JVMStabilityInspector.inspectThrowable(null);
+    }
 }
