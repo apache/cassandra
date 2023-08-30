@@ -158,12 +158,12 @@ public class IndexConsistencyTest extends TestBaseImpl
 
         executeIsolated(1, "UPDATE %s SET v = 'New' WHERE k1=0 and k2=0");
 
-        assertEmpty("SELECT * FROM %s WHERE v = 'Old'");
-        assertEmpty("SELECT * FROM %s WHERE v = 'old'");
+        assertEmpty("SELECT * FROM %s WHERE v : 'Old'");
+        assertEmpty("SELECT * FROM %s WHERE v : 'old'");
 
-        assertRows("SELECT * FROM %s WHERE v = 'NEW'", row(0, 0, "New", "0"));
-        assertRows("SELECT * FROM %s WHERE v = 'NEW' and v1 ='0' ALLOW FILTERING", row(0, 0, "New", "0"));
-        assertEmpty("SELECT * FROM %s WHERE v = 'NEW' and v1 ='1' ALLOW FILTERING");
+        assertRows("SELECT * FROM %s WHERE v : 'NEW'", row(0, 0, "New", "0"));
+        assertRows("SELECT * FROM %s WHERE v : 'NEW' and v1 ='0' ALLOW FILTERING", row(0, 0, "New", "0"));
+        assertEmpty("SELECT * FROM %s WHERE v : 'NEW' and v1 ='1' ALLOW FILTERING");
     }
 
     @Test
@@ -176,11 +176,11 @@ public class IndexConsistencyTest extends TestBaseImpl
 
         executeIsolated(1, "UPDATE %s SET v = '\u0061\u0301bc' WHERE k1=0 and k2=0");
 
-        assertEmpty("SELECT * FROM %s WHERE v = '\u0061\u0301bc' and v1 ='1' ALLOW FILTERING");
-        assertRows("SELECT * FROM %s WHERE v = '\u0061\u0301bc' and v1 ='0' ALLOW FILTERING",
+        assertEmpty("SELECT * FROM %s WHERE v : '\u0061\u0301bc' and v1 ='1' ALLOW FILTERING");
+        assertRows("SELECT * FROM %s WHERE v : '\u0061\u0301bc' and v1 ='0' ALLOW FILTERING",
                    row(0, 0, "\u0061\u0301bc", "0"));
-        assertRows("SELECT * FROM %s WHERE v = '\u00E1bc'", row(0, 0, "\u0061\u0301bc", "0"));
-        assertRows("SELECT * FROM %s WHERE v = '\u0061\u0301bc'", row(0, 0, "\u0061\u0301bc", "0"));
+        assertRows("SELECT * FROM %s WHERE v : '\u00E1bc'", row(0, 0, "\u0061\u0301bc", "0"));
+        assertRows("SELECT * FROM %s WHERE v : '\u0061\u0301bc'", row(0, 0, "\u0061\u0301bc", "0"));
     }
 
     @Test
@@ -193,11 +193,11 @@ public class IndexConsistencyTest extends TestBaseImpl
 
         executeIsolated(1, "UPDATE %s SET v = '\u0061\u0301bC' WHERE k1=0 and k2=0");
 
-        assertEmpty("SELECT * FROM %s WHERE v = '\u0061\u0301bc' and v1 ='1' ALLOW FILTERING");
-        assertRows("SELECT * FROM %s WHERE v = '\u0061\u0301bc' and v1 ='0' ALLOW FILTERING",
+        assertEmpty("SELECT * FROM %s WHERE v : '\u0061\u0301bc' and v1 ='1' ALLOW FILTERING");
+        assertRows("SELECT * FROM %s WHERE v : '\u0061\u0301bc' and v1 ='0' ALLOW FILTERING",
                    row(0, 0, "\u0061\u0301bC", "0"));
-        assertRows("SELECT * FROM %s WHERE v = '\u00E1Bc'", row(0, 0, "\u0061\u0301bC", "0"));
-        assertRows("SELECT * FROM %s WHERE v = '\u0061\u0301Bc'", row(0, 0, "\u0061\u0301bC", "0"));
+        assertRows("SELECT * FROM %s WHERE v : '\u00E1Bc'", row(0, 0, "\u0061\u0301bC", "0"));
+        assertRows("SELECT * FROM %s WHERE v : '\u0061\u0301Bc'", row(0, 0, "\u0061\u0301bC", "0"));
     }
 
     @Test
