@@ -23,7 +23,10 @@ import org.junit.Test;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
+import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.membership.NodeState;
@@ -60,5 +63,36 @@ public class RemoveNodeTest extends TestBaseImpl
             });
 
         }
+    }
+
+    @Test
+    public void removeNodeWithNoStreamingRequired() throws Exception
+    {
+        // 2 node cluster, keyspaces have RF=2. If we removenode(node2), then no outbound streams are created
+        // as all the data is already fully replicated to node1. In this case, ensure that RemoveNodeStreams
+        // doesn't hang indefinitely.
+        try (Cluster cluster = init(Cluster.build(2)
+                                           .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(2, "dc0", "rack0"))
+                                           .withConfig(config -> config.set("default_keyspace_rf", "2")
+                                                                       .with(Feature.NETWORK, Feature.GOSSIP))
+                                           .start()))
+        {
+            int toRemove = cluster.get(2).callOnInstance(() -> ClusterMetadata.current().myNodeId().id());
+            cluster.get(2).shutdown(false).get();
+
+            cluster.get(1).runOnInstance(() -> {
+                NodeId nodeId = new NodeId(toRemove);
+                InetAddressAndPort endpoint = ClusterMetadata.current().directory.endpoint(nodeId);
+                FailureDetector.instance.forceConviction(endpoint);
+                StorageService.instance.removeNode(nodeId, true);
+            });
+
+            cluster.get(1).runOnInstance(() -> {
+                ClusterMetadata metadata = ClusterMetadata.current();
+                assertTrue(metadata.inProgressSequences.isEmpty());
+                assertTrue(metadata.directory.peerState(new NodeId(toRemove)) == NodeState.LEFT);
+            });
+        }
+
     }
 }
