@@ -372,7 +372,9 @@ public enum CassandraRelevantProperties
     TABLE_METRICS_DEFAULT_HISTOGRAMS_AGGREGATION("cassandra.table_metrics_default_histograms_aggregation", TableMetrics.MetricsAggregation.INDIVIDUAL.name()),
     // Determines if table metrics should be also exported to shared global metric
     TABLE_METRICS_EXPORT_GLOBALS("cassandra.table_metrics_export_globals", "true"),
-    CUSTOM_HINTS_RATE_LIMITER_FACTORY("cassandra.custom_hints_rate_limiter_factory");
+    CUSTOM_HINTS_RATE_LIMITER_FACTORY("cassandra.custom_hints_rate_limiter_factory"),
+
+    CUSTOM_INDEX_BUILD_DECIDER("cassandra.custom_index_build_decider");
 
     CassandraRelevantProperties(String key, String defaultVal)
     {

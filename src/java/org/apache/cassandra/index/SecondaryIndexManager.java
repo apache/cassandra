@@ -298,7 +298,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         {
             try
             {
-                initialBuildTask = index.getInitializationTask();
+                initialBuildTask = IndexBuildDecider.instance.onInitialBuild().skipped() ? null : index.getInitializationTask();
             }
             catch (Throwable t)
             {
@@ -307,10 +307,11 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             }
         }
 
-        // if there's no initialization, just mark as built and return:
+        // if there's no initialization, just mark as built (if not skipped) and return:
         if (initialBuildTask == null)
         {
-            markIndexBuilt(index, true);
+            if (!IndexBuildDecider.instance.onInitialBuild().skipped())
+                markIndexBuilt(index, true);
             return Futures.immediateFuture(null);
         }
 
@@ -1760,42 +1761,38 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         {
             SSTableAddedNotification notice = (SSTableAddedNotification) notification;
 
-            // SSTables asociated to a memtable come from a flush, so their contents have already been indexed
-            if (!notice.memtable().isPresent())
-            {
-                if (notice.operationType == OperationType.REMOTE_RELOAD)
-                {
-                    buildIndexesAsync(Lists.newArrayList(notice.added),
-                                      indexes.values()
-                                             .stream()
-                                             .filter(Index::shouldBuildBlocking)
-                                             .collect(Collectors.toSet()),
-                                      false);
-                }
-                else
-                {
-                    buildIndexesBlocking(Lists.newArrayList(notice.added),
-                                         indexes.values()
-                                                .stream()
-                                                .filter(Index::shouldBuildBlocking)
-                                                .collect(Collectors.toSet()),
-                                         false);
-                }
-            }
+            IndexBuildDecider.Decision decision = IndexBuildDecider.instance.onSSTableAdded(notice);
+            build(decision, notice.added, false);
         }
         else if (notification instanceof SSTableListChangedNotification)
         {
-            // when reloading remote sstables, index may not be built
-            SSTableListChangedNotification notice = (SSTableListChangedNotification) notification;
-            if (notice.operationType == OperationType.REMOTE_RELOAD)
-            {
-                buildIndexesAsync(Lists.newArrayList(notice.added),
-                                     indexes.values()
-                                            .stream()
-                                            .filter(Index::shouldBuildBlocking)
-                                            .collect(Collectors.toSet()),
-                                     false);
-            }
+
+            IndexBuildDecider.Decision decision = IndexBuildDecider.instance.onSSTableListChanged(notice);
+            build(decision, notice.added, false);
+        }
+    }
+
+    private void build(IndexBuildDecider.Decision decision, Iterable<SSTableReader> sstables, boolean onlyIndexWithComponents)
+    {
+        if (decision == IndexBuildDecider.Decision.ASYNC)
+        {
+            buildIndexesAsync(Lists.newArrayList(sstables),
+                              indexes.values()
+                                     .stream()
+                                     .filter(Index::shouldBuildBlocking)
+                                     .filter(i -> !onlyIndexWithComponents || !i.getComponents().isEmpty())
+                                     .collect(Collectors.toSet()),
+                              false);
+        }
+        else if (decision == IndexBuildDecider.Decision.SYNC)
+        {
+            buildIndexesBlocking(Lists.newArrayList(sstables),
+                                 indexes.values()
+                                        .stream()
+                                        .filter(Index::shouldBuildBlocking)
+                                        .filter(i -> !onlyIndexWithComponents || !i.getComponents().isEmpty())
+                                        .collect(Collectors.toSet()),
+                                 false);
         }
     }
 

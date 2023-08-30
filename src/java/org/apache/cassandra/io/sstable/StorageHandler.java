@@ -67,7 +67,9 @@ public abstract class StorageHandler
         /** A request over forced by users to reload. */
         USER_REQUESTED(true),
         /** When region status changed */
-        REGION_CHANGED(false);
+        REGION_CHANGED(false),
+        /** When index is built */
+        INDEX_BUILT(false);
 
         /** When this is true, a reload operation will reload all sstables even those that could
          * have been flushed by other nodes. */
