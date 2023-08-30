@@ -79,13 +79,10 @@ public class CompactionController implements AutoCloseable
              cfs.getCompactionStrategyManager().getCompactionParams().tombstoneOption());
     }
 
-    /**
-     * Make sure all parameters are properly initialized
-     *
-     * Do not call ignoreOverlaps() in constructor
-     */
     public CompactionController(ColumnFamilyStore cfs, Set<SSTableReader> compacting, int gcBefore, RateLimiter limiter, TombstoneOption tombstoneOption)
     {
+        //When making changes to the method, be aware that some of the state of the controller may still be uninitialized
+        //(e.g. TWCS sets up the value of ignoreOverlaps() after this completes)
         assert cfs != null;
         this.cfs = cfs;
         this.gcBefore = gcBefore;
