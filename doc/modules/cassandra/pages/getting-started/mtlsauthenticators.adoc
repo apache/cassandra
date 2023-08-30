@@ -66,6 +66,59 @@ authenticator:
 After the bounce, C* will accept mTLS connections from the clients and if their
 identity is present in the `identity_to_roles` table, access will be granted.
 
+== Configuring mTLS with password fallback authenticator for client connections
+
+Operators that wish to migrate cannot immediately change the configuration to require
+mTLS authentication as it will break existing non-mTLS based clients of the cluster.
+In order to make a smooth transition from non-mTLS based authentication to mTLS authentication,
+the operator can run Cassandra in optional mTLS mode and configure authenticator to be
+`MutualTlsWithPasswordFallbackAuthenticator` which can accept both certificate based
+and password based connections.
+
+Below are the steps to configure C* in optional mTLS mode with fallback authenticator.
+Note that the following steps uses SPIFFE identity as an example, If you are using
+a custom validator, use appropriate identity in place of `spiffe://testdomain.com/testIdentifier/testValue`.
+
+*STEP 1: Add authorized users to system_auth.identity_to_roles table*
+
+Note that only users with permissions to create/modify roles can add/remove identities.
+Client certificates with the identities in this table will be trusted by C*.
+[source, plaintext]
+----
+ADD IDENTITY 'spiffe://testdomain.com/testIdentifier/testValue' TO ROLE 'read_only_user'
+----
+
+*STEP 2: Configure Cassandra.yaml with right properties*
+
+`client_encryption_options` configuration for mTLS connections, Note that require_client_auth configuration
+is optional.
+[source, plaintext]
+----
+client_encryption_options:
+  enabled: true
+  optional: true
+  keystore: conf/.keystore
+  keystore_password: cassandra
+  truststore: conf/.truststore
+  truststore_password: cassandra
+  require_client_auth: optional // to enable mTLS in optional mode
+----
+Configure fallback authenticator and the validator for client connections . If you are
+implementing a custom validator, use that instead of Spiffe validator
+[source, plaintext]
+----
+authenticator:
+  class_name : org.apache.cassandra.auth.MutualTlsWithPasswordFallbackAuthenticator
+  parameters :
+    validator_class_name: org.apache.cassandra.auth.SpiffeCertificateValidator
+----
+
+*STEP 3: Bounce the cluster*
+
+After the bounce, C* will accept both mTLS connections and password based connections from
+the clients. This configuration should be used during transition phase and the require_client_auth
+configuration should be set to true when all the clients start making mTLS connections to the cluster.
+
 == Configuring mTLS authenticator for Internode connections
 
 Internode authenticator trusts certificates whose identities are present in

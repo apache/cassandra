@@ -41,6 +41,8 @@ import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.stress.settings.StressSettings;
 
+import static org.apache.cassandra.config.EncryptionOptions.ClientAuth.REQUIRED;
+
 public class JavaDriverClient
 {
 
@@ -161,7 +163,7 @@ public class JavaDriverClient
         if (encryptionOptions.getEnabled())
         {
             SSLContext sslContext;
-            sslContext = SSLFactory.createSSLContext(encryptionOptions, true);
+            sslContext = SSLFactory.createSSLContext(encryptionOptions, REQUIRED);
 
             // Temporarily override newSSLEngine to set accepted protocols until it is added to
             // RemoteEndpointAwareJdkSSLOptions.  See CASSANDRA-13325 and CASSANDRA-16362.

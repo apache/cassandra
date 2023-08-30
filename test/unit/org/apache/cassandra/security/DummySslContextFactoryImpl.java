@@ -25,6 +25,7 @@ import javax.net.ssl.SSLException;
 
 import io.netty.handler.ssl.CipherSuiteFilter;
 import io.netty.handler.ssl.SslContext;
+import org.apache.cassandra.config.EncryptionOptions;
 
 /**
  * TEST ONLY Class. DON'T use it for anything else.
@@ -43,7 +44,19 @@ public class DummySslContextFactoryImpl implements ISslContextFactory
     }
 
     @Override
-    public SslContext createNettySslContext(boolean verifyPeerCertificate, SocketType socketType,
+    public SSLContext createJSSESslContext(EncryptionOptions.ClientAuth clientAuth) throws SSLException
+    {
+        return null;
+    }
+
+    @Override
+    public SslContext createNettySslContext(boolean verifyPeerCertificate, SocketType socketType, CipherSuiteFilter cipherFilter) throws SSLException
+    {
+        return null;
+    }
+
+    @Override
+    public SslContext createNettySslContext(EncryptionOptions.ClientAuth clientAuth, SocketType socketType,
                                             CipherSuiteFilter cipherFilter) throws SSLException
     {
         return null;

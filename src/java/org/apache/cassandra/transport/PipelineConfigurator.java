@@ -168,7 +168,7 @@ public class PipelineConfigurator
                 logger.debug("Enabling optionally encrypted CQL connections between client and server");
                 return channel -> {
                     SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions,
-                                                                             encryptionOptions.require_client_auth,
+                                                                             encryptionOptions.getClientAuth(),
                                                                              ISslContextFactory.SocketType.SERVER,
                                                                              SSL_FACTORY_CONTEXT_DESCRIPTION);
 
@@ -204,7 +204,7 @@ public class PipelineConfigurator
                 logger.debug("Enabling encrypted CQL connections between client and server");
                 return channel -> {
                     SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions,
-                                                                             encryptionOptions.require_client_auth,
+                                                                             encryptionOptions.getClientAuth(),
                                                                              ISslContextFactory.SocketType.SERVER,
                                                                              SSL_FACTORY_CONTEXT_DESCRIPTION);
                     InetSocketAddress peer = encryptionOptions.require_endpoint_verification ? (InetSocketAddress) channel.remoteAddress() : null;
