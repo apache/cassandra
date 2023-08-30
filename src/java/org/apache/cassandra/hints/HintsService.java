@@ -430,4 +430,22 @@ public final class HintsService implements HintsServiceMBean
     {
         return dispatchExecutor;
     }
+
+    // used by CNDB
+    public void updateDispatcherConcurrency(int concurrency)
+    {
+        dispatchExecutor.updateDispatcherConcurrency(concurrency);
+    }
+
+    // used by CNDB
+    public int getDispatcherCorePoolSize()
+    {
+        return dispatchExecutor.getDispatcherCorePoolSize();
+    }
+
+    // used by CNDB
+    public int getDispatcherMaxPoolSize()
+    {
+        return dispatchExecutor.getDispatcherMaxPoolSize();
+    }
 }
