@@ -478,7 +478,7 @@ public class QueryProcessor implements QueryHandler
             }
             Future<List<Message<ReadResponse>>> future = FutureCombiner.allOf(commands.stream()
                                                                                       .map(rc -> Message.out(rc.verb(), rc))
-                                                                                      .map(m -> MessagingService.instance().<ReadResponse>sendWithResult(m, address))
+                                                                                      .map(m -> MessagingService.instance().<ReadCommand, ReadResponse>sendWithResult(m, address))
                                                                                       .collect(Collectors.toList()));
 
             ResultSetBuilder result = new ResultSetBuilder(select.getResultMetadata(), select.getSelection().newSelectors(options), false);

@@ -106,7 +106,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
         MockMessagingSpy spyCommit = createCommitSpy();
 
         TimeUUID uuid = registerSession(cfs, true, true);
-        CoordinatorSession coordinator = ActiveRepairService.instance.consistent.coordinated.registerSession(uuid, PARTICIPANTS, false);
+        CoordinatorSession coordinator = ActiveRepairService.instance().consistent.coordinated.registerSession(uuid, PARTICIPANTS, false);
         AtomicBoolean repairSubmitted = new AtomicBoolean(false);
         Promise<CoordinatedRepairResult> repairFuture = AsyncPromise.uncancellable();
         Supplier<Future<CoordinatedRepairResult>> sessionSupplier = () ->
@@ -144,7 +144,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
         spyCommit.interceptNoMsg(100, TimeUnit.MILLISECONDS);
 
         Assert.assertEquals(ConsistentSession.State.FINALIZED, coordinator.getState());
-        Assert.assertFalse(ActiveRepairService.instance.consistent.local.isSessionInProgress(uuid));
+        Assert.assertFalse(ActiveRepairService.instance().consistent.local.isSessionInProgress(uuid));
     }
 
 
@@ -194,7 +194,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
         MockMessagingSpy sendFailSessionExpectedSpy = createFailSessionSpy(Lists.newArrayList(PARTICIPANT1, PARTICIPANT2, PARTICIPANT3));
 
         TimeUUID uuid = registerSession(cfs, true, true);
-        CoordinatorSession coordinator = ActiveRepairService.instance.consistent.coordinated.registerSession(uuid, PARTICIPANTS, false);
+        CoordinatorSession coordinator = ActiveRepairService.instance().consistent.coordinated.registerSession(uuid, PARTICIPANTS, false);
         AtomicBoolean repairSubmitted = new AtomicBoolean(false);
         Promise<CoordinatedRepairResult> repairFuture = AsyncPromise.uncancellable();
         Supplier<Future<CoordinatedRepairResult>> sessionSupplier = () ->
@@ -223,7 +223,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
         Assert.assertTrue(sessionResult.isDone());
         Assert.assertNotNull(sessionResult.cause());
         Assert.assertEquals(ConsistentSession.State.FAILED, coordinator.getState());
-        Assert.assertFalse(ActiveRepairService.instance.consistent.local.isSessionInProgress(uuid));
+        Assert.assertFalse(ActiveRepairService.instance().consistent.local.isSessionInProgress(uuid));
     }
 
     @Test
@@ -233,7 +233,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
         MockMessagingSpy sendFailSessionUnexpectedSpy = createFailSessionSpy(Lists.newArrayList(PARTICIPANT1, PARTICIPANT2, PARTICIPANT3));
 
         TimeUUID uuid = registerSession(cfs, true, true);
-        CoordinatorSession coordinator = ActiveRepairService.instance.consistent.coordinated.registerSession(uuid, PARTICIPANTS, false);
+        CoordinatorSession coordinator = ActiveRepairService.instance().consistent.coordinated.registerSession(uuid, PARTICIPANTS, false);
         AtomicBoolean repairSubmitted = new AtomicBoolean(false);
         Promise<CoordinatedRepairResult> repairFuture = AsyncPromise.uncancellable();
         Supplier<Future<CoordinatedRepairResult>> sessionSupplier = () ->
@@ -265,7 +265,7 @@ public class CoordinatorMessagingTest extends AbstractRepairTest
         sendFailSessionUnexpectedSpy.interceptNoMsg(100, TimeUnit.MILLISECONDS);
         Assert.assertFalse(repairSubmitted.get());
         Assert.assertEquals(ConsistentSession.State.PREPARING, coordinator.getState());
-        Assert.assertFalse(ActiveRepairService.instance.consistent.local.isSessionInProgress(uuid));
+        Assert.assertFalse(ActiveRepairService.instance().consistent.local.isSessionInProgress(uuid));
     }
 
     private MockMessagingSpy createPrepareSpy(Collection<InetAddressAndPort> failed,

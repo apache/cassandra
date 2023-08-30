@@ -116,7 +116,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
  * This class is not threadsafe and any state changes should happen in the gossip stage.
  */
 
-public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
+public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, IGossiper
 {
     public static final String MBEAN_NAME = "org.apache.cassandra.net:type=Gossiper";
 
@@ -448,6 +448,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      *
      * @param subscriber module which implements the IEndpointStateChangeSubscriber
      */
+    @Override
     public void register(IEndpointStateChangeSubscriber subscriber)
     {
         subscribers.add(subscriber);
@@ -458,6 +459,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
      *
      * @param subscriber module which implements the IEndpointStateChangeSubscriber
      */
+    @Override
     public void unregister(IEndpointStateChangeSubscriber subscriber)
     {
         subscribers.remove(subscriber);
@@ -1147,6 +1149,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return storedTime == null ? computeExpireTime() : storedTime;
     }
 
+    @Override
     public EndpointState getEndpointStateForEndpoint(InetAddressAndPort ep)
     {
         return endpointStateMap.get(ep);
@@ -2317,13 +2320,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     public static long computeExpireTime()
     {
         return currentTimeMillis() + aVeryLongTime;
-    }
-
-    @Nullable
-    public CassandraVersion getReleaseVersion(InetAddressAndPort ep)
-    {
-        EndpointState state = getEndpointStateForEndpoint(ep);
-        return state != null ? state.getReleaseVersion() : null;
     }
 
     public Map<String, List<String>> getReleaseVersionsWithPort()

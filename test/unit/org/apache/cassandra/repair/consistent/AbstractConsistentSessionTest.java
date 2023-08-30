@@ -81,14 +81,14 @@ public abstract class AbstractConsistentSessionTest
     {
         TimeUUID sessionId = nextTimeUUID();
 
-        ActiveRepairService.instance.registerParentRepairSession(sessionId,
-                                                                 COORDINATOR,
-                                                                 Lists.newArrayList(cfs),
-                                                                 Sets.newHashSet(RANGE1, RANGE2, RANGE3),
-                                                                 true,
-                                                                 System.currentTimeMillis(),
-                                                                 true,
-                                                                 PreviewKind.NONE);
+        ActiveRepairService.instance().registerParentRepairSession(sessionId,
+                                                                   COORDINATOR,
+                                                                   Lists.newArrayList(cfs),
+                                                                   Sets.newHashSet(RANGE1, RANGE2, RANGE3),
+                                                                   true,
+                                                                   System.currentTimeMillis(),
+                                                                   true,
+                                                                   PreviewKind.NONE);
         return sessionId;
     }
 }

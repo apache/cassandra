@@ -35,6 +35,7 @@ import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
@@ -112,11 +113,11 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
     }
 
     @VisibleForTesting
-    public static synchronized Refs<SSTableReader> getSSTablesToValidate(ColumnFamilyStore cfs, Collection<Range<Token>> ranges, TimeUUID parentId, boolean isIncremental) throws NoSuchRepairSessionException
+    public static synchronized Refs<SSTableReader> getSSTablesToValidate(ColumnFamilyStore cfs, SharedContext ctx, Collection<Range<Token>> ranges, TimeUUID parentId, boolean isIncremental) throws NoSuchRepairSessionException
     {
         Refs<SSTableReader> sstables;
 
-        ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(parentId);
+        ActiveRepairService.ParentRepairSession prs = ctx.repair().getParentRepairSession(parentId);
 
         Set<SSTableReader> sstablesToValidate = new HashSet<>();
 
@@ -158,6 +159,7 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
     }
 
     private final ColumnFamilyStore cfs;
+    private final SharedContext ctx;
     private final Refs<SSTableReader> sstables;
     private final String snapshotName;
     private final boolean isGlobalSnapshotValidation;
@@ -172,9 +174,10 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
     private final long estimatedPartitions;
     private final Map<Range<Token>, Long> rangePartitionCounts;
 
-    public CassandraValidationIterator(ColumnFamilyStore cfs, Collection<Range<Token>> ranges, TimeUUID parentId, TimeUUID sessionID, boolean isIncremental, long nowInSec, TopPartitionTracker.Collector topPartitionCollector) throws IOException, NoSuchRepairSessionException
+    public CassandraValidationIterator(ColumnFamilyStore cfs, SharedContext ctx, Collection<Range<Token>> ranges, TimeUUID parentId, TimeUUID sessionID, boolean isIncremental, long nowInSec, TopPartitionTracker.Collector topPartitionCollector) throws IOException, NoSuchRepairSessionException
     {
         this.cfs = cfs;
+        this.ctx = ctx;
 
         isGlobalSnapshotValidation = cfs.snapshotExists(parentId.toString());
         if (isGlobalSnapshotValidation)
@@ -198,7 +201,7 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
                 cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.VALIDATION);
                 // Note: we also flush for incremental repair during the anti-compaction process.
             }
-            sstables = getSSTablesToValidate(cfs, ranges, parentId, isIncremental);
+            sstables = getSSTablesToValidate(cfs, ctx, ranges, parentId, isIncremental);
         }
 
         // Persistent memtables will not flush or snapshot to sstables, make an sstable with their data.
@@ -208,7 +211,7 @@ public class CassandraValidationIterator extends ValidationPartitionIterator
 
         Preconditions.checkArgument(sstables != null);
 
-        ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(parentId);
+        ActiveRepairService.ParentRepairSession prs = ctx.repair().getParentRepairSession(parentId);
         logger.info("{}, parentSessionId={}: Performing validation compaction on {} sstables in {}.{}",
                     prs.previewKind.logPrefix(sessionID),
                     parentId,

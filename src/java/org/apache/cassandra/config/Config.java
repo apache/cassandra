@@ -1105,6 +1105,8 @@ public class Config
     public volatile long min_tracked_partition_tombstone_count = 5000;
     public volatile boolean top_partitions_enabled = true;
 
+    public final RepairConfig repair = new RepairConfig();
+
     /**
      * Default compaction configuration, used if a table does not specify any.
      */

@@ -1015,7 +1015,7 @@ public class MerkleTree
         default void serialize(DataOutputPlus out, int version) throws IOException
         {
             byte[] hash = hash();
-            assert hash.length == HASH_SIZE;
+            assert hash.length == HASH_SIZE: String.format("Expected hash length to be %d, but given %d", HASH_SIZE, hash.length);
 
             out.writeByte(Leaf.IDENT);
 

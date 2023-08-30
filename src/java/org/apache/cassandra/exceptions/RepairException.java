@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.exceptions;
 
+import javax.annotation.Nullable;
+
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.streaming.PreviewKind;
 
@@ -27,9 +29,9 @@ public class RepairException extends Exception
 {
     private final boolean shouldLogWarn;
 
-    private RepairException(RepairJobDesc desc, PreviewKind previewKind, String message, boolean shouldLogWarn)
+    private RepairException(@Nullable RepairJobDesc desc, PreviewKind previewKind, String message, boolean shouldLogWarn)
     {
-        this(desc.toString(previewKind != null ? previewKind : PreviewKind.NONE) + ' ' + message, shouldLogWarn);
+        this((desc == null ? "" : desc.toString(previewKind != null ? previewKind : PreviewKind.NONE)) + ' ' + message, shouldLogWarn);
     }
 
     private RepairException(String msg, boolean shouldLogWarn)
@@ -38,12 +40,12 @@ public class RepairException extends Exception
         this.shouldLogWarn = shouldLogWarn;
     }
 
-    public static RepairException error(RepairJobDesc desc, PreviewKind previewKind, String message)
+    public static RepairException error(@Nullable RepairJobDesc desc, PreviewKind previewKind, String message)
     {
         return new RepairException(desc, previewKind, message, false);
     }
 
-    public static RepairException warn(RepairJobDesc desc, PreviewKind previewKind, String message)
+    public static RepairException warn(@Nullable RepairJobDesc desc, PreviewKind previewKind, String message)
     {
         return new RepairException(desc, previewKind, message, true);
     }

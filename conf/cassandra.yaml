@@ -723,6 +723,20 @@ memtable_allocation_type: heap_buffers
 # Min unit: MiB
 # repair_session_space:
 
+# Configure the retries for each of the repair messages that support it.
+#
+# For more details see https://issues.apache.org/jira/browse/CASSANDRA-18816
+#
+# repair:
+#   retries:
+#     max_attempts: 10
+#     base_sleep_time: 200ms
+#     max_sleep_time: 1s
+#     # Increase the timeout of validation responses due to them containing the merkle tree
+#     merkle_tree_response:
+#       base_sleep_time: 30s
+#       max_sleep_time: 1m
+
 # Total space to use for commit logs on disk.
 #
 # If space gets above this value, Cassandra will flush every dirty CF

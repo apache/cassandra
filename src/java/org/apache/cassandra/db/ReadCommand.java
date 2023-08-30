@@ -981,13 +981,13 @@ public abstract class ReadCommand extends AbstractReadQuery
             TimeUUID pendingRepair = sstable.getPendingRepair();
             if (pendingRepair != ActiveRepairService.NO_PENDING_REPAIR)
             {
-                if (ActiveRepairService.instance.consistent.local.isSessionFinalized(pendingRepair))
+                if (ActiveRepairService.instance().consistent.local.isSessionFinalized(pendingRepair))
                     return true;
 
                 // In the edge case where compaction is backed up long enough for the session to
                 // timeout and be purged by LocalSessions::cleanup, consider the sstable unrepaired
                 // as it will be marked unrepaired when compaction catches up
-                if (!ActiveRepairService.instance.consistent.local.sessionExists(pendingRepair))
+                if (!ActiveRepairService.instance().consistent.local.sessionExists(pendingRepair))
                     return false;
 
                 repairedDataInfo.markInconclusive();

@@ -151,6 +151,22 @@ public class StreamPlan
         return this;
     }
 
+    public TimeUUID planId()
+    {
+        return planId;
+    }
+
+    public StreamOperation streamOperation()
+    {
+        return streamOperation;
+    }
+
+    @VisibleForTesting
+    public List<StreamEventHandler> handlers()
+    {
+        return handlers;
+    }
+
     /**
      * Set custom StreamConnectionFactory to be used for establishing connection
      *
