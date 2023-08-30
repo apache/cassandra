@@ -202,8 +202,12 @@
    limitations under the License.
 
 
-THIRD-PARTY DEPENDENCIES
-========================
-Convenience copies of some third-party dependencies are distributed with
-Apache Cassandra as Java jar files in lib/. Licensing information for
-these files can be found in the lib/licenses directory.
+   APACHE CASSANDRA SUBCOMPONENTS:
+
+   Apache Cassandra includes a number of subcomponents with
+   separate copyright notices and license terms. Your use of the source
+   code for these subcomponents is subject to the terms and
+   conditions of the following licenses.
+
+   This product bundles a file (VIntCoding.java) from Protocol Buffers
+   copyright Google Inc., which is available under a BSD license.
