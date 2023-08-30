@@ -95,6 +95,12 @@ public class LuceneAnalyzerTest extends SAITester
         assertEquals(1, execute("SELECT * FROM %s WHERE val : 'dog' AND val : 'quick' AND val : 'fox'").size());
         assertEquals(1, execute("SELECT * FROM %s WHERE val : 'dog' AND val : 'quick' OR val : 'missing'").size());
 
+        assertEquals(1, execute("SELECT * FROM %s WHERE val : 'dog' AND (val : 'quick' OR val : 'missing')").size());
+        assertEquals(0, execute("SELECT * FROM %s WHERE val : 'missing' AND (val : 'quick' OR val : 'dog')").size());
+        assertEquals(1, execute("SELECT * FROM %s WHERE val : 'dog' OR (val : 'quick' AND val : 'missing')").size());
+        assertEquals(1, execute("SELECT * FROM %s WHERE val : 'missing' OR (val : 'quick' AND val : 'dog')").size());
+        assertEquals(0, execute("SELECT * FROM %s WHERE val : 'missing' OR (val : 'quick' AND val : 'missing')").size());
+
         // EQ operator is not supported for analyzed columns unless ALLOW FILTERING is used
         assertThatThrownBy(() -> execute("SELECT * FROM %s WHERE val = 'dog'")).isInstanceOf(InvalidRequestException.class);
         assertEquals(1, execute("SELECT * FROM %s WHERE val = 'The quick brown fox jumps over the lazy DOG.' ALLOW FILTERING").size());
