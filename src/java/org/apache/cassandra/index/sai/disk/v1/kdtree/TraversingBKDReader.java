@@ -93,7 +93,7 @@ public class TraversingBKDReader implements Closeable
             pointCount = in.readVLong();
 
             // docCount, unused
-            in.readVInt();
+            in.readVLong();
 
             int numBytes = in.readVInt();
             packedIndex = new byte[numBytes];
