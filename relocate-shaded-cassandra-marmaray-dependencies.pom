@@ -80,6 +80,10 @@
                             <pattern>io.netty</pattern>
                             <shadedPattern>relocated.shaded.io.netty</shadedPattern>
                         </relocation>
+                        <relocation>
+                            <pattern>com.google</pattern>
+                            <shadedPattern>relocated.shaded.com.google</shadedPattern>
+                        </relocation>
                     </relocations>
 
                     <filters>
@@ -90,7 +94,12 @@
                                 <exclude>META-INF/io.netty.versions.properties</exclude>
                             </excludes>
                         </filter>
-
+                        <filter>
+                            <artifact>com.google.guava:guava</artifact>
+                            <excludes>
+                                <exclude>META-INF/maven/</exclude>
+                            </excludes>
+                        </filter>
                     </filters>
                 </configuration>
 
