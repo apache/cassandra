@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.dht.tokenallocator;
 
+import java.net.InetAddress;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -25,6 +26,7 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
@@ -78,6 +80,17 @@ public class TokenAllocation
         return create(DatabaseDescriptor.getEndpointSnitch(), tokenMetadata, replicas, numTokens).allocate(endpoint);
     }
 
+    // Used by CNDB TokenTracker
+    public static Collection<Token> allocateTokens(TokenMetadata tokenMetadata,
+                                                   IEndpointSnitch snitch,
+                                                   int localReplicationFactor,
+                                                   InetAddressAndPort endpoint,
+                                                   int numTokens,
+                                                   StrategyAdapter strategy)
+    {
+        return create(snitch, tokenMetadata, localReplicationFactor, numTokens).allocate(endpoint, strategy);
+    }
+
     static TokenAllocation create(IEndpointSnitch snitch, TokenMetadata tokenMetadata, int replicas, int numTokens)
     {
         // We create a fake NTS replication strategy with the specified RF in the local DC
@@ -96,7 +109,11 @@ public class TokenAllocation
 
     Collection<Token> allocate(InetAddressAndPort endpoint)
     {
-        StrategyAdapter strategy = getOrCreateStrategy(endpoint);
+        return allocate(endpoint, getOrCreateStrategy(endpoint));
+    }
+
+    private Collection<Token> allocate(InetAddressAndPort endpoint, StrategyAdapter strategy)
+    {
         Collection<Token> tokens = strategy.createAllocator().addUnit(endpoint, numTokens);
         tokens = strategy.adjustForCrossDatacenterClashes(tokens);
 
@@ -128,12 +145,13 @@ public class TokenAllocation
         return getOrCreateStrategy(datacenter, rack).replicatedOwnershipStats();
     }
 
+    @VisibleForTesting
     SummaryStatistics getAllocationRingOwnership(InetAddressAndPort endpoint)
     {
         return getOrCreateStrategy(endpoint).replicatedOwnershipStats();
     }
 
-    abstract class StrategyAdapter implements ReplicationStrategy<InetAddressAndPort>
+    public abstract class StrategyAdapter implements ReplicationStrategy<InetAddressAndPort>
     {
         // return true iff the provided endpoint occurs in the same virtual token-ring we are allocating for
         // i.e. the set of the nodes that share ownership with the node we are allocating
