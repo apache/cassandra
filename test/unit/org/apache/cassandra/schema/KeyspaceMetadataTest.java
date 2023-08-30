@@ -22,6 +22,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableCollection;
@@ -39,6 +40,7 @@ import org.apache.cassandra.db.marshal.UserType;
 
 import static junit.framework.TestCase.assertEquals;
 import static junit.framework.TestCase.assertFalse;
+import static junit.framework.TestCase.assertNotNull;
 import static org.junit.Assert.assertNotEquals;
 import static org.psjava.util.AssertStatus.assertTrue;
 
@@ -118,6 +120,31 @@ public class KeyspaceMetadataTest extends CQLTester
         KeyspaceMetadata ksMetadata = Schema.instance.getKeyspaceMetadata(KEYSPACE);
 
         checkKeyspaceRenaming(ksMetadata, NEW_KEYSPACE);
+    }
+
+    @Test
+    public void testTransformedTableParamsWithViews()
+    {
+        String baseTableName = createTable("CREATE TABLE %s (key int, val text, PRIMARY KEY (key, val)) WITH cdc=true;");
+        schemaChange("CREATE MATERIALIZED VIEW " + KEYSPACE + "." + createViewName() +
+                " AS SELECT * FROM " + baseTableName +
+                " WHERE val IS NOT NULL AND key IS NOT NULL" +
+                " PRIMARY KEY (val, key)" +
+                " WITH cdc=true;");
+
+        KeyspaceMetadata original = Schema.instance.getKeyspaceMetadata(KEYSPACE);
+        assertNotNull(original);
+
+        java.util.function.Function<TableParams, TableParams> disableCdc = params -> params.unbuild()
+                                                                                           .cdc(false)
+                                                                                           .build();
+
+        KeyspaceMetadata transformed = original.withTransformedTableParams(disableCdc);
+
+
+        assertNotNull(original);
+        Predicate<Boolean> isCdcDisabled = cdc -> !cdc;
+        checkTransformedParams(original, transformed, params -> params.cdc, isCdcDisabled);
     }
 
     private void checkKeyspaceRenaming(KeyspaceMetadata original, String newName)
@@ -304,5 +331,23 @@ public class KeyspaceMetadataTest extends CQLTester
         assertEquals(originalColumn.cfName, updatedColumn.cfName);
         assertEquals(originalColumn.name, updatedColumn.name);
         checkKeyspaceRenamingForType(keyspace, updatedTypes, originalColumn.type, updatedColumn.type);
+    }
+
+    private <T> void checkTransformedParams(KeyspaceMetadata original,
+                                            KeyspaceMetadata transformed,
+                                            java.util.function.Function<TableParams, T> paramValueExtractor,
+                                            Predicate<T> transformedParamTest)
+    {
+        for (TableMetadata table: transformed.tables)
+        {
+            T param = paramValueExtractor.apply(table.params);
+            assertTrue(transformedParamTest.test(param), "Param doesn't satisfy the provided test for table " + table);
+        }
+
+        for (ViewMetadata view: transformed.views)
+        {
+            T param = paramValueExtractor.apply(view.metadata.params);
+            assertTrue(transformedParamTest.test(param), "Param doesn't satisfy the provided test for view " + view);
+        }
     }
 }
