@@ -29,7 +29,9 @@ import org.apache.cassandra.db.virtual.SimpleDataSet;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.SSTableQueryContext;
 import org.apache.cassandra.index.sai.plan.Expression;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
+import org.apache.cassandra.index.sai.utils.SegmentOrdering;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 
 /**
@@ -41,7 +43,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
  * used during query time to help coordinate queries and is also returned
  * by the virtual tables.
  */
-public interface SearchableIndex extends Closeable
+public interface SearchableIndex extends Closeable, SegmentOrdering
 {
     public long indexFileCacheSize();
 
@@ -59,10 +61,10 @@ public interface SearchableIndex extends Closeable
 
     public DecoratedKey maxKey();
 
-    public List<RangeIterator> search(Expression expression,
-                                      AbstractBounds<PartitionPosition> keyRange,
-                                      SSTableQueryContext context,
-                                      boolean defer) throws IOException;
+    public List<RangeIterator<Long>> searchSSTableRowIds(Expression expression,
+                                                         AbstractBounds<PartitionPosition> keyRange,
+                                                         SSTableQueryContext context,
+                                                         boolean defer, int limit) throws IOException;
 
     public void populateSystemView(SimpleDataSet dataSet, SSTableReader sstable);
 }

@@ -38,6 +38,7 @@ import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.SSTableQueryContext;
 import org.apache.cassandra.index.sai.disk.v1.kdtree.KDTreeIndexBuilder;
 import org.apache.cassandra.index.sai.plan.Expression;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.index.sai.utils.SaiRandomizedTest;
 
@@ -48,6 +49,8 @@ public class KDTreeIndexSearcherTest extends SaiRandomizedTest
 
     private static final short RANGE_TEST_LOWER_BOUND_INCLUSIVE = 0;
     private static final short RANGE_TEST_UPPER_BOUND_EXCLUSIVE = 10;
+
+    public static final int LIMIT = Integer.MAX_VALUE;
 
     @Test
     public void testRangeQueriesAgainstInt32Index() throws Exception
@@ -149,7 +152,7 @@ public class KDTreeIndexSearcherTest extends SaiRandomizedTest
             {{
                 operation = Op.NOT_EQ;
                 lower = upper = new Bound(ShortType.instance.decompose((short) 0), Int32Type.instance, true);
-            }}, SSTableQueryContext.forTest(), false);
+            }}, null, SSTableQueryContext.forTest(), false, LIMIT);
 
             fail("Expect IllegalArgumentException thrown, but didn't");
         }
@@ -163,11 +166,11 @@ public class KDTreeIndexSearcherTest extends SaiRandomizedTest
                                                   final NumberType<T> rawType, final NumberType<?> encodedType,
                                                   final Function<Short, T> rawValueProducer) throws Exception
     {
-        try (RangeIterator results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
+        try (RangeIterator<PrimaryKey> results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
         {{
             operation = Op.EQ;
             lower = upper = new Bound(rawType.decompose(rawValueProducer.apply(EQ_TEST_LOWER_BOUND_INCLUSIVE)), encodedType, true);
-        }}, SSTableQueryContext.forTest(), false))
+        }}, null, SSTableQueryContext.forTest(), false, LIMIT))
         {
             assertEquals(results.getMinimum(), results.getCurrent());
             assertTrue(results.hasNext());
@@ -179,7 +182,7 @@ public class KDTreeIndexSearcherTest extends SaiRandomizedTest
         {{
             operation = Op.EQ;
             lower = upper = new Bound(rawType.decompose(rawValueProducer.apply(EQ_TEST_UPPER_BOUND_EXCLUSIVE)), encodedType, true);
-        }}, SSTableQueryContext.forTest(), false))
+        }}, null, SSTableQueryContext.forTest(), false, LIMIT))
         {
             assertFalse(results.hasNext());
             indexSearcher.close();
@@ -199,13 +202,13 @@ public class KDTreeIndexSearcherTest extends SaiRandomizedTest
                                                      final NumberType<T> rawType, final NumberType<?> encodedType,
                                                      final Function<Short, T> rawValueProducer, List<Long> expectedTokenList) throws Exception
     {
-        try (RangeIterator results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
+        try (RangeIterator<PrimaryKey> results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
         {{
             operation = Op.RANGE;
 
             lower = new Bound(rawType.decompose(rawValueProducer.apply((short)2)), encodedType, false);
             upper = new Bound(rawType.decompose(rawValueProducer.apply((short)7)), encodedType, true);
-        }}, SSTableQueryContext.forTest(), false))
+        }}, null, SSTableQueryContext.forTest(), false, LIMIT))
         {
             assertEquals(results.getMinimum(), results.getCurrent());
             assertTrue(results.hasNext());
@@ -218,7 +221,7 @@ public class KDTreeIndexSearcherTest extends SaiRandomizedTest
         {{
             operation = Op.RANGE;
             lower = new Bound(rawType.decompose(rawValueProducer.apply(RANGE_TEST_UPPER_BOUND_EXCLUSIVE)), encodedType, true);
-        }}, SSTableQueryContext.forTest(), false))
+        }}, null, SSTableQueryContext.forTest(), false, LIMIT))
         {
             assertFalse(results.hasNext());
         }
@@ -227,7 +230,7 @@ public class KDTreeIndexSearcherTest extends SaiRandomizedTest
         {{
             operation = Op.RANGE;
             upper = new Bound(rawType.decompose(rawValueProducer.apply(RANGE_TEST_LOWER_BOUND_INCLUSIVE)), encodedType, false);
-        }}, SSTableQueryContext.forTest(), false))
+        }}, null, SSTableQueryContext.forTest(), false, LIMIT))
         {
             assertFalse(results.hasNext());
             indexSearcher.close();

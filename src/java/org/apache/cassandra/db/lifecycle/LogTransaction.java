@@ -258,7 +258,7 @@ final class LogTransaction extends AbstractLogTransaction
         try
         {
             if (!StorageService.instance.isDaemonSetupCompleted())
-                logger.info("Unfinished transaction log, deleting {} ", file);
+                logger.debug("Unfinished transaction log, deleting {} ", file);
             else if (logger.isTraceEnabled())
                 logger.trace("Deleting {}", file);
 

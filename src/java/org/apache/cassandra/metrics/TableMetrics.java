@@ -486,7 +486,7 @@ public class TableMetrics
     public TableMetrics(final ColumnFamilyStore cfs, ReleasableMetric memtableMetrics)
     {
         metricsAggregation = MetricsAggregation.fromMetadata(cfs.metadata());
-        logger.debug("Using {} histograms for table={}", metricsAggregation, cfs.metadata());
+        logger.trace("Using {} histograms for table={}", metricsAggregation, cfs.metadata());
 
         factory = new TableMetricNameFactory(cfs, "Table");
         aliasFactory = new TableMetricNameFactory(cfs, "ColumnFamily");

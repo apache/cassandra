@@ -63,6 +63,11 @@ public interface UpdateTransaction extends IndexTransaction
     void onPartitionDeletion(DeletionTime deletionTime);
     void onRangeTombstone(RangeTombstone rangeTombstone);
     void onInserted(Row row);
+
+    /**
+     * @param existing the existing row from the Memtable
+     * @param updated the updated version, which includes the update merged with the existing version
+     */
     void onUpdated(Row existing, Row updated);
 
     UpdateTransaction NO_OP = new UpdateTransaction()

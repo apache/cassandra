@@ -623,11 +623,11 @@ public class CassandraDaemon
                         FBUtilities.prettyPrintMemory(Runtime.getRuntime().maxMemory()));
 
 	        for(MemoryPoolMXBean pool: ManagementFactory.getMemoryPoolMXBeans())
-	            logger.info("{} {}: {}", pool.getName(), pool.getType(), pool.getPeakUsage());
+	            logger.debug("{} {}: {}", pool.getName(), pool.getType(), pool.getPeakUsage());
 
-	        logger.info("Classpath: {}", JAVA_CLASS_PATH.getString());
+	        logger.debug("Classpath: {}", JAVA_CLASS_PATH.getString());
 
-            logger.info("JVM Arguments: {}", ManagementFactory.getRuntimeMXBean().getInputArguments());
+            logger.debug("JVM Arguments: {}", ManagementFactory.getRuntimeMXBean().getInputArguments());
     	}
     }
 

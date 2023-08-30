@@ -150,7 +150,7 @@ public abstract class Controller
      * The target SSTable size. This is the size of the SSTables that the controller will try to create.
      */
     static final String TARGET_SSTABLE_SIZE_OPTION = "target_sstable_size";
-    public static final long DEFAULT_TARGET_SSTABLE_SIZE = FBUtilities.parseHumanReadableBytes(System.getProperty(PREFIX + TARGET_SSTABLE_SIZE_OPTION, "1GiB"));
+    public static final long DEFAULT_TARGET_SSTABLE_SIZE = FBUtilities.parseHumanReadableBytes(System.getProperty(PREFIX + TARGET_SSTABLE_SIZE_OPTION, "5GiB"));
     static final long MIN_TARGET_SSTABLE_SIZE = 1L << 20;
 
 
@@ -178,7 +178,7 @@ public abstract class Controller
      * for 0.5.
      */
     static final String SSTABLE_GROWTH_OPTION = "sstable_growth";
-    static final double DEFAULT_SSTABLE_GROWTH = FBUtilities.parsePercent(System.getProperty(PREFIX + SSTABLE_GROWTH_OPTION, "0"));
+    static final double DEFAULT_SSTABLE_GROWTH = FBUtilities.parsePercent(System.getProperty(PREFIX + SSTABLE_GROWTH_OPTION, "0.5"));
 
     /**
      * Number of reserved threads to keep for each compaction level. This is used to ensure that there are always
@@ -409,6 +409,11 @@ public abstract class Controller
         return UnifiedCompactionStrategy.thresholdFromScalingParameter(getPreviousScalingParameter(index));
     }
 
+    public int getFlushShards(double density)
+    {
+        return areL0ShardsEnabled() ? getNumShards(density) : 1;
+    }
+
     /**
      * Calculate the number of shards to split the local token space in for the given sstable density.
      * This is calculated as a power-of-two multiple of baseShardCount, so that the expected size of resulting sstables
@@ -516,6 +521,14 @@ public abstract class Controller
             }
             return shards;
         }
+    }
+
+    /**
+     * @return whether L0 should use shards
+     */
+    public boolean areL0ShardsEnabled()
+    {
+        return false; // l0ShardsEnabled; FIXME VECTOR-23
     }
 
     /**

@@ -255,7 +255,7 @@ selectStatement returns [SelectStatement.RawStatement expr]
     @init {
         Term.Raw limit = null;
         Term.Raw perPartitionLimit = null;
-        Map<ColumnIdentifier, Boolean> orderings = new LinkedHashMap<>();
+        List<Ordering.Raw> orderings = new ArrayList<>();
         List<ColumnIdentifier> groups = new ArrayList<>();
         boolean allowFiltering = false;
         boolean isJson = false;
@@ -455,11 +455,17 @@ customIndexExpression [WhereClause.Builder clause]
     : 'expr(' idxName[name] ',' t=term ')' { clause.add(new CustomIndexExpression(name, t));}
     ;
 
-orderByClause[Map<ColumnIdentifier, Boolean> orderings]
+orderByClause[List<Ordering.Raw> orderings]
     @init{
-        boolean reversed = false;
+        Ordering.Direction direction = Ordering.Direction.ASC;
     }
-    : c=cident (K_ASC | K_DESC { reversed = true; })? { orderings.put(c, reversed); }
+    : c=cident (K_ANN_OF t=term)? (K_ASC | K_DESC { direction = Ordering.Direction.DESC; })?
+    {
+        Ordering.Raw.Expression expr = (t == null)
+            ? new Ordering.Raw.SingleColumn(c)
+            : new Ordering.Raw.Ann(c, t);
+        orderings.add(new Ordering.Raw(expr, direction));
+    }
     ;
 
 groupByClause[List<ColumnIdentifier> groups]
@@ -1483,8 +1489,8 @@ collectionLiteral returns [Term.Raw value]
 
 listLiteral returns [Term.Raw value]
     @init {List<Term.Raw> l = new ArrayList<Term.Raw>();}
-    @after {$value = new Lists.Literal(l);}
-    : '[' ( t1=term { l.add(t1); } ( ',' tn=term { l.add(tn); } )* )? ']' { $value = new Lists.Literal(l); }
+    @after {$value = new ArrayLiteral(l);}
+    : '[' ( t1=term { l.add(t1); } ( ',' tn=term { l.add(tn); } )* )? ']'
     ;
 
 usertypeLiteral returns [UserTypes.Literal ut]
@@ -1757,6 +1763,7 @@ comparatorType returns [CQL3Type.Raw t]
     : n=native_type     { $t = CQL3Type.Raw.from(n); }
     | c=collection_type { $t = c; }
     | tt=tuple_type     { $t = tt; }
+    | vc=vector_type    { $t = vc; }
     | id=userTypeName   { $t = CQL3Type.Raw.userType(id); }
     | K_FROZEN '<' f=comparatorType '>'
       {
@@ -1819,6 +1826,11 @@ tuple_type returns [CQL3Type.Raw t]
     @init {List<CQL3Type.Raw> types = new ArrayList<>();}
     @after {$t = CQL3Type.Raw.tuple(types);}
     : K_TUPLE '<' t1=comparatorType { types.add(t1); } (',' tn=comparatorType { types.add(tn); })* '>'
+    ;
+
+vector_type returns [CQL3Type.Raw vt]
+    : K_VECTOR '<' t1=comparatorType ','  d=INTEGER '>'
+        { $vt = CQL3Type.Raw.vector(t1, Integer.parseInt($d.text)); }
     ;
 
 username
@@ -1887,6 +1899,7 @@ basic_unreserved_keyword returns [String str]
         | K_STATIC
         | K_FROZEN
         | K_TUPLE
+        | K_VECTOR
         | K_FUNCTION
         | K_FUNCTIONS
         | K_AGGREGATE
@@ -1916,5 +1929,6 @@ basic_unreserved_keyword returns [String str]
         | K_DROPPED
         | K_COLUMN
         | K_RECORD
+        | K_ANN_OF
         ) { $str = $k.text; }
     ;

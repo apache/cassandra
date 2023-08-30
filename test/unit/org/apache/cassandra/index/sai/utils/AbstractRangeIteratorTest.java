@@ -33,52 +33,52 @@ public class AbstractRangeIteratorTest extends SaiRandomizedTest
         return Arrays.stream(intArray).mapToLong(i -> i).toArray();
     }
 
-    void assertOnError(RangeIterator range)
+    void assertOnError(RangeIterator<PrimaryKey> range)
     {
         assertThatThrownBy(() -> LongIterator.convert(range)).isInstanceOf(RuntimeException.class);
     }
 
-    final RangeIterator buildIntersection(RangeIterator... ranges)
+    final RangeIterator<PrimaryKey> buildIntersection(RangeIterator<PrimaryKey>... ranges)
     {
-        return RangeIntersectionIterator.builder().add(Arrays.asList(ranges)).build();
+        return RangeIntersectionIterator.<PrimaryKey>builder().add(Arrays.asList(ranges)).build();
     }
 
-    final RangeIterator buildSelectiveIntersection(int limit, RangeIterator... ranges)
+    final RangeIterator<PrimaryKey> buildSelectiveIntersection(int limit, RangeIterator<PrimaryKey>... ranges)
     {
-        return RangeIntersectionIterator.selectiveBuilder(limit).add(Arrays.asList(ranges)).build();
+        return RangeIntersectionIterator.<PrimaryKey>builder(limit).add(Arrays.asList(ranges)).build();
     }
 
-    final RangeIterator buildIntersection(long[]... ranges)
+    final RangeIterator<PrimaryKey> buildIntersection(long[]... ranges)
     {
         return buildIntersection(toRangeIterator(ranges));
     }
 
-    final RangeIterator buildSelectiveIntersection(int limit, long[]... ranges)
+    final RangeIterator<PrimaryKey> buildSelectiveIntersection(int limit, long[]... ranges)
     {
         return buildSelectiveIntersection(limit, toRangeIterator(ranges));
     }
 
-    final RangeIterator buildUnion(RangeIterator... ranges)
+    final RangeIterator<PrimaryKey> buildUnion(RangeIterator<PrimaryKey>... ranges)
     {
-        return RangeUnionIterator.builder().add(Arrays.asList(ranges)).build();
+        return RangeUnionIterator.<PrimaryKey>builder().add(Arrays.asList(ranges)).build();
     }
 
-    final RangeIterator buildUnion(long[]... ranges)
+    final RangeIterator<PrimaryKey> buildUnion(long[]... ranges)
     {
         return buildUnion(toRangeIterator(ranges));
     }
 
-    final RangeIterator buildConcat(RangeIterator... ranges)
+    final RangeIterator<PrimaryKey> buildConcat(RangeIterator<PrimaryKey>... ranges)
     {
-        return RangeConcatIterator.builder().add(Arrays.asList(ranges)).build();
+        return RangeConcatIterator.<PrimaryKey>builder().add(Arrays.asList(ranges)).build();
     }
 
-    final RangeIterator buildConcat(long[]... ranges)
+    final RangeIterator<PrimaryKey> buildConcat(long[]... ranges)
     {
         return buildConcat(toRangeIterator(ranges));
     }
 
-    private RangeIterator[] toRangeIterator(long[]... ranges)
+    private RangeIterator<PrimaryKey>[] toRangeIterator(long[]... ranges)
     {
         return Arrays.stream(ranges).map(this::build).toArray(RangeIterator[]::new);
     }
@@ -98,30 +98,30 @@ public class AbstractRangeIteratorTest extends SaiRandomizedTest
         return rangeA;
     }
 
-    protected RangeIterator buildOnError(RangeIterator.Builder.IteratorType type, long[] tokensA, long[] tokensB)
+    protected RangeIterator<PrimaryKey> buildOnError(RangeIterator.Builder.IteratorType type, long[] tokensA, long[] tokensB)
     {
         return build(type, tokensA, true, tokensB, true);
     }
 
-    protected RangeIterator buildOnErrorA(RangeIterator.Builder.IteratorType type, long[] tokensA, long[] tokensB)
+    protected RangeIterator<PrimaryKey> buildOnErrorA(RangeIterator.Builder.IteratorType type, long[] tokensA, long[] tokensB)
     {
         return build(type, tokensA, true, tokensB, false);
     }
 
-    protected RangeIterator buildOnErrorB(RangeIterator.Builder.IteratorType type, long[] tokensA, long[] tokensB)
+    protected RangeIterator<PrimaryKey> buildOnErrorB(RangeIterator.Builder.IteratorType type, long[] tokensA, long[] tokensB)
     {
         return build(type, tokensA, false, tokensB, true);
     }
 
-    protected RangeIterator build(RangeIterator.Builder.IteratorType type, long[] tokensA, long[] tokensB)
+    protected RangeIterator<PrimaryKey> build(RangeIterator.Builder.IteratorType type, long[] tokensA, long[] tokensB)
     {
         return build(type, tokensA, false, tokensB, false);
     }
 
-    protected RangeIterator build(RangeIterator.Builder.IteratorType type, long[] tokensA, boolean onErrorA, long[] tokensB, boolean onErrorB)
+    protected RangeIterator<PrimaryKey> build(RangeIterator.Builder.IteratorType type, long[] tokensA, boolean onErrorA, long[] tokensB, boolean onErrorB)
     {
-        RangeIterator rangeA = build(tokensA, onErrorA);
-        RangeIterator rangeB = build(tokensB, onErrorB);
+        RangeIterator<PrimaryKey> rangeA = build(tokensA, onErrorA);
+        RangeIterator<PrimaryKey> rangeB = build(tokensB, onErrorB);
 
         switch (type)
         {

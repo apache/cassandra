@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3;
 
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.InetAddress;
@@ -26,6 +27,7 @@ import java.net.MalformedURLException;
 import java.net.ServerSocket;
 import java.nio.ByteBuffer;
 import java.rmi.server.RMISocketFactory;
+import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -126,11 +128,13 @@ import org.apache.cassandra.db.marshal.TimestampType;
 import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.db.virtual.SystemViewsKeyspace;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.db.virtual.VirtualSchemaKeyspace;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.io.util.File;
@@ -1160,7 +1164,9 @@ public abstract class CQLTester
         catch (Exception e)
         {
             logger.info("Error performing schema change", e);
-            throw new RuntimeException("Error setting schema for test (query was: " + query + ")", e);
+            if (e instanceof InvalidRequestException)
+                throw new InvalidRequestException(String.format("Error setting schema for test (query was: %s)", query), e);
+            throw new RuntimeException(String.format("Error setting schema for test (query was: %s)", query), e);
         }
     }
 
@@ -2113,6 +2119,19 @@ public abstract class CQLTester
         return Arrays.asList(values);
     }
 
+    protected Vector<Float> vector(Float... values)
+    {
+        return new Vector<>(values);
+    }
+
+    protected Vector<Float> vector(float[] v)
+    {
+        var v2 = new Float[v.length];
+        for (int i = 0; i < v.length; i++)
+            v2[i] = v[i];
+        return new Vector<>(v2);
+    }
+
     protected Object set(Object...values)
     {
         return ImmutableSet.copyOf(values);
@@ -2159,6 +2178,28 @@ public abstract class CQLTester
             fail(String.format("Expected a single registered metric for paused client connections, found %s",
                                metrics.size()));
         return metrics.get(metricName);
+    }
+
+    public static class Vector<T> extends AbstractList<T>
+    {
+        private final T[] values;
+
+        public Vector(T[] values)
+        {
+            this.values = values;
+        }
+
+        @Override
+        public T get(int index)
+        {
+            return values[index];
+        }
+
+        @Override
+        public int size()
+        {
+            return values.length;
+        }
     }
 
     // Attempt to find an AbstracType from a value (for serialization/printing sake).
@@ -2212,6 +2253,13 @@ public abstract class CQLTester
 
         if (value instanceof TimeUUID)
             return TimeUUIDType.instance;
+
+        // vector impl list, so have to check first
+        if (value instanceof Vector)
+        {
+            Vector<?> v = (Vector<?>) value;
+            return VectorType.getInstance(typeFor(v.values[0]), v.values.length);
+        }
 
         if (value instanceof List)
         {

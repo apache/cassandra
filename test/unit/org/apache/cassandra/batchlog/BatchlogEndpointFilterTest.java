@@ -42,7 +42,7 @@ public class BatchlogEndpointFilterTest
     @BeforeClass
     public static void beforeClass()
     {
-        DatabaseDescriptor.setConfig(new Config());
+        DatabaseDescriptor.toolInitialization();
     }
 
     @Test

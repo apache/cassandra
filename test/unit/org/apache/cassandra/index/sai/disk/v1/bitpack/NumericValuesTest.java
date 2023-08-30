@@ -143,44 +143,6 @@ public class NumericValuesTest extends SaiRandomizedTest
         }
     }
 
-    @Test
-    public void testMultiSegmentFindTokenRowId() throws Exception
-    {
-        final IndexDescriptor indexDescriptor = newIndexDescriptor();
-        int length = 64_000;
-        long[] array = new long[length];
-        writeTokens(false, indexDescriptor, array, prev -> prev + nextInt(1, 100));
-
-        final MetadataSource source = MetadataSource.loadGroupMetadata(indexDescriptor);
-        NumericValuesMeta tokensMeta = new NumericValuesMeta(source.get(indexDescriptor.componentName(IndexComponent.TOKEN_VALUES)));
-
-        try (FileHandle fileHandle = indexDescriptor.createPerSSTableFileHandle(IndexComponent.TOKEN_VALUES))
-        {
-            LongArray.Factory factory = new BlockPackedReader(fileHandle, tokensMeta);
-            for (int segmentOffset : Arrays.asList(0, 33, 123, nextInt(length)))
-            {
-                LongArray.Factory perSegmentFactory = factory.withOffset(segmentOffset);
-                try (LongArray reader = perSegmentFactory.openTokenReader(0, SSTableQueryContext.forTest()))
-                {
-                    for (int i = 0; i < length; i++)
-                    {
-                        long segmentRowId = reader.findTokenRowID(array[i]);
-                        if (i < segmentOffset)
-                        {
-                            // for all tokens smaller than first token in the segment, it should return segment row id 0
-                            assertEquals(0, segmentRowId);
-                        }
-                        else
-                        {
-                            // for tokens within current segment, return its proper segment row id
-                            assertEquals(i - segmentOffset, segmentRowId);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     private void doTest(boolean monotonic) throws Exception
     {
         final long[] array = new long[64_000];

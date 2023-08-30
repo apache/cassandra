@@ -19,7 +19,7 @@ package org.apache.cassandra.index.sai.disk.v1.bitpack;
 
 import java.io.IOException;
 
-import org.apache.cassandra.index.sai.disk.io.RAMIndexOutput;
+import org.apache.cassandra.index.sai.disk.ResettableByteBuffersIndexOutput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.packed.DirectWriter;
 
@@ -41,13 +41,13 @@ public abstract class AbstractBlockPackedWriter
     protected int off;
     protected boolean finished;
     
-    final RAMIndexOutput blockMetaWriter;
+    final ResettableByteBuffersIndexOutput blockMetaWriter;
 
     AbstractBlockPackedWriter(IndexOutput out, int blockSize)
     {
         checkBlockSize(blockSize, MIN_BLOCK_SIZE, MAX_BLOCK_SIZE);
         this.out = out;
-        this.blockMetaWriter = new RAMIndexOutput("NumericValuesMeta");
+        this.blockMetaWriter = new ResettableByteBuffersIndexOutput(blockSize, "NumericValuesMeta");
         values = new long[blockSize];
     }
 
@@ -87,7 +87,7 @@ public abstract class AbstractBlockPackedWriter
             flush();
         }
         final long fp = out.getFilePointer();
-        blockMetaWriter.writeTo(out);
+        blockMetaWriter.copyTo(out);
         finished = true;
         return fp;
     }

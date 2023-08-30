@@ -469,10 +469,11 @@ public class Tracker
         Throwable fail;
         fail = updateSizeTracking(emptySet(), sstables, null);
 
-        notifyDiscarded(memtable);
-
         // TODO: if we're invalidated, should we notifyadded AND removed, or just skip both?
         fail = notifyAdded(sstables, OperationType.FLUSH, operationId, false, memtable, fail);
+
+        // make sure SAI sees newly flushed index files before discarding memtable index
+        notifyDiscarded(memtable);
 
         fail = dropOrUnloadSSTablesIfInvalid("during flush", fail);
 

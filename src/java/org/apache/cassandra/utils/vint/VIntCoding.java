@@ -53,7 +53,10 @@ import java.nio.ByteBuffer;
 
 import io.netty.util.concurrent.FastThreadLocal;
 import net.nicoulaj.compilecommand.annotations.Inline;
+import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.io.util.DataInputPlus;
+
+import static com.google.common.primitives.Ints.checkedCast;
 
 /**
  * Borrows idea from
@@ -125,6 +128,45 @@ public class VIntCoding
         for (int ii = 0; ii < size; ii++)
         {
             byte b = input.get(readerIndex++);
+            retval <<= 8;
+            retval |= b & 0xff;
+        }
+
+        return retval;
+    }
+
+    public static <V> int getUnsignedVInt32(V input, ValueAccessor<V> accessor, int readerIndex)
+    {
+        return checkedCast(getUnsignedVInt(input, accessor, readerIndex));
+    }
+
+    public static <V> long getUnsignedVInt(V input, ValueAccessor<V> accessor, int readerIndex)
+    {
+        return getUnsignedVInt(input, accessor, readerIndex, accessor.size(input));
+    }
+
+    public static <V> long getUnsignedVInt(V input, ValueAccessor<V> accessor, int readerIndex, int readerLimit)
+    {
+        if (readerIndex < 0)
+            throw new IllegalArgumentException("Reader index should be non-negative, but was " + readerIndex);
+
+        if (readerIndex >= readerLimit)
+            return -1;
+
+        int firstByte = accessor.getByte(input, readerIndex++);
+
+        //Bail out early if this is one byte, necessary or it fails later
+        if (firstByte >= 0)
+            return firstByte;
+
+        int size = numberOfExtraBytesToRead(firstByte);
+        if (readerIndex + size > readerLimit)
+            return -1;
+
+        long retval = firstByte & firstByteValueMask(size);
+        for (int ii = 0; ii < size; ii++)
+        {
+            byte b = accessor.getByte(input, readerIndex++);
             retval <<= 8;
             retval |= b & 0xff;
         }
@@ -239,6 +281,49 @@ public class VIntCoding
     public static void writeVInt(long value, DataOutput output) throws IOException
     {
         writeUnsignedVInt(encodeZigZag64(value), output);
+    }
+
+    @Inline
+    public static <V> int writeUnsignedVInt32(int value, V output, int offset, ValueAccessor<V> accessor)
+    {
+        return writeUnsignedVInt(value, output, offset, accessor);
+    }
+
+    @Inline
+    public static <V> int writeUnsignedVInt(long value, V output, int offset, ValueAccessor<V> accessor)
+    {
+        int size = VIntCoding.computeUnsignedVIntSize(value);
+        int written = 0;
+        if (size == 1)
+        {
+            written += accessor.putByte(output, offset, (byte) (value));
+        }
+        else if (size < 9)
+        {
+            if (accessor.remaining(output, offset) >= 8)
+            {
+                int shift = (8 - size) << 3;
+                int extraBytes = size - 1;
+                long mask = (long)VIntCoding.encodeExtraBytesToRead(extraBytes) << 56;
+                long register = (value << shift) | mask;
+                accessor.putLong(output, offset, register);
+                written += size;
+            }
+            else
+            {
+                written += accessor.putBytes(output, offset, VIntCoding.encodeUnsignedVInt(value, size), 0, size);
+            }
+        }
+        else if (size == 9)
+        {
+            written += accessor.putByte(output, offset, (byte) 0xFF);
+            written += accessor.putLong(output, offset + written, value);
+        }
+        else
+        {
+            throw new AssertionError();
+        }
+        return written;
     }
 
     /**

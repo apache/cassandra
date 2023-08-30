@@ -238,12 +238,12 @@ public class Flushing
                             long bytesFlushed = writer.getBytesWritten();
                             long onDiskBytesWritten = writer.getOnDiskBytesWritten();
                             long segmentCount = writer.getSegmentCount();
-                            logger.info("Completed flushing {} ({}/{} on disk/{} files) for commitlog position {}",
-                                        writer.getFilename(),
-                                        FBUtilities.prettyPrintMemory(bytesFlushed),
-                                        FBUtilities.prettyPrintMemory(onDiskBytesWritten),
-                                        segmentCount,
-                                        toFlush.memtable().getFinalCommitLogUpperBound());
+                            logger.debug("Completed flushing {} ({}/{} on disk/{} files) for commitlog position {}",
+                                         writer.getFilename(),
+                                         FBUtilities.prettyPrintMemory(bytesFlushed),
+                                         FBUtilities.prettyPrintMemory(onDiskBytesWritten),
+                                         segmentCount,
+                                         toFlush.memtable().getFinalCommitLogUpperBound());
                             // Update the metrics
                             metrics.incBytesFlushed(toFlush.memtable().getLiveDataSize(), bytesFlushed, System.nanoTime() - before);
                             metrics.flushSizeOnDisk().update(onDiskBytesWritten);

@@ -338,7 +338,7 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     {
         ShardManager currentShardManager = getShardManager();
         double flushDensity = realm.metrics().flushSizeOnDisk().get() * shardManager.shardSetCoverage() / currentShardManager.localSpaceCoverage();
-        ShardTracker boundaries = currentShardManager.boundaries(controller.getNumShards(flushDensity));
+        ShardTracker boundaries = currentShardManager.boundaries(controller.getFlushShards(flushDensity));
         return new ShardedMultiWriter(realm,
                                       descriptor,
                                       keyCount,

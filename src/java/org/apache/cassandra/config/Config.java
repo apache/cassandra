@@ -776,6 +776,6 @@ public class Config
             configMap.put(name, value);
         }
 
-        logger.info("Node configuration:[{}]", Joiner.on("; ").join(configMap.entrySet()));
+        logger.debug("Node configuration:[{}]", Joiner.on("; ").join(configMap.entrySet()));
     }
 }

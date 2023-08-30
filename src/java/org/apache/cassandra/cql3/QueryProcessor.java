@@ -142,8 +142,8 @@ public class QueryProcessor implements QueryHandler
                             DatabaseDescriptor.getPreparedStatementsCacheSizeMB());
         }, 1, 1, TimeUnit.MINUTES);
 
-        logger.info("Initialized prepared statement caches with {} MB",
-                    DatabaseDescriptor.getPreparedStatementsCacheSizeMB());
+        logger.debug("Initialized prepared statement caches with {} MB",
+                     DatabaseDescriptor.getPreparedStatementsCacheSizeMB());
     }
 
     private static long capacityToBytes(long cacheSizeMB)
@@ -194,7 +194,7 @@ public class QueryProcessor implements QueryHandler
                 return false;
             }
         });
-        logger.info("Preloaded {} prepared statements", count);
+        logger.debug("Preloaded {} prepared statements", count);
     }
 
 

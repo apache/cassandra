@@ -26,8 +26,12 @@ import java.util.*;
 import com.google.common.base.Verify;
 import com.google.common.collect.ImmutableMap;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.io.sstable.format.trieindex.TrieIndexSSTableReader;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -168,6 +172,31 @@ public class TypeParser
         throw new SyntaxException(String.format("Syntax error parsing '%s' at char %d: unexpected end of string", str, idx));
     }
 
+    public int getVectorDimensions() throws SyntaxException, ConfigurationException
+    {
+        if (isEOS())
+            throw new IllegalStateException();
+
+        if (str.charAt(idx) != '(')
+            throw new IllegalStateException();
+
+        ++idx; // skipping '('
+
+        if (!skipBlankAndComma())
+            throw new IllegalStateException();
+
+        try
+        {
+            return Integer.parseInt(readNextIdentifier());
+        }
+        catch (NumberFormatException e)
+        {
+            throw new IllegalStateException();
+        }
+
+
+    }
+
     public List<AbstractType<?>> getTypeParameters() throws SyntaxException, ConfigurationException
     {
         List<AbstractType<?>> list = new ArrayList<>();
@@ -293,6 +322,33 @@ public class TypeParser
             }
         }
         throw new SyntaxException(String.format("Syntax error parsing '%s' at char %d: unexpected end of string", str, idx));
+    }
+
+    public Pair<AbstractType<?>, Integer> getVectorParameters() throws SyntaxException, ConfigurationException
+    {
+        if (isEOS())
+            throw new IllegalStateException();
+
+        if (str.charAt(idx) != '(')
+            throw new IllegalStateException();
+
+        ++idx; // skipping '('
+
+        skipBlank();
+
+
+        AbstractType<?> type = parse();
+
+        skipBlankAndComma();
+
+        Integer dimensions = Integer.parseInt(readNextIdentifier());
+
+        skipBlank();
+
+        if (str.charAt(idx) != ')')
+            throw new IllegalStateException();
+
+        return Pair.create(type, dimensions);
     }
 
     private ByteBuffer fromHex(String hex) throws SyntaxException

@@ -227,6 +227,12 @@ public class ByteBufferAccessor implements ValueAccessor<ByteBuffer>
     }
 
     @Override
+    public float getFloat(ByteBuffer value, int offset)
+    {
+        return ByteBufferUtil.getFloat(value, offset);
+    }
+
+    @Override
     public double toDouble(ByteBuffer value)
     {
         return ByteBufferUtil.toDouble(value);

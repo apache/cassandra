@@ -87,7 +87,7 @@ public class CellSpecTest
             return ObjectSizes.sizeOnHeapExcludingData((ByteBuffer) value);
         else if (value instanceof byte[])
             return ObjectSizes.sizeOfArray((byte[]) value) - ((byte[]) value).length;
-        throw new IllegalArgumentException("Unsupported type: " + value.getClass());
+        throw new IllegalArgumentException("Unsupported type by valuePtrSize: " + value.getClass());
     }
 
     @Parameterized.Parameters(name = "{0}")

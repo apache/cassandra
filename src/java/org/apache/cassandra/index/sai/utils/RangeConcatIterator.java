@@ -34,12 +34,12 @@ import org.apache.cassandra.io.util.FileUtils;
  * ex. (1, 2, 2, 3) + (3, 4, 4, 6, 6, 7) -> (1, 2, 2, 3, 3, 4, 4, 6, 6, 7)
  *
  */
-public class RangeConcatIterator extends RangeIterator
+public class RangeConcatIterator<T extends Comparable<T>> extends RangeIterator<T>
 {
-    private final PriorityQueue<RangeIterator> ranges;
-    private final List<RangeIterator> toRelease;
+    private final PriorityQueue<RangeIterator<T>> ranges;
+    private final List<RangeIterator<T>> toRelease;
 
-    protected RangeConcatIterator(RangeIterator.Builder.Statistics statistics, PriorityQueue<RangeIterator> ranges)
+    protected RangeConcatIterator(RangeIterator.Builder.Statistics<T> statistics, PriorityQueue<RangeIterator<T>> ranges)
     {
         super(statistics);
 
@@ -49,14 +49,14 @@ public class RangeConcatIterator extends RangeIterator
 
     @Override
     @SuppressWarnings("resource")
-    protected void performSkipTo(PrimaryKey primaryKey)
+    protected void performSkipTo(T primaryKey)
     {
         while (!ranges.isEmpty())
         {
             if (ranges.peek().getCurrent().compareTo(primaryKey) >= 0)
                 break;
 
-            RangeIterator head = ranges.poll();
+            var head = ranges.poll();
 
             if (head.getMaximum().compareTo(primaryKey) >= 0)
             {
@@ -76,14 +76,14 @@ public class RangeConcatIterator extends RangeIterator
 
     @Override
     @SuppressWarnings("resource")
-    protected PrimaryKey computeNext()
+    protected T computeNext()
     {
         while (!ranges.isEmpty())
         {
-            RangeIterator current = ranges.poll();
+            RangeIterator<T> current = ranges.poll();
             if (current.hasNext())
             {
-                PrimaryKey next = current.next();
+                T next = current.next();
                 // hasNext will update RangeIterator's current which is used to sort in PQ
                 if (current.hasNext())
                     ranges.add(current);
@@ -95,24 +95,24 @@ public class RangeConcatIterator extends RangeIterator
         return endOfData();
     }
 
-    public static Builder builder()
+    public static <T extends Comparable<T>> Builder<T> builder()
     {
-        return new Builder();
+        return new Builder<T>();
     }
 
-    public static RangeIterator build(List<RangeIterator> tokens)
+    public static <T extends Comparable<T>> RangeIterator<T> build(List<RangeIterator<T>> tokens)
     {
-        return new Builder().add(tokens).build();
+        return new Builder<T>().add(tokens).build();
     }
 
-    public static class Builder extends RangeIterator.Builder
+    public static class Builder<T extends Comparable<T>> extends RangeIterator.Builder<T>
     {
         public Builder()
         {
             super(IteratorType.CONCAT);
         }
 
-        protected RangeIterator buildIterator()
+        protected RangeIterator<T> buildIterator()
         {
             switch (rangeCount())
             {
@@ -120,7 +120,7 @@ public class RangeConcatIterator extends RangeIterator
                     return ranges.poll();
 
                 default:
-                    return new RangeConcatIterator(statistics, ranges);
+                    return new RangeConcatIterator<>(statistics, ranges);
             }
         }
     }

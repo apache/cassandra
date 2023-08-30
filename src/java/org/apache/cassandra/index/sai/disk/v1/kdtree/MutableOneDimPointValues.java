@@ -19,8 +19,7 @@ package org.apache.cassandra.index.sai.disk.v1.kdtree;
 
 import java.io.IOException;
 
-import org.apache.lucene.codecs.MutablePointValues;
-import org.apache.lucene.index.PointValues;
+import org.apache.cassandra.index.sai.disk.oldlucene.MutablePointValues;
 import org.apache.lucene.util.BytesRef;
 
 public abstract class MutableOneDimPointValues extends MutablePointValues
@@ -67,18 +66,6 @@ public abstract class MutableOneDimPointValues extends MutablePointValues
     }
 
     @Override
-    public void intersect(PointValues.IntersectVisitor visitor) throws IOException
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public long estimatePointCount(PointValues.IntersectVisitor visitor)
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public byte[] getMinPackedValue()
     {
         return EMPTY;
@@ -109,5 +96,17 @@ public abstract class MutableOneDimPointValues extends MutablePointValues
          *  values are visited in increasing order, and in the case of ties, in increasing
          *  docID order. */
         void visit(long docID, byte[] packedValue) throws IOException;
+    }
+
+    @Override
+    public int getNumIndexDimensions() throws IOException
+    {
+        return 1;
+    }
+
+    @Override
+    public PointTree getPointTree() throws IOException
+    {
+        throw new UnsupportedOperationException();
     }
 }

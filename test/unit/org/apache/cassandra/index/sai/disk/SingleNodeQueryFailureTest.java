@@ -58,7 +58,7 @@ public class SingleNodeQueryFailureTest extends SAITester
     @Test
     public void testFailedRangeIteratorOnMultiIndexesQuery() throws Throwable
     {
-        testFailedMultiIndexesQuery("range_iterator", PostingListRangeIterator.class, "getNextRowId");
+        testFailedMultiIndexesQuery("range_iterator", SSTableRowIdsRangeIterator.class, "getNextRowId");
     }
 
     @Test

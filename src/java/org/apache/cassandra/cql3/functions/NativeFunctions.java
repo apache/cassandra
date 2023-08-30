@@ -41,6 +41,7 @@ public class NativeFunctions
             OperationFcts.addFunctionsTo(this);
             AggregateFcts.addFunctionsTo(this);
             BytesConversionFcts.addFunctionsTo(this);
+            VectorFcts.addFunctionsTo(this);
         }
     };
 

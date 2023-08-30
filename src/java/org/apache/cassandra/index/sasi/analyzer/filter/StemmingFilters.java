@@ -19,7 +19,7 @@ package org.apache.cassandra.index.sasi.analyzer.filter;
 
 import java.util.Locale;
 
-import org.tartarus.snowball.SnowballProgram;
+import org.tartarus.snowball.SnowballStemmer;
 
 /**
  * Filters for performing Stemming on tokens
@@ -28,7 +28,7 @@ public class StemmingFilters
 {
     public static class DefaultStemmingFilter extends FilterPipelineTask<String, String>
     {
-        private SnowballProgram stemmer;
+        private SnowballStemmer stemmer;
 
         public DefaultStemmingFilter(Locale locale)
         {

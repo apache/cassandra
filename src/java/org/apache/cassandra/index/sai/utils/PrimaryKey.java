@@ -162,4 +162,20 @@ public interface PrimaryKey extends Comparable<PrimaryKey>
      * @return the {@code ByteSource} byte comparable.
      */
     ByteSource asComparableBytes(ByteComparable.Version version);
+
+    /**
+     * Returns the {@link PrimaryKey} as a {@link ByteSource} min prefix byte comparable representation.
+     *
+     * @param version the {@link ByteComparable.Version} to use for the implementation
+     * @return the {@code ByteSource} min prefix byte comparable.
+     */
+    ByteSource asComparableBytesMinPrefix(ByteComparable.Version version);
+
+    /**
+     * Returns the {@link PrimaryKey} as a {@link ByteSource} max prefix byte comparable representation.
+     *
+     * @param version the {@link ByteComparable.Version} to use for the implementation
+     * @return the {@code ByteSource} max prefix byte comparable.
+     */
+    ByteSource asComparableBytesMaxPrefix(ByteComparable.Version version);
 }

@@ -262,10 +262,6 @@ public class MergePostingListTest extends SaiRandomizedTest
                         {
                             return postingList.advance(rowID);
                         }
-                        catch (ArrayPostingList.LookupException ignore)
-                        {
-                            // continue
-                        }
                         catch (Exception e)
                         {
                             fail();
@@ -308,10 +304,6 @@ public class MergePostingListTest extends SaiRandomizedTest
                 {
                     rowID = merged.advance(targetRowID);
                     break;
-                }
-                catch (ArrayPostingList.LookupException ignore)
-                {
-                    // continue
                 }
                 catch (Exception e)
                 {

@@ -31,7 +31,6 @@ import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.index.sai.SAITester;
-import org.apache.cassandra.index.sai.SSTableQueryContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
@@ -169,6 +168,53 @@ public class SortedTermsTest extends SaiRandomizedTest
 
                 long pointId = reader.getPointId(ByteComparable.fixedLength(terms.get(target)));
                 assertEquals(target, pointId);
+            }
+        });
+    }
+
+    @Test
+    public void testSeekToTermMinMaxPrefixNoMatch() throws Exception
+    {
+        IndexDescriptor descriptor = newIndexDescriptor();
+
+        List<ByteSource> termsMinPrefixNoMatch = new ArrayList<>();
+        List<ByteSource> termsMaxPrefixNoMatch = new ArrayList<>();
+        int valuesPerPrefix = 10;
+        writeTerms(descriptor, termsMinPrefixNoMatch, termsMaxPrefixNoMatch, valuesPerPrefix, false);
+
+        // iterate on terms ascending
+        withSortedTermsReader(descriptor, reader ->
+        {
+            for (int x = 0; x < termsMaxPrefixNoMatch.size(); x++)
+            {
+                int index = x;
+                long pointIdStart = reader.getPointId(v -> termsMinPrefixNoMatch.get(index));
+                long pointIdEnd = reader.getLastPointId(v -> termsMaxPrefixNoMatch.get(index));
+                assertTrue(pointIdStart > pointIdEnd);
+            }
+        });
+    }
+
+    @Test
+    public void testSeekToTermMinMaxPrefix() throws Exception
+    {
+        IndexDescriptor descriptor = newIndexDescriptor();
+
+        List<ByteSource> termsMinPrefix = new ArrayList<>();
+        List<ByteSource> termsMaxPrefix = new ArrayList<>();
+        int valuesPerPrefix = 10;
+        writeTerms(descriptor, termsMinPrefix, termsMaxPrefix, valuesPerPrefix, true);
+
+        // iterate on terms ascending
+        withSortedTermsReader(descriptor, reader ->
+        {
+            for (int x = 0; x < termsMaxPrefix.size(); x++)
+            {
+                int index = x;
+                long pointIdStart = reader.getPointId(v -> termsMinPrefix.get(index));
+                long pointIdEnd = reader.getLastPointId(v -> termsMaxPrefix.get(index));
+                assertEquals(pointIdStart, x / valuesPerPrefix * valuesPerPrefix);
+                assertEquals(pointIdStart + valuesPerPrefix - 1, pointIdEnd);
             }
         });
     }
@@ -315,6 +361,48 @@ public class SortedTermsTest extends SaiRandomizedTest
         }
     }
 
+    private void writeTerms(IndexDescriptor indexDescriptor, List<ByteSource> termsMinPrefix, List<ByteSource> termsMaxPrefix, int numPerPrefix, boolean matchesData) throws IOException
+    {
+        try (MetadataWriter metadataWriter = new MetadataWriter(indexDescriptor.openPerSSTableOutput(IndexComponent.GROUP_META)))
+        {
+            IndexOutputWriter trieWriter = indexDescriptor.openPerSSTableOutput(IndexComponent.PRIMARY_KEY_TRIE);
+            IndexOutputWriter bytesWriter = indexDescriptor.openPerSSTableOutput(IndexComponent.PRIMARY_KEY_BLOCKS);
+            NumericValuesWriter blockFPWriter = new NumericValuesWriter(indexDescriptor.componentName(IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS),
+                                                                        indexDescriptor.openPerSSTableOutput(IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS),
+                                                                        metadataWriter, true);
+            try (SortedTermsWriter writer = new SortedTermsWriter(indexDescriptor.componentName(IndexComponent.PRIMARY_KEY_BLOCKS),
+                                                                  metadataWriter,
+                                                                  bytesWriter,
+                                                                  blockFPWriter,
+                                                                  trieWriter))
+            {
+                for (int x = 0; x < 1000 ; x++)
+                {
+                    int component1 = x * 2;
+                    for (int i = 0; i < numPerPrefix; i++)
+                    {
+                        String component2 = "v" + i;
+                        termsMinPrefix.add(ByteSource.withTerminator(ByteSource.LT_NEXT_COMPONENT, intByteSource(component1 + (matchesData ? 0 : 1))));
+                        termsMaxPrefix.add(ByteSource.withTerminator(ByteSource.GT_NEXT_COMPONENT, intByteSource(component1 + (matchesData ? 0 : 1))));
+                        writer.add(v -> ByteSource.withTerminator(ByteSource.TERMINATOR, intByteSource(component1), utfByteSource(component2)));
+                    }
+                }
+            }
+        }
+    }
+
+    private ByteSource intByteSource(int value)
+    {
+        ByteBuffer buffer = Int32Type.instance.decompose(value);
+        return Int32Type.instance.asComparableBytes(buffer, ByteComparable.Version.OSS41);
+    }
+
+    private ByteSource utfByteSource(String value)
+    {
+        ByteBuffer buffer = UTF8Type.instance.decompose(value);
+        return UTF8Type.instance.asComparableBytes(buffer, ByteComparable.Version.OSS41);
+    }
+
     @FunctionalInterface
     public interface ThrowingConsumer<T> {
         void accept(T t) throws IOException;
@@ -340,7 +428,7 @@ public class SortedTermsTest extends SaiRandomizedTest
     {
         withSortedTermsReader(descriptor, reader ->
         {
-            try (SortedTermsReader.Cursor cursor = reader.openCursor(SSTableQueryContext.forTest()))
+            try (SortedTermsReader.Cursor cursor = reader.openCursor())
             {
                 testCode.accept(cursor);
             }

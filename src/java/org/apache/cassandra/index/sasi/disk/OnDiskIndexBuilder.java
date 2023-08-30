@@ -130,9 +130,9 @@ public class OnDiskIndexBuilder
     public static final int SUPER_BLOCK_SIZE = 64;
     public static final int IS_PARTIAL_BIT = 15;
 
-    private static final SequentialWriterOption WRITER_OPTION = SequentialWriterOption.newBuilder()
-                                                                                      .bufferSize(BLOCK_SIZE)
-                                                                                      .build();
+    public static final SequentialWriterOption WRITER_OPTION = SequentialWriterOption.newBuilder()
+                                                                                     .bufferSize(BLOCK_SIZE)
+                                                                                     .build();
 
     private final List<MutableLevel<InMemoryPointerTerm>> levels = new ArrayList<>();
     private MutableLevel<InMemoryDataTerm> dataLevel;

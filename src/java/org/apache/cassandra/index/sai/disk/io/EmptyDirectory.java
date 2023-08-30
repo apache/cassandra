@@ -17,7 +17,9 @@
  */
 package org.apache.cassandra.index.sai.disk.io;
 
+import java.io.IOException;
 import java.util.Collection;
+import java.util.Set;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -94,6 +96,12 @@ public final class EmptyDirectory extends Directory
 
     @Override
     public Lock obtainLock(String name)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Set<String> getPendingDeletions() throws IOException
     {
         throw new UnsupportedOperationException();
     }
