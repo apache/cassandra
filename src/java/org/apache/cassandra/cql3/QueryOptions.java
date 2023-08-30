@@ -114,6 +114,16 @@ public abstract class QueryOptions
         return new OptionsWithColumnSpecifications(options, columnSpecs);
     }
 
+    public static QueryOptions withConsistencyLevel(QueryOptions options, ConsistencyLevel consistencyLevel)
+    {
+        return new OptionsWithConsistencyLevel(options, consistencyLevel);
+    }
+
+    public static QueryOptions withPageSize(QueryOptions options, int pageSize)
+    {
+        return new OptionsWithPageSize(options, pageSize);
+    }
+
     public abstract ConsistencyLevel getConsistency();
     public abstract List<ByteBuffer> getValues();
     public abstract boolean skipMetadata();
@@ -421,6 +431,40 @@ public abstract class QueryOptions
         {
             wrapped.prepare(specs);
             return this;
+        }
+    }
+
+    static class OptionsWithConsistencyLevel extends QueryOptionsWrapper
+    {
+        private final ConsistencyLevel consistencyLevel;
+
+        OptionsWithConsistencyLevel(QueryOptions wrapped, ConsistencyLevel consistencyLevel)
+        {
+            super(wrapped);
+            this.consistencyLevel = consistencyLevel;
+        }
+
+        @Override
+        public ConsistencyLevel getConsistency()
+        {
+            return consistencyLevel;
+        }
+    }
+
+    static class OptionsWithPageSize extends QueryOptionsWrapper
+    {
+        private final int pageSize;
+
+        OptionsWithPageSize(QueryOptions wrapped, int pageSize)
+        {
+            super(wrapped);
+            this.pageSize = pageSize;
+        }
+
+        @Override
+        public int getPageSize()
+        {
+            return pageSize;
         }
     }
 

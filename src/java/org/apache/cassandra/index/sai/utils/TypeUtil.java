@@ -40,8 +40,10 @@ import org.apache.cassandra.db.marshal.IntegerType;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.db.marshal.StringType;
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.ComplexColumnData;
+import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.serializers.MarshalException;
@@ -116,24 +118,6 @@ public class TypeUtil
     public static ByteBuffer max(ByteBuffer a, ByteBuffer b, AbstractType<?> type)
     {
         return a == null ? b : (b == null || compare(b, a, type) < 0) ? a : b;
-    }
-
-    /**
-     * Returns the lesser of two {@code ByteComparable} values, based on the result of {@link
-     * ByteComparable#compare(ByteComparable, ByteComparable, ByteComparable.Version)} comparision.
-     */
-    public static ByteComparable min(ByteComparable a, ByteComparable b)
-    {
-        return a == null ? b : (b == null || ByteComparable.compare(b, a, ByteComparable.Version.OSS50) > 0) ? a : b;
-    }
-
-    /**
-     * Returns the greater of two {@code ByteComparable} values, based on the result of {@link
-     * ByteComparable#compare(ByteComparable, ByteComparable, ByteComparable.Version)} comparision.
-     */
-    public static ByteComparable max(ByteComparable a, ByteComparable b)
-    {
-        return a == null ? b : (b == null || ByteComparable.compare(b, a, ByteComparable.Version.OSS50) < 0) ? a : b;
     }
 
     /**
@@ -256,6 +240,11 @@ public class TypeUtil
         else if (type instanceof DecimalType)
             return encodeDecimal(value);
         return value;
+    }
+
+    public static float[] decomposeVector(IndexContext indexContext, ByteBuffer byteBuffer)
+    {
+        return ((VectorType<?>)indexContext.getValidator()).composeAsFloat(byteBuffer);
     }
 
     /**

@@ -66,11 +66,13 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
     private final boolean hasIn;
     private final boolean hasContains;
     private final boolean hasSlice;
+    private final boolean hasAnn;
     private final boolean hasOnlyEqualityRestrictions;
 
     public RestrictionSet()
     {
         this(EMPTY, false,
+             false,
              false,
              false,
              false,
@@ -82,6 +84,7 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
                            boolean hasIn,
                            boolean hasContains,
                            boolean hasSlice,
+                           boolean hasAnn,
                            boolean hasOnlyEqualityRestrictions)
     {
         this.restrictions = restrictions;
@@ -89,6 +92,7 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
         this.hasIn = hasIn;
         this.hasContains = hasContains;
         this.hasSlice = hasSlice;
+        this.hasAnn = hasAnn;
         this.hasOnlyEqualityRestrictions = hasOnlyEqualityRestrictions;
     }
 
@@ -168,18 +172,20 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
     public RestrictionSet addRestriction(SingleRestriction restriction)
     {
         // RestrictionSet is immutable so we need to clone the restrictions map.
-        TreeMap<ColumnMetadata, SingleRestriction> newRestricitons = new TreeMap<>(this.restrictions);
+        TreeMap<ColumnMetadata, SingleRestriction> newRestrictions = new TreeMap<>(this.restrictions);
 
         boolean newHasIn = hasIn || restriction.isIN();
         boolean newHasContains = hasContains || restriction.isContains();
         boolean newHasSlice = hasSlice || restriction.isSlice();
+        boolean newHasAnn = hasAnn || restriction.isANN();
         boolean newHasOnlyEqualityRestrictions = hasOnlyEqualityRestrictions && (restriction.isEQ() || restriction.isIN());
 
-        return new RestrictionSet(mergeRestrictions(newRestricitons, restriction),
+        return new RestrictionSet(mergeRestrictions(newRestrictions, restriction),
                                   hasMultiColumnRestrictions || restriction.isMultiColumn(),
                                   newHasIn,
                                   newHasContains,
                                   newHasSlice,
+                                  newHasAnn,
                                   newHasOnlyEqualityRestrictions);
     }
 
@@ -242,6 +248,30 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
                 return true;
         }
         return false;
+    }
+
+    @Override
+    public Index findSupportingIndex(IndexRegistry indexRegistry)
+    {
+        for (SingleRestriction restriction : restrictions.values())
+        {
+            Index index = restriction.findSupportingIndex(indexRegistry);
+            if (index != null)
+                return index;
+        }
+        return null;
+    }
+
+    @Override
+    public Index findSupportingIndexFromQueryPlan(Index.QueryPlan indexQueryPlan)
+    {
+        for (SingleRestriction restriction : restrictions.values())
+        {
+            Index index = restriction.findSupportingIndexFromQueryPlan(indexQueryPlan);
+            if (index != null)
+                return index;
+        }
+        return null;
     }
 
     /**
@@ -316,6 +346,11 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
     public final boolean hasSlice()
     {
         return hasSlice;
+    }
+
+    public boolean hasAnn()
+    {
+        return hasAnn;
     }
 
     /**
