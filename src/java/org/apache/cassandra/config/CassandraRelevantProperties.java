@@ -329,6 +329,15 @@ public enum CassandraRelevantProperties
     /** Watcher used when opening sstables to discover extra components, eg. archive component */
     CUSTOM_SSTABLE_WATCHER("cassandra.custom_sstable_watcher"),
 
+    /** Controls the maximum top-k limit for vector search */
+    SAI_VECTOR_SEARCH_MAX_TOP_K("cassandra.sai.vector_search.max_top_k", "1000"),
+
+    /** Controls the hnsw vector cache size, in bytes, per index segment. 0 to disable */
+    SAI_HNSW_VECTOR_CACHE_BYTES("cassandra.sai.vector_search.vector_cache_bytes", String.valueOf(1 * 1024 * 1024)),
+
+    /** Whether to allow the user to specify custom options to the hnsw index */
+    SAI_HNSW_ALLOW_CUSTOM_PARAMETERS("cassandra.sai.hnsw.allow_custom_parameters", "false"),
+
     /**
      * Whether to disable auto-compaction
      */
@@ -372,6 +381,7 @@ public enum CassandraRelevantProperties
     TABLE_METRICS_DEFAULT_HISTOGRAMS_AGGREGATION("cassandra.table_metrics_default_histograms_aggregation", TableMetrics.MetricsAggregation.INDIVIDUAL.name()),
     // Determines if table metrics should be also exported to shared global metric
     TABLE_METRICS_EXPORT_GLOBALS("cassandra.table_metrics_export_globals", "true"),
+    FILE_CACHE_SIZE_IN_MB("cassandra.file_cache_size_in_mb", "2048"),
     CUSTOM_HINTS_RATE_LIMITER_FACTORY("cassandra.custom_hints_rate_limiter_factory"),
 
     CUSTOM_INDEX_BUILD_DECIDER("cassandra.custom_index_build_decider"),

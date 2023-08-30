@@ -17,11 +17,17 @@
  */
 package org.apache.cassandra.index.sai.disk.v1;
 
+import java.util.Arrays;
 import java.util.Map;
+import java.util.stream.Collectors;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
+import org.apache.lucene.index.VectorSimilarityFunction;
+
+import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_VECTOR_SEARCH_MAX_TOP_K;
 
 /**
  * Per-index config for storage-attached index writers.
@@ -34,7 +40,25 @@ public class IndexWriterConfig
     private static final int DEFAULT_POSTING_LIST_MIN_LEAVES = 64;
     private static final int DEFAULT_POSTING_LIST_LVL_SKIP = 3;
 
-    private static final IndexWriterConfig EMPTY_CONFIG = new IndexWriterConfig(null, -1, -1);
+    public static final String MAXIMUM_NODE_CONNECTIONS = "maximum_node_connections";
+    public static final String CONSTRUCTION_BEAM_WIDTH = "construction_beam_width";
+    public static final String SIMILARITY_FUNCTION = "similarity_function";
+
+    public static final int MAXIMUM_MAXIMUM_NODE_CONNECTIONS = 512;
+    public static final int MAXIMUM_CONSTRUCTION_BEAM_WIDTH = 3200;
+
+    public static final int DEFAULT_MAXIMUM_NODE_CONNECTIONS = 16;
+    public static final int DEFAULT_CONSTRUCTION_BEAM_WIDTH = 100;
+
+    public static final int MAX_TOP_K = SAI_VECTOR_SEARCH_MAX_TOP_K.getInt();
+
+    public static final VectorSimilarityFunction DEFAULT_SIMILARITY_FUNCTION = VectorSimilarityFunction.COSINE;
+
+    public static final String validSimilarityFunctions = Arrays.stream(VectorSimilarityFunction.values())
+                                                                .map(e -> e.name())
+                                                                .collect(Collectors.joining(", "));
+
+    private static final IndexWriterConfig EMPTY_CONFIG = new IndexWriterConfig(null, -1, -1, -1, -1, null);
 
     /**
      * Fully qualified index name, in the format "<keyspace>.<table>.<index_name>".
@@ -53,11 +77,37 @@ public class IndexWriterConfig
      */
     private final int bkdPostingsMinLeaves;
 
-    public IndexWriterConfig(String indexName, int bkdPostingsSkip, int bkdPostingsMinLeaves)
+    private final int maximumNodeConnections;
+
+    private final int constructionBeamWidth;
+
+    private final VectorSimilarityFunction similarityFunction;
+
+    public IndexWriterConfig(String indexName,
+                             int bkdPostingsSkip,
+                             int bkdPostingsMinLeaves)
+    {
+        this(indexName,
+             bkdPostingsSkip,
+             bkdPostingsMinLeaves,
+             DEFAULT_MAXIMUM_NODE_CONNECTIONS,
+             DEFAULT_CONSTRUCTION_BEAM_WIDTH,
+             DEFAULT_SIMILARITY_FUNCTION);
+    }
+
+    public IndexWriterConfig(String indexName,
+                             int bkdPostingsSkip,
+                             int bkdPostingsMinLeaves,
+                             int maximumNodeConnections,
+                             int constructionBeamWidth,
+                             VectorSimilarityFunction similarityFunction)
     {
         this.indexName = indexName;
         this.bkdPostingsSkip = bkdPostingsSkip;
         this.bkdPostingsMinLeaves = bkdPostingsMinLeaves;
+        this.maximumNodeConnections = maximumNodeConnections;
+        this.constructionBeamWidth = constructionBeamWidth;
+        this.similarityFunction = similarityFunction;
     }
 
     public String getIndexName()
@@ -75,10 +125,28 @@ public class IndexWriterConfig
         return bkdPostingsSkip;
     }
 
+    public int getMaximumNodeConnections()
+    {
+        return maximumNodeConnections;
+    }
+
+    public int getConstructionBeamWidth()
+    {
+        return constructionBeamWidth;
+    }
+
+    public VectorSimilarityFunction getSimilarityFunction()
+    {
+        return similarityFunction;
+    }
+
     public static IndexWriterConfig fromOptions(String indexName, AbstractType<?> type, Map<String, String> options)
     {
         int minLeaves = DEFAULT_POSTING_LIST_MIN_LEAVES;
         int skip = DEFAULT_POSTING_LIST_LVL_SKIP;
+        int maximumNodeConnections = DEFAULT_MAXIMUM_NODE_CONNECTIONS;
+        int queueSize = DEFAULT_CONSTRUCTION_BEAM_WIDTH;
+        VectorSimilarityFunction similarityFunction = DEFAULT_SIMILARITY_FUNCTION;
 
         if (options.get(POSTING_LIST_LVL_MIN_LEAVES) != null || options.get(POSTING_LIST_LVL_SKIP_OPTION) != null)
         {
@@ -117,13 +185,73 @@ public class IndexWriterConfig
                 }
             }
         }
+        else if (options.get(MAXIMUM_NODE_CONNECTIONS) != null ||
+                 options.get(CONSTRUCTION_BEAM_WIDTH) != null ||
+                 options.get(SIMILARITY_FUNCTION) != null)
+        {
+            if (!type.isVector())
+                throw new InvalidRequestException(String.format("CQL type %s cannot have vector options", type.asCQL3Type()));
 
-        return new IndexWriterConfig(indexName, skip, minLeaves);
+            if (options.containsKey(MAXIMUM_NODE_CONNECTIONS))
+            {
+                if (!CassandraRelevantProperties.SAI_HNSW_ALLOW_CUSTOM_PARAMETERS.getBoolean())
+                    throw new InvalidRequestException(String.format("Maximum node connections cannot be set without enabling %s", CassandraRelevantProperties.SAI_HNSW_ALLOW_CUSTOM_PARAMETERS.name()));
+
+                try
+                {
+                    maximumNodeConnections = Integer.parseInt(options.get(MAXIMUM_NODE_CONNECTIONS));
+                }
+                catch (NumberFormatException e)
+                {
+                    throw new InvalidRequestException(String.format("Maximum number of connections %s is not a valid integer for index %s",
+                                                                    options.get(MAXIMUM_NODE_CONNECTIONS), indexName));
+                }
+                if (maximumNodeConnections <= 0 || maximumNodeConnections > MAXIMUM_MAXIMUM_NODE_CONNECTIONS)
+                    throw new InvalidRequestException(String.format("Maximum number of connections for index %s cannot be <= 0 or > %s, was %s", indexName, MAXIMUM_MAXIMUM_NODE_CONNECTIONS, maximumNodeConnections));
+            }
+            if (options.containsKey(CONSTRUCTION_BEAM_WIDTH))
+            {
+                if (!CassandraRelevantProperties.SAI_HNSW_ALLOW_CUSTOM_PARAMETERS.getBoolean())
+                    throw new InvalidRequestException(String.format("Construction beam width cannot be set without enabling %s", CassandraRelevantProperties.SAI_HNSW_ALLOW_CUSTOM_PARAMETERS.name()));
+
+                try
+                {
+                    queueSize = Integer.parseInt(options.get(CONSTRUCTION_BEAM_WIDTH));
+                }
+                catch (NumberFormatException e)
+                {
+                    throw new InvalidRequestException(String.format("Construction beam width %s is not a valid integer for index %s",
+                                                                    options.get(CONSTRUCTION_BEAM_WIDTH), indexName));
+                }
+                if (queueSize <= 0 || queueSize > MAXIMUM_CONSTRUCTION_BEAM_WIDTH)
+                    throw new InvalidRequestException(String.format("Construction beam width for index %s cannot be <= 0 or > %s, was %s", indexName, MAXIMUM_CONSTRUCTION_BEAM_WIDTH, queueSize));
+            }
+            if (options.containsKey(SIMILARITY_FUNCTION))
+            {
+                String option = options.get(SIMILARITY_FUNCTION).toUpperCase();
+                try
+                {
+                    similarityFunction = VectorSimilarityFunction.valueOf(option);
+                }
+                catch (IllegalArgumentException e)
+                {
+                    throw new InvalidRequestException(String.format("Similarity function %s was not recognized for index %s. Valid values are: %s",
+                                                                    option, indexName, validSimilarityFunctions));
+                }
+
+            }
+        }
+        return new IndexWriterConfig(indexName, skip, minLeaves, maximumNodeConnections, queueSize, similarityFunction);
     }
 
     public static IndexWriterConfig defaultConfig(String indexName)
     {
-        return new IndexWriterConfig(indexName, DEFAULT_POSTING_LIST_LVL_SKIP, DEFAULT_POSTING_LIST_MIN_LEAVES);
+        return new IndexWriterConfig(indexName,
+                                     DEFAULT_POSTING_LIST_LVL_SKIP,
+                                     DEFAULT_POSTING_LIST_MIN_LEAVES,
+                                     DEFAULT_MAXIMUM_NODE_CONNECTIONS,
+                                     DEFAULT_CONSTRUCTION_BEAM_WIDTH,
+                                     DEFAULT_SIMILARITY_FUNCTION);
     }
 
     public static IndexWriterConfig emptyConfig()
@@ -134,8 +262,11 @@ public class IndexWriterConfig
     @Override
     public String toString()
     {
-        return String.format("IndexWriterConfig{%s=%d, %s=%d}",
+        return String.format("IndexWriterConfig{%s=%d, %s=%d, %s=%d, %s=%d, %s=%s}",
                              POSTING_LIST_LVL_SKIP_OPTION, bkdPostingsSkip,
-                             POSTING_LIST_LVL_MIN_LEAVES, bkdPostingsMinLeaves);
+                             POSTING_LIST_LVL_MIN_LEAVES, bkdPostingsMinLeaves,
+                             MAXIMUM_NODE_CONNECTIONS, maximumNodeConnections,
+                             CONSTRUCTION_BEAM_WIDTH, constructionBeamWidth,
+                             SIMILARITY_FUNCTION, similarityFunction);
     }
 }

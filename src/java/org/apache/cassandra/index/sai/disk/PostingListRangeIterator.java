@@ -51,7 +51,7 @@ import org.apache.cassandra.utils.Throwables;
  */
 
 @NotThreadSafe
-public class PostingListRangeIterator extends RangeIterator
+public class PostingListRangeIterator extends RangeIterator<PrimaryKey>
 {
     private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 

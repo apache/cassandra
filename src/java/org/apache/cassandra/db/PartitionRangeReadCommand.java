@@ -263,6 +263,7 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
         return dataRange.isReversed();
     }
 
+    @Override
     public PartitionIterator execute(ConsistencyLevel consistency, QueryState queryState, long queryStartNanoTime) throws RequestExecutionException
     {
         return StorageProxy.getRangeSlice(this, consistency, queryStartNanoTime, queryState.getClientState());
@@ -400,18 +401,6 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
         }
         if (!dataRange.isUnrestricted())
             sb.append(dataRange.toCQLString(metadata()));
-    }
-
-    /**
-     * Allow to post-process the result of the query after it has been reconciled on the coordinator
-     * but before it is passed to the CQL layer to return the ResultSet.
-     *
-     * See CASSANDRA-8717 for why this exists.
-     */
-    public PartitionIterator postReconciliationProcessing(PartitionIterator result)
-    {
-        Index.QueryPlan queryPlan = indexQueryPlan();
-        return queryPlan == null ? result : queryPlan.postProcessor().apply(result);
     }
 
     @Override

@@ -25,7 +25,6 @@ import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.marshal.CollectionType.Kind;
@@ -51,6 +50,11 @@ public interface CQL3Type
     }
 
     default boolean isUDT()
+    {
+        return false;
+    }
+
+    default boolean isVector()
     {
         return false;
     }
@@ -501,6 +505,55 @@ public interface CQL3Type
         }
     }
 
+    public static class Vector implements CQL3Type
+    {
+        private final VectorType<?> type;
+
+        public Vector(VectorType<?> type)
+        {
+            this.type = type;
+        }
+
+        public Vector(AbstractType<?> type, int dimensions)
+        {
+            this.type = VectorType.getInstance(type, dimensions);
+        }
+
+        @Override
+        public VectorType<?> getType()
+        {
+            return type;
+        }
+
+        @Override
+        public String toCQLLiteral(ByteBuffer buffer, ProtocolVersion version)
+        {
+            if (buffer == null)
+                return "null";
+            buffer = buffer.duplicate();
+            CQL3Type elementType = type.elementType.asCQL3Type();
+            List<ByteBuffer> values = getType().split(buffer);
+            StringBuilder sb = new StringBuilder();
+            sb.append('[');
+            for (int i = 0; i < values.size(); i++)
+            {
+                if (i > 0)
+                    sb.append(", ");
+                sb.append(elementType.toCQLLiteral(values.get(i), version));
+            }
+            sb.append(']');
+            return sb.toString();
+        }
+
+        @Override
+        public String toString()
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.append("vector<").append(type.elementType.asCQL3Type()).append(", ").append(type.dimension).append('>');
+            return sb.toString();
+        }
+    }
+
     // For UserTypes, we need to know the current keyspace to resolve the
     // actual type used, so Raw is a "not yet prepared" CQL3Type.
     public abstract class Raw
@@ -535,6 +588,11 @@ public interface CQL3Type
         }
 
         public boolean isTuple()
+        {
+            return false;
+        }
+
+        public boolean isVector()
         {
             return false;
         }
@@ -600,6 +658,11 @@ public interface CQL3Type
         public static Raw tuple(List<CQL3Type.Raw> ts)
         {
             return new RawTuple(ts);
+        }
+
+        public static Raw vector(CQL3Type.Raw t, int dimention)
+        {
+            return new RawVector(t, dimention);
         }
 
         private static class RawType extends Raw
@@ -914,6 +977,56 @@ public interface CQL3Type
                 }
                 sb.append('>');
                 return sb.toString();
+            }
+        }
+
+        private static class RawVector extends Raw
+        {
+            private final CQL3Type.Raw element;
+            private final int dimention;
+
+            private RawVector(Raw element, int dimention)
+            {
+                super(true);
+                this.element = element;
+                this.dimention = dimention;
+            }
+
+            @Override
+            public boolean isVector()
+            {
+                return true;
+            }
+
+            @Override
+            public void forEachUserType(Consumer<UTName> userTypeNameConsumer)
+            {
+                // noop
+            }
+
+            @Override
+            public boolean supportsFreezing()
+            {
+                return false;
+            }
+
+            @Override
+            public boolean isFrozen()
+            {
+                return true;
+            }
+
+            @Override
+            public Raw freeze()
+            {
+                return super.freeze();
+            }
+
+            @Override
+            public CQL3Type prepare(String keyspace, Types udts) throws InvalidRequestException
+            {
+                CQL3Type type = element.prepare(keyspace, udts);
+                return new Vector(type.getType(), dimention);
             }
         }
     }

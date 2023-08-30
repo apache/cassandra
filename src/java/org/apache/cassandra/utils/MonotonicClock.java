@@ -199,7 +199,7 @@ public interface MonotonicClock
             if (almostSameTimeUpdater != null)
                 throw new IllegalStateException("Already running");
             updateAlmostSameTime();
-            logger.info("Scheduling approximate time conversion task with an interval of {} milliseconds", UPDATE_INTERVAL_MS);
+            logger.debug("Scheduling approximate time conversion task with an interval of {} milliseconds", UPDATE_INTERVAL_MS);
             almostSameTimeUpdater = ScheduledExecutors.scheduledFastTasks.scheduleWithFixedDelay(this::updateAlmostSameTime, UPDATE_INTERVAL_MS, UPDATE_INTERVAL_MS, MILLISECONDS);
         }
 
@@ -335,7 +335,7 @@ public interface MonotonicClock
                 throw new IllegalStateException("Already running");
 
             almostNow = precise.now();
-            logger.info("Scheduling approximate time-check task with a precision of {} milliseconds", UPDATE_INTERVAL_MS);
+            logger.debug("Scheduling approximate time-check task with a precision of {} milliseconds", UPDATE_INTERVAL_MS);
             almostNowUpdater = ScheduledExecutors.scheduledFastTasks.scheduleWithFixedDelay(() -> almostNow = precise.now(), UPDATE_INTERVAL_MS, UPDATE_INTERVAL_MS, MILLISECONDS);
         }
 

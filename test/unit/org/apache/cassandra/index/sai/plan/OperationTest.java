@@ -61,6 +61,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.index.sai.IndexingSchemaLoader;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SAITester;
+import org.apache.cassandra.index.sai.disk.v1.V1OnDiskFormat;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableMetadata;
@@ -108,13 +109,13 @@ public class OperationTest extends IndexingSchemaLoader
     public void beforeTest()
     {
         ReadCommand command = PartitionRangeReadCommand.allDataRead(BACKEND.metadata(), FBUtilities.nowInSeconds());
-        controller = new QueryController(BACKEND, command, null, null, new QueryContext(), null);
+        controller = new QueryController(BACKEND, command, null, V1OnDiskFormat.instance.indexFeatureSet(), new QueryContext(), null);
 
         command = PartitionRangeReadCommand.allDataRead(CLUSTERING_BACKEND.metadata(), FBUtilities.nowInSeconds());
-        controllerClustering = new QueryController(CLUSTERING_BACKEND, command, null, null, new QueryContext(), null);
+        controllerClustering = new QueryController(CLUSTERING_BACKEND, command, null, V1OnDiskFormat.instance.indexFeatureSet(), new QueryContext(), null);
 
         command = PartitionRangeReadCommand.allDataRead(STATIC_BACKEND.metadata(), FBUtilities.nowInSeconds());
-        controllerStatic = new QueryController(STATIC_BACKEND, command, null, null, new QueryContext(), null);
+        controllerStatic = new QueryController(STATIC_BACKEND, command, null, V1OnDiskFormat.instance.indexFeatureSet(), new QueryContext(), null);
     }
 
     @After

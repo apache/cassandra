@@ -23,11 +23,13 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 
@@ -49,6 +51,7 @@ import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
@@ -63,7 +66,6 @@ import org.apache.cassandra.index.sai.metrics.IndexMetrics;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
-import org.apache.cassandra.index.sai.utils.RangeUnionIterator;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.index.sai.view.IndexViewManager;
 import org.apache.cassandra.index.sai.view.View;
@@ -92,7 +94,7 @@ public class IndexContext
     private final String keyspace;
     private final String table;
     private final ColumnMetadata column;
-    private final IndexTarget.Type indexType;;
+    private final IndexTarget.Type indexType;
     private final AbstractType<?> validator;
     private final Memtable.Owner owner;
 
@@ -145,7 +147,7 @@ public class IndexContext
             this.queryAnalyzerFactory = AbstractAnalyzer.hasQueryAnalyzer(config.options)
                                         ? AbstractAnalyzer.fromOptionsQueryAnalyzer(getValidator(), config.options)
                                         : this.analyzerFactory;
-            this.segmentCompactionEnabled = Boolean.parseBoolean(config.options.getOrDefault(ENABLE_SEGMENT_COMPACTION_OPTION_NAME, "true"));
+            this.segmentCompactionEnabled = Boolean.parseBoolean(config.options.getOrDefault(ENABLE_SEGMENT_COMPACTION_OPTION_NAME, "false"));
         }
         else
         {
@@ -155,7 +157,7 @@ public class IndexContext
             this.segmentCompactionEnabled = true;
         }
 
-        logger.info(logMessage("Initialized index context with index writer config: {}"), indexWriterConfig);
+        logger.debug(logMessage("Initialized index context with index writer config: {}"), indexWriterConfig);
     }
 
     public AbstractType<?> keyValidator()
@@ -202,11 +204,12 @@ public class IndexContext
     {
         MemtableIndex current = liveMemtables.get(memtable);
 
+        // VSTODO this is obsolete once we no longer support Java 8
         // We expect the relevant IndexMemtable to be present most of the time, so only make the
         // call to computeIfAbsent() if it's not. (see https://bugs.openjdk.java.net/browse/JDK-8161372)
         MemtableIndex target = (current != null)
                                ? current
-                               : liveMemtables.computeIfAbsent(memtable, mt -> new MemtableIndex(this));
+                               : liveMemtables.computeIfAbsent(memtable, mt -> MemtableIndex.createIndex(this));
 
         long start = System.nanoTime();
 
@@ -228,6 +231,23 @@ public class IndexContext
             target.index(key, row.clustering(), value, memtable, opGroup);
         }
         indexMetrics.memtableIndexWriteLatency.update(System.nanoTime() - start, TimeUnit.NANOSECONDS);
+    }
+
+    public void update(DecoratedKey key, Row oldRow, Row newRow, Memtable memtable, OpOrder.Group opGroup)
+    {
+        if (!isVector())
+        {
+            index(key, newRow, memtable, opGroup);
+            return;
+        }
+
+        MemtableIndex target = liveMemtables.get(memtable);
+        if (target == null)
+            return;
+
+        ByteBuffer oldValue = getValueOf(key, oldRow, FBUtilities.nowInSeconds());
+        ByteBuffer newValue = getValueOf(key, newRow, FBUtilities.nowInSeconds());
+        target.update(key, oldRow.clustering(), oldValue, newValue, memtable, opGroup);
     }
 
     public void renewMemtable(Memtable renewed)
@@ -256,23 +276,16 @@ public class IndexContext
                             .orElse(null);
     }
 
-    public RangeIterator searchMemtable(Expression e, AbstractBounds<PartitionPosition> keyRange)
+    public List<Pair<Memtable, RangeIterator<PrimaryKey>>> iteratorsForSearch(QueryContext queryContext, Expression expression, AbstractBounds<PartitionPosition> keyRange, int limit) {
+        return liveMemtables.entrySet()
+                                   .stream()
+                                   .map(e -> Pair.create(e.getKey(), e.getValue().search(queryContext, expression, keyRange, limit))).collect(Collectors.toList());
+    }
+
+    public RangeIterator<PrimaryKey> reorderMemtable(Memtable memtable, QueryContext context, RangeIterator<PrimaryKey> iterator, Expression exp, int limit)
     {
-        Collection<MemtableIndex> memtables = liveMemtables.values();
-
-        if (memtables.isEmpty())
-        {
-            return RangeIterator.empty();
-        }
-
-        RangeUnionIterator.Builder builder = RangeUnionIterator.builder();
-
-        for (MemtableIndex index : memtables)
-        {
-            builder.add(index.search(e, keyRange));
-        }
-
-        return builder.build();
+        var index = liveMemtables.get(memtable);
+        return index.limitToTopResults(context, iterator, exp, limit);
     }
 
     public long liveMemtableWriteCount()
@@ -396,6 +409,12 @@ public class IndexContext
     {
         if (op.isLike() || op == Operator.LIKE) return false;
 
+        // ANN is only supported against vectors, and vector indexes only support ANN
+        if (column.type instanceof VectorType)
+            return op == Operator.ANN;
+        if (op == Operator.ANN)
+            return false;
+
         Expression.Op operator = Expression.Op.valueOf(op);
 
         if (isNonFrozenCollection())
@@ -427,6 +446,8 @@ public class IndexContext
         switch (column.kind)
         {
             case PARTITION_KEY:
+                if (key == null)
+                    return null;
                 return partitionKeyType instanceof CompositeType
                        ? CompositeType.extractComponent(key.getKey(), column.position())
                        : key.getKey();
@@ -480,6 +501,12 @@ public class IndexContext
     public boolean isLiteral()
     {
         return TypeUtil.isLiteral(getValidator());
+    }
+
+    public boolean isVector()
+    {
+        //VSTODO probably move this down to TypeUtils eventually
+        return getValidator().isVector();
     }
 
     public boolean equals(Object obj)

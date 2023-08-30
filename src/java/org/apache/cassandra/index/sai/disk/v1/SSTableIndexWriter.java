@@ -54,6 +54,7 @@ public class SSTableIndexWriter implements PerIndexWriter
 
     public static final int MAX_STRING_TERM_SIZE = Integer.getInteger("cassandra.sai.max_string_term_size_kb", 1) * 1024;
     public static final int MAX_FROZEN_TERM_SIZE = Integer.getInteger("cassandra.sai.max_frozen_term_size_kb", 5) * 1024;
+    public static final int MAX_VECTOR_TERM_SIZE = Integer.getInteger("cassandra.sai.max_vector_term_size_kb", 16) * 1024;
     public static final String TERM_OVERSIZE_MESSAGE =
             "Can't add term of column {} to index for key: {}, term size {} " +
                     "max allowed size {}, use analyzed = true (if not yet set) for that column.";
@@ -80,7 +81,7 @@ public class SSTableIndexWriter implements PerIndexWriter
         this.analyzer = indexContext.getAnalyzerFactory().create();
         this.limiter = limiter;
         this.isIndexValid = isIndexValid;
-        this.maxTermSize = indexContext.isFrozen() ? MAX_FROZEN_TERM_SIZE : MAX_STRING_TERM_SIZE;
+        this.maxTermSize = indexContext.isVector() ? MAX_VECTOR_TERM_SIZE : indexContext.isFrozen() ? MAX_FROZEN_TERM_SIZE : MAX_STRING_TERM_SIZE;
     }
 
     @Override
@@ -369,9 +370,14 @@ public class SSTableIndexWriter implements PerIndexWriter
 
     private SegmentBuilder newSegmentBuilder()
     {
-        SegmentBuilder builder = TypeUtil.isLiteral(indexContext.getValidator())
-                                 ? new SegmentBuilder.RAMStringSegmentBuilder(indexContext.getValidator(), limiter)
-                                 : new SegmentBuilder.KDTreeSegmentBuilder(indexContext.getValidator(), limiter, indexContext.getIndexWriterConfig());
+        SegmentBuilder builder;
+
+        if (indexContext.isVector())
+            builder = new SegmentBuilder.VectorSegmentBuilder(indexContext.getValidator(), limiter, indexContext.getIndexWriterConfig());
+        else if (indexContext.isLiteral())
+            builder = new SegmentBuilder.RAMStringSegmentBuilder(indexContext.getValidator(), limiter);
+        else
+            builder = new SegmentBuilder.KDTreeSegmentBuilder(indexContext.getValidator(), limiter, indexContext.getIndexWriterConfig());
 
         long globalBytesUsed = limiter.increment(builder.totalBytesAllocated());
         logger.debug(indexContext.logMessage("Created new segment builder while flushing SSTable {}. Global segment memory usage now at {}."),

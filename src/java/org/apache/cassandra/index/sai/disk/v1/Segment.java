@@ -33,7 +33,9 @@ import org.apache.cassandra.index.sai.SSTableContext;
 import org.apache.cassandra.index.sai.SSTableQueryContext;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.plan.Expression;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
+import org.apache.cassandra.index.sai.utils.SegmentOrdering;
 import org.apache.cassandra.io.util.FileUtils;
 
 /**
@@ -41,7 +43,7 @@ import org.apache.cassandra.io.util.FileUtils;
  * or max segment rowId limit, because of lucene's limitation on 2B(Integer.MAX_VALUE). It also helps to reduce resource
  * consumption for read requests as only segments that intersect with read request data range need to be loaded.
  */
-public class Segment implements Closeable
+public class Segment implements Closeable, SegmentOrdering
 {
     private final Token minKey;
     private final Token.KeyBound minKeyBound;
@@ -108,14 +110,15 @@ public class Segment implements Closeable
         if (keyRange instanceof Range && ((Range<?>)keyRange).isWrapAround())
             return keyRange.contains(minKeyBound) || keyRange.contains(maxKeyBound);
 
-        int cmp = keyRange.right.getToken().compareTo(minKey);
+        int cmp = keyRange.right.compareTo(minKeyBound);
         // if right is minimum, it means right is the max token and bigger than maxKey.
         // if right bound is less than minKey, no intersection
         if (!keyRange.right.isMinimum() && (!keyRange.inclusiveRight() && cmp == 0 || cmp < 0))
             return false;
 
+        cmp = keyRange.left.compareTo(maxKeyBound);
         // if left bound is bigger than maxKey, no intersection
-        return keyRange.isStartInclusive() || keyRange.left.getToken().compareTo(maxKey) < 0;
+        return (keyRange.isStartInclusive() || cmp != 0) && cmp <= 0;
     }
 
     public long indexFileCacheSize()
@@ -127,13 +130,30 @@ public class Segment implements Closeable
      * Search on-disk index synchronously
      *
      * @param expression to filter on disk index
-     * @param context to track per sstable cache and per query metrics
-     * @param defer create the iterator in a deferred state
-     * @return range iterator that matches given expression
+     * @param keyRange   key range specific in read command, used by ANN index
+     * @param context    to track per sstable cache and per query metrics
+     * @param defer      create the iterator in a deferred state
+     * @param limit      the num of rows to returned, used by ANN index
+     * @return range iterator of primary keys that matches given expression
      */
-    public RangeIterator search(Expression expression, SSTableQueryContext context, boolean defer) throws IOException
+    public RangeIterator<PrimaryKey> search(Expression expression, AbstractBounds<PartitionPosition> keyRange, SSTableQueryContext context, boolean defer, int limit) throws IOException
     {
-        return index.search(expression, context, defer);
+        return index.search(expression, keyRange, context, defer, limit);
+    }
+
+    /**
+     * Search on-disk index synchronously
+     *
+     * @param expression to filter on disk index
+     * @param keyRange   key range specific in read command, used by ANN index
+     * @param context    to track per sstable cache and per query metrics
+     * @param defer      create the iterator in a deferred state
+     * @param limit      the num of rows to returned, used by ANN index
+     * @return range iterator of sstable row ids that matches given expression
+     */
+    public RangeIterator<Long> searchSSTableRowIds(Expression expression, AbstractBounds<PartitionPosition> keyRange, SSTableQueryContext context, boolean defer, int limit) throws IOException
+    {
+        return index.searchSSTableRowIds(expression, keyRange, context, defer, limit);
     }
 
     @Override
@@ -149,6 +169,12 @@ public class Segment implements Closeable
     public int hashCode()
     {
         return Objects.hashCode(metadata);
+    }
+
+    @Override
+    public RangeIterator<PrimaryKey> limitToTopResults(SSTableQueryContext context, RangeIterator<Long> iterator, Expression exp, int limit) throws IOException
+    {
+        return index.limitToTopResults(context, iterator, exp, limit);
     }
 
     @Override

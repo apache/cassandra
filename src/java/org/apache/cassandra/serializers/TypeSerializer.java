@@ -20,6 +20,8 @@ package org.apache.cassandra.serializers;
 
 import java.nio.ByteBuffer;
 
+import javax.annotation.Nullable;
+
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 
@@ -60,6 +62,16 @@ public abstract class TypeSerializer<T>
         return buffer == null || !buffer.hasRemaining()
                ? "null"
                : toString(deserialize(buffer));
+    }
+
+    public final boolean isNull(@Nullable ByteBuffer buffer)
+    {
+        return isNull(buffer, ByteBufferAccessor.instance);
+    }
+
+    public <V> boolean isNull(@Nullable V buffer, ValueAccessor<V> accessor)
+    {
+        return buffer == null || accessor.isEmpty(buffer);
     }
 }
 

@@ -23,6 +23,7 @@ package org.apache.cassandra.index;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -34,6 +35,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.restrictions.Restriction;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
@@ -421,6 +424,19 @@ public interface Index
     public RowFilter getPostIndexQueryFilter(RowFilter filter);
 
     /**
+     * Return a comparator that reorders query result before sending to client
+     *
+     * @param restriction restriction that requires current index
+     * @param columnIndex idx of the indexed column in returned row
+     * @param options query options
+     * @return comparator that for post-query ordering; or null if not supported
+     */
+    default Comparator<List<ByteBuffer>> getPostQueryOrdering(Restriction restriction, int columnIndex, QueryOptions options)
+    {
+        return null;
+    }
+
+    /**
      * Return an estimate of the number of results this index is expected to return for any given
      * query that it can be used to answer. Used in conjunction with indexes() and supportsExpression()
      * to determine the most selective index for a given ReadCommand. Additionally, this is also used
@@ -596,10 +612,7 @@ public interface Index
 
     /**
      * Used to validate the various parameters of a supplied {@code}ReadCommand{@code},
-     * this is called prior to execution. In theory, any command instance may be checked
-     * by any {@code}Index{@code} instance, but in practice the index will be the one
-     * returned by a call to the {@code}getIndex(ColumnFamilyStore cfs){@code} method on
-     * the supplied command.
+     * this is called prior to execution.
      *
      * Custom index implementations should perform any validation of query expressions here and throw a meaningful
      * InvalidRequestException when any expression or other parameter is invalid.
@@ -910,8 +923,10 @@ public interface Index
          * The function takes a PartitionIterator of the results from the replicas which has already been collated
          * and reconciled, along with the command being executed. It returns another PartitionIterator containing the results
          * of the transformation (which may be the same as the input if the transformation is a no-op).
+         *
+         * @param command the read command being executed
          */
-        default Function<PartitionIterator, PartitionIterator> postProcessor()
+        default Function<PartitionIterator, PartitionIterator> postProcessor(ReadCommand command)
         {
             return partitions -> partitions;
         }
@@ -932,6 +947,14 @@ public interface Index
          * @return true if the indexes in this plan support querying multiple vnode ranges at once.
          */
         default boolean supportsMultiRangeReadCommand()
+        {
+            return false;
+        }
+
+        /**
+         * @return true if given index query plan is a top-k request
+         */
+        default boolean isTopK()
         {
             return false;
         }

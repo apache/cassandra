@@ -223,6 +223,12 @@ public class ByteArrayAccessor implements ValueAccessor<byte[]>
     }
 
     @Override
+    public float getFloat(byte[] value, int offset)
+    {
+        return ByteArrayUtil.getFloat(value, offset);
+    }
+
+    @Override
     public double toDouble(byte[] value)
     {
         return ByteArrayUtil.getDouble(value, 0);

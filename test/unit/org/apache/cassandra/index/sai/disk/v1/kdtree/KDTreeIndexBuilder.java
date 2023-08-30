@@ -80,8 +80,20 @@ public class KDTreeIndexBuilder
         {
             return key.token().getLongValue();
         }
+
+        @Override
+        public long firstRowIdFromPrimaryKey(PrimaryKey key)
+        {
+            return key.token().getLongValue();
+        }
+
+        @Override
+        public long lastRowIdFromPrimaryKey(PrimaryKey key)
+        {
+            return key.token().getLongValue();
+        }
     };
-    public static final PrimaryKeyMap.Factory TEST_PRIMARY_KEY_MAP_FACTORY = (context) -> TEST_PRIMARY_KEY_MAP;
+    public static final PrimaryKeyMap.Factory TEST_PRIMARY_KEY_MAP_FACTORY = () -> TEST_PRIMARY_KEY_MAP;
 
 
     private static final BigDecimal ONE_TENTH = BigDecimal.valueOf(1, 1);

@@ -24,13 +24,17 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.agrona.collections.IntArrayList;
 import org.agrona.collections.LongArrayList;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.PostingList;
+import org.apache.cassandra.index.sai.disk.ResettableByteBuffersIndexOutput;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
-import org.apache.cassandra.index.sai.disk.io.RAMIndexOutput;
+import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
 import org.apache.cassandra.index.sai.utils.SAICodecUtils;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.store.IndexOutput;
@@ -38,7 +42,7 @@ import org.apache.lucene.util.packed.DirectWriter;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.lang.Math.max;
-import static org.apache.lucene.codecs.lucene50.Lucene50PostingsFormat.BLOCK_SIZE;
+
 
 /**
  * Encodes, compresses and writes postings lists to disk.
@@ -84,6 +88,11 @@ import static org.apache.lucene.codecs.lucene50.Lucene50PostingsFormat.BLOCK_SIZ
 @NotThreadSafe
 public class PostingsWriter implements Closeable
 {
+    protected static final Logger logger = LoggerFactory.getLogger(PostingsWriter.class);
+
+    // import static org.apache.lucene.codecs.lucene50.Lucene50PostingsFormat.BLOCK_SIZE;
+    private final static int BLOCK_SIZE = 128;
+
     private static final String POSTINGS_MUST_BE_SORTED_ERROR_MSG = "Postings must be sorted ascending, got [%s] after [%s]";
 
     private final IndexOutput dataOutput;
@@ -91,7 +100,7 @@ public class PostingsWriter implements Closeable
     private final long[] deltaBuffer;
     private final LongArrayList blockOffsets = new LongArrayList();
     private final LongArrayList blockMaxIDs = new LongArrayList();
-    private final RAMIndexOutput inMemoryOutput = new RAMIndexOutput("blockOffsets");
+    private final ResettableByteBuffersIndexOutput inMemoryOutput = new ResettableByteBuffersIndexOutput(1024, "blockOffsets");
 
     private final long startOffset;
 
@@ -118,6 +127,8 @@ public class PostingsWriter implements Closeable
 
     private PostingsWriter(IndexOutput dataOutput, int blockSize) throws IOException
     {
+        assert dataOutput instanceof IndexOutputWriter;
+        logger.debug("Creating postings writer for output {}", dataOutput);
         this.blockSize = blockSize;
         this.dataOutput = dataOutput;
         startOffset = dataOutput.getFilePointer();
@@ -134,7 +145,7 @@ public class PostingsWriter implements Closeable
     }
 
     /**
-     * @return file pointer where index structure begins
+     * @return file pointer where index structure begins (before header)
      */
     public long getStartOffset()
     {
@@ -254,7 +265,7 @@ public class PostingsWriter implements Closeable
 
         writeSortedFoRBlock(blockOffsets, inMemoryOutput);
         dataOutput.writeVLong(inMemoryOutput.getFilePointer());
-        inMemoryOutput.writeTo(dataOutput);
+        inMemoryOutput.copyTo(dataOutput);
         writeSortedFoRBlock(blockMaxIDs, dataOutput);
     }
 

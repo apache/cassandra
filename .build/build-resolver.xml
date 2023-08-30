@@ -202,6 +202,7 @@
         <!-- files.pythonhosted.org -->
         <get src="${artifact.python.pypi}/59/a0/cf4cd997e1750f0c2d91c6ea5abea218251c43c3581bcc2f118b00baf5cf/futures-2.1.6-py2.py3-none-any.whl" dest="${local.repository}/org/apache/cassandra/deps/futures-2.1.6-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
         <get src="${artifact.python.pypi}/73/fb/00a976f728d0d1fecfe898238ce23f502a721c0ac0ecfedb80e0d88c64e9/six-1.12.0-py2.py3-none-any.whl" dest="${local.repository}/org/apache/cassandra/deps/six-1.12.0-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
+        <get src="${artifact.python.pypi}/20/f4/c0584a25144ce20bfcf1aecd041768b8c762c1eb0aa77502a3f0baa83f11/wcwidth-0.2.6-py2.py3-none-any.whl" dest="${local.repository}/org/apache/cassandra/deps/wcwidth-0.2.6-py2.py3-none-any.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
 
         <!-- apache/cassandra/lib -->
         <get src="${lib.download.base.url}/lib/geomet-0.1.0.zip" dest="${local.repository}/org/apache/cassandra/deps/geomet-0.1.0.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
@@ -235,6 +236,7 @@
             <file file="${local.repository}/org/apache/cassandra/deps/futures-2.1.6-py2.py3-none-any.zip"/>
             <file file="${local.repository}/org/apache/cassandra/deps/six-1.12.0-py2.py3-none-any.zip"/>
             <file file="${local.repository}/org/apache/cassandra/deps/geomet-0.1.0.zip"/>
+            <file file="${local.repository}/org/apache/cassandra/deps/wcwidth-0.2.6-py2.py3-none-any.zip"/>
         </copy>
         <copy todir="${build.lib}/sigar-bin/" quiet="true">
             <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-amd64-freebsd-6.so"/>

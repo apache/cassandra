@@ -24,8 +24,8 @@ import org.junit.Test;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
-import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.index.sai.disk.v2.RowAwarePrimaryKeyFactory;
+import org.apache.cassandra.index.sai.utils.RangeIterator;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -157,7 +157,7 @@ public abstract class AbstractKeyRangeIteratorTest
         assertIterator(iterator, 2, 3);
     }
 
-    private void assertIterator(RangeIterator iterator, long... tokens) throws Exception
+    private void assertIterator(RangeIterator<PrimaryKey> iterator, long... tokens) throws Exception
     {
         for(long token : tokens)
         {

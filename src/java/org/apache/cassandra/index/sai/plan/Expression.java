@@ -48,7 +48,7 @@ public class Expression
 
     public enum Op
     {
-        EQ, MATCH, PREFIX, NOT_EQ, RANGE, CONTAINS_KEY, CONTAINS_VALUE, IN;
+        EQ, MATCH, PREFIX, NOT_EQ, RANGE, CONTAINS_KEY, CONTAINS_VALUE, IN, ANN;
 
         public static Op valueOf(Operator operator)
         {
@@ -81,6 +81,9 @@ public class Expression
                 case IN:
                     return IN;
 
+                case ANN:
+                    return ANN;
+
                 default:
                     return null;
             }
@@ -106,6 +109,7 @@ public class Expression
     protected Op operation;
 
     public Bound lower, upper;
+    public int topK;
     public boolean upperInclusive, lowerInclusive;
 
     final List<ByteBuffer> exclusions = new ArrayList<>();
@@ -188,6 +192,11 @@ public class Expression
                 else
                     lower = new Bound(value, validator, lowerInclusive);
                 break;
+            case ANN:
+                operation = Op.ANN;
+                lower = new Bound(value, validator, true);
+                upper = lower;
+                break;
         }
 
         assert operation != null;
@@ -197,6 +206,9 @@ public class Expression
 
     public boolean isSatisfiedBy(ByteBuffer columnValue)
     {
+        if (validator.isVector())
+            return true;
+
         if (!TypeUtil.isValid(columnValue, validator))
         {
             logger.error(context.logMessage("Value is not valid for indexed column {} with {}"), context.getColumnName(), validator);

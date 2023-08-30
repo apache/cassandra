@@ -34,7 +34,10 @@ import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
+import org.apache.cassandra.index.sai.utils.RangeIntersectionIterator;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
+import org.apache.cassandra.index.sai.utils.RangeUnionIterator;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.serializers.ListSerializer;
@@ -192,7 +195,7 @@ public class Operation
         }
     }
 
-    static RangeIterator buildIterator(QueryController controller)
+    static RangeIterator<PrimaryKey> buildIterator(QueryController controller)
     {
         return Node.buildTree(controller.filterOperation()).analyzeTree(controller).rangeIterator(controller);
     }
@@ -230,7 +233,7 @@ public class Operation
 
         abstract FilterTree filterTree();
 
-        abstract RangeIterator rangeIterator(QueryController controller);
+        abstract RangeIterator<PrimaryKey> rangeIterator(QueryController controller);
 
         static Node buildTree(RowFilter.FilterElement filterOperation)
         {
@@ -330,15 +333,14 @@ public class Operation
         }
 
         @Override
-        RangeIterator rangeIterator(QueryController controller)
+        RangeIterator<PrimaryKey> rangeIterator(QueryController controller)
         {
-            RangeIterator.Builder builder = controller.getIndexes(OperationType.AND, expressionMap.values());
+            var builder = RangeIntersectionIterator.<PrimaryKey>sizedBuilder(1 + children.size());
+            if (!expressionMap.isEmpty())
+                builder.add(controller.getIndexes(OperationType.AND, expressionMap.values()));
             for (Node child : children)
-            {
-                boolean canFilter = child.canFilter();
-                if (canFilter)
+                if (child.canFilter())
                     builder.add(child.rangeIterator(controller));
-            }
             return builder.build();
         }
     }
@@ -358,9 +360,11 @@ public class Operation
         }
 
         @Override
-        RangeIterator rangeIterator(QueryController controller)
+        RangeIterator<PrimaryKey> rangeIterator(QueryController controller)
         {
-            RangeIterator.Builder builder = controller.getIndexes(OperationType.OR, expressionMap.values());
+            var builder = RangeUnionIterator.<PrimaryKey>builder(1 + children.size());
+            if (!expressionMap.isEmpty())
+                builder.add(controller.getIndexes(OperationType.OR, expressionMap.values()));
             for (Node child : children)
                 if (child.canFilter())
                     builder.add(child.rangeIterator(controller));
@@ -398,8 +402,8 @@ public class Operation
         @Override
         RangeIterator rangeIterator(QueryController controller)
         {
-            assert canFilter();
-            return controller.getIndexes(OperationType.AND, expressionMap.values()).build();
+            assert canFilter() : "Cannot process query with no expressions";
+            return controller.getIndexes(OperationType.AND, expressionMap.values());
         }
     }
 }

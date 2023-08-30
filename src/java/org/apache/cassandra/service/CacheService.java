@@ -114,7 +114,7 @@ public class CacheService implements CacheServiceMBean
      */
     private AutoSavingCache<KeyCacheKey, BigTableRowIndexEntry> initKeyCache()
     {
-        logger.info("Initializing key cache with capacity of {} MBs.", DatabaseDescriptor.getKeyCacheSizeInMB());
+        logger.debug("Initializing key cache with capacity of {} MBs.", DatabaseDescriptor.getKeyCacheSizeInMB());
 
         long keyCacheInMemoryCapacity = DatabaseDescriptor.getKeyCacheSizeInMB() * 1024 * 1024;
 
@@ -144,7 +144,7 @@ public class CacheService implements CacheServiceMBean
      */
     private AutoSavingCache<RowCacheKey, IRowCacheEntry> initRowCache()
     {
-        logger.info("Initializing row cache with capacity of {} MBs", DatabaseDescriptor.getRowCacheSizeInMB());
+        logger.debug("Initializing row cache with capacity of {} MBs", DatabaseDescriptor.getRowCacheSizeInMB());
 
         CacheProvider<RowCacheKey, IRowCacheEntry> cacheProvider;
         String cacheProviderClassName = DatabaseDescriptor.getRowCacheSizeInMB() > 0
@@ -173,7 +173,7 @@ public class CacheService implements CacheServiceMBean
 
     private AutoSavingCache<CounterCacheKey, ClockAndCount> initCounterCache()
     {
-        logger.info("Initializing counter cache with capacity of {} MBs", DatabaseDescriptor.getCounterCacheSizeInMB());
+        logger.debug("Initializing counter cache with capacity of {} MBs", DatabaseDescriptor.getCounterCacheSizeInMB());
 
         long capacity = DatabaseDescriptor.getCounterCacheSizeInMB() * 1024 * 1024;
 
@@ -185,9 +185,9 @@ public class CacheService implements CacheServiceMBean
 
         int keysToSave = DatabaseDescriptor.getCounterCacheKeysToSave();
 
-        logger.info("Scheduling counter cache save to every {} seconds (going to save {} keys).",
-                    DatabaseDescriptor.getCounterCacheSavePeriod(),
-                    keysToSave == Integer.MAX_VALUE ? "all" : keysToSave);
+        logger.debug("Scheduling counter cache save to every {} seconds (going to save {} keys).",
+                     DatabaseDescriptor.getCounterCacheSavePeriod(),
+                     keysToSave == Integer.MAX_VALUE ? "all" : keysToSave);
 
         cache.scheduleSaving(DatabaseDescriptor.getCounterCacheSavePeriod(), keysToSave);
 

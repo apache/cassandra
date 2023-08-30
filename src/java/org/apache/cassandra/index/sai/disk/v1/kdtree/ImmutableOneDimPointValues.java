@@ -25,7 +25,7 @@ import org.apache.cassandra.index.sai.disk.TermsIterator;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
-import org.apache.lucene.codecs.MutablePointValues;
+import org.apache.cassandra.index.sai.disk.oldlucene.MutablePointValues;
 import org.apache.lucene.util.bkd.BKDWriter;
 
 /**

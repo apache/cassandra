@@ -21,31 +21,33 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.google.common.collect.Iterables;
+
 import org.apache.cassandra.io.util.FileUtils;
 
 /**
  * Range Union Iterator is used to return sorted stream of elements from multiple RangeIterator instances.
  */
 @SuppressWarnings("resource")
-public class RangeUnionIterator extends RangeIterator
+public class RangeUnionIterator<T extends Comparable<T>> extends RangeIterator<T>
 {
-    private final List<RangeIterator> ranges;
+    private final List<RangeIterator<T>> ranges;
 
-    private final List<RangeIterator> toRelease;
-    private final List<RangeIterator> candidates = new ArrayList<>();
+    private final List<RangeIterator<T>> toRelease;
+    private final List<RangeIterator<T>> candidates = new ArrayList<>();
 
-    private RangeUnionIterator(Builder.Statistics statistics, List<RangeIterator> ranges)
+    private RangeUnionIterator(Builder.Statistics<T> statistics, List<RangeIterator<T>> ranges)
     {
         super(statistics);
         this.ranges = ranges;
         this.toRelease = new ArrayList<>(ranges);
     }
 
-    public PrimaryKey computeNext()
+    public T computeNext()
     {
         candidates.clear();
-        PrimaryKey candidate = null;
-        for (RangeIterator range : ranges)
+        T candidate = null;
+        for (RangeIterator<T> range : ranges)
         {
             if (range.hasNext())
             {
@@ -74,14 +76,14 @@ public class RangeUnionIterator extends RangeIterator
             }
         }
         if (candidates.isEmpty())
-            return endOfData();
+            return (T) endOfData();
         candidates.forEach(RangeIterator::next);
         return candidate;
     }
 
-    protected void performSkipTo(PrimaryKey nextKey)
+    protected void performSkipTo(T nextKey)
     {
-        for (RangeIterator range : ranges)
+        for (RangeIterator<T> range : ranges)
         {
             if (range.hasNext())
                 range.skipTo(nextKey);
@@ -95,25 +97,24 @@ public class RangeUnionIterator extends RangeIterator
         ranges.forEach(FileUtils::closeQuietly);
     }
 
-    public static Builder builder()
+    public static <T extends Comparable<T>> Builder<T> builder(int size)
     {
-        return new Builder();
+        return new Builder<>(size);
     }
 
-    public static RangeIterator build(List<RangeIterator> tokens)
+    public static <T extends Comparable<T>> Builder<T> builder()
     {
-        return new Builder(tokens.size()).add(tokens).build();
+        return builder(10);
     }
 
-    public static class Builder extends RangeIterator.Builder
+    public static <T extends Comparable<T>> RangeIterator<T> build(Iterable<RangeIterator<T>> tokens)
     {
-        protected List<RangeIterator> rangeIterators;
+        return RangeUnionIterator.<T>builder(Iterables.size(tokens)).add(tokens).build();
+    }
 
-        public Builder()
-        {
-            super(IteratorType.UNION);
-            this.rangeIterators = new ArrayList<>();
-        }
+    public static class Builder<T extends Comparable<T>> extends RangeIterator.Builder<T>
+    {
+        protected List<RangeIterator<T>> rangeIterators;
 
         public Builder(int size)
         {
@@ -121,7 +122,7 @@ public class RangeUnionIterator extends RangeIterator
             this.rangeIterators = new ArrayList<>(size);
         }
 
-        public RangeIterator.Builder add(RangeIterator range)
+        public RangeIterator.Builder<T> add(RangeIterator<T> range)
         {
             if (range == null)
                 return this;
@@ -137,9 +138,9 @@ public class RangeUnionIterator extends RangeIterator
             return this;
         }
 
-        public RangeIterator.Builder add(List<RangeIterator> ranges)
+        public RangeIterator.Builder<T> add(Iterable<RangeIterator<T>> ranges)
         {
-            if (ranges == null || ranges.isEmpty())
+            if (ranges == null || Iterables.isEmpty(ranges))
                 return this;
 
             ranges.forEach(this::add);
@@ -151,7 +152,7 @@ public class RangeUnionIterator extends RangeIterator
             return rangeIterators.size();
         }
 
-        protected RangeIterator buildIterator()
+        protected RangeIterator<T> buildIterator()
         {
             switch (rangeCount())
             {
@@ -160,7 +161,7 @@ public class RangeUnionIterator extends RangeIterator
 
                 default:
                     //TODO Need to test whether an initial sort improves things
-                    return new RangeUnionIterator(statistics, rangeIterators);
+                    return new RangeUnionIterator<T>(statistics, rangeIterators);
             }
         }
     }

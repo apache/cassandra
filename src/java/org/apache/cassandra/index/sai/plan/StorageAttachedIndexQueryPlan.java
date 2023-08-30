@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableSet;
@@ -30,6 +31,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.format.IndexFeatureSet;
@@ -43,6 +45,7 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
     private final RowFilter postIndexFilter;
     private final RowFilter.FilterElement filterOperation;
     private final Set<Index> indexes;
+    private final boolean isTopK;
     private final IndexFeatureSet indexFeatureSet;
 
     private StorageAttachedIndexQueryPlan(ColumnFamilyStore cfs,
@@ -58,6 +61,7 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
         this.filterOperation = filterOperation;
         this.indexes = indexes;
         this.indexFeatureSet = indexFeatureSet;
+        this.isTopK = indexes.stream().anyMatch(i -> i instanceof StorageAttachedIndex && ((StorageAttachedIndex) i).getIndexContext().isVector());
     }
 
     @Nullable
@@ -134,6 +138,19 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
     }
 
     /**
+     * Called on coordinator after merging replica responses before returning to client
+     */
+    @Override
+    public Function<PartitionIterator, PartitionIterator> postProcessor(ReadCommand command)
+    {
+        if (!isTopK())
+            return partitions -> partitions;
+
+        // in case of top-k query, filter out rows that are not actually global top-K
+        return partitions -> (PartitionIterator) new VectorTopKProcessor(command).filter(partitions);
+    }
+
+    /**
      * @return a filter with all the expressions that are user-defined or for a non-indexed partition key column
      *
      * (currently index on partition columns is not supported, see {@link StorageAttachedIndex#validateOptions(Map, TableMetadata)})
@@ -148,5 +165,11 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
     public boolean supportsMultiRangeReadCommand()
     {
         return true;
+    }
+
+    @Override
+    public boolean isTopK()
+    {
+        return isTopK;
     }
 }

@@ -21,7 +21,7 @@ import java.io.IOException;
 
 import com.google.common.base.Preconditions;
 
-import org.apache.lucene.codecs.MutablePointValues;
+import org.apache.cassandra.index.sai.disk.oldlucene.MutablePointValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.ByteBlockPool;
 import org.apache.lucene.util.BytesRef;
@@ -128,9 +128,10 @@ public class BKDTreeRamBuffer implements Accountable
             @Override
             public byte getByteAt(int i, int k)
             {
+                byte[] a = new byte[1];
                 final long offset = (long) packedBytesLength * (long) ords[i] + (long) k;
-
-                return bytes.readByte(offset);
+                bytes.readBytes(offset, a, 0, 1);
+                return a[0];
             }
 
             @Override

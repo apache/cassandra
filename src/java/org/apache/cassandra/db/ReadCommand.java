@@ -224,6 +224,12 @@ public abstract class ReadCommand extends AbstractReadQuery
         return indexQueryPlan;
     }
 
+    @Override
+    public boolean isTopK()
+    {
+        return indexQueryPlan != null && indexQueryPlan.isTopK();
+    }
+
     @VisibleForTesting
     public Index.Searcher indexSearcher()
     {
@@ -415,7 +421,7 @@ public abstract class ReadCommand extends AbstractReadQuery
             if (executionController.isTrackingRepairedStatus())
             {
                 DataLimits.Counter limit =
-                    limits().newCounter(nowInSec(), false, selectsFullPartition(), metadata().enforceStrictLiveness());
+                limits().newCounter(nowInSec(), false, selectsFullPartition(), metadata().enforceStrictLiveness());
                 iterator = limit.applyTo(iterator);
                 // ensure that a consistent amount of repaired data is read on each replica. This causes silent
                 // overreading from the repaired data set, up to limits(). The extra data is not visible to
@@ -458,7 +464,7 @@ public abstract class ReadCommand extends AbstractReadQuery
      */
     public PartitionIterator postReconciliationProcessing(PartitionIterator result)
     {
-        return indexQueryPlan == null ? result : indexQueryPlan.postProcessor().apply(result);
+        return indexQueryPlan == null ? result : indexQueryPlan.postProcessor(this).apply(result);
     }
 
     @Override

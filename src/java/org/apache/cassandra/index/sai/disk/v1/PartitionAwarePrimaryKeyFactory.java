@@ -101,18 +101,39 @@ public class PartitionAwarePrimaryKeyFactory implements PrimaryKey.Factory
         @Override
         public ByteSource asComparableBytes(ByteComparable.Version version)
         {
+            return asComparableBytes(version == ByteComparable.Version.LEGACY ? ByteSource.END_OF_STREAM : ByteSource.TERMINATOR, version, false);
+        }
+
+        @Override
+        public ByteSource asComparableBytesMinPrefix(ByteComparable.Version version)
+        {
+            return asComparableBytes(ByteSource.LT_NEXT_COMPONENT, version, true);
+        }
+
+        @Override
+        public ByteSource asComparableBytesMaxPrefix(ByteComparable.Version version)
+        {
+            return asComparableBytes(ByteSource.GT_NEXT_COMPONENT, version, true);
+        }
+
+        private ByteSource asComparableBytes(int terminator, ByteComparable.Version version, boolean isPrefix)
+        {
             // Note: Unlike row-aware primary keys the asComparable method in for
             // partition aware keys is only used on the write side so we do not need
             // to enforce deferred loading here.
             ByteSource tokenComparable = token.asComparableBytes(version);
             ByteSource keyComparable = partitionKey == null ? null
                                                             :ByteSource.of(partitionKey.getKey(), version);
-            return ByteSource.withTerminator(version == ByteComparable.Version.LEGACY
-                                             ? ByteSource.END_OF_STREAM
-                                             : ByteSource.TERMINATOR,
-                                             tokenComparable,
-                                             keyComparable,
-                                             null);
+
+            // prefix doesn't include null components
+            if (isPrefix)
+            {
+                if (keyComparable == null)
+                    return ByteSource.withTerminator(terminator, tokenComparable);
+                else
+                    return ByteSource.withTerminator(terminator, tokenComparable, keyComparable);
+            }
+            return ByteSource.withTerminator(terminator, tokenComparable, keyComparable, null);
         }
 
         @Override

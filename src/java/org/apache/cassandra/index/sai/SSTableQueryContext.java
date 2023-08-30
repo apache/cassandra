@@ -17,9 +17,18 @@
  */
 package org.apache.cassandra.index.sai;
 
+import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
+
+import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
+import org.apache.cassandra.index.sai.disk.hnsw.CassandraOnDiskHnsw;
+import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
+import org.apache.lucene.util.Bits;
 
 /**
  * Tracks SSTable-specific state relevant to the execution of a single query.
@@ -30,15 +39,6 @@ import com.google.common.annotations.VisibleForTesting;
 public class SSTableQueryContext
 {
     public final QueryContext queryContext;
-
-    // During intersection queries, multiple column indexes touch the same exact tokens as we skip
-    // between range iterators. Caching the values of these global SSTable-specific lookups allows us to avoid
-    // large chunks of duplicated work.
-    public long prevTokenValue = Long.MIN_VALUE;
-    public long prevSSTableRowId = -1;
-
-    public long prevSkipToTokenValue = Long.MIN_VALUE;
-    public long prevSkipToSSTableRowId = -1;
 
     public SSTableQueryContext(QueryContext queryContext)
     {
@@ -51,13 +51,19 @@ public class SSTableQueryContext
         return new SSTableQueryContext(new QueryContext());
     }
 
-    public void markTokenSkippingLookup()
+    /**
+     * @return true to include current sstable row id; otherwise false if the sstable row id will be shadowed
+     */
+    public boolean shouldInclude(Long sstableRowId, PrimaryKeyMap primaryKeyMap)
     {
-        queryContext.tokenSkippingLookups++;
+        return !queryContext.containsShadowedPrimaryKey(() -> primaryKeyMap.primaryKeyFromRowId(sstableRowId));
     }
 
-    public void markTokenSkippingCacheHit()
+    /**
+     * Create a bitset to ignore ordinals corresponding to shadowed primary keys
+     */
+    public Bits bitsForShadowedPrimaryKeys(SegmentMetadata metadata, PrimaryKeyMap primaryKeyMap, CassandraOnDiskHnsw graph) throws IOException
     {
-        queryContext.tokenSkippingCacheHits++;
+        return queryContext.bitsetForShadowedPrimaryKeys(metadata, primaryKeyMap, graph);
     }
 }

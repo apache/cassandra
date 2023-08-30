@@ -83,6 +83,16 @@ public abstract class SingleColumnRestriction implements SingleRestriction
     }
 
     @Override
+    public Index findSupportingIndex(IndexRegistry indexRegistry)
+    {
+        for (Index index : indexRegistry.listIndexes())
+            if (isSupportedBy(index))
+                return index;
+
+        return null;
+    }
+
+    @Override
     public boolean needsFiltering(Index.Group indexGroup)
     {
         for (Index index : indexGroup.getIndexes())
@@ -793,6 +803,67 @@ public abstract class SingleColumnRestriction implements SingleRestriction
             newValue.position(beginIndex);
             newValue.limit(endIndex);
             return Pair.create(operator, newValue);
+        }
+    }
+
+    public static final class AnnRestriction extends SingleColumnRestriction
+    {
+        private final Term value;
+
+        public AnnRestriction(ColumnMetadata columnDef, Term value)
+        {
+            super(columnDef);
+            this.value = value;
+        }
+
+        public ByteBuffer value(QueryOptions options)
+        {
+            return value.bindAndGet(options);
+        }
+
+        @Override
+        public void addFunctionsTo(List<Function> functions)
+        {
+            value.addFunctionsTo(functions);
+        }
+
+        @Override
+        MultiColumnRestriction toMultiColumnRestriction()
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void addToRowFilter(RowFilter.Builder filter,
+                                   IndexRegistry indexRegistry,
+                                   QueryOptions options)
+        {
+            filter.add(columnDef, Operator.ANN, value.bindAndGet(options));
+        }
+
+        @Override
+        public MultiCBuilder appendTo(MultiCBuilder builder, QueryOptions options)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String toString()
+        {
+            return String.format("ANN(%s)", value);
+        }
+
+        @Override
+        public SingleRestriction doMergeWith(SingleRestriction otherRestriction)
+        {
+            // VSTODO not sure if this is right
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected boolean isSupportedBy(Index index)
+        {
+            return index.supportsExpression(columnDef, Operator.ANN);
         }
     }
 }

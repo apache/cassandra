@@ -79,8 +79,7 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static org.apache.cassandra.config.CassandraRelevantProperties.OS_ARCH;
-import static org.apache.cassandra.config.CassandraRelevantProperties.SUN_ARCH_DATA_MODEL;
+import static org.apache.cassandra.config.CassandraRelevantProperties.*;
 import static org.apache.cassandra.io.util.FileUtils.ONE_GB;
 import static org.apache.cassandra.io.util.FileUtils.ONE_MB;
 
@@ -541,8 +540,9 @@ public class DatabaseDescriptor
         if (conf.networking_cache_size_in_mb == null)
             conf.networking_cache_size_in_mb = Math.min(128, (int) (Runtime.getRuntime().maxMemory() / (16 * 1048576)));
 
-        if (conf.file_cache_size_in_mb == null)
-            conf.file_cache_size_in_mb = Math.min(512, (int) (Runtime.getRuntime().maxMemory() / (4 * 1048576)));
+        if (conf.file_cache_size_in_mb == null) {
+            conf.file_cache_size_in_mb = Math.min(FILE_CACHE_SIZE_IN_MB.getInt(), (int) (Runtime.getRuntime().maxMemory() / (4 * 1048576)));
+        }
 
         // round down for SSDs and round up for spinning disks
         if (conf.file_cache_round_up == null)

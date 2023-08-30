@@ -108,6 +108,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.index.internal.CassandraIndex;
@@ -532,7 +533,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         additionalWriteLatencyNanos = DatabaseDescriptor.getWriteRpcTimeout(NANOSECONDS) / 2;
         memtableFactory = metadata.get().params.memtable.factory;
 
-        logger.info("Initializing {}.{}", keyspace.getName(), name);
+        logger.debug("Initializing {}.{}", keyspace.getName(), name);
 
         // Create Memtable only on online
         if (DatabaseDescriptor.enableMemtableAndCommitLog())
@@ -1099,7 +1100,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         for (ColumnFamilyStore indexCfs : indexManager.getAllIndexColumnFamilyStores())
             indexCfs.getTracker().getView().getCurrentMemtable().addMemoryUsageTo(usage);
 
-        logger.info("Enqueuing flush of {} ({}): {}",
+        logger.debug("Enqueuing flush of {} ({}): {}",
                      name,
                      reason,
                      usage);
@@ -1560,6 +1561,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         }
         catch (RuntimeException e)
         {
+            if (e instanceof InvalidRequestException)
+            {
+                throw new InvalidRequestException(e.getMessage()
+                                                  + " for ks: "
+                                                  + keyspace.getName() + ", table: " + name, e);
+            }
             throw new RuntimeException(e.getMessage()
                                        + " for ks: "
                                        + keyspace.getName() + ", table: " + name, e);
@@ -1588,7 +1595,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             shardBoundaries = new ShardBoundaries(positions.subList(0, positions.size() - 1),
                                                   localRanges.getRingVersion());
             cachedShardBoundaries = shardBoundaries;
-            logger.info("Memtable shard boundaries for {}.{}: {}", keyspace.getName(), getTableName(), positions);
+            logger.debug("Memtable shard boundaries for {}.{}: {}", keyspace.getName(), getTableName(), positions);
         }
         return shardBoundaries;
     }
@@ -2461,10 +2468,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
                 for (SSTableReader rdr : sstables)
                 {
                     rdr.selfRef().release();
-                    logger.info("Memtable ranges (keys {} size {}) written in {}",
-                                rdr.estimatedKeys(),
-                                rdr.getDataChannel().size(),
-                                rdr);
+                    logger.debug("Memtable ranges (keys {} size {}) written in {}",
+                                 rdr.estimatedKeys(),
+                                 rdr.getDataChannel().size(),
+                                 rdr);
                 }
             }
             catch (Throwable t)
@@ -2572,6 +2579,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         truncateBlocking(true);
     }
 
+    @FunctionalInterface
+    interface AdaptiveLogger
+    {
+        void log(String template, Object... args);
+    }
+
     /**
      * Truncate deletes the entire column family's data with no expensive tombstone creation
      * @param noSnapshot if {@code true} no snapshot will be taken
@@ -2590,7 +2603,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         // beginning if we restart before they [the CL segments] are discarded for
         // normal reasons post-truncate.  To prevent this, we store truncation
         // position in the System keyspace.
-        logger.info("Truncating {}.{}", keyspace.getName(), name);
+        AdaptiveLogger log = truncateLogger();
+
+        log.log("Truncating {}.{}", keyspace.getName(), name);
 
         viewManager.stopBuild();
 
@@ -2628,7 +2643,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         {
             public void run()
             {
-                logger.info("Truncating {}.{} with truncatedAt={}", keyspace.getName(), getTableName(), truncatedAt);
+                log.log("Truncating {}.{} with truncatedAt={}", keyspace.getName(), getTableName(), truncatedAt);
                 // since truncation can happen at different times on different nodes, we need to make sure
                 // that any repairs are aborted, otherwise we might clear the data on one node and then
                 // stream in data that is actually supposed to have been deleted
@@ -2656,7 +2671,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         });
 
         viewManager.build();
-        logger.info("Truncate of {}.{} is complete", keyspace.getName(), name);
+        log.log("Truncate of {}.{} is complete", keyspace.getName(), name);
+    }
+
+    private AdaptiveLogger truncateLogger()
+    {
+        if (keyspace.getName().equals(SchemaConstants.SYSTEM_KEYSPACE_NAME))
+            return logger::debug;
+        else
+            return logger::info;
     }
 
     /**
@@ -3217,6 +3240,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public void discardSSTables(long truncatedAt)
     {
         assert data.getCompacting().isEmpty() : data.getCompacting();
+        AdaptiveLogger log = truncateLogger();
 
         List<SSTableReader> truncatedSSTables = new ArrayList<>();
         int keptSSTables = 0;
@@ -3229,13 +3253,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             else
             {
                 keptSSTables++;
-                logger.info("Truncation is keeping {} maxDataAge={} truncatedAt={}", sstable, sstable.maxDataAge, truncatedAt);
+                log.log("Truncation is keeping {} maxDataAge={} truncatedAt={}", sstable, sstable.maxDataAge, truncatedAt);
             }
         }
 
         if (!truncatedSSTables.isEmpty())
         {
-            logger.info("Truncation is dropping {} sstables and keeping {} due to sstable.maxDataAge > truncatedAt", truncatedSSTables.size(), keptSSTables);
+            log.log("Truncation is dropping {} sstables and keeping {} due to sstable.maxDataAge > truncatedAt", truncatedSSTables.size(), keptSSTables);
             markObsolete(truncatedSSTables, OperationType.TRUNCATE_TABLE);
         }
     }

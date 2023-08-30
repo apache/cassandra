@@ -39,7 +39,13 @@ public class PerIndexFiles implements Closeable
     {
         this.indexDescriptor = indexDescriptor;
         this.indexContext = indexContext;
-        if (TypeUtil.isLiteral(indexContext.getValidator()))
+        if (indexContext.isVector())
+        {
+            files.put(IndexComponent.POSTING_LISTS, indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext, temporary));
+            files.put(IndexComponent.TERMS_DATA, indexDescriptor.createPerIndexFileHandle(IndexComponent.TERMS_DATA, indexContext, temporary));
+            files.put(IndexComponent.VECTOR, indexDescriptor.createPerIndexFileHandle(IndexComponent.VECTOR, indexContext, temporary));
+        }
+        else if (TypeUtil.isLiteral(indexContext.getValidator()))
         {
             files.put(IndexComponent.POSTING_LISTS, indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext, temporary));
             files.put(IndexComponent.TERMS_DATA, indexDescriptor.createPerIndexFileHandle(IndexComponent.TERMS_DATA, indexContext, temporary));
@@ -69,6 +75,11 @@ public class PerIndexFiles implements Closeable
     public FileHandle kdtreePostingLists()
     {
         return getFile(IndexComponent.KD_TREE_POSTING_LISTS);
+    }
+
+    public FileHandle vectors()
+    {
+        return getFile(IndexComponent.VECTOR);
     }
 
     private FileHandle getFile(IndexComponent indexComponent)

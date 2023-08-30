@@ -25,6 +25,7 @@ import java.util.Map;
 import com.google.common.util.concurrent.MoreExecutors;
 
 import org.tartarus.snowball.SnowballProgram;
+import org.tartarus.snowball.SnowballStemmer;
 import org.tartarus.snowball.ext.*;
 
 import com.github.benmanes.caffeine.cache.CacheLoader;
@@ -81,7 +82,7 @@ public class StemmerFactory
         SUPPORTED_LANGUAGES.put("tr", TurkishStemmer.class);
     }
 
-    public static SnowballProgram getStemmer(Locale locale)
+    public static SnowballStemmer getStemmer(Locale locale)
     {
         if (locale == null)
             return null;
@@ -93,7 +94,7 @@ public class StemmerFactory
             if(clazz == null)
                 return null;
             Constructor<?> ctor = STEMMER_CONSTRUCTOR_CACHE.get(clazz);
-            return (SnowballProgram) ctor.newInstance();
+            return (SnowballStemmer) ctor.newInstance();
         }
         catch (Exception e)
         {

@@ -20,15 +20,21 @@ package org.apache.cassandra.index.sai.disk.v1;
 import java.io.Closeable;
 import java.io.IOException;
 
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SSTableQueryContext;
 import org.apache.cassandra.index.sai.disk.IndexSearcherContext;
 import org.apache.cassandra.index.sai.disk.PostingList;
 import org.apache.cassandra.index.sai.disk.PostingListRangeIterator;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
+import org.apache.cassandra.index.sai.disk.SSTableRowIdPostingList;
+import org.apache.cassandra.index.sai.disk.SSTableRowIdsRangeIterator;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.plan.Expression;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
+import org.apache.cassandra.index.sai.utils.SegmentOrdering;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 
 /**
@@ -37,7 +43,7 @@ import org.apache.cassandra.index.sai.utils.TypeUtil;
  * Accepts shared resources (token/offset file readers), and uses them to perform lookups against on-disk data
  * structures.
  */
-public abstract class IndexSearcher implements Closeable
+public abstract class IndexSearcher implements Closeable, SegmentOrdering
 {
     final PrimaryKeyMap.Factory primaryKeyMapFactory;
     final PerIndexFiles indexFiles;
@@ -64,9 +70,11 @@ public abstract class IndexSearcher implements Closeable
                                      IndexDescriptor indexDescriptor,
                                      IndexContext indexContext) throws IOException
     {
-        return TypeUtil.isLiteral(indexContext.getValidator())
-               ? new InvertedIndexSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexDescriptor, indexContext)
-               : new KDTreeIndexSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexDescriptor, indexContext);
+        if (indexContext.isVector())
+            return new VectorIndexSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexDescriptor, indexContext);
+        if (TypeUtil.isLiteral(indexContext.getValidator()))
+            return new InvertedIndexSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexDescriptor, indexContext);
+        return new KDTreeIndexSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexDescriptor, indexContext);
     }
 
     /**
@@ -77,25 +85,57 @@ public abstract class IndexSearcher implements Closeable
     /**
      * Search on-disk index synchronously.
      *
-     * @param expression to filter on disk index
+     * @param expression   to filter on disk index
+     * @param keyRange     key range specific in read command, used by ANN index
      * @param queryContext to track per sstable cache and per query metrics
-     * @param defer create the iterator in a deferred state
-     *
-     * @return {@link RangeIterator} that matches given expression
+     * @param defer        create the iterator in a deferred state
+     * @param limit        the num of rows to returned, used by ANN index
+     * @return {@link RangeIterator} of primary keys that matches given expression
      */
-    public abstract RangeIterator search(Expression expression, SSTableQueryContext queryContext, boolean defer) throws IOException;
+    public abstract RangeIterator<PrimaryKey> search(Expression expression, AbstractBounds<PartitionPosition> keyRange, SSTableQueryContext queryContext, boolean defer, int limit) throws IOException;
 
-    RangeIterator toIterator(PostingList postingList, SSTableQueryContext queryContext, boolean defer) throws IOException
+    /**
+     * Search on-disk index synchronously
+     *
+     * @param expression   to filter on disk index
+     * @param keyRange     key range specific in read command, used by ANN index
+     * @param queryContext to track per sstable cache and per query metrics
+     * @param defer        create the iterator in a deferred state
+     * @param limit        the num of rows to returned, used by ANN index
+     * @return {@link RangeIterator} of sstable row ids that matches given expression
+     */
+    public abstract RangeIterator<Long> searchSSTableRowIds(Expression expression, AbstractBounds<PartitionPosition> keyRange, SSTableQueryContext queryContext, boolean defer, int limit) throws IOException;
+
+    RangeIterator<PrimaryKey> toPrimaryKeyIterator(PostingList postingList, SSTableQueryContext queryContext) throws IOException
     {
-        if (postingList == null)
-            return RangeIterator.empty();
+        if (postingList == null || postingList.size() == 0)
+            return RangeIterator.emptyKeys();
 
         IndexSearcherContext searcherContext = new IndexSearcherContext(metadata.minKey,
                                                                         metadata.maxKey,
+                                                                        metadata.minSSTableRowId,
+                                                                        metadata.maxSSTableRowId,
                                                                         metadata.segmentRowIdOffset,
                                                                         queryContext,
                                                                         postingList.peekable());
 
-        return new PostingListRangeIterator(indexContext, primaryKeyMapFactory.newPerSSTablePrimaryKeyMap(queryContext), searcherContext);
+        return new PostingListRangeIterator(indexContext, primaryKeyMapFactory.newPerSSTablePrimaryKeyMap(), searcherContext);
+    }
+
+    RangeIterator<Long> toSSTableRowIdsIterator(PostingList postingList, SSTableQueryContext queryContext) throws IOException
+    {
+        if (postingList == null || postingList.size() == 0)
+            return RangeIterator.emptyLongs();
+
+        SSTableRowIdPostingList sstablePosting = new SSTableRowIdPostingList(postingList, metadata.segmentRowIdOffset);
+        IndexSearcherContext searcherContext = new IndexSearcherContext(metadata.minKey,
+                                                                        metadata.maxKey,
+                                                                        metadata.minSSTableRowId,
+                                                                        metadata.maxSSTableRowId,
+                                                                        metadata.segmentRowIdOffset,
+                                                                        queryContext,
+                                                                        sstablePosting.peekable());
+
+        return new SSTableRowIdsRangeIterator(indexContext, searcherContext);
     }
 }

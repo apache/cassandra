@@ -31,7 +31,7 @@ import org.apache.cassandra.index.sai.disk.TermsIterator;
 import org.apache.cassandra.index.sai.utils.AbstractIterator;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
-import org.apache.lucene.util.bkd.MutablePointsReaderUtils;
+import org.apache.cassandra.index.sai.disk.oldlucene.MutablePointsReaderUtils;
 
 import static org.junit.Assert.assertEquals;
 

@@ -147,4 +147,9 @@ public class SSTableContextManager
         if (invalidContext != null)
             invalidContext.close();
     }
+
+    public SSTableContext getContext(SSTableReader sstable)
+    {
+        return sstableContexts.get(sstable);
+    }
 }

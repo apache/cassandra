@@ -50,14 +50,14 @@ public abstract class RangeCommandIterator extends AbstractIterator<RowIterator>
     @VisibleForTesting
     public final ClientRangeRequestMetrics rangeMetrics;
 
-    protected final CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlans;
-    private final int totalRangeCount;
-    protected final PartitionRangeReadCommand command;
-    protected final boolean enforceStrictLiveness;
+    final CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlans;
+    final int totalRangeCount;
+    final PartitionRangeReadCommand command;
+    final boolean enforceStrictLiveness;
 
     private final long startTime;
-    protected final long queryStartNanoTime;
-    protected DataLimits.Counter counter;
+    final long queryStartNanoTime;
+    DataLimits.Counter counter;
     private PartitionIterator sentQueryIterator;
     protected QueryInfoTracker.ReadTracker readTracker;
 
@@ -66,8 +66,8 @@ public abstract class RangeCommandIterator extends AbstractIterator<RowIterator>
     // The two following "metric" are maintained to improve the concurrencyFactor
     // when it was not good enough initially.
     private int liveReturned;
-    protected int rangesQueried;
-    protected int batchesRequested = 0;
+    int rangesQueried;
+    int batchesRequested = 0;
 
     @SuppressWarnings("resource")
     public static RangeCommandIterator create(CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlans,

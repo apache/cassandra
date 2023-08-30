@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -37,13 +36,13 @@ import org.apache.cassandra.tracing.Tracing;
  * the number of ranges that will be included in the intersection. This currently defaults to 2.
  */
 @SuppressWarnings("resource")
-public class RangeIntersectionIterator extends RangeIterator
+public class RangeIntersectionIterator<T extends Comparable<T>> extends RangeIterator<T>
 {
     private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
     // The cassandra.sai.intersection.clause.limit (default: 2) controls the maximum number of range iterator that
     // will be used in the final intersection of a query operation.
-    private static final int INTERSECTION_CLAUSE_LIMIT = Integer.getInteger("cassandra.sai.intersection.clause.limit", 2);
+    public static final int INTERSECTION_CLAUSE_LIMIT = Integer.getInteger("cassandra.sai.intersection.clause.limit", 2);
 
     static
     {
@@ -55,15 +54,15 @@ public class RangeIntersectionIterator extends RangeIterator
         return (INTERSECTION_CLAUSE_LIMIT <= 0) || (numberOfExpressions <= INTERSECTION_CLAUSE_LIMIT);
     }
 
-    private final List<RangeIterator> ranges;
+    private final List<RangeIterator<T>> ranges;
 
-    private RangeIntersectionIterator(Builder.Statistics statistics, List<RangeIterator> ranges)
+    private RangeIntersectionIterator(Builder.Statistics<T> statistics, List<RangeIterator<T>> ranges)
     {
         super(statistics);
         this.ranges = ranges;
     }
 
-    protected PrimaryKey computeNext()
+    protected T computeNext()
     {
         // Range iterator that has been advanced in the previous cycle of the outer loop.
         // Initially there hasn't been the previous cycle, so set to null.
@@ -71,7 +70,7 @@ public class RangeIntersectionIterator extends RangeIterator
 
         // The highest primary key seen on any range iterator so far.
         // It can become null when we reach the end of the iterator.
-        PrimaryKey highestKey = getCurrent();
+        T highestKey = (T) getCurrent();
 
         outer:
         while (highestKey != null && highestKey.compareTo(getMaximum()) <= 0)
@@ -82,8 +81,8 @@ public class RangeIntersectionIterator extends RangeIterator
             {
                 if (index != alreadyAvanced)
                 {
-                    RangeIterator range = ranges.get(index);
-                    PrimaryKey nextKey = nextOrNull(range, highestKey);
+                    RangeIterator<T> range = ranges.get(index);
+                    T nextKey = nextOrNull(range, highestKey);
                     if (nextKey == null || nextKey.compareTo(highestKey) > 0)
                     {
                         // We jumped over the highest key seen so far, so make it the new highest key.
@@ -105,12 +104,12 @@ public class RangeIntersectionIterator extends RangeIterator
             // the last call to next() on each iterator returned a value equal to the highestKey.
             return highestKey;
         }
-        return endOfData();
+        return (T) endOfData();
     }
 
-    protected void performSkipTo(PrimaryKey nextToken)
+    protected void performSkipTo(T nextToken)
     {
-        for (RangeIterator range : ranges)
+        for (var range : ranges)
             if (range.hasNext())
                 range.skipTo(nextToken);
     }
@@ -119,7 +118,7 @@ public class RangeIntersectionIterator extends RangeIterator
      * Fetches the next available item from the iterator, such that the item is not lower than the given key.
      * If no such items are available, returns null.
      */
-    private PrimaryKey nextOrNull(RangeIterator iterator, PrimaryKey minKey)
+    private T nextOrNull(RangeIterator<T> iterator, T minKey)
     {
         iterator.skipTo(minKey);
         return iterator.hasNext() ? iterator.next() : null;
@@ -130,38 +129,47 @@ public class RangeIntersectionIterator extends RangeIterator
         ranges.forEach(FileUtils::closeQuietly);
     }
 
-    public static Builder builder()
+    public static <T extends Comparable<T>> Builder<T> builder(List<RangeIterator<T>> ranges, int limit)
     {
-        return new Builder();
+        var builder = new Builder<T>(ranges.size(), limit);
+        for (var range : ranges)
+            builder.add(range);
+        return builder;
     }
 
-    public static Builder selectiveBuilder()
+    public static <T extends Comparable<T>> Builder<T> builder(int size, int limit)
     {
-        return selectiveBuilder(INTERSECTION_CLAUSE_LIMIT);
+        return new Builder<>(size, limit);
     }
 
-    public static Builder selectiveBuilder(int limit)
+    public static <T extends Comparable<T>> Builder<T> builder(int limit)
     {
-        return new Builder(limit);
+        return builder(10, limit);
     }
 
-    public static class Builder extends RangeIterator.Builder
+    public static <T extends Comparable<T>> Builder<T> sizedBuilder(int size)
+    {
+        return builder(size, INTERSECTION_CLAUSE_LIMIT);
+    }
+
+    public static <T extends Comparable<T>> Builder<T> builder()
+    {
+        return builder(Integer.MAX_VALUE);
+    }
+
+    public static class Builder<T extends Comparable<T>> extends RangeIterator.Builder<T>
     {
         private final int limit;
-        protected List<RangeIterator> rangeIterators = new ArrayList<>();
+        protected List<RangeIterator<T>> rangeIterators;
 
-        public Builder()
-        {
-            this(Integer.MAX_VALUE);
-        }
-
-        public Builder(int limit)
+        private Builder(int size, int limit)
         {
             super(IteratorType.INTERSECTION);
+            rangeIterators = new ArrayList<>(size);
             this.limit = limit;
         }
 
-        public RangeIterator.Builder add(RangeIterator range)
+        public RangeIterator.Builder<T> add(RangeIterator<T> range)
         {
             if (range == null)
                 return this;
@@ -175,7 +183,7 @@ public class RangeIntersectionIterator extends RangeIterator
             return this;
         }
 
-        public RangeIterator.Builder add(List<RangeIterator> ranges)
+        public RangeIterator.Builder<T> add(List<RangeIterator<T>> ranges)
         {
             if (ranges == null || ranges.isEmpty())
                 return this;
@@ -189,7 +197,7 @@ public class RangeIntersectionIterator extends RangeIterator
             return rangeIterators.size();
         }
 
-        protected RangeIterator buildIterator()
+        protected RangeIterator<T> buildIterator()
         {
             rangeIterators.sort(Comparator.comparingLong(RangeIterator::getCount));
             int initialSize = rangeIterators.size();
@@ -198,11 +206,11 @@ public class RangeIntersectionIterator extends RangeIterator
                 return buildIterator(statistics, rangeIterators);
 
             // Apply most selective iterators during intersection, because larger number of iterators will result lots of disk seek.
-            Statistics selectiveStatistics = new Statistics(IteratorType.INTERSECTION);
+            Statistics<T> selectiveStatistics = new Statistics<>(IteratorType.INTERSECTION);
             for (int i = rangeIterators.size() - 1; i >= 0 && i >= limit; i--)
                 FileUtils.closeQuietly(rangeIterators.remove(i));
 
-            for (RangeIterator iterator : rangeIterators)
+            for (var iterator : rangeIterators)
                 selectiveStatistics.update(iterator);
 
             if (Tracing.isTracing())
@@ -215,7 +223,7 @@ public class RangeIntersectionIterator extends RangeIterator
             return buildIterator(selectiveStatistics, rangeIterators);
         }
 
-        private static RangeIterator buildIterator(Statistics statistics, List<RangeIterator> ranges)
+        private static <T extends Comparable<T>> RangeIterator<T> buildIterator(Statistics<T> statistics, List<RangeIterator<T>> ranges)
         {
             // if the range is disjoint or we have an intersection with an empty set,
             // we can simply return an empty iterator, because it's not going to produce any results.
@@ -229,7 +237,7 @@ public class RangeIntersectionIterator extends RangeIterator
             if (ranges.size() == 1)
                 return ranges.get(0);
 
-            return new RangeIntersectionIterator(statistics, ranges);
+            return new RangeIntersectionIterator<>(statistics, ranges);
         }
     }
 }

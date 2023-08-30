@@ -331,6 +331,12 @@ abstract class TokenFilter implements PartitionKeyRestrictions
     }
 
     @Override
+    public Index findSupportingIndex(IndexRegistry indexRegistry)
+    {
+        return restrictions.findSupportingIndex(indexRegistry);
+    }
+
+    @Override
     public boolean needsFiltering(Index.Group indexGroup)
     {
         return restrictions.needsFiltering(indexGroup);

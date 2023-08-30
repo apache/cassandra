@@ -23,14 +23,19 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.index.sai.disk.PostingList;
-import org.apache.cassandra.index.sai.disk.v1.DirectReaders;
+import org.apache.cassandra.index.sai.disk.io.IndexInputReader;
 import org.apache.cassandra.index.sai.disk.v1.LongArray;
 import org.apache.cassandra.index.sai.metrics.QueryEventListener;
 import org.apache.cassandra.index.sai.utils.SeekingRandomAccessInput;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
+import org.apache.lucene.util.LongValues;
+import org.apache.lucene.util.packed.DirectReader;
 
 
 /**
@@ -42,6 +47,8 @@ import org.apache.lucene.store.RandomAccessInput;
 @NotThreadSafe
 public class PostingsReader implements OrdinalPostingList
 {
+    private static final Logger logger = LoggerFactory.getLogger(PostingsReader.class);
+
     protected final IndexInput input;
     private final int blockSize;
     private final long numPostings;
@@ -59,7 +66,7 @@ public class PostingsReader implements OrdinalPostingList
     private long actualSegmentRowId;
 
     private long currentPosition;
-    private DirectReaders.Reader currentFORValues;
+    private LongValues currentFORValues;
     private long postingsDecoded = 0;
 
     @VisibleForTesting
@@ -70,6 +77,8 @@ public class PostingsReader implements OrdinalPostingList
 
     public PostingsReader(IndexInput input, BlocksSummary summary, QueryEventListener.PostingListEventListener listener) throws IOException
     {
+        assert input instanceof IndexInputReader;
+        logger.trace("Opening postings reader for {}", input);
         this.input = input;
         this.seekingInput = new SeekingRandomAccessInput(input);
         this.blockOffsets = summary.offsets;
@@ -125,19 +134,19 @@ public class PostingsReader implements OrdinalPostingList
             final byte offsetBitsPerValue = input.readByte();
             if (offsetBitsPerValue > 64)
             {
-                throw new CorruptIndexException(
-                        String.format("Postings list header is corrupted: Bits per value for block offsets must be no more than 64 and is %d.", offsetBitsPerValue), input);
+                String message = String.format("Postings list header is corrupted: Bits per value for block offsets must be no more than 64 and is %d.", offsetBitsPerValue);
+                throw new CorruptIndexException(message, input);
             }
-            this.offsets = new LongArrayReader(randomAccessInput, DirectReaders.getReaderForBitsPerValue(offsetBitsPerValue), input.getFilePointer(), numBlocks);
+            this.offsets = new LongArrayReader(randomAccessInput, offsetBitsPerValue == 0 ? LongValues.ZEROES : DirectReader.getInstance(randomAccessInput, offsetBitsPerValue, input.getFilePointer()), numBlocks);
 
             input.seek(maxBlockValuesOffset);
             final byte valuesBitsPerValue = input.readByte();
             if (valuesBitsPerValue > 64)
             {
-                throw new CorruptIndexException(
-                        String.format("Postings list header is corrupted: Bits per value for values samples must be no more than 64 and is %d.", valuesBitsPerValue), input);
+                String message = String.format("Postings list header is corrupted: Bits per value for values samples must be no more than 64 and is %d.", valuesBitsPerValue);
+                throw new CorruptIndexException(message, input);
             }
-            this.maxValues = new LongArrayReader(randomAccessInput, DirectReaders.getReaderForBitsPerValue(valuesBitsPerValue), input.getFilePointer(), numBlocks);
+            this.maxValues = new LongArrayReader(randomAccessInput, valuesBitsPerValue == 0 ? LongValues.ZEROES : DirectReader.getInstance(randomAccessInput, valuesBitsPerValue, input.getFilePointer()), numBlocks);
         }
 
         void close() throws IOException
@@ -148,15 +157,13 @@ public class PostingsReader implements OrdinalPostingList
         private static class LongArrayReader implements LongArray
         {
             private final RandomAccessInput input;
-            private final DirectReaders.Reader reader;
-            private final long offset;
+            private final LongValues reader;
             private final int length;
 
-            private LongArrayReader(RandomAccessInput input, DirectReaders.Reader reader, long offset, int length)
+            private LongArrayReader(RandomAccessInput input, LongValues reader, int length)
             {
                 this.input = input;
                 this.reader = reader;
-                this.offset = offset;
                 this.length = length;
             }
 
@@ -169,7 +176,7 @@ public class PostingsReader implements OrdinalPostingList
             @Override
             public long get(long idx)
             {
-                return reader.get(input, offset, idx);
+                return reader.get(idx);
             }
 
             @Override
@@ -345,7 +352,7 @@ public class PostingsReader implements OrdinalPostingList
         }
         else
         {
-            final long id = currentFORValues.get(seekingInput, currentPosition, blockIdx);
+            final long id = currentFORValues.get(blockIdx);
             postingsDecoded++;
             return Math.toIntExact(id);
         }
@@ -361,6 +368,10 @@ public class PostingsReader implements OrdinalPostingList
     private void reBuffer() throws IOException
     {
         final long pointer = blockOffsets.get(postingsBlockIdx);
+        if (pointer < 4) {
+            // the first 4 bytes must be CODEC_MAGIC
+            throw new CorruptIndexException(String.format("Invalid block offset %d for postings block idx %d", pointer, postingsBlockIdx), input);
+        }
 
         input.seek(pointer);
 
@@ -381,8 +392,8 @@ public class PostingsReader implements OrdinalPostingList
 
         if (bitsPerValue == 0)
         {
-            // currentFORValues is null when the all the values in the block are the same
-            currentFORValues = null;
+            // If bitsPerValue is 0 then all the values in the block are the same
+            currentFORValues = LongValues.ZEROES;
             return;
         }
         else if (bitsPerValue > 64)
@@ -390,6 +401,6 @@ public class PostingsReader implements OrdinalPostingList
             throw new CorruptIndexException(
                     String.format("Postings list #%s block is corrupted. Bits per value should be no more than 64 and is %d.", postingsBlockIdx, bitsPerValue), input);
         }
-        currentFORValues = DirectReaders.getReaderForBitsPerValue(bitsPerValue);
+        currentFORValues = DirectReader.getInstance(seekingInput, bitsPerValue, currentPosition);
     }
 }

@@ -191,9 +191,19 @@ public interface Term
          */
         public abstract ByteBuffer get(ProtocolVersion protocolVersion) throws InvalidRequestException;
 
+        public ByteBuffer getVector(ProtocolVersion protocolVersion) throws InvalidRequestException
+        {
+            throw new InvalidRequestException("Doesn't support getVector");
+        }
+
         public ByteBuffer bindAndGet(QueryOptions options) throws InvalidRequestException
         {
             return get(options.getProtocolVersion());
+        }
+
+        public ByteBuffer bindAndGetVector(QueryOptions options) throws InvalidRequestException
+        {
+            return getVector(options.getProtocolVersion());
         }
     }
 

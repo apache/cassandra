@@ -222,7 +222,7 @@ public class SortedTermsBenchmark extends AbstractOnDiskBenchmark
     @BenchmarkMode({ Mode.Throughput})
     public void advance(Blackhole bh) throws IOException
     {
-        try (SortedTermsReader.Cursor cursor = sortedTermsReader.openCursor(SSTableQueryContext.forTest()))
+        try (SortedTermsReader.Cursor cursor = sortedTermsReader.openCursor())
         {
             for (int i = 0; i < NUM_INVOCATIONS; i++)
             {
@@ -237,7 +237,7 @@ public class SortedTermsBenchmark extends AbstractOnDiskBenchmark
     @BenchmarkMode({ Mode.Throughput})
     public void seekToPointID(Blackhole bh) throws IOException
     {
-        try (SortedTermsReader.Cursor cursor = sortedTermsReader.openCursor(SSTableQueryContext.forTest()))
+        try (SortedTermsReader.Cursor cursor = sortedTermsReader.openCursor())
         {
             for (int i = 0; i < NUM_INVOCATIONS; i++)
             {

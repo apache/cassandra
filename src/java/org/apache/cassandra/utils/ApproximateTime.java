@@ -154,14 +154,14 @@ public class ApproximateTime
                 if (almostNowUpdater != null)
                     throw new IllegalStateException("Already running");
                 refreshAlmostNow.run();
-                logger.info("Scheduling approximate time-check task with a precision of {} milliseconds", ALMOST_NOW_UPDATE_INTERVAL_MS);
+                logger.debug("Scheduling approximate time-check task with a precision of {} milliseconds", ALMOST_NOW_UPDATE_INTERVAL_MS);
                 almostNowUpdater = ScheduledExecutors.scheduledFastTasks.scheduleWithFixedDelay(refreshAlmostNow, ALMOST_NOW_UPDATE_INTERVAL_MS, ALMOST_NOW_UPDATE_INTERVAL_MS, MILLISECONDS);
                 break;
             case ALMOST_SAME_TIME:
                 if (almostSameTimeUpdater != null)
                     throw new IllegalStateException("Already running");
                 refreshAlmostSameTime.run();
-                logger.info("Scheduling approximate time conversion task with an interval of {} milliseconds", ALMOST_SAME_TIME_UPDATE_INTERVAL_MS);
+                logger.debug("Scheduling approximate time conversion task with an interval of {} milliseconds", ALMOST_SAME_TIME_UPDATE_INTERVAL_MS);
                 almostSameTimeUpdater = ScheduledExecutors.scheduledFastTasks.scheduleWithFixedDelay(refreshAlmostSameTime, ALMOST_SAME_TIME_UPDATE_INTERVAL_MS, ALMOST_SAME_TIME_UPDATE_INTERVAL_MS, MILLISECONDS);
                 break;
         }

@@ -127,7 +127,7 @@ public class NativeTransportService
      */
     public void start()
     {
-        logger.info("Using Netty Version: {}", Version.identify().entrySet());
+        logger.debug("Using Netty Version: {}", Version.identify().entrySet());
         initialize();
         servers.forEach(Server::start);
     }

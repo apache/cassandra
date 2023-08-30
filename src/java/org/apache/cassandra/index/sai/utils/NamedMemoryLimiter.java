@@ -42,7 +42,7 @@ public final class NamedMemoryLimiter
         this.limitBytes = limitBytes;
         this.scope = scope;
 
-        logger.info("[{}]: Memory limiter using limit of {}...", scope, FBUtilities.prettyPrintMemory(limitBytes));
+        logger.debug("[{}]: Memory limiter using limit of {}...", scope, FBUtilities.prettyPrintMemory(limitBytes));
     }
 
     /**

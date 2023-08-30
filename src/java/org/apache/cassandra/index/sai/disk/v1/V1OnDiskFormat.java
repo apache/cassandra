@@ -63,6 +63,12 @@ public class V1OnDiskFormat implements OnDiskFormat
                                                                                  IndexComponent.GROUP_META,
                                                                                  IndexComponent.TOKEN_VALUES,
                                                                                  IndexComponent.OFFSETS_VALUES);
+
+    private static final Set<IndexComponent> VECTOR_COMPONENTS = EnumSet.of(IndexComponent.COLUMN_COMPLETION_MARKER,
+                                                                            IndexComponent.META,
+                                                                            IndexComponent.VECTOR,
+                                                                            IndexComponent.TERMS_DATA,
+                                                                            IndexComponent.POSTING_LISTS);
     private static final Set<IndexComponent> LITERAL_COMPONENTS = EnumSet.of(IndexComponent.COLUMN_COMPLETION_MARKER,
                                                                              IndexComponent.META,
                                                                              IndexComponent.TERMS_DATA,
@@ -169,8 +175,8 @@ public class V1OnDiskFormat implements OnDiskFormat
         if (tracker.opType() != OperationType.FLUSH || !index.isInitBuildStarted())
         {
             NamedMemoryLimiter limiter = SEGMENT_BUILD_MEMORY_LIMITER;
-            logger.info(index.getIndexContext().logMessage("Starting a compaction index build. Global segment memory usage: {}"),
-                        prettyPrintMemory(limiter.currentBytesUsed()));
+            logger.debug(index.getIndexContext().logMessage("Starting a compaction index build. Global segment memory usage: {}"),
+                         prettyPrintMemory(limiter.currentBytesUsed()));
 
             return new SSTableIndexWriter(indexDescriptor, index.getIndexContext(), limiter, index.isIndexValid());
         }
@@ -216,7 +222,8 @@ public class V1OnDiskFormat implements OnDiskFormat
     {
         for (IndexComponent indexComponent : perIndexComponents(indexContext))
         {
-            if (!isBuildCompletionMarker(indexComponent))
+            // VSTODO: lucene doesn't follow SAI naming patterns and manage its own validation
+            if (!isBuildCompletionMarker(indexComponent) && !(indexContext.isVector()))
             {
                 try (IndexInput input = indexDescriptor.openPerIndexInput(indexComponent, indexContext))
                 {
@@ -250,7 +257,11 @@ public class V1OnDiskFormat implements OnDiskFormat
     @Override
     public Set<IndexComponent> perIndexComponents(IndexContext indexContext)
     {
-        return TypeUtil.isLiteral(indexContext.getValidator()) ? LITERAL_COMPONENTS : NUMERIC_COMPONENTS;
+        if (indexContext.isVector())
+            return VECTOR_COMPONENTS;
+        else if (TypeUtil.isLiteral(indexContext.getValidator()))
+            return LITERAL_COMPONENTS;
+        return NUMERIC_COMPONENTS;
     }
 
     @Override

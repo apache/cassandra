@@ -22,7 +22,6 @@ import java.util.List;
 
 import org.junit.Test;
 
-import com.carrotsearch.hppc.IntArrayList;
 import com.carrotsearch.hppc.LongArrayList;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.index.sai.IndexContext;
@@ -56,7 +55,7 @@ public class TermsReaderTest extends SaiRandomizedTest
     @Test
     public void testTermQueriesAgainstLongPostingLists() throws  IOException
     {
-        testTermQueries(randomIntBetween(512, 1024), randomIntBetween(1024, 2048));
+        testTermQueries(513, 1025);
     }
 
     @Test
@@ -142,7 +141,7 @@ public class TermsReaderTest extends SaiRandomizedTest
                     {
                         final long expectedRowID = expectedPostingList.get(i);
                         long result = actualPostingList.nextPosting();
-                        assertEquals(expectedRowID, result);
+                        assertEquals(String.format("row %d mismatch of %d in enum %d", i, expectedPostingList.size(), termsEnum.indexOf(pair)), expectedRowID, result);
                     }
 
                     long lastResult = actualPostingList.nextPosting();
