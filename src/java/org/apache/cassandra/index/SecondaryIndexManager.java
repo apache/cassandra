@@ -1761,11 +1761,16 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         {
             SSTableAddedNotification notice = (SSTableAddedNotification) notification;
 
-            IndexBuildDecider.Decision decision = IndexBuildDecider.instance.onSSTableAdded(notice);
-            build(decision, notice.added, false);
+            // SSTables associated to a memtable come from a flush, so their contents have already been indexed
+            if (notice.memtable().isEmpty())
+            {
+                IndexBuildDecider.Decision decision = IndexBuildDecider.instance.onSSTableAdded(notice);
+                build(decision, notice.added, false);
+            }
         }
         else if (notification instanceof SSTableListChangedNotification)
         {
+            SSTableListChangedNotification notice = (SSTableListChangedNotification) notification;
 
             IndexBuildDecider.Decision decision = IndexBuildDecider.instance.onSSTableListChanged(notice);
             build(decision, notice.added, false);
