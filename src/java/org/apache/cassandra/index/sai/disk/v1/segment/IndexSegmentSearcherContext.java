@@ -29,10 +29,14 @@ public class IndexSegmentSearcherContext
 
     public final PrimaryKey minimumKey;
     public final PrimaryKey maximumKey;
+    public final long minimumSSTableRowId;
+    public final long maximumSSTableRowId;
     public final long segmentRowIdOffset;
 
     public IndexSegmentSearcherContext(PrimaryKey minimumKey,
                                        PrimaryKey maximumKey,
+                                       long minimumSSTableRowId,
+                                       long maximumSSTableRowId,
                                        long segmentRowIdOffset,
                                        QueryContext context,
                                        PeekablePostingList postingList)
@@ -43,9 +47,9 @@ public class IndexSegmentSearcherContext
         this.segmentRowIdOffset = segmentRowIdOffset;
 
         this.minimumKey = minimumKey;
-
-        // use segment's metadata for the range iterator, may not be accurate, but should not matter to performance.
         this.maximumKey = maximumKey;
+        this.minimumSSTableRowId = minimumSSTableRowId;
+        this.maximumSSTableRowId = maximumSSTableRowId;
     }
 
     public long count()

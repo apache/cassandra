@@ -29,21 +29,21 @@ import org.apache.cassandra.utils.AbstractGuavaIterator;
 /**
  * An abstract implementation of {@link AbstractGuavaIterator} that supports the building and management of
  * concatanation, union and intersection iterators.
- *
+ * <p>
  * Only certain methods are designed to be overriden.  The others are marked private or final.
  */
-public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey> implements Closeable
+public abstract class KeyRangeIterator<T extends Comparable<T>> extends AbstractGuavaIterator<T> implements Closeable
 {
-    private final PrimaryKey min, max;
+    private final T min, max;
     private final long count;
-    private PrimaryKey current;
+    private T current;
 
-    protected KeyRangeIterator(Builder.Statistics statistics)
+    protected KeyRangeIterator(Builder.Statistics<T> statistics)
     {
         this(statistics.min, statistics.max, statistics.count);
     }
 
-    public KeyRangeIterator(PrimaryKey min, PrimaryKey max, long count)
+    public KeyRangeIterator(T min, T max, long count)
     {
         boolean isComplete = min != null && max != null && count != 0;
         boolean isEmpty = min == null && max == null && (count == 0 || count == -1);
@@ -55,17 +55,17 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
         this.count = count;
     }
 
-    public final PrimaryKey getMinimum()
+    public final T getMinimum()
     {
         return min;
     }
 
-    public final PrimaryKey getCurrent()
+    public final T getCurrent()
     {
         return current;
     }
 
-    public final PrimaryKey getMaximum()
+    public final T getMaximum()
     {
         return max;
     }
@@ -86,7 +86,7 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
      * @return The key skipped to, which will be the key returned by the
      * next call to {@link #next()}, i.e., we are "peeking" at the next key as part of the skip.
      */
-    public final PrimaryKey skipTo(PrimaryKey nextKey)
+    public final T skipTo(T nextKey)
     {
         if (min == null || max == null)
             return endOfData();
@@ -111,14 +111,14 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
 
     /**
      * Skip to nextKey.
-     *
+     * <p>
      * That is, implementations should set up the iterator state such that
      * calling computeNext() will return nextKey if present,
      * or the first one after it if not present.
      */
-    protected abstract void performSkipTo(PrimaryKey nextKey);
+    protected abstract void performSkipTo(T nextKey);
 
-    private PrimaryKey recomputeNext()
+    private T recomputeNext()
     {
         return tryToComputeNext() ? peek() : endOfData();
     }
@@ -131,36 +131,39 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
         return hasNext;
     }
 
-    public static KeyRangeIterator empty()
+    public static <T extends Comparable<T>> KeyRangeIterator<T> empty()
     {
-        return EmptyRangeIterator.instance;
+        return new Builder.EmptyRangeIterator<>();
     }
 
-    private static class EmptyRangeIterator extends KeyRangeIterator
+    public static KeyRangeIterator<PrimaryKey> emptyKeys()
     {
-        static final KeyRangeIterator instance = new EmptyRangeIterator();
-        EmptyRangeIterator() { super(null, null, 0); }
-        public PrimaryKey computeNext() { return endOfData(); }
-        protected void performSkipTo(PrimaryKey nextKey) { }
-        public void close() { }
+        return Builder.EMPTY_KEYS;
+    }
+    public static KeyRangeIterator<Long> emptyLongs()
+    {
+        return Builder.EMPTY_LONGS;
     }
 
     @VisibleForTesting
-    public static abstract class Builder
+    public static abstract class Builder<T extends Comparable<T>>
     {
-        protected final Statistics statistics;
+        private static final EmptyRangeIterator<Long> EMPTY_LONGS = new EmptyRangeIterator<>();
+        private static final EmptyRangeIterator<PrimaryKey> EMPTY_KEYS = new EmptyRangeIterator<>();
 
-        public Builder(Statistics statistics)
+        protected final Statistics<T> statistics;
+
+        public Builder(Statistics<T> statistics)
         {
             this.statistics = statistics;
         }
 
-        public PrimaryKey getMinimum()
+        public T getMinimum()
         {
             return statistics.min;
         }
 
-        public PrimaryKey getMaximum()
+        public T getMaximum()
         {
             return statistics.max;
         }
@@ -170,7 +173,7 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
             return statistics.count;
         }
 
-        public Builder add(Iterable<KeyRangeIterator> ranges)
+        public Builder<T> add(Iterable<KeyRangeIterator<T>> ranges)
         {
             if (ranges == null || Iterables.isEmpty(ranges))
                 return this;
@@ -179,28 +182,36 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
             return this;
         }
 
-        public final KeyRangeIterator build()
+        public final KeyRangeIterator<T> build()
         {
             if (rangeCount() == 0)
-                return empty();
+                return new Builder.EmptyRangeIterator<>();
             else
                 return buildIterator();
         }
 
-        public abstract Builder add(KeyRangeIterator range);
+        public abstract Builder<T> add(KeyRangeIterator<T> range);
 
         public abstract int rangeCount();
 
         public abstract void cleanup();
 
-        protected abstract KeyRangeIterator buildIterator();
+        protected abstract KeyRangeIterator<T> buildIterator();
 
-        public static abstract class Statistics
+        public static class EmptyRangeIterator<T extends Comparable<T>> extends KeyRangeIterator<T>
         {
-            protected PrimaryKey min, max;
+            EmptyRangeIterator() { super(null, null, 0); }
+            public T computeNext() { return endOfData(); }
+            protected void performSkipTo(T nextToken) { }
+            public void close() { }
+        }
+
+        public static abstract class Statistics<U extends Comparable<U>>
+        {
+            protected U min, max;
             protected long count;
 
-            public abstract void update(KeyRangeIterator range);
+            public abstract void update(KeyRangeIterator<U> range);
         }
     }
 

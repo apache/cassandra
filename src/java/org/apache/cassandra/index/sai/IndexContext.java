@@ -48,6 +48,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.index.sai.disk.format.Version;
+import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
 import org.apache.cassandra.index.sai.memory.MemtableIndexManager;
 import org.apache.cassandra.index.sai.metrics.ColumnQueryMetrics;
 import org.apache.cassandra.index.sai.metrics.IndexMetrics;
@@ -91,6 +92,7 @@ public class IndexContext
     private final IndexViewManager viewManager;
     private final IndexMetrics indexMetrics;
     private final ColumnQueryMetrics columnQueryMetrics;
+    private final IndexWriterConfig indexWriterConfig;
     private final AbstractAnalyzer.AnalyzerFactory analyzerFactory;
     private final PrimaryKey.Factory primaryKeyFactory;
 
@@ -115,6 +117,8 @@ public class IndexContext
         this.indexMetadata = indexMetadata;
         this.memtableIndexManager = indexMetadata == null ? null : new MemtableIndexManager(this);
 
+        this.indexWriterConfig = indexMetadata == null ? IndexWriterConfig.emptyConfig()
+                                                       : IndexWriterConfig.fromOptions(indexMetadata.name, validator, indexMetadata.options);
         this.indexMetrics = indexMetadata == null ? null : new IndexMetrics(this);
         this.viewManager = new IndexViewManager(this);
         this.columnQueryMetrics = isLiteral() ? new ColumnQueryMetrics.TrieIndexMetrics(this)
@@ -142,6 +146,11 @@ public class IndexContext
     public String getKeyspace()
     {
         return keyspace;
+    }
+
+    public IndexWriterConfig getIndexWriterConfig()
+    {
+        return indexWriterConfig;
     }
 
     public IndexMetrics getIndexMetrics()
@@ -267,6 +276,12 @@ public class IndexContext
             op == Operator.LIKE_MATCHES ||
             op == Operator.LIKE_SUFFIX) return false;
 
+        // ANN is only supported against vectors, and vector indexes only support ANN
+        if (isVector())
+            return op == Operator.ANN;
+        if (op == Operator.ANN)
+            return false;
+
         Expression.IndexOperator operator = Expression.IndexOperator.valueOf(op);
 
         if (isNonFrozenCollection())
@@ -352,6 +367,11 @@ public class IndexContext
     public boolean isLiteral()
     {
         return TypeUtil.isLiteral(getValidator());
+    }
+
+    public boolean isVector()
+    {
+        return getValidator().isVector();
     }
 
     @Override

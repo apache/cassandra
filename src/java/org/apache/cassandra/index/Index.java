@@ -21,8 +21,11 @@
 package org.apache.cassandra.index;
 
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -34,6 +37,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.restrictions.Restriction;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
@@ -451,6 +456,19 @@ public interface Index
      *         the index was used to narrow the initial result set
      */
     public RowFilter getPostIndexQueryFilter(RowFilter filter);
+
+    /**
+     * Return a comparator that reorders query result before sending to client
+     *
+     * @param restriction restriction that requires current index
+     * @param columnIndex idx of the indexed column in returned row
+     * @param options query options
+     * @return comparator that for post-query ordering; or null if not supported
+     */
+    default Comparator<List<ByteBuffer>> getPostQueryOrdering(Restriction restriction, int columnIndex, QueryOptions options)
+    {
+        return null;
+    }
 
     /**
      * Return an estimate of the number of results this index is expected to return for any given
@@ -960,8 +978,10 @@ public interface Index
          * The function takes a PartitionIterator of the results from the replicas which has already been collated
          * and reconciled, along with the command being executed. It returns another PartitionIterator containing the results
          * of the transformation (which may be the same as the input if the transformation is a no-op).
+         *
+         * @param command the read command being executed
          */
-        default Function<PartitionIterator, PartitionIterator> postProcessor()
+        default Function<PartitionIterator, PartitionIterator> postProcessor(ReadCommand command)
         {
             return partitions -> partitions;
         }
@@ -994,6 +1014,14 @@ public interface Index
         default boolean supportsReplicaFilteringProtection(RowFilter rowFilter)
         {
             return true;
+        }
+
+        /**
+         * @return true if given index query plan is a top-k request
+         */
+        default boolean isTopK()
+        {
+            return false;
         }
     }
 

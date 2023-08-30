@@ -23,6 +23,7 @@ import java.lang.reflect.Method;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -261,6 +262,23 @@ public abstract class AbstractReplicationStrategy
         }
 
         return map.build();
+    }
+
+    public Set<InetAddressAndPort> getAllEndpoints()
+    {
+        return tokenMetadata.cloneOnlyTokenMap().getAllEndpoints();
+    }
+
+    public EndpointsForRange getEndpointsForFullRange()
+    {
+        Range<Token> replicaRange = new Range<>(DatabaseDescriptor.getPartitioner().getMinimumToken(), DatabaseDescriptor.getPartitioner().getMinimumToken());
+        Set<InetAddressAndPort> allEndpoints = tokenMetadata.cloneOnlyTokenMap().getAllEndpoints();
+        EndpointsForRange.Builder replicas = new EndpointsForRange.Builder(replicaRange, allEndpoints.size());
+
+        for (InetAddressAndPort ep : allEndpoints)
+            replicas.add(new Replica(ep, replicaRange, true));
+
+        return replicas.build();
     }
 
     public RangesByEndpoint getAddressReplicas()

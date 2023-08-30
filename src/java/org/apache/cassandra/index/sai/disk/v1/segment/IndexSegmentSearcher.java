@@ -20,15 +20,20 @@ package org.apache.cassandra.index.sai.disk.v1.segment;
 import java.io.Closeable;
 import java.io.IOException;
 
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
+import org.apache.cassandra.index.sai.disk.SSTableRowIdPostingList;
+import org.apache.cassandra.index.sai.disk.SSTableRowIdsRangeIterator;
 import org.apache.cassandra.index.sai.disk.v1.PerColumnIndexFiles;
 import org.apache.cassandra.index.sai.disk.v1.postings.PostingListRangeIterator;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.postings.PeekablePostingList;
 import org.apache.cassandra.index.sai.postings.PostingList;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 
 /**
  * Abstract reader for individual segments of an on-disk index.
@@ -36,7 +41,7 @@ import org.apache.cassandra.index.sai.postings.PostingList;
  * Accepts shared resources (token/offset file readers), and uses them to perform lookups against on-disk data
  * structures.
  */
-public abstract class IndexSegmentSearcher implements Closeable
+public abstract class IndexSegmentSearcher implements SegmentOrdering, Closeable
 {
     final PrimaryKeyMap.Factory primaryKeyMapFactory;
     final PerColumnIndexFiles indexFiles;
@@ -60,9 +65,12 @@ public abstract class IndexSegmentSearcher implements Closeable
                                             SegmentMetadata segmentMetadata,
                                             IndexContext indexContext) throws IOException
     {
-        return indexContext.isLiteral()
-               ? new LiteralIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexContext)
-               : new NumericIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexContext);
+        if (indexContext.isVector())
+            return new VectorIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexContext);
+        else if (indexContext.isLiteral())
+            return new LiteralIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexContext);
+        else
+            return new NumericIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexContext);
     }
 
     /**
@@ -78,19 +86,48 @@ public abstract class IndexSegmentSearcher implements Closeable
      *
      * @return {@link KeyRangeIterator} with matches for the given expression
      */
-    public abstract KeyRangeIterator search(Expression expression, QueryContext queryContext) throws IOException;
+    public abstract KeyRangeIterator<PrimaryKey> search(Expression expression, AbstractBounds<PartitionPosition> keyRange, QueryContext queryContext) throws IOException;
 
-    KeyRangeIterator toIterator(PostingList postingList, QueryContext queryContext) throws IOException
+    /**
+     * Search on-disk index synchronously.
+     *
+     * @param expression to filter on disk index
+     * @param queryContext to track per sstable cache and per query metrics
+     *
+     * @return {@link KeyRangeIterator} with matches for the given expression
+     */
+    public abstract KeyRangeIterator<Long> searchSSTableRowIDs(Expression expression, AbstractBounds<PartitionPosition> keyRange, QueryContext queryContext) throws IOException;
+
+    KeyRangeIterator<PrimaryKey> toPrimaryKeyIterator(PostingList postingList, QueryContext queryContext) throws IOException
     {
-        if (postingList == null)
-            return KeyRangeIterator.empty();
+        if (postingList == null || postingList.size() == 0)
+            return KeyRangeIterator.emptyKeys();
 
         IndexSegmentSearcherContext searcherContext = new IndexSegmentSearcherContext(metadata.minKey,
                                                                                       metadata.maxKey,
+                                                                                      metadata.minSSTableRowId,
+                                                                                      metadata.maxSSTableRowId,
                                                                                       metadata.rowIdOffset,
                                                                                       queryContext,
                                                                                       PeekablePostingList.makePeekable(postingList));
 
         return new PostingListRangeIterator(indexContext, primaryKeyMapFactory.newPerSSTablePrimaryKeyMap(), searcherContext);
+    }
+
+    KeyRangeIterator<Long> toSSTableRowIdsIterator(PostingList postingList, QueryContext queryContext) throws IOException
+    {
+        if (postingList == null || postingList.size() == 0)
+            return KeyRangeIterator.emptyLongs();
+
+        SSTableRowIdPostingList sstablePosting = new SSTableRowIdPostingList(postingList, metadata.rowIdOffset);
+        IndexSegmentSearcherContext searcherContext = new IndexSegmentSearcherContext(metadata.minKey,
+                                                                        metadata.maxKey,
+                                                                        metadata.minSSTableRowId,
+                                                                        metadata.maxSSTableRowId,
+                                                                        metadata.rowIdOffset,
+                                                                        queryContext,
+                                                                        PeekablePostingList.makePeekable(sstablePosting));
+
+        return new SSTableRowIdsRangeIterator(indexContext, searcherContext);
     }
 }

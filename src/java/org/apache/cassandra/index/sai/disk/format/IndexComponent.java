@@ -51,6 +51,11 @@ public enum IndexComponent
     TERMS_DATA("TermsData"),
 
     /**
+     * Lucene creates 3 vector files with ".vex", ".vec" and ".vem" extensions
+     */
+    VECTOR("Vector"),
+
+    /**
      * Stores postings written by {@link PostingsWriter}
      */
     POSTING_LISTS("PostingLists"),

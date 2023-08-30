@@ -148,4 +148,13 @@ public interface QueryPager
      * @return a new <code>QueryPager</code> that use the new limits
      */
     public QueryPager withUpdatedLimit(DataLimits newLimits);
+
+
+    /**
+     * @return true given read query is a top-k request
+     */
+    default boolean isTopK()
+    {
+        return false;
+    }
 }

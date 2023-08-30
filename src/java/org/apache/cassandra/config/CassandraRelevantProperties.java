@@ -425,12 +425,16 @@ public enum CassandraRelevantProperties
 
     // SAI specific properties
 
+    /** Whether to allow the user to specify custom options to the hnsw index */
+    SAI_HNSW_ALLOW_CUSTOM_PARAMETERS("cassandra.sai.hnsw.allow_custom_parameters", "false"),
+
     /** Controls the maximum number of index query intersections that will take part in a query */
     SAI_INTERSECTION_CLAUSE_LIMIT("cassandra.sai.intersection_clause_limit", "2"),
     /** Latest version to be used for SAI index writing */
     SAI_LATEST_VERSION("cassandra.sai.latest_version", "aa"),
     SAI_MAX_FROZEN_TERM_SIZE("cassandra.sai.max_frozen_term_size_kb", "5"),
     SAI_MAX_STRING_TERM_SIZE("cassandra.sai.max_string_term_size_kb", "1"),
+    SAI_MAX_VECTOR_TERM_SIZE("cassandra.sai.max_vector_term_size_kb", "16"),
 
     /** Minimum number of reachable leaves for a given node to be eligible for an auxiliary posting list */
     SAI_MINIMUM_POSTINGS_LEAVES("cassandra.sai.minimum_postings_leaves", "64"),
@@ -454,6 +458,12 @@ public enum CassandraRelevantProperties
 
     SAI_TEST_BALANCED_TREE_DEBUG_ENABLED("cassandra.sai.test.balanced_tree_debug_enabled", "false"),
     SAI_TEST_DISABLE_TIMEOUT("cassandra.sai.test.disable.timeout", "false"),
+
+    /** Controls the maximum top-k limit for vector search */
+    SAI_VECTOR_SEARCH_MAX_TOP_K("cassandra.sai.vector_search.max_top_k", "1000"),
+
+    /** Controls the hnsw vector cache size, in bytes, per index segment. 0 to disable */
+    SAI_VECTOR_SEARCH_VECTOR_CACHE_BYTES("cassandra.sai.vector_search.vector_cache_bytes", String.valueOf(1 * 1024 * 1024)),
 
     SCHEMA_PULL_INTERVAL_MS("cassandra.schema_pull_interval_ms", "60000"),
     SCHEMA_UPDATE_HANDLER_FACTORY_CLASS("cassandra.schema.update_handler_factory.class"),

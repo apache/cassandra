@@ -24,6 +24,9 @@ import java.io.IOException;
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.annotation.concurrent.ThreadSafe;
 
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 
 /**
@@ -69,6 +72,28 @@ public interface PrimaryKeyMap extends Closeable
      * @return the row ID associated with the {@link PrimaryKey}
      */
     long rowIdFromPrimaryKey(PrimaryKey key);
+
+    /**
+     * Returns the first row Id for a given {@link Token}
+     *
+     * @param range the {@link AbstractBounds} to lookup
+     * @return the first row Id associated with the {@link AbstractBounds}
+     */
+    default long firstRowIdForRange(AbstractBounds<PartitionPosition> range)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Returns the last row Id for a given {@link Token}
+     *
+     * @param range the {@link AbstractBounds} to lookup
+     * @return the last row Id associated with the {@link AbstractBounds}
+     */
+    default long lastRowIdForRange(AbstractBounds<PartitionPosition> range)
+    {
+        throw new UnsupportedOperationException();
+    }
 
     @Override
     default void close()

@@ -25,6 +25,8 @@ import com.google.common.base.MoreObjects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
@@ -36,6 +38,7 @@ import org.apache.cassandra.index.sai.metrics.QueryEventListener;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 /**
@@ -79,7 +82,7 @@ public class LiteralIndexSegmentSearcher extends IndexSegmentSearcher
 
     @Override
     @SuppressWarnings({"resource", "RedundantSuppression"})
-    public KeyRangeIterator search(Expression expression, QueryContext queryContext) throws IOException
+    public KeyRangeIterator<PrimaryKey> search(Expression expression, AbstractBounds<PartitionPosition> keyRange, QueryContext queryContext) throws IOException
     {
         if (logger.isTraceEnabled())
             logger.trace(indexContext.logMessage("Searching on expression '{}'..."), expression);
@@ -90,7 +93,14 @@ public class LiteralIndexSegmentSearcher extends IndexSegmentSearcher
         final ByteComparable term = ByteComparable.fixedLength(expression.lower.value.encoded);
         QueryEventListener.TrieIndexEventListener listener = MulticastQueryEventListeners.of(queryContext, perColumnEventListener);
         PostingList postingList = reader.exactMatch(term, listener, queryContext);
-        return toIterator(postingList, queryContext);
+        return toPrimaryKeyIterator(postingList, queryContext);
+    }
+
+    @Override
+    @SuppressWarnings({"resource", "RedundantSuppression"})
+    public KeyRangeIterator<Long> searchSSTableRowIDs(Expression expression, AbstractBounds<PartitionPosition> keyRange, QueryContext queryContext) throws IOException
+    {
+        return toSSTableRowIdsIterator(performSearch(expression, keyRange, queryContext), queryContext);
     }
 
     @Override
@@ -105,5 +115,18 @@ public class LiteralIndexSegmentSearcher extends IndexSegmentSearcher
     public void close()
     {
         reader.close();
+    }
+
+    private PostingList performSearch(Expression expression, AbstractBounds<PartitionPosition> keyRange, QueryContext queryContext) throws IOException
+    {
+        if (logger.isTraceEnabled())
+            logger.trace(indexContext.logMessage("Searching on expression '{}'..."), expression);
+
+        if (!expression.getOp().isEquality())
+            throw new IllegalArgumentException(indexContext.logMessage("Unsupported expression: " + expression));
+
+        final ByteComparable term = ByteComparable.fixedLength(expression.lower.value.encoded);
+        QueryEventListener.TrieIndexEventListener listener = MulticastQueryEventListeners.of(queryContext, perColumnEventListener);
+        return reader.exactMatch(term, listener, queryContext);
     }
 }

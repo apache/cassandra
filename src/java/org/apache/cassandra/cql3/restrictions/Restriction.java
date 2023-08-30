@@ -70,6 +70,14 @@ public interface Restriction
     boolean hasSupportingIndex(IndexRegistry indexRegistry);
 
     /**
+     * Find first supporting index for current restriction
+     *
+     * @param indexRegistry the index registry
+     * @return <code>index</code> if the restriction is on indexed columns, <code>null</code>
+     */
+    Index findSupportingIndex(IndexRegistry indexRegistry);
+
+    /**
      * Returns whether this restriction would need filtering if the specified index group were used.
      *
      * @param indexGroup an index group

@@ -19,8 +19,10 @@ package org.apache.cassandra.cql3.restrictions;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import com.google.common.base.Joiner;
+import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.Function;
@@ -62,6 +64,10 @@ public final class StatementRestrictions
     public static final String CANNOT_USE_ALLOW_FILTERING_MESSAGE = ALLOW_FILTERING_MESSAGE +
             "Executing this query despite the performance unpredictability with ALLOW FILTERING has been disabled " +
             "by the allow_filtering_enabled property in cassandra.yaml";
+
+    public static final String ANN_REQUIRES_INDEX_MESSAGE = "ANN ordering by vector requires the column to be indexed";
+
+    public static final String VECTOR_INDEXES_ANN_ONLY_MESSAGE = "Vector indexes only support ANN queries";
 
     /**
      * The type of statement
@@ -138,11 +144,12 @@ public final class StatementRestrictions
                                  TableMetadata table,
                                  WhereClause whereClause,
                                  VariableSpecifications boundNames,
+                                 List<Ordering> orderings,
                                  boolean selectsOnlyStaticColumns,
                                  boolean allowFiltering,
                                  boolean forView)
     {
-        this(state, type, table, whereClause, boundNames, selectsOnlyStaticColumns, type.allowUseOfSecondaryIndices(), allowFiltering, forView);
+        this(state, type, table, whereClause, boundNames, orderings, selectsOnlyStaticColumns, type.allowUseOfSecondaryIndices(), allowFiltering, forView);
     }
 
     /*
@@ -154,6 +161,7 @@ public final class StatementRestrictions
                                  TableMetadata table,
                                  WhereClause whereClause,
                                  VariableSpecifications boundNames,
+                                 List<Ordering> orderings,
                                  boolean selectsOnlyStaticColumns,
                                  boolean allowUseOfSecondaryIndices,
                                  boolean allowFiltering,
@@ -205,6 +213,10 @@ public final class StatementRestrictions
                 addRestriction(relation.toRestriction(table, boundNames), indexRegistry);
             }
         }
+
+        // ORDER BY clause.
+        // Some indexes can be used for ordering.
+        nonPrimaryKeyRestrictions = addOrderingRestrictions(orderings, nonPrimaryKeyRestrictions);
 
         hasRegularColumnsRestrictions = nonPrimaryKeyRestrictions.hasRestrictionFor(ColumnMetadata.Kind.REGULAR);
 
@@ -266,6 +278,8 @@ public final class StatementRestrictions
         // there is restrictions not covered by the PK.
         if (!nonPrimaryKeyRestrictions.isEmpty())
         {
+            var columnRestrictions = allColumnRestrictions(clusteringColumnsRestrictions, nonPrimaryKeyRestrictions);
+
             if (!type.allowNonPrimaryKeyInWhereClause())
             {
                 Collection<ColumnIdentifier> nonPrimaryKeyColumns =
@@ -276,8 +290,25 @@ public final class StatementRestrictions
             }
             if (hasQueriableIndex)
                 usesSecondaryIndexing = true;
-            else if (!allowFiltering && requiresAllowFilteringIfNotSpecified())
-                throw invalidRequest(allowFilteringMessage(state));
+            else
+            {
+                if (nonPrimaryKeyRestrictions.hasAnn())
+                {
+                    var vectorColumn = nonPrimaryKeyRestrictions.getColumnDefs().stream().filter(c -> c.type.isVector()).findFirst();
+                    if (vectorColumn.isPresent())
+                    {
+                        var vc = vectorColumn.get();
+                        var hasIndex = indexRegistry.listIndexes().stream().anyMatch(i -> i.dependsOn(vc));
+                        if (hasIndex)
+                            throw invalidRequest(StatementRestrictions.VECTOR_INDEXES_ANN_ONLY_MESSAGE);
+                        else
+                            throw invalidRequest(StatementRestrictions.ANN_REQUIRES_INDEX_MESSAGE);
+                    }
+                }
+
+                if (!allowFiltering && requiresAllowFilteringIfNotSpecified())
+                    throw invalidRequest(allowFilteringMessage(state));
+            }
 
             filterRestrictions.add(nonPrimaryKeyRestrictions);
         }
@@ -474,6 +505,38 @@ public final class StatementRestrictions
     public boolean usesSecondaryIndexing()
     {
         return this.usesSecondaryIndexing;
+    }
+
+    /**
+     * This is a hack to push ordering down to indexes.
+     * Indexes are selected based on RowFilter only, so we need to turn orderings into restrictions
+     * so they end up in the row filter.
+     *
+     * @param orderings orderings from the select statement
+     * @return the {@link RestrictionSet} with the added orderings
+     */
+    private RestrictionSet addOrderingRestrictions(List<Ordering> orderings, RestrictionSet restrictionSet)
+    {
+        List<Ordering> annOrderings = orderings.stream().filter(o -> o.expression.hasNonClusteredOrdering()).collect(Collectors.toList());
+
+        if (annOrderings.size() > 1)
+            throw new InvalidRequestException("Cannot specify more than one ANN ordering");
+        else if (annOrderings.size() == 1)
+        {
+            if (orderings.size() > 1)
+                throw new InvalidRequestException("ANN ordering does not support secondary ordering");
+            Ordering annOrdering = annOrderings.get(0);
+            if (annOrdering.direction != Ordering.Direction.ASC)
+                throw new InvalidRequestException("Descending ANN ordering is not supported");
+            SingleRestriction restriction = annOrdering.expression.toRestriction();
+            return restrictionSet.addRestriction(restriction);
+        }
+        return restrictionSet;
+    }
+
+    private static Iterable<Restriction> allColumnRestrictions(ClusteringColumnRestrictions clusteringColumnsRestrictions, RestrictionSet nonPrimaryKeyRestrictions)
+    {
+        return Iterables.concat(clusteringColumnsRestrictions.getRestrictionSet(), nonPrimaryKeyRestrictions);
     }
 
     private void processPartitionKeyRestrictions(ClientState state, boolean hasQueriableIndex, boolean allowFiltering, boolean forView)
