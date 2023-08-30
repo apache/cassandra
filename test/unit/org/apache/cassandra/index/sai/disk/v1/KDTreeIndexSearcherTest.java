@@ -24,6 +24,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
+import com.google.common.collect.Lists;
 import org.junit.Test;
 
 import org.apache.cassandra.db.marshal.DecimalType;
@@ -210,7 +211,8 @@ public class KDTreeIndexSearcherTest extends SaiRandomizedTest
             assertEquals(results.getMinimum(), results.getCurrent());
             assertTrue(results.hasNext());
 
-            assertEquals(expectedTokenList, results);
+            var actualTokenList = Lists.newArrayList(results);
+            assertEquals(expectedTokenList, actualTokenList);
         }
 
         try (RangeIterator results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
