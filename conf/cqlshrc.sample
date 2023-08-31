@@ -99,16 +99,9 @@ port = 9042
 
 
 
-[csv]
-;; The size limit for parsed fields
-; field_size_limit = 131072
-
-
-
 [tracing]
 ;; The max number of seconds to wait for a trace to complete
 ; max_trace_wait = 10.0
-
 
 
 ;[ssl]
