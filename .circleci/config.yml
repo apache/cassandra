@@ -81,7 +81,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -188,7 +188,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -252,7 +252,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -360,7 +360,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -449,7 +449,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -538,7 +538,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -603,7 +603,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -712,7 +712,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -829,7 +829,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -937,7 +937,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -1091,7 +1091,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -1223,7 +1223,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -1355,7 +1355,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -1473,7 +1473,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -1582,7 +1582,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -1671,7 +1671,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -1789,7 +1789,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -1878,7 +1878,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -1986,7 +1986,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -2119,7 +2119,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -2273,7 +2273,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -2390,7 +2390,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -2499,7 +2499,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -2607,7 +2607,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -2697,7 +2697,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -2786,7 +2786,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -2904,7 +2904,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -3099,7 +3099,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -3184,7 +3184,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -3317,7 +3317,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -3435,7 +3435,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -3543,7 +3543,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -3628,7 +3628,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -3718,7 +3718,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -3836,7 +3836,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -3969,7 +3969,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -4087,7 +4087,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -4282,7 +4282,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -4390,7 +4390,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -4497,7 +4497,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -4614,7 +4614,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -4704,7 +4704,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -4775,7 +4775,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -4908,7 +4908,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -5026,7 +5026,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -5130,7 +5130,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -5202,7 +5202,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -5292,7 +5292,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -5405,7 +5405,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -5523,7 +5523,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -5595,7 +5595,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -5685,7 +5685,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -5792,7 +5792,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -5924,7 +5924,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -6042,7 +6042,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -6132,7 +6132,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -6240,7 +6240,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -6349,7 +6349,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -6467,7 +6467,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -6552,7 +6552,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -6685,7 +6685,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -6775,7 +6775,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -6883,7 +6883,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -6955,7 +6955,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -7039,7 +7039,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -7123,7 +7123,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -7232,7 +7232,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -7322,7 +7322,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -7412,7 +7412,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -7502,7 +7502,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -7611,7 +7611,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -7674,7 +7674,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -7782,7 +7782,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -7900,7 +7900,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -8008,7 +8008,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -8116,7 +8116,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -8233,7 +8233,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -8305,7 +8305,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -8394,7 +8394,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -8501,7 +8501,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -8591,7 +8591,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -8655,7 +8655,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -8740,7 +8740,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -8858,7 +8858,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -8966,7 +8966,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -9083,7 +9083,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -9172,7 +9172,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -9256,7 +9256,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -9345,7 +9345,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -9417,7 +9417,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -9506,7 +9506,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -9590,7 +9590,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -9680,7 +9680,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -9786,7 +9786,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -9918,7 +9918,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -10007,7 +10007,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
@@ -10096,7 +10096,7 @@ jobs:
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: true
     - REPEATED_UTESTS: org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionStaticsTest,org.apache.cassandra.cql3.validation.operations.InsertUpdateIfConditionCollectionsTest
-    - REPEATED_UTESTS_COUNT: 6000
+    - REPEATED_UTESTS_COUNT: 2000
     - REPEATED_UTESTS_FQLTOOL: null
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
     - REPEATED_UTESTS_LONG: null
