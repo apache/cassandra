@@ -206,7 +206,7 @@ public class CompactionControllerTest extends SchemaLoader
     @BMRule(name = "Pause compaction",
     targetClass = "CompactionTask",
     targetMethod = "runMayThrow",
-    targetLocation = "AFTER INVOKE getCompactionController",
+    targetLocation = "INVOKE getCompactionAwareWriter",
     condition = "Thread.currentThread().getName().equals(\"compaction1\")",
     action = "org.apache.cassandra.db.compaction.CompactionControllerTest.createCompactionControllerLatch.countDown();" +
              "com.google.common.util.concurrent.Uninterruptibles.awaitUninterruptibly" +
@@ -280,7 +280,7 @@ public class CompactionControllerTest extends SchemaLoader
         //the overlap iterator should contain sstable2
         //this compaction will be paused by the BMRule
         Thread t = new Thread(() -> {
-            task.run();
+            task.execute(null);
         });
 
         //start a compaction for the second sstable (compaction2)
