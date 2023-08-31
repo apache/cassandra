@@ -9,6 +9,7 @@ Merged from 4.1:
 Merged from 4.0:
 Merged from 3.11:
 Merged from 3.0:
+ * Refactor validation logic in StorageService.rebuild (CASSANDRA-18803)
  * Make alternation of a user type validate the same way as creation of a user type does (CASSANDRA-18585)
 
 5.0-alpha1
