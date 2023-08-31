@@ -439,7 +439,6 @@ class Shell(cmd.Cmd):
 
         self.cql_version = None
         self.cql_version_str = None
-        #self.connection_versions = {}
 
         # configure length of history shown
         self.max_history_length_shown = 50
