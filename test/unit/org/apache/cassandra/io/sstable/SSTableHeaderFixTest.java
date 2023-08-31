@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -818,14 +819,14 @@ public class SSTableHeaderFixTest
                                                                 .stream()
                                                                 .map(cd -> cd.type)
                                                                 .collect(Collectors.toList());
-            Map<ByteBuffer, AbstractType<?>> staticColumns = headerMetadata.columns()
+            LinkedHashMap<ByteBuffer, AbstractType<?>> staticColumns = headerMetadata.columns()
                                                                            .stream()
                                                                            .filter(cd -> cd.kind == ColumnMetadata.Kind.STATIC)
-                                                                           .collect(Collectors.toMap(cd -> cd.name.bytes, cd -> cd.type, (a, b) -> a));
-            Map<ByteBuffer, AbstractType<?>> regularColumns = headerMetadata.columns()
-                                                                            .stream()
-                                                                            .filter(cd -> cd.kind == ColumnMetadata.Kind.REGULAR)
-                                                                            .collect(Collectors.toMap(cd -> cd.name.bytes, cd -> cd.type, (a, b) -> a));
+                                                                           .collect(Collectors.toMap(cd -> cd.name.bytes, cd -> cd.type, (a, b) -> a, LinkedHashMap::new));
+            LinkedHashMap<ByteBuffer, AbstractType<?>> regularColumns = headerMetadata.columns()
+                                                                                      .stream()
+                                                                                      .filter(cd -> cd.kind == ColumnMetadata.Kind.REGULAR)
+                                                                                      .collect(Collectors.toMap(cd -> cd.name.bytes, cd -> cd.type, (a, b) -> a, LinkedHashMap::new));
 
             File statsFile = desc.fileFor(Component.STATS);
             SerializationHeader.Component header = SerializationHeader.Component.buildComponentForTools(partitionKey,
