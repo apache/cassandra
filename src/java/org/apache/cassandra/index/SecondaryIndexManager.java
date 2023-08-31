@@ -578,7 +578,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      * @param isFullRebuild True if this method is invoked as a full index rebuild, false otherwise
      */
     @SuppressWarnings({ "unchecked" })
-    private void buildIndexesBlocking(Collection<SSTableReader> sstables, Set<Index> indexes, boolean isFullRebuild)
+    public void buildIndexesBlocking(Collection<SSTableReader> sstables, Set<Index> indexes, boolean isFullRebuild)
     {
         FBUtilities.waitOnFuture(buildIndexesAsync(sstables, indexes, isFullRebuild));
     }
