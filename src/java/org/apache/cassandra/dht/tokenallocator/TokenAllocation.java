@@ -90,6 +90,39 @@ public class TokenAllocation
         return create(snitch, tokenMetadata, localReplicationFactor, numTokens).allocate(endpoint, strategy);
     }
 
+    // Used by CNDB
+    // return the ratio of ownership for each endpoint
+    public static Map<InetAddressAndPort, Double> evaluateReplicatedOwnership(TokenMetadata tokenMetadata, AbstractReplicationStrategy rs)
+    {
+        Map<InetAddressAndPort, Double> ownership = Maps.newHashMap();
+        List<Token> sortedTokens = tokenMetadata.sortedTokens();
+        if (sortedTokens.isEmpty())
+            return ownership;
+
+        Iterator<Token> it = sortedTokens.iterator();
+        Token current = it.next();
+        while (it.hasNext())
+        {
+            Token next = it.next();
+            addOwnership(tokenMetadata, rs, current, next, ownership);
+            current = next;
+        }
+        addOwnership(tokenMetadata, rs, current, sortedTokens.get(0), ownership);
+
+        return ownership;
+    }
+
+    private static void addOwnership(TokenMetadata tokenMetadata, AbstractReplicationStrategy rs, Token current, Token next, Map<InetAddressAndPort, Double> ownership)
+    {
+        double size = current.size(next);
+        Token representative = current.getPartitioner().midpoint(current, next);
+        for (InetAddressAndPort n : rs.calculateNaturalReplicas(representative, tokenMetadata).endpoints())
+        {
+            Double v = ownership.get(n);
+            ownership.put(n, v != null ? v + size : size);
+        }
+    }
+
     static TokenAllocation create(IEndpointSnitch snitch, TokenMetadata tokenMetadata, int replicas, int numTokens)
     {
         // We create a fake NTS replication strategy with the specified RF in the local DC
@@ -198,45 +231,13 @@ public class TokenAllocation
         final SummaryStatistics replicatedOwnershipStats()
         {
             SummaryStatistics stat = new SummaryStatistics();
-            for (Map.Entry<InetAddressAndPort, Double> en : evaluateReplicatedOwnership().entrySet())
+            for (Map.Entry<InetAddressAndPort, Double> en : TokenAllocation.evaluateReplicatedOwnership(tokenMetadata, replicationStrategy).entrySet())
             {
                 // Filter only in the same allocation ring
                 if (inAllocationRing(en.getKey()))
                     stat.addValue(en.getValue() / tokenMetadata.getTokens(en.getKey()).size());
             }
             return stat;
-        }
-
-        // return the ratio of ownership for each endpoint
-        private Map<InetAddressAndPort, Double> evaluateReplicatedOwnership()
-        {
-            Map<InetAddressAndPort, Double> ownership = Maps.newHashMap();
-            List<Token> sortedTokens = tokenMetadata.sortedTokens();
-            if (sortedTokens.isEmpty())
-                return ownership;
-
-            Iterator<Token> it = sortedTokens.iterator();
-            Token current = it.next();
-            while (it.hasNext())
-            {
-                Token next = it.next();
-                addOwnership(current, next, ownership);
-                current = next;
-            }
-            addOwnership(current, sortedTokens.get(0), ownership);
-
-            return ownership;
-        }
-
-        private void addOwnership(Token current, Token next, Map<InetAddressAndPort, Double> ownership)
-        {
-            double size = current.size(next);
-            Token representative = current.getPartitioner().midpoint(current, next);
-            for (InetAddressAndPort n : replicationStrategy.calculateNaturalReplicas(representative, tokenMetadata).endpoints())
-            {
-                Double v = ownership.get(n);
-                ownership.put(n, v != null ? v + size : size);
-            }
         }
     }
 
