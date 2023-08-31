@@ -17,7 +17,6 @@
 import cmd
 import codecs
 import configparser
-import csv
 import getpass
 import argparse
 import os
@@ -277,20 +276,8 @@ class DecodeError(Exception):
         return '<%s %s>' % (self.__class__.__name__, self.message())
 
 
-def maybe_ensure_text(val):
-    return str(val) if val else val
-
-
 class FormatError(DecodeError):
     verb = 'format'
-
-
-def full_cql_version(ver):
-    while ver.count('.') < 2:
-        ver += '.0'
-    ver_parts = ver.split('-', 1) + ['']
-    vertuple = tuple(list(map(int, ver_parts[0].split('.'))) + [ver_parts[1]])
-    return ver, vertuple
 
 
 def format_value(val, cqltype, encoding, addcolor=False, date_time_format=None,
@@ -412,7 +399,7 @@ class Shell(cmd.Cmd):
         self.session.row_factory = ordered_dict_factory
         self.session.default_consistency_level = cassandra.ConsistencyLevel.ONE
         self.get_connection_versions()
-        self.set_expanded_cql_version(self.connection_versions['cql'])
+        self.set_cql_version(self.connection_versions['cql'])
 
         self.current_keyspace = keyspace
 
@@ -450,6 +437,13 @@ class Shell(cmd.Cmd):
         self.single_statement = single_statement
         self.is_subshell = is_subshell
 
+        self.cql_version = None
+        self.cql_version_str = None
+
+        # configure length of history shown
+        self.max_history_length_shown = 50
+        self.lastcmd = ""
+
     def check_build_versions(self):
         baseversion = self.connection_versions['build']
         extra = baseversion.rfind('-')
@@ -462,13 +456,12 @@ class Shell(cmd.Cmd):
     def batch_mode(self):
         return not self.tty
 
-    def set_expanded_cql_version(self, ver):
-        ver, vertuple = full_cql_version(ver)
-        self.cql_version = ver
-        self.cql_ver_tuple = vertuple
-
-    def cqlver_atleast(self, major, minor=0, patch=0):
-        return self.cql_ver_tuple[:3] >= (major, minor, patch)
+    def set_cql_version(self, ver):
+        v = list(map(int, (ver.split("."))))
+        while (len(v) < 3):
+            v.append(0)
+        self.cql_version = tuple(v)
+        self.cql_version_str = ".".join(map(str, v))
 
     def myformat_value(self, val, cqltype=None, **kwargs):
         if isinstance(val, DecodeError):
@@ -510,12 +503,8 @@ class Shell(cmd.Cmd):
                       self.port))
 
     def show_version(self):
-        vers = self.connection_versions.copy()
-        vers['shver'] = version
-        # system.Versions['cql'] apparently does not reflect changes with
-        # set_cql_version.
-        vers['cql'] = self.cql_version
-        print("[cqlsh %(shver)s | Cassandra %(build)s | CQL spec %(cql)s | Native protocol v%(protocol)s]" % vers)
+        vers = self.connection_versions
+        print(f"[cqlsh {version} | Cassandra {vers['build']} | CQL spec {self.cql_version_str} | Native protocol v{vers['protocol']}]")
 
     def show_session(self, sessionid, partial_session=False):
         print_trace_session(self, self.session, sessionid, partial_session)
@@ -1321,7 +1310,7 @@ class Shell(cmd.Cmd):
 
     def describe_list(self, rows):
         """
-        Print the output for all the DESCRIBE queries for element names (e.g DESCRIBE TABLES, DESCRIBE FUNCTIONS ...)
+        Print the output for all the DESCRIBE queries for element names (e.g. DESCRIBE TABLES, DESCRIBE FUNCTIONS ...)
         """
         keyspace = None
         names = list()
@@ -1348,7 +1337,7 @@ class Shell(cmd.Cmd):
 
     def describe_element(self, rows):
         """
-        Print the output for all the DESCRIBE queries where an element name as been specified (e.g DESCRIBE TABLE, DESCRIBE INDEX ...)
+        Print the output for all the DESCRIBE queries where an element name as been specified (e.g. DESCRIBE TABLE, DESCRIBE INDEX ...)
         """
         for row in rows:
             print('')
@@ -1359,7 +1348,7 @@ class Shell(cmd.Cmd):
         """
         Print the output for a DESCRIBE CLUSTER query.
 
-        If a specified keyspace was in use the returned ResultSet will contains a 'range_ownership' column,
+        If a specified keyspace was in use the returned ResultSet will contain a 'range_ownership' column,
         otherwise not.
         """
         for row in rows:
@@ -1957,9 +1946,6 @@ class Shell(cmd.Cmd):
             delims += '.'
             readline.set_completer_delims(delims)
 
-            # configure length of history shown
-            self.max_history_length_shown = 50
-
     def save_history(self):
         if readline is not None:
             try:
@@ -2057,8 +2043,7 @@ def should_use_color():
         if int(stdout.strip()) < 8:
             return False
     except (OSError, ImportError, ValueError):
-        # oh well, we tried. at least we know there's a $TERM and it's
-        # not "dumb".
+        # at least it's a $TERM, and it's not "dumb".
         pass
     return True
 
@@ -2100,7 +2085,6 @@ def read_options(cmdlineargs, environment=os.environ):
                                                     DEFAULT_FLOAT_PRECISION)
     argvalues.double_precision = option_with_default(configs.getint, 'ui', 'double_precision',
                                                      DEFAULT_DOUBLE_PRECISION)
-    argvalues.field_size_limit = option_with_default(configs.getint, 'csv', 'field_size_limit', csv.field_size_limit())
     argvalues.max_trace_wait = option_with_default(configs.getfloat, 'tracing', 'max_trace_wait',
                                                    DEFAULT_MAX_TRACE_WAIT)
     argvalues.timezone = option_with_default(configs.get, 'ui', 'timezone', None)
@@ -2166,14 +2150,11 @@ def read_options(cmdlineargs, environment=os.environ):
         print("\nWarning: Using a password on the command line interface can be insecure."
               "\nRecommendation: use the credentials file to securely provide the password.\n", file=sys.stderr)
 
-    # Make sure some user values read from the command line are in unicode
-    options.execute = maybe_ensure_text(options.execute)
-    options.username = maybe_ensure_text(options.username)
-    options.password = maybe_ensure_text(options.password)
-    options.keyspace = maybe_ensure_text(options.keyspace)
-
     hostname = option_with_default(configs.get, 'connection', 'hostname', DEFAULT_HOST)
     port = option_with_default(configs.get, 'connection', 'port', DEFAULT_PORT)
+
+    hostname = environment.get('CQLSH_HOST', hostname)
+    port = environment.get('CQLSH_PORT', port)
 
     try:
         options.connect_timeout = int(options.connect_timeout)
@@ -2186,9 +2167,6 @@ def read_options(cmdlineargs, environment=os.environ):
     except ValueError:
         parser.error('"%s" is not a valid request timeout.' % (options.request_timeout,))
         options.request_timeout = DEFAULT_REQUEST_TIMEOUT_SECONDS
-
-    hostname = environment.get('CQLSH_HOST', hostname)
-    port = environment.get('CQLSH_PORT', port)
 
     if len(arguments) > 0:
         hostname = arguments[0]
@@ -2209,12 +2187,6 @@ def read_options(cmdlineargs, environment=os.environ):
         else:
             options.color = should_use_color()
 
-    if options.cqlversion is not None:
-        options.cqlversion, cqlvertup = full_cql_version(options.cqlversion)
-        if cqlvertup[0] < 3:
-            parser.error('%r is not a supported CQL version.' % options.cqlversion)
-    options.cqlmodule = cql3handling
-
     try:
         port = int(port)
     except ValueError:
@@ -2222,9 +2194,9 @@ def read_options(cmdlineargs, environment=os.environ):
     return options, hostname, port
 
 
-def setup_cqlruleset(cqlmodule):
+def setup_cqlruleset():
     global cqlruleset
-    cqlruleset = cqlmodule.CqlRuleSet
+    cqlruleset = cql3handling.CqlRuleSet
     cqlruleset.append_rules(cqlshhandling.cqlsh_extra_syntax_rules)
     for rulename, termname, func in cqlshhandling.cqlsh_syntax_completers:
         cqlruleset.completer_for(rulename, termname)(func)
@@ -2253,7 +2225,7 @@ def insert_driver_hooks():
         pass
 
     # Display milliseconds when datetime overflows (CASSANDRA-10625), E.g., the year 10000.
-    # Native datetime types blow up outside of datetime.[MIN|MAX]_YEAR. We will fall back to an int timestamp
+    # Native datetime types blow up outside datetime.[MIN|MAX]_YEAR. We will fall back to an int timestamp
     def deserialize_date_fallback_int(byts, protocol_version):
         timestamp_ms = int64_unpack(byts)
         try:
@@ -2277,8 +2249,7 @@ def main(cmdline, pkgpath):
     (options, hostname, port) = read_options(cmdline)
 
     setup_docspath(pkgpath)
-    setup_cqlruleset(options.cqlmodule)
-    csv.field_size_limit(options.field_size_limit)
+    setup_cqlruleset()
 
     if options.file is None:
         stdin = None
@@ -2331,7 +2302,7 @@ def main(cmdline, pkgpath):
             except ImportError:
                 sys.stderr.write("Warning: Timezone defined and 'pytz' module for timezone conversion not installed. Timestamps will be displayed in UTC timezone.\n\n")
 
-    # try auto-detect timezone if tzlocal is installed
+    # try to auto-detect timezone if tzlocal is installed
     if not timezone:
         try:
             from tzlocal import get_localzone

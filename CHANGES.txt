@@ -1,4 +1,5 @@
 5.1
+ * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
  * Fix Depends and Build-Depends for Java for Debian packages (CASSANDRA-18809)
  * Update command line flags --add-exports and --add-opens for JDK17 (CASSANDRA-18439)
