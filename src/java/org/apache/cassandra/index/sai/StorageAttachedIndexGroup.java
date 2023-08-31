@@ -326,7 +326,7 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
      * @return the set of column indexes that were marked as non-queryable as a result of their per-SSTable index
      * files being corrupt or being unable to successfully update their views
      */
-    synchronized Set<StorageAttachedIndex> onSSTableChanged(Collection<SSTableReader> removed, Iterable<SSTableReader> added,
+    public synchronized Set<StorageAttachedIndex> onSSTableChanged(Collection<SSTableReader> removed, Iterable<SSTableReader> added,
                                                             Set<StorageAttachedIndex> indexes, boolean validate)
     {
         Pair<Set<SSTableContext>, Set<SSTableReader>> results = contextManager.update(removed, added, validate);

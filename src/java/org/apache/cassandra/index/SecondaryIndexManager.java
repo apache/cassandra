@@ -785,7 +785,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
      * @param index the index to be marked as built
      * @param isFullRebuild {@code true} if this method is invoked as a full index rebuild, {@code false} otherwise
      */
-    private synchronized void markIndexBuilt(Index index, boolean isFullRebuild)
+    public synchronized void markIndexBuilt(Index index, boolean isFullRebuild)
     {
         String indexName = index.getIndexMetadata().name;
         if (isFullRebuild)

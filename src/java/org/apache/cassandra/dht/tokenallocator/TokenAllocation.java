@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.dht.tokenallocator;
 
-import java.net.InetAddress;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -151,8 +150,17 @@ public class TokenAllocation
         return getOrCreateStrategy(endpoint).replicatedOwnershipStats();
     }
 
-    public abstract class StrategyAdapter implements ReplicationStrategy<InetAddressAndPort>
+    public static abstract class StrategyAdapter implements ReplicationStrategy<InetAddressAndPort>
     {
+        final TokenMetadata tokenMetadata;
+        final AbstractReplicationStrategy replicationStrategy;
+
+        public StrategyAdapter(TokenMetadata tokenMetadata, AbstractReplicationStrategy replicationStrategy)
+        {
+            this.tokenMetadata = tokenMetadata;
+            this.replicationStrategy = replicationStrategy;
+        }
+
         // return true iff the provided endpoint occurs in the same virtual token-ring we are allocating for
         // i.e. the set of the nodes that share ownership with the node we are allocating
         // alternatively: return false if the endpoint's ownership is independent of the node we are allocating tokens for
@@ -309,7 +317,7 @@ public class TokenAllocation
 
     private StrategyAdapter createRandomStrategy(InetAddressAndPort endpoint)
     {
-        return new StrategyAdapter()
+        return new StrategyAdapter(this.tokenMetadata, this.replicationStrategy)
         {
             @Override
             public int replicas()
@@ -335,7 +343,7 @@ public class TokenAllocation
     // a null rack will return true for inAllocationRing(..) for all nodes in the same dc
     private StrategyAdapter createStrategy(IEndpointSnitch snitch, String dc, String rack, int replicas, boolean groupByRack)
     {
-        return new StrategyAdapter()
+        return new StrategyAdapter(this.tokenMetadata, this.replicationStrategy)
         {
             @Override
             public int replicas()
