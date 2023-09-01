@@ -31,9 +31,13 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.utils.FBUtilities;
 import org.github.jamm.MemoryMeter;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 // Note: This test can be run in idea with the allocation type configured in the test yaml and memtable using the
 // value memtableClass is initialized with.
@@ -98,8 +102,7 @@ public class MemtableSizeTestBase extends CQLTester
         // overridden by instances
     }
 
-    @Test
-    public void testSize() throws Throwable
+    private void buildAndFillTable(String memtableClass) throws Throwable
     {
         // Make sure memtables use the correct allocation type, i.e. that setup has worked.
         // If this fails, make sure the test is not reusing an already-initialized JVM.
@@ -107,24 +110,34 @@ public class MemtableSizeTestBase extends CQLTester
 
         CQLTester.disablePreparedReuseForTest();
         keyspace = createKeyspace("CREATE KEYSPACE %s with replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 } and durable_writes = false");
+
+        table = createTable(keyspace, "CREATE TABLE %s ( userid bigint, picid bigint, commentid bigint, PRIMARY KEY(userid, picid))" +
+                                      " with compression = {'enabled': false}" +
+                                      " and memtable = { 'class': '" + memtableClass + "'}");
+        execute("use " + keyspace + ';');
+
+        forcePreparedValues();
+
+        cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
+        cfs.disableAutoCompaction();
+        cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
+    }
+
+    @Test
+    public void testSize() throws Throwable
+    {
+
         try
         {
-            table = createTable(keyspace, "CREATE TABLE %s ( userid bigint, picid bigint, commentid bigint, PRIMARY KEY(userid, picid))" +
-                                          " with compression = {'enabled': false}" +
-                                          " and memtable = { 'class': '" + memtableClass + "'}");
-            execute("use " + keyspace + ';');
+            buildAndFillTable(memtableClass);
 
             String writeStatement = "INSERT INTO " + table + "(userid,picid,commentid)VALUES(?,?,?)";
-            forcePreparedValues();
-
-            cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
-            cfs.disableAutoCompaction();
-            cfs.forceBlockingFlush(ColumnFamilyStore.FlushReason.UNIT_TESTS);
 
             Memtable memtable = cfs.getTracker().getView().getCurrentMemtable();
             long deepSizeBefore = meter.measureDeep(memtable);
             System.out.println("Memtable deep size before " +
                                FBUtilities.prettyPrintMemory(deepSizeBefore));
+
             long i;
             long limit = partitions;
             System.out.println("Writing " + partitions + " partitions of " + rowsPerPartition + " rows");
@@ -191,5 +204,26 @@ public class MemtableSizeTestBase extends CQLTester
         {
             execute(String.format("DROP KEYSPACE IF EXISTS %s", keyspace));
         }
+    }
+
+    @Test
+    public void testRowCountInTrieMemtable() throws Throwable
+    {
+        buildAndFillTable("TrieMemtable");
+
+        String writeStatement = "INSERT INTO " + table + "(userid,picid,commentid)VALUES(?,?,?)";
+
+        Memtable memtable = cfs.getTracker().getView().getCurrentMemtable();
+        System.out.println("Writing " + partitions + " partitions of " + rowsPerPartition + " rows");
+        for (long i = 0; i < partitions; ++i)
+        {
+            for (long j = 0; j < rowsPerPartition; ++j)
+                execute(writeStatement, i, j, i + j);
+        }
+
+        assertThat(memtable).isExactlyInstanceOf(TrieMemtable.class);
+        ColumnFilter.Builder builder = ColumnFilter.allRegularColumnsBuilder(cfs.metadata(), true);
+        long rowCount = ((TrieMemtable)cfs.getTracker().getView().getCurrentMemtable()).rowCount(builder.build(), DataRange.allData(cfs.getPartitioner()));
+        Assert.assertEquals(rowCount, partitions*rowsPerPartition);
     }
 }
