@@ -37,14 +37,14 @@ public class LuceneAnalyzerTest extends SAITester
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
 
         assertThatThrownBy(() -> createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = {" +
-                     "'index_analyzer': '{\n" +
-                     "\t\"tokenizer\":{\"name\":\"ngram\", \"args\":{\"minGramSize\":\"2\", \"maxGramSize\":\"3\"}}," +
-                     "\t\"filters\":[{\"name\":\"lowercase\"}]\n" +
-                     "}'," +
-                     "'query_analyzer': '{\n" +
-                     "\t\"tokenizer\":{\"name\":\"whitespace\"},\n" +
-                     "\t\"filters\":[{\"name\":\"porterstem\"}]\n" +
-                     "}'};"))
+                                             "'index_analyzer': '{\n" +
+                                             "\t\"tokenizer\":{\"name\":\"ngram\", \"args\":{\"minGramSize\":\"2\", \"maxGramSize\":\"3\"}}," +
+                                             "\t\"filters\":[{\"name\":\"lowercase\"}]\n" +
+                                             "}'," +
+                                             "'query_analyzer': '{\n" +
+                                             "\t\"tokenizer\":{\"name\":\"whitespace\"},\n" +
+                                             "\t\"filters\":[{\"name\":\"porterstem\"}]\n" +
+                                             "}'};"))
         .hasCauseInstanceOf(ConfigurationException.class)
         .hasRootCauseMessage("Properties specified [query_analyzer] are not understood by StorageAttachedIndex");
     }
@@ -142,8 +142,8 @@ public class LuceneAnalyzerTest extends SAITester
         createTable("CREATE TABLE %s (id int, val text, PRIMARY KEY (id, val))");
 
         assertThatThrownBy(() -> createIndex("CREATE CUSTOM INDEX ON %s(val) " +
-                    "USING 'org.apache.cassandra.index.sai.StorageAttachedIndex' " +
-                    "WITH OPTIONS = { 'index_analyzer': 'standard' }"
+                                             "USING 'org.apache.cassandra.index.sai.StorageAttachedIndex' " +
+                                             "WITH OPTIONS = { 'index_analyzer': 'standard' }"
         )).isInstanceOf(InvalidRequestException.class);
 
         assertThatThrownBy(() -> createIndex("CREATE CUSTOM INDEX ON %s(val) WITH OPTIONS = { 'ascii': true }"

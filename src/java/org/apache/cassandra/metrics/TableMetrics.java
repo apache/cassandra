@@ -53,10 +53,13 @@ import com.codahale.metrics.RatioGauge;
 import com.codahale.metrics.Timer;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.db.memtable.TrieMemtable;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -172,6 +175,9 @@ public class TableMetrics
     public final Gauge<Long> estimatedPartitionCount;
     /** Histogram of estimated number of columns. */
     public final Gauge<long[]> estimatedColumnCountHistogram;
+
+    /** Approximate number of rows in SSTable*/
+    public final Gauge<Long> estimatedRowCount;
     /** Histogram of the number of sstable data files accessed per read */
     public final TableHistogram sstablesPerReadHistogram;
     /** An approximate measure of how long it takes to read a partition from an sstable, in nanoseconds. This is
@@ -601,6 +607,31 @@ public class TableMetrics
         estimatedColumnCountHistogram = createTableGauge("EstimatedColumnCountHistogram", "EstimatedColumnCountHistogram",
                                                          () -> combineHistograms(cfs.getSSTables(SSTableSet.CANONICAL), 
                                                                                  SSTableReader::getEstimatedCellPerPartitionCount), null);
+
+        estimatedRowCount = createTableGauge("EstimatedRowCount", "EstimatedRowCount", new Gauge<Long>()
+        {
+            public Long getValue()
+            {
+                long memtableRows = 0;
+                for (Memtable memtable : cfs.getTracker().getView().getAllMemtables())
+                {
+                    if (memtable instanceof TrieMemtable)
+                    {
+                        ColumnFilter.Builder builder = ColumnFilter.allRegularColumnsBuilder(cfs.metadata(), true);
+                        memtableRows += ((TrieMemtable) memtable).rowCount(builder.build(), DataRange.allData(cfs.getPartitioner()));
+                    }
+                }
+                try(ColumnFamilyStore.RefViewFragment refViewFragment = cfs.selectAndReference(View.selectFunction(SSTableSet.CANONICAL)))
+                {
+                    long total = 0;
+                    for (SSTableReader reader: refViewFragment.sstables)
+                    {
+                        total += reader.getTotalRows();
+                    }
+                    return total + memtableRows;
+                }
+            }
+        }, null);
         
         sstablesPerReadHistogram = createTableHistogram("SSTablesPerReadHistogram", cfs.getKeyspaceMetrics().sstablesPerReadHistogram, true);
         sstablePartitionReadLatency = ExpMovingAverage.decayBy100();
