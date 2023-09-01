@@ -149,10 +149,10 @@ public class TokenAllocation
         Collection<Token> tokens = strategy.createAllocator().addUnit(endpoint, numTokens);
         tokens = strategy.adjustForCrossDatacenterClashes(tokens);
 
-        SummaryStatistics os = strategy.replicatedOwnershipStats();
+        SummaryStatistics os = replicatedOwnershipStats(strategy);
         tokenMetadata.updateNormalTokens(tokens, endpoint);
 
-        SummaryStatistics ns = strategy.replicatedOwnershipStats();
+        SummaryStatistics ns = replicatedOwnershipStats(strategy);
         logger.info("Selected tokens {}", tokens);
         logger.debug("Replicated node load in datacenter before allocation {}", statToString(os));
         logger.debug("Replicated node load in datacenter after allocation {}", statToString(ns));
@@ -174,24 +174,22 @@ public class TokenAllocation
 
     SummaryStatistics getAllocationRingOwnership(String datacenter, String rack)
     {
-        return getOrCreateStrategy(datacenter, rack).replicatedOwnershipStats();
+        return replicatedOwnershipStats(getOrCreateStrategy(datacenter, rack));
     }
 
     @VisibleForTesting
     SummaryStatistics getAllocationRingOwnership(InetAddressAndPort endpoint)
     {
-        return getOrCreateStrategy(endpoint).replicatedOwnershipStats();
+        return replicatedOwnershipStats(getOrCreateStrategy(endpoint));
     }
 
     public static abstract class StrategyAdapter implements ReplicationStrategy<InetAddressAndPort>
     {
         final TokenMetadata tokenMetadata;
-        final AbstractReplicationStrategy replicationStrategy;
 
-        public StrategyAdapter(TokenMetadata tokenMetadata, AbstractReplicationStrategy replicationStrategy)
+        public StrategyAdapter(TokenMetadata tokenMetadata)
         {
             this.tokenMetadata = tokenMetadata;
-            this.replicationStrategy = replicationStrategy;
         }
 
         // return true iff the provided endpoint occurs in the same virtual token-ring we are allocating for
@@ -227,18 +225,18 @@ public class TokenAllocation
             }
             return filtered;
         }
+    }
 
-        final SummaryStatistics replicatedOwnershipStats()
+    private SummaryStatistics replicatedOwnershipStats(StrategyAdapter strategy)
+    {
+        SummaryStatistics stat = new SummaryStatistics();
+        for (Map.Entry<InetAddressAndPort, Double> en : TokenAllocation.evaluateReplicatedOwnership(tokenMetadata, replicationStrategy).entrySet())
         {
-            SummaryStatistics stat = new SummaryStatistics();
-            for (Map.Entry<InetAddressAndPort, Double> en : TokenAllocation.evaluateReplicatedOwnership(tokenMetadata, replicationStrategy).entrySet())
-            {
-                // Filter only in the same allocation ring
-                if (inAllocationRing(en.getKey()))
-                    stat.addValue(en.getValue() / tokenMetadata.getTokens(en.getKey()).size());
-            }
-            return stat;
+            // Filter only in the same allocation ring
+            if (strategy.inAllocationRing(en.getKey()))
+                stat.addValue(en.getValue() / tokenMetadata.getTokens(en.getKey()).size());
         }
+        return stat;
     }
 
     private StrategyAdapter getOrCreateStrategy(InetAddressAndPort endpoint)
@@ -318,7 +316,7 @@ public class TokenAllocation
 
     private StrategyAdapter createRandomStrategy(InetAddressAndPort endpoint)
     {
-        return new StrategyAdapter(this.tokenMetadata, this.replicationStrategy)
+        return new StrategyAdapter(this.tokenMetadata)
         {
             @Override
             public int replicas()
@@ -344,7 +342,7 @@ public class TokenAllocation
     // a null rack will return true for inAllocationRing(..) for all nodes in the same dc
     private StrategyAdapter createStrategy(IEndpointSnitch snitch, String dc, String rack, int replicas, boolean groupByRack)
     {
-        return new StrategyAdapter(this.tokenMetadata, this.replicationStrategy)
+        return new StrategyAdapter(this.tokenMetadata)
         {
             @Override
             public int replicas()
