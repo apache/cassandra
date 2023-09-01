@@ -2,7 +2,7 @@ cassandra (5.0~alpha1) unstable; urgency=medium
 
   * New release
 
- -- Mick Semb Wever <mck@apache.org>  Mon, 21 Aug 2023 18:21:54 +0200
+ -- Mick Semb Wever <mck@apache.org>  Fri, 01 Sep 2023 11:22:35 +0200
 
 cassandra (4.0~rc1) unstable; urgency=medium
 
