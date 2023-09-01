@@ -18,6 +18,7 @@
 package org.apache.cassandra.db;
 
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,7 +36,6 @@ import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 public class MutationVerbHandler extends AbstractMutationVerbHandler<Mutation>
 {
-    private static final Logger logger = LoggerFactory.getLogger(MutationVerbHandler.class);
     public static final MutationVerbHandler instance = new MutationVerbHandler();
 
     private void respond(Message<?> respondTo, InetAddressAndPort respondToAddress)
@@ -90,7 +90,6 @@ public class MutationVerbHandler extends AbstractMutationVerbHandler<Mutation>
         {
             if (e.getCause() != null && e.getCause() instanceof OverloadedException)
             {
-                logger.error("Exception in MutationVerbHandler ", e);
                 throw (OverloadedException) e.getCause();
             }
         }

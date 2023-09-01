@@ -25,24 +25,36 @@ public class KeyspaceThrottlingMetrics
 {
     private KeyspaceThrottlingMetricsFactory factory;
 
-    public Counter addKSForThrottling ;
+    public Counter addKSForReadThrottling;
+    public Counter addKSForWriteThrottling;
     public Counter skipSystemKSThrottling;
-    public Counter requestsTrendingUpward;
-    public Counter latencyTrendingUpward;
-    public Counter minThrottling;
-    public Counter maxThrottling;
-    public Counter noThrottling;
+    public Counter readRequestsTrendingUpward;
+    public Counter writeRequestsTrendingUpward;
+    public Counter readLatencyTrendingUpward;
+    public Counter writeLatencyTrendingUpward;
+    public Counter minReadThrottling;
+    public Counter minWriteThrottling;
+    public Counter maxReadThrottling;
+    public Counter maxWriteThrottling;
+    public Counter noReadThrottling;
+    public Counter noWriteThrottling;
 
 
     public KeyspaceThrottlingMetrics(String ksName) {
         factory = new KeyspaceThrottlingMetricsFactory(ksName);
 
-        addKSForThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("AddKSForThrottling"));
+        addKSForReadThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("AddKSForReadThrottling"));
+        addKSForWriteThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("AddKSForWriteThrottling"));
         skipSystemKSThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("SkipSystemKSThrottling"));
-        requestsTrendingUpward = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("RequestsTrendingUpward"));
-        latencyTrendingUpward = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("LatencyTrendingUpward"));
-        minThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("MinThrottling"));
-        maxThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("MaxThrottling"));
-        noThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("NoThrottling"));
+        readRequestsTrendingUpward = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("ReadRequestsTrendingUpward"));
+        writeRequestsTrendingUpward = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("WriteRequestsTrendingUpward"));
+        readLatencyTrendingUpward = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("ReadLatencyTrendingUpward"));
+        writeLatencyTrendingUpward = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("WriteLatencyTrendingUpward"));
+        minReadThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("MinReadThrottling"));
+        minWriteThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("MinWriteThrottling"));
+        maxReadThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("MaxReadThrottling"));
+        maxWriteThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("MaxWriteThrottling"));
+        noReadThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("NoReadThrottling"));
+        noWriteThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("NoWriteThrottling"));
     }
 }
