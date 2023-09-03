@@ -1,18 +1,15 @@
 5.0-alpha2
+Merged from 4.1:
+Merged from 4.0:
+Merged from 3.11:
+Merged from 3.0:
+
+5.0-alpha1
+ * Fix rpm installations to work with jdk17 (CASSANDRA-18817)
  * Fix Depends and Build-Depends for Java for Debian packages (CASSANDRA-18809)
  * Update command line flags --add-exports and --add-opens for JDK17 (CASSANDRA-18439)
  * Update commons-lang3 to 3.13.0 (CASSANDRA-18789)
  * Forbid SAI indexes with analysis options on primary key columns (CASSANDRA-18782)
-Merged from 4.1:
- * Waiting indefinitely on ReceivedMessage response in StreamSession#receive() can cause deadlock (CASSANDRA-18733)
- * Allow empty keystore_password in encryption_options (CASSANDRA-18778)
-Merged from 4.0:
-Merged from 3.11:
-Merged from 3.0:
- * Refactor validation logic in StorageService.rebuild (CASSANDRA-18803)
- * Make alternation of a user type validate the same way as creation of a user type does (CASSANDRA-18585)
-
-5.0-alpha1
  * Expose bootstrap failure state via JMX and nodetool info (CASSANDRA-18749)
  * Reduce size of per-SSTable index components for SAI (CASSANDRA-18673)
  * Remove unnecessary Netty dependencies after upgrade to version 4.1.96 (CASSANDRA-18729)
@@ -197,12 +194,16 @@ Merged from 3.0:
  * Add guardrail for ALTER TABLE ADD / DROP / REMOVE column operations (CASSANDRA-17495)
  * Rename DisableFlag class to EnableFlag on guardrails (CASSANDRA-17544)
 Merged from 4.1:
+ * Waiting indefinitely on ReceivedMessage response in StreamSession#receive() can cause deadlock (CASSANDRA-18733)
+ * Allow empty keystore_password in encryption_options (CASSANDRA-18778)
  * Skip ColumnFamilyStore#topPartitions initialization when client or tool mode (CASSANDRA-18697)
 Merged from 4.0:
  * Partial compaction can resurrect deleted data (CASSANDRA-18507)
 Merged from 3.11:
  * Fix NPE when using udfContext in UDF after a restart of a node (CASSANDRA-18739)
 Merged from 3.0:
+ * Refactor validation logic in StorageService.rebuild (CASSANDRA-18803)
+ * Make alternation of a user type validate the same way as creation of a user type does (CASSANDRA-18585)
  * CQLSH emits a warning when the server version doesn't match (CASSANDRA-18745)
  * Fix missing speculative retries in tablestats (CASSANDRA-18767)
  * Fix Requires for Java for RPM package (CASSANDRA-18751)
