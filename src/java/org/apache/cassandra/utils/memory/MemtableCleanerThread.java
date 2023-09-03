@@ -35,7 +35,7 @@ import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFac
 
 /**
  * A thread that reclaims memory from a MemtablePool on demand.  The actual reclaiming work is delegated to the
- * cleaner Runnable, e.g., FlushLargestColumnFamily
+ * cleaner Runnable, e.g., MemtableCleaner {@link AbstractAllocatorMemtable#flushLargestMemtable()}.
  */
 public class MemtableCleanerThread<P extends MemtablePool> implements Interruptible
 {
