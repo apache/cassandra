@@ -18,6 +18,8 @@
 #
 
 source assert.sh
+source functions.sh
+source user_ci_functions.sh
 
 ##############################################################################
 # This is the reference canonical "build verbs" for our CI system in C*.
@@ -100,6 +102,9 @@ setup_environment() {
     BUILD_XML="${CASSANDRA_DIR}/build.xml"
 
     _init_env_from_job
+
+
+    log_environment
 }
 
 # A variety of metrics and versions we like to have documented on each build
@@ -118,36 +123,22 @@ log_environment() {
     _log_env_val "javac -version"
 }
 
-# Clears out and resets temp, logs env vars, clones branch. This should be run before most suites.
-# Note: The specific implementation here is subject to change in any given environment assuming you still log out the
-# contents of the env and make sure a checkout of the branch under test exists after this method is run.
+# Clears out and resets temp and clones branches. This should run before pretty much all suites.
+# Note: The specific implementation here is subject to change in any given environment, hence we don't just embed
+# it in the _setup_environment function.
 pretest_setup() {
-    local dest=""
-    if [ -z "$CASSANDRA_DIR" ]; then
-        if [ -z "$1" ]; then
-            echo "Cannot run pretest_setup without either an argument or CASSANDRA_DIR being defined. Aborting." && exit 1
-        fi
-        dest=$1
-    else
-        dest="$CASSANDRA_DIR"
-    fi
-
     _reset_temp
-    log_environment
 
-    if [ -d "${dest}" ];then
-        echo "Targeted cassandra dir [${dest}] already exists during pretest_setup. Aborting." && exit 1
+    if [ -d "${CASSANDRA_DIR}" ];then
+         echo "Targeted CASSANDRA_DIR [${CASSANDRA_DIR}] already exists during pretest_setup. Aborting." && exit 1
     fi
+    _shallow_clone_branch "$JVM_URL" "$JVM_BRANCH" "$CASSANDRA_DIR"
 
-    # Note: $JVM_URL will serve as our "origin" remote value
-    _shallow_clone_branch "$JVM_URL" "$JVM_BRANCH" "$dest"
-
-    # Clone our dtests if this is a python dtest
+    # setup ccm and clone our dtests if this is a python dtest
     if [ -n "${PYTHON_DTEST_DIR}" ]; then
-        _shallow_clone_branch "$PYTHON_URL" "$PYTHON_BRANCH" "$PYTHON_DTEST_DIR"
+        _prep_python_env
     fi
-
-    cd_with_check "$dest"
+    cd_with_check "$CASSANDRA_DIR"
 }
 
 # Canonical reference for how we do our style checking
@@ -191,7 +182,7 @@ build_dtest_jars() {
         git fetch --depth 1 apache "$branch"
         git checkout "$branch"
         git clean -fd
-        loop_command _run_jvm_dtest_build 3 "cp build/dtest*.jar ${DTEST_JAR_PATH}" "Failed to build dtest branch $branch"
+        loop_command _build_jvm_dtest 3 "cp build/dtest*.jar ${DTEST_JAR_PATH}" "Failed to build dtest branch $branch"
     done
 
     # Build the dtest-jar for the branch under test
@@ -199,7 +190,7 @@ build_dtest_jars() {
     git remote add to_test "$JVM_URL"
     git checkout "to_test/${JVM_BRANCH}"
     git clean -fd
-    loop_command _run_jvm_dtest_build 3 "cp build/dtest*.jar ${DTEST_JAR_PATH}" "Failed to build dtest jar for active branch: $JVM_BRANCH"
+    loop_command _build_jvm_dtest 3 "cp build/dtest*.jar ${DTEST_JAR_PATH}" "Failed to build dtest jar for active branch: $JVM_BRANCH"
     cp -r "${DTEST_JAR_PATH}/*" "${CASSANDRA_DIR}/build"
     ls -l "${CASSANDRA_DIR}/build"
 }
@@ -262,7 +253,6 @@ repeat_jvm_tests() {
 
 # Runs the python dtests given the active PYTHON_VERSION
 run_python_dtests() {
-    _prep_virtualenv_and_deps
     split_test_file=$(_python_test_split_for_agent)
 
     # If we don't have any work to do, bail out.
@@ -290,27 +280,6 @@ repeat_python_dtests() {
     # We need to get the contents of our $REPEAT_TEST_LIST into the tests_arg var
     mapfile -t test_list < $REPEAT_TEST_LIST
     _run_python_pytest $count
-}
-
-# Canonical reference on how we run the pytest command
-# $1 int: optional count to repeat tests; defaults to 1 if not provided
-_run_python_pytest() {
-    local count=1
-    if [[ -n "$1" ]]; then count=$1; fi
-
-    # we need the "set -o pipefail" here so that the exit code will be from pytest and not the code from tee
-    set -o pipefail
-    pytest \
-        ${PYTEST_OPTS} \
-        --cassandra-dir=${CASSANDRA_DIR} \
-        --keep-failed-test-dir \
-        --capture=no \
-        --count=$count \
-        ${DTEST_ARGS} \
-        --log-level="DEBUG" \
-        --junit-xml=${PYTHON_RESULTS_DIR}/nosetests.xml \
-        ${split_test_file} 2>&1 \
-        | tee -a ${PYTHON_RESULTS_DIR}/pytest_stdout.txt
 }
 
 # TODO:
@@ -369,10 +338,15 @@ _shallow_clone_branch() {
     local url=$(check_argument "$1" "url to clone")
     local branch=$(check_argument "$2" "branch to clone")
     local dest=$(check_argument "$3" "destination to clone the branch to")
+
     if [ -d "${dest}" ]; then
         echo "Cannot clone $url into dest: $dest. Destination already exists. Aborting." && exit 1
     fi
-    git clone --single-branch --depth 1 --branch "$branch" "$url" "$dest"
+
+    if ! git clone --single-branch --depth 1 --branch "$branch" "$url" "$dest"; then
+        echo "Failed to clone $url. See logs for failure details. Aborting."
+        exit 1
+    fi
 }
 
 # This code (along with all the steps) is expected to be independently executed on every agent. This relies on:
@@ -511,17 +485,60 @@ _generate_python_diff_tests() {
     echo $tests > "$REPEAT_TEST_LIST"
 }
 
-# Nukes a venv if we have it, copying over an existing fresh one if it's there or setting up a new one. Then runs through
-# what in requirements.txt from the cassandra-dtest dir in case something's been added there if things are pre-baked into
-# a docker image.
-_prep_virtualenv_and_deps() {
-    confirm_directory_exists "${PYTHON_DTEST_DIR}"
-    rm -rf "${RESULTS_DIR}/venv"
-    virtualenv-clone "${PYTHON_ENV_PREFIX}${PYTHON_VERSION}" ${RESULTS_DIR}/venv || virtualenv --python=python${PYTHON_VERSION} ${RESULTS_DIR}/venv
-    source "${RESULTS_DIR}/venv/bin/activate"
-    pip3 install --exists-action w --upgrade -r "${PYTHON_DTEST_DIR}/requirements.txt"
-    pip3 uninstall -y cqlsh
-    pip3 freeze
+# Nukes a venv if we have it, copying over an existing fresh one if it's there or setting up a new one. This installs
+# ccm from a local repo, and then installs the requirements from cassandra-dtest
+_prep_python_env() {
+    _shallow_clone_branch "$CCM_URL" "$CCM_BRANCH" "$CCM_DIR"
+    _shallow_clone_branch "$PYTHON_DTEST_URL" "$PYTHON_DTEST_BRANCH" "$PYTHON_DTEST_DIR"
+
+    python -m pip install --upgrade pip
+    python -m pip install --exists-action w --upgrade virtualenv
+    python -m pip install --exists-action w --upgrade virtualenv-clone
+
+    rm -rf "$PYTHON_VENV_DIR"
+    # Allow an environment to provide an already setup python env if one wants to save time w/docker images
+    if [ -d "${PYTHON_ENV_PREFIX}${PYTHON_VERSION}" ]; then
+        virtualenv-clone "${PYTHON_ENV_PREFIX}${PYTHON_VERSION}" "$PYTHON_VENV_DIR"
+    else
+        virtualenv --python=python${PYTHON_VERSION} "$PYTHON_VENV_DIR"
+    fi
+    source "${PYTHON_VENV_DIR}/venv/bin/activate"
+
+    # TODO: _potential_ optimization here -> have a "vanilla ccm install" path we go through to pull down precompiled ccm
+    # python -m pip install -e ccm_test  5.07s user 1.10s system 38% cpu 16.155 total
+    python -m pip install -e "$CCM_DIR"
+
+    # TODO: the cassandra-driver install is definitely a very slow portion of this process. How can we speed that up for custom dtest runs?
+    # python -m pip install -r cassandra-dtest/requirements.txt  107.28s user 3.72s system 91% cpu 2:01.31 total
+    python -m pip install --exists-action w --upgrade -r "${PYTHON_DTEST_DIR}/requirements.txt"
+    python -m pip uninstall -y cqlsh
+
+    # Users can optionally install any other necessary things into their python env here
+    _user_python_env_setup
+
+    python -m pip freeze
+}
+
+# Canonical reference on how we run the pytest command
+# $1 int: optional count to repeat tests; defaults to 1 if not provided
+_run_python_pytest() {
+    local -r test_class_list=$(check_argument "$1" "file with test classes to repeat")
+    local count=1
+    if [[ -n "$1" ]]; then count=$1; fi
+
+    # we need the "set -o pipefail" here so that the exit code will be from pytest and not the code from tee
+    set -o pipefail
+    pytest \
+        ${PYTEST_OPTS} \
+        --cassandra-dir=${CASSANDRA_DIR} \
+        --keep-failed-test-dir \
+        --capture=no \
+        --count=$count \
+        ${DTEST_ARGS} \
+        --log-level="DEBUG" \
+        --junit-xml=${PYTHON_RESULTS_DIR}/nosetests.xml \
+        ${test_class_list} 2>&1 \
+        | tee -a ${PYTHON_RESULTS_DIR}/pytest_stdout.txt
 }
 
 # We don't want lexicographical sorting on tests names, but we _do_ want reproducibility on the ordering of our test run.

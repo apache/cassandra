@@ -25,7 +25,7 @@ Examples of jobs include unit tests, python dtests, in-jvm dtests, etc.
 Jobs can include many parameters. Some highlights:
 
 Jobs can be split up and parallelized in whatever manner best suits the environment in which they're
-orchestraed.
+orchestrated.
 
 Configuration Files
 ---------------------
@@ -38,13 +38,11 @@ Configuration Files
 Existing Pipelines
 ---------------------
 
-As outlined in the `pipelines:` array in the .yaml, we have 3 pipelines:
+As outlined in the `pipelines:` array in the .yaml, we have 2 pipelines:
 ### pre-commit:
 * must run and pass on the lowest supported JDK before a committer merges any code
 ### post-commit:
 * will run on the upstream ASF repo after a commit is merged, matrixed across more axes and including configurations expected to fail or diverge only rarely
-### nightly:
-* run nightly. Longer term, infra, very stable areas of code.
 
 Adding a new job to CI
 ---------------------

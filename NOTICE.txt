@@ -8,3 +8,8 @@ Android Code
 Copyright 2005-2008 The Android Open Source Project
 This product includes software developed as part of
 The Android Open Source Project (http://source.android.com).
+
+.build/ci/v2/assert.sh
+author: Mark Torok (https://github.com/torokmark/)
+license: MIT
+Function list based on: http://junit.sourceforge.net/javadoc/org/junit/Assert.html
