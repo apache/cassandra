@@ -330,7 +330,7 @@ public class GossipHelper
                                    schema,
                                    directory,
                                    tokenMap,
-                                   new UniformRangePlacement().calculatePlacements(forPlacementCalculation, schema.getKeyspaces()),
+                                   new UniformRangePlacement().calculatePlacements(Epoch.UPGRADE_GOSSIP, forPlacementCalculation, schema.getKeyspaces()),
                                    LockedRanges.EMPTY,
                                    InProgressSequences.EMPTY,
                                    extensions);

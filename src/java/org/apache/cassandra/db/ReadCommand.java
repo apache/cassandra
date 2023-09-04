@@ -41,6 +41,7 @@ import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.exceptions.CoordinatorBehindException;
 import org.apache.cassandra.exceptions.QueryCancelledException;
 import org.apache.cassandra.exceptions.UnknownTableException;
+import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.MessageFlag;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.ParamType;
@@ -1144,7 +1145,10 @@ public abstract class ReadCommand extends AbstractReadQuery
                 ClusterMetadata metadata = ClusterMetadata.current();
                 Epoch localCurrentEpoch = metadata.epoch;
                 if (schemaVersion != null && localCurrentEpoch.isAfter(schemaVersion))
+                {
+                    TCMMetrics.instance.coordinatorBehindSchema.mark();
                     throw new CoordinatorBehindException(e.getMessage());
+                }
                 throw e;
             }
             int nowInSec = in.readInt();

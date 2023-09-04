@@ -30,6 +30,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import com.google.common.collect.Iterators;
@@ -61,17 +62,19 @@ public class InJvmSutBase<NODE extends IInstance, CLUSTER extends ICluster<NODE>
     public final CLUSTER cluster;
     private final AtomicBoolean isShutdown = new AtomicBoolean(false);
     private final Supplier<Integer> loadBalancingStrategy;
+    private final Function<Throwable, Boolean> retryStrategy;
 
     public InJvmSutBase(CLUSTER cluster)
     {
-        this(cluster, roundRobin(cluster), 10);
+        this(cluster, roundRobin(cluster), retryOnTimeout(), 10);
     }
 
-    public InJvmSutBase(CLUSTER cluster, Supplier<Integer> loadBalancingStrategy, int threads)
+    public InJvmSutBase(CLUSTER cluster, Supplier<Integer> loadBalancingStrategy, Function<Throwable, Boolean> retryStrategy, int threads)
     {
         this.cluster = cluster;
         this.executor = Executors.newFixedThreadPool(threads);
         this.loadBalancingStrategy = loadBalancingStrategy;
+        this.retryStrategy = retryStrategy;
     }
 
     public static Supplier<Integer> roundRobin(ICluster<?> cluster)
@@ -83,6 +86,17 @@ public class InJvmSutBase<NODE extends IInstance, CLUSTER extends ICluster<NODE>
             public Integer get()
             {
                 return (int) (cnt.getAndIncrement() % cluster.size() + 1);
+            }
+        };
+    }
+
+    public static Function<Throwable, Boolean> retryOnTimeout()
+    {
+        return new Function<Throwable, Boolean>()
+        {
+            public Boolean apply(Throwable t)
+            {
+                return t.getMessage().contains("timed out");
             }
         };
     }
@@ -156,8 +170,7 @@ public class InJvmSutBase<NODE extends IInstance, CLUSTER extends ICluster<NODE>
         }
         catch (Throwable t)
         {
-            // TODO: find a better way to work around timeouts
-            if (t.getMessage().contains("timed out"))
+            if (retryStrategy.apply(t))
                 return execute(statement, cl, bindings);
 
             logger.error(String.format("Caught error while trying execute statement %s (%s): %s",

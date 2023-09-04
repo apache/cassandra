@@ -45,6 +45,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.service.reads.AlwaysSpeculativeRetryPolicy;
 import org.apache.cassandra.service.reads.SpeculativeRetryPolicy;
 
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
@@ -204,7 +205,7 @@ public class ReplicaPlans
         IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
         AbstractReplicationStrategy replicationStrategy = keyspace.getReplicationStrategy();
 
-        EndpointsForToken replicas = metadata.placements.get(keyspace.getMetadata().params.replication).reads.forToken(key.getToken());
+        EndpointsForToken replicas = metadata.placements.get(keyspace.getMetadata().params.replication).reads.forToken(key.getToken()).get();
 
         // CASSANDRA-13043: filter out those endpoints not accepting clients yet, maybe because still bootstrapping
         // TODO: replace this with JOINED state.
@@ -251,9 +252,9 @@ public class ReplicaPlans
         Replica localSystemReplica = SystemReplicas.getSystemReplica(FBUtilities.getBroadcastAddressAndPort());
 
         ReplicaLayout.ForTokenWrite liveAndDown = ReplicaLayout.forTokenWrite(
-                systemKeyspace.getReplicationStrategy(),
-                EndpointsForToken.of(token, localSystemReplica),
-                EndpointsForToken.empty(token)
+               systemKeyspace.getReplicationStrategy(),
+               EndpointsForToken.of(token, localSystemReplica),
+               EndpointsForToken.empty(token)
         );
         return forWrite(systemKeyspace, ConsistencyLevel.ONE, (cm) -> liveAndDown, (cm) -> true, writeAll);
     }
@@ -427,7 +428,7 @@ public class ReplicaPlans
     }
 
     @VisibleForTesting
-    public static ReplicaPlan.ForWrite forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, Function<ClusterMetadata, EndpointsForToken> natural, Function<ClusterMetadata, EndpointsForToken> pending, Predicate<Replica> isAlive, Selector selector) throws UnavailableException
+    public static ReplicaPlan.ForWrite forWrite(Keyspace keyspace, ConsistencyLevel consistencyLevel, Function<ClusterMetadata, EndpointsForToken> natural, Function<ClusterMetadata, EndpointsForToken> pending, Epoch lastModified, Predicate<Replica> isAlive, Selector selector) throws UnavailableException
     {
         return forWrite(keyspace, consistencyLevel, (newClusterMetadata) -> ReplicaLayout.forTokenWrite(keyspace.getReplicationStrategy(), natural.apply(newClusterMetadata), pending.apply(newClusterMetadata)), isAlive, selector);
     }

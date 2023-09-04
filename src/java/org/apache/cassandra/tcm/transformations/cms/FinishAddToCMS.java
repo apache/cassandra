@@ -73,7 +73,7 @@ public class FinishAddToCMS extends BaseMembershipTransformation
         ClusterMetadata.Transformer transformer = prev.transformer();
         DataPlacement.Builder builder = prev.placements.get(ReplicationParams.meta())
                                                        .unbuild()
-                                                       .withReadReplica(replica);
+                                                       .withReadReplica(prev.nextEpoch(), replica);
         transformer = transformer.with(prev.placements.unbuild().with(ReplicationParams.meta(), builder.build()).build())
                                  .with(prev.inProgressSequences.without(targetNode));
         return success(transformer, affectedRanges);

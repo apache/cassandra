@@ -167,6 +167,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.CONSISTENT
 import static org.apache.cassandra.config.CassandraRelevantProperties.RING_DELAY;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_CASSANDRA_SUITENAME;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_CASSANDRA_TESTTAG;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_JVM_SHUTDOWN_MESSAGING_GRACEFULLY;
 import static org.apache.cassandra.distributed.api.Feature.BLANK_GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.JMX;
@@ -592,7 +593,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         // Otherwise, the instance classloader's logging classes are setup ahead of time and
         // the patterns/file paths are not set correctly. This will be addressed in a subsequent
         // commit to extend the functionality of the @Shared annotation to app classes.
-        assert startedAt.compareAndSet(0L, System.nanoTime()) : "startedAt uninitialized";
+        assert startedAt.compareAndSet(0L, System.nanoTime()) : String.format("startedAt on instance %d expected to be 0, but was %d", config().num(), startedAt.get());
 
         sync(() -> {
             inInstancelogger = LoggerFactory.getLogger(Instance.class);
@@ -873,7 +874,12 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     }
 
     @Override
-    public Future<Void> shutdown(boolean graceful)
+    public Future<Void> shutdown(boolean runOnExitThreads)
+    {
+        return shutdown(runOnExitThreads, TEST_JVM_SHUTDOWN_MESSAGING_GRACEFULLY.getBoolean());
+    }
+
+    public Future<Void> shutdown(boolean runOnExitThreads, boolean shutdownMessagingGracefully)
     {
         Future<?> future = async((ExecutorService executor) -> {
             Throwable error = null;
@@ -939,7 +945,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
             error = parallelRun(error, executor, () -> ScheduledExecutors.shutdownNowAndWait(1L, MINUTES));
             error = parallelRun(error, executor,
                                 // can only shutdown message once, so if the test shutsdown an instance, then ignore the failure
-                                (IgnoreThrowingRunnable) () -> MessagingService.instance().shutdown(1L, MINUTES, false, config.has(NETWORK))
+                                (IgnoreThrowingRunnable) () -> MessagingService.instance().shutdown(1L, MINUTES, shutdownMessagingGracefully, config.has(NETWORK))
             );
             error = parallelRun(error, executor,
                                 () -> { if (config.has(NETWORK)) { try { GlobalEventExecutor.INSTANCE.awaitInactivity(1L, MINUTES); } catch (IllegalStateException ignore) {} } },
@@ -963,7 +969,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
 
             // Make sure any shutdown hooks registered for DeleteOnExit are released to prevent
             // references to the instance class loaders from being held
-            if (graceful)
+            if (runOnExitThreads)
             {
                 PathUtils.runOnExitThreadsAndClear();
             }

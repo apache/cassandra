@@ -42,7 +42,6 @@ import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -71,6 +70,7 @@ import org.apache.cassandra.tcm.membership.NodeState;
 import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
+import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.tcm.sequences.BootstrapAndReplace;
 import org.apache.cassandra.tcm.sequences.Move;
@@ -889,7 +889,7 @@ public class ClusterMetadataTestHelper
         public MoveProcess finishMove();
     }
 
-    public static EndpointsForToken getNaturalReplicasForToken(String keyspace, Token searchPosition)
+    public static VersionedEndpoints.ForToken getNaturalReplicasForToken(String keyspace, Token searchPosition)
     {
         return getNaturalReplicasForToken(ClusterMetadata.current(), keyspace, searchPosition);
     }
@@ -945,10 +945,11 @@ public class ClusterMetadataTestHelper
      * get the (possibly cached) endpoints that should store the given Token.
      * Note that while the endpoints are conceptually a Set (no duplicates will be included),
      * we return a List to avoid an extra allocation when sorting by proximity later
+     *
      * @param searchPosition the position the natural endpoints are requested for
      * @return a copy of the natural endpoints for the given token
      */
-    public static EndpointsForToken getNaturalReplicasForToken(ClusterMetadata metadata, String keyspace, Token searchPosition)
+    public static VersionedEndpoints.ForToken getNaturalReplicasForToken(ClusterMetadata metadata, String keyspace, Token searchPosition)
     {
         KeyspaceMetadata keyspaceMetadata = metadata.schema.getKeyspaces().getNullable(keyspace);
         return metadata.placements.get(keyspaceMetadata.params.replication).reads.forToken(searchPosition);

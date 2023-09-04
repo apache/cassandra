@@ -127,7 +127,7 @@ public class RemoveNodeStreams implements LeaveStreams
             startWriteAdditions.flattenValues()
                                .forEach(newReplica -> {
                                    EndpointsForRange.Builder candidateBuilder = new EndpointsForRange.Builder(newReplica.range());
-                                   currentPlacements.forRange(newReplica.range()).forEach(replica -> {
+                                   currentPlacements.forRange(newReplica.range()).get().forEach(replica -> {
                                        if (!replica.endpoint().equals(leaving) && !replica.endpoint().equals(newReplica.endpoint()))
                                            candidateBuilder.add(replica, ReplicaCollection.Builder.Conflict.NONE);
                                    });
@@ -147,7 +147,7 @@ public class RemoveNodeStreams implements LeaveStreams
                     {
                         logger.debug("Conversion from transient to full replica {} -> {}", removal, toStream);
                         EndpointsForRange.Builder candidateBuilder = new EndpointsForRange.Builder(removal.range());
-                        currentPlacements.forRange(removal.range()).forEach(replica -> {
+                        currentPlacements.forRange(removal.range()).get().forEach(replica -> {
                             if (!replica.endpoint().equals(leaving) && !replica.endpoint().equals(removal.endpoint()))
                                 candidateBuilder.add(replica, ReplicaCollection.Builder.Conflict.NONE);
                         });

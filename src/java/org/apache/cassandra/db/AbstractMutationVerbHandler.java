@@ -28,6 +28,7 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.CoordinatorBehindException;
 import org.apache.cassandra.exceptions.InvalidRoutingException;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.schema.SchemaConstants;
@@ -35,6 +36,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 public abstract class AbstractMutationVerbHandler<T extends IMutation> implements IVerbHandler<T>
@@ -64,19 +66,41 @@ public abstract class AbstractMutationVerbHandler<T extends IMutation> implement
     {
         String keyspace = message.payload.getKeyspaceName();
         DecoratedKey key = message.payload.key();
-        if (StorageService.instance.isEndpointValidForWrite(keyspace, key.getToken()))
-            return metadata;
+
+        VersionedEndpoints.ForToken forToken = writePlacements(metadata, keyspace, key);
 
         if (message.epoch().isAfter(metadata.epoch))
         {
-            metadata = ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, message.from(), message.epoch());
-            if (StorageService.instance.isEndpointValidForWrite(keyspace, key.getToken()))
-                return metadata;
+            // If replica detects that coordinator has made an out-of-range request, it has to catch up blockingly,
+            // since coordinator's routing may be more recent.
+            if (!forToken.get().containsSelf())
+            {
+                metadata = ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, message.from(), message.epoch());
+                forToken = writePlacements(metadata, keyspace, key);
+            }
+            // Otherwise, coordinator and the replica agree about the placement of the givent token, so catch-up can be async
+            else
+            {
+                ClusterMetadataService.instance().fetchLogFromPeerOrCMSAsync(metadata, message.from(), message.epoch());
+            }
         }
-        StorageService.instance.incOutOfRangeOperationCount();
-        Keyspace.open(message.payload.getKeyspaceName()).metric.outOfRangeTokenWrites.inc();
-        NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.SECONDS, logMessageTemplate, message.from(), key.getToken(), message.payload.getKeyspaceName());
-        throw InvalidRoutingException.forWrite(message.from(), key.getToken(), message.epoch(), message.payload);
+
+        if (!forToken.get().containsSelf())
+        {
+            StorageService.instance.incOutOfRangeOperationCount();
+            Keyspace.open(message.payload.getKeyspaceName()).metric.outOfRangeTokenWrites.inc();
+            NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.SECONDS, logMessageTemplate, message.from(), key.getToken(), message.payload.getKeyspaceName());
+            throw InvalidRoutingException.forWrite(message.from(), key.getToken(), metadata.epoch, message.payload);
+        }
+
+        if (forToken.lastModified().isAfter(message.epoch()))
+        {
+            TCMMetrics.instance.coordinatorBehindPlacements.mark();
+            throw new CoordinatorBehindException(String.format("Routing is correct, but coordinator needs to catch-up at least to epoch %s to maintain consistency. Current coordinator epoch is %s",
+                                                               forToken.lastModified(), message.epoch()));
+        }
+
+        return metadata;
     }
 
     private ClusterMetadata checkSchemaVersion(ClusterMetadata metadata, Message<T> message)
@@ -117,17 +141,21 @@ public abstract class AbstractMutationVerbHandler<T extends IMutation> implement
                         Epoch remoteSchemaEpoch = pu.serializedAtEpoch;
                         if (remoteSchemaEpoch != null && remoteSchemaEpoch.isBefore(cfs.metadata().epoch))
                         {
+                            TCMMetrics.instance.coordinatorBehindSchema.mark();
                             throw new CoordinatorBehindException(String.format("Coordinator %s is behind, our epoch = %s, their epoch = %s",
                                                                                message.from(),
                                                                                metadata.epoch, message.epoch()));
                         }
                     }
                     else
+                    {
+                        TCMMetrics.instance.coordinatorBehindSchema.mark();
                         throw new CoordinatorBehindException(String.format("Schema mismatch, coordinator %s is behind, we're missing table %s.%s, our epoch = %s, their epoch = %s",
                                                                            message.from(),
                                                                            pu.metadata().keyspace,
                                                                            pu.metadata().name,
                                                                            metadata.epoch, message.epoch()));
+                    }
                 }
             }
         }
@@ -135,6 +163,7 @@ public abstract class AbstractMutationVerbHandler<T extends IMutation> implement
         {
             if (message.epoch().isBefore(metadata.schema.lastModified()))
             {
+                TCMMetrics.instance.coordinatorBehindSchema.mark();
                 throw new CoordinatorBehindException(String.format("Schema mismatch, coordinator %s is behind, we're missing keyspace %s, our epoch = %s, their epoch = %s",
                                                                    message.from(),
                                                                    keyspace,
@@ -147,5 +176,10 @@ public abstract class AbstractMutationVerbHandler<T extends IMutation> implement
         }
 
         return metadata;
+    }
+
+    private static VersionedEndpoints.ForToken writePlacements(ClusterMetadata metadata, String keyspace, DecoratedKey key)
+    {
+        return metadata.placements.get(metadata.schema.getKeyspace(keyspace).getMetadata().params.replication).writes.forToken(key.getToken());
     }
 }

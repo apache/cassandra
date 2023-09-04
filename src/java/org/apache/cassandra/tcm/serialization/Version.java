@@ -29,6 +29,7 @@ public enum Version
     OLD(-1),
     V0(0),
     V1(1),
+    V2(2),
 
     UNKNOWN(Integer.MAX_VALUE);
 

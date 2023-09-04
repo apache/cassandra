@@ -19,17 +19,7 @@
 package org.apache.cassandra.tcm.ownership;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -42,13 +32,13 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.AbstractReplicaCollection;
 import org.apache.cassandra.locator.EndpointsForRange;
-import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.RangesByEndpoint;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
@@ -60,15 +50,15 @@ public class PlacementForRange
 
     public static final PlacementForRange EMPTY = PlacementForRange.builder().build();
 
-    final SortedMap<Range<Token>, EndpointsForRange> replicaGroups;
+    final SortedMap<Range<Token>, VersionedEndpoints.ForRange> replicaGroups;
 
-    public PlacementForRange(Map<Range<Token>, EndpointsForRange> replicaGroups)
+    public PlacementForRange(Map<Range<Token>, VersionedEndpoints.ForRange> replicaGroups)
     {
         this.replicaGroups = new TreeMap<>(replicaGroups);
     }
 
     @VisibleForTesting
-    public Map<Range<Token>, EndpointsForRange> replicaGroups()
+    public Map<Range<Token>, VersionedEndpoints.ForRange> replicaGroups()
     {
         return Collections.unmodifiableMap(replicaGroups);
     }
@@ -82,7 +72,7 @@ public class PlacementForRange
     }
 
     @VisibleForTesting
-    public EndpointsForRange forRange(Range<Token> range) // TODO: rename to `forRangeRead`? e
+    public VersionedEndpoints.ForRange forRange(Range<Token> range)
     {
         // can't use range.isWrapAround() since range.unwrap() returns a wrapping range (right token is min value)
         assert range.right.compareTo(range.left) > 0 || range.right.equals(range.right.minValue());
@@ -92,20 +82,26 @@ public class PlacementForRange
     /**
      * This method is intended to be used on read/write path, not forRange.
      */
-    public EndpointsForRange matchRange(Range<Token> range)
+    public VersionedEndpoints.ForRange matchRange(Range<Token> range)
     {
         EndpointsForRange.Builder builder = new EndpointsForRange.Builder(range);
-        for (Map.Entry<Range<Token>, EndpointsForRange> entry : replicaGroups.entrySet())
+        Epoch lastModified = Epoch.EMPTY;
+
+        for (Map.Entry<Range<Token>, VersionedEndpoints.ForRange> entry : replicaGroups.entrySet())
         {
             if (entry.getKey().contains(range))
-                builder.addAll(entry.getValue(), ReplicaCollection.Builder.Conflict.ALL);
+            {
+                lastModified = Epoch.max(lastModified, entry.getValue().lastModified());
+                builder.addAll(entry.getValue().get(), ReplicaCollection.Builder.Conflict.ALL);
+            }
         }
-        return builder.build();
+
+        return VersionedEndpoints.forRange(lastModified, builder.build());
     }
 
-    public EndpointsForRange forRange(Token token)
+    public VersionedEndpoints.ForRange forRange(Token token)
     {
-        for (Map.Entry<Range<Token>, EndpointsForRange> entry : replicaGroups.entrySet())
+        for (Map.Entry<Range<Token>, VersionedEndpoints.ForRange> entry : replicaGroups.entrySet())
         {
             if (entry.getKey().contains(token))
                 return entry.getValue();
@@ -113,16 +109,14 @@ public class PlacementForRange
         throw new IllegalStateException("Could not find range for token " + token + " in PlacementForRange: " + replicaGroups);
     }
 
-    // TODO: this could be improved by searching it rather than iterating over it
-    public EndpointsForToken forToken(Token token)
+    public VersionedEndpoints.ForToken forToken(Token token)
     {
-        EndpointsForToken.Builder builder = new EndpointsForToken.Builder(token);
-        for (Map.Entry<Range<Token>, EndpointsForRange> entry : replicaGroups.entrySet())
+        for (Map.Entry<Range<Token>, VersionedEndpoints.ForRange> entry : replicaGroups.entrySet())
         {
             if (entry.getKey().contains(token))
-                builder.addAll(entry.getValue().forToken(token), ReplicaCollection.Builder.Conflict.ALL);
+                return entry.getValue().forToken(token);
         }
-        return builder.build();
+        throw new IllegalStateException("Could not find range for token " + token + " in PlacementForRange: " + replicaGroups);
     }
 
     public Delta difference(PlacementForRange next)
@@ -136,41 +130,8 @@ public class PlacementForRange
     public RangesByEndpoint byEndpoint()
     {
         RangesByEndpoint.Builder builder = new RangesByEndpoint.Builder();
-        for (Map.Entry<Range<Token>, EndpointsForRange> oldPlacement : this.replicaGroups.entrySet())
+        for (Map.Entry<Range<Token>, VersionedEndpoints.ForRange> oldPlacement : this.replicaGroups.entrySet())
             oldPlacement.getValue().byEndpoint().forEach(builder::put);
-        return builder.build();
-    }
-
-    // TODO do this without using a builder to collate and without using subtractSameReplication
-    // i.e. by directly removing the replicas so that we don't need to care about the ordering of with/without.
-    public PlacementForRange without(RangesByEndpoint toRemove)
-    {
-        Builder builder = builder();
-        RangesByEndpoint currentByEndpoint = this.byEndpoint();
-        for (Map.Entry<InetAddressAndPort, RangesAtEndpoint> endPointRanges : currentByEndpoint.entrySet())
-        {
-            InetAddressAndPort endpoint = endPointRanges.getKey();
-            RangesAtEndpoint currentRanges = endPointRanges.getValue();
-            RangesAtEndpoint removeRanges = toRemove.get(endpoint);
-            for (Replica oldReplica : currentRanges)
-            {
-                RangesAtEndpoint toRetain = oldReplica.subtractSameReplication(removeRanges);
-                toRetain.forEach(builder::withReplica);
-            }
-        }
-        return builder.build();
-    }
-
-    // TODO do this without using a builder, i.e. by directly adding the replicas
-    // (and directly removing them in without) so that we don't need to care
-    // about the ordering of with/without.
-    public PlacementForRange with(RangesByEndpoint toAdd)
-    {
-        Builder builder = builder();
-        for (EndpointsForRange current : replicaGroups.values())
-            builder.withReplicaGroup(current);
-        for (Replica newReplica : toAdd.flattenValues())
-            builder.withReplica(newReplica);
         return builder.build();
     }
 
@@ -211,6 +172,7 @@ public class PlacementForRange
     {
         return replicaGroups.values()
                             .stream()
+                            .map(VersionedEndpoints.ForRange::get)
                             .flatMap(AbstractReplicaCollection::stream)
                             .map(Replica::toString)
                             .collect(Collectors.toList());
@@ -232,93 +194,13 @@ public class PlacementForRange
     }
 
     @VisibleForTesting
-    public static PlacementForRange mergeRangesForPlacement(Set<Token> leavingTokens, PlacementForRange placement)
-    {
-        if (placement.replicaGroups.isEmpty())
-            return placement;
-
-        Builder newPlacement = PlacementForRange.builder();
-        List<Map.Entry<Range<Token>, EndpointsForRange>> sortedEntries = new ArrayList<>(placement.replicaGroups.entrySet());
-        sortedEntries.sort(Comparator.comparing(e -> e.getKey().left));
-        Iterator<Map.Entry<Range<Token>, EndpointsForRange>> iter = sortedEntries.iterator();
-        EndpointsForRange stashedReplicas = null;
-
-        // TODO verify with transient replication. For example, if we have ranges [0,100] -> A, B and
-        // [100,200] -> Atransient, B, we would currently not be able to merge those as A != Atransient
-        while (iter.hasNext())
-        {
-            Map.Entry<Range<Token>, EndpointsForRange> entry = iter.next();
-            Range<Token> currentRange = entry.getKey();
-            EndpointsForRange currentReplicas = entry.getValue();
-            // current range ends with one of the tokens being removed so we will want to merge it with the neighbouring
-            // range, potentially with a number of subsequent ranges if there is an unbroken sequence of leaving tokens.
-            if (leavingTokens.contains(currentRange.right))
-            {
-                // the previous range (if there was one) did not end in a leaving token, so the stash is empty
-                if (stashedReplicas == null)
-                    stashedReplicas = currentReplicas;
-                    // we already have a stashed replica group. Its range must be contiguous with this one so extend the
-                    // range, joining them. This asserts that the two sets of replicas match in terms of endpoints and
-                    // full/transient status too.
-                else
-                    stashedReplicas = mergeReplicaGroups(stashedReplicas, currentReplicas);
-            }
-            // current range does not end in a leaving token
-            else
-            {
-                // nothing stashed to merge, so add current replica group as it is
-                if (stashedReplicas == null)
-                    newPlacement.withReplicaGroup(currentReplicas);
-                else
-                {
-                    // we have stashed the preceding replica set, so merge it with this one, add it to the new
-                    // placement and clear the stash
-                    newPlacement.withReplicaGroup(mergeReplicaGroups(stashedReplicas, currentReplicas));
-                    stashedReplicas = null;
-                }
-            }
-        }
-        if (null != stashedReplicas)
-            newPlacement.withReplicaGroup(stashedReplicas);
-
-        return newPlacement.build();
-    }
-
-    private static EndpointsForRange mergeReplicaGroups(EndpointsForRange left, EndpointsForRange right)
-    {
-        assert sameReplicas(left, right);
-        Range<Token> mergedRange = new Range<>(left.range().left, right.range().right);
-        return EndpointsForRange.builder(mergedRange, left.size())
-                                .addAll(left.asList(r -> new Replica(r.endpoint(), mergedRange, r.isFull())))
-                                .build();
-    }
-
-    private static boolean sameReplicas(EndpointsForRange left, EndpointsForRange right)
-    {
-        if (left.size() != right.size())
-            return false;
-
-        Comparator<Replica> comparator = Comparator.comparing(Replica::endpoint);
-        EndpointsForRange l = left.sorted(comparator);
-        EndpointsForRange r = right.sorted(comparator);
-        for (int i = 0; i < l.size(); i++)
-        {
-            Replica r1 = l.get(i);
-            Replica r2 = r.get(i);
-            if (!(r1.endpoint().equals(r2.endpoint())) || r1.isFull() != r2.isFull())
-                return false;
-        }
-        return true;
-    }
-
-    @VisibleForTesting
     public static PlacementForRange splitRangesForPlacement(List<Token> tokens, PlacementForRange placement)
     {
         if (placement.replicaGroups.isEmpty())
             return placement;
 
         Builder newPlacement = PlacementForRange.builder();
-        List<EndpointsForRange> eprs = new ArrayList<>(placement.replicaGroups.values());
+        List<VersionedEndpoints.ForRange> eprs = new ArrayList<>(placement.replicaGroups.values());
         eprs.sort(Comparator.comparing(a -> a.range().left));
         Token min = eprs.get(0).range().left;
         Token max = eprs.get(eprs.size() - 1).range().right;
@@ -326,8 +208,8 @@ public class PlacementForRange
         // if any token is < the start or > the end of the ranges covered, error
         if (tokens.get(0).compareTo(min) < 0 || (!max.equals(min) && tokens.get(tokens.size()-1).compareTo(max) > 0))
             throw new IllegalArgumentException("New tokens exceed total bounds of current placement ranges " + tokens + " " + eprs);
-        Iterator<EndpointsForRange> iter = eprs.iterator();
-        EndpointsForRange current = iter.next();
+        Iterator<VersionedEndpoints.ForRange> iter = eprs.iterator();
+        VersionedEndpoints.ForRange current = iter.next();
         for (Token token : tokens)
         {
             // handle special case where one of the tokens is the min value
@@ -335,7 +217,7 @@ public class PlacementForRange
                 continue;
 
             assert current != null : tokens + " " + eprs;
-            Range<Token> r = current.range();
+            Range<Token> r = current.get().range();
             int cmp = token.compareTo(r.right);
             if (cmp == 0)
             {
@@ -349,12 +231,14 @@ public class PlacementForRange
             {
                 Range<Token> left = new Range<>(r.left, token);
                 Range<Token> right = new Range<>(token, r.right);
-                newPlacement.withReplicaGroup(EndpointsForRange.builder(left)
-                                                               .addAll(current.asList(rep->rep.decorateSubrange(left)))
-                                                               .build());
-                current = EndpointsForRange.builder(right)
-                                           .addAll(current.asList(rep->rep.decorateSubrange(right)))
-                                           .build();
+                newPlacement.withReplicaGroup(VersionedEndpoints.forRange(current.lastModified(),
+                                                                          EndpointsForRange.builder(left)
+                                                                                           .addAll(current.get().asList(rep->rep.decorateSubrange(left)))
+                                                                                           .build()));
+                current = VersionedEndpoints.forRange(current.lastModified(),
+                                                      EndpointsForRange.builder(right)
+                                                                       .addAll(current.get().asList(rep->rep.decorateSubrange(right)))
+                                                                       .build());
             }
         }
 
@@ -366,7 +250,7 @@ public class PlacementForRange
 
     public static class Builder
     {
-        private final Map<Range<Token>, EndpointsForRange> replicaGroups;
+        private final Map<Range<Token>, VersionedEndpoints.ForRange> replicaGroups;
 
         private Builder()
         {
@@ -378,54 +262,63 @@ public class PlacementForRange
             this(new HashMap<>(expectedSize));
         }
 
-        private Builder(Map<Range<Token>, EndpointsForRange> replicaGroups)
+        private Builder(Map<Range<Token>, VersionedEndpoints.ForRange> replicaGroups)
         {
             this.replicaGroups = replicaGroups;
         }
 
-        public Builder withReplica(Replica replica)
+        public Builder withReplica(Epoch epoch, Replica replica)
         {
-            EndpointsForRange group =
+            VersionedEndpoints.ForRange group =
                 replicaGroups.computeIfPresent(replica.range(),
-                                               (t, old) -> old.newBuilder(old.size() + 1)
-                                                              .addAll(old)
-                                                              .add(replica, ReplicaCollection.Builder.Conflict.NONE)
-                                                              .build());
-            if (group == null)
-                replicaGroups.put(replica.range(), EndpointsForRange.of(replica));
+                                               (t, v) -> {
+                                                   EndpointsForRange old = v.get();
+                                                   return VersionedEndpoints.forRange(epoch,
+                                                                                      old.newBuilder(old.size() + 1)
+                                                                                         .addAll(old)
+                                                                                         .add(replica, ReplicaCollection.Builder.Conflict.NONE)
+                                                                                         .build());
+                                               });
+;            if (group == null)
+                replicaGroups.put(replica.range(), VersionedEndpoints.forRange(epoch, EndpointsForRange.of(replica)));
             return this;
 
         }
 
-        public Builder withoutReplica(Replica replica)
+        public Builder withoutReplica(Epoch epoch, Replica replica)
         {
             Range<Token> range = replica.range();
-            EndpointsForRange group = replicaGroups.get(range);
+            VersionedEndpoints.ForRange group = replicaGroups.get(range);
             if (group == null)
                 throw new IllegalArgumentException(String.format("No group found for range of supplied replica %s (%s)",
                                                                  replica, range));
-            EndpointsForRange without = group.without(Collections.singleton(replica.endpoint()));
+            EndpointsForRange without = group.get().without(Collections.singleton(replica.endpoint()));
             if (without.isEmpty())
                 replicaGroups.remove(range);
             else
-                replicaGroups.put(range, without);
+                replicaGroups.put(range, VersionedEndpoints.forRange(epoch, without));
             return this;
         }
 
-        public Builder withReplicaGroup(EndpointsForRange replicas)
+        public Builder withReplicaGroup(VersionedEndpoints.ForRange replicas)
         {
-            EndpointsForRange group =
+            VersionedEndpoints.ForRange group =
                 replicaGroups.computeIfPresent(replicas.range(),
-                                               (t, old) -> replicas.newBuilder(replicas.size() + old.size())
-                                                                   .addAll(old)
-                                                                   .addAll(replicas, ReplicaCollection.Builder.Conflict.ALL)
-                                                                   .build());
+                                               (t, v) -> {
+                                                   EndpointsForRange old = v.get();
+                                                   return VersionedEndpoints.forRange(Epoch.max(v.lastModified(), replicas.lastModified()),
+                                                                                      replicas.get()
+                                                                                              .newBuilder(replicas.size() + old.size())
+                                                                                              .addAll(old)
+                                                                                              .addAll(replicas.get(), ReplicaCollection.Builder.Conflict.ALL)
+                                                                                              .build());
+                                               });
             if (group == null)
                 replicaGroups.put(replicas.range(), replicas);
             return this;
         }
 
-        public Builder withReplicaGroups(Iterable<EndpointsForRange> replicas)
+        public Builder withReplicaGroups(Iterable<VersionedEndpoints.ForRange> replicas)
         {
             replicas.forEach(this::withReplicaGroup);
             return this;
@@ -443,16 +336,18 @@ public class PlacementForRange
         {
             out.writeInt(t.replicaGroups.size());
 
-            for (Map.Entry<Range<Token>, EndpointsForRange> entry : t.replicaGroups.entrySet())
+            for (Map.Entry<Range<Token>, VersionedEndpoints.ForRange> entry : t.replicaGroups.entrySet())
             {
                 Range<Token> range = entry.getKey();
-                EndpointsForRange efr = entry.getValue();
+                VersionedEndpoints.ForRange efr = entry.getValue();
+                if (version.isAtLeast(Version.V2))
+                    Epoch.serializer.serialize(efr.lastModified(), out, version);
                 Token.metadataSerializer.serialize(range.left, out, version);
                 Token.metadataSerializer.serialize(range.right, out, version);
                 out.writeInt(efr.size());
                 for (int i = 0; i < efr.size(); i++)
                 {
-                    Replica r = efr.get(i);
+                    Replica r = efr.get().get(i);
                     Token.metadataSerializer.serialize(r.range().left, out, version);
                     Token.metadataSerializer.serialize(r.range().right, out, version);
                     InetAddressAndPort.MetadataSerializer.serializer.serialize(r.endpoint(), out, version);
@@ -464,10 +359,22 @@ public class PlacementForRange
         public PlacementForRange deserialize(DataInputPlus in, Version version) throws IOException
         {
             int groupCount = in.readInt();
-            Map<Range<Token>, EndpointsForRange> result = Maps.newHashMapWithExpectedSize(groupCount);
+            Map<Range<Token>, VersionedEndpoints.ForRange> result = Maps.newHashMapWithExpectedSize(groupCount);
             IPartitioner partitioner = ClusterMetadata.current().partitioner;
             for (int i = 0; i < groupCount; i++)
             {
+                Epoch lastModified;
+                if (version.isAtLeast(Version.V2))
+                    lastModified = Epoch.serializer.deserialize(in, version);
+                else
+                {
+                    // During upgrade to V2, when reading from snapshot, we should start from the current version, rather than EMPTY
+                    ClusterMetadata metadata = ClusterMetadata.currentNullable();
+                    if (metadata != null)
+                        lastModified = metadata.epoch;
+                    else
+                        lastModified = Epoch.EMPTY;
+                }
                 Range<Token> range = new Range<>(Token.metadataSerializer.deserialize(in, partitioner, version),
                                                  Token.metadataSerializer.deserialize(in, partitioner, version));
                 int replicaCount = in.readInt();
@@ -482,7 +389,7 @@ public class PlacementForRange
 
                 }
                 EndpointsForRange efr = EndpointsForRange.copyOf(replicas);
-                result.put(range, efr);
+                result.put(range, VersionedEndpoints.forRange(lastModified, efr));
             }
             return new PlacementForRange(result);
         }
@@ -490,17 +397,19 @@ public class PlacementForRange
         public long serializedSize(PlacementForRange t, Version version)
         {
             int size = sizeof(t.replicaGroups.size());
-            for (Map.Entry<Range<Token>, EndpointsForRange> entry : t.replicaGroups.entrySet())
+            for (Map.Entry<Range<Token>, VersionedEndpoints.ForRange> entry : t.replicaGroups.entrySet())
             {
                 Range<Token> range = entry.getKey();
-                EndpointsForRange efr = entry.getValue();
+                VersionedEndpoints.ForRange efr = entry.getValue();
 
+                if (version.isAtLeast(Version.V2))
+                    size += Epoch.serializer.serializedSize(efr.lastModified(), version);
                 size += Token.metadataSerializer.serializedSize(range.left, version);
                 size += Token.metadataSerializer.serializedSize(range.right, version);
                 size += sizeof(efr.size());
                 for (int i = 0; i < efr.size(); i++)
                 {
-                    Replica r = efr.get(i);
+                    Replica r = efr.get().get(i);
                     size += Token.metadataSerializer.serializedSize(r.range().left, version);
                     size += Token.metadataSerializer.serializedSize(r.range().right, version);
                     size += InetAddressAndPort.MetadataSerializer.serializer.serializedSize(r.endpoint(), version);

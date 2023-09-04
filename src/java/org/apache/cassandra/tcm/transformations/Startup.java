@@ -82,7 +82,8 @@ public class Startup implements Transformation
 
             DataPlacements newPlacement = ClusterMetadataService.instance()
                                                                 .placementProvider()
-                                                                .calculatePlacements(prev.tokenMap.toRanges(),
+                                                                .calculatePlacements(prev.nextEpoch(),
+                                                                                     prev.tokenMap.toRanges(),
                                                                                      next.build().metadata,
                                                                                      allKeyspaces);
 

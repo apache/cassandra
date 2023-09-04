@@ -93,6 +93,7 @@ class OnClusterReplace extends OnClusterChangeTopology
                                           KeyspaceMetadata keyspaceMetadata = metadata.schema.getKeyspaces().getNullable(keyspaceName);
                                           return metadata.placements.get(keyspaceMetadata.params.replication).reads
                                                  .forToken(Utils.parseToken(tk))
+                                                 .get()
                                                  .stream().map(Replica::endpoint)
                                                  .filter(i -> !i.equals(getBroadcastAddressAndPort()))
                                                  .findFirst()

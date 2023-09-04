@@ -25,8 +25,10 @@ import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.PlacementForRange;
+import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -41,6 +43,6 @@ public class EntireRange
     }
 
     public static final EndpointsForRange localReplicas = EndpointsForRange.of(replica(FBUtilities.getBroadcastAddressAndPort()));
-    public static final DataPlacement placement = new DataPlacement(PlacementForRange.builder().withReplicaGroup(localReplicas).build(),
-                                                                    PlacementForRange.builder().withReplicaGroup(localReplicas).build());
+    public static final DataPlacement placement = new DataPlacement(PlacementForRange.builder().withReplicaGroup(VersionedEndpoints.forRange(Epoch.FIRST, localReplicas)).build(),
+                                                                    PlacementForRange.builder().withReplicaGroup(VersionedEndpoints.forRange(Epoch.FIRST, localReplicas)).build());
 }

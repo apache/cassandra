@@ -32,12 +32,14 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.TokenMap;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.PlacementForRange;
+import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 
 
 /**
@@ -61,11 +63,12 @@ public class SimpleStrategy extends AbstractReplicationStrategy
 
 
     @Override
-    public DataPlacement calculateDataPlacement(List<Range<Token>> ranges, ClusterMetadata metadata)
+    public DataPlacement calculateDataPlacement(Epoch epoch, List<Range<Token>> ranges, ClusterMetadata metadata)
     {
         PlacementForRange.Builder builder = PlacementForRange.builder();
         for (Range<Token> range : ranges)
-            builder.withReplicaGroup(calculateNaturalReplicas(range.right, metadata.tokenMap.tokens(), range, metadata.directory, metadata.tokenMap));
+            builder.withReplicaGroup(VersionedEndpoints.forRange(epoch,
+                                                                 calculateNaturalReplicas(range.right, metadata.tokenMap.tokens(), range, metadata.directory, metadata.tokenMap)));
 
         PlacementForRange built = builder.build();
         return new DataPlacement(built, built);

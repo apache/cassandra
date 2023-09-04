@@ -172,7 +172,7 @@ public class EventsMetadataTest
         ClusterMetadataService.instance().commit(join.finishJoin);
 
         ClusterMetadata before = ClusterMetadata.current();
-        ClusterMetadataService.instance().commit(new PrepareLeave(nodeId, true, PrepareLeaveTest.dummyPlacementProvider, LeaveStreams.Kind.UNBOOTSTRAP));
+        ClusterMetadataService.instance().commit(new PrepareLeave(nodeId, true, PrepareLeaveTest.dummyPlacementProvider, LeaveStreams.Kind.UNBOOTSTRAP));;
         UnbootstrapAndLeave leave = (UnbootstrapAndLeave) ClusterMetadata.current().inProgressSequences.get(nodeId);
         ClusterMetadata after = ClusterMetadata.current();
         // no change in metadata after prepareLeave;

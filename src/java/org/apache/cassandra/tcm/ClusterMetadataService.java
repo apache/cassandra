@@ -666,7 +666,6 @@ public class ClusterMetadataService
         Epoch before = metadata.epoch;
         if (before.isEqualOrAfter(awaitAtLeast))
             return metadata;
-        logger.info("Fetching log from {}, at least {}", from, awaitAtLeast);
         return peerLogFetcher.fetchLogEntriesAndWait(from, awaitAtLeast);
     }
 
@@ -687,6 +686,7 @@ public class ClusterMetadataService
         });
         return future;
     }
+
     /**
      * Combines {@link #fetchLogFromPeer} with {@link #fetchLogFromCMS} to synchronously fetch and apply log entries
      * up to the requested epoch. The supplied peer will be contacted first and if after doing so, the current local

@@ -20,8 +20,8 @@ package org.apache.cassandra.distributed.test.log;
 
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Test;
@@ -39,8 +39,8 @@ import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.TCMMetrics;
-import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
@@ -68,7 +68,6 @@ public class FetchLogFromPeersTest extends TestBaseImpl
             for (ClusterState clusterState : ClusterState.values())
                 for (Operation operation : Operation.values())
                 {
-                    System.out.println(String.format("XXX: %s %s", clusterState, operation));
                     setupSchemaBehind(cluster);
                     runQuery(cluster, clusterState, operation);
                 }
@@ -109,12 +108,31 @@ public class FetchLogFromPeersTest extends TestBaseImpl
         long metricsBefore = cluster.get(2).callOnInstance(() -> TCMMetrics.instance.fetchedPeerLogEntries.getCount());
         if (clusterState == ClusterState.COORDINATOR_BEHIND)
         {
+            long [] coordinatorBehindMetricsBefore = new long[cluster.size()];
             try
             {
+                for (int i = 1; i <= cluster.size(); i++)
+                    if (!cluster.get(i).isShutdown())
+                        coordinatorBehindMetricsBefore[i - 1] = cluster.get(i).callOnInstance(() -> TCMMetrics.instance.coordinatorBehindSchema.getCount());
                 cluster.coordinator(coordinator).execute(withKeyspace(query), ConsistencyLevel.QUORUM);
                 fail("should fail");
             }
             catch (Exception ignored) {}
+
+            boolean metricBumped = false;
+            for (int i = 1; i <= cluster.size(); i++)
+            {
+                if (i == coordinator || cluster.get(i).isShutdown())
+                    continue;
+                long metricAfter = cluster.get(i).callOnInstance(() -> TCMMetrics.instance.coordinatorBehindSchema.getCount());
+                if (metricAfter - coordinatorBehindMetricsBefore[i - 1] > 0)
+                {
+                    metricBumped = true;
+                    break;
+                }
+            }
+            assertTrue("Metric CoordinatorBehindSchema should have been bumped for at least one replica", metricBumped);
+
         }
         cluster.coordinator(coordinator).execute(withKeyspace(query), ConsistencyLevel.QUORUM);
         assertTrue(cluster.get(2).logs().grep(mark, "Fetching log from /127.0.0.3:7012").getResult().size() > 0);
@@ -200,7 +218,7 @@ public class FetchLogFromPeersTest extends TestBaseImpl
     }
 
     @Test
-    public void catchupCoordinatorAheadPlacementsWriteTest() throws Exception
+    public void catchupCoordinatorAheadPlacementsWriteTest() throws Throwable
     {
         try (Cluster cluster = init(builder().withNodes(4)
                                              .start()))
@@ -222,8 +240,13 @@ public class FetchLogFromPeersTest extends TestBaseImpl
             cluster.get(1).shutdown().get();
             // node4 is ahead - node2 should catch up and allow the write
             int before = fetchedFromPeer.get();
+            long mark = cluster.get(2).logs().mark();
             cluster.coordinator(4).execute(withKeyspace("insert into %s.tbl (id) values (6)"), ConsistencyLevel.QUORUM);
+            assertTrue(cluster.get(2).logs().grep(mark, "Routing is correct, but coordinator needs to catch-up to maintain consistency.").getResult().isEmpty());
             assertTrue(fetchedFromPeer.get() > before);
+
+            // Should succeed after blocking catch-up.
+            cluster.coordinator(4).execute(withKeyspace("insert into %s.tbl (id) values (6)"), ConsistencyLevel.QUORUM);
         }
     }
 

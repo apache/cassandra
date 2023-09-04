@@ -162,6 +162,7 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
         {
             this(replicationStrategy, natural, pending, null);
         }
+
         public ForTokenWrite(AbstractReplicationStrategy replicationStrategy, EndpointsForToken natural, EndpointsForToken pending, EndpointsForToken all)
         {
             super(replicationStrategy, natural, pending, all);
@@ -181,8 +182,7 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
                     replicationStrategy(),
                     natural().keep(filtered.endpoints()),
                     pending().keep(filtered.endpoints()),
-                    filtered
-            );
+                    filtered);
         }
     }
 
@@ -382,17 +382,17 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
 
     static EndpointsForRange forNonLocalStategyRangeRead(ClusterMetadata metadata, KeyspaceMetadata keyspace, AbstractBounds<PartitionPosition> range)
     {
-        return metadata.placements.get(keyspace.params.replication).reads.forRange(range.right.getToken());
+        return metadata.placements.get(keyspace.params.replication).reads.forRange(range.right.getToken()).get();
     }
 
     static EndpointsForToken forNonLocalStrategyTokenRead(ClusterMetadata metadata, KeyspaceMetadata keyspace, Token token)
     {
-        return metadata.placements.get(keyspace.params.replication).reads.forToken(token);
+        return metadata.placements.get(keyspace.params.replication).reads.forToken(token).get();
     }
 
     static EndpointsForToken forNonLocalStrategyTokenWrite(ClusterMetadata metadata, KeyspaceMetadata keyspace, Token token)
     {
-        return metadata.placements.get(keyspace.params.replication).writes.forToken(token);
+        return metadata.placements.get(keyspace.params.replication).writes.forToken(token).get();
     }
 
     static EndpointsForRange forLocalStrategyRange(ClusterMetadata metadata, AbstractReplicationStrategy replicationStrategy, AbstractBounds<PartitionPosition> range)

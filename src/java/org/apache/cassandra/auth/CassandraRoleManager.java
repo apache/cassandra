@@ -145,14 +145,21 @@ public class CassandraRoleManager implements IRoleManager
     }
 
     @Override
-    public void setup()
+    public void setup(boolean asyncRoleSetup)
     {
         loadRoleStatement();
         loadIdentityStatement();
-        scheduleSetupTask(() -> {
+        if (asyncRoleSetup)
+        {
+            scheduleSetupTask(() -> {
+                setupDefaultRole();
+                return null;
+            });
+        }
+        else
+        {
             setupDefaultRole();
-            return null;
-        });
+        }
     }
 
     @Override

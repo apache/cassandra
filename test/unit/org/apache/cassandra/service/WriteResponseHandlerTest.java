@@ -45,6 +45,7 @@ import org.apache.cassandra.locator.ReplicaUtils;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.util.concurrent.TimeUnit.DAYS;
@@ -264,7 +265,7 @@ public class WriteResponseHandlerTest
 
     private static AbstractWriteResponseHandler createWriteResponseHandler(ConsistencyLevel cl, ConsistencyLevel ideal, long queryStartTime)
     {
-        return ks.getReplicationStrategy().getWriteResponseHandler(ReplicaPlans.forWrite(ks, cl, (cm) -> targets, (cm) -> pending, Predicates.alwaysTrue(), ReplicaPlans.writeAll),
+        return ks.getReplicationStrategy().getWriteResponseHandler(ReplicaPlans.forWrite(ks, cl, (cm) -> targets, (cm) -> pending, Epoch.FIRST, Predicates.alwaysTrue(), ReplicaPlans.writeAll),
                                                                    null, WriteType.SIMPLE, null, queryStartTime, ideal);
     }
 

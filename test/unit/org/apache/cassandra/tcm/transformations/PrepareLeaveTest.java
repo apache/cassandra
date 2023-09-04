@@ -42,6 +42,7 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeId;
@@ -148,7 +149,7 @@ public class PrepareLeaveTest
     public static PlacementProvider dummyPlacementProvider = new PlacementProvider()
     {
         @Override
-        public DataPlacements calculatePlacements(List<Range<Token>> ranges, ClusterMetadata metadata, Keyspaces keyspaces) { return null; }
+        public DataPlacements calculatePlacements(Epoch epoch, List<Range<Token>> ranges, ClusterMetadata metadata, Keyspaces keyspaces) { return null; }
 
         @Override
         public PlacementTransitionPlan planForJoin(ClusterMetadata metadata, NodeId nodeId, Set<Token> tokens, Keyspaces keyspaces) { return null;}

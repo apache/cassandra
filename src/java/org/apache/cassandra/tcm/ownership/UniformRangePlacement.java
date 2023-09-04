@@ -36,6 +36,7 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.NodeId;
 
 /**
@@ -89,7 +90,8 @@ public class UniformRangePlacement implements PlacementProvider
         // There are no other nodes in the cluster, so the joining node will be taking ownership of the entire range.
         if (metadata.tokenMap.isEmpty())
         {
-            DataPlacements placements = calculatePlacements(metadata.transformer()
+            DataPlacements placements = calculatePlacements(metadata.nextEpoch(),
+                                                            metadata.transformer()
                                                                     .proposeToken(joining, tokens)
                                                                     .addToRackAndDC(joining)
                                                                     .build()
@@ -105,9 +107,10 @@ public class UniformRangePlacement implements PlacementProvider
                                                PlacementDeltas.empty());
         }
 
-        DataPlacements base = calculatePlacements(metadata, keyspaces);
+        DataPlacements base = calculatePlacements(metadata.nextEpoch(), metadata, keyspaces);
         DataPlacements start = splitRanges(metadata.tokenMap, metadata.tokenMap.assignTokens(joining, tokens), base);
-        DataPlacements finalPlacements = calculatePlacements(metadata.transformer()
+        DataPlacements finalPlacements = calculatePlacements(metadata.nextEpoch(),
+                                                             metadata.transformer()
                                                                      .proposeToken(joining, tokens)
                                                                      .addToRackAndDC(joining)
                                                                      .build()
@@ -125,10 +128,10 @@ public class UniformRangePlacement implements PlacementProvider
         });
         // double check that the deltas make sense
         PlacementTransitionPlan plan = new PlacementTransitionPlan(toStart.build(), toMaximal.build(), toFinal.build(), PlacementDeltas.empty());
-        DataPlacements afterExecution = base.applyDelta(plan.toSplit)
-                                            .applyDelta(plan.addToWrites())
-                                            .applyDelta(plan.moveReads())
-                                            .applyDelta(plan.removeFromWrites());
+        DataPlacements afterExecution = base.applyDelta(metadata.nextEpoch(), plan.toSplit)
+                                            .applyDelta(metadata.nextEpoch(), plan.addToWrites())
+                                            .applyDelta(metadata.nextEpoch(), plan.moveReads())
+                                            .applyDelta(metadata.nextEpoch(), plan.removeFromWrites());
         assertDiff(afterExecution, finalPlacements);
         return plan;
     }
@@ -147,13 +150,14 @@ public class UniformRangePlacement implements PlacementProvider
     @Override
     public PlacementTransitionPlan planForMove(ClusterMetadata metadata, NodeId nodeId, Set<Token> tokens, Keyspaces keyspaces)
     {
-        DataPlacements base = calculatePlacements(metadata, keyspaces);
+        DataPlacements base = calculatePlacements(metadata.nextEpoch(), metadata, keyspaces);
 
         TokenMap withMoved = metadata.tokenMap.assignTokens(nodeId, tokens);
         // Introduce new tokens, but do not change the ownership just yet
         DataPlacements start = splitRanges(metadata.tokenMap, withMoved, base);
 
-        DataPlacements afterMove = calculatePlacements(metadata.transformer()
+        DataPlacements afterMove = calculatePlacements(metadata.nextEpoch(),
+                                                       metadata.transformer()
                                                                .moveTokens(nodeId, tokens)
                                                                .build().metadata,
                                                        keyspaces);
@@ -193,13 +197,13 @@ public class UniformRangePlacement implements PlacementProvider
         // Determine the set of placements to start from. This is the canonical set of placements based on the current
         // TokenMap and collection of Keyspaces/ReplicationParams.
         List<Range<Token>> currentRanges = calculateRanges(metadata.tokenMap);
-        DataPlacements start = calculatePlacements(currentRanges, metadata, keyspaces);
+        DataPlacements start = calculatePlacements(metadata.nextEpoch(), currentRanges, metadata, keyspaces);
 
         ClusterMetadata proposed = metadata.transformer()
                                            .unproposeTokens(nodeId)
                                            .build()
                                    .metadata;
-        DataPlacements withoutLeaving = calculatePlacements(proposed, keyspaces);
+        DataPlacements withoutLeaving = calculatePlacements(metadata.nextEpoch(), proposed, keyspaces);
 
         DataPlacements finalPlacement = splitRanges(proposed.tokenMap, metadata.tokenMap,
                                                     withoutLeaving);
@@ -231,8 +235,9 @@ public class UniformRangePlacement implements PlacementProvider
                                                       NodeId replacement,
                                                       Keyspaces keyspaces)
     {
-        DataPlacements startPlacements = calculatePlacements(metadata, keyspaces);
-        DataPlacements finalPlacements = calculatePlacements(metadata.transformer()
+        DataPlacements startPlacements = calculatePlacements(metadata.nextEpoch(), metadata, keyspaces);
+        DataPlacements finalPlacements = calculatePlacements(metadata.nextEpoch(),
+                                                             metadata.transformer()
                                                                      .replaced(replaced, replacement)
                                                                      .build()
                                                              .metadata,
@@ -284,18 +289,18 @@ public class UniformRangePlacement implements PlacementProvider
         return builder.build();
     }
 
-    public DataPlacements calculatePlacements(ClusterMetadata metadata, Keyspaces keyspaces)
+    public DataPlacements calculatePlacements(Epoch epoch, ClusterMetadata metadata, Keyspaces keyspaces)
     {
         if (metadata.tokenMap.tokens().isEmpty())
             return DataPlacements.empty();
 
-        return calculatePlacements(keyspaces, metadata);
+        return calculatePlacements(epoch, keyspaces, metadata);
     }
 
-    private DataPlacements calculatePlacements(Keyspaces keyspaces, ClusterMetadata metadata)
+    private DataPlacements calculatePlacements(Epoch epoch, Keyspaces keyspaces, ClusterMetadata metadata)
     {
         List<Range<Token>> ranges = calculateRanges(metadata.tokenMap);
-        return calculatePlacements(ranges, metadata, keyspaces);
+        return calculatePlacements(epoch, ranges, metadata, keyspaces);
     }
 
     public List<Range<Token>> calculateRanges(TokenMap tokenMap)
@@ -311,7 +316,9 @@ public class UniformRangePlacement implements PlacementProvider
         return ranges;
     }
 
-    public DataPlacements calculatePlacements(List<Range<Token>> ranges,
+    @Override
+    public DataPlacements calculatePlacements(Epoch epoch,
+                                              List<Range<Token>> ranges,
                                               ClusterMetadata metadata,
                                               Keyspaces keyspaces)
     {
@@ -321,7 +328,7 @@ public class UniformRangePlacement implements PlacementProvider
             logger.trace("Calculating data placements for {}", ksMetadata.name);
             AbstractReplicationStrategy replication = ksMetadata.replicationStrategy;
             ReplicationParams params = ksMetadata.params.replication;
-            placements.computeIfAbsent(params, p -> replication.calculateDataPlacement(ranges, metadata));
+            placements.computeIfAbsent(params, p -> replication.calculateDataPlacement(epoch, ranges, metadata));
         }
 
         return DataPlacements.builder(placements).build();

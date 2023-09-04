@@ -47,6 +47,7 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Transformation;
+import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
@@ -206,10 +207,20 @@ public class AlterSchema implements Transformation
             // state.schema is a DistributedSchema, so doesn't include local keyspaces. If we don't explicitly include those
             // here, their placements won't be calculated, effectively dropping them from the new versioned state
             Keyspaces allKeyspaces = prev.schema.getKeyspaces().withAddedOrReplaced(snapshotAfter.getKeyspaces());
-            DataPlacements newPlacement = ClusterMetadataService.instance()
-                                                                .placementProvider()
-                                                                .calculatePlacements(prev.tokenMap.toRanges(), prev, allKeyspaces);
-            next = next.with(newPlacement);
+            DataPlacements calculatedPlacements = ClusterMetadataService.instance()
+                                                                       .placementProvider()
+                                                                       .calculatePlacements(prev.nextEpoch(), prev.tokenMap.toRanges(), prev, allKeyspaces);
+
+            DataPlacements.Builder newPlacementsBuilder = DataPlacements.builder(calculatedPlacements.size());
+            calculatedPlacements.forEach((params, newPlacement) -> {
+                DataPlacement previousPlacement = prev.placements.get(params);
+                // Preserve placement versioning that has resulted from natural application where possible
+                if (previousPlacement.equals(newPlacement))
+                    newPlacementsBuilder.with(params, previousPlacement);
+                else
+                    newPlacementsBuilder.with(params, newPlacement);
+            });
+            next = next.with(newPlacementsBuilder.build());
         }
 
         return success(next, LockedRanges.AffectedRanges.EMPTY);

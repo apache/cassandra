@@ -42,6 +42,7 @@ import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.tcm.Epoch;
 
 import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.broadcastAddress;
 import static org.apache.cassandra.tcm.membership.MembershipUtils.randomEndpoint;
@@ -105,7 +106,7 @@ public class OwnershipUtils
 
                 replicas.forEach(e -> {
                     Replica replica = Replica.fullReplica(e, range);
-                    placement.withReadReplica(replica).withWriteReplica(replica);
+                    placement.withReadReplica(Epoch.FIRST, replica).withWriteReplica(Epoch.FIRST, replica);
                 });
             }
             allPlacements.with(params, placement.build());

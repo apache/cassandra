@@ -37,6 +37,7 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.fuzz.HarryHelper;
 import org.apache.cassandra.distributed.fuzz.InJvmSut;
+import org.apache.cassandra.distributed.fuzz.InJvmSutBase;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
@@ -73,7 +74,7 @@ public class ConsistentLeaveTest extends FuzzTestBase
             IInvokableInstance leavingInstance = cluster.get(2);
             waitForCMSToQuiesce(cluster, cmsInstance);
 
-            configBuilder.setSUT(() -> new InJvmSut(cluster, () -> 1));
+            configBuilder.setSUT(() -> new InJvmSut(cluster, () -> 1, InJvmSutBase.retryOnTimeout()));
             Run run = configBuilder.build().createRun();
 
             cluster.coordinator(1).execute("CREATE KEYSPACE " + run.schemaSpec.keyspace +

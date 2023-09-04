@@ -56,6 +56,7 @@ import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.PlacementForRange;
+import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.SealPeriod;
 
@@ -469,7 +470,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
 
     public static void match(PlacementForRange actual, Map<PlacementSimulator.Range, List<Node>> predicted) throws Throwable
     {
-        Map<Range<Token>, EndpointsForRange> actualGroups = actual.replicaGroups();
+        Map<Range<Token>, VersionedEndpoints.ForRange> actualGroups = actual.replicaGroups();
         assert predicted.size() == actualGroups.size() :
         String.format("\nPredicted:\n%s(%d)" +
                       "\nActual:\n%s(%d)", toString(predicted), predicted.size(), toString(actual.replicaGroups()), actualGroups.size());
@@ -480,7 +481,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
             List<Node> predictedNodes = entry.getValue();
             Range<Token> predictedRange = new Range<Token>(new Murmur3Partitioner.LongToken(range.start),
                                                            new Murmur3Partitioner.LongToken(range.end));
-            EndpointsForRange endpointsForRange = actualGroups.get(predictedRange);
+            EndpointsForRange endpointsForRange = actualGroups.get(predictedRange).get();
             assertNotNull(() -> String.format("Could not find %s in ranges %s", predictedRange, actualGroups.keySet()),
                           endpointsForRange);
             assertEquals(() -> String.format("Predicted to have different endpoints for range %s" +
@@ -597,7 +598,7 @@ public class MetadataChangeSimulationTest extends CMSTestBase
         int overreplicated = 0;
         for (Range<Token> range : expectedRanges)
         {
-            EndpointsForRange endpointsForRange = placements.forRange(range);
+            EndpointsForRange endpointsForRange = placements.forRange(range).get();
             Directory directory = ClusterMetadata.current().directory;
             Map<String, Set<InetAddressAndPort>> endpointsByDc = new TreeMap<>();
             for (Replica replica : endpointsForRange)

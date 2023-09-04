@@ -42,6 +42,7 @@ import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.net.MessagingService;
@@ -753,7 +754,10 @@ public class PartitionUpdate extends AbstractBTreePartition
                 ClusterMetadata metadata = ClusterMetadata.current();
                 Epoch localCurrentEpoch = metadata.epoch;
                 if (remoteVersion != null && localCurrentEpoch.isAfter(remoteVersion))
+                {
+                    TCMMetrics.instance.coordinatorBehindSchema.mark();
                     throw new CoordinatorBehindException(e.getMessage(), e);
+                }
                 throw e;
             }
             UnfilteredRowIteratorSerializer.Header header = UnfilteredRowIteratorSerializer.serializer.deserializeHeader(tableMetadata, null, in, version, flag);

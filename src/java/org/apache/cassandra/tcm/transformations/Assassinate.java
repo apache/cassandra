@@ -66,20 +66,21 @@ public class Assassinate extends PrepareLeave
         if (result.isRejected())
             return result;
 
-        ClusterMetadata metadata = result.success().metadata;
+        Success success = result.success();
+        ClusterMetadata metadata = success.metadata;
         Epoch forceEpoch = metadata.epoch;
+        metadata = success.metadata.forceEpoch(prev.epoch);
 
         UnbootstrapAndLeave plan = (UnbootstrapAndLeave) metadata.inProgressSequences.get(nodeId());
 
-        Success success;
         ImmutableSet.Builder<MetadataKey> modifiedKeys = ImmutableSet.builder();
 
         success = plan.startLeave.execute(metadata).success();
-        metadata = success.metadata;
+        metadata = success.metadata.forceEpoch(prev.epoch);
         modifiedKeys.addAll(success.affectedMetadata);
 
         success = plan.midLeave.execute(metadata).success();
-        metadata = success.metadata;
+        metadata = success.metadata.forceEpoch(prev.epoch);
         modifiedKeys.addAll(success.affectedMetadata);
 
         success = plan.finishLeave.execute(metadata).success();

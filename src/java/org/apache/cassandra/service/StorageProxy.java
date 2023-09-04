@@ -135,6 +135,7 @@ import org.apache.cassandra.service.reads.range.RangeCommands;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.NodeState;
+import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.triggers.TriggerExecutor;
 import org.apache.cassandra.utils.Clock;
@@ -1041,10 +1042,10 @@ public class StorageProxy implements StorageProxyMBean
                     String keyspaceName = mutation.getKeyspaceName();
                     Token tk = mutation.key().getToken();
                     Function<ClusterMetadata, Optional<Replica>> pairedEndpointSupplier = (cm) -> ViewUtils.getViewNaturalEndpoint(cm, keyspaceName, baseToken, tk);
-                    Function<ClusterMetadata, EndpointsForToken> pendingReplicasSupplier = (cm) -> cm.pendingEndpointsFor(Keyspace.open(keyspaceName).getMetadata(), tk);
+                    Function<ClusterMetadata, VersionedEndpoints.ForToken>pendingReplicasSupplier = (cm) -> cm.pendingEndpointsFor(Keyspace.open(keyspaceName).getMetadata(), tk);
 
                     Optional<Replica> pairedEndpoint = pairedEndpointSupplier.apply(metadata);
-                    EndpointsForToken pendingReplicas = pendingReplicasSupplier.apply(metadata);
+                    VersionedEndpoints.ForToken pendingReplicas = pendingReplicasSupplier.apply(metadata);
 
                     // if there are no paired endpoints there are probably range movements going on, so we write to the local batchlog to replay later
                     if (!pairedEndpoint.isPresent())
@@ -1081,9 +1082,10 @@ public class StorageProxy implements StorageProxyMBean
                     else
                     {
                         Function<ClusterMetadata, ReplicaLayout.ForTokenWrite> computeReplicas = (cm) -> {
+                            VersionedEndpoints.ForToken pending = pendingReplicasSupplier.apply(cm);
                             return ReplicaLayout.forTokenWrite(Keyspace.open(keyspaceName).getReplicationStrategy(),
                                                                EndpointsForToken.of(tk, pairedEndpointSupplier.apply(cm).get()),
-                                                               pendingReplicasSupplier.apply(cm));
+                                                               pending.get());
                         };
 
                         ReplicaPlan.ForWrite replicaPlan = ReplicaPlans.forWrite(metadata, Keyspace.open(keyspaceName), consistencyLevel, computeReplicas, ReplicaPlans.writeAll);

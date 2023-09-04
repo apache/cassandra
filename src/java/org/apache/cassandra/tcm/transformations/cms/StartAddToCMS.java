@@ -71,7 +71,7 @@ public class StartAddToCMS extends BaseMembershipTransformation
 
         ClusterMetadata.Transformer transformer = prev.transformer();
         DataPlacement.Builder builder = prev.placements.get(ReplicationParams.meta()).unbuild()
-                                                       .withWriteReplica(replica);
+                                                       .withWriteReplica(prev.nextEpoch(), replica);
 
         transformer.with(prev.placements.unbuild().with(ReplicationParams.meta(), builder.build()).build());
 

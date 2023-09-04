@@ -31,6 +31,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
@@ -59,9 +60,9 @@ public class DataPlacement
     public Set<InetAddressAndPort> affectedReplicas(Range<Token> range)
     {
         Set<InetAddressAndPort> endpoints = new HashSet<>();
-        for (Replica r : reads.matchRange(range))
+        for (Replica r : reads.matchRange(range).get())
             endpoints.add(r.endpoint());
-        for (Replica r : writes.matchRange(range))
+        for (Replica r : writes.matchRange(range).get())
             endpoints.add(r.endpoint());
         return endpoints;
     }
@@ -82,12 +83,6 @@ public class DataPlacement
     {
         return new PlacementDeltas.PlacementDelta(reads.difference(next.reads),
                                                   writes.difference(next.writes));
-    }
-
-    public DataPlacement mergeRangesForPlacement(Set<Token> leavingTokens)
-    {
-        return new DataPlacement(PlacementForRange.mergeRangesForPlacement(leavingTokens, reads),
-                                 PlacementForRange.mergeRangesForPlacement(leavingTokens, writes));
     }
 
     public DataPlacement splitRangesForPlacement(List<Token> tokens)
@@ -122,27 +117,27 @@ public class DataPlacement
             this.writes = writes;
         }
 
-        public Builder withWriteReplica(Replica replica)
+        public Builder withWriteReplica(Epoch epoch, Replica replica)
         {
-            this.writes.withReplica(replica);
+            this.writes.withReplica(epoch, replica);
             return this;
         }
 
-        public Builder withoutWriteReplica(Replica replica)
+        public Builder withoutWriteReplica(Epoch epoch, Replica replica)
         {
-            this.writes.withoutReplica(replica);
+            this.writes.withoutReplica(epoch, replica);
             return this;
         }
 
-        public Builder withReadReplica(Replica replica)
+        public Builder withReadReplica(Epoch epoch, Replica replica)
         {
-            this.reads.withReplica(replica);
+            this.reads.withReplica(epoch, replica);
             return this;
         }
 
-        public Builder withoutReadReplica(Replica replica)
+        public Builder withoutReadReplica(Epoch epoch, Replica replica)
         {
-            this.reads.withoutReplica(replica);
+            this.reads.withoutReplica(epoch, replica);
             return this;
         }
 

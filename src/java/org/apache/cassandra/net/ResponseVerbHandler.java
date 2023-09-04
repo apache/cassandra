@@ -31,6 +31,8 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static org.apache.cassandra.exceptions.RequestFailureReason.COORDINATOR_BEHIND;
+import static org.apache.cassandra.exceptions.RequestFailureReason.INVALID_ROUTING;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
 class ResponseVerbHandler implements IVerbHandler
@@ -94,7 +96,18 @@ class ResponseVerbHandler implements IVerbHandler
 
         // Gossip stage is single-threaded, so we may end up in a deadlock with after-commit hook
         // that executes something on the gossip stage as well.
-        if (Stage.GOSSIP.executor().inExecutor())
+        if (message.isFailureResponse() &&
+            (message.payload == COORDINATOR_BEHIND || message.payload == INVALID_ROUTING) &&
+            // Gossip stage is single-threaded, so we may end up in a deadlock with after-commit hook
+            // that executes something on the gossip stage as well.
+            !Stage.GOSSIP.executor().inExecutor())
+        {
+            metadata = ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, message.from(), message.epoch());
+
+            if (metadata.epoch.isEqualOrAfter(message.epoch()))
+                logger.debug("Learned about next epoch {} from {} in {}", message.epoch(), message.from(), message.verb());
+        }
+        else
         {
             ClusterMetadataService.instance().fetchLogFromPeerAsync(message.from(), message.epoch());
             return;

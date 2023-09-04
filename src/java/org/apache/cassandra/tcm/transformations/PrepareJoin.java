@@ -132,7 +132,6 @@ public class PrepareJoin implements Transformation
     @Override
     public Result execute(ClusterMetadata prev)
     {
-
         if (!ALLOWED_STATES.contains(prev.directory.peerState(nodeId)))
             return new Rejected(INVALID, String.format("Rejecting this plan as the node %s is in state %s",
                                                        nodeId, prev.directory.peerState(nodeId)));
@@ -161,7 +160,7 @@ public class PrepareJoin implements Transformation
                                                      streamData);
 
         LockedRanges newLockedRanges = prev.lockedRanges.lock(lockKey, rangesToLock);
-        DataPlacements startingPlacements = transitionPlan.toSplit.apply(prev.placements);
+        DataPlacements startingPlacements = transitionPlan.toSplit.apply(prev.nextEpoch(), prev.placements);
         ClusterMetadata.Transformer proposed = prev.transformer()
                                                    .with(newLockedRanges)
                                                    .with(startingPlacements)

@@ -28,6 +28,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
@@ -66,12 +67,12 @@ public class PlacementDeltas extends ReplicationMap<PlacementDeltas.PlacementDel
                '}';
     }
 
-    public DataPlacements apply(DataPlacements placements)
+    public DataPlacements apply(Epoch epoch, DataPlacements placements)
     {
         DataPlacements.Builder builder = placements.unbuild();
         asMap().forEach((params, delta) -> {
             DataPlacement previous = placements.get(params);
-            builder.with(params, delta.apply(previous));
+            builder.with(params, delta.apply(epoch, previous));
         });
         return builder.build();
     }
@@ -129,14 +130,14 @@ public class PlacementDeltas extends ReplicationMap<PlacementDeltas.PlacementDel
             return new PlacementDelta(reads.onlyRemovals(), writes.onlyRemovals());
         }
 
-        public DataPlacement apply(DataPlacement placement)
+        public DataPlacement apply(Epoch epoch, DataPlacement placement)
         {
             DataPlacement.Builder builder = placement.unbuild();
-            reads.removals.flattenValues().forEach(builder.reads::withoutReplica);
-            writes.removals.flattenValues().forEach(builder.writes::withoutReplica);
+            reads.removals.flattenValues().forEach(r -> builder.reads.withoutReplica(epoch, r));
+            writes.removals.flattenValues().forEach(r -> builder.writes.withoutReplica(epoch, r));
 
-            reads.additions.flattenValues().forEach(builder.reads::withReplica);
-            writes.additions.flattenValues().forEach(builder.writes::withReplica);
+            reads.additions.flattenValues().forEach(r -> builder.reads.withReplica(epoch, r));
+            writes.additions.flattenValues().forEach(r -> builder.writes.withReplica(epoch, r));
             return builder.build();
         }
 

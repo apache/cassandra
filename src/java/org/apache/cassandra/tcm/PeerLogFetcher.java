@@ -81,6 +81,8 @@ public class PeerLogFetcher
         if (before.isEqualOrAfter(awaitAtleast))
             return ClusterMetadata.current();
 
+        logger.info("Fetching log from {}, at least {}", remote, awaitAtleast);
+
         try (Timer.Context ctx = TCMMetrics.instance.fetchPeerLogLatency.time())
         {
             LogState logState = RemoteProcessor.sendWithCallback(Verb.TCM_FETCH_PEER_LOG_REQ,

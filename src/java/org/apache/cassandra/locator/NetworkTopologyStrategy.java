@@ -43,6 +43,7 @@ import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.Location;
@@ -50,6 +51,7 @@ import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.PlacementForRange;
 import org.apache.cassandra.tcm.ownership.TokenMap;
+import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -182,23 +184,25 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
     }
 
     @Override
-    public DataPlacement calculateDataPlacement(List<Range<Token>> ranges, ClusterMetadata metadata)
+    public DataPlacement calculateDataPlacement(Epoch epoch, List<Range<Token>> ranges, ClusterMetadata metadata)
     {
-        return calculateDataPlacement(ranges, metadata.directory, metadata.tokenMap);
+        return calculateDataPlacement(epoch, ranges, metadata.directory, metadata.tokenMap);
     }
 
-    private DataPlacement calculateDataPlacement(List<Range<Token>> ranges,
+    private DataPlacement calculateDataPlacement(Epoch epoch,
+                                                 List<Range<Token>> ranges,
                                                  Directory directory,
                                                  TokenMap tokenMap)
     {
         PlacementForRange.Builder builder = PlacementForRange.builder();
         for (Range<Token> range : ranges)
         {
-            builder.withReplicaGroup(calculateNaturalReplicas(range.right,
-                                                              range,
-                                                              directory,
-                                                              tokenMap,
-                                                              datacenters));
+            EndpointsForRange endpointsForRange = calculateNaturalReplicas(range.right,
+                                                                           range,
+                                                                           directory,
+                                                                           tokenMap,
+                                                                           datacenters);
+            builder.withReplicaGroup(VersionedEndpoints.forRange(epoch, endpointsForRange));
         }
 
         PlacementForRange built = builder.build();

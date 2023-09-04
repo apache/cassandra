@@ -21,6 +21,7 @@ package org.apache.cassandra.tcm.ownership;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
@@ -29,8 +30,10 @@ import org.junit.Test;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.EndpointsForRange;
+import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.tcm.Epoch;
 
 import static org.apache.cassandra.tcm.membership.MembershipUtils.endpoint;
 import static org.apache.cassandra.tcm.ownership.OwnershipUtils.token;
@@ -48,7 +51,7 @@ public class UniformRangePlacementTest
         // (MIN, t] & (t, MAX] - but because (x, x] denotes a wraparound, this case produces (MIN, MAX] and we need to
         // verify that we can safely split that when more tokens are introduced. This test supposes MIN = 0, MAX = 100
         PlacementForRange before = PlacementForRange.builder()
-                                                    .withReplicaGroup(rg(0, 100, 1, 2, 3))
+                                                    .withReplicaGroup(VersionedEndpoints.forRange(Epoch.EMPTY, rg(0, 100, 1, 2, 3)))
                                                     .build();
         // existing token is MIN (i.e. 0 for the purposes of this test)
         List<Token> tokens = ImmutableList.of(token(0), token(30), token(60), token(90));
@@ -196,12 +199,16 @@ public class UniformRangePlacementTest
                                             rg(100, 200, 1, 2, 3),
                                             rg(200, 300, 1, 2, 3),
                                             rg(300, 400, 1, 2, 3) };
-        PlacementForRange p1 = PlacementForRange.builder().withReplicaGroups(Arrays.asList(firstGroups)).build();
+        PlacementForRange p1 = PlacementForRange.builder()
+                                                .withReplicaGroups(Arrays.asList(firstGroups).stream().map(this::v).collect(Collectors.toList()))
+                                                .build();
         EndpointsForRange[] secondGroups = { rg(0, 100, 2, 3, 4),
                                              rg(100, 200, 2, 3, 5),
                                              rg(200, 300, 2, 3, 6),
                                              rg(300, 400, 2, 3, 7) };
-        PlacementForRange p2 = PlacementForRange.builder().withReplicaGroups(Arrays.asList(secondGroups)).build();
+        PlacementForRange p2 = PlacementForRange.builder()
+                                                .withReplicaGroups(Arrays.asList(secondGroups).stream().map(this::v).collect(Collectors.toList()))
+                                                .build();
 
         ReplicationParams params = ReplicationParams.simple(1);
         DataPlacements map1 = DataPlacements.builder(1).with(params, new DataPlacement(p1, p1)).build();
@@ -224,7 +231,7 @@ public class UniformRangePlacementTest
         EndpointsForRange[] initial = { rg(-9223372036854775808L, -4611686018427387905L, 1),
                                         rg(-4611686018427387905L, -9223372036854775808L, 1)};
         DataPlacement.Builder builder = DataPlacement.builder();
-        builder.writes.withReplicaGroups(Arrays.asList(initial));
+        builder.writes.withReplicaGroups(Arrays.asList(initial).stream().map(this::v).collect(Collectors.toList()));
 
         DataPlacement initialPlacement = builder.build();
         DataPlacement split = initialPlacement.splitRangesForPlacement(tokens);
@@ -243,7 +250,7 @@ public class UniformRangePlacementTest
         EndpointsForRange[] initial = { rg(-9223372036854775808L, -9223372036854775808L, 1)};
 
         DataPlacement.Builder builder = DataPlacement.builder();
-        builder.writes.withReplicaGroups(Arrays.asList(initial));
+        builder.writes.withReplicaGroups(Arrays.asList(initial).stream().map(this::v).collect(Collectors.toList()));
 
         DataPlacement initialPlacement = builder.build();
         DataPlacement split = initialPlacement.splitRangesForPlacement(tokens);
@@ -256,7 +263,7 @@ public class UniformRangePlacementTest
         EndpointsForRange initialRG = rg(Long.MIN_VALUE, Long.MIN_VALUE, 1, 2, 3);
 
         DataPlacement.Builder builder = DataPlacement.builder();
-        builder.writes.withReplicaGroup(initialRG);
+        builder.writes.withReplicaGroup(v(initialRG));
 
         DataPlacement initialPlacement = builder.build();
         List<Token> tokens = ImmutableList.of(token(Long.MIN_VALUE), token(0));
@@ -270,14 +277,16 @@ public class UniformRangePlacementTest
                                               rg(100, 200, 1, 2, 3),
                                               rg(200, 300, 1, 2, 3),
                                               rg(300, 400, 1, 2, 3) };
-        PlacementForRange placement = PlacementForRange.builder().withReplicaGroups(Arrays.asList(initialGroups)).build();
+        PlacementForRange placement = PlacementForRange.builder()
+                                                       .withReplicaGroups(Arrays.asList(initialGroups).stream().map(this::v).collect(Collectors.toList()))
+                                                       .build();
         assertPlacement(placement, initialGroups);
         return placement;
     }
 
     private void assertPlacement(PlacementForRange placement, EndpointsForRange...expected)
     {
-        Collection<EndpointsForRange> replicaGroups = placement.replicaGroups.values();
+        Collection<EndpointsForRange> replicaGroups = placement.replicaGroups.values().stream().map(v -> v.get()).collect(Collectors.toList());
         assertEquals(replicaGroups.size(), expected.length);
         int i = 0;
         boolean allMatch = true;
@@ -288,6 +297,16 @@ public class UniformRangePlacementTest
         assertTrue(String.format("Placement didn't match expected replica groups. " +
                                  "%nExpected: %s%nActual: %s", Arrays.asList(expected), replicaGroups),
                    allMatch);
+    }
+
+    private VersionedEndpoints.ForRange v(EndpointsForRange rg)
+    {
+        return VersionedEndpoints.forRange(Epoch.FIRST, rg);
+    }
+
+    private VersionedEndpoints.ForToken v(EndpointsForToken rg)
+    {
+        return VersionedEndpoints.forToken(Epoch.FIRST, rg);
     }
 
     private EndpointsForRange rg(long t0, long t1, int...replicas)

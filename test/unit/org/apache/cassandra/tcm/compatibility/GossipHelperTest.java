@@ -93,10 +93,10 @@ public class GossipHelperTest
         assertEquals(nativeAddress, metadata.directory.addresses.get(nodeId).nativeAddress);
 
         DataPlacements dp = metadata.placements;
-        assertEquals(1, dp.get(KSM.params.replication).reads.forToken(token).size());
-        assertTrue(dp.get(KSM.params.replication).reads.forToken(token).contains(endpoint));
-        assertEquals(1, dp.get(KSM.params.replication).writes.forToken(token).size());
-        assertTrue(dp.get(KSM.params.replication).writes.forToken(token).contains(endpoint));
+        assertEquals(1, dp.get(KSM.params.replication).reads.forToken(token).get().size());
+        assertTrue(dp.get(KSM.params.replication).reads.forToken(token).get().contains(endpoint));
+        assertEquals(1, dp.get(KSM.params.replication).writes.forToken(token).get().size());
+        assertTrue(dp.get(KSM.params.replication).writes.forToken(token).get().contains(endpoint));
     }
 
     @Test
@@ -166,14 +166,14 @@ public class GossipHelperTest
 
         // token 0 and 10000 should exist on nodes 1, 2, 3, 4, 5, 6
         for (Token t : new Token[] { t(0), t(10000) })
-            verify(reads.forToken(t), 1, 2, 3, 4, 5, 6);
+            verify(reads.forToken(t).get(), 1, 2, 3, 4, 5, 6);
 
         // token 6000 should be on nodes 7, 8, 9, 10, 1, 2;
-        verify(reads.forToken(t(6000)), 7, 8, 9, 10, 1, 2);
+        verify(reads.forToken(t(6000)).get(), 7, 8, 9, 10, 1, 2);
         // token 7000 should be on nodes 7, 8, 9, 10, 1, 2;
-        verify(reads.forToken(t(7000)), 7, 8, 9, 10, 1, 2);
+        verify(reads.forToken(t(7000)).get(), 7, 8, 9, 10, 1, 2);
         // token 5001 should be on nodes 6, 7, 8, 9, 10, 1
-        verify(reads.forToken(t(5001)), 6, 7, 8, 9, 10, 1);
+        verify(reads.forToken(t(5001)).get(), 6, 7, 8, 9, 10, 1);
     }
 
     private static void verify(EndpointsForToken eps, int ... endpoints) throws UnknownHostException

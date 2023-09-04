@@ -25,11 +25,12 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.NodeId;
 
 public interface PlacementProvider
 {
-    DataPlacements calculatePlacements(List<Range<Token>> ranges, ClusterMetadata metadata, Keyspaces keyspaces);
+    DataPlacements calculatePlacements(Epoch epoch, List<Range<Token>> ranges, ClusterMetadata metadata, Keyspaces keyspaces);
     // TODO naming
     PlacementTransitionPlan planForJoin(ClusterMetadata metadata,
                                         NodeId joining,

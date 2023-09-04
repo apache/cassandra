@@ -38,6 +38,7 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
+import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
@@ -491,7 +492,7 @@ public class PendingRangesTest
     {
         ClusterMetadata metadata = ClusterMetadata.current();
         KeyspaceMetadata ks = metadata.schema.getKeyspaceMetadata(KEYSPACE);
-        Map<Range<Token>, EndpointsForRange> pending = metadata.pendingRanges(ks);
+        Map<Range<Token>, VersionedEndpoints.ForRange> pending = metadata.pendingRanges(ks);
         Map<InetAddressAndPort, RangesAtEndpoint.Builder> byEndpointBuilder = new HashMap<>();
         pending.forEach((range, endpoints) -> {
             endpoints.forEach(r -> {
@@ -504,11 +505,11 @@ public class PendingRangesTest
         return pendingByEndpoint;
     }
 
-    private void assertPendingRanges(Map<Range<Token>, EndpointsForRange> pending, RangesByEndpoint expected)
+    private void assertPendingRanges(Map<Range<Token>, VersionedEndpoints.ForRange> pending, RangesByEndpoint expected)
     {
         RangesByEndpoint.Builder actual = new RangesByEndpoint.Builder();
         pending.entrySet().forEach(pendingRange -> {
-            Replica replica = Iterators.getOnlyElement(pendingRange.getValue().iterator());
+            Replica replica = Iterators.getOnlyElement(pendingRange.getValue().get().iterator());
             actual.put(replica.endpoint(), replica);
         });
         assertRangesByEndpoint(expected, actual.build());

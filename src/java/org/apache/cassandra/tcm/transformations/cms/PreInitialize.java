@@ -81,8 +81,8 @@ public class PreInitialize implements Transformation
                                           DatabaseDescriptor.getPartitioner().getMinimumToken(),
                                           DatabaseDescriptor.getPartitioner().getMinimumToken(),
                                           true);
-            dataPlacementBuilder.reads.withReplica(replica);
-            dataPlacementBuilder.writes.withReplica(replica);
+            dataPlacementBuilder.reads.withReplica(metadata.nextEpoch(), replica);
+            dataPlacementBuilder.writes.withReplica(metadata.nextEpoch(), replica);
             DataPlacements initialPlacement = metadata.placements.unbuild().with(ReplicationParams.meta(), dataPlacementBuilder.build()).build();
 
             transformer.with(initialPlacement);

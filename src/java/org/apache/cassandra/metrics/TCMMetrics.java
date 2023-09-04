@@ -59,6 +59,8 @@ public class TCMMetrics
     public final Meter repairPaxosTopologyRetries;
     public final Timer progressBarrierLatency;
     public final Meter progressBarrierCLRelax;
+    public final Meter coordinatorBehindSchema;
+    public final Meter coordinatorBehindPlacements;
 
     private TCMMetrics()
     {
@@ -108,6 +110,8 @@ public class TCMMetrics
         progressBarrierLatency = Metrics.timer(factory.createMetricName("ProgressBarrierLatency"));
         progressBarrierCLRelax = Metrics.meter(factory.createMetricName("ProgressBarrierCLRelaxed"));
 
+        coordinatorBehindSchema = Metrics.meter(factory.createMetricName("CoordinatorBehindSchema"));
+        coordinatorBehindPlacements = Metrics.meter(factory.createMetricName("CoordinatorBehindPlacements"));
     }
 
     public void recordCommitFailureLatency(long latency, TimeUnit timeUnit, boolean isRejection)

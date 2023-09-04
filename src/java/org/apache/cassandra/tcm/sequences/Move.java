@@ -288,7 +288,7 @@ public class Move extends InProgressSequence<Move>
                 if (needsRelaxedSources.get())
                 {
                     for (Replica source : DatabaseDescriptor.getEndpointSnitch().sortedByProximity(FBUtilities.getBroadcastAddressAndPort(),
-                                                                                                   oldOwners.forRange(destination.range())))
+                                                                                                   oldOwners.forRange(destination.range()).get()))
                     {
                         if (fd.isAlive(source.endpoint()) && !source.endpoint().equals(destination.endpoint()))
                         {
@@ -398,11 +398,11 @@ public class Move extends InProgressSequence<Move>
         switch (next)
         {
             case FINISH_MOVE:
-                placements = midMove.inverseDelta().apply(placements);
+                placements = midMove.inverseDelta().apply(metadata.nextEpoch(), placements);
             case MID_MOVE:
-                placements = startMove.inverseDelta().apply(placements);
+                placements = startMove.inverseDelta().apply(metadata.nextEpoch(), placements);
             case START_MOVE:
-                placements = toSplitRanges.invert().apply(placements);
+                placements = toSplitRanges.invert().apply(metadata.nextEpoch(), placements);
                 break;
             default:
                 throw new IllegalStateException("Can't revert move from " + next);

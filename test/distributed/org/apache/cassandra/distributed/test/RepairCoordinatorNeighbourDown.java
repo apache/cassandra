@@ -31,14 +31,17 @@ import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.distributed.api.NodeToolResult;
+import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.distributed.test.DistributedRepairUtils.RepairParallelism;
 import org.apache.cassandra.distributed.test.DistributedRepairUtils.RepairType;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static java.lang.String.format;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_JVM_SHUTDOWN_MESSAGING_GRACEFULLY;
 import static org.apache.cassandra.distributed.api.IMessageFilters.Matcher.of;
 import static org.apache.cassandra.distributed.test.DistributedRepairUtils.assertParentRepairFailedWithMessageContains;
 import static org.apache.cassandra.distributed.test.DistributedRepairUtils.assertParentRepairNotExist;
@@ -60,12 +63,14 @@ public abstract class RepairCoordinatorNeighbourDown extends RepairCoordinatorBa
             try
             {
                 i.startup();
+                i.runOnInstance(StorageService.instance::disableAutoCompaction);
             }
             catch (IllegalStateException e)
             {
                 // ignore, node wasn't down
             }
         });
+
     }
 
     @Test
@@ -75,7 +80,11 @@ public abstract class RepairCoordinatorNeighbourDown extends RepairCoordinatorBa
         assertTimeoutPreemptively(Duration.ofMinutes(2), () -> {
             CLUSTER.schemaChange(format("CREATE TABLE %s.%s (key text, value text, PRIMARY KEY (key))", KEYSPACE, table));
             String downNodeAddress = CLUSTER.get(2).callOnInstance(() -> FBUtilities.getBroadcastAddressAndPort().getHostAddressAndPort());
-            Future<Void> shutdownFuture = CLUSTER.get(2).shutdown();
+            Future<Void> shutdownFuture;
+            try(WithProperties ignore_ =  new WithProperties().set(TEST_JVM_SHUTDOWN_MESSAGING_GRACEFULLY, "true"))
+            {
+                 shutdownFuture = CLUSTER.get(2).shutdown();
+            }
             try
             {
                 // wait for the node to stop
@@ -141,13 +150,18 @@ public abstract class RepairCoordinatorNeighbourDown extends RepairCoordinatorBa
             CLUSTER.verbs(Verb.VALIDATION_REQ).to(2).messagesMatching(of(m -> {
                 // the nice thing about this is that this lambda is "capturing" and not "transfer", what this means is that
                 // this lambda isn't serialized and any object held isn't copied.
-                participantShutdown.set(CLUSTER.get(2).shutdown());
+                Future<Void> shutdownFuture;
+                try(WithProperties ignore_ = new WithProperties().set(TEST_JVM_SHUTDOWN_MESSAGING_GRACEFULLY, "true"))
+                {
+                    shutdownFuture = CLUSTER.get(2).shutdown();
+                }
+                participantShutdown.set(shutdownFuture);
                 return true; // drop it so this node doesn't reply before shutdown.
             })).drop();
             // since nodetool is blocking, need to handle participantShutdown in the background
             CompletableFuture<Void> recovered = CompletableFuture.runAsync(() -> {
                 try {
-                    while (participantShutdown.get() == null) {
+                    while (participantShutdown.get() == null && !Thread.interrupted()) {
                         // event not happened, wait for it
                         TimeUnit.MILLISECONDS.sleep(100);
                     }

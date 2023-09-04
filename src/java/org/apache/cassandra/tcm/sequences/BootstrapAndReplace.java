@@ -219,7 +219,8 @@ public class BootstrapAndReplace extends InProgressSequence<BootstrapAndReplace>
             EndpointsByReplica.Builder movements = new EndpointsByReplica.Builder();
             DataPlacement originalPlacements = placements.get(params);
             delta.writes.additions.flattenValues().forEach((destination) -> {
-                originalPlacements.reads.forRange(destination.range()).stream()
+                originalPlacements.reads.forRange(destination.range())
+                                        .get().stream()
                                         .filter(r -> !r.endpoint().equals(beingReplaced))
                                         .forEach(source -> movements.put(destination, source));
             });
@@ -242,10 +243,10 @@ public class BootstrapAndReplace extends InProgressSequence<BootstrapAndReplace>
         {
             // need to undo MID_REPLACE and START_REPLACE, but PREPARE_REPLACE doesn't affect placements
             case FINISH_REPLACE:
-                placements = midReplace.inverseDelta().apply(placements);
+                placements = midReplace.inverseDelta().apply(metadata.nextEpoch(), placements);
             case MID_REPLACE:
             case START_REPLACE:
-                placements = startReplace.inverseDelta().apply(placements);
+                placements = startReplace.inverseDelta().apply(metadata.nextEpoch(), placements);
                 break;
             default:
                 throw new IllegalStateException("Can't revert replacement from " + next);

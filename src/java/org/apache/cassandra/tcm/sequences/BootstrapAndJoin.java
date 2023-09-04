@@ -302,11 +302,11 @@ public class BootstrapAndJoin extends InProgressSequence<BootstrapAndJoin>
         {
             // need to undo MID_JOIN and START_JOIN, then merge the ranges split by PrepareJoin
             case FINISH_JOIN:
-                placements = midJoin.inverseDelta().apply(placements);
+                placements = midJoin.inverseDelta().apply(metadata.nextEpoch(), placements);
             case MID_JOIN:
-                placements = startJoin.inverseDelta().apply(placements);
+                placements = startJoin.inverseDelta().apply(metadata.nextEpoch(), placements);
             case START_JOIN:
-                placements = toSplitRanges.invert().apply(placements);
+                placements = toSplitRanges.invert().apply(metadata.nextEpoch(), placements);
                 break;
             default:
                 throw new IllegalStateException("Can't revert join from " + next);
@@ -335,6 +335,7 @@ public class BootstrapAndJoin extends InProgressSequence<BootstrapAndJoin>
             delta.writes.additions.flattenValues().forEach((destination) -> {
                 assert destination.endpoint().equals(joining);
                 oldPlacement.reads.forRange(destination.range())
+                                  .get()
                                   .stream()
                                   .forEach(source -> movements.put(destination, source));
             });

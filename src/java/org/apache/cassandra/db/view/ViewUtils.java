@@ -63,8 +63,8 @@ public final class ViewUtils
         String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getLocalDatacenter();
         KeyspaceMetadata keyspaceMetadata = metadata.schema.getKeyspaces().getNullable(keyspace);
 
-        EndpointsForToken naturalBaseReplicas = metadata.placements.get(keyspaceMetadata.params.replication).reads.forToken(baseToken);
-        EndpointsForToken naturalViewReplicas = metadata.placements.get(keyspaceMetadata.params.replication).reads.forToken(viewToken);
+        EndpointsForToken naturalBaseReplicas = metadata.placements.get(keyspaceMetadata.params.replication).reads.forToken(baseToken).get();
+        EndpointsForToken naturalViewReplicas = metadata.placements.get(keyspaceMetadata.params.replication).reads.forToken(viewToken).get();
 
         Optional<Replica> localReplica = Iterables.tryFind(naturalViewReplicas, Replica::isSelf).toJavaUtil();
         if (localReplica.isPresent())

@@ -86,7 +86,8 @@ public class UniformRangePlacementIntegrationTest
         nodes.sort(PlacementSimulator.Node::compareTo);
 
         ClusterMetadataService.instance().processor().fetchLogAndWait();
-        DataPlacements placements = rangePlacement.calculatePlacements(ClusterMetadata.current(),
+        DataPlacements placements = rangePlacement.calculatePlacements(ClusterMetadata.current().epoch,
+                                                                       ClusterMetadata.current(),
                                                                        Keyspaces.of(ClusterMetadata.current().schema.getKeyspaces().get("test").get()));
 
         PlacementSimulator.ReplicatedRanges predicted = RF.replicate(nodes);

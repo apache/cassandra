@@ -19,10 +19,13 @@
 package org.apache.cassandra.distributed.test.log;
 
 import java.io.IOException;
+import java.net.UnknownHostException;
 import java.util.Collection;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Test;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
@@ -32,6 +35,8 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.ClusterUtils;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
 import org.apache.cassandra.distributed.shared.WithProperties;
+import org.apache.cassandra.gms.FailureDetector;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tcm.ClusterMetadata;
 
 import static org.apache.cassandra.distributed.Constants.KEY_DTEST_API_STARTUP_FAILURE_AS_SHUTDOWN;
@@ -64,6 +69,19 @@ public class CMSHandoffTest extends FuzzTestBase
 
             String nodeId = cluster.get(2).callOnInstance(() -> ClusterMetadata.current().myNodeId().toUUID().toString());
             cluster.get(2).shutdown().get();
+            cluster.get(1).runOnInstance(() -> {
+                try
+                {
+                    long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(1);
+                    while (FailureDetector.instance.isAlive(InetAddressAndPort.getByName("127.0.0.2")) &&
+                           System.nanoTime() < deadline)
+                        Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);
+                }
+                catch (UnknownHostException e)
+                {
+                    throw new RuntimeException(e);
+                }
+            });
             cluster.get(1).nodetoolResult("removenode", nodeId, "--force").asserts().success();
 
             cms = getCMSMembers(cluster.get(1));

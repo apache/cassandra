@@ -180,10 +180,10 @@ public class UnbootstrapAndLeave extends InProgressSequence<UnbootstrapAndLeave>
         {
             // need to undo MID_LEAVE and START_LEAVE, but PrepareLeave doesn't affect placement
             case FINISH_LEAVE:
-                placements = midLeave.inverseDelta().apply(placements);
+                placements = midLeave.inverseDelta().apply(metadata.nextEpoch(), placements);
             case MID_LEAVE:
             case START_LEAVE:
-                placements = startLeave.inverseDelta().apply(placements);
+                placements = startLeave.inverseDelta().apply(metadata.nextEpoch(), placements);
                 break;
             default:
                 throw new IllegalStateException("Can't revert leave from " + next);

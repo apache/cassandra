@@ -65,8 +65,8 @@ public class RemoveFromCMS extends BaseMembershipTransformation
             return new Rejected(INVALID, String.format("%s is not currently a CMS member, cannot remove it", endpoint));
 
         DataPlacement.Builder builder = prev.placements.get(ReplicationParams.meta()).unbuild();
-        builder.reads.withoutReplica(replica);
-        builder.writes.withoutReplica(replica);
+        builder.reads.withoutReplica(prev.nextEpoch(), replica);
+        builder.writes.withoutReplica(prev.nextEpoch(), replica);
         DataPlacement proposed = builder.build();
         int minProposedSize = Math.min(proposed.reads.forRange(replica.range()).size(),
                                        proposed.writes.forRange(replica.range()).size());

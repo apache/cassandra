@@ -46,6 +46,7 @@ import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
+import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.locator.NetworkTopologyStrategy.REPLICATION_FACTOR;
@@ -93,10 +94,10 @@ public class NetworkTopologyStrategyTest
         Assert.assertEquals(strategy.getReplicationFactor("DC3").allReplicas, 1);
 
         // Query for the natural hosts
-        EndpointsForToken replicas = ClusterMetadataTestHelper.getNaturalReplicasForToken(KEYSPACE, new StringToken("123"));
-        Assert.assertEquals(6, replicas.size());
-        Assert.assertEquals(6, replicas.endpoints().size()); // ensure uniqueness
-        Assert.assertEquals(6, new HashSet<>(replicas.byEndpoint().values()).size()); // ensure uniqueness
+        VersionedEndpoints.ForToken replicas = ClusterMetadataTestHelper.getNaturalReplicasForToken(KEYSPACE, new StringToken("123"));
+        Assert.assertEquals(6, replicas.get().size());
+        Assert.assertEquals(6, replicas.get().endpoints().size()); // ensure uniqueness
+        Assert.assertEquals(6, new HashSet<>(replicas.get().byEndpoint().values()).size()); // ensure uniqueness
     }
 
     @Test

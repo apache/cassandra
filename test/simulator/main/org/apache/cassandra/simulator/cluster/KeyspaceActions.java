@@ -285,7 +285,9 @@ public class KeyspaceActions extends ClusterActions
                     Topology during = recomputeTopology(placementsBefore, placementsAfter);
                     updateTopology(during);
                     Topology after = recomputeTopology(placementsAfter, placementsAfter);
-                    Action action = new OnClusterReplace(KeyspaceActions.this, before, during, after, leave, join);
+                    Action action = null;
+                    //TODO p
+                    //new OnClusterReplace(KeyspaceActions.this, before, during, after, leave, join);
                     return scheduleAndUpdateTopologyOnCompletion(action, after);
                     // if replication factor is 2, cannot perform safe replacements
                     // however can have operations that began earlier during RF=2

@@ -115,7 +115,7 @@ public class PrepareMove implements Transformation
         return success(prev.transformer()
                            .withNodeState(nodeId, NodeState.MOVING)
                            .with(prev.lockedRanges.lock(lockKey, rangesToLock))
-                           .with(transitionPlan.toSplit.apply(prev.placements))
+                           .with(transitionPlan.toSplit.apply(prev.nextEpoch(), prev.placements))
                            .with(prev.inProgressSequences.with(nodeId, sequence)),
                        rangesToLock);
     }

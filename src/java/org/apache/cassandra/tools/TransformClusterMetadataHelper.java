@@ -80,12 +80,12 @@ public class TransformClusterMetadataHelper
         DataPlacement.Builder builder = metadata.placements.get(ReplicationParams.meta()).unbuild();
         for (Replica replica : currentReplicas)
         {
-            builder.withoutReadReplica(replica)
-                   .withoutWriteReplica(replica);
+            builder.withoutReadReplica(metadata.epoch, replica)
+                   .withoutWriteReplica(metadata.epoch, replica);
         }
         Replica newCMS = EntireRange.replica(endpoint);
-        builder.withReadReplica(newCMS)
-               .withWriteReplica(newCMS);
+        builder.withReadReplica(metadata.epoch, newCMS)
+               .withWriteReplica(metadata.epoch, newCMS);
         return metadata.transformer().with(metadata.placements.unbuild().with(ReplicationParams.meta(),
                                                                               builder.build())
                                                               .build())

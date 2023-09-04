@@ -154,8 +154,8 @@ public class ProgressBarrier
             Set<Range<Token>> ranges = e.getValue();
             for (Range<Token> range : ranges)
             {
-                EndpointsForRange writes = metadata.placements.get(params).writes.matchRange(range).filter(r -> filter.test(r.endpoint()));
-                EndpointsForRange reads = metadata.placements.get(params).reads.matchRange(range).filter(r -> filter.test(r.endpoint()));
+                EndpointsForRange writes = metadata.placements.get(params).writes.matchRange(range).get().filter(r -> filter.test(r.endpoint()));
+                EndpointsForRange reads = metadata.placements.get(params).reads.matchRange(range).get().filter(r -> filter.test(r.endpoint()));
                 reads.stream().map(Replica::endpoint).forEach(superset::add);
                 writes.stream().map(Replica::endpoint).forEach(superset::add);
 

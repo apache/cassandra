@@ -83,7 +83,8 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
         if (null == LOCAL_PLACEMENT)
         {
             PlacementForRange placement = new PlacementForRange(Collections.singletonMap(entireRange,
-                                                                                         EndpointsForRange.of(EntireRange.replica(FBUtilities.getBroadcastAddressAndPort()))));
+                                                                                         VersionedEndpoints.forRange(Epoch.EMPTY,
+                                                                                                                         EndpointsForRange.of(EntireRange.replica(FBUtilities.getBroadcastAddressAndPort())))));
             LOCAL_PLACEMENT = new DataPlacement(placement, placement);
         }
         return LOCAL_PLACEMENT;
@@ -131,11 +132,13 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
             {
                 PlacementForRange.Builder reads = PlacementForRange.builder(placement.reads.replicaGroups().size());
                 placement.reads.replicaGroups().forEach((range, endpoints) -> {
-                    reads.withReplicaGroup(endpoints.sorted(comparator));
+                    reads.withReplicaGroup(VersionedEndpoints.forRange(endpoints.lastModified(),
+                                                                       endpoints.get().sorted(comparator)));
                 });
                 PlacementForRange.Builder writes = PlacementForRange.builder(placement.writes.replicaGroups().size());
                 placement.writes.replicaGroups().forEach((range, endpoints) -> {
-                    writes.withReplicaGroup(endpoints.sorted(comparator));
+                    writes.withReplicaGroup(VersionedEndpoints.forRange(endpoints.lastModified(),
+                                                                        endpoints.get().sorted(comparator)));
                 });
                 builder.with(params, new DataPlacement(reads.build(), writes.build()));
             }
@@ -143,9 +146,9 @@ public class DataPlacements extends ReplicationMap<DataPlacement> implements Met
         return builder.build();
     }
 
-    public DataPlacements applyDelta(PlacementDeltas deltas)
+    public DataPlacements applyDelta(Epoch epoch, PlacementDeltas deltas)
     {
-        return deltas.apply(this);
+        return deltas.apply(epoch, this);
     }
 
     public static DataPlacements empty()

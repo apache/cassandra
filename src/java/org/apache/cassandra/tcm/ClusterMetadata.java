@@ -63,6 +63,7 @@ import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.PrimaryRangeComparator;
 import org.apache.cassandra.tcm.ownership.PlacementForRange;
 import org.apache.cassandra.tcm.ownership.TokenMap;
+import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
@@ -286,7 +287,7 @@ public class ClusterMetadata
         ClusterMetadata proposed = t.build().metadata;
         return ClusterMetadataService.instance()
                                      .placementProvider()
-                                     .calculatePlacements(proposed.tokenMap.toRanges(), proposed, Keyspaces.of(ksm))
+                                     .calculatePlacements(epoch, proposed.tokenMap.toRanges(), proposed, Keyspaces.of(ksm))
                                      .get(ksm.params.replication);
     }
 
@@ -312,9 +313,9 @@ public class ClusterMetadata
     }
 
     // TODO Remove this as it isn't really an equivalent to the previous concept of pending ranges
-    public Map<Range<Token>, EndpointsForRange> pendingRanges(KeyspaceMetadata metadata)
+    public Map<Range<Token>, VersionedEndpoints.ForRange> pendingRanges(KeyspaceMetadata metadata)
     {
-        Map<Range<Token>, EndpointsForRange> map = new HashMap<>();
+        Map<Range<Token>, VersionedEndpoints.ForRange> map = new HashMap<>();
         PlacementForRange writes = placements.get(metadata.params.replication).writes;
         PlacementForRange reads = placements.get(metadata.params.replication).reads;
 
@@ -328,27 +329,28 @@ public class ClusterMetadata
         // next, ranges where the ranges themselves are not changing, but the replicas are
         // i.e. replacement or RF increase
         writes.replicaGroups().forEach((range, endpoints) -> {
-            EndpointsForRange readGroup = reads.forRange(range);
+            VersionedEndpoints.ForRange readGroup = reads.forRange(range);
             if (!readGroup.equals(endpoints))
-                map.put(range, endpoints.filter(r -> !readGroup.contains(r)));
+                map.put(range, VersionedEndpoints.forRange(endpoints.lastModified(),
+                                                           endpoints.get().filter(r -> !readGroup.get().contains(r))));
         });
 
         return map;
     }
 
     // TODO Remove this as it isn't really an equivalent to the previous concept of pending endpoints
-    public EndpointsForToken pendingEndpointsFor(KeyspaceMetadata metadata, Token t)
+    public VersionedEndpoints.ForToken pendingEndpointsFor(KeyspaceMetadata metadata, Token t)
     {
-        EndpointsForToken writeEndpoints = placements.get(metadata.params.replication).writes.forToken(t);
-        EndpointsForToken readEndpoints = placements.get(metadata.params.replication).reads.forToken(t);
-        EndpointsForToken.Builder endpointsForToken = writeEndpoints.newBuilder(writeEndpoints.size() - readEndpoints.size());
+        VersionedEndpoints.ForToken writeEndpoints = placements.get(metadata.params.replication).writes.forToken(t);
+        VersionedEndpoints.ForToken readEndpoints = placements.get(metadata.params.replication).reads.forToken(t);
+        EndpointsForToken.Builder endpointsForToken = writeEndpoints.get().newBuilder(writeEndpoints.size() - readEndpoints.size());
 
-        for (Replica writeReplica : writeEndpoints)
+        for (Replica writeReplica : writeEndpoints.get())
         {
-            if (!readEndpoints.contains(writeReplica))
+            if (!readEndpoints.get().contains(writeReplica))
                 endpointsForToken.add(writeReplica);
         }
-        return endpointsForToken.build();
+        return VersionedEndpoints.forToken(writeEndpoints.lastModified(), endpointsForToken.build());
     }
 
     public static class Transformer

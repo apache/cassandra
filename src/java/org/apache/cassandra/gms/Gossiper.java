@@ -42,6 +42,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
@@ -1758,12 +1759,24 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
 
     }
 
+    /**
+     * To avoid racing with ECHO requests, we need to make sure to establish happens-before relation between
+     * announcing shutdown and responding to heartbeats. Once we are about to send the shutdown message, we
+     * should not respond to heartbeats anymore.
+     *
+     * Unfortunately, there are some tests that use FD and have gossip handlers, but do not use Gossip feature.
+     * To avoid reworking those, we rely on this atomic boolean rather than isEnabled to achieve this.
+     */
+    public AtomicBoolean shutdownAnnounced = new AtomicBoolean(false);
+
     public void stop()
     {
         EndpointState mystate = endpointStateMap.get(getBroadcastAddressAndPort());
         if (mystate != null && !isSilentShutdownState(mystate) && StorageService.instance.isJoined())
         {
             logger.info("Announcing shutdown");
+            shutdownAnnounced.set(true);
+
             addLocalApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.shutdown(true));
             addLocalApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.shutdown(true));
             Message message = Message.out(Verb.GOSSIP_SHUTDOWN, noPayload);

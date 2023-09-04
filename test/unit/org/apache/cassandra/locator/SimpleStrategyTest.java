@@ -149,7 +149,7 @@ public class SimpleStrategyTest
         ClusterMetadata metadata = ClusterMetadata.current();
         for (Token t : metadata.tokenMap.tokens())
         {
-            EndpointsForToken replicas = ClusterMetadataTestHelper.getNaturalReplicasForToken(MULTIDC, t);
+            EndpointsForToken replicas = ClusterMetadataTestHelper.getNaturalReplicasForToken(MULTIDC, t).get();
             primaryCount.compute(replicas.get(0).endpoint(), (k, v) -> (v == null) ? 1 : v + 1);
             for (Replica replica : replicas)
                 replicaCount.compute(replica.endpoint(), (k, v) -> (v == null) ? 1 : v + 1);
@@ -183,7 +183,7 @@ public class SimpleStrategyTest
             strategy = getStrategy(keyspaceName);
             for (int i = 0; i < keyTokens.length; i++)
             {
-                EndpointsForToken replicas = ClusterMetadataTestHelper.getNaturalReplicasForToken(keyspaceName, keyTokens[i]);
+                EndpointsForToken replicas = ClusterMetadataTestHelper.getNaturalReplicasForToken(keyspaceName, keyTokens[i]).get();
                 assertEquals(strategy.getReplicationFactor().allReplicas, replicas.size());
                 List<InetAddressAndPort> correctEndpoints = new ArrayList<>();
                 for (int j = 0; j < replicas.size(); j++)
@@ -300,7 +300,7 @@ public class SimpleStrategyTest
                                                  Replica.fullReplica(endpoints.get(0), range1),
                                                  Replica.fullReplica(endpoints.get(1), range1),
                                                  Replica.transientReplica(endpoints.get(2), range1)),
-                            ClusterMetadataTestHelper.getNaturalReplicasForToken("ks", tk(99)));
+                            ClusterMetadataTestHelper.getNaturalReplicasForToken("ks", tk(99)).get());
 
 
         Range<Token> range2 = range(100, 200);
@@ -308,7 +308,7 @@ public class SimpleStrategyTest
                                                  Replica.fullReplica(endpoints.get(1), range2),
                                                  Replica.fullReplica(endpoints.get(2), range2),
                                                  Replica.transientReplica(endpoints.get(3), range2)),
-                            ClusterMetadataTestHelper.getNaturalReplicasForToken("ks", tk(101)));
+                            ClusterMetadataTestHelper.getNaturalReplicasForToken("ks", tk(101)).get());
     }
 
     @Rule
@@ -379,6 +379,6 @@ public class SimpleStrategyTest
                                                       ReplicationParams replicationParams,
                                                       Token token)
     {
-        return metadata.placements.get(replicationParams).writes.forToken(token);
+        return metadata.placements.get(replicationParams).writes.forToken(token).get();
     }
 }

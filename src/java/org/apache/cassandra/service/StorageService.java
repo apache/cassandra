@@ -200,6 +200,7 @@ import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.migration.GossipCMSListener;
 import org.apache.cassandra.tcm.ownership.MovementMap;
 import org.apache.cassandra.tcm.ownership.TokenMap;
+import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.tcm.sequences.AddToCMS;
 import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.tcm.sequences.BootstrapAndReplace;
@@ -1152,8 +1153,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     }
 
-    @VisibleForTesting
     public void doAuthSetup()
+    {
+        doAuthSetup(true);
+    }
+
+    @VisibleForTesting
+    public void doAuthSetup(boolean asyncRoleSetup)
     {
         if (!authSetupCalled.getAndSet(true))
         {
@@ -1826,8 +1832,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             keyspace = Schema.instance.getNonLocalStrategyKeyspaces().iterator().next().name;
 
         Map<List<String>, List<String>> map = new HashMap<>();
-        for (Map.Entry<Range<Token>, EndpointsForRange> entry : ClusterMetadata.current().pendingRanges(Keyspace.open(keyspace).getMetadata()).entrySet())
-            map.put(entry.getKey().asList(), Replicas.stringify(entry.getValue(), withPort));
+        for (Entry<Range<Token>, VersionedEndpoints.ForRange> entry : ClusterMetadata.current().pendingRanges(Keyspace.open(keyspace).getMetadata()).entrySet())
+            map.put(entry.getKey().asList(), Replicas.stringify(entry.getValue().get(), withPort));
 
         return map;
     }
@@ -2068,7 +2074,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         for (Range<Token> range : ranges)
         {
             Token token = tokenMap.nextToken(tokenMap.tokens(), range.right.getToken());
-            rangeToEndpointMap.put(range, metadata.placements.get(keyspaceMetadata.params.replication).reads.forRange(token));
+            rangeToEndpointMap.put(range, metadata.placements.get(keyspaceMetadata.params.replication).reads.forRange(token).get());
         }
 
         return new EndpointsByRange(rangeToEndpointMap);
@@ -3551,14 +3557,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         ClusterMetadata metadata = ClusterMetadata.current();
         Token token = metadata.partitioner.getToken(key);
         KeyspaceMetadata keyspaceMetadata = metadata.schema.getKeyspaces().getNullable(keyspaceName);
-        return metadata.placements.get(keyspaceMetadata.params.replication).reads.forToken(token);
+        return metadata.placements.get(keyspaceMetadata.params.replication).reads.forToken(token).get();
     }
 
     public boolean isEndpointValidForWrite(String keyspace, Token token)
     {
         ClusterMetadata metadata = ClusterMetadata.current();
         KeyspaceMetadata keyspaceMetadata = metadata.schema.getKeyspaces().getNullable(keyspace);
-        return keyspaceMetadata != null && metadata.placements.get(keyspaceMetadata.params.replication).writes.forToken(token).containsSelf();
+        return keyspaceMetadata != null && metadata.placements.get(keyspaceMetadata.params.replication).writes.forToken(token).get().containsSelf();
     }
 
     public void setLoggingLevel(String classQualifier, String rawLevel) throws Exception

@@ -22,15 +22,22 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
 
+import org.junit.Assert;
+
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.InProgressSequence;
 import org.apache.cassandra.tcm.Transformation;
+import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.tcm.sequences.BootstrapAndReplace;
 import org.apache.cassandra.tcm.sequences.LeaveStreams;
@@ -143,8 +150,32 @@ public abstract class SimulatedOperation
 
     public void advance(SimulatedPlacements simulatedState, ModelState.Transformer transformer)
     {
-        // Execute next operation.
+        ClusterMetadata m1 = ClusterMetadata.current();
+
         sutActions.next();
+        ClusterMetadata m2 = ClusterMetadata.current();
+
+        Map<Range<Token>, VersionedEndpoints.ForRange> after = m2.placements.get(simulatedState.rf.asKeyspaceParams().replication).reads.replicaGroups();
+        m1.placements.get(simulatedState.rf.asKeyspaceParams().replication).reads.replicaGroups().forEach((k, beforePlacements) -> {
+            if (after.containsKey(k))
+            {
+                VersionedEndpoints.ForRange afterPlacements = after.get(k);
+                if (!beforePlacements.get().stream().collect(Collectors.toSet()).equals(after.get(k).get().stream().collect(Collectors.toSet())))
+                {
+                    Assert.assertTrue(String.format("Expected the range %s to bump epoch from %s, but it was %s, because the endpoints have changed:\n%s\n%s",
+                                                    k, beforePlacements.lastModified(), afterPlacements.lastModified(),
+                                                    beforePlacements.get(), afterPlacements.get()),
+                                      afterPlacements.lastModified().isAfter(beforePlacements.lastModified()));
+                }
+                else
+                {
+                    Assert.assertTrue(String.format("Expected the range %s to have the same epoch (%s), but it was %s.",
+                                                    k, beforePlacements.lastModified(), afterPlacements.lastModified()),
+                                      afterPlacements.lastModified().is(beforePlacements.lastModified()));
+                }
+            }
+        });
+
 
         simulatedState = simulatedActions.advance(simulatedState);
 

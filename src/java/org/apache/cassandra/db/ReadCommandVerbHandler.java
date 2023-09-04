@@ -29,6 +29,7 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.metrics.TCMMetrics;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadataService;
@@ -129,11 +130,14 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
         if (localComparisonEpoch.isBefore(readCommand.serializedAtEpoch()))
             metadata = ClusterMetadataService.instance().fetchLogFromPeerOrCMS(metadata, message.from(), message.epoch());
         else if (localComparisonEpoch.isAfter(readCommand.serializedAtEpoch()))
+        {
+            TCMMetrics.instance.coordinatorBehindSchema.mark();
             throw new CoordinatorBehindException(String.format("Coordinator schema for %s.%s with epoch %s is behind our schema %s",
                                                                message.payload.metadata().keyspace,
                                                                message.payload.metadata().name,
                                                                readCommand.serializedAtEpoch(),
                                                                localComparisonEpoch));
+        }
         ks = metadata.schema.getKeyspace(readCommand.metadata().keyspace);
         if (ks == null || ks.getColumnFamilyStore(readCommand.metadata().id) == null)
             throw new IllegalStateException("Unknown table " + readCommand.metadata().id +" after fetching remote log entries");
@@ -208,6 +212,7 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
                .get(metadata.schema.getKeyspaces().getNullable(keyspace).params.replication)
                .reads
                .forToken(token)
+               .get()
                .lookup(FBUtilities.getBroadcastAddressAndPort());
     }
 }

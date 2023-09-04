@@ -176,16 +176,16 @@ public class OperationalEquivalenceTest extends CMSTestBase
         l.forEach((params, lPlacement) -> {
             DataPlacement rPlacement = r.get(params);
             lPlacement.reads.replicaGroups().forEach((range, lReplicas) -> {
-                EndpointsForRange rReplicas = rPlacement.reads.forRange(range);
+                EndpointsForRange rReplicas = rPlacement.reads.forRange(range).get();
 
-                Assert.assertEquals(toReplicas(lReplicas),
+                Assert.assertEquals(toReplicas(lReplicas.get()),
                                     toReplicas(rReplicas));
             });
 
             lPlacement.writes.replicaGroups().forEach((range, lReplicas) -> {
-                EndpointsForRange rReplicas = rPlacement.writes.forRange(range);
+                EndpointsForRange rReplicas = rPlacement.writes.forRange(range).get();
 
-                Assert.assertEquals(toReplicas(lReplicas),
+                Assert.assertEquals(toReplicas(lReplicas.get()),
                                     toReplicas(rReplicas));
 
             });

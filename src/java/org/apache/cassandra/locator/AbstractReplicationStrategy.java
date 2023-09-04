@@ -43,6 +43,7 @@ import org.apache.cassandra.service.DatacenterSyncWriteResponseHandler;
 import org.apache.cassandra.service.DatacenterWriteResponseHandler;
 import org.apache.cassandra.service.WriteResponseHandler;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.compatibility.TokenRingUtils;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.utils.FBUtilities;
@@ -78,7 +79,7 @@ public abstract class AbstractReplicationStrategy
      */
     public abstract EndpointsForRange calculateNaturalReplicas(Token searchToken, ClusterMetadata metadata);
 
-    public abstract DataPlacement calculateDataPlacement(List<Range<Token>> ranges, ClusterMetadata metadata);
+    public abstract DataPlacement calculateDataPlacement(Epoch epoch, List<Range<Token>> ranges, ClusterMetadata metadata);
 
     public <T> AbstractWriteResponseHandler<T> getWriteResponseHandler(ReplicaPlan.ForWrite replicaPlan,
                                                                        Runnable callback,

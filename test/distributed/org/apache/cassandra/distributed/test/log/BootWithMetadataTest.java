@@ -107,10 +107,10 @@ public class BootWithMetadataTest extends TestBaseImpl
                     Replica newCMS = EntireRange.replica(InetAddressAndPort.getByNameUnchecked("127.0.0.2"));
                     ClusterMetadata.Transformer transformer = metadata.transformer();
                     DataPlacement.Builder builder = metadata.placements.get(ReplicationParams.meta()).unbuild()
-                                                                       .withoutReadReplica(oldCMS)
-                                                                       .withoutWriteReplica(oldCMS)
-                                                                       .withWriteReplica(newCMS)
-                                                                       .withReadReplica(newCMS);
+                                                                       .withoutReadReplica(metadata.nextEpoch(), oldCMS)
+                                                                       .withoutWriteReplica(metadata.nextEpoch(), oldCMS)
+                                                                       .withWriteReplica(metadata.nextEpoch(), newCMS)
+                                                                       .withReadReplica(metadata.nextEpoch(), newCMS);
                     transformer = transformer.with(metadata.placements.unbuild().with(ReplicationParams.meta(), builder.build()).build());
                     ClusterMetadata toDump = transformer.build().metadata.forceEpoch(Epoch.create(1000));
                     Path p = Files.createTempFile("clustermetadata", "dump");

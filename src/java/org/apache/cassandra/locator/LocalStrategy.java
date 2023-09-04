@@ -23,6 +23,7 @@ import java.util.Map;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.transformations.cms.EntireRange;
 
@@ -42,7 +43,7 @@ public class LocalStrategy extends SystemStrategy
     }
 
     @Override
-    public DataPlacement calculateDataPlacement(List<Range<Token>> ranges, ClusterMetadata metadata)
+    public DataPlacement calculateDataPlacement(Epoch epoch, List<Range<Token>> ranges, ClusterMetadata metadata)
     {
         return EntireRange.placement;
     }

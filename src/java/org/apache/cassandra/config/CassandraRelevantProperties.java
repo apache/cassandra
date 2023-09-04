@@ -501,7 +501,6 @@ public enum CassandraRelevantProperties
     SYSTEM_DISTRIBUTED_DEFAULT_RF("cassandra.system_distributed.default_rf", "3"),
     SYSTEM_TRACES_DEFAULT_RF("cassandra.system_traces.default_rf", "2"),
 
-
     // transactional cluster metadata relevant properties
     // TODO: not a fan of being forced to prefix these to satisfy the alphabetic ordering constraint
     //       but it makes sense to group logically related properties together
@@ -550,6 +549,7 @@ public enum CassandraRelevantProperties
     TEST_IGNORE_SIGAR("cassandra.test.ignore_sigar"),
     TEST_INVALID_LEGACY_SSTABLE_ROOT("invalid-legacy-sstable-root"),
     TEST_JVM_DTEST_DISABLE_SSL("cassandra.test.disable_ssl"),
+    TEST_JVM_SHUTDOWN_MESSAGING_GRACEFULLY("cassandra.test.messagingService.gracefulShutdown", "false"),
     TEST_LEGACY_SSTABLE_ROOT("legacy-sstable-root"),
     TEST_ORG_CAFFINITAS_OHC_SEGMENTCOUNT("org.caffinitas.ohc.segmentCount"),
     TEST_PRESERVE_THREAD_CREATION_STACKTRACE("cassandra.test.preserve_thread_creation_stacktrace", "false"),

@@ -24,6 +24,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 
 import static org.apache.cassandra.tcm.transformations.cms.EntireRange.entireRange;
@@ -38,11 +39,11 @@ public class MetaStrategy extends SystemStrategy
     @Override
     public EndpointsForRange calculateNaturalReplicas(Token token, ClusterMetadata metadata)
     {
-        return metadata.placements.get(ReplicationParams.meta()).reads.forRange(entireRange);
+        return metadata.placements.get(ReplicationParams.meta()).reads.forRange(entireRange).get();
     }
 
     @Override
-    public DataPlacement calculateDataPlacement(List<Range<Token>> ranges, ClusterMetadata metadata)
+    public DataPlacement calculateDataPlacement(Epoch epoch, List<Range<Token>> ranges, ClusterMetadata metadata)
     {
         return metadata.placements.get(ReplicationParams.meta());
     }
@@ -50,7 +51,7 @@ public class MetaStrategy extends SystemStrategy
     @Override
     public ReplicationFactor getReplicationFactor()
     {
-        int rf = ClusterMetadata.current().placements.get(ReplicationParams.meta()).writes.forRange(entireRange).byEndpoint.size();
+        int rf = ClusterMetadata.current().placements.get(ReplicationParams.meta()).writes.forRange(entireRange).get().byEndpoint.size();
         return ReplicationFactor.fullOnly(rf);
     }
 

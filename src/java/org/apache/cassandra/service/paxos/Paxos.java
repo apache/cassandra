@@ -1120,7 +1120,7 @@ public class Paxos
     public static boolean isInRangeAndShouldProcess(InetAddressAndPort from, DecoratedKey key, TableMetadata table, boolean includesRead)
     {
         Keyspace keyspace = Keyspace.open(table.keyspace);
-        return (includesRead ? EndpointsForToken.natural(keyspace, key.getToken())
+        return (includesRead ? EndpointsForToken.natural(keyspace, key.getToken()).get()
                              : ReplicaLayout.forTokenWriteLiveAndDown(keyspace, key.getToken()).all()
         ).contains(getBroadcastAddressAndPort());
     }

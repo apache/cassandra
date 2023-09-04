@@ -22,6 +22,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -53,12 +54,12 @@ public class InJvmSut extends InJvmSutBase<IInvokableInstance, Cluster>
 
     public InJvmSut(Cluster cluster)
     {
-        super(cluster, roundRobin(cluster), 10);
+        super(cluster, roundRobin(cluster), retryOnTimeout(), 10);
     }
 
-    public InJvmSut(Cluster cluster, Supplier<Integer> lbs)
+    public InJvmSut(Cluster cluster, Supplier<Integer> lbs, Function<Throwable, Boolean> retryStrategy)
     {
-        super(cluster, lbs, 10);
+        super(cluster, lbs, retryStrategy, 10);
     }
 
     @JsonTypeName("in_jvm")
@@ -113,7 +114,7 @@ public class InJvmSut extends InJvmSutBase<IInvokableInstance, Cluster>
             Token token = DatabaseDescriptor.getPartitioner().getToken(ksp.getMetadata().getTableOrViewNullable(table).partitionKeyType.fromString(pkString));
 
             ClusterMetadata metadata = ClusterMetadata.current();
-            EndpointsForToken replicas = metadata.placements.get(ksp.getMetadata().params.replication).reads.forToken(token);
+            EndpointsForToken replicas = metadata.placements.get(ksp.getMetadata().params.replication).reads.forToken(token).get();
 
             assert replicas.endpoints().equals(endpoints.endpoints()) : String.format("Consistent metadata endpoints %s disagree with token metadata computation %s", endpoints.endpoints(), replicas.endpoints());
         }

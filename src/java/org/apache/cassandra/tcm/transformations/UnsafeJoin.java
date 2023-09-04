@@ -73,27 +73,28 @@ public class UnsafeJoin extends PrepareJoin
         if (result.isRejected())
             return result;
 
-        ClusterMetadata metadata = result.success().metadata;
+        Success success = result.success();
+        ClusterMetadata metadata = success.metadata;
         Epoch forceEpoch = metadata.epoch;
+        metadata = success.metadata.forceEpoch(prev.epoch);
 
         BootstrapAndJoin plan = (BootstrapAndJoin) metadata.inProgressSequences.get(nodeId());
 
-        Success success;
         ImmutableSet.Builder<MetadataKey> modifiedKeys = ImmutableSet.builder();
 
         success = plan.startJoin.execute(metadata).success();
-        metadata = success.metadata;
+        metadata = success.metadata.forceEpoch(prev.epoch);
         modifiedKeys.addAll(success.affectedMetadata);
 
         success = plan.midJoin.execute(metadata).success();
-        metadata = success.metadata;
+        metadata = success.metadata.forceEpoch(prev.epoch);
         modifiedKeys.addAll(success.affectedMetadata);
 
         success = plan.finishJoin.execute(metadata).success();
         metadata = success.metadata;
         modifiedKeys.addAll(success.affectedMetadata);
 
-        metadata = metadata.forceEpoch(forceEpoch);
+        assert metadata.epoch.is(forceEpoch) : String.format("Epoch should have been %s but was %s", forceEpoch, metadata.epoch);
 
         return new Success(metadata, LockedRanges.AffectedRanges.EMPTY, modifiedKeys.build());
     }
