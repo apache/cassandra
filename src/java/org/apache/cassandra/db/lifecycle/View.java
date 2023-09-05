@@ -104,7 +104,7 @@ public class View
         this.intervalTree = intervalTree;
         this.sstablesByFilename = Maps.newHashMapWithExpectedSize(sstables.size());
         for (SSTableReader sstable : this.sstables)
-            this.sstablesByFilename.put(sstable.getFilename(), sstable);
+            this.sstablesByFilename.put(sstable.getDataFile().name(), sstable);
     }
 
     public Memtable getCurrentMemtable()
@@ -127,6 +127,9 @@ public class View
     }
 
     @Nullable
+    /**
+     * @return the sstable with the provided file name (not a full path), or null if it is not present in this view
+     */
     public SSTableReader getLiveSSTable(String filename)
     {
         return sstablesByFilename.get(filename);
