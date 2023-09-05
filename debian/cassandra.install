@@ -7,6 +7,7 @@ conf/logback.xml etc/cassandra
 conf/logback-tools.xml etc/cassandra
 conf/jvm*.options etc/cassandra
 conf/hotspot_compiler etc/cassandra
+conf/cqlshrc.sample etc/cassandra
 conf/triggers/* etc/cassandra/triggers
 debian/cassandra.conf etc/security/limits.d
 debian/cassandra-sysctl.conf etc/sysctl.d
