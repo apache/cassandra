@@ -543,7 +543,7 @@ class Shell(cmd.Cmd):
     def check_build_versions(self):
         baseversion = self.connection_versions['build']
         extra = baseversion.rfind('-')
-        if extra:
+        if extra != -1:
             baseversion = baseversion[0:extra]
         if baseversion != build_version:
             print("WARNING: cqlsh was built against {}, but this server is {}.  All features may not work!".format(build_version, baseversion))
