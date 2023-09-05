@@ -21,6 +21,8 @@ package org.apache.cassandra.security;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -42,7 +44,6 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.util.ReferenceCountUtil;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.security.ISslContextFactory.SocketType;
 
@@ -130,9 +131,10 @@ public final class SSLFactory
      * get a netty {@link SslContext} instance
      */
     public static SslContext getOrCreateSslContext(EncryptionOptions options, boolean verifyPeerCertificate,
-                                                   SocketType socketType) throws IOException
+                                                   SocketType socketType,
+                                                   String contextDescription) throws IOException
     {
-        CacheKey key = new CacheKey(options, socketType);
+        CacheKey key = new CacheKey(options, socketType, contextDescription);
         SslContext sslContext;
 
         sslContext = cachedSslContexts.get(key);
@@ -175,42 +177,52 @@ public final class SSLFactory
      * @throws IllegalStateException if {@link #initHotReloading(EncryptionOptions.ServerEncryptionOptions, EncryptionOptions, boolean)}
      *                               is not called first
      */
-    public static void checkCertFilesForHotReloading(EncryptionOptions.ServerEncryptionOptions serverOpts,
-                                                     EncryptionOptions clientOpts)
+    public static void checkCertFilesForHotReloading()
     {
         if (!isHotReloadingInitialized)
             throw new IllegalStateException("Hot reloading functionality has not been initialized.");
-
-        logger.debug("Checking whether certificates have been updated for server {} and client {}",
-                     serverOpts.sslContextFactoryInstance.getClass().getName(), clientOpts.sslContextFactoryInstance.getClass().getName());
-
-        if (serverOpts != null)
-        {
-            checkCertFilesForHotReloading(serverOpts, "server_encryption_options", true);
-        }
-        if (clientOpts != null)
-        {
-            checkCertFilesForHotReloading(clientOpts, "client_encryption_options", clientOpts.require_client_auth);
-        }
+        checkCachedContextsForReload(false);
     }
 
-    private static void checkCertFilesForHotReloading(EncryptionOptions options, String contextDescription,
-                                                      boolean verifyPeerCertificate)
+    /**
+     * Forces revalidation and loading of SSL certifcates if valid
+     */
+    public static void forceCheckCertFiles()
     {
-        try
-        {
-            if (options.sslContextFactoryInstance.shouldReload())
+        checkCachedContextsForReload(true);
+    }
+
+    private static void checkCachedContextsForReload(boolean forceReload)
+    {
+        List<CacheKey> keys = new ArrayList<>(Collections.list(cachedSslContexts.keys()));
+        Set<EncryptionOptions> checked = new HashSet<>();
+
+        keys.forEach(key -> {
+            final EncryptionOptions opts = key.encryptionOptions;
+            if (checked.contains(opts)) // only check each encryption option once as shared for different types
+                return;
+            checked.add(key.encryptionOptions);
+
+            logger.debug("Checking whether certificates have been updated for {}", key.contextDescription);
+            if (forceReload || opts.sslContextFactoryInstance.shouldReload())
             {
-                logger.info("SSL certificates have been updated for {}. Resetting the ssl contexts for new " +
-                            "connections.", options.getClass().getName());
-                validateSslContext(contextDescription, options, verifyPeerCertificate, false);
-                clearSslContextCache(options);
+                try
+                {
+                    validateSslContext(key.contextDescription, opts,
+                                       opts instanceof EncryptionOptions.ServerEncryptionOptions ? true
+                                                                                                 : opts.require_client_auth, false);
+                    logger.info("SSL certificates have been updated for {}. Resetting the ssl contexts for new " +
+                                "connections.", opts.getClass().getName());
+                    clearSslContextCache(key.encryptionOptions);
+
+                }
+                catch (Throwable tr)
+                {
+                    logger.error("Failed to hot reload the SSL Certificates! Please check the certificate files for {}.",
+                                 key.contextDescription, tr);
+                }
             }
-        }
-        catch(Exception e)
-        {
-            logger.error("Failed to hot reload the SSL Certificates! Please check the certificate files.", e);
-        }
+        });
     }
 
     /**
@@ -228,7 +240,12 @@ public final class SSLFactory
     private static void clearSslContextCache(EncryptionOptions options)
     {
         cachedSslContexts.forEachKey(1, cacheKey -> {
-            if (cacheKey.encryptionOptions.equals(options))
+            // This can be replaced by a simple options.equals(cacheKey.entryptionOptions)
+            // once the legacy ssl storage port code is removed
+            if (Objects.equals(options.keystore, cacheKey.encryptionOptions.keystore) &&
+                Objects.equals(options.keystore_password, cacheKey.encryptionOptions.keystore_password) &&
+                Objects.equals(options.truststore, cacheKey.encryptionOptions.truststore) &&
+                Objects.equals(options.truststore_password, cacheKey.encryptionOptions.truststore_password))
             {
                 cachedSslContexts.remove(cacheKey);
             }
@@ -261,9 +278,7 @@ public final class SSLFactory
         if (!isHotReloadingInitialized)
         {
             ScheduledExecutors.scheduledTasks
-                .scheduleWithFixedDelay(() -> checkCertFilesForHotReloading(
-                                                DatabaseDescriptor.getInternodeMessagingEncyptionOptions(),
-                                                DatabaseDescriptor.getNativeProtocolEncryptionOptions()),
+                .scheduleWithFixedDelay(SSLFactory::checkCertFilesForHotReloading,
                                         DEFAULT_HOT_RELOAD_INITIAL_DELAY_SEC,
                                         DEFAULT_HOT_RELOAD_PERIOD_SEC, TimeUnit.SECONDS);
         }
@@ -420,11 +435,13 @@ public final class SSLFactory
     {
         private final EncryptionOptions encryptionOptions;
         private final SocketType socketType;
+        private final String contextDescription;
 
-        public CacheKey(EncryptionOptions encryptionOptions, SocketType socketType)
+        public CacheKey(EncryptionOptions encryptionOptions, SocketType socketType, String contextDescription)
         {
             this.encryptionOptions = encryptionOptions;
             this.socketType = socketType;
+            this.contextDescription = contextDescription;
         }
 
         public boolean equals(Object o)
@@ -433,7 +450,8 @@ public final class SSLFactory
             if (o == null || getClass() != o.getClass()) return false;
             CacheKey cacheKey = (CacheKey) o;
             return (socketType == cacheKey.socketType &&
-                    Objects.equals(encryptionOptions, cacheKey.encryptionOptions));
+                    Objects.equals(encryptionOptions, cacheKey.encryptionOptions) &&
+                    Objects.equals(contextDescription, cacheKey.contextDescription));
         }
 
         public int hashCode()
@@ -441,6 +459,7 @@ public final class SSLFactory
             int result = 0;
             result += 31 * socketType.hashCode();
             result += 31 * encryptionOptions.hashCode();
+            result += 31 * contextDescription.hashCode();
             return result;
         }
     }
