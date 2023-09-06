@@ -53,6 +53,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.ResultSet;
 import org.apache.cassandra.cql3.restrictions.Restriction;
 import org.apache.cassandra.cql3.restrictions.SingleColumnRestriction;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
@@ -571,7 +572,7 @@ public class StorageAttachedIndex implements Index
     }
 
     @Override
-    public Comparator<List<ByteBuffer>> getPostQueryOrdering(Restriction restriction, int columnIndex, QueryOptions options)
+    public void postQuerySort(ResultSet cqlRows, Restriction restriction, int columnIndex, QueryOptions options)
     {
         // For now, only support ANN
         assert restriction instanceof SingleColumnRestriction.AnnRestriction;
@@ -579,18 +580,26 @@ public class StorageAttachedIndex implements Index
         Preconditions.checkState(indexContext.isVector());
 
         SingleColumnRestriction.AnnRestriction annRestriction = (SingleColumnRestriction.AnnRestriction) restriction;
-        VectorSimilarityFunction function = indexContext.getIndexWriterConfig().getSimilarityFunction();
+        VectorSimilarityFunction similarityFunction = indexContext.getIndexWriterConfig().getSimilarityFunction();
 
-        float[] target = TypeUtil.decomposeVector(indexContext, annRestriction.value(options).duplicate());
+        float[] targetVector = TypeUtil.decomposeVector(indexContext, annRestriction.value(options).duplicate());
 
-        return (leftBuf, rightBuf) -> {
-            float[] left = TypeUtil.decomposeVector(indexContext, leftBuf.get(columnIndex).duplicate());
-            double scoreLeft = function.compare(left, target);
+        List<List<ByteBuffer>> buffRows = cqlRows.rows;
+        // Decorate-sort-undecorate to optimize sorting of vectors by their similarity scores
+        List<Pair<List<ByteBuffer>, Double>> listPairsVectorsScores = buffRows.stream()
+                                                                              .map(row -> {
+                                                                                  ByteBuffer vectorBuffer = row.get(columnIndex);
+                                                                                  float[] vector = TypeUtil.decomposeVector(indexContext, vectorBuffer.duplicate());
+                                                                                  Double score = (double) similarityFunction.compare(vector, targetVector);
+                                                                                  return Pair.create(row, score);
+                                                                              })
+                                                                              .collect(Collectors.toList());
+        listPairsVectorsScores.sort(Comparator.comparing(pair -> pair.right, Comparator.reverseOrder()));
+        List<List<ByteBuffer>> sortedRows = listPairsVectorsScores.stream()
+                                                                  .map(pair -> pair.left)
+                                                                  .collect(Collectors.toList());
 
-            float[] right = TypeUtil.decomposeVector(indexContext, rightBuf.get(columnIndex).duplicate());
-            double scoreRight = function.compare(right, target);
-            return Double.compare(scoreRight, scoreLeft); // descending order
-        };
+        cqlRows.rows = sortedRows;
     }
 
     @Override
