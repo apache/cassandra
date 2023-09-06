@@ -477,7 +477,7 @@ public class StressProfile implements Serializable
         List<ColumnMetadata> allColumns = com.google.common.collect.Lists.newArrayList(metadata.allColumnsInSelectOrder());
 
         StringBuilder sb = new StringBuilder();
-        sb.append("INSERT INTO ").append(quoteIdentifier(keyspaceName)).append(".").append(quoteIdentifier(tableName)).append(" (");
+        sb.append("INSERT INTO ").append(keyspaceName).append('.').append(quoteIdentifier(tableName)).append(" (");
         StringBuilder value = new StringBuilder();
         for (ColumnMetadata c : allColumns)
         {
@@ -542,7 +542,7 @@ public class StressProfile implements Serializable
                     StringBuilder sb = new StringBuilder();
                     if (!isKeyOnlyTable)
                     {
-                        sb.append("UPDATE ").append(quoteIdentifier(tableName)).append(" SET ");
+                        sb.append("UPDATE ").append(keyspaceName).append('.').append(quoteIdentifier(tableName)).append(" SET ");
                         //PK Columns
                         StringBuilder pred = new StringBuilder();
                         pred.append(" WHERE ");
@@ -595,7 +595,7 @@ public class StressProfile implements Serializable
                     }
                     else
                     {
-                        sb.append("INSERT INTO ").append(quoteIdentifier(tableName)).append(" (");
+                        sb.append("INSERT INTO ").append(keyspaceName).append('.').append(quoteIdentifier(tableName)).append(" (");
                         StringBuilder value = new StringBuilder();
                         for (com.datastax.driver.core.ColumnMetadata c : tableMetaData.getPrimaryKey())
                         {

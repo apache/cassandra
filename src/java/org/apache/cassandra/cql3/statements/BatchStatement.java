@@ -164,6 +164,12 @@ public class BatchStatement implements CQLStatement
         return functions;
     }
 
+    @Override
+    public boolean eligibleAsPreparedStatement()
+    {
+        return true;
+    }
+
     public void authorize(ClientState state) throws InvalidRequestException, UnauthorizedException
     {
         for (ModificationStatement statement : statements)
@@ -643,7 +649,27 @@ public class BatchStatement implements CQLStatement
         @Override
         public String keyspace()
         {
-            return null;
+            if (parsedStatements.isEmpty())
+                return null;
+
+            String currentKeyspace = null;
+            for (ModificationStatement.Parsed statement : parsedStatements)
+            {
+                String keyspace = statement.keyspace();
+                if (keyspace == null && currentKeyspace != null)
+                    return null;
+
+                if (keyspace != null && currentKeyspace == null)
+                {
+                    currentKeyspace = keyspace;
+                    continue;
+                }
+
+                if (currentKeyspace != null && !currentKeyspace.equals(keyspace))
+                    return null;
+            }
+
+            return currentKeyspace;
         }
 
         public BatchStatement prepare(ClientState state)
