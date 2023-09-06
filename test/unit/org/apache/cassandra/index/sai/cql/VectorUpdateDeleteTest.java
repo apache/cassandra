@@ -361,6 +361,40 @@ public class VectorUpdateDeleteTest extends VectorTester
     }
 
     @Test
+    public void updateTestWithPredicate() throws Throwable
+    {
+        // contrived example to make sure we exercise VectorIndexSearcher.limitToTopResults
+        createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(str_val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        // overwrite row A a bunch of times
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', [1.0, 2.0, 3.0])");
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', [2.0, 3.0, 4.0])");
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', [3.0, 4.0, 5.0])");
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', [4.0, 5.0, 6.0])");
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', [5.0, 6.0, 7.0])");
+
+        // check that queries near A and B get the right row
+        UntypedResultSet result = execute("SELECT * FROM %s WHERE str_val = 'A' ORDER BY val ann of [4.5, 5.5, 6.5] LIMIT 1");
+        assertThat(result).hasSize(1);
+        assertContainsInt(result, "pk", 0);
+        result = execute("SELECT * FROM %s WHERE str_val = 'A' ORDER BY val ann of [0.5, 1.5, 2.5] LIMIT 1");
+        assertThat(result).hasSize(1);
+        assertContainsInt(result, "pk", 0);
+
+        // flush, and re-check same queries
+        flush();
+        result = execute("SELECT * FROM %s WHERE str_val = 'A' ORDER BY val ann of [4.5, 5.5, 6.5] LIMIT 1");
+        assertThat(result).hasSize(1);
+        assertContainsInt(result, "pk", 0);
+        result = execute("SELECT * FROM %s WHERE str_val = 'A' ORDER BY val ann of [0.5, 1.5, 2.5] LIMIT 1");
+        assertThat(result).hasSize(1);
+        assertContainsInt(result, "pk", 0);
+    }
+
+    @Test
     public void updateOtherColumnsTest() throws Throwable
     {
         createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
