@@ -604,11 +604,6 @@ public class Tracker
             subscriber.handleNotification(notification, this);
     }
 
-    public void publishMetrics(MetricsNotification metricsNotification)
-    {
-        notify(metricsNotification);
-    }
-
     public boolean isDummy()
     {
         return cfstore == null || !DatabaseDescriptor.enableMemtableAndCommitLog();
