@@ -97,6 +97,7 @@ public class ClientState
     private volatile AuthenticatedUser user;
     private volatile String keyspace;
     private volatile boolean issuedPreparedStatementsUseWarning;
+    private volatile boolean issuedWarningForUneligiblePreparedStatements;
 
     private static final QueryHandler cqlQueryHandler;
     static
@@ -612,6 +613,15 @@ public class ClientState
                                                    "always use fully qualified table names (e.g. <keyspace>.<table>). " +
                                                    "Keyspace used: %s, statement keyspace: %s, statement id: %s", getRawKeyspace(), preparedKeyspace, statementId));
             issuedPreparedStatementsUseWarning = true;
+        }
+    }
+
+    public void warnAboutUneligiblePreparedStatement(MD5Digest statementId)
+    {
+        if (!issuedWarningForUneligiblePreparedStatements)
+        {
+            ClientWarn.instance.warn(String.format("Prepared statements for other than modification and selection statements should be avoided, statement id: %s", statementId));
+            issuedWarningForUneligiblePreparedStatements = true;
         }
     }
 
