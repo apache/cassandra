@@ -19,6 +19,7 @@
 package org.apache.cassandra.index.sai.disk.v2;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 
 import javax.annotation.concurrent.NotThreadSafe;
@@ -106,15 +107,22 @@ public class RowAwarePrimaryKeyMap implements PrimaryKeyMap
         }
 
         @Override
-        public PrimaryKeyMap newPerSSTablePrimaryKeyMap() throws IOException
+        public PrimaryKeyMap newPerSSTablePrimaryKeyMap()
         {
             final LongArray rowIdToToken = new LongArray.DeferredLongArray(() -> tokenReaderFactory.open());
-            return new RowAwarePrimaryKeyMap(rowIdToToken,
-                                             sortedTermsReader,
-                                             sortedTermsReader.openCursor(),
-                                             partitioner,
-                                             primaryKeyFactory,
-                                             clusteringComparator);
+            try
+            {
+                return new RowAwarePrimaryKeyMap(rowIdToToken,
+                                                 sortedTermsReader,
+                                                 sortedTermsReader.openCursor(),
+                                                 partitioner,
+                                                 primaryKeyFactory,
+                                                 clusteringComparator);
+            }
+            catch (IOException e)
+            {
+                throw new UncheckedIOException(e);
+            }
         }
 
         @Override

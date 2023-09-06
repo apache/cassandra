@@ -41,7 +41,7 @@ public interface PrimaryKeyMap extends Closeable
          * @return a {@link PrimaryKeyMap}
          * @throws IOException
          */
-        PrimaryKeyMap newPerSSTablePrimaryKeyMap() throws IOException;
+        PrimaryKeyMap newPerSSTablePrimaryKeyMap();
 
         @Override
         default void close() throws IOException
