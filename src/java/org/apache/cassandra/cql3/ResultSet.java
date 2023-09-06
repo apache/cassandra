@@ -47,7 +47,7 @@ public class ResultSet
     public static final Codec codec = new Codec();
 
     public final ResultMetadata metadata;
-    public final List<List<ByteBuffer>> rows;
+    public List<List<ByteBuffer>> rows;
 
     public ResultSet(ResultMetadata resultMetadata)
     {
