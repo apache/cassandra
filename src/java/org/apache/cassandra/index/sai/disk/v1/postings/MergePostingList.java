@@ -100,13 +100,13 @@ public class MergePostingList implements PostingList
     {
         temp.clear();
 
-        while (!postingLists.isEmpty())
+        for (var peekable : postingLists)
         {
-            PeekablePostingList peekable = postingLists.poll();
             peekable.advanceWithoutConsuming(targetRowID);
             if (peekable.peek() != PostingList.END_OF_STREAM)
                 temp.add(peekable);
         }
+        postingLists.clear();
         postingLists.addAll(temp);
 
         return nextPosting();
