@@ -281,18 +281,11 @@ public class QueryController
 
     private RangeIterator<PrimaryKey> convertToPrimaryKeyIterator(PrimaryKeyMap.Factory pkFactory, RangeIterator<Long> sstableRowIdsIterator)
     {
-        try
-        {
-            if (sstableRowIdsIterator.getCount() <= 0)
-                return RangeIterator.emptyKeys();
+        if (sstableRowIdsIterator.getCount() <= 0)
+            return RangeIterator.emptyKeys();
 
-            PrimaryKeyMap primaryKeyMap = pkFactory.newPerSSTablePrimaryKeyMap();
-            return SSTableRowIdKeyRangeIterator.create(primaryKeyMap, queryContext, sstableRowIdsIterator);
-        }
-        catch (IOException e)
-        {
-            throw new RuntimeException(e);
-        }
+        PrimaryKeyMap primaryKeyMap = pkFactory.newPerSSTablePrimaryKeyMap();
+        return SSTableRowIdKeyRangeIterator.create(primaryKeyMap, queryContext, sstableRowIdsIterator);
     }
 
     private RangeIterator<PrimaryKey> reorderAndLimitBy(RangeIterator<PrimaryKey> original, Memtable memtable, Expression expression)
