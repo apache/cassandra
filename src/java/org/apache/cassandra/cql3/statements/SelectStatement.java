@@ -194,6 +194,12 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         return functions;
     }
 
+    @Override
+    public boolean eligibleAsPreparedStatement()
+    {
+        return true;
+    }
+
     private void addFunctionsTo(List<Function> functions)
     {
         selection.addFunctionsTo(functions);

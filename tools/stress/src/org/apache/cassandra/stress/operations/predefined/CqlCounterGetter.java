@@ -48,7 +48,7 @@ public class CqlCounterGetter extends CqlOperation<Integer>
     @Override
     protected String buildQuery()
     {
-        return "SELECT * FROM " + wrapInQuotes(type.table) + " WHERE KEY=?";
+        return "SELECT * FROM " + settings.schema.keyspace + '.' + wrapInQuotes(type.table) + " WHERE KEY=?";
     }
 
     @Override

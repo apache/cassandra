@@ -48,7 +48,7 @@ public interface CQLStatement
     }
 
     /**
-     * Return an Iterable over all of the functions (both native and user-defined) used by any component of the statement
+     * Return an Iterable over all the functions (both native and user-defined) used by any component of the statement
      *
      * @return functions all functions found (may contain duplicates)
      */
@@ -62,14 +62,14 @@ public interface CQLStatement
      *
      * @param state the current client state
      */
-    public void authorize(ClientState state);
+    void authorize(ClientState state);
 
     /**
      * Perform additional validation required by the statment. To be overriden by subclasses if needed.
      *
      * @param state the current client state
      */
-    public void validate(ClientState state);
+    void validate(ClientState state);
 
     /**
      * Execute the statement and return the resulting result or null if there is no result.
@@ -78,14 +78,14 @@ public interface CQLStatement
      * @param options options for this query (consistency, variables, pageSize, ...)
      * @param requestTime request enqueue / and start times;
      */
-    public ResultMessage execute(QueryState state, QueryOptions options, Dispatcher.RequestTime requestTime);
+    ResultMessage execute(QueryState state, QueryOptions options, Dispatcher.RequestTime requestTime);
 
     /**
      * Variant of execute used for internal query against the system tables, and thus only query the local node.
      *
      * @param state the current query state
      */
-    public ResultMessage executeLocally(QueryState state, QueryOptions options);
+    ResultMessage executeLocally(QueryState state, QueryOptions options);
 
     /**
      * Provides the context needed for audit logging statements.
@@ -93,14 +93,29 @@ public interface CQLStatement
     AuditLogContext getAuditLogContext();
 
     /**
-     * Whether or not this CQL Statement has LWT conditions
+     * Whether this CQL Statement has LWT conditions
      */
-    default public boolean hasConditions()
+    default boolean hasConditions()
     {
         return false;
     }
 
-    public static abstract class Raw
+    /**
+     * If this CQL statement is not fully qualified and this method returns true,
+     * then the warning will be emitted to the client if the statement is executed on
+     * a keyspace it was not prepared on.
+     * <p>
+     * A warning is also emitted if a prepare statement is used for other than
+     * modifications statements.
+     *
+     * @return true if this statement is eligible to be a prepared statement, false otherwise.
+     */
+    default boolean eligibleAsPreparedStatement()
+    {
+        return false;
+    }
+
+    abstract class Raw
     {
         protected VariableSpecifications bindVariables;
 
@@ -112,8 +127,8 @@ public interface CQLStatement
         public abstract CQLStatement prepare(ClientState state);
     }
 
-    public static interface SingleKeyspaceCqlStatement extends CQLStatement
+    interface SingleKeyspaceCqlStatement extends CQLStatement
     {
-        public String keyspace();
+        String keyspace();
     }
 }

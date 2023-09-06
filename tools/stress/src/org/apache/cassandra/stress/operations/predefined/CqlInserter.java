@@ -42,7 +42,11 @@ public class CqlInserter extends CqlOperation<Integer>
     @Override
     protected String buildQuery()
     {
-        StringBuilder query = new StringBuilder("UPDATE ").append(wrapInQuotes(type.table));
+        StringBuilder query = new StringBuilder("UPDATE ")
+        .append(settings.schema.keyspace)
+        .append('.')
+        .append(wrapInQuotes(type.table));
+
         if (settings.columns.timestamp != null)
             query.append(" USING TIMESTAMP ").append(settings.columns.timestamp);
 

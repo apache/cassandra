@@ -29,7 +29,6 @@ import org.apache.cassandra.cql3.QueryEvents;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.ResultSet;
-import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
@@ -136,14 +135,11 @@ public class ExecuteMessage extends Message.Request
             if (prepared == null)
                 throw new PreparedQueryNotFoundException(statementId);
 
-            if (!prepared.fullyQualified
-                && !Objects.equals(state.getClientState().getRawKeyspace(), prepared.keyspace)
-                // We can not reliably detect inconsistencies for batches yet
-                && !(prepared.statement instanceof BatchStatement)
-            )
+            if (!prepared.fullyQualified && prepared.statement.eligibleAsPreparedStatement() && !Objects.equals(state.getClientState().getRawKeyspace(), prepared.keyspace))
             {
                 state.getClientState().warnAboutUseWithPreparedStatements(statementId, prepared.keyspace);
-                String msg = String.format("Tried to execute a prepared unqalified statement on a keyspace it was not prepared on. " +
+
+                String msg = String.format("Tried to execute a prepared unqualified statement on a keyspace it was not prepared on. " +
                                            " Executing the resulting prepared statement will return unexpected results: %s (on keyspace %s, previously prepared on %s)",
                                            statementId, state.getClientState().getRawKeyspace(), prepared.keyspace);
                 nospam.error(msg);
