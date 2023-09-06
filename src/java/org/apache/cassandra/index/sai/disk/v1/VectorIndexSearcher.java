@@ -216,7 +216,6 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
                 n++;
 
                 int ordinal = ordinalsView.getOrdinalForRowId(segmentRowId);
-                assert ordinal <= maxSegmentRowId : "ordinal=" + ordinal + ", max=" + maxSegmentRowId; // ordinal count should be <= row count
                 if (ordinal >= 0)
                 {
                     if (context.shouldInclude(sstableRowId, primaryKeyMap))
