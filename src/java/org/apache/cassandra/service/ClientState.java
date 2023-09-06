@@ -37,6 +37,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.*;
+import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.statements.ModificationStatement;
+import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.virtual.VirtualSchemaKeyspace;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
@@ -96,7 +99,8 @@ public class ClientState
     // Current user for the session
     private volatile AuthenticatedUser user;
     private volatile String keyspace;
-    private volatile boolean issuedPreparedStatementsUseWarning;
+    private volatile boolean issuedPreparedStatementsUseWarningForSelectionOrModification;
+    private volatile boolean issuedPreparedStatementsUseWarningForOtherStatements;
 
     private static final QueryHandler cqlQueryHandler;
     static
@@ -582,15 +586,21 @@ public class ClientState
             throw new UnauthorizedException(message);
     }
 
-    public void warnAboutUseWithPreparedStatements(MD5Digest statementId, String preparedKeyspace)
+    public void warnAboutUseWithPreparedStatements(MD5Digest statementId, CQLStatement statement, String preparedKeyspace)
     {
-        if (!issuedPreparedStatementsUseWarning)
+        if (!issuedPreparedStatementsUseWarningForSelectionOrModification && (statement instanceof SelectStatement || statement instanceof ModificationStatement))
         {
             ClientWarn.instance.warn(String.format("`USE <keyspace>` with prepared statements is considered to be an anti-pattern due to ambiguity in non-qualified table names. " +
                                                    "Please consider removing instances of `Session#setKeyspace(<keyspace>)`, `Session#execute(\"USE <keyspace>\")` and `cluster.newSession(<keyspace>)` from your code, and " +
                                                    "always use fully qualified table names (e.g. <keyspace>.<table>). " +
                                                    "Keyspace used: %s, statement keyspace: %s, statement id: %s", getRawKeyspace(), preparedKeyspace, statementId));
-            issuedPreparedStatementsUseWarning = true;
+            issuedPreparedStatementsUseWarningForSelectionOrModification = true;
+        }
+        else if (!issuedPreparedStatementsUseWarningForOtherStatements && !(statement instanceof SelectStatement) && !(statement instanceof ModificationStatement))
+        {
+            ClientWarn.instance.warn(String.format("`USE <keyspace>` with prepared statements should be used only for selection or modification statements. " +
+                                                   "Keyspace used: %s, statement keyspace: %s, statement id: %s", getRawKeyspace(), preparedKeyspace, statementId));
+            issuedPreparedStatementsUseWarningForOtherStatements = true;
         }
     }
 

@@ -141,7 +141,7 @@ public class ExecuteMessage extends Message.Request
                 && !(prepared.statement instanceof BatchStatement)
             )
             {
-                state.getClientState().warnAboutUseWithPreparedStatements(statementId, prepared.keyspace);
+                state.getClientState().warnAboutUseWithPreparedStatements(statementId, prepared.statement, prepared.keyspace);
                 String msg = String.format("Tried to execute a prepared unqalified statement on a keyspace it was not prepared on. " +
                                            " Executing the resulting prepared statement will return unexpected results: %s (on keyspace %s, previously prepared on %s)",
                                            statementId, state.getClientState().getRawKeyspace(), prepared.keyspace);
