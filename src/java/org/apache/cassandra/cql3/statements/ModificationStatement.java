@@ -178,6 +178,12 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         return functions;
     }
 
+    @Override
+    public boolean shouldUseFullyQualifiedTableName()
+    {
+        return true;
+    }
+
     public void addFunctionsTo(List<Function> functions)
     {
         attrs.addFunctionsTo(functions);

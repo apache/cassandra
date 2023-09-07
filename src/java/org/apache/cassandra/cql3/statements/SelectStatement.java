@@ -181,6 +181,12 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         return functions;
     }
 
+    @Override
+    public boolean shouldUseFullyQualifiedTableName()
+    {
+        return true;
+    }
+
     private void addFunctionsTo(List<Function> functions)
     {
         selection.addFunctionsTo(functions);

@@ -99,6 +99,11 @@ public interface CQLStatement
         return false;
     }
 
+    default public boolean shouldUseFullyQualifiedTableName()
+    {
+        return false;
+    }
+
     public static abstract class Raw
     {
         protected VariableSpecifications bindVariables;
