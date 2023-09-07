@@ -38,6 +38,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.virtual.VirtualSchemaKeyspace;
@@ -588,7 +589,7 @@ public class ClientState
 
     public void warnAboutUseWithPreparedStatements(MD5Digest statementId, CQLStatement statement, String preparedKeyspace)
     {
-        if (!issuedPreparedStatementsUseWarningForSelectionOrModification && (statement instanceof SelectStatement || statement instanceof ModificationStatement))
+        if (!issuedPreparedStatementsUseWarningForSelectionOrModification && (statement instanceof SelectStatement || statement instanceof ModificationStatement || statement instanceof BatchStatement))
         {
             ClientWarn.instance.warn(String.format("`USE <keyspace>` with prepared statements is considered to be an anti-pattern due to ambiguity in non-qualified table names. " +
                                                    "Please consider removing instances of `Session#setKeyspace(<keyspace>)`, `Session#execute(\"USE <keyspace>\")` and `cluster.newSession(<keyspace>)` from your code, and " +

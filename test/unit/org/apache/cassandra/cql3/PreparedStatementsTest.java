@@ -92,6 +92,20 @@ public class PreparedStatementsTest extends CQLTester
         assertWarningsOnPreparedStatements("ALTER TABLE %s ADD c3 int", true, false);
     }
 
+    @Test
+    public void testBatchPreparedStatementsEmitWarnings()
+    {
+        assertWarningsOnPreparedStatements("BEGIN BATCH INSERT INTO %s (id, v1, v2) VALUES (1,2,3) APPLY BATCH", true, true);
+
+        // this will evaluate a statement as unqualified because not all are qualified
+        assertWarningsOnPreparedStatements("BEGIN BATCH" +
+                                           "  INSERT INTO %keyspace%.%s (id, v1, v2) VALUES (1,2,3); " +
+                                           "  INSERT INTO  %s (id, v1, v2) VALUES (3, 4, 5) " +
+                                           "APPLY BATCH;", true, true);
+
+        assertWarningsOnPreparedStatements("BEGIN BATCH INSERT INTO %keyspace%.%s (id, v1, v2) VALUES (1,2,3) APPLY BATCH;", false, true);
+    }
+
     private void assertWarningsOnPreparedStatements(String query, boolean expectWarn, boolean forModificationOrSelectStatement)
     {
         try
@@ -104,8 +118,8 @@ public class PreparedStatementsTest extends CQLTester
 
             ClientWarn.instance.captureWarnings();
 
-            String maybeQueryWithKeyspace = query.replace("%keyspace%", currentKeyspace());
-            String queryWithTable = String.format(maybeQueryWithKeyspace, currentTable());
+            String maybeQueryWithKeyspace = query.replaceAll("%keyspace%", currentKeyspace());
+            String queryWithTable = maybeQueryWithKeyspace.replaceAll("%s", currentTable());
 
             // two times is not a mistake, a warning is emitted just once
             QueryProcessor.instance.prepare(queryWithTable, clientState);
