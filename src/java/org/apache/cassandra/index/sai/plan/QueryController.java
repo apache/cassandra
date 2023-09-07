@@ -119,6 +119,7 @@ public class QueryController
         return indexes.isEmpty() ? new IndexContext(cfs.metadata().keyspace,
                                                     cfs.metadata().name,
                                                     cfs.metadata().partitionKeyType,
+                                                    cfs.getPartitioner(),
                                                     cfs.metadata().comparator,
                                                     expression.column(),
                                                     IndexTarget.Type.VALUES,
@@ -196,7 +197,7 @@ public class QueryController
      * The query does not select the key if both of the following statements are false:
      *  1. The table associated with the query is not using clustering keys
      *  2. The clustering index filter for the command wants the row.
-     *
+     * <p>
      *  Item 2 is important in paged queries where the {@link org.apache.cassandra.db.filter.ClusteringIndexSliceFilter} for
      *  subsequent paged queries may not select rows that are returned by the index
      *  search because that is initially partition based.
@@ -206,7 +207,7 @@ public class QueryController
      */
     public boolean doesNotSelect(PrimaryKey key)
     {
-        return !key.hasEmptyClustering() && !command.clusteringIndexFilter(key.partitionKey()).selects(key.clustering());
+        return key.kind() == PrimaryKey.Kind.WIDE && !command.clusteringIndexFilter(key.partitionKey()).selects(key.clustering());
     }
 
     // Note: This method assumes that the selects method has already been called for the
@@ -215,7 +216,13 @@ public class QueryController
     {
         ClusteringIndexFilter clusteringIndexFilter = command.clusteringIndexFilter(key.partitionKey());
 
-        if (key.hasEmptyClustering())
+        assert cfs.metadata().comparator.size() == 0 && !key.kind().hasClustering ||
+               cfs.metadata().comparator.size() > 0 && key.kind().hasClustering :
+               "PrimaryKey " + key + " clustering does not match table. There should be a clustering of size " + cfs.metadata().comparator.size();
+
+        // If we have skinny partitions or the key is for a static row then we need to get the partition as
+        // requested by the original query.
+        if (cfs.metadata().comparator.size() == 0 || key.kind() == PrimaryKey.Kind.STATIC)
             return clusteringIndexFilter;
         else
             return new ClusteringIndexNamesFilter(FBUtilities.singleton(key.clustering(), cfs.metadata().comparator),

@@ -35,7 +35,7 @@ import static org.junit.Assert.assertTrue;
 
 public class KeyRangeConcatIteratorTest extends AbstractKeyRangeIteratorTester
 {
-    PrimaryKey.Factory primaryKeyFactory = new PrimaryKey.Factory(null);
+    PrimaryKey.Factory primaryKeyFactory = new PrimaryKey.Factory(Murmur3Partitioner.instance, null);
     @Test
     public void testValidation()
     {
@@ -427,7 +427,7 @@ public class KeyRangeConcatIteratorTest extends AbstractKeyRangeIteratorTester
     private String createErrorMessage(int max, int min)
     {
         return String.format(KeyRangeConcatIterator.MUST_BE_SORTED_ERROR,
-                             primaryKeyFactory.createTokenOnly(new Murmur3Partitioner.LongToken(max)),
-                             primaryKeyFactory.createTokenOnly(new Murmur3Partitioner.LongToken(min)));
+                             primaryKeyFactory.create(new Murmur3Partitioner.LongToken(max)),
+                             primaryKeyFactory.create(new Murmur3Partitioner.LongToken(min)));
     }
 }

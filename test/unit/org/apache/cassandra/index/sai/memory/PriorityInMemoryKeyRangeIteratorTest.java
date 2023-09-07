@@ -33,8 +33,8 @@ public class PriorityInMemoryKeyRangeIteratorTest extends AbstractInMemoryKeyRan
 
         Arrays.stream(tokens).forEach(t -> queue.add(keyForToken(t)));
 
-        return new InMemoryKeyRangeIterator(primaryKeyFactory.createTokenOnly(new Murmur3Partitioner.LongToken(minimumTokenValue)),
-                                            primaryKeyFactory.createTokenOnly(new Murmur3Partitioner.LongToken(maximumTokenValue)),
+        return new InMemoryKeyRangeIterator(primaryKeyFactory.create(new Murmur3Partitioner.LongToken(minimumTokenValue)),
+                                            primaryKeyFactory.create(new Murmur3Partitioner.LongToken(maximumTokenValue)),
                                             queue);
     }
 }

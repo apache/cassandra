@@ -97,7 +97,8 @@ public class TrieMemoryIndex
         {
             value = TypeUtil.asIndexBytes(value, validator);
             analyzer.reset(value);
-            final PrimaryKey primaryKey = indexContext.keyFactory().create(key, clustering);
+            final PrimaryKey primaryKey = indexContext.hasClustering() ? indexContext.keyFactory().create(key, clustering)
+                                                                       : indexContext.keyFactory().create(key);
             final long initialSizeOnHeap = data.sizeOnHeap();
             final long initialSizeOffHeap = data.sizeOffHeap();
             final long reducerHeapSize = primaryKeysReducer.heapAllocations();
