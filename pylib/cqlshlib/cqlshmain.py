@@ -278,6 +278,7 @@ class DecodeError(Exception):
 class FormatError(DecodeError):
     verb = 'format'
 
+
 class SwitchState(Enum):
     ON = True
     OFF = False
