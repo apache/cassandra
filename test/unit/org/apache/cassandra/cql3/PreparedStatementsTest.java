@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.cql3;
 
+import java.util.List;
+
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -29,9 +31,13 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.index.StubIndex;
+import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class PreparedStatementsTest extends SchemaLoader
@@ -69,6 +75,78 @@ public class PreparedStatementsTest extends SchemaLoader
     public static void tearDown() throws Exception
     {
         cluster.close();
+    }
+
+    @Test
+    public void testUnqualifiedPreparedSelectOrModificationStatementsEmitWarning()
+    {
+        for (String query : new String[]
+                            {
+                            "SELECT id, v1, v2 FROM %s WHERE id = 1",
+                            "INSERT INTO %s (id, v1, v2) VALUES (1, 2, 3)",
+                            "UPDATE %s SET v1 = 2, v2 = 3 where id = 1"
+                            })
+        {
+            assertWarningsOnPreparedStatements(query, true, true);
+        }
+    }
+
+    @Test
+    public void testQualifiedPreparedSelectOrModificationStatementsDoNotEmitWarning()
+    {
+        for (String query : new String[]
+                            {
+                            "SELECT id, v1, v2 FROM %keyspace%.%s WHERE id = 1",
+                            "INSERT INTO %keyspace%.%s (id, v1, v2) VALUES (1, 2, 3)",
+                            "UPDATE %keyspace%.%s SET v1 = 2, v2 = 3 where id = 1"
+                            })
+        {
+            assertWarningsOnPreparedStatements(query, false, true);
+        }
+    }
+
+    @Test
+    public void testSchemaTransformationPreparedStatementEmitWaring()
+    {
+        assertWarningsOnPreparedStatements("ALTER TABLE %s ADD c3 int", true, false);
+    }
+
+    private void assertWarningsOnPreparedStatements(String query, boolean expectWarn, boolean forModificationOrSelectStatement)
+    {
+        try
+        {
+            session.execute("CREATE TABLE " + KEYSPACE + ".abc (id int PRIMARY KEY, v1 int, v2 int);");
+
+            ClientState clientState = ClientState.forInternalCalls();
+            clientState.setKeyspace(KEYSPACE);
+
+            ClientWarn.instance.captureWarnings();
+
+            String maybeQueryWithKeyspace = query.replace("%keyspace%", KEYSPACE);
+            String queryWithTable = String.format(maybeQueryWithKeyspace, "abc");
+
+            // two times is not a mistake, a warning is emitted just once
+            QueryProcessor.instance.prepare(queryWithTable, clientState, false);
+            QueryProcessor.instance.prepare(queryWithTable, clientState, false);
+
+            List<String> warnings = ClientWarn.instance.getWarnings();
+
+            if (expectWarn && forModificationOrSelectStatement)
+                assertTrue(warnings != null &&
+                           warnings.size() == 1 &&
+                           warnings.get(0).startsWith("`USE <keyspace>` with prepared statements is considered to be an anti-pattern"));
+            else if (expectWarn)
+                assertTrue(warnings != null &&
+                           warnings.size() == 1 &&
+                           warnings.get(0).startsWith("`USE <keyspace>` with prepared statements should be used only for selection or modification statements."));
+            else
+                assertNull(warnings);
+        }
+        finally
+        {
+            session.execute(String.format("DROP TABLE %s.abc", KEYSPACE));
+            ClientWarn.instance.resetWarnings();
+        }
     }
 
     @Test
