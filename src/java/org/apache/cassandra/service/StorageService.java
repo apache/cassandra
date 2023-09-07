@@ -844,6 +844,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 ClusterMetadataService.instance().commit(startupSequence.get(),
                                                          (metadata_) -> null,
                                                          (metadata_, code, reason) -> {
+                                                             // This could happen if `UNSAFE_JOIN` has been retried after it succeded but timed out
+                                                             if (ClusterMetadata.current().directory.peerState(self) == JOINED)
+                                                                 return null;
+
                                                              InProgressSequence<?> sequence = metadata_.inProgressSequences.get(self);
                                                              // We might have discovered a startup sequence we ourselves committed but got no response for
                                                              if (sequence == null || !InProgressSequences.STARTUP_SEQUENCE_KINDS.contains(sequence.kind()))

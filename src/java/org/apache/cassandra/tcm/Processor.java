@@ -32,10 +32,21 @@ public interface Processor
      */
     default Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown)
     {
+        // When the cluster is bounced, it may happen that regular nodes come up earlier than CMS nodes, or CMS
+        // nodes come up and fail to finish the startup since other CMS nodes are not up yet, and therefore can not
+        // submit the STARTUP message. This allows the bounces affecting majority of CMS nodes to finish successfully.
+        if (transform.kind() == Transformation.Kind.STARTUP)
+        {
+            return commit(entryId, transform, lastKnown,
+                          Retry.Deadline.retryIndefinitely(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS),
+                                                           TCMMetrics.instance.commitRetries));
+        }
+
         return commit(entryId, transform, lastKnown,
                       Retry.Deadline.after(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.NANOSECONDS),
                                            new Retry.Jitter(TCMMetrics.instance.commitRetries)));
     }
+
     Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown, Retry.Deadline retryPolicy);
 
     /**

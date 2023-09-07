@@ -27,6 +27,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.Clock;
 
 import static com.google.common.util.concurrent.Uninterruptibles.sleepUninterruptibly;
+import static org.apache.cassandra.tcm.Retry.Jitter.MAX_JITTER_MS;
 
 public abstract class Retry
 {
@@ -67,7 +68,7 @@ public abstract class Retry
 
     public static class Jitter extends Retry
     {
-        private static final int MAX_JITTER_MS = Math.toIntExact(DatabaseDescriptor.getDefaultRetryBackoff().to(TimeUnit.MILLISECONDS));
+        public static final int MAX_JITTER_MS = Math.toIntExact(DatabaseDescriptor.getDefaultRetryBackoff().to(TimeUnit.MILLISECONDS));
         private final Random random;
         private final int maxJitterMs;
 
@@ -143,6 +144,30 @@ public abstract class Retry
         public static Deadline after(long timeoutNanos, Retry delegate)
         {
             return new Deadline(Clock.Global.nanoTime() + timeoutNanos, delegate);
+        }
+
+        /**
+         * Since we are using message expiration for communicating timeouts to CMS nodes, we have to be careful not
+         * to overflow the long, since messaging is using only 32 bits for deadlines. To achieve that, we are
+         * giving `timeoutNanos` every time we retry, but will retry indefinitely.
+         */
+        public static Deadline retryIndefinitely(long timeoutNanos, Meter retryMeter)
+        {
+            return new Deadline(Clock.Global.nanoTime() + timeoutNanos,
+                                new Retry.Jitter(Integer.MAX_VALUE, MAX_JITTER_MS, new Random(), retryMeter))
+            {
+                @Override
+                public boolean reachedMax()
+                {
+                    return false;
+                }
+
+                @Override
+                public long remainingNanos()
+                {
+                    return timeoutNanos;
+                }
+            };
         }
 
         @Override
