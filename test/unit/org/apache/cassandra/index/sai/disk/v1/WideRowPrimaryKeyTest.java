@@ -23,6 +23,7 @@ import java.util.Arrays;
 import org.junit.Test;
 
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.utils.AbstractPrimaryKeyTester;
@@ -42,7 +43,7 @@ public class WideRowPrimaryKeyTest extends AbstractPrimaryKeyTester
 
         SSTableComponentsWriter writer = new SSTableComponentsWriter(indexDescriptor);
 
-        PrimaryKey.Factory factory = new PrimaryKey.Factory(compositePartitionMultipleClusteringAsc.comparator);
+        PrimaryKey.Factory factory = new PrimaryKey.Factory(Murmur3Partitioner.instance, compositePartitionMultipleClusteringAsc.comparator);
 
         int rows = nextInt(1000, 10000);
         PrimaryKey[] keys = new PrimaryKey[rows];

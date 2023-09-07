@@ -92,7 +92,7 @@ public class LongIterator extends KeyRangeIterator
 
     public static PrimaryKey fromToken(long token)
     {
-        return SAITester.TEST_FACTORY.createTokenOnly(new Murmur3Partitioner.LongToken(token));
+        return SAITester.TEST_FACTORY.create(new Murmur3Partitioner.LongToken(token));
     }
 
 
