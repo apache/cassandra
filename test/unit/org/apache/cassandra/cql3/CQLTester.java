@@ -119,7 +119,7 @@ public abstract class CQLTester
     protected static int jmxPort;
     protected static MBeanServerConnection jmxConnection;
 
-    protected static final int nativePort;
+    protected static int nativePort;
     protected static final InetAddress nativeAddr;
     protected static final Set<InetAddressAndPort> remoteAddrs = new HashSet<>();
     private static final Map<ProtocolVersion, Cluster> clusters = new HashMap<>();
@@ -162,7 +162,6 @@ public abstract class CQLTester
         checkProtocolVersion();
 
         nativeAddr = InetAddress.getLoopbackAddress();
-        nativePort = getAutomaticallyAllocatedPort(nativeAddr);
 
         ServerTestUtils.daemonInitialization();
     }
@@ -514,6 +513,7 @@ public abstract class CQLTester
 
     private static void startServer(Consumer<Server.Builder> decorator)
     {
+        nativePort = getAutomaticallyAllocatedPort(nativeAddr);
         Server.Builder serverBuilder = new Server.Builder().withHost(nativeAddr).withPort(nativePort);
         decorator.accept(serverBuilder);
         server = serverBuilder.build();
