@@ -102,7 +102,7 @@ public class ExecuteMessage extends Message.Request
             if (prepared != null && !prepared.fullyQualified && !Objects.equals(state.getClientState().getRawKeyspace(), prepared.keyspace)
                 && (prepared.statement instanceof ModificationStatement || prepared.statement instanceof SelectStatement))
             {
-                state.getClientState().warnAboutUseWithPreparedStatements(statementId, prepared.keyspace);
+                state.getClientState().warnAboutUseWithPreparedStatements(statementId, prepared.statement, prepared.keyspace);
                 String msg = String.format("Tried to execute a prepared unqalified statement on a keyspace it was not prepared on. " +
                                            " Executing the resulting prepared statement will return unexpected results: %s (on keyspace %s, previously prepared on %s)",
                                            statementId, state.getClientState().getRawKeyspace(), prepared.keyspace);
