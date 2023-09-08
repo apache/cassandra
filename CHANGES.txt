@@ -3,6 +3,14 @@
 Merged from 5.0:
  * Fix SAI's SegmentMetadata min and max primary keys (CASSANDRA-18734)
  * Remove commons-codec dependency (CASSANDRA-18772)
+Merged from 4.1:
+ * Nodetool paxos-only repair is no longer incremental (CASSANDRA-18466)
+Merged from 4.0:
+Merged from 3.11:
+Merged from 3.0:
+ * Add cqlshrc.sample and credentials.sample into Debian package (CASSANDRA-18818)
+
+5.0-alpha1
  * Fix rpm installations to work with jdk17 (CASSANDRA-18817)
  * Fix Depends and Build-Depends for Java for Debian packages (CASSANDRA-18809)
  * Update command line flags --add-exports and --add-opens for JDK17 (CASSANDRA-18439)
