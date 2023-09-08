@@ -40,6 +40,7 @@ public class ClientRequestMetrics extends LatencyMetrics
     public final Meter localRequests;
     public final Meter remoteRequests;
     public final Meter throttles;
+    public final Meter rateLimiterThrottles;
 
     public ClientRequestMetrics(String scope)
     {
@@ -54,6 +55,7 @@ public class ClientRequestMetrics extends LatencyMetrics
         localRequests = Metrics.meter(factory.createMetricName("LocalRequests"));
         remoteRequests = Metrics.meter(factory.createMetricName("RemoteRequests"));
         throttles = Metrics.meter(factory.createMetricName("Throttles"));
+        rateLimiterThrottles = Metrics.meter(factory.createMetricName("RateLimiterThrottles"));
     }
 
     // Creates Meter and LatencyMetrics with scope specified in factory
@@ -70,6 +72,7 @@ public class ClientRequestMetrics extends LatencyMetrics
         localRequests = Metrics.meter(factory.createMetricName(this.namePrefix + "LocalRequests"));
         remoteRequests = Metrics.meter(factory.createMetricName(this.namePrefix + "RemoteRequests"));
         throttles = Metrics.meter(factory.createMetricName(this.namePrefix + "Throttles"));
+        rateLimiterThrottles = Metrics.meter(factory.createMetricName(this.namePrefix + "RateLimiterThrottles"));
     }
 
     public void markAbort(Throwable cause)
@@ -99,5 +102,6 @@ public class ClientRequestMetrics extends LatencyMetrics
         Metrics.remove(factory.createMetricName("LocalRequests"));
         Metrics.remove(factory.createMetricName("RemoteRequests"));
         Metrics.remove(factory.createMetricName("Throttles"));
+        Metrics.remove(factory.createMetricName("RateLimiterThrottles"));
     }
 }

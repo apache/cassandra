@@ -413,7 +413,8 @@ public class StorageProxy implements StorageProxyMBean
         }
         catch (OverloadedException e)
         {
-            // TODO: update casWriteMetrics
+            casWriteMetrics.rateLimiterThrottles.mark();
+            StorageProxyMetricsManager.getMetrics(keyspaceName, consistencyForPaxos).casWriteMetrics.rateLimiterThrottles.mark();
             Tracing.trace("CAS request throttled due to overload");
             logger.debug("CAS request throttled due to overload");
             throw e;
@@ -450,7 +451,13 @@ public class StorageProxy implements StorageProxyMBean
             casWriteMetrics.failures.mark();
             writeMetricsForLevel(consistencyForPaxos).failures.mark();
             StorageProxyMetricsManager.getMetrics(keyspaceName, consistencyForPaxos).casWriteMetrics.failures.mark();
-            throwOverloadExceptionIfNecessary(e.failureReasonByEndpoint);
+            OverloadedException overloadedException = getOverloadExceptionIfNecessary(e.failureReasonByEndpoint);
+            if (overloadedException != null)
+            {
+                casWriteMetrics.rateLimiterThrottles.mark();
+                StorageProxyMetricsManager.getMetrics(keyspaceName, consistencyForPaxos).casWriteMetrics.rateLimiterThrottles.mark();
+                throw overloadedException;
+            }
             throw e;
         }
         catch (UnavailableException e)
@@ -970,7 +977,12 @@ public class StorageProxy implements StorageProxyMBean
                     WriteFailureException fe = (WriteFailureException)ex;
                     Tracing.trace("Write failure; received {} of {} required replies, failed {} requests",
                                   fe.received, fe.blockFor, fe.failureReasonByEndpoint.size());
-                    throwOverloadExceptionIfNecessary(((WriteFailureException) ex).failureReasonByEndpoint);
+                    OverloadedException overloadedException = getOverloadExceptionIfNecessary(((WriteFailureException) ex).failureReasonByEndpoint);
+                    if (overloadedException != null) {
+                        writeMetrics.rateLimiterThrottles.mark();
+                        StorageProxyMetricsManager.getMetrics(keyspaceName, consistencyLevel).writeMetrics.rateLimiterThrottles.mark();
+                        throw overloadedException;
+                    }
                 }
                 else
                 {
@@ -996,7 +1008,8 @@ public class StorageProxy implements StorageProxyMBean
             // TODO: Needs some rework here as we should distinguish the exceptions better
             if (e.getMessage().contains("from dynamic throttler"))
             {
-                // TODO: update writeMetrics
+                writeMetrics.rateLimiterThrottles.mark();
+                StorageProxyMetricsManager.getMetrics(keyspaceName, consistencyLevel).writeMetrics.rateLimiterThrottles.mark();
                 Tracing.trace("Throttling write request due to overload");
                 logger.trace("Throttling write request due to overload");
                 throw e;
@@ -1312,7 +1325,8 @@ public class StorageProxy implements StorageProxyMBean
         }
         catch (OverloadedException e)
         {
-            // TODO: update writeMetrics
+            writeMetrics.rateLimiterThrottles.mark();
+            StorageProxyMetricsManager.getMetrics(keyspaceName, consistency_level).writeMetrics.rateLimiterThrottles.mark();
             Tracing.trace("Throttling write request due to overload");
             logger.debug("Throttling write request due to overload");
             throw e;
@@ -1339,7 +1353,13 @@ public class StorageProxy implements StorageProxyMBean
             writeMetricsForLevel(consistency_level).failures.mark();
             StorageProxyMetricsManager.getMetrics(keyspaceName, consistency_level).writeMetrics.failures.mark();
             Tracing.trace("Write failure; received {} of {} required replies", e.received, e.blockFor);
-            throwOverloadExceptionIfNecessary(e.failureReasonByEndpoint);
+            OverloadedException overloadedException = getOverloadExceptionIfNecessary(e.failureReasonByEndpoint);
+            if (overloadedException != null)
+            {
+                writeMetrics.rateLimiterThrottles.mark();
+                StorageProxyMetricsManager.getMetrics(keyspaceName, consistency_level).writeMetrics.rateLimiterThrottles.mark();
+                throw overloadedException;
+            }
             throw e;
         }
         finally
@@ -2040,8 +2060,10 @@ public class StorageProxy implements StorageProxyMBean
         }
         catch (OverloadedException e)
         {
-            // TODO: update readMetrics
-            // TODO: update casReadMetrics
+            readMetrics.rateLimiterThrottles.mark();
+            casReadMetrics.rateLimiterThrottles.mark();
+            StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).readMetrics.rateLimiterThrottles.mark();
+            StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).casReadMetrics.rateLimiterThrottles.mark();
             logger.debug("Throttling read request due to overload");
             Tracing.trace("Throttling read request due to overload");
             throw e;
@@ -2082,7 +2104,15 @@ public class StorageProxy implements StorageProxyMBean
             readMetricsForLevel(consistencyLevel).failures.mark();
             StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).readMetrics.failures.mark();
             StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).casReadMetrics.failures.mark();
-            throwOverloadExceptionIfNecessary(e.failureReasonByEndpoint);
+            OverloadedException overloadedException = getOverloadExceptionIfNecessary(e.failureReasonByEndpoint);
+            if (overloadedException != null)
+            {
+                readMetrics.rateLimiterThrottles.mark();
+                casReadMetrics.rateLimiterThrottles.mark();
+                StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).readMetrics.rateLimiterThrottles.mark();
+                StorageProxyMetricsManager.getMetrics(metadata.keyspace, consistencyLevel).casReadMetrics.rateLimiterThrottles.mark();
+                throw overloadedException;
+            }
             throw e;
         }
         finally
@@ -2134,7 +2164,8 @@ public class StorageProxy implements StorageProxyMBean
         }
         catch (OverloadedException e)
         {
-            // TODO: update readMetrics
+            readMetrics.rateLimiterThrottles.mark();
+            StorageProxyMetricsManager.getMetrics(group.queries.get(0).metadata().keyspace, consistencyLevel).readMetrics.rateLimiterThrottles.mark();
             Tracing.trace("Throttling read request due to overload");
             logger.debug("Throttling read request due to overload");
             throw e;
@@ -2166,7 +2197,13 @@ public class StorageProxy implements StorageProxyMBean
             readMetrics.failures.mark();
             readMetricsForLevel(consistencyLevel).failures.mark();
             StorageProxyMetricsManager.getMetrics(group.queries.get(0).metadata().keyspace, consistencyLevel).readMetrics.failures.mark();
-            throwOverloadExceptionIfNecessary(e.failureReasonByEndpoint);
+            OverloadedException overloadedException = getOverloadExceptionIfNecessary(e.failureReasonByEndpoint);
+            if (overloadedException != null)
+            {
+                readMetrics.rateLimiterThrottles.mark();
+                StorageProxyMetricsManager.getMetrics(group.queries.get(0).metadata().keyspace, consistencyLevel).readMetrics.rateLimiterThrottles.mark();
+                throw overloadedException;
+            }
             throw e;
         }
         finally
@@ -3354,7 +3391,7 @@ public class StorageProxy implements StorageProxyMBean
         return PaxosState.getDisableCoordinatorLocking();
     }
 
-    public static void throwOverloadExceptionIfNecessary(Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint) throws OverloadedException
+    public static OverloadedException getOverloadExceptionIfNecessary(Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint)
     {
         // When any exception occurs as part of the internal requests (peer requests), then those exceptions are not
         // directly throws. Instead, "failureReasonByEndpoint" is updated with the exception's originating IP address and reason.
@@ -3364,8 +3401,9 @@ public class StorageProxy implements StorageProxyMBean
         {
             if (failureReasonEndpoint.getValue() == RequestFailureReason.TRAFFIC_THROTTLED)
             {
-                throw new OverloadedException(String.format(THROW_MESSAGE, failureReasonEndpoint.getKey().getHostAddress(false)));
+                return new OverloadedException(String.format(THROW_MESSAGE, failureReasonEndpoint.getKey().getHostAddress(false)));
             }
         }
+        return null;
     }
 }

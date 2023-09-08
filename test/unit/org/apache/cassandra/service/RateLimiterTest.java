@@ -31,10 +31,12 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.metrics.StorageProxyMetricsManager;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.reads.range.RangeCommandIterator;
 import org.apache.cassandra.service.throttler.dynamic.CassandraResourceUtilization;
 import org.apache.cassandra.transport.Dispatcher;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -45,6 +47,11 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.Assert;
 
+
+import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.casReadMetrics;
+import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.casWriteMetrics;
+import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.readMetrics;
+import static org.apache.cassandra.metrics.ClientRequestsMetricsHolder.writeMetrics;
 import static org.apache.cassandra.net.ParamType.RESPOND_TO;
 import static org.apache.cassandra.net.Verb.MUTATION_REQ;
 import static org.mockito.Mockito.anyBoolean;
@@ -110,6 +117,8 @@ public class RateLimiterTest extends CQLTester {
     @Test(expected = OverloadedException.class)
     public void testRateLimiterOverloadThrowInCAS()
     {
+        long count1Before = casWriteMetrics.rateLimiterThrottles.getCount();
+        long count2Before = StorageProxyMetricsManager.getMetrics(KEYSPACE, ConsistencyLevel.ALL).casWriteMetrics.rateLimiterThrottles.getCount();
         try
         {
             StorageProxy.cas(KEYSPACE, TABLE, null, null, ConsistencyLevel.SERIAL,
@@ -117,6 +126,10 @@ public class RateLimiterTest extends CQLTester {
         }
         catch (OverloadedException e)
         {
+            long count1After = casWriteMetrics.rateLimiterThrottles.getCount();
+            long count2After = StorageProxyMetricsManager.getMetrics(KEYSPACE, ConsistencyLevel.ALL).casWriteMetrics.rateLimiterThrottles.getCount();
+            Assert.assertEquals(1L, count1After - count1Before);
+            Assert.assertEquals(1L, count2After - count2Before);
             Assert.assertEquals("from dynamic throttler: 127.0.0.1", e.getMessage());
             throw e;
         }
@@ -125,12 +138,18 @@ public class RateLimiterTest extends CQLTester {
     @Test(expected = OverloadedException.class)
     public void testRateLimiterOverloadThrowInMutate()
     {
+        long count1Before = writeMetrics.rateLimiterThrottles.getCount();
+        long count2Before = StorageProxyMetricsManager.getMetrics(KEYSPACE, ConsistencyLevel.ALL).writeMetrics.rateLimiterThrottles.getCount();
         try
         {
             StorageProxy.mutate(Collections.singletonList(createMutation()), ConsistencyLevel.ALL, Dispatcher.RequestTime.forImmediateExecution());
         }
         catch (OverloadedException e)
         {
+            long count1After = writeMetrics.rateLimiterThrottles.getCount();
+            long count2After = StorageProxyMetricsManager.getMetrics(KEYSPACE, ConsistencyLevel.ALL).writeMetrics.rateLimiterThrottles.getCount();
+            Assert.assertEquals(1L, count1After - count1Before);
+            Assert.assertEquals(1L, count2After - count2Before);
             Assert.assertEquals("from dynamic throttler: 127.0.0.1", e.getMessage());
             throw e;
         }
@@ -139,12 +158,18 @@ public class RateLimiterTest extends CQLTester {
     @Test(expected = OverloadedException.class)
     public void testRateLimiterOverloadThrowInMutateAtomically()
     {
+        long count1Before = writeMetrics.rateLimiterThrottles.getCount();
+        long count2Before = StorageProxyMetricsManager.getMetrics(KEYSPACE, ConsistencyLevel.ALL).writeMetrics.rateLimiterThrottles.getCount();
         try
         {
             StorageProxy.mutateAtomically(Collections.singletonList(createMutation()), ConsistencyLevel.ALL, false, Dispatcher.RequestTime.forImmediateExecution());
         }
         catch (OverloadedException e)
         {
+            long count1After = writeMetrics.rateLimiterThrottles.getCount();
+            long count2After = StorageProxyMetricsManager.getMetrics(KEYSPACE, ConsistencyLevel.ALL).writeMetrics.rateLimiterThrottles.getCount();
+            Assert.assertEquals(1L, count1After - count1Before);
+            Assert.assertEquals(1L, count2After - count2Before);
             Assert.assertEquals("from dynamic throttler: 127.0.0.1", e.getMessage());
             throw e;
         }
@@ -153,12 +178,24 @@ public class RateLimiterTest extends CQLTester {
     @Test(expected = OverloadedException.class)
     public void testRateLimiterOverloadThrowInReadWithPaxos()
     {
+        long count1Before = readMetrics.rateLimiterThrottles.getCount();
+        long count2Before = casReadMetrics.rateLimiterThrottles.getCount();
+        long count3Before = StorageProxyMetricsManager.getMetrics(KEYSPACE, ConsistencyLevel.ALL).readMetrics.rateLimiterThrottles.getCount();
+        long count4Before = StorageProxyMetricsManager.getMetrics(KEYSPACE, ConsistencyLevel.ALL).casReadMetrics.rateLimiterThrottles.getCount();
         try
         {
             StorageProxy.readWithPaxos(createReadQuery(), ConsistencyLevel.ALL, Dispatcher.RequestTime.forImmediateExecution());
         }
         catch (OverloadedException e)
         {
+            long count1After = readMetrics.rateLimiterThrottles.getCount();
+            long count2After = casReadMetrics.rateLimiterThrottles.getCount();
+            long count3After = StorageProxyMetricsManager.getMetrics(KEYSPACE, ConsistencyLevel.ALL).readMetrics.rateLimiterThrottles.getCount();
+            long count4After = StorageProxyMetricsManager.getMetrics(KEYSPACE, ConsistencyLevel.ALL).casReadMetrics.rateLimiterThrottles.getCount();
+            Assert.assertEquals(1L, count1After - count1Before);
+            Assert.assertEquals(1L, count2After - count2Before);
+            Assert.assertEquals(1L, count3After - count3Before);
+            Assert.assertEquals(1L, count4After - count4Before);
             Assert.assertEquals("from dynamic throttler: 127.0.0.1", e.getMessage());
             throw e;
         }
@@ -167,12 +204,39 @@ public class RateLimiterTest extends CQLTester {
     @Test(expected = OverloadedException.class)
     public void testRateLimiterOverloadThrowInReadRegular()
     {
+        long count1Before = readMetrics.rateLimiterThrottles.getCount();
+        long count2Before = StorageProxyMetricsManager.getMetrics(KEYSPACE, ConsistencyLevel.ALL).readMetrics.rateLimiterThrottles.getCount();
         try
         {
             StorageProxy.readRegular(createReadQuery(), ConsistencyLevel.ALL, Dispatcher.RequestTime.forImmediateExecution());
         }
         catch (OverloadedException e)
         {
+            long count1After = readMetrics.rateLimiterThrottles.getCount();
+            long count2After = StorageProxyMetricsManager.getMetrics(KEYSPACE, ConsistencyLevel.ALL).readMetrics.rateLimiterThrottles.getCount();
+            Assert.assertEquals(1L, count1After - count1Before);
+            Assert.assertEquals(1L, count2After - count2Before);
+            Assert.assertEquals("from dynamic throttler: 127.0.0.1", e.getMessage());
+            throw e;
+        }
+    }
+
+    @Test(expected = OverloadedException.class)
+    public void testRateLimiterOverloadThrowInRangeCommand()
+    {
+        long count1Before = RangeCommandIterator.rangeMetrics.rateLimiterThrottles.getCount();
+        long count2Before = StorageProxyMetricsManager.getMetrics(KEYSPACE, ConsistencyLevel.ALL).rangeMetrics.rateLimiterThrottles.getCount();
+        try
+        {
+            PartitionRangeReadCommand rangCmd = PartitionRangeReadCommand.create(metadata, 0, null, null, null, null);
+            new RangeCommandIterator(null, rangCmd, 0, 0, 0, 0).computeNext();
+        }
+        catch (OverloadedException e)
+        {
+            long count1After = RangeCommandIterator.rangeMetrics.rateLimiterThrottles.getCount();
+            long count2After = StorageProxyMetricsManager.getMetrics(KEYSPACE, ConsistencyLevel.ALL).rangeMetrics.rateLimiterThrottles.getCount();
+            Assert.assertEquals(1L, count1After - count1Before);
+            Assert.assertEquals(1L, count2After - count2Before);
             Assert.assertEquals("from dynamic throttler: 127.0.0.1", e.getMessage());
             throw e;
         }
@@ -272,7 +336,7 @@ public class RateLimiterTest extends CQLTester {
 
         Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint = new HashMap<>();
         failureReasonByEndpoint.put(InetAddressAndPort.getLocalHost(), RequestFailureReason.TRAFFIC_THROTTLED);
-        StorageProxy.throwOverloadExceptionIfNecessary(failureReasonByEndpoint);
+        throw StorageProxy.getOverloadExceptionIfNecessary(failureReasonByEndpoint);
     }
 
     @Test
@@ -285,7 +349,7 @@ public class RateLimiterTest extends CQLTester {
 
         Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint = new HashMap<>();
         failureReasonByEndpoint.put(InetAddressAndPort.getLocalHost(), RequestFailureReason.TIMEOUT);
-        StorageProxy.throwOverloadExceptionIfNecessary(failureReasonByEndpoint);
+        Assert.assertNull(StorageProxy.getOverloadExceptionIfNecessary(failureReasonByEndpoint));
     }
 
     private Mutation createMutation()

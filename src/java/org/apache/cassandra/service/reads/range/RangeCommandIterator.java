@@ -21,7 +21,6 @@ package org.apache.cassandra.service.reads.range;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -38,6 +37,7 @@ import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.exceptions.ReadAbortException;
+import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.RequestThrottledException;
@@ -53,6 +53,7 @@ import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.reads.DataResolver;
 import org.apache.cassandra.service.reads.ReadCallback;
 import org.apache.cassandra.service.reads.repair.ReadRepair;
+import org.apache.cassandra.service.throttler.dynamic.CassandraResourceUtilization;
 import org.apache.cassandra.service.throttler.IRequestThrottler;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Dispatcher;
@@ -66,7 +67,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
 {
     private static final Logger logger = LoggerFactory.getLogger(RangeCommandIterator.class);
 
-    private static final ClientRequestMetrics rangeMetrics = new ClientRequestMetrics("RangeSlice");
+    public static final ClientRequestMetrics rangeMetrics = new ClientRequestMetrics("RangeSlice");
 
     private final CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlans;
     private final int totalRangeCount;
@@ -86,7 +87,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
     private int batchesRequested = 0;
     private ConsistencyLevel consistencyLevel;
 
-    RangeCommandIterator(CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlans,
+    public RangeCommandIterator(CloseableIterator<ReplicaPlan.ForRangeRead> replicaPlans,
                          PartitionRangeReadCommand command,
                          int concurrencyFactor,
                          int maxConcurrencyFactor,
@@ -116,10 +117,11 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
     }
 
     @Override
-    protected RowIterator computeNext()
+    public RowIterator computeNext()
     {
         try
         {
+            CassandraResourceUtilization.instance.throttle(command.metadata().keyspace, true);
             DatabaseDescriptor.getRequestThrottler().maybeThrottleRead(command, consistencyLevel);
             while (sentQueryIterator == null || !sentQueryIterator.hasNext())
             {
@@ -141,6 +143,13 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
             }
 
             return sentQueryIterator.next();
+        }
+        catch (OverloadedException e) {
+            logger.debug("Throttling range request due to overload");
+            Tracing.trace("Throttling range request due to overload");
+            rangeMetrics.rateLimiterThrottles.mark();
+            StorageProxyMetricsManager.getMetrics(command.metadata().keyspace, consistencyLevel).rangeMetrics.rateLimiterThrottles.mark();
+            throw e;
         }
         catch (RequestThrottledException e) {
             logger.debug("Throttling range request");
@@ -173,7 +182,13 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
         {
             rangeMetrics.failures.mark();
             StorageProxyMetricsManager.getMetrics(command.metadata().keyspace, consistencyLevel).rangeMetrics.failures.mark();
-            StorageProxy.throwOverloadExceptionIfNecessary(e.failureReasonByEndpoint);
+            OverloadedException overloadedException = StorageProxy.getOverloadExceptionIfNecessary(e.failureReasonByEndpoint);
+            if (overloadedException != null)
+            {
+                rangeMetrics.rateLimiterThrottles.mark();
+                StorageProxyMetricsManager.getMetrics(command.metadata().keyspace, consistencyLevel).rangeMetrics.rateLimiterThrottles.mark();
+                throw overloadedException;
+            }
             throw e;
         }
     }
