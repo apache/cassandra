@@ -235,6 +235,7 @@ public class QueryController
         {
             List<RangeIterator<PrimaryKey>> sstableIntersections = queryView.view.entrySet()
                                                                                  .stream()
+                                                                                 .filter(e -> !isAnnHybridSearch || annQueryViewInHybridSearch.view.containsKey(e.getKey()))
                                                                                  .map(e -> {
                                                                                      RangeIterator<Long> it = createRowIdIterator(op, e.getValue(), defer, isAnnHybridSearch);
                                                                                      if (isAnnHybridSearch)
