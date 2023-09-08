@@ -318,6 +318,8 @@ public abstract class CQLTester
     @BeforeClass
     public static void setUpClass()
     {
+        System.setProperty("cassandra.superuser_setup_delay_ms", "0");
+
         if (ROW_CACHE_SIZE_IN_MIB > 0)
             DatabaseDescriptor.setRowCacheSizeInMiB(ROW_CACHE_SIZE_IN_MIB);
         StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
