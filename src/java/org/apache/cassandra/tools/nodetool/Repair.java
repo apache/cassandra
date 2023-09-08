@@ -149,7 +149,7 @@ public class Repair extends NodeToolCmd
                 parallelismDegree = RepairParallelism.DATACENTER_AWARE;
             options.put(RepairOption.PARALLELISM_KEY, parallelismDegree.getName());
             options.put(RepairOption.PRIMARY_RANGE_KEY, Boolean.toString(primaryRange));
-            options.put(RepairOption.INCREMENTAL_KEY, Boolean.toString(!fullRepair));
+            options.put(RepairOption.INCREMENTAL_KEY, Boolean.toString(!fullRepair && !(paxosOnly && getPreviewKind() == PreviewKind.NONE)));
             options.put(RepairOption.JOB_THREADS_KEY, Integer.toString(numJobThreads));
             options.put(RepairOption.TRACE_KEY, Boolean.toString(trace));
             options.put(RepairOption.COLUMNFAMILIES_KEY, StringUtils.join(cfnames, ","));
