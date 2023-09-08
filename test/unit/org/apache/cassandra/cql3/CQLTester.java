@@ -385,6 +385,7 @@ public abstract class CQLTester
     @BeforeClass
     public static void setUpClass()
     {
+        CassandraRelevantProperties.SUPERUSER_SETUP_DELAY_MS.setLong(0);
         ServerTestUtils.daemonInitialization();
 
         if (ROW_CACHE_SIZE_IN_MIB > 0)
