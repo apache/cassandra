@@ -78,7 +78,7 @@ Here is the custom analyzer configuration for the standard analyzer:
 ```
 OPTIONS = {
   'index_analyzer':
-  {
+  '{
     "tokenizer" : {
       "name" : "standard",
       "args" : {}
@@ -90,7 +90,7 @@ OPTIONS = {
       }
     ], 
     "charFilters" : []
-  }
+  }'
 }
 ```
 
@@ -101,7 +101,7 @@ Here is the custom analyzer configuration for the simple analyzer:
 ```
 OPTIONS = {
   'index_analyzer':
-  {
+  '{
     "tokenizer" : {
       "name" : "letter",
       "args" : {}
@@ -113,7 +113,7 @@ OPTIONS = {
       }
     ], 
     "charFilters" : []
-  }
+  }'
 }
 ```
 
@@ -124,14 +124,14 @@ Here is the custom analyzer configuration for the whitespace analyzer:
 ```
 OPTIONS = {
   'index_analyzer':
-  {
+  '{
     "tokenizer" : {
       "name" : "whitespace",
       "args" : {}
     },
     "filters" : [], 
     "charFilters" : []
-  }
+  }'
 }
 ```
 
@@ -142,7 +142,7 @@ Here is the custom analyzer configuration for the lowercase analyzer:
 ```
 OPTIONS = {
  'index_analyzer':
-  {
+  '{
     "tokenizer" : {
       "name" : "keyword",
       "args" : {}
@@ -154,6 +154,6 @@ OPTIONS = {
       }
     ], 
     "charFilters" : []
-  }
+  }'
 }
 ```

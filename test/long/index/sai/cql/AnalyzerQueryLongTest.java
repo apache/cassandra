@@ -51,10 +51,13 @@ public class AnalyzerQueryLongTest extends CQLTester
                 execute("INSERT INTO %s (pk, not_analyzed, val) VALUES (?, ?, ?)", i, x, "basic test");
             }
         }
+        // We match the first inserted statement here, and that one is just written 1/100 times
         var result = execute("SELECT * FROM %s WHERE val : 'tokenized'");
         assertThat(result).hasSize(iterations / 100);
+        // We match the first and second inserted statements here, and those account for 1/2 the inserts
         result = execute("SELECT * FROM %s WHERE val : 'this'");
         assertThat(result).hasSize(iterations / 2);
+        // We match the last write here, and that accounts for the other 1/2 of the inserts
         result = execute("SELECT * FROM %s WHERE val : 'test'");
         assertThat(result).hasSize(iterations / 2);
     }
@@ -86,6 +89,7 @@ public class AnalyzerQueryLongTest extends CQLTester
         }
         var result = execute("SELECT * FROM %s WHERE val : 'different'");
         assertThat(result).hasSize(iterations / 2);
+        // We match both insert statements, but the first is continuously overwritting the same PK, so just 1 extra result
         result = execute("SELECT * FROM %s WHERE val : 'text'");
         assertThat(result).hasSize(iterations / 2 + 1);
     }
