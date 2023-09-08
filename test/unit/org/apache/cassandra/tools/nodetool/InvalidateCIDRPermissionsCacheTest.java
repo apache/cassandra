@@ -20,13 +20,10 @@ package org.apache.cassandra.tools.nodetool;
 
 import java.net.InetSocketAddress;
 
+import org.apache.cassandra.auth.*;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.auth.AuthCacheService;
-import org.apache.cassandra.auth.AuthTestUtils;
-import org.apache.cassandra.auth.AuthenticatedUser;
-import org.apache.cassandra.auth.IRoleManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.tools.ToolRunner;
@@ -118,10 +115,13 @@ public class InvalidateCIDRPermissionsCacheTest extends CQLTester
         // ensure cidr permission is cached
         role.hasAccessFromIp(ipAddr);
         assertThat(originalReadsCount).isEqualTo(getCidrPermissionsReadCount());
+        assertThat(((CassandraCIDRAuthorizer) DatabaseDescriptor.getCIDRAuthorizer()).has(ROLE_A)).isTrue();
 
         // invalidate cidr permission
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("invalidatecidrpermissionscache", ROLE_A.getRoleName());
         tool.assertOnCleanExit();
+        assertThat(tool.getStdout()).contains("Invalidated the role role_a from CIDR permissions cache");
+        assertThat(((CassandraCIDRAuthorizer) DatabaseDescriptor.getCIDRAuthorizer()).has(ROLE_A)).isFalse();
 
         // ensure cidr permission is reloaded
         assertThat(role.hasAccessFromIp(new InetSocketAddress("127.0.0.0", 0))).isTrue();
@@ -142,11 +142,15 @@ public class InvalidateCIDRPermissionsCacheTest extends CQLTester
         assertThat(roleA.hasAccessFromIp(ipAddr)).isTrue();
         assertThat(roleB.hasAccessFromIp(ipAddr)).isTrue();
         assertThat(originalReadsCount).isEqualTo(getCidrPermissionsReadCount());
+        assertThat(((CassandraCIDRAuthorizer) DatabaseDescriptor.getCIDRAuthorizer()).has(ROLE_A)).isTrue();
+        assertThat(((CassandraCIDRAuthorizer) DatabaseDescriptor.getCIDRAuthorizer()).has(ROLE_B)).isTrue();
 
         // invalidate both cidr permissions
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("invalidatecidrpermissionscache");
         tool.assertOnCleanExit();
         assertThat(tool.getStdout()).contains("Invalidated CIDR permissions cache");
+        assertThat(((CassandraCIDRAuthorizer) DatabaseDescriptor.getCIDRAuthorizer()).has(ROLE_A)).isFalse();
+        assertThat(((CassandraCIDRAuthorizer) DatabaseDescriptor.getCIDRAuthorizer()).has(ROLE_B)).isFalse();
 
         // ensure cidr permission for roleA is reloaded
         assertThat(roleA.hasAccessFromIp(ipAddr)).isTrue();

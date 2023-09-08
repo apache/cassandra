@@ -39,8 +39,8 @@ public class InvalidateCIDRPermissionsCache extends NodeToolCmd
     {
         if (args.isEmpty())
         {
-            probe.invalidateCidrPermissionsCache("");
-            probe.output().out.println("Invalidated CIDR permissions cache");
+            if(probe.invalidateCidrPermissionsCache(""))
+                probe.output().out.println("Invalidated CIDR permissions cache");
         }
         else
         {

@@ -154,4 +154,10 @@ public class CassandraCIDRAuthorizer extends AbstractCIDRAuthorizer
                                                           TimeUnit.NANOSECONDS);
         return hasAccess;
     }
+
+    @VisibleForTesting
+    public boolean has(RoleResource role)
+    {
+        return cidrPermissionsCache.cache.getIfPresent(role) != null;
+    }
 }
