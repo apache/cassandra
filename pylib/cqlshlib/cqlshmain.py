@@ -1654,7 +1654,7 @@ class Shell(cmd.Cmd):
           TRACING with no arguments shows the current tracing status.
         """
         self.tracing_enabled \
-            = self.on_off_switch("TRACING", "Tracing", self.tracing_enabled, parsed.get_binding('switch'))
+            = self.on_off_switch("TRACING", self.tracing_enabled, parsed.get_binding('switch'))
 
     def do_expand(self, parsed):
         """
@@ -1674,7 +1674,7 @@ class Shell(cmd.Cmd):
 
           EXPAND with no arguments shows the current value of expand setting.
         """
-        self.expand_enabled = self.on_off_switch("EXPAND", "Expanded output", self.expand_enabled, parsed.get_binding('switch'))
+        self.expand_enabled = self.on_off_switch("EXPAND", self.expand_enabled, parsed.get_binding('switch'))
 
     def do_consistency(self, parsed):
         """
@@ -1899,13 +1899,13 @@ class Shell(cmd.Cmd):
           PAGING with no arguments shows the current query paging status.
         """
         (self.use_paging, requested_page_size) = \
-            self.on_off_toggle_with_value("PAGING", "Query paging", self.use_paging, parsed.get_binding('switch'))
+            self.on_off_switch_with_value("PAGING", self.use_paging, parsed.get_binding('switch'))
         if self.use_paging and requested_page_size is not None:
             self.page_size = requested_page_size
         if self.use_paging:
             print(("Page size: {}".format(self.page_size)))
         else:
-            self.page_size = self.default_page_size
+            self.page_size = self.efault_page_size
 
     def applycolor(self, text, color=None):
         if not color or not self.color:
@@ -1959,46 +1959,45 @@ class Shell(cmd.Cmd):
                 pass
 
     @staticmethod
-    def on_off_switch(name, cmd, current, state_name=None):
+    def on_off_switch(name, current, state_name=None):
         """
         switches between ON and OFF values
 
         :param name: a command name
-        :param cmd: a short description
         :param current: a boolean value
-        :param state_name: ON, OFF or None
-        :return: a boolean state
+        :param state_name: "ON", "OFF" or None
+        :return: a boolean value
         """
 
         if state_name is None:
             print(f"{name} is {SwitchState(current).name}")
             return current
 
-        isEnabled = (False if state_name.upper() == "OFF" else True)
-        if current == isEnabled:
+        new_state = SwitchState[state_name.upper()]
+        if current == new_state.value:
             print(f"{name} is already {SwitchState(current).name}")
             return current
         else:
-            print(f"{name} set to {SwitchState(isEnabled).name}")
-            return isEnabled
+            print(f"{name} set to {new_state.name}")
+            return new_state.value
 
     @staticmethod
-    def on_off_toggle_with_value(name, cmd, current, value=None):
+    def on_off_switch_with_value(name, current, value=None):
         """switches between ON and OFF values, and accepts an integer value in place of ON.
 
-        This returns a tuple of the form: (SWITCH_VALUE, PASSED_VALUE)
+        This returns a tuple of the form: (SWITCH_VALUE, VALUE)
         eg: PAGING 50 returns (True, 50)
             PAGING OFF returns (False, None)
             PAGING ON returns (True, None)
 
-        PASSED_VALUE must be a decimal number, otherwise it will return None.
+        VALUE must be an Integer or None.
         """
         if value is None:
             print(f"{name} is {SwitchState(current).name}")
             return current, None
         if value.isdigit():
             return True, int(value)
-        return Shell.on_off_switch(name, cmd, current, value), None
+        return Shell.on_off_switch(name,current, value), None
 
 
 def option_with_default(cparser_getter, section, option, default=None):
