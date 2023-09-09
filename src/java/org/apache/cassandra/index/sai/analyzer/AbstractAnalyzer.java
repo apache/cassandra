@@ -132,13 +132,21 @@ public abstract class AbstractAnalyzer implements Iterator<ByteBuffer>
 
     public static AnalyzerFactory fromOptions(AbstractType<?> type, Map<String, String> options)
     {
-        if (options.containsKey(LuceneAnalyzer.INDEX_ANALYZER))
+        boolean containsIndexAnalyzer = options.containsKey(LuceneAnalyzer.INDEX_ANALYZER);
+        boolean containsNonTokenizingOptions = NonTokenizingOptions.hasNonDefaultOptions(options);
+        if (containsIndexAnalyzer && containsNonTokenizingOptions)
+        {
+            throw new InvalidRequestException("Cannot specify case_insensitive, normalize, or ascii options with" +
+                                              " index_analyzer option. options=" + options);
+        }
+
+        if (containsIndexAnalyzer)
         {
             String json = options.get(LuceneAnalyzer.INDEX_ANALYZER);
             return toAnalyzerFactory(json, type, options);
         }
 
-        if (NonTokenizingOptions.hasNonDefaultOptions(options))
+        if (containsNonTokenizingOptions)
         {
             if (TypeUtil.isIn(type, ANALYZABLE_TYPES))
             {
