@@ -29,9 +29,6 @@ ARG GID_ARG=1000
 
 LABEL org.cassandra.buildenv=centos
 
-VOLUME ${DIST_DIR}
-VOLUME ${CASSANDRA_DIR}
-
 RUN echo "Building with arguments:" \
     && echo " - DIST_DIR=${DIST_DIR}" \
     && echo " - BUILD_HOME=${BUILD_HOME}" \

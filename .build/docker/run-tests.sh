@@ -69,8 +69,11 @@ if [[ ! "${java_version}" =~ $regx_java_version ]]; then
     exit 1
 fi
 
-python_version="3.6"
-command -v python >/dev/null 2>&1 && python_version="$(python -V | awk '{print $2}' | awk -F'.' '{print $1"."$2}')"
+# allow python version override, otherwise default to current python version or 3.7
+if [ "x" == "x${python_version}" ] ; then
+    command -v python >/dev/null 2>&1 && python_version="$(python -V 2>&1 | awk '{print $2}' | awk -F'.' '{print $1"."$2}')"
+    python_version="${python_version:-3.7}"
+fi
 
 # print debug information on versions
 docker --version
@@ -150,6 +153,7 @@ elif [[ "${target}" =~ dtest* ]] ; then
 else
     docker_flags="--cpus=${docker_cpus} -m 5g --memory-swap 5g"
 fi
+
 docker_flags="${docker_flags} --env-file build/env.list -d --rm"
 
 # make sure build_dir is good

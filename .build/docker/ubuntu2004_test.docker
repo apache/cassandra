@@ -25,9 +25,6 @@ ENV PYTHONUNBUFFERED=true
 
 LABEL org.cassandra.buildenv=ubuntu_2004
 
-VOLUME ${CASSANDRA_DIR}
-VOLUME ${DIST_DIR}
-
 RUN echo "Building with arguments:" \
     && echo " - DIST_DIR=${DIST_DIR}" \
     && echo " - BUILD_HOME=${BUILD_HOME}" \
@@ -41,7 +38,7 @@ RUN echo 'Acquire::http::Timeout "60";' > /etc/apt/apt.conf.d/80proxy.conf
 RUN echo 'Acquire::ftp::Timeout "60";' >> /etc/apt/apt.conf.d/80proxy.conf
 
 # install our python dependencies and some other stuff we need
-# libev4 libev-dev are for the python driver / libssl-dev is for python3.6
+# libev4 libev-dev are for the python driver
 
 RUN export DEBIAN_FRONTEND=noninteractive && \
     apt-get update && \
@@ -51,20 +48,17 @@ RUN export DEBIAN_FRONTEND=noninteractive && \
     add-apt-repository -y ppa:deadsnakes/ppa && \
     apt-get update && \
     apt-get install -y curl git-core python3-pip \
-        python3.6 python3.6-venv python3.6-dev \
         python3.7 python3.7-venv python3.7-dev \
         python3.8 python3.8-venv python3.8-dev \
         python3.11 python3.11-venv python3.11-dev \
-        virtualenv net-tools libev4 libev-dev wget gcc libssl-dev libxml2 libxslt1-dev \
+        virtualenv net-tools libev4 libev-dev wget gcc libxml2 libxslt1-dev \
         vim lsof sudo libjemalloc2 dumb-init locales \
         openjdk-8-jdk openjdk-11-jdk openjdk-17-jdk ant ant-optional
 
 
-RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.6 2
-RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.7 3
-RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.8 4
-RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.11 5
-RUN python3.6 -m pip install --upgrade pip
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.7 2
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.8 3
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.11 4
 RUN python3.7 -m pip install --upgrade pip
 RUN python3.8 -m pip install --upgrade pip
 
@@ -109,15 +103,6 @@ ENV ANT_HOME=/usr/share/ant
 # included in the base image, the compiled objects are not updated by pip at run time, which can
 # cause errors if the tests rely on new driver functionality or bug fixes.
 
-RUN virtualenv --python=python3.6 ${BUILD_HOME}/env3.6
-RUN chmod +x ${BUILD_HOME}/env3.6/bin/activate
-
-RUN /bin/bash -c "export CASS_DRIVER_NO_CYTHON=1 CASS_DRIVER_NO_EXTENSIONS=1 \
-    && source ${BUILD_HOME}/env3.6/bin/activate \
-    && pip3 install --upgrade pip \
-    && pip3 install -r /opt/requirements.txt \
-    && pip3 freeze --user"
-
 RUN virtualenv --python=python3.7 ${BUILD_HOME}/env3.7
 RUN chmod +x ${BUILD_HOME}/env3.7/bin/activate
 
@@ -146,10 +131,25 @@ RUN /bin/bash -c "export CASS_DRIVER_NO_CYTHON=1 CASS_DRIVER_NO_EXTENSIONS=1 \
     && pip3 freeze --user"
 
 # Initialize the CCM git repo as well as this also can fail to clone
-RUN /bin/bash -c "source ${BUILD_HOME}/env3.6/bin/activate && \
-    ccm create -n 1 -v git:trunk test && ccm remove test && \
+RUN /bin/bash -c "source ${BUILD_HOME}/env3.7/bin/activate && \
     ccm create -n 1 -v git:cassandra-4.1 test && ccm remove test && \
     ccm create -n 1 -v git:cassandra-4.0 test && ccm remove test"
+
+# Initialize ccm versions.  right side of each sequence needs to be updated with new releases.
+#  this can be checked with:
+#  `curl -s https://downloads.apache.org/cassandra/ | grep -oP '(?<=href=\")[0-9]+\.[0-9]+\.[0-9]+(?=)' | sort -V | uniq -w 3`
+RUN bash -c 'source ~/env3.7/bin/activate && \
+    for i in {1..11} ; do echo $i ; ccm create --quiet -n 1 -v binary:4.0.$i test && ccm remove test ; done && \
+    for i in {1..3}  ; do echo $i ; ccm create --quiet -n 1 -v binary:4.1.$i test && ccm remove test ; done'
+
+# 5+ requires java11
+RUN sudo update-java-alternatives --set java-1.11.0-openjdk-$(dpkg --print-architecture)
+
+# Initialize the CCM git repo as well as this also can fail to clone
+RUN /bin/bash -c 'source ~/env3.7/bin/activate && \
+    ccm create -n 1 -v git:trunk test && ccm remove test && \
+    ccm create -n 1 -v git:cassandra-5.0 test && ccm remove test && \
+    ccm create --quiet -n 1 -v binary:5.0-alpha1 test && ccm remove test '
 
 # the .git subdirectories to pip installed cassandra-driver breaks virtualenv-clone, so just remove them
 RUN rm -rf ${BUILD_HOME}/env*/src/cassandra-driver/.git
