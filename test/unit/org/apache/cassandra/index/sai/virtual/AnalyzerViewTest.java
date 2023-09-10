@@ -44,10 +44,10 @@ public class AnalyzerViewTest extends SAITester
     public void test() throws Throwable
     {
         UntypedResultSet results = execute("SELECT * FROM system_views.analyzer WHERE text = 'johnny apples seedlings'"+
-                                           " AND json_analyzer = '[\n" +
-                                           "\t{\"tokenizer\":\"whitespace\"},\n" +
-                                           "\t{\"filter\":\"porterstem\"}\n" +
-                                           "]' ALLOW FILTERING");
+                                           " AND json_analyzer = '{\n" +
+                                           "\t\"tokenizer\":{\"name\":\"whitespace\"},\n" +
+                                           "\t\"filters\":[{\"name\":\"porterstem\"}]\n" +
+                                           "}' ALLOW FILTERING");
         UntypedResultSet.Row row = results.one();
         String tokenized = row.getString("tokens");
 
