@@ -43,7 +43,6 @@
                  <!-- Config files with not much creativity -->
                  <exclude name=".asf.yaml"/>
                  <exclude name="**/cassandra*.yaml"/>
-                 <exclude name="conf/metrics-reporter-config-sample.yaml"/>
                  <exclude NAME="doc/antora.yml"/>
                  <exclude name="ide/**/*"/>
                  <exclude name="pylib/cqlshlib/test/config/sslhandling*.config"/>

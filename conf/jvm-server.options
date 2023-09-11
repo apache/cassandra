@@ -53,9 +53,6 @@
 # information in cassandra.yaml (such as listen_address).
 #-Dcassandra.load_ring_state=true|false
 
-# Enable pluggable metrics reporter. See Pluggable metrics reporting in Cassandra 2.0.2.
-#-Dcassandra.metricsReporterConfigFile=file
-
 # Set the port on which the CQL native transport listens for clients. (Default: 9042)
 #-Dcassandra.native_transport_port=port
 
