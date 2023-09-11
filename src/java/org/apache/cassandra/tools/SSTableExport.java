@@ -27,6 +27,7 @@ import java.util.stream.StreamSupport;
 
 import org.apache.commons.cli.*;
 
+import com.datastax.driver.core.TableMetadata;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -45,6 +46,8 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.ValidationMetadata;
+import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.Indexes;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -118,6 +121,15 @@ public class SSTableExport
         for (int i = 0; i < header.getClusteringTypes().size(); i++)
         {
             builder.addClusteringColumn("clustering" + (i > 0 ? i : ""), header.getClusteringTypes().get(i));
+        }
+
+        if (SecondaryIndexManager.isIndexColumnFamily(desc.cfname))
+        {
+            String index = SecondaryIndexManager.getIndexName(desc.cfname);
+            // Just set the Kind of index to CUSTOM, which is a irrelevant parameter that does't make any effect on the result
+            IndexMetadata indexMetadata = IndexMetadata.fromSchemaMetadata(index, IndexMetadata.Kind.CUSTOM, null);
+            Indexes indexes = Indexes.builder().add(indexMetadata).build();
+            return builder.build().indexes(indexes);
         }
         return builder.build();
     }

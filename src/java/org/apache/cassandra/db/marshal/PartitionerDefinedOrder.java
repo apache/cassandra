@@ -18,39 +18,43 @@
 package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
-import java.util.Iterator;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 
 /** for sorting columns representing row keys in the row ordering as determined by a partitioner.
  * Not intended for user-defined CFs, and will in fact error out if used with such. */
 public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
 {
     private final IPartitioner partitioner;
-
+    private final AbstractType<?> baseType;
+    
     public PartitionerDefinedOrder(IPartitioner partitioner)
     {
         super(ComparisonType.CUSTOM);
         this.partitioner = partitioner;
+        this.baseType = null;
+    }
+
+    public PartitionerDefinedOrder(IPartitioner partitioner, AbstractType<?> baseType)
+    {
+        super(ComparisonType.CUSTOM);
+        this.partitioner = partitioner;
+        this.baseType = baseType;
     }
 
     public static AbstractType<?> getInstance(TypeParser parser)
     {
-        IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
-        Iterator<String> argIterator = parser.getKeyValueParameters().keySet().iterator();
-        if (argIterator.hasNext())
-        {
-            partitioner = FBUtilities.newPartitioner(argIterator.next());
-            assert !argIterator.hasNext();
-        }
-        return partitioner.partitionOrdering();
+        return parser.getPartitionerDefinedOrder();
+    }
+    
+    public AbstractType<?> withBaseType(AbstractType<?> baseType)
+    {
+        return new PartitionerDefinedOrder(partitioner, baseType);
     }
 
     @Override
@@ -84,7 +88,8 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
     @Override
     public String toJSONString(ByteBuffer buffer, int protocolVersion)
     {
-        throw new UnsupportedOperationException();
+        assert baseType != null && !baseType.equals(this) : "PartitionerDefinedOrder's toJSONString method need a baseType but now is null or with a not euqal type.";
+        return baseType.toJSONString(buffer, protocolVersion);   
     }
 
     public int compareCustom(ByteBuffer o1, ByteBuffer o2)
@@ -107,6 +112,38 @@ public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
     @Override
     public String toString()
     {
+        if(baseType != null)
+        {
+            return String.format("%s(%s:%s)", getClass().getName(), partitioner.getClass().getName(), baseType.toString());
+        }
         return String.format("%s(%s)", getClass().getName(), partitioner.getClass().getName());
+    }
+    
+    public AbstractType<?>  getBaseType()
+    {
+        return baseType; 
+    }
+
+    @Override
+    public boolean equals(Object obj)
+    {
+        if (this == obj)
+        {
+            return true;
+        }
+        if (obj instanceof PartitionerDefinedOrder)
+        {
+            PartitionerDefinedOrder other = (PartitionerDefinedOrder) obj;
+            if (baseType == null && other.baseType == null)
+            {
+                return this.partitioner.equals(other.partitioner);
+            }
+            else if (baseType != null && other.baseType != null) 
+            {
+                return this.baseType.equals(other.baseType) && this.partitioner.equals(other.partitioner);
+            }
+            return false;
+        }
+        return false;
     }
 }

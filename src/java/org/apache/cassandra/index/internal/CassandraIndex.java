@@ -48,6 +48,7 @@ import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.EmptyType;
+import org.apache.cassandra.db.marshal.PartitionerDefinedOrder;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.*;
@@ -765,6 +766,13 @@ public abstract class CassandraIndex implements Index
         ColumnDefinition indexedColumn = target.left;
         AbstractType<?> indexedValueType = utils.getIndexedValueType(indexedColumn);
 
+        AbstractType<?> indexedTablePartitionKeyType = baseCfsMetadata.partitioner.partitionOrdering();
+        if (indexedTablePartitionKeyType instanceof PartitionerDefinedOrder)
+        {
+            PartitionerDefinedOrder tmp = (PartitionerDefinedOrder) indexedTablePartitionKeyType;
+            indexedTablePartitionKeyType = tmp.withBaseType(baseCfsMetadata.getKeyValidator());
+        }
+
         // Tables for legacy KEYS indexes are non-compound and dense
         CFMetaData.Builder builder = indexMetadata.isKeys()
                                      ? CFMetaData.Builder.create(baseCfsMetadata.ksName,
@@ -775,8 +783,8 @@ public abstract class CassandraIndex implements Index
 
         builder =  builder.withId(baseCfsMetadata.cfId)
                           .withPartitioner(new LocalPartitioner(indexedValueType))
-                          .addPartitionKey(indexedColumn.name, indexedColumn.type)
-                          .addClusteringColumn("partition_key", baseCfsMetadata.partitioner.partitionOrdering());
+                          .addPartitionKey(indexedColumn.name, utils.getIndexedPartitionKeyType(indexedColumn))
+                          .addClusteringColumn("partition_key", indexedTablePartitionKeyType);
 
         if (indexMetadata.isKeys())
         {
