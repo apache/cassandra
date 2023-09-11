@@ -1905,7 +1905,7 @@ class Shell(cmd.Cmd):
         if self.use_paging:
             print(("Page size: {}".format(self.page_size)))
         else:
-            self.page_size = self.efault_page_size
+            self.page_size = self.default_page_size
 
     def applycolor(self, text, color=None):
         if not color or not self.color:
