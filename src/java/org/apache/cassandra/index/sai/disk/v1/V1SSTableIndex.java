@@ -39,7 +39,7 @@ import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.iterators.KeyRangeUnionIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
-import org.apache.cassandra.index.sai.utils.PrimaryKey;
+import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
@@ -158,11 +158,11 @@ public class V1SSTableIndex extends SSTableIndex
     }
 
     @Override
-    public List<KeyRangeIterator<PrimaryKey>> search(Expression expression,
-                                                     AbstractBounds<PartitionPosition> keyRange,
-                                                     QueryContext context) throws IOException
+    public List<PostingList> search(Expression expression,
+                                    AbstractBounds<PartitionPosition> keyRange,
+                                    QueryContext context) throws IOException
     {
-        List<KeyRangeIterator<PrimaryKey>> segmentIterators = new ArrayList<>();
+        List<PostingList> segmentIterators = new ArrayList<>();
 
         for (Segment segment : segments)
         {
@@ -176,27 +176,9 @@ public class V1SSTableIndex extends SSTableIndex
     }
 
     @Override
-    public List<KeyRangeIterator<Long>> searchSSTableRowIds(Expression expression,
-                                                            AbstractBounds<PartitionPosition> keyRange,
-                                                            QueryContext context) throws IOException
+    public KeyRangeIterator limitToTopResults(QueryContext context, PostingList iterator, Expression exp) throws IOException
     {
-        List<KeyRangeIterator<Long>> segmentIterators = new ArrayList<>();
-
-        for (Segment segment : segments)
-        {
-            if (segment.intersects(keyRange))
-            {
-                segmentIterators.add(segment.searchSSTableRowIds(expression, keyRange, context));
-            }
-        }
-
-        return segmentIterators;
-    }
-
-    @Override
-    public KeyRangeIterator<PrimaryKey> limitToTopResults(QueryContext context, KeyRangeIterator<Long> iterator, Expression exp) throws IOException
-    {
-        KeyRangeUnionIterator.Builder<PrimaryKey> unionIteratorBuilder = KeyRangeUnionIterator.builder(segments.size());
+        KeyRangeUnionIterator.Builder unionIteratorBuilder = KeyRangeUnionIterator.builder(segments.size());
         for (Segment segment : segments)
             unionIteratorBuilder.add(segment.limitToTopResults(context, iterator, exp));
 

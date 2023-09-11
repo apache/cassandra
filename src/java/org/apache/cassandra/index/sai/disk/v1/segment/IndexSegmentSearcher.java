@@ -25,19 +25,17 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
-import org.apache.cassandra.index.sai.disk.SSTableRowIdPostingList;
-import org.apache.cassandra.index.sai.disk.SSTableRowIdsRangeIterator;
 import org.apache.cassandra.index.sai.disk.v1.PerColumnIndexFiles;
 import org.apache.cassandra.index.sai.disk.v1.postings.PostingListRangeIterator;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.postings.PeekablePostingList;
 import org.apache.cassandra.index.sai.postings.PostingList;
-import org.apache.cassandra.index.sai.utils.PrimaryKey;
+import org.apache.cassandra.index.sai.postings.RangePostingList;
 
 /**
  * Abstract reader for individual segments of an on-disk index.
- *
+ * <p>
  * Accepts shared resources (token/offset file readers), and uses them to perform lookups against on-disk data
  * structures.
  */
@@ -84,24 +82,14 @@ public abstract class IndexSegmentSearcher implements SegmentOrdering, Closeable
      * @param expression to filter on disk index
      * @param queryContext to track per sstable cache and per query metrics
      *
-     * @return {@link KeyRangeIterator} with matches for the given expression
+     * @return {@link PostingList} with matches for the given expression
      */
-    public abstract KeyRangeIterator<PrimaryKey> search(Expression expression, AbstractBounds<PartitionPosition> keyRange, QueryContext queryContext) throws IOException;
+    public abstract PostingList search(Expression expression, AbstractBounds<PartitionPosition> keyRange, QueryContext queryContext) throws IOException;
 
-    /**
-     * Search on-disk index synchronously.
-     *
-     * @param expression to filter on disk index
-     * @param queryContext to track per sstable cache and per query metrics
-     *
-     * @return {@link KeyRangeIterator} with matches for the given expression
-     */
-    public abstract KeyRangeIterator<Long> searchSSTableRowIDs(Expression expression, AbstractBounds<PartitionPosition> keyRange, QueryContext queryContext) throws IOException;
-
-    KeyRangeIterator<PrimaryKey> toPrimaryKeyIterator(PostingList postingList, QueryContext queryContext) throws IOException
+    KeyRangeIterator toPrimaryKeyIterator(PostingList postingList, QueryContext queryContext) throws IOException
     {
         if (postingList == null || postingList.size() == 0)
-            return KeyRangeIterator.emptyKeys();
+            return KeyRangeIterator.empty();
 
         IndexSegmentSearcherContext searcherContext = new IndexSegmentSearcherContext(metadata.minKey,
                                                                                       metadata.maxKey,
@@ -114,20 +102,11 @@ public abstract class IndexSegmentSearcher implements SegmentOrdering, Closeable
         return new PostingListRangeIterator(indexContext, primaryKeyMapFactory.newPerSSTablePrimaryKeyMap(), searcherContext);
     }
 
-    KeyRangeIterator<Long> toSSTableRowIdsIterator(PostingList postingList, QueryContext queryContext) throws IOException
+    PostingList toRangePostingList(PostingList postingList, QueryContext queryContext)
     {
         if (postingList == null || postingList.size() == 0)
-            return KeyRangeIterator.emptyLongs();
+            return PostingList.EMPTY;
 
-        SSTableRowIdPostingList sstablePosting = new SSTableRowIdPostingList(postingList, metadata.rowIdOffset);
-        IndexSegmentSearcherContext searcherContext = new IndexSegmentSearcherContext(metadata.minKey,
-                                                                        metadata.maxKey,
-                                                                        metadata.minSSTableRowId,
-                                                                        metadata.maxSSTableRowId,
-                                                                        metadata.rowIdOffset,
-                                                                        queryContext,
-                                                                        PeekablePostingList.makePeekable(sstablePosting));
-
-        return new SSTableRowIdsRangeIterator(indexContext, searcherContext);
+        return new RangePostingList(postingList, metadata.rowIdOffset, metadata.minSSTableRowId, metadata.maxSSTableRowId, metadata.numRows, queryContext);
     }
 }

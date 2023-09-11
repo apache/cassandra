@@ -33,6 +33,16 @@ public interface PostingList extends Closeable
     @Override
     default void close() {}
 
+    default long minimum()
+    {
+        return Long.MIN_VALUE;
+    }
+
+    default long maximum()
+    {
+        return Long.MAX_VALUE;
+    }
+
     /**
      * Retrieves the next segment row ID, not including row IDs that have been returned by {@link #advance(long)}.
      *

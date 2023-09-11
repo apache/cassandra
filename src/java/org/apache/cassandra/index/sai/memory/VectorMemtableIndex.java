@@ -143,7 +143,7 @@ public class VectorMemtableIndex extends MemoryIndex
     }
 
     @Override
-    public KeyRangeIterator<PrimaryKey> search(QueryContext queryContext, Expression expr, AbstractBounds<PartitionPosition> keyRange)
+    public KeyRangeIterator search(QueryContext queryContext, Expression expr, AbstractBounds<PartitionPosition> keyRange)
     {
         assert expr.getOp() == Expression.IndexOperator.ANN : "Only ANN is supported for vector search, received " + expr.getOp();
 
@@ -189,7 +189,7 @@ public class VectorMemtableIndex extends MemoryIndex
     }
 
     @Override
-    public KeyRangeIterator<PrimaryKey> limitToTopResults(QueryContext context, KeyRangeIterator<PrimaryKey> iterator, Expression exp)
+    public KeyRangeIterator limitToTopResults(QueryContext context, KeyRangeIterator iterator, Expression exp)
     {
         Set<PrimaryKey> results = new HashSet<>();
         while (iterator.hasNext())
@@ -280,7 +280,7 @@ public class VectorMemtableIndex extends MemoryIndex
         }
     }
 
-    private class ReorderingRangeIterator extends KeyRangeIterator<PrimaryKey>
+    private class ReorderingRangeIterator extends KeyRangeIterator
     {
         private final PriorityQueue<PrimaryKey> keyQueue;
 

@@ -42,7 +42,6 @@ import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.iterators.KeyRangeUnionIterator;
-import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -137,20 +136,20 @@ public class MemtableIndexManager
                                    .orElse(null);
     }
 
-    public List<Pair<Memtable, KeyRangeIterator<PrimaryKey>>> iteratorsForSearch(QueryContext queryContext, Expression expression, AbstractBounds<PartitionPosition> keyRange, int limit) {
+    public List<Pair<Memtable, KeyRangeIterator>> iteratorsForSearch(QueryContext queryContext, Expression expression, AbstractBounds<PartitionPosition> keyRange) {
         return liveMemtableIndexMap.entrySet()
                                    .stream()
                                    .map(e -> Pair.create(e.getKey(), e.getValue().search(queryContext, expression, keyRange))).collect(Collectors.toList());
     }
 
-    public KeyRangeIterator<PrimaryKey> reorderMemtable(Memtable memtable, QueryContext context, KeyRangeIterator<PrimaryKey> iterator, Expression exp)
+    public KeyRangeIterator reorderMemtable(Memtable memtable, QueryContext context, KeyRangeIterator iterator, Expression exp)
     {
         var index = liveMemtableIndexMap.get(memtable);
         return index.limitToTopResults(context, iterator, exp);
     }
 
 
-    public KeyRangeIterator<PrimaryKey> searchMemtableIndexes(QueryContext queryContext, Expression e, AbstractBounds<PartitionPosition> keyRange)
+    public KeyRangeIterator searchMemtableIndexes(QueryContext queryContext, Expression e, AbstractBounds<PartitionPosition> keyRange)
     {
         Collection<MemtableIndex> memtableIndexes = liveMemtableIndexMap.values();
 
@@ -159,7 +158,7 @@ public class MemtableIndexManager
             return KeyRangeIterator.empty();
         }
 
-        KeyRangeIterator.Builder<PrimaryKey> builder = KeyRangeUnionIterator.builder(memtableIndexes.size());
+        KeyRangeIterator.Builder builder = KeyRangeUnionIterator.builder(memtableIndexes.size());
 
         for (MemtableIndex memtableIndex : memtableIndexes)
         {

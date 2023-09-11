@@ -21,7 +21,6 @@ package org.apache.cassandra.index.sai.memory;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
-import org.apache.cassandra.index.sai.utils.PrimaryKey;
 
 /***
  * Analogue of SegmentOrdering, but for memtables.
@@ -37,7 +36,7 @@ public interface MemtableOrdering
      * <p>
      * Assumes that the given RangeIterator spans the same rows as the implementing index's segment.
      */
-    default KeyRangeIterator<PrimaryKey> limitToTopResults(QueryContext context, KeyRangeIterator<PrimaryKey> iterator, Expression exp)
+    default KeyRangeIterator limitToTopResults(QueryContext context, KeyRangeIterator iterator, Expression exp)
     {
         throw new UnsupportedOperationException();
     }

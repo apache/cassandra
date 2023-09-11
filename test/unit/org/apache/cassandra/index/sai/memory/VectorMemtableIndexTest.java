@@ -114,7 +114,7 @@ public class VectorMemtableIndexTest extends SAITester
         indexContext = SAITester.createIndexContext("index", VectorType.getInstance(FloatType.instance, dimensionCount));
         indexSearchCounter.reset();
         keyMap = new TreeMap<>();
-        rowMap = new HashMap<Integer, ByteBuffer>();
+        rowMap = new HashMap<>();
 
         Injections.inject(indexSearchCounter);
     }
@@ -154,9 +154,9 @@ public class VectorMemtableIndexTest extends SAITester
                                                                    DataLimits.cqlLimits(limit),
                                                                    DataRange.allData(cfs.metadata().partitioner));
 
-            try (KeyRangeIterator<PrimaryKey> iterator = memtableIndex.search(new QueryContext(command,
-                                                                                               DatabaseDescriptor.getRangeRpcTimeout(TimeUnit.MILLISECONDS)),
-                                                                              expression, keyRange))
+            try (KeyRangeIterator iterator = memtableIndex.search(new QueryContext(command,
+                                                                                   DatabaseDescriptor.getRangeRpcTimeout(TimeUnit.MILLISECONDS)),
+                                                                  expression, keyRange))
             {
                 while (iterator.hasNext())
                 {

@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.tracing.Tracing;
 
@@ -36,7 +37,7 @@ import org.apache.cassandra.tracing.Tracing;
  * the number of ranges that will be included in the intersection. This currently defaults to 2.
  */
 @SuppressWarnings({"resource", "RedundantSuppression"})
-public class KeyRangeIntersectionIterator<T extends Comparable<T>> extends KeyRangeIterator<T>
+public class KeyRangeIntersectionIterator extends KeyRangeIterator
 {
     private static final Logger logger = LoggerFactory.getLogger(KeyRangeIntersectionIterator.class);
 
@@ -45,16 +46,16 @@ public class KeyRangeIntersectionIterator<T extends Comparable<T>> extends KeyRa
         logger.info(String.format("Storage attached index intersection clause limit is %d", CassandraRelevantProperties.SAI_INTERSECTION_CLAUSE_LIMIT.getInt()));
     }
 
-    private final List<KeyRangeIterator<T>> ranges;
+    private final List<KeyRangeIterator> ranges;
 
-    private KeyRangeIntersectionIterator(Builder.Statistics<T> statistics, List<KeyRangeIterator<T>> ranges)
+    private KeyRangeIntersectionIterator(Builder.Statistics statistics, List<KeyRangeIterator> ranges)
     {
         super(statistics);
         this.ranges = ranges;
     }
 
     @Override
-    protected T computeNext()
+    protected PrimaryKey computeNext()
     {
         // Range iterator that has been advanced in the previous cycle of the outer loop.
         // Initially there hasn't been the previous cycle, so set to null.
@@ -62,7 +63,7 @@ public class KeyRangeIntersectionIterator<T extends Comparable<T>> extends KeyRa
 
         // The highest primary key seen on any range iterator so far.
         // It can become null when we reach the end of the iterator.
-        T highestKey = getCurrent();
+        PrimaryKey highestKey = getCurrent();
 
         outer:
         // We need to check if highestKey exceeds the maximum because the maximum is
@@ -76,8 +77,8 @@ public class KeyRangeIntersectionIterator<T extends Comparable<T>> extends KeyRa
             {
                 if (index != alreadyAvanced)
                 {
-                    KeyRangeIterator<T> range = ranges.get(index);
-                    T nextKey = nextOrNull(range, highestKey);
+                    KeyRangeIterator range = ranges.get(index);
+                    PrimaryKey nextKey = nextOrNull(range, highestKey);
                     if (nextKey == null || nextKey.compareTo(highestKey) > 0)
                     {
                         // We jumped over the highest key seen so far, so make it the new highest key.
@@ -103,9 +104,9 @@ public class KeyRangeIntersectionIterator<T extends Comparable<T>> extends KeyRa
     }
 
     @Override
-    protected void performSkipTo(T nextKey)
+    protected void performSkipTo(PrimaryKey nextKey)
     {
-        for (KeyRangeIterator<T> range : ranges)
+        for (KeyRangeIterator range : ranges)
             if (range.hasNext())
                 range.skipTo(nextKey);
     }
@@ -120,25 +121,25 @@ public class KeyRangeIntersectionIterator<T extends Comparable<T>> extends KeyRa
      * Fetches the next available item from the iterator, such that the item is not lower than the given key.
      * If no such items are available, returns null.
      */
-    private T nextOrNull(KeyRangeIterator<T> iterator, T minKey)
+    private PrimaryKey nextOrNull(KeyRangeIterator iterator, PrimaryKey minKey)
     {
         iterator.skipTo(minKey);
         return iterator.hasNext() ? iterator.next() : null;
     }
 
-    public static <T extends Comparable<T>> Builder<T> builder(int size)
+    public static Builder builder(int size)
     {
-        return new Builder<>(size);
+        return new Builder(size);
     }
 
     @VisibleForTesting
-    public static <T extends Comparable<T>> Builder<T> builder(int size, int limit)
+    public static Builder builder(int size, int limit)
     {
-        return new Builder<>(size, limit);
+        return new Builder(size, limit);
     }
 
     @VisibleForTesting
-    public static class Builder<T extends Comparable<T>> extends KeyRangeIterator.Builder<T>
+    public static class Builder extends KeyRangeIterator.Builder
     {
         // This controls the maximum number of range iterators that will be used in the final
         // intersection of a query operation. It is set from cassandra.sai.intersection_clause_limit
@@ -149,7 +150,7 @@ public class KeyRangeIntersectionIterator<T extends Comparable<T>> extends KeyRa
         // to produce any results.
         private boolean isDisjoint;
 
-        protected final List<KeyRangeIterator<T>> rangeIterators;
+        protected final List<KeyRangeIterator> rangeIterators;
 
         Builder(int size)
         {
@@ -158,13 +159,13 @@ public class KeyRangeIntersectionIterator<T extends Comparable<T>> extends KeyRa
 
         Builder(int size, int limit)
         {
-            super(new IntersectionStatistics<>());
+            super(new IntersectionStatistics());
             rangeIterators = new ArrayList<>(size);
             this.limit = limit;
         }
 
         @Override
-        public KeyRangeIterator.Builder<T> add(KeyRangeIterator<T> range)
+        public KeyRangeIterator.Builder add(KeyRangeIterator range)
         {
             if (range == null)
                 return this;
@@ -192,7 +193,7 @@ public class KeyRangeIntersectionIterator<T extends Comparable<T>> extends KeyRa
         }
 
         @Override
-        protected KeyRangeIterator<T> buildIterator()
+        protected KeyRangeIterator buildIterator()
         {
             rangeIterators.sort(Comparator.comparingLong(KeyRangeIterator::getCount));
             int initialSize = rangeIterators.size();
@@ -201,7 +202,7 @@ public class KeyRangeIntersectionIterator<T extends Comparable<T>> extends KeyRa
                 return buildIterator(statistics, rangeIterators);
 
             // Apply most selective iterators during intersection, because larger number of iterators will result lots of disk seek.
-            Statistics<T> selectiveStatistics = new IntersectionStatistics<>();
+            Statistics selectiveStatistics = new IntersectionStatistics();
             isDisjoint = false;
             for (int i = rangeIterators.size() - 1; i >= 0 && i >= limit; i--)
                 FileUtils.closeQuietly(rangeIterators.remove(i));
@@ -223,7 +224,7 @@ public class KeyRangeIntersectionIterator<T extends Comparable<T>> extends KeyRa
             return isDisjoint;
         }
 
-        private KeyRangeIterator<T> buildIterator(Statistics<T> statistics, List<KeyRangeIterator<T>> ranges)
+        private KeyRangeIterator buildIterator(Statistics statistics, List<KeyRangeIterator> ranges)
         {
             // if the ranges are disjoint, or we have an intersection with an empty set,
             // we can simply return an empty iterator, because it's not going to produce any results.
@@ -236,44 +237,22 @@ public class KeyRangeIntersectionIterator<T extends Comparable<T>> extends KeyRa
             if (ranges.size() == 1)
                 return ranges.get(0);
 
-            return new KeyRangeIntersectionIterator<>(statistics, ranges);
+            return new KeyRangeIntersectionIterator(statistics, ranges);
         }
 
-        private void updateStatistics(Statistics<T> statistics, KeyRangeIterator<T> range)
+        private void updateStatistics(Statistics statistics, KeyRangeIterator range)
         {
             statistics.update(range);
             isDisjoint |= isDisjointInternal(statistics.min, statistics.max, range);
         }
-
-        /**
-         * Ranges are overlapping the following cases:
-         * <p>
-         *   * When they have a common subrange:
-         * <pre>
-         *   min       b.current      max          b.max
-         *   +---------|--------------+------------|
-         *
-         *   b.current      min       max          b.max
-         *   |--------------+---------+------------|
-         *
-         *   min        b.current     b.max        max
-         *   +----------|-------------|------------+
-         * </pre>
-         *
-         *  If either range is empty, they're disjoint.
-         */
-        private boolean isDisjointInternal(T min, T max, KeyRangeIterator<T> b)
-        {
-            return min == null || max == null || b.getCount() == 0 || min.compareTo(b.getMaximum()) > 0 || b.getCurrent().compareTo(max) > 0;
-        }
     }
 
-    private static class IntersectionStatistics<U extends Comparable<U>> extends KeyRangeIterator.Builder.Statistics<U>
+    private static class IntersectionStatistics extends KeyRangeIterator.Builder.Statistics
     {
         private boolean empty = true;
 
         @Override
-        public void update(KeyRangeIterator<U> range)
+        public void update(KeyRangeIterator range)
         {
             // minimum of the intersection is the biggest minimum of individual iterators
             min = nullSafeMax(min, range.getMinimum());
@@ -289,5 +268,33 @@ public class KeyRangeIntersectionIterator<T extends Comparable<T>> extends KeyRa
                 count = Math.min(count, range.getCount());
             }
         }
+    }
+
+    @VisibleForTesting
+    protected static boolean isDisjoint(KeyRangeIterator a, KeyRangeIterator b)
+    {
+        return isDisjointInternal(a.getCurrent(), a.getMaximum(), b);
+    }
+
+    /**
+     * Ranges are overlapping the following cases:
+     *
+     *   * When they have a common subrange:
+     *
+     *   min       b.current      max          b.max
+     *   +---------|--------------+------------|
+     *
+     *   b.current      min       max          b.max
+     *   |--------------+---------+------------|
+     *
+     *   min        b.current     b.max        max
+     *   +----------|-------------|------------+
+     *
+     *
+     *  If either range is empty, they're disjoint.
+     */
+    private static boolean isDisjointInternal(PrimaryKey min, PrimaryKey max, KeyRangeIterator b)
+    {
+        return min == null || max == null || b.getCount() == 0 || min.compareTo(b.getMaximum()) > 0 || b.getCurrent().compareTo(max) > 0;
     }
 }

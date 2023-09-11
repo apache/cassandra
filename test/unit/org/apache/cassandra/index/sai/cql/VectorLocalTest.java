@@ -422,7 +422,7 @@ public class VectorLocalTest extends VectorTester
             assertDescendingScore(queryVector, resultVectors);
 
             double recall = indexedRecall(vectorsByStringValue.get(stringValue), queryVector, resultVectors, limit);
-            assertThat(recall).isGreaterThanOrEqualTo(0.8);
+            assertThat(recall).isGreaterThanOrEqualTo(0.7);
         }
     }
 

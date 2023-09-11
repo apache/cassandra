@@ -132,7 +132,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         private final Iterator<DataRange> keyRanges;
         private AbstractBounds<PartitionPosition> currentKeyRange;
 
-        private final KeyRangeIterator<PrimaryKey> resultKeyIterator;
+        private final KeyRangeIterator resultKeyIterator;
         private final FilterTree filterTree;
         private final QueryController queryController;
         private final ReadExecutionController executionController;
@@ -337,7 +337,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
          * Initially, it retrieves the rows from the given iterator until it runs out of data.
          * Then it iterates the primary keys obtained from the index until the end of the partition
          * and lazily constructs new row itertors for each of the keys. At a given time, only one row iterator is open.
-         *
+         * <p>
          * The rows are retrieved in the order of primary keys provided by the underlying index.
          * The iterator is complete when the next key to be fetched belongs to different partition
          * (but the iterator does not consume that key).

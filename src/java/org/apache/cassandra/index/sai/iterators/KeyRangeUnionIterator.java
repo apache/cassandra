@@ -22,18 +22,19 @@ import java.util.List;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.util.FileUtils;
 
 /**
  * Range Union Iterator is used to return sorted stream of elements from multiple RangeIterator instances.
  */
 @SuppressWarnings({"resource", "RedundantSuppression"})
-public class KeyRangeUnionIterator<T extends Comparable<T>> extends KeyRangeIterator<T>
+public class KeyRangeUnionIterator extends KeyRangeIterator
 {
-    private final List<KeyRangeIterator<T>> ranges;
-    private final List<KeyRangeIterator<T>> candidates;
+    private final List<KeyRangeIterator> ranges;
+    private final List<KeyRangeIterator> candidates;
 
-    private KeyRangeUnionIterator(Builder.Statistics<T> statistics, List<KeyRangeIterator<T>> ranges)
+    private KeyRangeUnionIterator(Builder.Statistics statistics, List<KeyRangeIterator> ranges)
     {
         super(statistics);
         this.ranges = ranges;
@@ -41,11 +42,11 @@ public class KeyRangeUnionIterator<T extends Comparable<T>> extends KeyRangeIter
     }
 
     @Override
-    public T computeNext()
+    public PrimaryKey computeNext()
     {
         candidates.clear();
-        T candidate = null;
-        for (KeyRangeIterator<T> range : ranges)
+        PrimaryKey candidate = null;
+        for (KeyRangeIterator range : ranges)
         {
             if (range.hasNext())
             {
@@ -80,9 +81,9 @@ public class KeyRangeUnionIterator<T extends Comparable<T>> extends KeyRangeIter
     }
 
     @Override
-    protected void performSkipTo(T nextKey)
+    protected void performSkipTo(PrimaryKey nextKey)
     {
-        for (KeyRangeIterator<T> range : ranges)
+        for (KeyRangeIterator range : ranges)
         {
             if (range.hasNext())
                 range.skipTo(nextKey);
@@ -96,29 +97,29 @@ public class KeyRangeUnionIterator<T extends Comparable<T>> extends KeyRangeIter
         FileUtils.closeQuietly(ranges);
     }
 
-    public static <T extends Comparable<T>> Builder<T> builder(int size)
+    public static Builder builder(int size)
     {
-        return new Builder<>(size);
+        return new Builder(size);
     }
 
-    public static <T extends Comparable<T>> KeyRangeIterator<T> build(List<KeyRangeIterator<T>> keys)
+    public static KeyRangeIterator build(List<KeyRangeIterator> keys)
     {
-        return new Builder<T>(keys.size()).add(keys).build();
+        return new Builder(keys.size()).add(keys).build();
     }
 
     @VisibleForTesting
-    public static class Builder<T extends Comparable<T>> extends KeyRangeIterator.Builder<T>
+    public static class Builder extends KeyRangeIterator.Builder
     {
-        protected final List<KeyRangeIterator<T>> rangeIterators;
+        protected final List<KeyRangeIterator> rangeIterators;
 
         Builder(int size)
         {
-            super(new UnionStatistics<>());
+            super(new UnionStatistics());
             this.rangeIterators = new ArrayList<>(size);
         }
 
         @Override
-        public KeyRangeIterator.Builder<T> add(KeyRangeIterator<T> range)
+        public KeyRangeIterator.Builder add(KeyRangeIterator range)
         {
             if (range == null)
                 return this;
@@ -149,19 +150,19 @@ public class KeyRangeUnionIterator<T extends Comparable<T>> extends KeyRangeIter
         }
 
         @Override
-        protected KeyRangeIterator<T> buildIterator()
+        protected KeyRangeIterator buildIterator()
         {
             if (rangeCount() == 1)
                 return rangeIterators.get(0);
 
-            return new KeyRangeUnionIterator<>(statistics, rangeIterators);
+            return new KeyRangeUnionIterator(statistics, rangeIterators);
         }
     }
 
-    private static class UnionStatistics<U extends Comparable<U>> extends KeyRangeIterator.Builder.Statistics<U>
+    private static class UnionStatistics extends KeyRangeIterator.Builder.Statistics
     {
         @Override
-        public void update(KeyRangeIterator<U> range)
+        public void update(KeyRangeIterator range)
         {
             min = nullSafeMin(min, range.getMinimum());
             max = nullSafeMax(max, range.getMaximum());

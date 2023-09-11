@@ -40,14 +40,14 @@ import org.apache.cassandra.utils.Throwables;
  * From sstable row id range iterator to primary key range iterator
  */
 @NotThreadSafe
-public class SSTableRowIdKeyRangeIterator extends KeyRangeIterator<PrimaryKey>
+public class SSTableRowIdKeyRangeIterator extends KeyRangeIterator
 {
     private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
     private final Stopwatch timeToExhaust = Stopwatch.createStarted();
     private final QueryContext queryContext;
     private final PrimaryKeyMap primaryKeyMap;
-    private final KeyRangeIterator<Long> sstableRowIdIterator;
+    private final PostingList postingList;
 
     private boolean needsSkipping = false;
     private PrimaryKey skipToToken = null;
@@ -61,26 +61,23 @@ public class SSTableRowIdKeyRangeIterator extends KeyRangeIterator<PrimaryKey>
                                          long count,
                                          PrimaryKeyMap primaryKeyMap,
                                          QueryContext queryContext,
-                                         KeyRangeIterator<Long> sstableRowIdIterator)
+                                         PostingList postingList)
     {
         super(min, max, count);
 
         this.primaryKeyMap = primaryKeyMap;
         this.queryContext = queryContext;
-        this.sstableRowIdIterator = sstableRowIdIterator;
+        this.postingList = postingList;
     }
 
-    public static KeyRangeIterator<PrimaryKey> create(PrimaryKeyMap primaryKeyMap,
-                                                      QueryContext queryContext,
-                                                      KeyRangeIterator<Long> sstableRowIdIterator)
+    public static KeyRangeIterator create(PrimaryKeyMap primaryKeyMap, QueryContext queryContext, PostingList postingList)
     {
-        if (sstableRowIdIterator.getCount() <= 0)
-            return KeyRangeIterator.emptyKeys();
+        if (postingList.size() <= 0)
+            return KeyRangeIterator.empty();
 
-        PrimaryKey min = primaryKeyMap.primaryKeyFromRowId(sstableRowIdIterator.getMinimum());
-        PrimaryKey max = primaryKeyMap.primaryKeyFromRowId(sstableRowIdIterator.getMaximum());
-        long count = sstableRowIdIterator.getCount();
-        return new SSTableRowIdKeyRangeIterator(min, max, count, primaryKeyMap, queryContext, sstableRowIdIterator);
+        PrimaryKey min = primaryKeyMap.primaryKeyFromRowId(postingList.minimum());
+        PrimaryKey max = primaryKeyMap.primaryKeyFromRowId(postingList.maximum());
+        return new SSTableRowIdKeyRangeIterator(min, max, postingList.size(), primaryKeyMap, queryContext, postingList);
     }
 
     @Override
@@ -129,7 +126,7 @@ public class SSTableRowIdKeyRangeIterator extends KeyRangeIterator<PrimaryKey>
             logger.trace("PostinListRangeIterator exhausted after {} ms", exhaustedInMills);
         }
 
-        FileUtils.closeQuietly(Arrays.asList(sstableRowIdIterator, primaryKeyMap));
+        FileUtils.closeQuietly(Arrays.asList(postingList, primaryKeyMap));
     }
 
     private boolean exhausted()
@@ -140,7 +137,7 @@ public class SSTableRowIdKeyRangeIterator extends KeyRangeIterator<PrimaryKey>
     /**
      * reads the next sstable row ID from the underlying range iterator, potentially skipping to get there.
      */
-    private long getNextRowId()
+    private long getNextRowId() throws IOException
     {
         long sstableRowId;
         if (needsSkipping)
@@ -150,13 +147,12 @@ public class SSTableRowIdKeyRangeIterator extends KeyRangeIterator<PrimaryKey>
             if (targetRowID < 0)
                 return PostingList.END_OF_STREAM;
 
-            sstableRowIdIterator.skipTo(targetRowID);
-            sstableRowId = sstableRowIdIterator.hasNext() ? sstableRowIdIterator.next() : PostingList.END_OF_STREAM;
+            sstableRowId = postingList.advance(targetRowID);
             needsSkipping = false;
         }
         else
         {
-            sstableRowId = sstableRowIdIterator.hasNext() ? sstableRowIdIterator.next() : PostingList.END_OF_STREAM;
+            sstableRowId = postingList.nextPosting();
         }
 
         return sstableRowId;

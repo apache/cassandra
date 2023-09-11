@@ -79,6 +79,18 @@ public class PeekablePostingList implements PostingList
     }
 
     @Override
+    public long minimum()
+    {
+        return wrapped.maximum();
+    }
+
+    @Override
+    public long maximum()
+    {
+        return wrapped.maximum();
+    }
+
+    @Override
     public long nextPosting() throws IOException
     {
         if (peeked)

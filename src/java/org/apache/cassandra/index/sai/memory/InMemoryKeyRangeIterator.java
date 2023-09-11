@@ -25,7 +25,7 @@ import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 
 @NotThreadSafe
-public class InMemoryKeyRangeIterator extends KeyRangeIterator<PrimaryKey>
+public class InMemoryKeyRangeIterator extends KeyRangeIterator
 {
     private final PriorityQueue<PrimaryKey> keys;
     private final boolean uniqueKeys;

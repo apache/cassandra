@@ -55,16 +55,16 @@ import org.apache.cassandra.utils.Pair;
 
 public class StorageAttachedIndexQueryController implements QueryController
 {
-    private final ColumnFamilyStore cfs;
-    private final ReadCommand command;
-    private final QueryContext queryContext;
-    private final TableQueryMetrics tableQueryMetrics;
-    private final RowFilter filterOperation;
-    private final List<DataRange> ranges;
-    private final AbstractBounds<PartitionPosition> mergeRange;
-    private final PrimaryKey.Factory keyFactory;
-    private final PrimaryKey firstPrimaryKey;
-    private final PrimaryKey lastPrimaryKey;
+    protected final ColumnFamilyStore cfs;
+    protected final ReadCommand command;
+    protected final QueryContext queryContext;
+    protected final TableQueryMetrics tableQueryMetrics;
+    protected final RowFilter filterOperation;
+    protected final List<DataRange> ranges;
+    protected final AbstractBounds<PartitionPosition> mergeRange;
+    protected final PrimaryKey.Factory keyFactory;
+    protected final PrimaryKey firstPrimaryKey;
+    protected final PrimaryKey lastPrimaryKey;
 
     public StorageAttachedIndexQueryController(ColumnFamilyStore cfs,
                                                ReadCommand command,
