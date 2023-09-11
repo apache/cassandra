@@ -43,7 +43,7 @@ import org.apache.cassandra.index.sai.disk.v1.segment.LiteralIndexSegmentSearche
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.v1.trie.LiteralIndexWriter;
 import org.apache.cassandra.index.sai.plan.Expression;
-import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
+import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
 import org.apache.cassandra.service.StorageService;
@@ -54,9 +54,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 
@@ -115,53 +113,46 @@ public class InvertedIndexSearcherTest extends SAIRandomizedTester
         {
             for (int t = 0; t < numTerms; ++t)
             {
-                try (KeyRangeIterator<Long> results = searcher.searchSSTableRowIDs(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
+                try (PostingList results = searcher.search(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
                         .add(Operator.EQ, wrap(termsEnum.get(t).left)), null, context))
                 {
-                    assertEquals(results.getMinimum(), results.getCurrent());
-                    assertTrue(results.hasNext());
-
                     for (int p = 0; p < numPostings; ++p)
                     {
                         final long expectedToken = termsEnum.get(t).right.get(p);
-                        assertTrue(results.hasNext());
-                        final long actualToken = results.next();
+                        final long actualToken = results.nextPosting();
                         assertEquals(expectedToken, actualToken);
                     }
-                    assertFalse(results.hasNext());
+                    assertEquals(PostingList.END_OF_STREAM, results.nextPosting());
                 }
 
-                try (KeyRangeIterator<Long> results = searcher.searchSSTableRowIDs(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
+                try (PostingList results = searcher.search(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
                         .add(Operator.EQ, wrap(termsEnum.get(t).left)), null, context))
                 {
-                    assertEquals(results.getMinimum(), results.getCurrent());
-                    assertTrue(results.hasNext());
-
                     // test skipping to the last block
-                    final int idxToSkip = numPostings - 7;
+                    int idxToSkip = numPostings - 7;
                     // tokens are equal to their corresponding row IDs
-                    final long tokenToSkip = termsEnum.get(t).right.get(idxToSkip);
-                    results.skipTo(tokenToSkip);
+                    long tokenToSkip = termsEnum.get(t).right.get(idxToSkip);
+                    long actualToken = results.advance(tokenToSkip);
 
                     for (int p = idxToSkip; p < numPostings; ++p)
                     {
-                        final long expectedToken = termsEnum.get(t).right.get(p);
-                        final long actualToken = results.next();
+                        long expectedToken = termsEnum.get(t).right.get(p);
                         assertEquals(expectedToken, actualToken);
+                        actualToken = results.nextPosting();
                     }
                 }
             }
 
             // try searching for terms that weren't indexed
             final String tooLongTerm = randomSimpleString(10, 12);
-            KeyRangeIterator<Long> results = searcher.searchSSTableRowIDs(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
-                                                                .add(Operator.EQ, UTF8Type.instance.decompose(tooLongTerm)), null, context);
-            assertFalse(results.hasNext());
+            PostingList results = searcher.search(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
+                                                  .add(Operator.EQ, UTF8Type.instance.decompose(tooLongTerm)), null, context);
+            assertEquals(PostingList.END_OF_STREAM, results.nextPosting());
 
             final String tooShortTerm = randomSimpleString(1, 2);
-            results = searcher.searchSSTableRowIDs(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
-                                                      .add(Operator.EQ, UTF8Type.instance.decompose(tooShortTerm)), null, context);
-            assertFalse(results.hasNext());
+            results = searcher.search(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
+                                      .add(Operator.EQ, UTF8Type.instance.decompose(tooShortTerm)), null, context);
+            assertEquals(PostingList.END_OF_STREAM, results.nextPosting());
         }
     }
 
@@ -175,7 +166,7 @@ public class InvertedIndexSearcherTest extends SAIRandomizedTester
 
         try (IndexSegmentSearcher searcher = buildIndexAndOpenSearcher(numTerms, numPostings, termsEnum))
         {
-            searcher.searchSSTableRowIDs(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
+            searcher.search(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
                             .add(Operator.GT, UTF8Type.instance.decompose("a")), null, context);
 
             fail("Expect IllegalArgumentException thrown, but didn't");

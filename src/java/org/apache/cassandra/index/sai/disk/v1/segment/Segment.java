@@ -33,7 +33,7 @@ import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.v1.PerColumnIndexFiles;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
-import org.apache.cassandra.index.sai.utils.PrimaryKey;
+import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.io.util.FileUtils;
 
 /**
@@ -98,6 +98,19 @@ public class Segment implements SegmentOrdering, Closeable
         return index == null ? 0 : index.indexFileCacheSize();
     }
 
+//    /**
+//     * Search on-disk index synchronously
+//     *
+//     * @param expression to filter on disk index
+//     * @param context to track per sstable cache and per query metrics
+//
+//     * @return range iterator that matches given expression
+//     */
+//    public KeyRangeIterator<PrimaryKey> search(Expression expression, AbstractBounds<PartitionPosition> keyRange, QueryContext context) throws IOException
+//    {
+//        return index.search(expression, keyRange, context);
+//    }
+
     /**
      * Search on-disk index synchronously
      *
@@ -106,26 +119,13 @@ public class Segment implements SegmentOrdering, Closeable
 
      * @return range iterator that matches given expression
      */
-    public KeyRangeIterator<PrimaryKey> search(Expression expression, AbstractBounds<PartitionPosition> keyRange, QueryContext context) throws IOException
+    public PostingList search(Expression expression, AbstractBounds<PartitionPosition> keyRange, QueryContext context) throws IOException
     {
         return index.search(expression, keyRange, context);
     }
 
-    /**
-     * Search on-disk index synchronously
-     *
-     * @param expression to filter on disk index
-     * @param context to track per sstable cache and per query metrics
-
-     * @return range iterator that matches given expression
-     */
-    public KeyRangeIterator<Long> searchSSTableRowIds(Expression expression, AbstractBounds<PartitionPosition> keyRange, QueryContext context) throws IOException
-    {
-        return index.searchSSTableRowIDs(expression, keyRange, context);
-    }
-
     @Override
-    public KeyRangeIterator<PrimaryKey> limitToTopResults(QueryContext context, KeyRangeIterator<Long> iterator, Expression exp) throws IOException
+    public KeyRangeIterator limitToTopResults(QueryContext context, PostingList iterator, Expression exp) throws IOException
     {
         return index.limitToTopResults(context, iterator, exp);
     }

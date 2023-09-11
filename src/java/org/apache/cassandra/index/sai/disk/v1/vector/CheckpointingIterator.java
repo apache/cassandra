@@ -24,17 +24,18 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.util.FileUtils;
 
-public class CheckpointingIterator<T extends Comparable<T>> extends KeyRangeIterator<T>
+public class CheckpointingIterator extends KeyRangeIterator
 {
     private static final Logger logger = LoggerFactory.getLogger(CheckpointingIterator.class);
 
     private final QueryContext context;
-    private final KeyRangeIterator<T> union;
+    private final KeyRangeIterator union;
     private final Iterable<SSTableIndex> referencedIndexes;
 
-    public CheckpointingIterator(KeyRangeIterator<T> wrapped, Iterable<SSTableIndex> referencedIndexes, Iterable<SSTableIndex> referencedAnnIndexesInHybridSearch, QueryContext queryContext)
+    public CheckpointingIterator(KeyRangeIterator wrapped, Iterable<SSTableIndex> referencedIndexes, Iterable<SSTableIndex> referencedAnnIndexesInHybridSearch, QueryContext queryContext)
     {
         super(wrapped.getMinimum(), wrapped.getMaximum(), wrapped.getCount());
 
@@ -46,7 +47,7 @@ public class CheckpointingIterator<T extends Comparable<T>> extends KeyRangeIter
         this.context = queryContext;
     }
 
-    protected T computeNext()
+    protected PrimaryKey computeNext()
     {
         try
         {
@@ -58,7 +59,7 @@ public class CheckpointingIterator<T extends Comparable<T>> extends KeyRangeIter
         }
     }
 
-    protected void performSkipTo(T nextKey)
+    protected void performSkipTo(PrimaryKey nextKey)
     {
         try
         {

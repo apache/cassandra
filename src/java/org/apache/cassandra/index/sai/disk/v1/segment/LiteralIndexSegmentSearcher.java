@@ -37,8 +37,6 @@ import org.apache.cassandra.index.sai.metrics.MulticastQueryEventListeners;
 import org.apache.cassandra.index.sai.metrics.QueryEventListener;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.postings.PostingList;
-import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
-import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 /**
@@ -82,25 +80,9 @@ public class LiteralIndexSegmentSearcher extends IndexSegmentSearcher
 
     @Override
     @SuppressWarnings({"resource", "RedundantSuppression"})
-    public KeyRangeIterator<PrimaryKey> search(Expression expression, AbstractBounds<PartitionPosition> keyRange, QueryContext queryContext) throws IOException
+    public PostingList search(Expression expression, AbstractBounds<PartitionPosition> keyRange, QueryContext queryContext) throws IOException
     {
-        if (logger.isTraceEnabled())
-            logger.trace(indexContext.logMessage("Searching on expression '{}'..."), expression);
-
-        if (!expression.getOp().isEquality())
-            throw new IllegalArgumentException(indexContext.logMessage("Unsupported expression: " + expression));
-
-        final ByteComparable term = ByteComparable.fixedLength(expression.lower.value.encoded);
-        QueryEventListener.TrieIndexEventListener listener = MulticastQueryEventListeners.of(queryContext, perColumnEventListener);
-        PostingList postingList = reader.exactMatch(term, listener, queryContext);
-        return toPrimaryKeyIterator(postingList, queryContext);
-    }
-
-    @Override
-    @SuppressWarnings({"resource", "RedundantSuppression"})
-    public KeyRangeIterator<Long> searchSSTableRowIDs(Expression expression, AbstractBounds<PartitionPosition> keyRange, QueryContext queryContext) throws IOException
-    {
-        return toSSTableRowIdsIterator(performSearch(expression, keyRange, queryContext), queryContext);
+        return toRangePostingList(performSearch(expression, queryContext), queryContext);
     }
 
     @Override
@@ -117,7 +99,7 @@ public class LiteralIndexSegmentSearcher extends IndexSegmentSearcher
         reader.close();
     }
 
-    private PostingList performSearch(Expression expression, AbstractBounds<PartitionPosition> keyRange, QueryContext queryContext) throws IOException
+    private PostingList performSearch(Expression expression, QueryContext queryContext)
     {
         if (logger.isTraceEnabled())
             logger.trace(indexContext.logMessage("Searching on expression '{}'..."), expression);

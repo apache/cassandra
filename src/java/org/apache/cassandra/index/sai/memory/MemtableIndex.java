@@ -91,7 +91,7 @@ public class MemtableIndex implements MemtableOrdering
         index.update(key, clustering, oldValue, newValue);
     }
 
-    public KeyRangeIterator<PrimaryKey> search(QueryContext queryContext, Expression expression, AbstractBounds<PartitionPosition> keyRange)
+    public KeyRangeIterator search(QueryContext queryContext, Expression expression, AbstractBounds<PartitionPosition> keyRange)
     {
         return index.search(queryContext, expression, keyRange);
     }
@@ -109,7 +109,7 @@ public class MemtableIndex implements MemtableOrdering
     }
 
     @Override
-    public KeyRangeIterator<PrimaryKey> limitToTopResults(QueryContext context, KeyRangeIterator<PrimaryKey> iterator, Expression exp)
+    public KeyRangeIterator limitToTopResults(QueryContext context, KeyRangeIterator iterator, Expression exp)
     {
         return index.limitToTopResults(context, iterator, exp);
     }

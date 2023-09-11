@@ -42,7 +42,6 @@ import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.postings.IntArrayPostingList;
 import org.apache.cassandra.index.sai.postings.PostingList;
-import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeUtil;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.lucene.util.Bits;
@@ -82,16 +81,9 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
     }
 
     @Override
-    public KeyRangeIterator<PrimaryKey> search(Expression expression, AbstractBounds<PartitionPosition> keyRange, QueryContext queryContext) throws IOException
+    public PostingList search(Expression exp, AbstractBounds<PartitionPosition> keyRange, QueryContext context) throws IOException
     {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public KeyRangeIterator<Long> searchSSTableRowIDs(Expression exp, AbstractBounds<PartitionPosition> keyRange, QueryContext context) throws IOException
-    {
-        PostingList results = searchPosting(context, exp, keyRange);
-        return toSSTableRowIdsIterator(results, context);
+        return toRangePostingList(searchPosting(context, exp, keyRange), context);
     }
 
     private PostingList searchPosting(QueryContext context, Expression exp, AbstractBounds<PartitionPosition> keyRange) throws IOException
@@ -189,7 +181,7 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
     }
 
     @Override
-    public KeyRangeIterator<PrimaryKey> limitToTopResults(QueryContext context, KeyRangeIterator<Long> iterator, Expression exp) throws IOException
+    public KeyRangeIterator limitToTopResults(QueryContext context, PostingList postingList, Expression exp) throws IOException
     {
         // the iterator represents keys from all the segments in our sstable -- we'll only pull of those that
         // are from our own token range so we can use row ids to order the results by vector similarity.
@@ -199,14 +191,13 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
         int n = 0;
         try (var ordinalsView = graph.getOrdinalsView(); PrimaryKeyMap primaryKeyMap = primaryKeyMapFactory.newPerSSTablePrimaryKeyMap())
         {
-            while (iterator.hasNext())
+            while (true)
             {
-                Long sstableRowId = iterator.peek();
+                long sstableRowId = postingList.nextPosting();
                 // if sstable row id has exceeded current ANN segment, stop
                 if (sstableRowId > metadata.maxSSTableRowId)
                     break;
 
-                iterator.next();
                 // skip rows that are not in our segment (or more preciesely, have no vectors that were indexed)
                 if (sstableRowId < metadata.minSSTableRowId)
                     continue;

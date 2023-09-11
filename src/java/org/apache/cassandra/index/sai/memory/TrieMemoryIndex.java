@@ -155,7 +155,7 @@ public class TrieMemoryIndex extends MemoryIndex
      * @param keyRange the {@link AbstractBounds} containing the key range to restrict the search to
      * @return a {@link KeyRangeIterator} containing the search results
      */
-    public KeyRangeIterator<PrimaryKey> search(QueryContext queryContext, Expression expression, AbstractBounds<PartitionPosition> keyRange)
+    public KeyRangeIterator search(QueryContext queryContext, Expression expression, AbstractBounds<PartitionPosition> keyRange)
     {
         if (logger.isTraceEnabled())
             logger.trace("Searching memtable index on expression '{}'...", expression);
@@ -267,7 +267,7 @@ public class TrieMemoryIndex extends MemoryIndex
         };
     }
 
-    private KeyRangeIterator<PrimaryKey> exactMatch(Expression expression, AbstractBounds<PartitionPosition> keyRange)
+    private KeyRangeIterator exactMatch(Expression expression, AbstractBounds<PartitionPosition> keyRange)
     {
         ByteComparable comparableMatch = expression.lower == null ? ByteComparable.EMPTY
                                                                   : asComparableBytes(expression.lower.value.encoded);
@@ -303,7 +303,6 @@ public class TrieMemoryIndex extends MemoryIndex
             this.keyRange = keyRange;
         }
 
-        @SuppressWarnings("ConstantConditions")
         public void processContent(PrimaryKeys keys)
         {
             if (keys.isEmpty())
@@ -343,7 +342,7 @@ public class TrieMemoryIndex extends MemoryIndex
         }
     }
 
-    private KeyRangeIterator<PrimaryKey> rangeMatch(Expression expression, AbstractBounds<PartitionPosition> keyRange)
+    private KeyRangeIterator rangeMatch(Expression expression, AbstractBounds<PartitionPosition> keyRange)
     {
         ByteComparable lowerBound, upperBound;
         boolean lowerInclusive, upperInclusive;
