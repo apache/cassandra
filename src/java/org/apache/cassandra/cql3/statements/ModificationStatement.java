@@ -179,7 +179,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     }
 
     @Override
-    public boolean shouldUseFullyQualifiedTableName()
+    public boolean eligibleAsPreparedStatement()
     {
         return true;
     }

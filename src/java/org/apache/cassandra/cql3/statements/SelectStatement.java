@@ -182,7 +182,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     }
 
     @Override
-    public boolean shouldUseFullyQualifiedTableName()
+    public boolean eligibleAsPreparedStatement()
     {
         return true;
     }

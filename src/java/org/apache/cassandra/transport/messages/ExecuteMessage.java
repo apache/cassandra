@@ -134,15 +134,15 @@ public class ExecuteMessage extends Message.Request
             if (prepared == null)
                 throw new PreparedQueryNotFoundException(statementId);
 
-            if (!prepared.fullyQualified && !Objects.equals(state.getClientState().getRawKeyspace(), prepared.keyspace))
+            if (!prepared.fullyQualified && prepared.statement.eligibleAsPreparedStatement() && !Objects.equals(state.getClientState().getRawKeyspace(), prepared.keyspace))
             {
-                state.getClientState().warnAboutUseWithPreparedStatements(statementId, prepared.statement.shouldUseFullyQualifiedTableName(), prepared.keyspace);
+                state.getClientState().warnAboutUseWithPreparedStatements(statementId, prepared.keyspace);
+
                 String msg = String.format("Tried to execute a prepared unqualified statement on a keyspace it was not prepared on. " +
                                            " Executing the resulting prepared statement will return unexpected results: %s (on keyspace %s, previously prepared on %s)",
                                            statementId, state.getClientState().getRawKeyspace(), prepared.keyspace);
                 nospam.error(msg);
             }
-
 
             CQLStatement statement = prepared.statement;
             options.prepare(statement.getBindVariables());

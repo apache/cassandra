@@ -99,7 +99,7 @@ public interface CQLStatement
         return false;
     }
 
-    default public boolean shouldUseFullyQualifiedTableName()
+    default public boolean eligibleAsPreparedStatement()
     {
         return false;
     }

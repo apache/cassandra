@@ -165,7 +165,7 @@ public class BatchStatement implements CQLStatement
     }
 
     @Override
-    public boolean shouldUseFullyQualifiedTableName()
+    public boolean eligibleAsPreparedStatement()
     {
         return true;
     }

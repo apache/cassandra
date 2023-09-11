@@ -68,7 +68,7 @@ public class PreparedStatementsTest extends CQLTester
                             "UPDATE %s SET v1 = 2, v2 = 3 where id = 1"
                             })
         {
-            assertWarningsOnPreparedStatements(query, true, true);
+            assertWarningsOnPreparedStatements(query, true, true, true);
         }
     }
 
@@ -82,31 +82,34 @@ public class PreparedStatementsTest extends CQLTester
                             "UPDATE %keyspace%.%s SET v1 = 2, v2 = 3 where id = 1"
                             })
         {
-            assertWarningsOnPreparedStatements(query, false, true);
+            assertWarningsOnPreparedStatements(query, false, true, true);
+            assertWarningsOnPreparedStatements(query, false, true, false);
         }
     }
 
     @Test
-    public void testSchemaTransformationPreparedStatementEmitWaring()
+    public void testSchemaTransformationPreparedStatementEmitsWaring()
     {
-        assertWarningsOnPreparedStatements("ALTER TABLE %s ADD c3 int", true, false);
+        assertWarningsOnPreparedStatements("ALTER TABLE %s ADD c3 int", true, false, true);
+        assertWarningsOnPreparedStatements("ALTER TABLE %keyspace%.%s ADD c3 int", true, false, false);
     }
 
     @Test
     public void testBatchPreparedStatementsEmitWarnings()
     {
-        assertWarningsOnPreparedStatements("BEGIN BATCH INSERT INTO %s (id, v1, v2) VALUES (1,2,3) APPLY BATCH", true, true);
+        assertWarningsOnPreparedStatements("BEGIN BATCH INSERT INTO %s (id, v1, v2) VALUES (1,2,3) APPLY BATCH", true, true, true);
 
         // this will evaluate a statement as unqualified because not all are qualified
         assertWarningsOnPreparedStatements("BEGIN BATCH" +
                                            "  INSERT INTO %keyspace%.%s (id, v1, v2) VALUES (1,2,3); " +
-                                           "  INSERT INTO  %s (id, v1, v2) VALUES (3, 4, 5) " +
-                                           "APPLY BATCH;", true, true);
+                                           "  INSERT INTO %s (id, v1, v2) VALUES (3, 4, 5) " +
+                                           "APPLY BATCH;", true, true, true);
 
-        assertWarningsOnPreparedStatements("BEGIN BATCH INSERT INTO %keyspace%.%s (id, v1, v2) VALUES (1,2,3) APPLY BATCH;", false, true);
+        assertWarningsOnPreparedStatements("BEGIN BATCH INSERT INTO %keyspace%.%s (id, v1, v2) VALUES (1,2,3) APPLY BATCH;", false, true, true);
+        assertWarningsOnPreparedStatements("BEGIN BATCH INSERT INTO %keyspace%.%s (id, v1, v2) VALUES (1,2,3) APPLY BATCH;", false, true, false);
     }
 
-    private void assertWarningsOnPreparedStatements(String query, boolean expectWarn, boolean forModificationOrSelectStatement)
+    private void assertWarningsOnPreparedStatements(String query, boolean expectWarn, boolean forModificationOrSelectStatement, boolean useUse)
     {
         try
         {
@@ -114,7 +117,8 @@ public class PreparedStatementsTest extends CQLTester
             createTable(currentKeyspace(),"CREATE TABLE %s (id int, v1 int, v2 int, primary key (id))");
 
             ClientState clientState = ClientState.forInternalCalls();
-            clientState.setKeyspace(currentKeyspace());
+            if (useUse)
+                clientState.setKeyspace(currentKeyspace());
 
             ClientWarn.instance.captureWarnings();
 
@@ -134,7 +138,7 @@ public class PreparedStatementsTest extends CQLTester
             else if (expectWarn)
                 assertTrue(warnings != null &&
                            warnings.size() == 1 &&
-                           warnings.get(0).startsWith("`USE <keyspace>` with prepared statements should be used only for selection or modification statements."));
+                           warnings.get(0).startsWith("Prepared statements for other than modification and selection statements should be avoided,"));
             else
                 assertNull(warnings);
         }

@@ -96,8 +96,8 @@ public class ClientState
     // Current user for the session
     private volatile AuthenticatedUser user;
     private volatile String keyspace;
-    private volatile boolean issuedPreparedStatementsUseWarningForSelectionOrModification;
-    private volatile boolean issuedPreparedStatementsUseWarningForOtherStatements;
+    private volatile boolean issuedPreparedStatementsUseWarning;
+    private volatile boolean issuedWarningForUneligiblePreparedStatements;
 
     private static final QueryHandler cqlQueryHandler;
     static
@@ -583,21 +583,24 @@ public class ClientState
             throw new UnauthorizedException(message);
     }
 
-    public void warnAboutUseWithPreparedStatements(MD5Digest statementId, boolean shouldUseFullyQualifiedTableName, String preparedKeyspace)
+    public void warnAboutUseWithPreparedStatements(MD5Digest statementId, String preparedKeyspace)
     {
-        if (!issuedPreparedStatementsUseWarningForSelectionOrModification && shouldUseFullyQualifiedTableName)
+        if (!issuedPreparedStatementsUseWarning)
         {
             ClientWarn.instance.warn(String.format("`USE <keyspace>` with prepared statements is considered to be an anti-pattern due to ambiguity in non-qualified table names. " +
                                                    "Please consider removing instances of `Session#setKeyspace(<keyspace>)`, `Session#execute(\"USE <keyspace>\")` and `cluster.newSession(<keyspace>)` from your code, and " +
                                                    "always use fully qualified table names (e.g. <keyspace>.<table>). " +
                                                    "Keyspace used: %s, statement keyspace: %s, statement id: %s", getRawKeyspace(), preparedKeyspace, statementId));
-            issuedPreparedStatementsUseWarningForSelectionOrModification = true;
+            issuedPreparedStatementsUseWarning = true;
         }
-        else if (!issuedPreparedStatementsUseWarningForOtherStatements && !shouldUseFullyQualifiedTableName)
+    }
+
+    public void warnAboutUneligiblePreparedStatement(MD5Digest statementId)
+    {
+        if (!issuedWarningForUneligiblePreparedStatements)
         {
-            ClientWarn.instance.warn(String.format("`USE <keyspace>` with prepared statements should be used only for selection or modification statements. " +
-                                                   "Keyspace used: %s, statement keyspace: %s, statement id: %s", getRawKeyspace(), preparedKeyspace, statementId));
-            issuedPreparedStatementsUseWarningForOtherStatements = true;
+            ClientWarn.instance.warn(String.format("Prepared statements for other than modification and selection statements should be avoided, statement id: %s", statementId));
+            issuedWarningForUneligiblePreparedStatements = true;
         }
     }
 
