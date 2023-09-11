@@ -28,39 +28,9 @@ import traceback
 import warnings
 import webbrowser
 from contextlib import contextmanager
+from enum import Enum
 from io import StringIO
 from uuid import UUID
-
-UTF8 = 'utf-8'
-
-description = "CQL Shell for Apache Cassandra"
-version = "6.2.0"
-
-readline = None
-try:
-    # check if tty first, cause readline doesn't check, and only cares
-    # about $TERM. we don't want the funky escape code stuff to be
-    # output if not a tty.
-    if sys.stdin.isatty():
-        import readline
-except ImportError:
-    pass
-
-# On Linux, the Python webbrowser module uses the 'xdg-open' executable
-# to open a file/URL. But that only works, if the current session has been
-# opened from _within_ a desktop environment. I.e. 'xdg-open' will fail,
-# if the session's been opened via ssh to a remote box.
-#
-try:
-    webbrowser.register_standard_browsers()  # registration is otherwise lazy in Python3
-except AttributeError:
-    pass
-if webbrowser._tryorder and webbrowser._tryorder[0] == 'xdg-open' and os.environ.get('XDG_DATA_DIRS', '') == '':
-    # only on Linux (some OS with xdg-open)
-    webbrowser._tryorder.remove('xdg-open')
-    webbrowser._tryorder.append('xdg-open')
-
-warnings.filterwarnings("ignore", r".*blist.*")
 
 import cassandra
 from cassandra.auth import PlainTextAuthProvider
@@ -82,6 +52,36 @@ from cqlshlib.formatting import (DEFAULT_DATE_FORMAT, DEFAULT_NANOTIME_FORMAT,
 from cqlshlib.tracing import print_trace, print_trace_session
 from cqlshlib.util import get_file_encoding_bomsize, is_file_secure
 from cqlshlib.serverversion import version as build_version
+
+UTF8 = 'utf-8'
+
+description = "CQL Shell for Apache Cassandra"
+version = "6.2.0"
+
+readline = None
+try:
+    # check if tty first, cause readline doesn't check, and only cares $TERM.
+    # we don't want the funky escape code stuff to be output if not a tty.
+    if sys.stdin.isatty():
+        import readline
+except ImportError:
+    pass
+
+# On Linux, the Python webbrowser module uses the 'xdg-open' executable
+# to open a file/URL. But that only works, if the current session has been
+# opened from _within_ a desktop environment. I.e. 'xdg-open' will fail,
+# if the session's been opened via ssh to a remote box.
+#
+try:
+    webbrowser.register_standard_browsers()  # registration is otherwise lazy in Python3
+except AttributeError:
+    pass
+if webbrowser._tryorder and webbrowser._tryorder[0] == 'xdg-open' and os.environ.get('XDG_DATA_DIRS', '') == '':
+    # only on Linux (some OS with xdg-open)
+    webbrowser._tryorder.remove('xdg-open')
+    webbrowser._tryorder.append('xdg-open')
+
+warnings.filterwarnings("ignore", r".*blist.*")
 
 DEFAULT_HOST = '127.0.0.1'
 DEFAULT_PORT = 9042
@@ -281,6 +281,12 @@ def maybe_ensure_text(val):
 
 class FormatError(DecodeError):
     verb = 'format'
+
+
+
+class SwitchState(Enum):
+    ON = True
+    OFF = False
 
 
 def full_cql_version(ver):
@@ -1658,7 +1664,8 @@ class Shell(cmd.Cmd):
 
           TRACING with no arguments shows the current tracing status.
         """
-        self.tracing_enabled = SwitchCommand("TRACING", "Tracing").execute(self.tracing_enabled, parsed, self.printerr)
+        self.tracing_enabled \
+            = self.on_off_switch("TRACING", self.tracing_enabled, parsed.get_binding('switch'))
 
     def do_expand(self, parsed):
         """
@@ -1678,7 +1685,7 @@ class Shell(cmd.Cmd):
 
           EXPAND with no arguments shows the current value of expand setting.
         """
-        self.expand_enabled = SwitchCommand("EXPAND", "Expanded output").execute(self.expand_enabled, parsed, self.printerr)
+        self.expand_enabled = self.on_off_switch("EXPAND", self.expand_enabled, parsed.get_binding('switch'))
 
     def do_consistency(self, parsed):
         """
@@ -1899,8 +1906,8 @@ class Shell(cmd.Cmd):
 
           PAGING with no arguments shows the current query paging status.
         """
-        (self.use_paging, requested_page_size) = SwitchCommandWithValue(
-            "PAGING", "Query paging", value_type=int).execute(self.use_paging, parsed, self.printerr)
+        (self.use_paging, requested_page_size) = \
+            self.on_off_switch_with_value("PAGING", self.use_paging, parsed.get_binding('switch'))
         if self.use_paging and requested_page_size is not None:
             self.page_size = requested_page_size
         if self.use_paging:
@@ -1962,66 +1969,46 @@ class Shell(cmd.Cmd):
             except IOError:
                 pass
 
+    @staticmethod
+    def on_off_switch(name, current, state_name=None):
+        """
+        switches between ON and OFF values
 
-class SwitchCommand(object):
-    command = None
-    description = None
+        :param name: a command name
+        :param current: a boolean value
+        :param state_name: "ON", "OFF" or None
+        :return: a boolean value
+        """
 
-    def __init__(self, command, desc):
-        self.command = command
-        self.description = desc
+        if state_name is None:
+            print(f"{name} is {SwitchState(current).name}")
+            return current
 
-    def execute(self, state, parsed, printerr):
-        switch = parsed.get_binding('switch')
-        if switch is None:
-            if state:
-                print("%s is currently enabled. Use %s OFF to disable"
-                      % (self.description, self.command))
-            else:
-                print("%s is currently disabled. Use %s ON to enable."
-                      % (self.description, self.command))
-            return state
+        new_state = SwitchState[state_name.upper()]
+        if current == new_state.value:
+            print(f"{name} is already {SwitchState(current).name}")
+            return current
+        else:
+            print(f"{name} set to {new_state.name}")
+            return new_state.value
 
-        if switch.upper() == 'ON':
-            if state:
-                printerr('%s is already enabled. Use %s OFF to disable.'
-                         % (self.description, self.command))
-                return state
-            print('Now %s is enabled' % (self.description,))
-            return True
+    @staticmethod
+    def on_off_switch_with_value(name, current, value=None):
+        """switches between ON and OFF values, and accepts an integer value in place of ON.
 
-        if switch.upper() == 'OFF':
-            if not state:
-                printerr('%s is not enabled.' % (self.description,))
-                return state
-            print('Disabled %s.' % (self.description,))
-            return False
+        This returns a tuple of the form: (SWITCH_VALUE, VALUE)
+        eg: PAGING 50 returns (True, 50)
+            PAGING OFF returns (False, None)
+            PAGING ON returns (True, None)
 
-
-class SwitchCommandWithValue(SwitchCommand):
-    """The same as SwitchCommand except it also accepts a value in place of ON.
-
-    This returns a tuple of the form: (SWITCH_VALUE, PASSED_VALUE)
-    eg: PAGING 50 returns (True, 50)
-        PAGING OFF returns (False, None)
-        PAGING ON returns (True, None)
-
-    The value_type must match for the PASSED_VALUE, otherwise it will return None.
-    """
-    def __init__(self, command, desc, value_type=int):
-        SwitchCommand.__init__(self, command, desc)
-        self.value_type = value_type
-
-    def execute(self, state, parsed, printerr):
-        binary_switch_value = SwitchCommand.execute(self, state, parsed, printerr)
-        switch = parsed.get_binding('switch')
-        try:
-            value = self.value_type(switch)
-            binary_switch_value = True
-        except (ValueError, TypeError):
-            value = None
-        return binary_switch_value, value
-
+        VALUE must be an Integer or None.
+        """
+        if value is None:
+            print(f"{name} is {SwitchState(current).name}")
+            return current, None
+        if value.isdigit():
+            return True, int(value)
+        return Shell.on_off_switch(name,current, value), None
 
 def option_with_default(cparser_getter, section, option, default=None):
     try:
@@ -2052,8 +2039,7 @@ def should_use_color():
         if int(stdout.strip()) < 8:
             return False
     except (OSError, ImportError, ValueError):
-        # oh well, we tried. at least we know there's a $TERM and it's
-        # not "dumb".
+        # at least it's a $TERM, and it's not "dumb".
         pass
     return True
 
