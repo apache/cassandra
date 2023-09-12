@@ -332,7 +332,7 @@ public class Config
     public DataStorageSpec.IntMebibytesBound min_free_space_per_drive = new DataStorageSpec.IntMebibytesBound("50MiB");
     public volatile Integer compaction_tombstone_warning_threshold = 100000;
 
-    public volatile LCSEnforcementLevel lcs_compaction_level = LCSEnforcementLevel.none;
+    public volatile LCSEnforcementLevel lcs_enforcement_level = LCSEnforcementLevel.none;
 
     public volatile int concurrent_materialized_view_builders = 1;
     public volatile int reject_repair_compaction_threshold = Integer.MAX_VALUE;

@@ -41,6 +41,7 @@ import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QualifiedName;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -56,6 +57,7 @@ import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Keyspaces.KeyspacesDiff;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.schema.ViewMetadata;
@@ -109,6 +111,14 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             throw ire("Cannot use ALTER TABLE on a materialized view; use ALTER MATERIALIZED VIEW instead");
 
         return schema.withAddedOrUpdated(apply(keyspace, table));
+    }
+
+    @Override
+    public ResultMessage execute(QueryState state, boolean locally)
+    {
+        // collect metrics for any ALTER statement
+        QueryProcessor.metrics.alterStatementCount.inc();
+        return super.execute(state, locally);
     }
 
     SchemaChange schemaChangeEvent(KeyspacesDiff diff)
@@ -430,6 +440,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
      */
     private static class AlterOptions extends AlterTableStatement
     {
+        private static final Logger logger = LoggerFactory.getLogger(AlterTableStatement.class);
         private final TableAttributes attrs;
 
         private AlterOptions(String keyspaceName, String tableName, TableAttributes attrs, boolean ifTableExists)
@@ -449,8 +460,17 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         @Override
         public ResultMessage execute(QueryState state, boolean locally)
         {
-            if (DatabaseDescriptor.getLCSEnforcementLevel() == Config.LCSEnforcementLevel.none)
-            {
+            // collect metric for ALTER statement with compaction specified (regardless it's failed or not)
+            if (attrs.hasOption(TableParams.Option.COMPACTION)) {
+                QueryProcessor.metrics.alterStatementWithCompactionSpecifiedCount.inc();
+            }
+
+            // LCS enforcement
+            // should not affect any system schema behavior
+            if (SchemaConstants.isSystemKeyspace(keyspaceName) ||
+                DatabaseDescriptor.getLCSEnforcementLevel() == Config.LCSEnforcementLevel.none) {
+                logger.info(String.format("LCS enforcement level=%s. Altering compaction strategy for %s.%s.",
+                                          DatabaseDescriptor.getLCSEnforcementLevel().name(), keyspaceName, tableName));
                 return super.execute(state, locally);
             }
             // Don't allow user to alter comapction option on the fly

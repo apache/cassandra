@@ -30,6 +30,7 @@ import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.exceptions.InvalidQueryException;
 import org.apache.cassandra.ServerTestUtils;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -147,11 +148,131 @@ public class CQLMetricsTest
         assertEquals(0.5, QueryProcessor.metrics.preparedStatementsRatio.getValue(), 0.0);
     }
 
+    @Test
+    public void testCreateStatementCount() {
+        clearMetrics();
+        session.execute("CREATE TABLE IF NOT EXISTS junit.createtest1 (id uuid PRIMARY KEY, content text);");
+        assertEquals(1, QueryProcessor.metrics.createStatementCount.getCount());
+        // create statement is counted regardless whether it has effects or not
+        session.execute("CREATE TABLE IF NOT EXISTS junit.createtest1 (id uuid PRIMARY KEY, content text);");
+        assertEquals(2, QueryProcessor.metrics.createStatementCount.getCount());
+    }
+
+    @Test
+    public void testCreateStatementWithCompactionSpecifiedCount() {
+        clearMetrics();
+        session.execute("CREATE TABLE IF NOT EXISTS junit.createtest1 (id uuid PRIMARY KEY, content text) WITH " +
+                        "compaction={'class': 'SizeTieredCompactionStrategy'} AND comment='test text';");
+        assertEquals(1, QueryProcessor.metrics.createStatementWithCompactionSpecifiedCount.getCount());
+        session.execute("CREATE TABLE IF NOT EXISTS junit.createtest2 (id uuid PRIMARY KEY, content text);");
+        assertEquals(1, QueryProcessor.metrics.createStatementWithCompactionSpecifiedCount.getCount());
+        // create statement with other options specified
+        session.execute("CREATE TABLE IF NOT EXISTS junit.createtest3 (id uuid PRIMARY KEY, content text) WITH "
+                        + "comment='test text';");
+        assertEquals(1, QueryProcessor.metrics.createStatementWithCompactionSpecifiedCount.getCount());
+
+        // create statement is counted regardless whether it's rejected or not
+        DatabaseDescriptor.setLCSEnforcementLevel(Config.LCSEnforcementLevel.hard);
+        try {
+            session.execute("CREATE TABLE IF NOT EXISTS junit.createtest4 (id uuid PRIMARY KEY, content text) WITH " +
+                            "comment='test text' AND compaction={'class': 'SizeTieredCompactionStrategy'};");
+        }
+        catch (InvalidQueryException e) {
+            assertEquals(2, QueryProcessor.metrics.createStatementWithCompactionSpecifiedCount.getCount());
+            assertEquals(4, QueryProcessor.metrics.createStatementCount.getCount());
+        }
+        catch (Exception e) {
+            fail(String.format("Received unexpected exception: %s", e.getMessage()));
+        }
+    }
+
+    @Test
+    public void testAlterStatementCount() {
+        clearMetrics();
+        session.execute("CREATE TABLE IF NOT EXISTS junit.altertest (id uuid PRIMARY KEY, content text, todrop text);");
+
+        session.execute("ALTER TABLE junit.altertest DROP todrop;");
+        assertEquals(1, QueryProcessor.metrics.alterStatementCount.getCount());
+
+        session.execute("ALTER TABLE junit.altertest ADD newcol text;");
+        assertEquals(2, QueryProcessor.metrics.alterStatementCount.getCount());
+
+        session.execute("ALTER TABLE junit.altertest RENAME id TO newid;");
+        assertEquals(3, QueryProcessor.metrics.alterStatementCount.getCount());
+
+        session.execute("ALTER TABLE junit.altertest WITH compaction={'class': 'LeveledCompactionStrategy'} AND comment='test text';");
+        assertEquals(4, QueryProcessor.metrics.alterStatementCount.getCount());
+
+        try {
+            // should fail, because not created with compact storage
+            session.execute("ALTER TABLE junit.altertest DROP COMPACT STORAGE");
+        }
+        catch (InvalidQueryException e) {
+            assertEquals(5, QueryProcessor.metrics.alterStatementCount.getCount());
+        }
+        catch (Exception e) {
+            fail(String.format("Unexpected exception: %s", e.getMessage()));
+        }
+
+        // invalid ALTER statement is also counted
+        try {
+            session.execute("ALTER TABLE junit.nonexisting DROP whatever;");
+        }
+        catch (InvalidQueryException e) {
+            assertEquals(6, QueryProcessor.metrics.alterStatementCount.getCount());
+        }
+        catch (Exception e) {
+            fail(String.format("Unexpected exception: %s", e.getMessage()));
+        }
+    }
+
+    @Test
+    public void testAlterStatementWithCompactionSpecifiedCount() {
+        clearMetrics();
+        session.execute("CREATE TABLE IF NOT EXISTS junit.altertest2 (id uuid PRIMARY KEY, content text, todrop text);");
+        session.execute("ALTER TABLE junit.altertest2 DROP todrop;");
+        session.execute("ALTER TABLE junit.altertest2 ADD newcol text;");
+        session.execute("ALTER TABLE junit.altertest2 RENAME id TO newid;");
+        session.execute("ALTER TABLE junit.altertest2 WITH compaction={'class': 'LeveledCompactionStrategy'};");
+        assertEquals(1, QueryProcessor.metrics.alterStatementWithCompactionSpecifiedCount.getCount());
+
+        // LCS enforcement disallow mutation on compaction option, but is counted
+        DatabaseDescriptor.setLCSEnforcementLevel(Config.LCSEnforcementLevel.hard);
+        try {
+            session.execute("ALTER TABLE junit.altertest2 WITH compaction={'class': 'SizeTieredCompactionStrategy'};");
+        }
+        catch (InvalidQueryException e) {
+            assertEquals(2, QueryProcessor.metrics.alterStatementWithCompactionSpecifiedCount.getCount());
+        }
+        catch (Exception e) {
+            fail(String.format("Unexpected exception: %s", e.getMessage()));
+        }
+
+        DatabaseDescriptor.setLCSEnforcementLevel(Config.LCSEnforcementLevel.soft);
+        try {
+            session.execute("ALTER TABLE junit.altertest2 WITH compaction={'class': 'SizeTieredCompactionStrategy'};");
+        }
+        catch (InvalidQueryException e) {
+            assertEquals(3, QueryProcessor.metrics.alterStatementWithCompactionSpecifiedCount.getCount());
+        }
+        catch (Exception e) {
+            fail(String.format("Unexpected exception: %s", e.getMessage()));
+        }
+
+        // alter on other option is not counted
+        session.execute("ALTER TABLE junit.altertest2 WITH comment='test text';");
+        assertEquals(3, QueryProcessor.metrics.alterStatementWithCompactionSpecifiedCount.getCount());
+    }
+
     private void clearMetrics()
     {
         QueryProcessor.metrics.preparedStatementsExecuted.dec(QueryProcessor.metrics.preparedStatementsExecuted.getCount());
         QueryProcessor.metrics.regularStatementsExecuted.dec(QueryProcessor.metrics.regularStatementsExecuted.getCount());
         QueryProcessor.metrics.preparedStatementsEvicted.dec(QueryProcessor.metrics.preparedStatementsEvicted.getCount());
+        QueryProcessor.metrics.createStatementCount.dec(QueryProcessor.metrics.createStatementCount.getCount());
+        QueryProcessor.metrics.createStatementWithCompactionSpecifiedCount.dec(QueryProcessor.metrics.createStatementWithCompactionSpecifiedCount.getCount());
+        QueryProcessor.metrics.alterStatementCount.dec(QueryProcessor.metrics.alterStatementCount.getCount());
+        QueryProcessor.metrics.alterStatementWithCompactionSpecifiedCount.dec(QueryProcessor.metrics.alterStatementWithCompactionSpecifiedCount.getCount());
     }
 }
 

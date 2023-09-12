@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3.statements.schema;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -25,6 +26,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.cql3.statements.PropertyDefinitions;
+import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.CachingParams;
@@ -224,10 +226,10 @@ public final class TableAttributes extends PropertyDefinitions
     /**
      * Overwrite the TableAttribtues properties. Use LCS with default settings.
      */
-    public void setLCS(Map<String, String> options)
+    public void setLCS()
     {
-        Map<String, String> defaultLCSOptions = new HashMap<>(options);
-        defaultLCSOptions.put(CompactionParams.Option.CLASS.toString(), "LeveledCompactionStrategy");
+        Map<String, String> defaultLCSOptions = new HashMap<>(Collections.emptyMap());
+        defaultLCSOptions.put(CompactionParams.Option.CLASS.toString(), LeveledCompactionStrategy.class.getSimpleName());
         properties.put(Option.COMPACTION.toString(), defaultLCSOptions);
     }
 

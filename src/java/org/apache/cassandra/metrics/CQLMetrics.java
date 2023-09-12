@@ -40,6 +40,11 @@ public class CQLMetrics
     public final Gauge<Integer> preparedStatementsCount;
     public final Gauge<Double> preparedStatementsRatio;
 
+    public final Counter createStatementCount;
+    public final Counter createStatementWithCompactionSpecifiedCount;
+    public final Counter alterStatementCount;
+    public final Counter alterStatementWithCompactionSpecifiedCount;
+
     public CQLMetrics()
     {
         regularStatementsExecuted = Metrics.counter(factory.createMetricName("RegularStatementsExecuted"));
@@ -69,5 +74,9 @@ public class CQLMetrics
                 return regularStatementsExecuted.getCount() + preparedStatementsExecuted.getCount();
             }
         });
+        createStatementCount = Metrics.counter(factory.createMetricName("CreateStatementCount"));
+        createStatementWithCompactionSpecifiedCount = Metrics.counter(factory.createMetricName("CreateStatementWithCompactionSpecifiedCount"));
+        alterStatementCount = Metrics.counter(factory.createMetricName("AlterStatementCount"));
+        alterStatementWithCompactionSpecifiedCount = Metrics.counter(factory.createMetricName("AlterStatementWithCompactionSpecifiedCount"));
     }
 }

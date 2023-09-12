@@ -176,6 +176,7 @@ Merged from 3.0:
  * Remove unused suppressions (CASSANDRA-18724)
 
 Unreleased
+ * [SO-23724] Metrics for CREATE and ALTER statements with and without compaction option specified
  * [SO-23106] Enforce LCS for create schema / alter schema compaction options DDLs
 4.0.6.7
  * [SO-22674] Bug fix: Do not ignore system_auth keyspace for auto repair
