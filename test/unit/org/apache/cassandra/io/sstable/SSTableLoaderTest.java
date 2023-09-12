@@ -21,28 +21,32 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.io.Files;
-
-import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.io.util.File;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.partitions.FilteredPartition;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.Replica;
+import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.partitions.*;
-import org.apache.cassandra.db.marshal.AsciiType;
-import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.StreamEvent;
 import org.apache.cassandra.streaming.StreamEventHandler;
@@ -50,10 +54,17 @@ import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.OutputHandler;
+import org.apache.cassandra.utils.concurrent.AsyncFuture;
+import org.awaitility.Awaitility;
+import org.jboss.byteman.contrib.bmunit.BMRule;
+import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
+import org.jboss.byteman.rule.Rule;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+@RunWith(BMUnitRunner.class)
 public class SSTableLoaderTest
 {
     public static final String KEYSPACE1 = "SSTableLoaderTest";
@@ -118,7 +129,7 @@ public class SSTableLoaderTest
                                                            {KEYSPACE1, CF_BACKUPS},
                                                            {KEYSPACE2, CF_STANDARD1},
                                                            {KEYSPACE2, CF_STANDARD2}})
-            StorageService.instance.truncate(keyspaceTable[0], keyspaceTable[1]);
+                StorageService.instance.truncate(keyspaceTable[0], keyspaceTable[1]);
         }
         catch (Exception ex)
         {
@@ -179,6 +190,8 @@ public class SSTableLoaderTest
         // The stream future is signalled when the work is complete but before releasing references. Wait for release
         // before cleanup (CASSANDRA-10118).
         latch.await();
+
+        checkAllRefsAreClosed(loader);
     }
 
     @Test
@@ -228,6 +241,8 @@ public class SSTableLoaderTest
         // The stream future is signalled when the work is complete but before releasing references. Wait for release
         // before cleanup (CASSANDRA-10118).
         latch.await();
+
+        checkAllRefsAreClosed(loader);
     }
 
     @Test
@@ -275,6 +290,8 @@ public class SSTableLoaderTest
             // The stream future is signalled when the work is complete but before releasing references. Wait for release
             // before cleanup (CASSANDRA-10118).
             latch.await();
+
+            checkAllRefsAreClosed(loader);
         }
     }
 
@@ -337,6 +354,44 @@ public class SSTableLoaderTest
         // The stream future is signalled when the work is complete but before releasing references. Wait for release
         // before cleanup (CASSANDRA-10118).
         latch.await();
+
+        checkAllRefsAreClosed(loader);
+    }
+
+    @Test
+    @BMRule(name = "fail_on_deserialize",
+    targetClass = "org.apache.cassandra.streaming.StreamSession",
+    targetMethod = "messageReceived",
+    targetLocation = "AT ENTRY",
+    action = "throw new RuntimeException();")
+    public void testLoadingSSTableFail() throws Exception
+    {
+        // This test verifies that all references are closed if the sstable loading fails for some reason on the server
+        // side. This is done by throwing an exception in StreamSession.messageReceived() which is called when the
+        // server receives a stream message from the client. After completion, we check that all references are closed.
+        Rule.disableTriggers();
+        File dataDir = dataDir(CF_STANDARD1);
+        TableMetadata metadata = Schema.instance.getTableMetadata(KEYSPACE1, CF_STANDARD1);
+
+        try (CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                       .inDirectory(dataDir)
+                                                       .forTable(String.format(schema, KEYSPACE1, CF_STANDARD1))
+                                                       .using(String.format(query, KEYSPACE1, CF_STANDARD1))
+                                                       .build())
+        {
+            writer.addRow("key1", "col1", "100");
+        }
+
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
+        Util.flush(cfs); // wait for sstables to be on disk else we won't be able to stream them
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        Rule.enableTriggers();
+        SSTableLoader loader = new SSTableLoader(dataDir, new TestClient(), new OutputHandler.SystemOutput(false, false));
+        AsyncFuture<StreamState> result = loader.stream(Collections.emptySet(), completionStreamListener(latch)).await();
+        assertThat(result.isSuccess()).isFalse();
+
+        checkAllRefsAreClosed(loader);
     }
 
     private File dataDir(String cf)
@@ -371,4 +426,10 @@ public class SSTableLoaderTest
             public void handleStreamEvent(StreamEvent event) {}
         };
     }
+
+    private static void checkAllRefsAreClosed(SSTableLoader loader)
+    {
+        Awaitility.await().atMost(30, TimeUnit.SECONDS).until(() -> loader.getSSTables().stream().allMatch(sstable -> sstable.selfRef().globalCount() == 0));
+    }
+
 }
