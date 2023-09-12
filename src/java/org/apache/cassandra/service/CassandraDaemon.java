@@ -21,7 +21,6 @@ import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryPoolMXBean;
 import java.net.InetAddress;
-import java.net.URL;
 import java.net.UnknownHostException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -40,14 +39,9 @@ import com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.addthis.metrics3.reporter.config.ReporterConfig;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistryListener;
 import com.codahale.metrics.SharedMetricRegistries;
-import com.codahale.metrics.jvm.BufferPoolMetricSet;
-import com.codahale.metrics.jvm.FileDescriptorRatioGauge;
-import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
-import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
 
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.auth.AuthCacheService;
@@ -99,7 +93,6 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_CLASS
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_RMI_SERVER_RANDOM_ID;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VERSION;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VM_NAME;
-import static org.apache.cassandra.config.CassandraRelevantProperties.METRICS_REPORTER_CONFIG_FILE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SIZE_RECORDER_INTERVAL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.START_NATIVE_TRANSPORT;
 
@@ -379,36 +372,6 @@ public class CassandraDaemon
 
         // Prepared statements
         QueryProcessor.instance.preloadPreparedStatements();
-
-        // Metrics
-        String metricsReporterConfigFile = METRICS_REPORTER_CONFIG_FILE.getString();
-        if (metricsReporterConfigFile != null)
-        {
-            logger.info("Trying to load metrics-reporter-config from file: {}", metricsReporterConfigFile);
-            try
-            {
-                // enable metrics provided by metrics-jvm.jar
-                CassandraMetricsRegistry.Metrics.register("jvm.buffers", new BufferPoolMetricSet(ManagementFactory.getPlatformMBeanServer()));
-                CassandraMetricsRegistry.Metrics.register("jvm.gc", new GarbageCollectorMetricSet());
-                CassandraMetricsRegistry.Metrics.register("jvm.memory", new MemoryUsageGaugeSet());
-                CassandraMetricsRegistry.Metrics.register("jvm.fd.usage", new FileDescriptorRatioGauge());
-                // initialize metrics-reporter-config from yaml file
-                URL resource = CassandraDaemon.class.getClassLoader().getResource(metricsReporterConfigFile);
-                if (resource == null)
-                {
-                    logger.warn("Failed to load metrics-reporter-config, file does not exist: {}", metricsReporterConfigFile);
-                }
-                else
-                {
-                    String reportFileLocation = resource.getFile();
-                    ReporterConfig.loadFromFile(reportFileLocation).enableAll(CassandraMetricsRegistry.Metrics);
-                }
-            }
-            catch (Exception e)
-            {
-                logger.warn("Failed to load metrics-reporter-config, metric sinks will not be activated", e);
-            }
-        }
 
         // start server internals
         StorageService.instance.registerDaemon(this);

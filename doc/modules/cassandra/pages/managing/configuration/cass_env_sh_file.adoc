@@ -71,11 +71,6 @@ Set to false to clear all gossip state for the node on restart.
 
 *Default:* true
 
-== `cassandra.metricsReporterConfigFile=<filename>`
-
-Enable pluggable metrics reporter. Explore pluggable metrics reporting
-for more information.
-
 == `cassandra.partitioner=<partitioner>`
 
 Set the partitioner.
