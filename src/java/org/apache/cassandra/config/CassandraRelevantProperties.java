@@ -374,7 +374,14 @@ public enum CassandraRelevantProperties
     TABLE_METRICS_EXPORT_GLOBALS("cassandra.table_metrics_export_globals", "true"),
     CUSTOM_HINTS_RATE_LIMITER_FACTORY("cassandra.custom_hints_rate_limiter_factory"),
 
-    CUSTOM_INDEX_BUILD_DECIDER("cassandra.custom_index_build_decider");
+    CUSTOM_INDEX_BUILD_DECIDER("cassandra.custom_index_build_decider"),
+
+    // Allows admin to include only some system views (see two below)
+    SYSTEM_VIEWS_INCLUDE_ALL("cassandra.system_view.include_all", "true"),
+    //This only applies if include all is false
+    SYSTEM_VIEWS_INCLUDE_LOCAL_AND_PEERS("cassandra.system_view.include_local_and_peers"),
+    //This only applies if include all is false
+    SYSTEM_VIEWS_INCLUDE_INDEXES("cassandra.system_view.include_indexes");
 
     CassandraRelevantProperties(String key, String defaultVal)
     {
