@@ -30,23 +30,20 @@ import com.datastax.driver.core.Session;
 import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.Statement;
 import com.datastax.driver.core.policies.LoadBalancingPolicy;
-import org.apache.cassandra.auth.CassandraRoleManager;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.impl.RowUtil;
+import org.apache.cassandra.distributed.util.Auth;
 import org.apache.cassandra.distributed.util.SingleHostLoadBalancingPolicy;
 
 import static com.datastax.driver.core.Cluster.Builder;
 import static java.lang.String.format;
-import static java.util.concurrent.TimeUnit.MINUTES;
-import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.auth.CassandraRoleManager.DEFAULT_SUPERUSER_NAME;
 import static org.apache.cassandra.auth.CassandraRoleManager.DEFAULT_SUPERUSER_PASSWORD;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.NATIVE_PROTOCOL;
 import static org.apache.cassandra.distributed.shared.AssertUtils.assertRows;
 import static org.apache.cassandra.distributed.shared.AssertUtils.row;
-import static org.awaitility.Awaitility.await;
 
 /**
  * Tests for dynamic data masking.
@@ -177,10 +174,7 @@ public class ColumnMaskTest extends TestBaseImpl
     private static void withAuthenticatedSession(IInvokableInstance instance, String username, String password, Consumer<Session> consumer)
     {
         // wait for existing roles
-        await().pollDelay(1, SECONDS)
-               .pollInterval(1, SECONDS)
-               .atMost(1, MINUTES)
-               .until(() -> instance.callOnInstance(CassandraRoleManager::hasExistingRoles));
+        Auth.waitForExistingRoles(instance);
 
         // use a load balancing policy that ensures that we actually connect to the desired node
         InetAddress address = instance.broadcastAddress().getAddress();
