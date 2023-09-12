@@ -36,7 +36,7 @@ public class ThrottlingOptionsTest
         Assert.assertEquals(0, throttlingOptions.getPendingReadsThresholdOneMinute());
         Assert.assertEquals(0, throttlingOptions.getPendingMutationsThresholdCur());
         Assert.assertEquals(0, throttlingOptions.getPendingMutationsThresholdOneMinute());
-        Assert.assertEquals(0.1, throttlingOptions.getPercentageOfTrafficeToThrottling(), 0.0);
+        Assert.assertEquals(0.1, throttlingOptions.getPercentageOfTrafficToThrottling(), 0.0);
         Assert.assertEquals(1 * 60, throttlingOptions.getMoreAggressiveThrottlingAfterInSec());
         Assert.assertEquals(15 * 60, throttlingOptions.getResetAfterNoThrottlingSeenInSec());
         Assert.assertEquals(4, throttlingOptions.getAggressiveThrottlingQpsRatio(), 0.0);

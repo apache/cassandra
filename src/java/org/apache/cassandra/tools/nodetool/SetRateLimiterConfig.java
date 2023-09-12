@@ -35,7 +35,7 @@ public class SetRateLimiterConfig extends NodeTool.NodeToolCmd
                     "[enabled|cputhresholdcur|cputhresholdoneminute|nrthrottlingthresholdcur|" +
                     "nrthrottlingthresholdoneminute|pendingreadsthresholdcur|pendingreadsthresholdoneminute|" +
                     "pendingmutationsthresholdcur|pendingmutationsthresholdoneminute|" +
-                    "percentageoftrafficetothrottling|moreaggressivethrottlingafterinsec|" +
+                    "percentageoftraffictothrottling|moreaggressivethrottlingafterinsec|" +
                     "resetafternothrottlingseeninsec|aggressivethrottlingqpsratio|aggressivethrottlinglatencyratio]",
             required = true)
     private List<String> args = new ArrayList<>();
@@ -83,9 +83,9 @@ public class SetRateLimiterConfig extends NodeTool.NodeToolCmd
         {
             probe.setThrottlingOptionsPendingMutationsThresholdOneMinute(Integer.parseInt(paramVal));
         }
-        else if (paramType.equals("percentageoftrafficetothrottling"))
+        else if (paramType.equals("percentageoftraffictothrottling"))
         {
-            probe.setThrottlingOptionsPercentageOfTrafficeToThrottling(Double.parseDouble(paramVal));
+            probe.setThrottlingOptionsPercentageOfTrafficToThrottling(Double.parseDouble(paramVal));
         }
         else if (paramType.equals("moreaggressivethrottlingafterinsec"))
         {

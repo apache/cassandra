@@ -103,9 +103,9 @@ public class RateLimiterService implements RateLimiterServiceMBean {
     }
 
     @Override
-    public void setPercentageOfTrafficeToThrottling(double percentageOfTrafficeToThrottling)
+    public void setPercentageOfTrafficToThrottling(double percentageOfTrafficToThrottling)
     {
-        this.throttlingOptions.setPercentageOfTrafficeToThrottling(percentageOfTrafficeToThrottling);
+        this.throttlingOptions.setPercentageOfTrafficToThrottling(percentageOfTrafficToThrottling);
     }
 
     @Override

@@ -77,9 +77,9 @@ public interface RateLimiterServiceMBean
     public void setPendingMutationsThresholdOneMinute(int pendingMutationsThresholdOneMinute);
 
     /**
-     * Set percentage_of_traffice_to_throttling
+     * Set percentage_of_traffic_to_throttling
      */
-    public void setPercentageOfTrafficeToThrottling(double percentageOfTrafficeToThrottling);
+    public void setPercentageOfTrafficToThrottling(double percentageOfTrafficToThrottling);
 
     /**
      * Set more_aggressive_throttling_after_in_sec

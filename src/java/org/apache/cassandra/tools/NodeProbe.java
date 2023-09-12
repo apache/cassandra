@@ -2399,9 +2399,9 @@ public class NodeProbe implements AutoCloseable
         rateLimiterProxy.setPendingMutationsThresholdOneMinute(pendingMutationsThresholdOneMinute);
     }
 
-    public void setThrottlingOptionsPercentageOfTrafficeToThrottling(double percentageOfTrafficeToThrottling)
+    public void setThrottlingOptionsPercentageOfTrafficToThrottling(double percentageOfTrafficToThrottling)
     {
-        rateLimiterProxy.setPercentageOfTrafficeToThrottling(percentageOfTrafficeToThrottling);
+        rateLimiterProxy.setPercentageOfTrafficToThrottling(percentageOfTrafficToThrottling);
     }
 
     public void setThrottlingOptionsMoreAggressiveThrottlingAfterInSec(int moreAggressiveThrottlingAfterInSec)

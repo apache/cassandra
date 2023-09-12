@@ -38,7 +38,7 @@ public class ThrottlingOptions implements Serializable
     public int pending_reads_threshold_one_minute = 0;
     public int pending_mutations_threshold_cur = 0;
     public int pending_mutations_threshold_one_minute = 0;
-    public double percentage_of_traffice_to_throttling = 0.1;
+    public double percentage_of_traffic_to_throttling = 0.1;
     public int more_aggressive_throttling_after_in_sec = 1 * 60; // 1 minutes
     public int reset_after_no_throttling_seen_in_sec = 15 * 60; // 15 minutes
     public double aggressive_throttling_qps_ratio = 4;
@@ -134,14 +134,14 @@ public class ThrottlingOptions implements Serializable
         this.pending_mutations_threshold_one_minute = pending_mutations_threshold_one_minute;
     }
 
-    public double getPercentageOfTrafficeToThrottling()
+    public double getPercentageOfTrafficToThrottling()
     {
-        return percentage_of_traffice_to_throttling;
+        return percentage_of_traffic_to_throttling;
     }
 
-    public void setPercentageOfTrafficeToThrottling(double percentage_of_traffice_to_throttling)
+    public void setPercentageOfTrafficToThrottling(double percentage_of_traffic_to_throttling)
     {
-        this.percentage_of_traffice_to_throttling = percentage_of_traffice_to_throttling;
+        this.percentage_of_traffic_to_throttling = percentage_of_traffic_to_throttling;
     }
 
     public int getMoreAggressiveThrottlingAfterInSec()
@@ -186,21 +186,19 @@ public class ThrottlingOptions implements Serializable
 
     public String toString()
     {
-        return "ThrottlingOptions{" +
-                "enabled='" + enabled + '\'' +
-                ", cpu_threshold_cur='" + cpu_threshold_cur + '\'' +
-                ", cpu_threshold_one_minute='" + cpu_threshold_one_minute + '\'' +
-                ", nr_throttling_threshold_cur='" + nr_throttling_threshold_cur + '\'' +
-                ", nr_throttling_threshold_one_minute='" + nr_throttling_threshold_one_minute + '\'' +
-                ", pending_reads_threshold_cur='" + pending_reads_threshold_cur + '\'' +
-                ", pending_reads_threshold_one_minute='" + pending_reads_threshold_one_minute + '\'' +
-                ", pending_mutations_threshold_cur='" + pending_mutations_threshold_cur + '\'' +
-                ", pending_mutations_threshold_one_minute='" + pending_mutations_threshold_one_minute + '\'' +
-                ", percentage_of_traffice_to_throttling='" + percentage_of_traffice_to_throttling + '\'' +
-                ", more_aggressive_throttling_after_in_sec='" + more_aggressive_throttling_after_in_sec + '\'' +
-                ", reset_after_no_throttling_seen_in_sec='" + reset_after_no_throttling_seen_in_sec + '\'' +
-                ", aggressive_throttling_qps_ratio='" + aggressive_throttling_qps_ratio + '\'' +
-                ", aggressive_throttling_latency_ratio='" + aggressive_throttling_latency_ratio + '\'' +
-                '}';
+        return "enabled: " + enabled + "\n" +
+                "current CPU threshold: " + cpu_threshold_cur + "\n" +
+                "one minute CPU threshold: " + cpu_threshold_one_minute + "\n" +
+                "current nr_throttled threshold: " + nr_throttling_threshold_cur + "\n" +
+                "one minute nr_throttled threshold: " + nr_throttling_threshold_one_minute + "\n" +
+                "current pending reads threshold: " + pending_reads_threshold_cur + "\n" +
+                "one minute pending reads threshold: " + pending_reads_threshold_one_minute + "\n" +
+                "current pending mutations threshold: " + pending_mutations_threshold_cur + "\n" +
+                "one minute pending mutations threshold: " + pending_mutations_threshold_one_minute + "\n" +
+                "percentage of traffic to throttle: " + percentage_of_traffic_to_throttling + "\n" +
+                "more aggressive throttling after in seconds: " + more_aggressive_throttling_after_in_sec + "\n" +
+                "reset after no throttling seen in seconds: " + reset_after_no_throttling_seen_in_sec + "\n" +
+                "aggressive throttling qps ratio: " + aggressive_throttling_qps_ratio + "\n" +
+                "aggressive throttling latency ratio: " + aggressive_throttling_latency_ratio + "\n";
     }
 }

@@ -209,7 +209,7 @@ public class CassandraResourceUtilization
         lastThrottlingCheckPointTimeInMS = 0;
         lastThrottlingIndicatorTimeInMS = 0;
         // TODO: make this configurable
-        throttlingOptions.setPercentageOfTrafficeToThrottling(0.1);
+        throttlingOptions.setPercentageOfTrafficToThrottling(0.1);
         readAggressiveThorttlingKeyspaces.clear();
         mutationAggressiveThorttlingKeyspaces.clear();
         shouldThrottle = false;
@@ -226,13 +226,13 @@ public class CassandraResourceUtilization
             else if (lastThrottlingIndicatorTimeInMS != 0)
             {
                 lastThrottlingCheckPointTimeInMS = lastThrottlingIndicatorTimeInMS;
-                if (throttlingOptions.getPercentageOfTrafficeToThrottling() < MAX_THROTTLING)
+                if (throttlingOptions.getPercentageOfTrafficToThrottling() < MAX_THROTTLING)
                 {
                     throttlingMetrics.doubleThrottling.inc();
                     // more aggressive throttling
-                    double previous = throttlingOptions.getPercentageOfTrafficeToThrottling();
+                    double previous = throttlingOptions.getPercentageOfTrafficToThrottling();
                     double newlimit = Math.min(MAX_THROTTLING, previous * 2);
-                    throttlingOptions.setPercentageOfTrafficeToThrottling(newlimit);
+                    throttlingOptions.setPercentageOfTrafficToThrottling(newlimit);
                     logger.info("Double min throttling previous: {}, now: {}", previous, newlimit);
                 }
             }
@@ -311,7 +311,7 @@ public class CassandraResourceUtilization
 
     public boolean decideThrottling(String ksName, KeyspaceMetrics metrics, boolean reads, KeyspaceThrottlingMetrics ksThrottlingMetrics)
     {
-        if (throttlingOptions.getPercentageOfTrafficeToThrottling() < MAX_THROTTLING &&
+        if (throttlingOptions.getPercentageOfTrafficToThrottling() < MAX_THROTTLING &&
             ((reads && !readAggressiveThorttlingKeyspaces.containsKey(ksName.toLowerCase())) || (!reads && !mutationAggressiveThorttlingKeyspaces.containsKey(ksName.toLowerCase()))))
         {
             if (spikeInRequestRate(ksName, metrics, reads, ksThrottlingMetrics) || spikeInLatency(ksName, metrics, reads, ksThrottlingMetrics))
@@ -329,7 +329,7 @@ public class CassandraResourceUtilization
                 }
                 return true;
             }
-            if (ThreadLocalRandom.current().nextDouble() <= throttlingOptions.getPercentageOfTrafficeToThrottling())
+            if (ThreadLocalRandom.current().nextDouble() <= throttlingOptions.getPercentageOfTrafficToThrottling())
             {
                 if (reads)
                 {
