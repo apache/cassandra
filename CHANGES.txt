@@ -1,4 +1,5 @@
 5.0-alpha2
+ * Remove wrong assertion in SSTableLoader (CASSANDRA-18840)
  * Fix accessing java.nio.Bits.TOTAL_CAPACITY in Java17 (CASSANDRA-18848)
  * Remove metrics-reporter-config dependency (CASSANDRA-18743)
  * Fix SAI's SegmentMetadata min and max primary keys (CASSANDRA-18734)
@@ -9,6 +10,7 @@ Merged from 4.0:
 Merged from 3.11:
 Merged from 3.0:
  * Add cqlshrc.sample and credentials.sample into Debian package (CASSANDRA-18818)
+
 
 5.0-alpha1
  * Fix rpm installations to work with jdk17 (CASSANDRA-18817)
