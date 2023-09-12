@@ -112,7 +112,10 @@ public class LegacyStateListener implements ChangeListener.Async
                 Gossiper.instance.mergeNodeToGossip(change, next, prev.tokenMap.tokens(change));
                 InetAddressAndPort endpoint = prev.directory.endpoint(change);
                 if (endpoint != null)
+                {
+                    PeersTable.updateLegacyPeerTable(change, prev, next);
                     GossipHelper.removeFromGossip(endpoint);
+                }
             }
             else if (NodeState.isBootstrap(next.directory.peerState(change)))
             {

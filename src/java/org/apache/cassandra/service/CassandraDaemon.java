@@ -25,7 +25,9 @@ import java.net.UnknownHostException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
@@ -61,9 +63,9 @@ import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.db.virtual.VirtualSchemaKeyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.StartupException;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Startup;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
@@ -654,7 +656,8 @@ public class CassandraDaemon
     {
         StartupClusterConnectivityChecker connectivityChecker = StartupClusterConnectivityChecker.create(DatabaseDescriptor.getBlockForPeersTimeoutInSeconds(),
                                                                                                          DatabaseDescriptor.getBlockForPeersInRemoteDatacenters());
-        connectivityChecker.execute(Gossiper.instance.getEndpoints(), DatabaseDescriptor.getEndpointSnitch()::getDatacenter);
+        Set<InetAddressAndPort> peers = new HashSet<>(ClusterMetadata.current().directory.allJoinedEndpoints());
+        connectivityChecker.execute(peers, DatabaseDescriptor.getEndpointSnitch()::getDatacenter);
 
         // check to see if transports may start else return without starting.  This is needed when in survey mode or
         // when bootstrap has not completed.

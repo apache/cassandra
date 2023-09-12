@@ -52,7 +52,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
@@ -63,6 +62,7 @@ import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.compatibility.GossipHelper;
+import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeVersion;
@@ -922,20 +922,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         if (epState == null)
             return null;
         return new EndpointState(epState);
-    }
-
-    public ImmutableSet<InetAddressAndPort> getEndpoints()
-    {
-        return ImmutableSet.copyOf(endpointStateMap.keySet());
-    }
-
-    public String getForEndpoint(InetAddressAndPort ep, ApplicationState state)
-    {
-        EndpointState epState = endpointStateMap.get(ep);
-        if (epState == null)
-            return null;
-        VersionedValue value = epState.getApplicationState(state);
-        return value == null ? null : value.value;
     }
 
     public int getEndpointCount()
@@ -1891,12 +1877,13 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         // Previously gossip contained only nodes that were actually in the cluster. Now we
         // initialize gossip with nodes that may be down. If we do not add the initial marker,
         // they will never be marked as up.
-        for (NodeAddresses value : ClusterMetadata.current().directory.addresses.values())
+        Directory directory = ClusterMetadata.current().directory;
+        for (InetAddressAndPort peer : directory.allJoinedEndpoints())
         {
-            if (!FBUtilities.getBroadcastAddressAndPort().equals(value.broadcastAddress))
+            if (!FBUtilities.getBroadcastAddressAndPort().equals(peer))
             {
-                FailureDetector.instance.report(value.broadcastAddress);
-                FailureDetector.instance.forceConviction(value.broadcastAddress);
+                FailureDetector.instance.report(peer);
+                FailureDetector.instance.forceConviction(peer);
             }
         }
         final int GOSSIP_SETTLE_MIN_WAIT_MS = CassandraRelevantProperties.GOSSIP_SETTLE_MIN_WAIT_MS.getInt();
