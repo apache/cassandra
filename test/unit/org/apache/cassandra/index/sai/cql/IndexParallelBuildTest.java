@@ -81,7 +81,7 @@ public class IndexParallelBuildTest extends SAITester
         }
 
         // leave sstable files on disk
-        getCurrentColumnFamilyStore().clearUnsafe();
+        getCurrentColumnFamilyStore().getTracker().unloadSSTables();
         assertTrue(getCurrentColumnFamilyStore().getLiveSSTables().isEmpty());
 
         // create indexes
