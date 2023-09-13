@@ -67,16 +67,7 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
         try
         {
             Class<?> bitsClass = Class.forName("java.nio.Bits");
-            Field f;
-            try
-            {
-                f = bitsClass.getDeclaredField("totalCapacity");
-            }
-            catch (NoSuchFieldException ex)
-            {
-                // in Java11 it changed name to "TOTAL_CAPACITY"
-                f = bitsClass.getDeclaredField("TOTAL_CAPACITY");
-            }
+            Field f = bitsClass.getDeclaredField("TOTAL_CAPACITY");
             f.setAccessible(true);
             temp = f;
         }
