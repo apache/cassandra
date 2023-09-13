@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * Improve performance of compactions when table does not have an index (CASSANDRA-18773)
  * [SO-50586] SystemPeersSyncValidator check for active endpoints in gossiper in system peers v2 table only
  * [SO-50486] Add initialized timestamp to the storage service mbean
  * [SO-50556] Include pingless keyspace in paxos cleanup scheduling
