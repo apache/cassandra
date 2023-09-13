@@ -206,6 +206,18 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     {
         return new UnfilteredPartitionIterators.MergeListener()
         {
+            private boolean rowProcessingNeeded()
+            {
+                return (type == OperationType.COMPACTION || type == OperationType.MAJOR_COMPACTION)
+                       && controller.cfs.indexManager.handles(IndexTransaction.Type.COMPACTION);
+            }
+
+            @Override
+            public boolean preserveOrder()
+            {
+                return rowProcessingNeeded();
+            }
+
             public UnfilteredRowIterators.MergeListener getRowMergeListener(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions)
             {
                 int merged = 0;
@@ -221,8 +233,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
                 CompactionIterator.this.updateCounterFor(merged);
 
-                if ( (type != OperationType.COMPACTION && type != OperationType.MAJOR_COMPACTION) 
-                    || !controller.cfs.indexManager.handles(IndexTransaction.Type.COMPACTION) ) 
+                if (!rowProcessingNeeded())
                 {
                     return null;
                 }
