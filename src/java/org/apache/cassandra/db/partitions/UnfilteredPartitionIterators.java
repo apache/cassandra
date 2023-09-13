@@ -45,10 +45,30 @@ public abstract class UnfilteredPartitionIterators
 
     public interface MergeListener
     {
+        /**
+         * Returns true if the merger needs to preserve the position of sources within the merge when passing data to
+         * the listener. If false, the merger can avoid creating empty sources for non-present partitions and
+         * significantly speed up processing.
+         *
+         * @return True to preserve position of source iterators.
+         */
+        public default boolean preserveOrder() { return true; }
         public UnfilteredRowIterators.MergeListener getRowMergeListener(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions);
         public default void close() {}
 
-        public static MergeListener NOOP = (partitionKey, versions) -> UnfilteredRowIterators.MergeListener.NOOP;
+        public static MergeListener NOOP = new MergeListener()
+        {
+            @Override
+            public boolean preserveOrder()
+            {
+                return false;
+            }
+
+            public UnfilteredRowIterators.MergeListener getRowMergeListener(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions)
+            {
+                return UnfilteredRowIterators.MergeListener.NOOP;
+            }
+        };
     }
 
     @SuppressWarnings("resource") // The created resources are returned right away
@@ -108,6 +128,8 @@ public abstract class UnfilteredPartitionIterators
 
         final TableMetadata metadata = iterators.get(0).metadata();
 
+        final boolean preserveOrder = listener != null && listener.preserveOrder();
+
         final MergeIterator<UnfilteredRowIterator, UnfilteredRowIterator> merged = MergeIterator.get(iterators, partitionComparator, new MergeIterator.Reducer<UnfilteredRowIterator, UnfilteredRowIterator>()
         {
             private final List<UnfilteredRowIterator> toMerge = new ArrayList<>(iterators.size());
@@ -120,9 +142,16 @@ public abstract class UnfilteredPartitionIterators
                 partitionKey = current.partitionKey();
                 isReverseOrder = current.isReverseOrder();
 
-                // Note that because the MergeListener cares about it, we want to preserve the index of the iterator.
-                // Non-present iterator will thus be set to empty in getReduced.
-                toMerge.set(idx, current);
+                if (preserveOrder)
+                {
+                    // Note that because the MergeListener cares about it, we want to preserve the index of the iterator.
+                    // Non-present iterator will thus be set to empty in getReduced.
+                    toMerge.set(idx, current);
+                }
+                else
+                {
+                    toMerge.add(current);
+                }
             }
 
             @SuppressWarnings("resource")
@@ -132,17 +161,20 @@ public abstract class UnfilteredPartitionIterators
                                                                  ? null
                                                                  : listener.getRowMergeListener(partitionKey, toMerge);
 
-                // Make a single empty iterator object to merge, we don't need toMerge.size() copiess
-                UnfilteredRowIterator empty = null;
-
-                // Replace nulls by empty iterators
-                for (int i = 0; i < toMerge.size(); i++)
+                if (preserveOrder)
                 {
-                    if (toMerge.get(i) == null)
+                    // Make a single empty iterator object to merge, we don't need toMerge.size() copiess
+                    UnfilteredRowIterator empty = null;
+
+                    // Replace nulls by empty iterators
+                    for (int i = 0; i < toMerge.size(); i++)
                     {
-                        if (null == empty)
-                            empty = EmptyIterators.unfilteredRow(metadata, partitionKey, isReverseOrder);
-                        toMerge.set(i, empty);
+                        if (toMerge.get(i) == null)
+                        {
+                            if (null == empty)
+                                empty = EmptyIterators.unfilteredRow(metadata, partitionKey, isReverseOrder);
+                            toMerge.set(i, empty);
+                        }
                     }
                 }
 
@@ -152,8 +184,11 @@ public abstract class UnfilteredPartitionIterators
             protected void onKeyChange()
             {
                 toMerge.clear();
-                for (int i = 0; i < iterators.size(); i++)
-                    toMerge.add(null);
+                if (preserveOrder)
+                {
+                    for (int i = 0; i < iterators.size(); i++)
+                        toMerge.add(null);
+                }
             }
         });
 

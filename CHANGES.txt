@@ -1,4 +1,5 @@
 4.0.12
+ * Improve performance of compactions when table does not have an index (CASSANDRA-18773)
  * JMH improvements - faster build and async profiler (CASSANDRA-18871)
  * Enable 3rd party JDK installations for Debian package (CASSANDRA-18844)
  * Fix NTS log message when an unrecognized strategy option is passed (CASSANDRA-18679)
