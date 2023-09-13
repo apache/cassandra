@@ -1,4 +1,5 @@
 5.0-alpha2
+ * Fix accessing java.nio.Bits.TOTAL_CAPACITY in Java17 (CASSANDRA-18848)
  * Remove metrics-reporter-config dependency (CASSANDRA-18743)
  * Fix SAI's SegmentMetadata min and max primary keys (CASSANDRA-18734)
  * Remove commons-codec dependency (CASSANDRA-18772)
