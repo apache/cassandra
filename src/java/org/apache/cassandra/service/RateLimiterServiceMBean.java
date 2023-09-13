@@ -105,4 +105,14 @@ public interface RateLimiterServiceMBean
      * Set ignore_keyspaces
      */
     public void setIgnoreKeyspaces(String ignoreKeyspaces);
+
+    /**
+     * Set health_check_init_delay_in_sec
+     */
+    public void setHealthCheckInitDelayInSec(int healthCheckInitDelayInSec);
+
+    /**
+     * Set health_check_period_in_sec
+     */
+    public void setHealthCheckFreqInSec(int healthCheckPeriodInSec);
 }

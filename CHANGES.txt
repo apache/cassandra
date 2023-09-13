@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-24333] Rate limiter: Make the health thread pool configurable
  * [SO-24433] Cleanup rate limiter exception handling
  * [SO-24320] Adjust aggressive throttling for culprit keyspaces
  * [SO-23633] Throttle traffic received from peer nodes

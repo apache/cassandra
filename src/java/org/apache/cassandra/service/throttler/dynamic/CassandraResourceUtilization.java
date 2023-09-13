@@ -50,10 +50,9 @@ import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFac
 public class CassandraResourceUtilization
 {
     private static final Logger logger = LoggerFactory.getLogger(CassandraResourceUtilization.class);
-    private final ScheduledExecutorPlus reportThread = executorFactory().scheduled(false, "CassandraResourceUtilization", Thread.MAX_PRIORITY);
     private static final DecimalFormat df = new DecimalFormat("0");
-
     private static final String THROW_MESSAGE = "from dynamic throttler";
+    public final ScheduledExecutorPlus reportThread = executorFactory().scheduled(false, "CassandraResourceUtilization", Thread.MAX_PRIORITY);
 
     // TODO: make this configurable
     public final IResourceUtilzation resourceUtilzation = new NativeResourceUtilization();
@@ -94,8 +93,7 @@ public class CassandraResourceUtilization
         resourceUtilzation.setup();
         if (continuousHealthCheck)
         {
-            // TODO: make this configurable
-            reportThread.scheduleAtFixedRate(() -> fetchCurrentHealth(), 10, 1, TimeUnit.SECONDS);
+            reportThread.scheduleAtFixedRate(() -> fetchCurrentHealth(), throttlingOptions.getHealthCheckInitDelayInSec(), throttlingOptions.getHealthCheckPeriodInSec(), TimeUnit.SECONDS);
         }
     }
 

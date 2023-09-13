@@ -136,4 +136,16 @@ public class RateLimiterService implements RateLimiterServiceMBean {
     {
         this.throttlingOptions.setIgnoreKeyspaces(ignoreKeyspaces);
     }
+
+    @Override
+    public void setHealthCheckInitDelayInSec(int healthCheckInitDelayInSec)
+    {
+        this.throttlingOptions.setHealthCheckInitDelayInSec(healthCheckInitDelayInSec);
+    }
+
+    @Override
+    public void setHealthCheckFreqInSec(int healthCheckPeriodInSec)
+    {
+        this.throttlingOptions.setHealthCheckFreqInSec(healthCheckPeriodInSec);
+    }
 }

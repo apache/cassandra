@@ -45,6 +45,8 @@ public class ThrottlingOptions implements Serializable
     public double aggressive_throttling_qps_ratio = 4;
     public double aggressive_throttling_latency_ratio = 4;
     public String ignore_keyspaces = "system.*|pingless";
+    public int health_check_init_delay_in_sec = 60;
+    public int health_check_freq_in_sec = 1;
 
     private Pattern ignoreKeyspacesPattern = Pattern.compile(ignore_keyspaces);
 
@@ -199,22 +201,44 @@ public class ThrottlingOptions implements Serializable
         ignoreKeyspacesPattern = Pattern.compile(ignoreKeyspaces);
     }
 
+    public int getHealthCheckInitDelayInSec()
+    {
+        return health_check_init_delay_in_sec;
+    }
+
+    public void setHealthCheckInitDelayInSec(int healthCheckInitDelayInSec)
+    {
+        this.health_check_init_delay_in_sec = healthCheckInitDelayInSec;
+    }
+
+    public int getHealthCheckPeriodInSec()
+    {
+        return health_check_freq_in_sec;
+    }
+
+    public void setHealthCheckFreqInSec(int healthCheckFreqInSec)
+    {
+        this.health_check_freq_in_sec = healthCheckFreqInSec;
+    }
+
     public String toString()
     {
         return "enabled: " + enabled + "\n" +
-                "current CPU threshold: " + cpu_threshold_cur + "\n" +
-                "one minute CPU threshold: " + cpu_threshold_one_minute + "\n" +
-                "current nr_throttled threshold: " + nr_throttling_threshold_cur + "\n" +
-                "one minute nr_throttled threshold: " + nr_throttling_threshold_one_minute + "\n" +
-                "current pending reads threshold: " + pending_reads_threshold_cur + "\n" +
-                "one minute pending reads threshold: " + pending_reads_threshold_one_minute + "\n" +
-                "current pending mutations threshold: " + pending_mutations_threshold_cur + "\n" +
-                "one minute pending mutations threshold: " + pending_mutations_threshold_one_minute + "\n" +
-                "percentage of traffic to throttle: " + percentage_of_traffic_to_throttling + "\n" +
-                "more aggressive throttling after in seconds: " + more_aggressive_throttling_after_in_sec + "\n" +
-                "reset after no throttling seen in seconds: " + reset_after_no_throttling_seen_in_sec + "\n" +
-                "aggressive throttling qps ratio: " + aggressive_throttling_qps_ratio + "\n" +
-                "aggressive throttling latency ratio: " + aggressive_throttling_latency_ratio + "\n" +
-                "ignore keyspaces: '" + ignore_keyspaces.toString() + '\'';
+               "current CPU threshold: " + cpu_threshold_cur + "\n" +
+               "one minute CPU threshold: " + cpu_threshold_one_minute + "\n" +
+               "current nr_throttled threshold: " + nr_throttling_threshold_cur + "\n" +
+               "one minute nr_throttled threshold: " + nr_throttling_threshold_one_minute + "\n" +
+               "current pending reads threshold: " + pending_reads_threshold_cur + "\n" +
+               "one minute pending reads threshold: " + pending_reads_threshold_one_minute + "\n" +
+               "current pending mutations threshold: " + pending_mutations_threshold_cur + "\n" +
+               "one minute pending mutations threshold: " + pending_mutations_threshold_one_minute + "\n" +
+               "percentage of traffic to throttle: " + percentage_of_traffic_to_throttling + "\n" +
+               "more aggressive throttling after in seconds: " + more_aggressive_throttling_after_in_sec + "\n" +
+               "reset after no throttling seen in seconds: " + reset_after_no_throttling_seen_in_sec + "\n" +
+               "aggressive throttling qps ratio: " + aggressive_throttling_qps_ratio + "\n" +
+               "aggressive throttling latency ratio: " + aggressive_throttling_latency_ratio + "\n" +
+               "ignore keyspaces: '" + ignore_keyspaces + '\'' + "\n" +
+               "health initial delay in sec: '" + health_check_init_delay_in_sec + '\'' + "\n" +
+               "health check frequency in sec: '" + health_check_freq_in_sec + '\'';
     }
 }

@@ -672,6 +672,38 @@ public class CassandraResourceUtilizationTest extends CQLTester
         Assert.assertFalse(CassandraResourceUtilization.isExceptionDuetoRateLimiter(new OverloadedException("Something else")));
     }
 
+    @Test
+    public void testHealthThreadpool() throws InterruptedException
+    {
+        // activate the health check thread pool by setting the init time lower
+        CassandraResourceUtilization lowInitTime = new CassandraResourceUtilization();
+        lowInitTime.throttlingOptions.setHealthCheckFreqInSec(1);
+        lowInitTime.throttlingOptions.setHealthCheckInitDelayInSec(0);
+        lowInitTime.setup(true);
+        Thread.sleep(5000);
+        Assert.assertEquals(0, lowInitTime.throttlingMetrics.needsThrottling.getCount());
+        // this metric is incremented as a result of a health check already happening by the thread pool
+        Assert.assertTrue(lowInitTime.throttlingMetrics.doesNotNeedThrottling.getCount() > 0);
+        lowInitTime.reportThread.shutdown();
+        Assert.assertTrue(lowInitTime.reportThread.awaitTermination(10, SECONDS));
+        Assert.assertTrue(lowInitTime.reportThread.isShutdown());
+
+        lowInitTime.throttlingMetrics.doesNotNeedThrottling.dec(lowInitTime.throttlingMetrics.doesNotNeedThrottling.getCount());
+        Assert.assertEquals(0, lowInitTime.throttlingMetrics.doesNotNeedThrottling.getCount());
+
+        // deactivate the health check thread pool by setting the init time pretty high
+        CassandraResourceUtilization highInitTime = new CassandraResourceUtilization();
+        highInitTime.throttlingOptions.setHealthCheckInitDelayInSec(24 * 3600);
+        highInitTime.setup(true);
+        Thread.sleep(10000);
+        Assert.assertEquals(0, highInitTime.throttlingMetrics.needsThrottling.getCount());
+        // this metric is not incremented as the health check thread has not yet commenced
+        Assert.assertEquals(0, lowInitTime.throttlingMetrics.doesNotNeedThrottling.getCount());
+        highInitTime.reportThread.shutdown();
+        Assert.assertTrue(highInitTime.reportThread.awaitTermination(10, SECONDS));
+        Assert.assertTrue(highInitTime.reportThread.isShutdown());
+    }
+
     private ResourcesStats getResourceStats()
     {
         CassandraResourceUtilization cassandraResourceUtilization = new CassandraResourceUtilization();
