@@ -3,7 +3,7 @@ Section: misc
 Priority: extra
 Maintainer: Eric Evans <eevans@apache.org>
 Uploaders: Sylvain Lebresne <slebresne@apache.org>
-Build-Depends: debhelper (>= 11), java11-jdk | openjdk-11-jdk-headless | java17-jdk | openjdk-17-jdk-headless, ant (>= 1.10), ant-optional (>= 1.10), dh-python, python3-dev (>= 3.6), quilt, bash-completion
+Build-Depends: debhelper (>= 11), java11-sdk | openjdk-11-jdk-headless | java17-sdk | openjdk-17-jdk-headless, ant (>= 1.10), ant-optional (>= 1.10), dh-python, python3-dev (>= 3.6), quilt, bash-completion
 Homepage: https://cassandra.apache.org
 Vcs-Git: https://gitbox.apache.org/repos/asf/cassandra.git
 Vcs-Browser: https://gitbox.apache.org/repos/asf?p=cassandra.git
