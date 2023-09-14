@@ -143,9 +143,5 @@
       <groupId>com.carrotsearch.randomizedtesting</groupId>
       <artifactId>randomizedtesting-runner</artifactId>
     </dependency>
-    <dependency>
-      <groupId>com.github.haifengl</groupId>
-      <artifactId>smile-nlp</artifactId>
-    </dependency>
   </dependencies>
 </project>
