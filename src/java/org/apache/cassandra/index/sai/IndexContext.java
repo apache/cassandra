@@ -44,6 +44,7 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.index.sai.disk.format.Version;
@@ -96,6 +97,7 @@ public class IndexContext
     public IndexContext(String keyspace,
                         String table,
                         AbstractType<?> partitionKeyType,
+                        IPartitioner partitioner,
                         ClusteringComparator clusteringComparator,
                         ColumnMetadata columnMetadata,
                         IndexTarget.Type indexType,
@@ -108,7 +110,7 @@ public class IndexContext
         this.columnMetadata = Objects.requireNonNull(columnMetadata);
         this.indexType = Objects.requireNonNull(indexType);
         this.validator = TypeUtil.cellValueType(columnMetadata, indexType);
-        this.primaryKeyFactory = new PrimaryKey.Factory(clusteringComparator);
+        this.primaryKeyFactory = new PrimaryKey.Factory(partitioner, clusteringComparator);
 
         this.indexMetadata = indexMetadata;
         this.memtableIndexManager = indexMetadata == null ? null : new MemtableIndexManager(this);
@@ -120,6 +122,11 @@ public class IndexContext
 
         this.analyzerFactory = indexMetadata == null ? AbstractAnalyzer.fromOptions(getValidator(), Collections.emptyMap())
                                                      : AbstractAnalyzer.fromOptions(getValidator(), indexMetadata.options);
+    }
+
+    public boolean hasClustering()
+    {
+        return clusteringComparator.size() > 0;
     }
 
     public AbstractType<?> keyValidator()

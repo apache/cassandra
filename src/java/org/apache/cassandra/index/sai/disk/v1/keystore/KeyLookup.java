@@ -143,10 +143,10 @@ public class KeyLookup
          * in these cases the internal buffer is cleared.
          *
          * @param pointId point id to lookup
-         * @return The {@link ByteComparable} containing the key
+         * @return The {@link ByteSource} containing the key
          * @throws IndexOutOfBoundsException if the target point id is less than -1 or greater than the number of keys
          */
-        public @Nonnull ByteComparable seekToPointId(long pointId)
+        public @Nonnull ByteSource seekToPointId(long pointId)
         {
             if (pointId < 0 || pointId >= keyLookupMeta.keyCount)
                 throw new IndexOutOfBoundsException(String.format(INDEX_OUT_OF_BOUNDS, pointId, keyLookupMeta.keyCount));
@@ -170,7 +170,7 @@ public class KeyLookup
                 updateCurrentBlockIndex(currentPointId);
             }
 
-            return ByteComparable.fixedLength(currentKey.bytes, currentKey.offset, currentKey.length);
+            return ByteSource.fixedLength(currentKey.bytes, currentKey.offset, currentKey.length);
         }
 
         /**

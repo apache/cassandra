@@ -1080,13 +1080,3 @@ metrics can be exported to a number of monitoring system a number of
 http://metrics.dropwizard.io/3.1.0/getting-started/#other-reporting[built
 in] and http://metrics.dropwizard.io/3.1.0/manual/third-party/[third
 party] reporter plugins.
-
-The configuration of these plugins is managed by the
-https://github.com/addthis/metrics-reporter-config[metrics reporter
-config project]. There is a sample configuration file located at
-`conf/metrics-reporter-config-sample.yaml`.
-
-Once configured, you simply start cassandra with the flag
-`-Dcassandra.metricsReporterConfigFile=metrics-reporter-config.yaml`.
-The specified .yaml file plus any 3rd party reporter jars must all be in
-Cassandra's classpath.

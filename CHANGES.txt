@@ -1,5 +1,20 @@
 5.1
+ * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Remove metrics-reporter-config dependency (CASSANDRA-18743)
+ * Fix SAI's SegmentMetadata min and max primary keys (CASSANDRA-18734)
+ * Remove commons-codec dependency (CASSANDRA-18772)
+Merged from 4.1:
+ * Nodetool paxos-only repair is no longer incremental (CASSANDRA-18466)
+Merged from 4.0:
+Merged from 3.11:
+Merged from 3.0:
+ * Add cqlshrc.sample and credentials.sample into Debian package (CASSANDRA-18818)
+
+5.0-alpha1
+ * Fix rpm installations to work with jdk17 (CASSANDRA-18817)
+ * Fix Depends and Build-Depends for Java for Debian packages (CASSANDRA-18809)
+ * Update command line flags --add-exports and --add-opens for JDK17 (CASSANDRA-18439)
  * Update commons-lang3 to 3.13.0 (CASSANDRA-18789)
  * Forbid SAI indexes with analysis options on primary key columns (CASSANDRA-18782)
  * Expose bootstrap failure state via JMX and nodetool info (CASSANDRA-18749)
@@ -11,11 +26,14 @@ Merged from 5.0:
  * Upgrade JMH from 1.21 to 1.36 (CASSANDRA-18696)
  * Add guardrail for vector dimensions (CASSANDRA-18730)
 Merged from 4.1:
+ * Waiting indefinitely on ReceivedMessage response in StreamSession#receive() can cause deadlock (CASSANDRA-18733)
  * Allow empty keystore_password in encryption_options (CASSANDRA-18778)
 Merged from 4.0:
 Merged from 3.11:
  * Fix NPE when using udfContext in UDF after a restart of a node (CASSANDRA-18739)
 Merged from 3.0:
+ * Add cqlshrc.sample and credentials.sample into Debian package (CASSANDRA-18818)
+ * Refactor validation logic in StorageService.rebuild (CASSANDRA-18803)
  * Make alternation of a user type validate the same way as creation of a user type does (CASSANDRA-18585)
  * Fix missing speculative retries in tablestats (CASSANDRA-18767)
  * Fix Requires for Java for RPM package (CASSANDRA-18751)

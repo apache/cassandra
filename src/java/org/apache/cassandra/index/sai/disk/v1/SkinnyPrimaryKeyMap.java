@@ -18,8 +18,11 @@
 
 package org.apache.cassandra.index.sai.disk.v1;
 
-import org.apache.cassandra.db.BufferDecoratedKey;
-import org.apache.cassandra.db.Clustering;
+import java.io.IOException;
+import java.util.Arrays;
+import javax.annotation.concurrent.NotThreadSafe;
+import javax.annotation.concurrent.ThreadSafe;
+
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
@@ -35,15 +38,6 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.Throwables;
-import org.apache.cassandra.utils.bytecomparable.ByteComparable;
-import org.apache.cassandra.utils.bytecomparable.ByteSource;
-import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
-
-import javax.annotation.concurrent.NotThreadSafe;
-import javax.annotation.concurrent.ThreadSafe;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.Arrays;
 
 /**
  * A {@link PrimaryKeyMap} for skinny tables (those with no clustering columns).
@@ -130,7 +124,6 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
     protected final KeyLookup.Cursor partitionKeyCursor;
     protected final IPartitioner partitioner;
     protected final PrimaryKey.Factory primaryKeyFactory;
-    protected final ByteBuffer tokenBuffer = ByteBuffer.allocate(Long.BYTES);
 
     protected SkinnyPrimaryKeyMap(LongArray tokenArray,
                                   LongArray partitionArray,
@@ -148,9 +141,7 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
     @Override
     public PrimaryKey primaryKeyFromRowId(long sstableRowId)
     {
-        tokenBuffer.putLong(tokenArray.get(sstableRowId));
-        tokenBuffer.rewind();
-        return primaryKeyFactory.createDeferred(partitioner.getTokenFactory().fromByteArray(tokenBuffer), () -> supplier(sstableRowId));
+        return primaryKeyFactory.create(readPartitionKey(sstableRowId));
     }
 
     @Override
@@ -159,7 +150,9 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
         long rowId = tokenArray.indexOf(primaryKey.token().getLongValue());
         // If the key is token only, the token is out of range, we are at the end of our keys, or we have skipped a token
         // we can return straight away.
-        if (primaryKey.isTokenOnly() || rowId < 0 || rowId + 1 == tokenArray.length() || tokenArray.get(rowId) != primaryKey.token().getLongValue())
+        if (primaryKey.kind() == PrimaryKey.Kind.TOKEN ||
+            rowId < 0 ||
+            rowId + 1 == tokenArray.length() || tokenArray.get(rowId) != primaryKey.token().getLongValue())
             return rowId;
         // Otherwise we need to check for token collision.
         return tokenCollisionDetection(primaryKey, rowId);
@@ -188,21 +181,8 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
         return rowId;
     }
 
-    protected PrimaryKey supplier(long sstableRowId)
-    {
-        return primaryKeyFactory.create(readPartitionKey(sstableRowId), Clustering.EMPTY);
-    }
-
     protected DecoratedKey readPartitionKey(long sstableRowId)
     {
-        long partitionId = partitionArray.get(sstableRowId);
-        ByteSource.Peekable peekable = ByteSource.peekable(partitionKeyCursor.seekToPointId(partitionId).asComparableBytes(ByteComparable.Version.OSS50));
-
-        byte[] keyBytes = ByteSourceInverse.getUnescapedBytes(peekable);
-
-        assert keyBytes != null : "Primary key from map did not contain a partition key";
-
-        ByteBuffer decoratedKey = ByteBuffer.wrap(keyBytes);
-        return new BufferDecoratedKey(partitioner.getToken(decoratedKey), decoratedKey);
+        return primaryKeyFactory.partitionKeyFromComparableBytes(partitionKeyCursor.seekToPointId(partitionArray.get(sstableRowId)));
     }
 }
