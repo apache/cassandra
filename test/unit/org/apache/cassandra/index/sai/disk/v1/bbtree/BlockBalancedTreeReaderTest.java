@@ -334,8 +334,8 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
         final long postingsPosition = metadata.get(IndexComponent.POSTING_LISTS).root;
         assertThat(postingsPosition, is(greaterThan(0L)));
 
-        FileHandle treeHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexContext);
-        FileHandle treePostingsHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext);
+        FileHandle treeHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexContext, null);
+        FileHandle treePostingsHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext, null);
         return new BlockBalancedTreeReader(indexContext,
                                            treeHandle,
                                            treePosition,

@@ -67,7 +67,7 @@ and other log analysis tools to dive deep. For example:
 [source, bash]
 ----
 # Search for messages involving a CompactionTask with 5 lines of context
-$ grep CompactionTask debug.log -C 5 
+$ grep CompactionTask debug.log -C 5
 
 # Look at the distribution of flush tasks per keyspace
 $ grep "Enqueuing flush" debug.log | cut -f 10 -d ' ' | sort | uniq -c
@@ -244,4 +244,4 @@ index b2c5b10..71b0a49 100644
 
 Note that if you want more information than this tool provides, there
 are other live capture options available such as
-xref:cql/troubleshooting/use_tools.adoc#packet-capture[`packet-capture`].
+xref:cassandra:developing/cql/troubleshooting/use_tools.adoc#packet-capture[`packet-capture`].

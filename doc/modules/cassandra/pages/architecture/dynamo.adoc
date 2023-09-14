@@ -41,7 +41,7 @@ clocks were used to reconcile concurrent updates to a key, Cassandra
 uses a simpler last-write-wins model where every mutation is timestamped
 (including deletes) and then the latest version of data is the "winning"
 value. Formally speaking, Cassandra uses a Last-Write-Wins Element-Set
-conflict-free replicated data type for each CQL row, or 
+conflict-free replicated data type for each CQL row, or
 https://en.wikipedia.org/wiki/Conflict-free_replicated_data_type#LWW-Element-Set_(Last-Write-Wins-Element-Set)[LWW-Element-Set
 CRDT], to resolve conflicting mutations on replica sets.
 
@@ -187,7 +187,7 @@ clusters where you do not yet know the datacenter layout of the cluster.
 [[network-topology-strategy]]
 ==== `NetworkTopologyStrategy`
 
-`NetworkTopologyStrategy` requires a specified replication factor 
+`NetworkTopologyStrategy` requires a specified replication factor
 for each datacenter in the cluster. Even if your cluster only uses a
 single datacenter, `NetworkTopologyStrategy` is recommended over
 `SimpleStrategy` to make it easier to add new physical or virtual
@@ -429,7 +429,6 @@ seed nodes, often one for each rack or datacenter. Seed nodes are often
 chosen using existing off-the-shelf service discovery mechanisms.
 
 [NOTE]
-.Note
 ====
 Nodes do not have to agree on the seed nodes, and indeed once a cluster
 is bootstrapped, newly launched nodes can be configured to use any
@@ -462,7 +461,6 @@ will try to reach out and connect, and if it can open communication
 channels it will mark that node as available.
 
 [NOTE]
-.Note
 ====
 `UP` and `DOWN` state are local node decisions and are not propagated with
 gossip. Heartbeat state is propagated with gossip, but nodes will not

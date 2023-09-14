@@ -102,7 +102,6 @@ node that is being replaced. (See CASSANDRA-8523 and CASSANDRA-12344)
 Once the bootstrapping is complete the node will be marked "UP".
 
 [NOTE]
-.Note
 ====
 If any of the following cases apply, you *MUST* run repair to make the
 replaced node consistent again, since it missed ongoing writes

@@ -670,6 +670,16 @@ public interface StorageServiceMBean extends NotificationEmitter
      */
     public boolean isBootstrapMode();
 
+    /**
+     * Returns whether a node has failed to bootstrap.
+     *
+     * The fact that this method returns false does not mean that there was an attempt to
+     * bootstrap this node which was successful.
+     *
+     * @return true if bootstrap of this node has failed, false otherwise
+     */
+    public boolean isBootstrapFailed();
+
     public void setRpcTimeout(long value);
     public long getRpcTimeout();
 

@@ -16,17 +16,25 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed.upgrade;
+package org.apache.cassandra.distributed.util;
 
-import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.auth.CassandraRoleManager;
+import org.apache.cassandra.distributed.api.IInvokableInstance;
 
-/**
- * {@link MixedModeAvailabilityTestBase} for upgrades from v30 with ALL-ONE write-read consistency.
- */
-public class MixedModeAvailabilityV30AllOneTest extends MixedModeAvailabilityTestBase
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.awaitility.Awaitility.await;
+
+public class Auth
 {
-    public MixedModeAvailabilityV30AllOneTest()
+
+    public static void waitForExistingRoles(IInvokableInstance instance)
     {
-        super(ConsistencyLevel.ALL, ConsistencyLevel.ONE);
+        assert instance != null && !instance.isShutdown() && instance.isValid();
+
+        await().pollDelay(1, SECONDS)
+               .pollInterval(1, SECONDS)
+               .atMost(60, SECONDS)
+               .until(() -> instance.callOnInstance(CassandraRoleManager::hasExistingRoles));
     }
+
 }

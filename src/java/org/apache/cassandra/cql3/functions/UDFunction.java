@@ -219,8 +219,7 @@ public abstract class UDFunction extends UserFunction implements ScalarFunction
         this.argumentTypes = UDFDataType.wrap(argTypes, !calledOnNullInput);
         this.resultType = UDFDataType.wrap(returnType, !calledOnNullInput);
         this.calledOnNullInput = calledOnNullInput;
-        KeyspaceMetadata keyspaceMetadata = Schema.instance.getKeyspaceMetadata(name.keyspace);
-        this.udfContext = new UDFContextImpl(argNames, argumentTypes, resultType, keyspaceMetadata);
+        this.udfContext = new UDFContextImpl(argNames, argumentTypes, resultType, name.keyspace);
     }
 
     @Override

@@ -166,6 +166,12 @@ j11_small_par_executor: &j11_small_par_executor
     #exec_resource_class: xlarge
   parallelism: 1
 
+j11_small_parallel_executor: &j11_small_parallel_executor
+  executor:
+    name: java11-executor
+    #exec_resource_class: xlarge
+  parallelism: 1
+
 j11_small_executor: &j11_small_executor
   executor:
     name: java11-executor
@@ -1778,7 +1784,7 @@ jobs:
           target: "testclasslist"
 
   j11_jvm_upgrade_dtests:
-    <<: *j11_medium_par_executor
+    <<: *j11_small_parallel_executor
     steps:
       - attach_workspace:
           at: /home/cassandra
@@ -2895,7 +2901,7 @@ commands:
           cd ~/cassandra
           mkdir ~/dtest_jars
           git remote add apache https://github.com/apache/cassandra.git
-          for branch in cassandra-4.0 cassandra-4.1 trunk; do
+          for branch in cassandra-4.0 cassandra-4.1 cassandra-5.0 trunk; do
             # check out the correct cassandra version:
             git remote set-branches --add apache '$branch'
             git fetch --depth 1 apache $branch
