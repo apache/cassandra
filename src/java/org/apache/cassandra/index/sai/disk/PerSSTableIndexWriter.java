@@ -19,6 +19,7 @@ package org.apache.cassandra.index.sai.disk;
 
 import java.io.IOException;
 
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 
 /**
@@ -27,6 +28,9 @@ import org.apache.cassandra.index.sai.utils.PrimaryKey;
 public interface PerSSTableIndexWriter
 {
     PerSSTableIndexWriter NONE = (key) -> {};
+
+    default void startPartition(DecoratedKey decoratedKey) throws IOException
+    {}
 
     void nextRow(PrimaryKey primaryKey) throws IOException;
 

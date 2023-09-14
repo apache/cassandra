@@ -32,7 +32,7 @@
     <property name="debuglevel" value="source,lines,vars"/>
 
     <!-- default version and SCM information -->
-    <property name="base.version" value="5.0"/>
+    <property name="base.version" value="5.1"/>
     <property name="scm.connection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
     <property name="scm.developerConnection" value="scm:https://gitbox.apache.org/repos/asf/cassandra.git"/>
     <property name="scm.url" value="https://gitbox.apache.org/repos/asf?p=cassandra.git;a=tree"/>
@@ -90,7 +90,10 @@
     <property name="test.jvm.args" value="" />
     <property name="testtag.extra" value="" />
     <property name="dist.dir" value="${build.dir}/dist"/>
-    <property name="tmp.dir" value="${java.io.tmpdir}"/>
+
+    <!-- Use build/tmp for temp files if not otherwise specified. Because Ant properties are immutable, this has no effect if
+         the user specifies the tmp.dir property -->
+    <property name="tmp.dir" value="${build.dir}/tmp"/>
 
     <property name="doc.dir" value="${basedir}/doc"/>
 
@@ -235,8 +238,6 @@
         <string>-XX:G1HeapRegionSize=16m</string>
 
         <string>--add-exports java.base/jdk.internal.misc=ALL-UNNAMED</string>
-        <string>--add-exports java.base/jdk.internal.ref=ALL-UNNAMED</string>
-        <string>--add-exports java.base/sun.nio.ch=ALL-UNNAMED</string>
         <string>--add-exports java.management.rmi/com.sun.jmx.remote.internal.rmi=ALL-UNNAMED</string>
         <string>--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED</string>
         <string>--add-exports java.rmi/sun.rmi.server=ALL-UNNAMED</string>
@@ -245,9 +246,9 @@
         <string>--add-exports java.base/java.lang.ref=ALL-UNNAMED</string>
         <string>--add-exports jdk.unsupported/sun.misc=ALL-UNNAMED</string>
         <string>--add-exports jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED</string>
+        <string>--add-exports jdk.attach/sun.tools.attach=ALL-UNNAMED</string>
 
         <string>--add-opens java.base/java.lang.module=ALL-UNNAMED</string>
-        <string>--add-opens java.base/java.net=ALL-UNNAMED</string>
         <string>--add-opens java.base/jdk.internal.loader=ALL-UNNAMED</string>
         <string>--add-opens java.base/jdk.internal.ref=ALL-UNNAMED</string>
         <string>--add-opens java.base/jdk.internal.reflect=ALL-UNNAMED</string>
@@ -255,17 +256,12 @@
         <string>--add-opens java.base/jdk.internal.module=ALL-UNNAMED</string>
         <string>--add-opens java.base/jdk.internal.util.jar=ALL-UNNAMED</string>
         <string>--add-opens jdk.management/com.sun.management.internal=ALL-UNNAMED</string>
-        <string>--add-opens jdk.management/com.sun.management.internal=ALL-UNNAMED</string>
-
         <string>--add-opens java.base/sun.nio.ch=ALL-UNNAMED</string>
         <string>--add-opens java.base/java.io=ALL-UNNAMED</string>
-        <string>--add-opens java.base/java.util.concurrent=ALL-UNNAMED</string>
-        <string>--add-opens java.base/java.util=ALL-UNNAMED</string>
-        <string>--add-opens java.base/java.util.concurrent.atomic=ALL-UNNAMED</string>
-        <string>--add-opens java.base/java.lang=ALL-UNNAMED</string>
-        <string>--add-opens java.base/java.math=ALL-UNNAMED</string>
         <string>--add-opens java.base/java.lang.reflect=ALL-UNNAMED</string>
-        <string>--add-opens java.base/java.net=ALL-UNNAMED</string>
+        <string>--add-opens jdk.compiler/com.sun.tools.javac=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.lang=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.util=ALL-UNNAMED</string>
 
         <string>--add-opens java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED</string>
     </resources>
@@ -381,6 +377,7 @@
 
     <target name="clean" description="Remove all locally created artifacts">
         <delete dir="${build.test.dir}" />
+        <delete dir="${build.dir}/tmp" />
         <delete dir="${build.classes}" />
         <delete dir="${build.src.gen-java}" />
         <delete dir="${version.properties.dir}" />
@@ -456,7 +453,7 @@
     </target>
 
     <!-- create properties file with C version -->
-    <target name="_createVersionPropFile" depends="_get-git-sha">
+    <target name="_createVersionPropFile" depends="_get-git-sha,set-cqlsh-version">
       <taskdef name="propertyfile" classname="org.apache.tools.ant.taskdefs.optional.PropertyFile"/>
       <mkdir dir="${version.properties.dir}"/>
       <propertyfile file="${version.properties.dir}/version.properties">
@@ -1112,6 +1109,7 @@
       <mkdir dir="${build.test.dir}/cassandra"/>
       <mkdir dir="${build.test.dir}/output"/>
       <mkdir dir="${build.test.dir}/output/@{testtag}"/>
+      <mkdir dir="${tmp.dir}"/>
       <junit-timeout fork="on" forkmode="@{forkmode}" failureproperty="testfailed" maxmemory="1024m" timeout="@{timeout}" showoutput="@{showoutput}">
         <formatter classname="org.apache.cassandra.CassandraXMLJUnitResultFormatter" extension=".xml" usefile="true"/>
         <formatter classname="org.apache.cassandra.CassandraBriefJUnitResultFormatter" usefile="false"/>
@@ -1898,6 +1896,7 @@
 <project version="4">
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_STRING" value="--add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED
+                                                    --add-exports java.rmi/sun.rmi.transport=ALL-UNNAMED
                                                     --add-exports java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED
                                                     --add-exports java.base/jdk.internal.ref=ALL-UNNAMED
                                                     --add-exports java.base/sun.nio.ch=ALL-UNNAMED" />
@@ -1978,6 +1977,10 @@
   <classpathentry kind="src" path="conf" including="hotspot_compiler"/>
   <classpathentry kind="src" output="${test.classes}" path="test/unit"/>
   <classpathentry kind="src" output="${test.classes}" path="test/long"/>
+  <classpathentry kind="src" output="${test.classes}" path="test/microbench"/>
+  <classpathentry kind="src" output="${test.classes}" path="test/memory"/>
+  <classpathentry kind="src" output="${test.classes}" path="test/burn"/>
+  <classpathentry kind="src" output="${test.classes}" path="test/anttasks"/>
   <classpathentry kind="src" output="${test.classes}" path="test/distributed"/>
   <classpathentry kind="src" output="${test.classes}" path="test/simulator/asm"/>
   <classpathentry kind="src" output="${test.classes}" path="test/simulator/main"/>
@@ -2073,4 +2076,5 @@
   <import file="${build.helpers.dir}/build-owasp.xml"/>
   <import file="${build.helpers.dir}/build-git.xml"/>
   <import file="${build.helpers.dir}/build-checkstyle.xml"/>
+  <import file="${build.helpers.dir}/build-cqlsh.xml"/>
 </project>

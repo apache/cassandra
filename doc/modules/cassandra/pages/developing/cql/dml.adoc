@@ -10,35 +10,35 @@ Querying data from data is done using a `SELECT` statement:
 
 [source,bnf]
 ----
-include::example$BNF/select_statement.bnf[]
+include::cassandra:example$BNF/select_statement.bnf[]
 ----
 
 For example:
 
 [source,cql]
 ----
-include::example$CQL/select_statement.cql[]
+include::cassandra:example$CQL/select_statement.cql[]
 ----
 
 The `SELECT` statements reads one or more columns for one or more rows
 in a table. It returns a result-set of the rows matching the request,
 where each row contains the values for the selection corresponding to
-the query. Additionally, xref:cql/functions.adoc#cql-functions[functions] including
-xref:cql/functions.adoc#aggregate-functions[aggregations] can be applied to the result.
+the query. Additionally, xref:cassandra:developing/cql/functions.adoc#cql-functions[functions] including
+xref:cassandra:developing/cql/functions.adoc#aggregate-functions[aggregations] can be applied to the result.
 
-A `SELECT` statement contains at least a xref:cql/dml.adoc#selection-clause[selection clause] and the name of the table on which
-the selection is executed. 
-CQL does *not* execute joins or sub-queries and a select statement only apply to a single table. 
-A select statement can also have a xref:cql/dml.adoc#where-clause[where clause] that can further narrow the query results.
-Additional clauses can xref:cql/dml.adoc#ordering-clause[order] or xref:cql/dml.adoc#limit-clause[limit] the results. 
-Lastly, xref:cql/dml.adoc#allow-filtering[queries that require full cluster filtering] can append `ALLOW FILTERING` to any query.
+A `SELECT` statement contains at least a xref:cassandra:developing/cql/dml.adoc#selection-clause[selection clause] and the name of the table on which
+the selection is executed.
+CQL does *not* execute joins or sub-queries and a select statement only apply to a single table.
+A select statement can also have a xref:cassandra:developing/cql/dml.adoc#where-clause[where clause] that can further narrow the query results.
+Additional clauses can xref:cassandra:developing/cql/dml.adoc#ordering-clause[order] or xref:cassandra:developing/cql/dml.adoc#limit-clause[limit] the results.
+Lastly, xref:cassandra:developing/cql/dml.adoc#allow-filtering[queries that require full cluster filtering] can append `ALLOW FILTERING` to any query.
 For virtual tables, from https://issues.apache.org/jira/browse/CASSANDRA-18238[CASSANDRA-18238], it is not necessary to specify `ALLOW FILTERING` when a query would normally require that. Please consult the documentation for virtual tables to know more.
 
 [[selection-clause]]
 === Selection clause
 
-The `select_clause` determines which columns will be queried and returned in the result set. 
-This clause can also apply transformations to apply to the result before returning. 
+The `select_clause` determines which columns will be queried and returned in the result set.
+This clause can also apply transformations to apply to the result before returning.
 The selection clause consists of a comma-separated list of specific _selectors_ or, alternatively, the wildcard character (`*`) to select all the columns defined in the table.
 
 ==== Selectors
@@ -54,8 +54,8 @@ returned).
 * A casting, which allows to convert a nested selector to a (compatible)
 type.
 * A function call, where the arguments are selector themselves. See the
-section on xref:cql/functions.adoc#cql-functions[functions] for more details.
-* The special call `COUNT(*)` to the xref:cql/functions.adoc#count-function[COUNT function],
+section on xref:cassandra:developing/cql/functions.adoc#cql-functions[functions] for more details.
+* The special call `COUNT(*)` to the xref:cassandra:developing/cql/functions.adoc#count-function[COUNT function],
 which counts all non-null results.
 
 ==== Aliases
@@ -66,7 +66,7 @@ that of the alias. For instance:
 
 [source,cql]
 ----
-include::example$CQL/as.cql[]
+include::cassandra:example$CQL/as.cql[]
 ----
 
 [NOTE]
@@ -97,26 +97,26 @@ user-defined types. In that case, the functions will return the list of timestam
 
 The `WHERE` clause specifies which rows are queried. It specifies
 a relationship for `PRIMARY KEY` columns or a column that has
-a xref:cql/indexes.adoc#create-index-statement[secondary index] defined, along with a set value.
+a xref:cassandra:developing/cql/indexes.adoc#create-index-statement[secondary index] defined, along with a set value.
 
 Not all relationships are allowed in a query. For instance, only an equality
 is allowed on a partition key. The `IN` clause is considered an equality for one or more values.
 The `TOKEN` clause can be used to query for partition key non-equalities.
-A partition key must be specified before clustering columns in the `WHERE` clause. The relationship 
+A partition key must be specified before clustering columns in the `WHERE` clause. The relationship
 for clustering columns must specify a *contiguous* set of rows to order.
 
 For instance, given:
 
 [source,cql]
 ----
-include::example$CQL/table_for_where.cql[]
+include::cassandra:example$CQL/table_for_where.cql[]
 ----
 
 The following query is allowed:
 
 [source,cql]
 ----
-include::example$CQL/where.cql[]
+include::cassandra:example$CQL/where.cql[]
 ----
 
 But the following one is not, as it does not select a contiguous set of
@@ -124,57 +124,57 @@ rows (and we suppose no secondary indexes are set):
 
 [source,cql]
 ----
-include::example$CQL/where_fail.cql[]
+include::cassandra:example$CQL/where_fail.cql[]
 ----
 
-When specifying relationships, the `TOKEN` function can be applied to the `PARTITION KEY` column to query. 
+When specifying relationships, the `TOKEN` function can be applied to the `PARTITION KEY` column to query.
 Rows will be selected based on the token of the `PARTITION_KEY` rather than on the value.
 [IMPORTANT]
 ====
 The token of a key depends on the partitioner in use, and that
-in particular the `RandomPartitioner` won't yield a meaningful order. 
+in particular the `RandomPartitioner` won't yield a meaningful order.
 Also note that ordering partitioners always order token values by bytes (so
 even if the partition key is of type int, `token(-1) > token(0)` in
-particular). 
+particular).
 ====
 
 For example:
 
 [source,cql]
 ----
-include::example$CQL/token.cql[]
+include::cassandra:example$CQL/token.cql[]
 ----
 
 The `IN` relationship is only allowed on the last column of the
 partition key or on the last column of the full primary key.
 
 It is also possible to “group” `CLUSTERING COLUMNS` together in a
-relation using the tuple notation. 
+relation using the tuple notation.
 
 For example:
 
 [source,cql]
 ----
-include::example$CQL/where_group_cluster_columns.cql[]
+include::cassandra:example$CQL/where_group_cluster_columns.cql[]
 ----
 
 This query will return all rows that sort after the one having “John's Blog” as
 `blog_tile` and '2012-01-01' for `posted_at` in the clustering order. In
 particular, rows having a `post_at <= '2012-01-01'` will be returned, as
-long as their `blog_title > 'John''s Blog'`. 
+long as their `blog_title > 'John''s Blog'`.
 
 That would not be the case for this example:
 
 [source,cql]
 ----
-include::example$CQL/where_no_group_cluster_columns.cql[]
+include::cassandra:example$CQL/where_no_group_cluster_columns.cql[]
 ----
 
 The tuple notation may also be used for `IN` clauses on clustering columns:
 
 [source,cql]
 ----
-include::example$CQL/where_in_tuple.cql[]
+include::cassandra:example$CQL/where_in_tuple.cql[]
 ----
 
 The `CONTAINS` operator may only be used for collection columns (lists,
@@ -188,11 +188,11 @@ applies to the map keys.
 The `GROUP BY` option can condense all selected
 rows that share the same values for a set of columns into a single row.
 
-Using the `GROUP BY` option, rows can be grouped at the partition key or clustering column level. 
+Using the `GROUP BY` option, rows can be grouped at the partition key or clustering column level.
 Consequently, the `GROUP BY` option only accepts primary key columns in defined order as arguments.
 If a primary key column is restricted by an equality restriction, it is not included in the `GROUP BY` clause.
 
-Aggregate functions will produce a separate value for each group. 
+Aggregate functions will produce a separate value for each group.
 If no `GROUP BY` clause is specified, aggregates functions will produce a single value for all the rows.
 
 If a column is selected without an aggregate function, in a statement
@@ -202,10 +202,10 @@ returned.
 [[ordering-clause]]
 === Ordering results
 
-The `ORDER BY` clause selects the order of the returned results. 
-The argument is a list of column names and each column's order 
+The `ORDER BY` clause selects the order of the returned results.
+The argument is a list of column names and each column's order
 (`ASC` for ascendant and `DESC` for descendant,
-The possible orderings are limited by the xref:cql/ddl.adoc#clustering-order[clustering order] defined on the table:
+The possible orderings are limited by the xref:cassandra:developing/cql/ddl.adoc#clustering-order[clustering order] defined on the table:
 
 * if the table has been defined without any specific `CLUSTERING ORDER`, then the order is as defined by the clustering columns
 or the reverse
@@ -221,47 +221,47 @@ number of rows returned for a given partition by the query. Both types of limits
 [[allow-filtering]]
 === Allowing filtering
 
-By default, CQL only allows select queries that don't involve a full scan of all partitions. 
-If all partitions are scanned, then returning the results may experience a significant latency proportional to the 
-amount of data in the table. The `ALLOW FILTERING` option explicitly executes a full scan. Thus, the performance of 
+By default, CQL only allows select queries that don't involve a full scan of all partitions.
+If all partitions are scanned, then returning the results may experience a significant latency proportional to the
+amount of data in the table. The `ALLOW FILTERING` option explicitly executes a full scan. Thus, the performance of
 the query can be unpredictable.
 
-For example, consider the following table of user profiles with birth year and country of residence. 
+For example, consider the following table of user profiles with birth year and country of residence.
 The birth year has a secondary index defined.
 
 [source,cql]
 ----
-include::example$CQL/allow_filtering.cql[]
+include::cassandra:example$CQL/allow_filtering.cql[]
 ----
 
 The following queries are valid:
 
 [source,cql]
 ----
-include::example$CQL/query_allow_filtering.cql[]
+include::cassandra:example$CQL/query_allow_filtering.cql[]
 ----
 
-In both cases, the query performance is proportional to the amount of data returned. 
+In both cases, the query performance is proportional to the amount of data returned.
 The first query returns all rows, because all users are selected.
 The second query returns only the rows defined by the secondary index, a per-node implementation; the results will
 depend on the number of nodes in the cluster, and is indirectly proportional to the amount of data stored.
-The number of nodes will always be multiple number of magnitude lower than the number of user profiles stored. 
+The number of nodes will always be multiple number of magnitude lower than the number of user profiles stored.
 Both queries may return very large result sets, but the addition of a `LIMIT` clause can reduced the latency.
 
 The following query will be rejected:
 
 [source,cql]
 ----
-include::example$CQL/query_fail_allow_filtering.cql[]
+include::cassandra:example$CQL/query_fail_allow_filtering.cql[]
 ----
 
-Cassandra cannot guarantee that large amounts of data won't have to scanned amount of data, even if the result is small. 
-If you know that the dataset is small, and the performance will be reasonable, add `ALLOW FILTERING` to allow the query to 
+Cassandra cannot guarantee that large amounts of data won't have to scanned amount of data, even if the result is small.
+If you know that the dataset is small, and the performance will be reasonable, add `ALLOW FILTERING` to allow the query to
 execute:
 
 [source,cql]
 ----
-include::example$CQL/query_nofail_allow_filtering.cql[]
+include::cassandra:example$CQL/query_nofail_allow_filtering.cql[]
 ----
 
 [[insert-statement]]
@@ -271,33 +271,33 @@ Inserting data for a row is done using an `INSERT` statement:
 
 [source,bnf]
 ----
-include::example$BNF/insert_statement.bnf[]
+include::cassandra:example$BNF/insert_statement.bnf[]
 ----
 
 For example:
 
 [source,cql]
 ----
-include::example$CQL/insert_statement.cql[]
+include::cassandra:example$CQL/insert_statement.cql[]
 ----
 
 The `INSERT` statement writes one or more columns for a given row in a
-table. 
-Since a row is identified by its `PRIMARY KEY`, at least one columns must be specified. 
-The list of columns to insert must be supplied with the `VALUES` syntax. 
-When using the `JSON` syntax, `VALUES` are optional. 
-See the section on xref:cql/dml.adoc#cql-json[JSON support] for more detail.
+table.
+Since a row is identified by its `PRIMARY KEY`, at least one columns must be specified.
+The list of columns to insert must be supplied with the `VALUES` syntax.
+When using the `JSON` syntax, `VALUES` are optional.
+See the section on xref:cassandra:developing/cql/dml.adoc#cql-json[JSON support] for more detail.
 All updates for an `INSERT` are applied atomically and in isolation.
 
-Unlike in SQL, `INSERT` does not check the prior existence of the row by default. 
-The row is created if none existed before, and updated otherwise. 
+Unlike in SQL, `INSERT` does not check the prior existence of the row by default.
+The row is created if none existed before, and updated otherwise.
 Furthermore, there is no means of knowing which action occurred.
 
-The `IF NOT EXISTS` condition can restrict the insertion if the row does not exist. 
+The `IF NOT EXISTS` condition can restrict the insertion if the row does not exist.
 However, note that using `IF NOT EXISTS` will incur a non-negligible performance cost, because Paxos is used,
 so this should be used sparingly.
 
-Please refer to the xref:cql/dml.adoc#update-parameters[UPDATE] section for informations on the `update_parameter`.
+Please refer to the xref:cassandra:developing/cql/dml.adoc#update-parameters[UPDATE] section for informations on the `update_parameter`.
 Also note that `INSERT` does not support counters, while `UPDATE` does.
 
 [[update-statement]]
@@ -307,19 +307,19 @@ Updating a row is done using an `UPDATE` statement:
 
 [source, bnf]
 ----
-include::example$BNF/update_statement.bnf[]
+include::cassandra:example$BNF/update_statement.bnf[]
 ----
 
 For instance:
 
 [source,cql]
 ----
-include::example$CQL/update_statement.cql[]
+include::cassandra:example$CQL/update_statement.cql[]
 ----
 
 The `UPDATE` statement writes one or more columns for a given row in a
-table. 
-The `WHERE` clause is used to select the row to update and must include all columns of the `PRIMARY KEY`. 
+table.
+The `WHERE` clause is used to select the row to update and must include all columns of the `PRIMARY KEY`.
 Non-primary key columns are set using the `SET` keyword.
 In an `UPDATE` statement, all updates within the same partition key are applied atomically and in isolation.
 
@@ -332,14 +332,14 @@ However, like the `IF NOT EXISTS` condition, a non-negligible performance cost c
 
 Regarding the `SET` assignment:
 
-* `c = c + 3` will increment/decrement counters, the only operation allowed. 
+* `c = c + 3` will increment/decrement counters, the only operation allowed.
 The column name after the '=' sign *must* be the same than the one before the '=' sign.
-Increment/decrement is only allowed on counters. 
-See the section on xref:cql/dml.adoc#counters[counters] for details.
-* `id = id + <some-collection>` and `id[value1] = value2` are for collections. 
-See the xref:cql/types.adoc#collections[collections] for details.  
-* `id.field = 3` is for setting the value of a field on a non-frozen user-defined types. 
-See the xref:cql/types.adoc#udts[UDTs] for details.
+Increment/decrement is only allowed on counters.
+See the section on xref:cassandra:developing/cql/dml.adoc#counters[counters] for details.
+* `id = id + <some-collection>` and `id[value1] = value2` are for collections.
+See the xref:cassandra:developing/cql/types.adoc#collections[collections] for details.
+* `id.field = 3` is for setting the value of a field on a non-frozen user-defined types.
+See the xref:cassandra:developing/cql/types.adoc#udts[UDTs] for details.
 
 === Update parameters
 
@@ -369,14 +369,14 @@ Deleting rows or parts of rows uses the `DELETE` statement:
 
 [source,bnf]
 ----
-include::example$BNF/delete_statement.bnf[]
+include::cassandra:example$BNF/delete_statement.bnf[]
 ----
 
 For example:
 
 [source,cql]
 ----
-include::example$CQL/delete_statement.cql[]
+include::cassandra:example$CQL/delete_statement.cql[]
 ----
 
 The `DELETE` statement deletes columns and rows. If column names are
@@ -389,7 +389,7 @@ may be deleted with one statement by using an `IN` operator. A range of
 rows may be deleted using an inequality operator (such as `>=`).
 
 `DELETE` supports the `TIMESTAMP` option with the same semantics as in
-xref:cql/dml.adoc#update-parameters[updates].
+xref:cassandra:developing/cql/dml.adoc#update-parameters[updates].
 
 In a `DELETE` statement, all deletions within the same partition key are
 applied atomically and in isolation.
@@ -407,14 +407,14 @@ statement by grouping them through a `BATCH` statement:
 
 [source, bnf]
 ----
-include::example$BNF/batch_statement.bnf[]
+include::cassandra:example$BNF/batch_statement.bnf[]
 ----
 
 For instance:
 
 [source,cql]
 ----
-include::example$CQL/batch_statement.cql[]
+include::cassandra:example$CQL/batch_statement.cql[]
 ----
 
 The `BATCH` statement group multiple modification statements
@@ -428,7 +428,7 @@ multiple updates.
 performed in isolation.
 * By default, all operations in the batch are performed as _logged_, to
 ensure all mutations eventually complete (or none will). See the notes
-on xref:cql/dml.adoc#unlogged-batches[UNLOGGED batches] for more details.
+on xref:cassandra:developing/cql/dml.adoc#unlogged-batches[UNLOGGED batches] for more details.
 
 Note that:
 

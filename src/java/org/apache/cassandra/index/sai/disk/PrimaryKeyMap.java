@@ -22,6 +22,7 @@ import java.io.Closeable;
 import java.io.IOException;
 
 import javax.annotation.concurrent.NotThreadSafe;
+import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 
@@ -36,7 +37,7 @@ public interface PrimaryKeyMap extends Closeable
      * A factory for creating {@link PrimaryKeyMap} instances. Implementations of this
      * interface are expected to be threadsafe.
      */
-    @NotThreadSafe
+    @ThreadSafe
     interface Factory extends Closeable
     {
         /**

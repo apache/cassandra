@@ -2,7 +2,7 @@
 
 Audit logging in Cassandra logs every incoming CQL command request,
 as well as authentication (successful/unsuccessful login) to a Cassandra node.
-Currently, there are two implementations provided. 
+Currently, there are two implementations provided.
 The custom logger can be implemented and injected with the class name as a parameter in
 the `cassandra.yaml` file.
 
@@ -23,7 +23,7 @@ successfully executed
 
 Executing prepared statements will log the query as provided by the
 client in the prepare call, along with the execution timestamp and all
-other attributes (see below). 
+other attributes (see below).
 Actual values bound for prepared statement execution will not show up in the audit log.
 
 == What does audit logging logs
@@ -47,7 +47,7 @@ applicable
 
 == How to configure
 
-Auditlog can be configured using the `cassandra.yaml` file. 
+Auditlog can be configured using the `cassandra.yaml` file.
 To use audit logging on one node, either edit that file or enable and configure using `nodetool`.
 
 === cassandra.yaml configurations for AuditLog
@@ -79,7 +79,7 @@ ERROR, PREPARE
 
 === NodeTool command to enable AuditLog
 
-The `nodetool enableauditlog` command enables AuditLog with the `cassandra.yaml` file defaults. 
+The `nodetool enableauditlog` command enables AuditLog with the `cassandra.yaml` file defaults.
 Those defaults can be overridden using options with this nodetool command.
 
 [source,none]
@@ -172,7 +172,7 @@ LogMessage: user:anonymous|host:localhost/X.X.X.X|source:/X.X.X.X|port:60878|tim
 == Configuring BinAuditLogger
 
 To use `BinAuditLogger` as a logger in AuditLogging, set the logger to `BinAuditLogger` in the `cassandra.yaml` file
- under the `audit_logging_options` section. 
+ under the `audit_logging_options` section.
 `BinAuditLogger` can be futher configued using its advanced options in `cassandra.yaml`.
 
 === Advanced Options for BinAuditLogger

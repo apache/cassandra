@@ -31,6 +31,7 @@ import org.junit.rules.TemporaryFolder;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -68,7 +69,7 @@ public class IndexDescriptorTest
     {
         createFileOnDisk("-SAI+aa+GroupComplete.db");
 
-        IndexDescriptor indexDescriptor = IndexDescriptor.create(descriptor, SAITester.EMPTY_COMPARATOR);
+        IndexDescriptor indexDescriptor = IndexDescriptor.create(descriptor, Murmur3Partitioner.instance, SAITester.EMPTY_COMPARATOR);
 
         assertEquals(Version.AA, indexDescriptor.version);
         assertTrue(indexDescriptor.hasComponent(IndexComponent.GROUP_COMPLETION_MARKER));
@@ -79,7 +80,7 @@ public class IndexDescriptorTest
     {
         createFileOnDisk("-SAI+aa+test_index+ColumnComplete.db");
 
-        IndexDescriptor indexDescriptor = IndexDescriptor.create(descriptor, SAITester.EMPTY_COMPARATOR);
+        IndexDescriptor indexDescriptor = IndexDescriptor.create(descriptor, Murmur3Partitioner.instance, SAITester.EMPTY_COMPARATOR);
         IndexContext indexContext = SAITester.createIndexContext("test_index", UTF8Type.instance);
 
         assertEquals(Version.AA, indexDescriptor.version);

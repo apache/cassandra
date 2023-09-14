@@ -105,6 +105,16 @@ public class StorageAttachedIndexWriter implements SSTableFlushObserver
         if (aborted) return;
         
         currentKey = key;
+
+        try
+        {
+            perSSTableWriter.startPartition(key);
+        }
+        catch (Throwable t)
+        {
+            logger.error(indexDescriptor.logMessage("Failed to record a partition during an index build"), t);
+            abort(t, true);
+        }
     }
 
     @Override
@@ -237,7 +247,8 @@ public class StorageAttachedIndexWriter implements SSTableFlushObserver
 
     private void addRow(Row row) throws IOException, InMemoryTrie.SpaceExhaustedException
     {
-        PrimaryKey primaryKey = indexDescriptor.primaryKeyFactory.create(currentKey, row.clustering());
+        PrimaryKey primaryKey = indexDescriptor.hasClustering() ? indexDescriptor.primaryKeyFactory.create(currentKey, row.clustering())
+                                                                : indexDescriptor.primaryKeyFactory.create(currentKey);
         perSSTableWriter.nextRow(primaryKey);
         rowMapping.add(primaryKey, sstableRowId);
 

@@ -149,9 +149,8 @@ not all data attributes are needed for Q1 the data model would only
 consist of `id` ( for partition key), magazine name and publication
 frequency as shown in Figure 1.
 
+.Data Model for Q1
 image::Figure_1_data_model.jpg[image]
-
-Figure 1. Data Model for Q1
 
 Another query (Q2) is to list all the magazine names by publisher. For
 Q2 the data model would consist of an additional attribute `publisher`
@@ -159,25 +158,26 @@ for the partition key. The `id` would become the clustering key for
 sorting within a partition. Data model for Q2 is illustrated in Figure
 2.
 
+.Data Model for Q2
 image::Figure_2_data_model.jpg[image]
-
-Figure 2. Data Model for Q2
 
 == Designing Schema
 
 After the conceptual data model has been created a schema may be
 designed for a query. For Q1 the following schema may be used.
 
-....
+[source, cql]
+----
 CREATE TABLE magazine_name (id int PRIMARY KEY, name text, publicationFrequency text)
-....
+----
 
 For Q2 the schema definition would include a clustering key for sorting.
 
-....
-CREATE TABLE magazine_publisher (publisher text,id int,name text, publicationFrequency text,  
+[source, cql]
+----
+CREATE TABLE magazine_publisher (publisher text,id int,name text, publicationFrequency text,
 PRIMARY KEY (publisher, id)) WITH CLUSTERING ORDER BY (id DESC)
-....
+----
 
 == Data Model Analysis
 
@@ -207,10 +207,10 @@ minimum.
 == Using Materialized Views
 
 [WARNING]
-.Warning
 ====
-Materialized views (MVs) are experimental in the latest (4.0) release.
+Materialized views (MVs) are experimental as of the 4.0 release.
 ====
+
 Materialized views (MVs) could be used to implement multiple queries
 for a single table. A materialized view is a table built from data from
 another table, the base table, with new primary key and new properties.

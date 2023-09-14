@@ -1,0 +1,8 @@
+== Load Vector Search data into your database
+
+Insert data into the table using the new type:
+
+[source,cql]
+----
+include::cassandra:example$CQL/vector-search/insert-vsearch-cycling.cql[]
+----

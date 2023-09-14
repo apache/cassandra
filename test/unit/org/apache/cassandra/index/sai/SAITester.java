@@ -71,6 +71,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
@@ -141,7 +142,7 @@ public abstract class SAITester extends CQLTester
 
     public static final ClusteringComparator EMPTY_COMPARATOR = new ClusteringComparator();
 
-    public static final PrimaryKey.Factory TEST_FACTORY = new PrimaryKey.Factory(EMPTY_COMPARATOR);
+    public static final PrimaryKey.Factory TEST_FACTORY = new PrimaryKey.Factory(Murmur3Partitioner.instance, EMPTY_COMPARATOR);
 
     @BeforeClass
     public static void setUpClass()
@@ -254,6 +255,7 @@ public abstract class SAITester extends CQLTester
         return new IndexContext("test_ks",
                                 "test_cf",
                                 UTF8Type.instance,
+                                Murmur3Partitioner.instance,
                                 new ClusteringComparator(),
                                 ColumnMetadata.regularColumn("sai", "internal", name, validator),
                                 IndexTarget.Type.SIMPLE,
@@ -486,7 +488,7 @@ public abstract class SAITester extends CQLTester
     {
         Set<File> indexFiles = indexFiles();
 
-        for (IndexComponent indexComponent : Version.LATEST.onDiskFormat().perSSTableIndexComponents())
+        for (IndexComponent indexComponent : Version.LATEST.onDiskFormat().perSSTableIndexComponents(false))
         {
             Set<File> tableFiles = componentFiles(indexFiles, SSTableFormat.Components.Types.CUSTOM.createComponent(Version.LATEST.fileNameFormatter().format(indexComponent, null)));
             assertEquals(tableFiles.toString(), perSSTableFiles, tableFiles.size());

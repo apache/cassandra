@@ -65,6 +65,11 @@ public class NonTokenizingOptions
         this.normalized = normalized;
     }
 
+    static boolean hasOption(String option)
+    {
+        return option.equals(NORMALIZE) || option.equals(CASE_SENSITIVE) || option.equals(ASCII);
+    }
+
     public static class OptionsBuilder
     {
         private boolean caseSensitive = true;

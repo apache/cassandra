@@ -191,7 +191,7 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
     @Override
     public SSTableFlushObserver getFlushObserver(Descriptor descriptor, LifecycleNewTracker tracker, TableMetadata tableMetadata)
     {
-        IndexDescriptor indexDescriptor = IndexDescriptor.create(descriptor, tableMetadata.comparator);
+        IndexDescriptor indexDescriptor = IndexDescriptor.create(descriptor, tableMetadata.partitioner, tableMetadata.comparator);
         try
         {
             return StorageAttachedIndexWriter.createFlushObserverWriter(indexDescriptor, indexes, tracker);
@@ -219,10 +219,10 @@ public class StorageAttachedIndexGroup implements Index.Group, INotificationCons
         return getComponents(indexes);
     }
 
-    static Set<Component> getComponents(Collection<StorageAttachedIndex> indices)
+    private Set<Component> getComponents(Collection<StorageAttachedIndex> indices)
     {
         Set<Component> components = Version.LATEST.onDiskFormat()
-                                                  .perSSTableIndexComponents()
+                                                  .perSSTableIndexComponents(baseCfs.metadata.get().comparator.size() > 0)
                                                   .stream()
                                                   .map(Version.LATEST::makePerSSTableComponent)
                                                   .collect(Collectors.toSet());

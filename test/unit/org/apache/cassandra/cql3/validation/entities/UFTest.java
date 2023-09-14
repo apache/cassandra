@@ -81,10 +81,10 @@ public class UFTest extends CQLTester
         registerFunction(f, "double, double");
 
         assertSchemaChange("CREATE OR REPLACE FUNCTION " + f + "(state double, val double)" +
-                           "CALLED ON NULL INPUT " +
+                           "RETURNS NULL ON NULL INPUT " +
                            "RETURNS double " +
                            "LANGUAGE java " +
-                           "AS ' return Double.valueOf(Math.max(state.doubleValue(), val.doubleValue())); ';",
+                           "AS ' return Double.valueOf(Math.max(state, val)); ';",
                            Change.CREATED,
                            Target.FUNCTION,
                            KEYSPACE, functionName,
@@ -102,15 +102,15 @@ public class UFTest extends CQLTester
                            KEYSPACE, functionName,
                            "int", "int");
 
-        /*assertSchemaChange("CREATE OR REPLACE FUNCTION " + f + "(state int, val int) " +
+        assertSchemaChange("CREATE OR REPLACE FUNCTION " + f + "(state int, val int) " +
                            "RETURNS NULL ON NULL INPUT " +
                            "RETURNS int " +
                            "LANGUAGE java " +
-                           "AS ' return Integer.valueOf(Math.max(state, val));';",
+                           "AS ' return Integer.valueOf(Math.min(state, val));';",
                            Change.UPDATED,
                            Target.FUNCTION,
                            KEYSPACE, functionName,
-                           "int", "int");*/
+                           "int", "int");
 
         assertSchemaChange("DROP FUNCTION " + f + "(double, double)",
                            Change.DROPPED, Target.FUNCTION,

@@ -136,8 +136,10 @@ public interface OnDiskFormat
      * Returns the set of {@link IndexComponent} for the per-SSTable part of an index.
      * This is a complete set of components that could exist on-disk. It does not imply that the
      * components currently exist on-disk.
+
+     * @param hasClustering true if the SSTable forms part of a table using clustering columns
      */
-    Set<IndexComponent> perSSTableIndexComponents();
+    Set<IndexComponent> perSSTableIndexComponents(boolean hasClustering);
 
     /**
      * Returns the set of {@link IndexComponent} for the per-column part of an index.
@@ -152,8 +154,10 @@ public interface OnDiskFormat
      * Return the number of open per-SSTable files that can be open during a query.
      * This is a static indication of the files that can be held open by an index
      * for queries. It is not a dynamic calculation.
+     *
+     * @param hasClustering true if the SSTable forms part of a table using clustering columns
      */
-    int openFilesPerSSTableIndex();
+    int openFilesPerSSTableIndex(boolean hasClustering);
 
     /**
      * Return the number of open per-column index files that can be open during a query.
