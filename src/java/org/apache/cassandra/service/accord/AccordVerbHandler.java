@@ -48,7 +48,6 @@ public class AccordVerbHandler<T extends Request> implements IVerbHandler<T>
 //        ClusterMetadataService.instance().maybeCatchup(message.epoch());
         logger.debug("Receiving {} from {}", message.payload, message.from());
         T request = message.payload;
-        Node.Id from = endpointMapper.mappedId(message.from());
         long knownEpoch = request.knownEpoch();
         if (!node.topology().hasEpoch(knownEpoch))
         {
@@ -56,10 +55,10 @@ public class AccordVerbHandler<T extends Request> implements IVerbHandler<T>
             long waitForEpoch = request.waitForEpoch();
             if (!node.topology().hasEpoch(waitForEpoch))
             {
-                node.withEpoch(waitForEpoch, () -> request.process(node, from, message));
+                node.withEpoch(waitForEpoch, () -> request.process(node, endpointMapper.mappedId(message.from()), message));
                 return;
             }
         }
-        request.process(node, from, message);
+        request.process(node, endpointMapper.mappedId(message.from()), message);
     }
 }
