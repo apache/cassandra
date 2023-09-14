@@ -81,7 +81,7 @@ public class RecoverySerializers
     {
         void serializeNack(RecoverNack recoverNack, DataOutputPlus out, int version) throws IOException
         {
-            CommandSerializers.ballot.serialize(recoverNack.supersededBy, out, version);
+            CommandSerializers.nullableBallot.serialize(recoverNack.supersededBy, out, version);
         }
 
         void serializeOk(RecoverOk recoverOk, DataOutputPlus out, int version) throws IOException
@@ -124,7 +124,7 @@ public class RecoverySerializers
         {
             boolean isOk = in.readBoolean();
             if (!isOk)
-                return deserializeNack(CommandSerializers.ballot.deserialize(in, version), in, version);
+                return deserializeNack(CommandSerializers.nullableBallot.deserialize(in, version), in, version);
 
             return deserializeOk(CommandSerializers.txnId.deserialize(in, version),
                                  CommandSerializers.status.deserialize(in, version),
@@ -143,7 +143,7 @@ public class RecoverySerializers
 
         long serializedNackSize(RecoverNack recoverNack, int version)
         {
-            return CommandSerializers.ballot.serializedSize(recoverNack.supersededBy, version);
+            return CommandSerializers.nullableBallot.serializedSize(recoverNack.supersededBy, version);
         }
 
         long serializedOkSize(RecoverOk recoverOk, int version)
