@@ -19,7 +19,6 @@
 package org.apache.cassandra.index.sai.cql;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -41,6 +40,7 @@ import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.index.sai.disk.hnsw.ConcurrentVectorValues;
 import org.apache.cassandra.index.sai.disk.v1.SegmentBuilder;
+import org.apache.cassandra.index.sai.utils.Glove;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.Bits;
@@ -48,19 +48,17 @@ import org.apache.lucene.util.hnsw.ConcurrentHnswGraphBuilder;
 import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.NeighborQueue;
 import org.assertj.core.data.Percentage;
-import smile.nlp.embedding.GloVe;
-import smile.nlp.embedding.Word2Vec;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class VectorLocalTest extends VectorTester
 {
-    private static Word2Vec word2vec;
+    private static Glove.WordVector word2vec;
 
     @BeforeClass
     public static void loadModel() throws Throwable
     {
-        word2vec = GloVe.of(Path.of(VectorLocalTest.class.getClassLoader().getResource("glove.3K.50d.txt").getPath()));
+        word2vec = Glove.parse(VectorLocalTest.class.getClassLoader().getResourceAsStream("glove.3K.50d.txt"));
     }
 
     @Test
@@ -137,8 +135,8 @@ public class VectorLocalTest extends VectorTester
         {
             for (int row = 0; row < vectorCountPerSSTable; row++)
             {
-                String word = word2vec.words[vectorCount++];
-                float[] vector = word2vec.get(word);
+                String word = word2vec.word(vectorCount++);
+                float[] vector = word2vec.vector(word);
                 execute("INSERT INTO %s (pk, str_val, val) VALUES (?, ?, " + vectorString(vector) + " )", pk++, word);
                 allVectors.add(vector);
             }
@@ -169,14 +167,14 @@ public class VectorLocalTest extends VectorTester
         int vectorCount = getRandom().nextIntBetween(500, 1000);
 
         for (int pk = 0; pk < vectorCount; pk++)
-            execute("INSERT INTO %s (pk, str_val, val) VALUES (?, 'A', " + vectorString(word2vec.get(word2vec.words[pk])) + " )", pk);
+            execute("INSERT INTO %s (pk, str_val, val) VALUES (?, 'A', " + vectorString(word2vec.vector(word2vec.word(pk))) + " )", pk);
 
         // query memtable index
 
         for (int executionCount = 0; executionCount < 50; executionCount++)
         {
             int key = getRandom().nextIntBetween(1, vectorCount - 1);
-            float[] queryVector = word2vec.get(word2vec.words[getRandom().nextIntBetween(0, vectorCount - 1)]);
+            float[] queryVector = word2vec.vector(word2vec.word(getRandom().nextIntBetween(0, vectorCount - 1)));
             searchWithKey(queryVector, key, 1);
         }
 
@@ -186,7 +184,7 @@ public class VectorLocalTest extends VectorTester
         for (int executionCount = 0; executionCount < 50; executionCount++)
         {
             int key = getRandom().nextIntBetween(1, vectorCount - 1);
-            float[] queryVector = word2vec.get(word2vec.words[getRandom().nextIntBetween(0, vectorCount - 1)]);
+            float[] queryVector = word2vec.vector(word2vec.word(getRandom().nextIntBetween(0, vectorCount - 1)));
             searchWithKey(queryVector, key, 1);
         }
 
@@ -194,7 +192,7 @@ public class VectorLocalTest extends VectorTester
         for (int executionCount = 0; executionCount < 50; executionCount++)
         {
             int nonExistingKey = getRandom().nextIntBetween(1, vectorCount) + vectorCount;
-            float[] queryVector = word2vec.get(word2vec.words[getRandom().nextIntBetween(0, vectorCount - 1)]);
+            float[] queryVector = word2vec.vector(word2vec.word(getRandom().nextIntBetween(0, vectorCount - 1)));
             searchWithNonExistingKey(queryVector, nonExistingKey);
         }
     }
@@ -261,8 +259,8 @@ public class VectorLocalTest extends VectorTester
         Multimap<Long, float[]> vectorsByToken = ArrayListMultimap.create();
         for (int index = 0; index < vectorCount; index++)
         {
-            String word = word2vec.words[index];
-            float[] vector = word2vec.get(word);
+            String word = word2vec.word(index);
+            float[] vector = word2vec.vector(word);
             vectorsByToken.put(Murmur3Partitioner.instance.getToken(Int32Type.instance.decompose(pk)).getLongValue(), vector);
             execute("INSERT INTO %s (pk, str_val, val) VALUES (?, ?, " + vectorString(vector) + " )", pk++, word);
         }
@@ -282,7 +280,7 @@ public class VectorLocalTest extends VectorTester
                                                   .map(Map.Entry::getValue)
                                                   .collect(Collectors.toList());
 
-            float[] queryVector = word2vec.get(word2vec.words[getRandom().nextIntBetween(0, vectorCount - 1)]);
+            float[] queryVector = word2vec.vector(word2vec.word(getRandom().nextIntBetween(0, vectorCount - 1)));
 
             List<float[]> resultVectors = searchWithRange(queryVector, minToken, maxToken, expected.size());
             assertDescendingScore(queryVector, resultVectors);
@@ -313,7 +311,7 @@ public class VectorLocalTest extends VectorTester
                                                    .map(Map.Entry::getValue)
                                                    .collect(Collectors.toList());
 
-            float[] queryVector = word2vec.get(word2vec.words[getRandom().nextIntBetween(0, vectorCount - 1)]);
+            float[] queryVector = word2vec.vector(word2vec.word(getRandom().nextIntBetween(0, vectorCount - 1)));
 
             List<float[]> resultVectors = searchWithRange(queryVector, minToken, maxToken, expected.size());
             assertDescendingScore(queryVector, resultVectors);
@@ -346,7 +344,7 @@ public class VectorLocalTest extends VectorTester
         {
             for (int row = 0; row < vectorCountPerSSTable; row++)
             {
-                float[] v = word2vec.get(word2vec.words[vectorCount++]);
+                float[] v = word2vec.vector(word2vec.word(vectorCount++));
                 for (int j = 0; j < getRandom().nextIntBetween(1, 4); j++) {
                     execute("INSERT INTO %s (pk, val) VALUES (?, ?)", pk++, vector(v));
                     population.add(v);
@@ -363,10 +361,10 @@ public class VectorLocalTest extends VectorTester
 
         // query multiple on-disk indexes
         var testCount = 200;
-        var start = getRandom().nextIntBetween(vectorCount, word2vec.words.length - testCount);
+        var start = getRandom().nextIntBetween(vectorCount, word2vec.size() - testCount);
         for (int i = start; i < start + testCount; i++)
         {
-            var q = word2vec.get(word2vec.words[i]);
+            var q = word2vec.vector(word2vec.word(i));
             int limit = Math.min(getRandom().nextIntBetween(10, 50), vectorCountPerSSTable);
             UntypedResultSet result = execute("SELECT * FROM %s ORDER BY val ann of ? LIMIT ?", vector(q), limit);
             assertThat(result).hasSize(limit);
@@ -408,7 +406,7 @@ public class VectorLocalTest extends VectorTester
             for (int row = 0; row < vectorCountPerSSTable; row++)
             {
                 String stringValue = String.valueOf(pk % 10); // 10 different string values
-                float[] vector = word2vec.get(word2vec.words[vectorCount++]);
+                float[] vector = word2vec.vector(word2vec.word(vectorCount++));
                 execute("INSERT INTO %s (pk, str_val, val) VALUES (?, ?, " + vectorString(vector) + " )", pk++, stringValue);
                 vectorsByStringValue.put(stringValue, vector);
             }
