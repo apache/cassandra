@@ -19,6 +19,7 @@ package org.apache.cassandra.index.sai.disk.v1;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.PriorityQueue;
 
@@ -79,7 +80,7 @@ public class TermsIteratorMerger implements TermsIterator
     @SuppressWarnings("resource")
     public PostingList postings() throws IOException
     {
-        final PriorityQueue<PostingList.PeekablePostingList> postingLists = new PriorityQueue<>(100, Comparator.comparingLong(PostingList.PeekablePostingList::peek));
+        var postingLists = new ArrayList<PostingList.PeekablePostingList>(100);
         for (int x = 0; x < mergedIterator.getNumTop(); x++)
         {
             final int index = mergedIterator.top[x].index;
