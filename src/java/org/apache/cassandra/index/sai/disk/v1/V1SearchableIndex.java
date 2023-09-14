@@ -69,7 +69,6 @@ public class V1SearchableIndex implements SearchableIndex
     private final ByteBuffer maxTerm;
     private final long minSSTableRowId, maxSSTableRowId;
     private final long numRows;
-
     private PerIndexFiles indexFiles;
 
     public V1SearchableIndex(SSTableContext sstableContext, IndexContext indexContext)
