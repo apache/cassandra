@@ -19,6 +19,8 @@ package org.apache.cassandra.index.sai.metrics;
 
 import java.util.concurrent.ThreadLocalRandom;
 import javax.management.InstanceNotFoundException;
+import javax.management.JMX;
+import javax.management.ObjectName;
 
 import org.junit.Rule;
 import org.junit.Test;
@@ -26,6 +28,7 @@ import org.junit.rules.ExpectedException;
 
 import com.datastax.driver.core.ResultSet;
 import org.apache.cassandra.index.sai.disk.format.Version;
+import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 
 import static org.apache.cassandra.index.sai.metrics.TableQueryMetrics.TABLE_QUERY_METRIC_TYPE;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -106,6 +109,54 @@ public class QueryMetricsTest extends AbstractMetricsTest
         // When the whole table is dropped, we should finally fail to find table-level metrics:
         dropTable(String.format("DROP TABLE %s." + table, keyspace));
         assertThatThrownBy(() -> getTableQueryMetrics(keyspace, table, "TotalQueriesCompleted")).hasCauseInstanceOf(InstanceNotFoundException.class);
+    }
+
+    @Test
+    public void testIndexQueryWithPartitionKey() throws Throwable
+    {
+        String table = "test_range_key_type_with_index";
+        String index = "test_range_key_type_with_index_index";
+
+        String keyspace = createKeyspace(CREATE_KEYSPACE_TEMPLATE);
+
+        createTable(String.format(CREATE_TABLE_TEMPLATE, keyspace, table));
+        createIndex(String.format(CREATE_INDEX_TEMPLATE, index, keyspace, table, "v1"));
+
+        int rowsWrittenPerSSTable = 10;
+        int numberOfSSTable = 5;
+        int rowsWritten = 0;
+        int i = 0;
+        for (int j = 0; j < numberOfSSTable; j++)
+        {
+            rowsWritten += rowsWrittenPerSSTable;
+            for (; i < rowsWritten; i++)
+            {
+                execute("INSERT INTO " + keyspace + "." + table + " (id1, v1, v2) VALUES (?, ?, '0')", Integer.toString(i), i);
+            }
+            flush(keyspace, table);
+        }
+
+        waitForIndexQueryable(keyspace, table);
+
+        ResultSet rows2 = executeNet("SELECT id1 FROM " + keyspace + "." + table + " WHERE id1 = '36' and v1 < 51");
+        assertEquals(1, rows2.all().size());
+
+        ResultSet rows3 = executeNet("SELECT id1 FROM " + keyspace + "." + table + " WHERE id1 = '49' and v1 < 51 ALLOW FILTERING");
+        assertEquals(1, rows3.all().size());
+
+        ResultSet rows4 = executeNet("SELECT id1 FROM " + keyspace + "." + table + " WHERE id1 = '21' and v1 >= 0 and v1 < 51 ALLOW FILTERING");
+        assertEquals(1, rows4.all().size());
+
+        ResultSet rows5 = executeNet("SELECT id1 FROM " + keyspace + "." + table + " WHERE id1 = '35' and v1 > 0");
+        assertEquals(1, rows5.all().size());
+
+        ResultSet rows6 = executeNet("SELECT id1 FROM " + keyspace + "." + table + " WHERE v1 > 0 and id1 = '20'");
+        assertEquals(1, rows6.all().size());
+
+        ObjectName oName = objectNameNoIndex("SSTableIndexesHit", keyspace, table, PER_QUERY_METRIC_TYPE);
+        CassandraMetricsRegistry.JmxHistogramMBean o = JMX.newMBeanProxy(jmxConnection, oName, CassandraMetricsRegistry.JmxHistogramMBean.class);
+
+        assertTrue(o.getMean() < 2);
     }
 
     @Test
