@@ -1,6 +1,7 @@
 5.1
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Fix accessing java.nio.Bits.TOTAL_CAPACITY in Java17 (CASSANDRA-18848)
  * Remove metrics-reporter-config dependency (CASSANDRA-18743)
  * Fix SAI's SegmentMetadata min and max primary keys (CASSANDRA-18734)
  * Remove commons-codec dependency (CASSANDRA-18772)

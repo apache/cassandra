@@ -52,6 +52,7 @@
 --add-opens jdk.compiler/com.sun.tools.javac=ALL-UNNAMED
 --add-opens java.base/java.lang.reflect=ALL-UNNAMED
 --add-opens java.base/java.util=ALL-UNNAMED
+--add-opens java.base/java.nio=ALL-UNNAMED
 
 
 # The newline in the end of file is intentional
