@@ -262,6 +262,7 @@
         <string>--add-opens jdk.compiler/com.sun.tools.javac=ALL-UNNAMED</string>
         <string>--add-opens java.base/java.lang=ALL-UNNAMED</string>
         <string>--add-opens java.base/java.util=ALL-UNNAMED</string>
+        <string>--add-opens java.base/java.nio=ALL-UNNAMED</string>
 
         <string>--add-opens java.rmi/sun.rmi.transport.tcp=ALL-UNNAMED</string>
     </resources>
