@@ -18,17 +18,28 @@
 package org.apache.cassandra.db.partitions;
 
 import java.util.*;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.EmptyIterators;
+import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.transform.MorePartitions;
 import org.apache.cassandra.db.transform.Transformation;
+import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.AbstractIterator;
 
 import org.apache.cassandra.db.SinglePartitionReadQuery;
 import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.utils.NoSpamLogger;
 
 public abstract class PartitionIterators
 {
+    private static final Logger logger = LoggerFactory.getLogger(PartitionIterators.class);
+
     private PartitionIterators() {}
 
     @SuppressWarnings("resource") // The created resources are returned right away
@@ -161,6 +172,57 @@ public abstract class PartitionIterators
         };
     }
 
+    /**
+     * Wraps the provided iterator to run a specified actions whenever a new partition or row is iterated over.
+     * The resulting iterator is tolerant to the provided actions throwing exceptions.
+     * The actions are allowed to fail and won't stop iteration, but that fact will be logged on ERROR level.
+     *
+     * The wrapper iterators do not delegate Object class methods to the wrapped ones (PartitionIterator and RowIterator)
+     *
+     * @param delegate the iterator to wrap
+     * @param onPartition the action to run when a new partition is iterated over
+     * @param onStaticRow the action to run when the partition has a static row
+     * @param onRow the action to run when a new row is iterated over
+     */
+    public static PartitionIterator filteredRowTrackingIterator(PartitionIterator delegate,
+                                                                Consumer<DecoratedKey> onPartition,
+                                                                Consumer<Row> onStaticRow,
+                                                                Consumer<Row> onRow)
+    {
+        return new PartitionIterator()
+        {
+            public void close()
+            {
+                delegate.close();
+            }
+
+            public boolean hasNext()
+            {
+                return delegate.hasNext();
+            }
+
+            public RowIterator next()
+            {
+                RowIterator next = delegate.next();
+                try
+                {
+                    onPartition.accept(next.partitionKey());
+                    if (!next.staticRow().isEmpty())
+                    {
+                        onStaticRow.accept(next.staticRow());
+                    }
+                }
+                catch (Throwable t)
+                {
+                    NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 60, TimeUnit.SECONDS,
+                                     "Tracking callback for read rows failed on new partition {}", next.partitionKey(), t);
+                }
+                return new RowTrackingIterator(next, onRow);
+            }
+        };
+    }
+
+
     private static class SingletonPartitionIterator extends AbstractIterator<RowIterator> implements PartitionIterator
     {
         private final RowIterator iterator;
@@ -185,4 +247,94 @@ public abstract class PartitionIterators
             iterator.close();
         }
     }
+
+    private static class RowTrackingIterator implements RowIterator
+    {
+        private final RowIterator delegate;
+        private final Consumer<Row> onRow;
+
+        RowTrackingIterator(RowIterator delegate, Consumer<Row> onRow)
+        {
+            this.delegate = delegate;
+            this.onRow = onRow;
+        }
+
+        @Override
+        public TableMetadata metadata()
+        {
+            return delegate.metadata();
+        }
+
+        @Override
+        public boolean isReverseOrder()
+        {
+            return delegate.isReverseOrder();
+        }
+
+        @Override
+        public RegularAndStaticColumns columns()
+        {
+            return delegate.columns();
+        }
+
+        @Override
+        public DecoratedKey partitionKey()
+        {
+            return delegate.partitionKey();
+        }
+
+        @Override
+        public Row staticRow()
+        {
+            return delegate.staticRow();
+        }
+
+        @Override
+        public boolean hasNext()
+        {
+            return delegate.hasNext();
+        }
+
+        @Override
+        public Row next()
+        {
+            Row next = delegate.next();
+            try
+            {
+                onRow.accept(next);
+            }
+            catch (Throwable t)
+            {
+                NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 60, TimeUnit.SECONDS,
+                                 "Tracking callback for read rows failed on row {}", next, t);
+
+            }
+            return next;
+        }
+
+        @Override
+        public void remove()
+        {
+            delegate.remove();
+        }
+
+        @Override
+        public void forEachRemaining(Consumer<? super Row> action)
+        {
+            delegate.forEachRemaining(action);
+        }
+
+        @Override
+        public void close()
+        {
+            delegate.close();
+        }
+
+        @Override
+        public boolean isEmpty()
+        {
+            return delegate.isEmpty();
+        }
+    }
+
 }
