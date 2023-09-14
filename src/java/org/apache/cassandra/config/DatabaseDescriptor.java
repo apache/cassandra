@@ -4902,14 +4902,11 @@ public class DatabaseDescriptor
                                                                       Function<ListenableProperty<Config, T>, ListenableProperty.Remover> adder)
     {
         Property property = getPropertyAccessor(name);
+        if (!isMutableProperty(property))
+            throw new ConfigurationException("Unable to add a listener for read-only property: " + property.getName());
+
         // The case when replacement property is used and match the property's name.
-        Property unwrappedProperty = property instanceof Replacement.ReplacementProperty ?
-                                         ((Replacement.ReplacementProperty) property).delegate() :
-                                         property;
-
-        if (!isMutableProperty(unwrappedProperty))
-            throw new ConfigurationException("Unable to add a listener for read-only property: " + unwrappedProperty.getName());
-
+        Property unwrappedProperty = unwrapReplacementIfNeed(property);
         if (!(unwrappedProperty instanceof ListenableProperty))
             throw new ConfigurationException(String.format("Property '%s' is not listenable.", name));
 
@@ -4918,6 +4915,13 @@ public class DatabaseDescriptor
         else
             throw new ConfigurationException(String.format("Listener type '%s' doesn't match the property '%s' type '%s'.",
                                                            clazz.getSimpleName(), name, clazz.getSimpleName()));
+    }
+
+    private static Property unwrapReplacementIfNeed(Property property)
+    {
+        return property instanceof Replacement.ReplacementProperty ?
+                ((Replacement.ReplacementProperty) property).delegate() :
+                property;
     }
 
     public static Object getPropertyValue(String name)
@@ -4976,7 +4980,11 @@ public class DatabaseDescriptor
 
     private static boolean isMutableProperty(Property property)
     {
-        return property.getAnnotation(Mutable.class) != null;
+        Property unwrappedProperty = unwrapReplacementIfNeed(property);
+        if (unwrappedProperty instanceof ListenableProperty)
+            return ((ListenableProperty<?, ?>) unwrappedProperty).hasMutableAnnotation();
+
+        return false;
     }
 
     public static Class<?> getPropertyType(String name)

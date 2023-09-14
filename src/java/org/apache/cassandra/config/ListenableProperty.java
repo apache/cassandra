@@ -32,10 +32,17 @@ import org.yaml.snakeyaml.introspector.Property;
 public class ListenableProperty<S, T> extends ForwardingProperty
 {
     private final List<Listener<S, T>> listeners = new CopyOnWriteArrayList<>();
+    private final boolean hasMutableAnnotation;
 
     public ListenableProperty(Property property)
     {
         super(property.getName(), property);
+        this.hasMutableAnnotation = property.getAnnotation(Mutable.class) != null;
+    }
+
+    public boolean hasMutableAnnotation()
+    {
+        return hasMutableAnnotation;
     }
 
     @SuppressWarnings("unchecked")
