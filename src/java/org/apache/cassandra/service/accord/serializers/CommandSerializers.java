@@ -57,6 +57,7 @@ public class CommandSerializers
     public static final TimestampSerializer<Timestamp> timestamp = new TimestampSerializer<>(Timestamp::fromBits);
     public static final IVersionedSerializer<Timestamp> nullableTimestamp = NullableSerializer.wrap(timestamp);
     public static final TimestampSerializer<Ballot> ballot = new TimestampSerializer<>(Ballot::fromBits);
+    public static final IVersionedSerializer<Ballot> nullableBallot = NullableSerializer.wrap(ballot);
     public static final EnumSerializer<Txn.Kind> kind = new EnumSerializer<>(Txn.Kind.class);
 
     public static class TimestampSerializer<T extends Timestamp> implements IVersionedSerializer<T>
