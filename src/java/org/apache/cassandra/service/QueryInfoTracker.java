@@ -26,8 +26,10 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.IMutation;
 import org.apache.cassandra.db.PartitionRangeReadCommand;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
+import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.locator.ReplicaPlan;
 import org.apache.cassandra.schema.TableMetadata;
 
@@ -217,6 +219,20 @@ public interface QueryInfoTracker
          */
         void onRow(Row row);
 
+        /**
+         * Called on every partition after filtering and post-processing
+         *
+         * @param partitionKey
+         */
+        void onFilteredPartition(DecoratedKey partitionKey);
+
+        /**
+         * Called on every row after filtering and post-processing
+         *
+         * @param row          the merged row.
+         */
+        void onFilteredRow(Row row);
+
         ReadTracker NOOP = new ReadTracker()
         {
             @Override
@@ -231,6 +247,16 @@ public interface QueryInfoTracker
 
             @Override
             public void onRow(Row row)
+            {
+            }
+
+            @Override
+            public void onFilteredPartition(DecoratedKey partitionKey)
+            {
+            }
+
+            @Override
+            public void onFilteredRow(Row row)
             {
             }
 
@@ -256,12 +282,12 @@ public interface QueryInfoTracker
     interface LWTWriteTracker extends ReadTracker
     {
         /**
-         * Called if the LWT this is tracking does not applies (it's condition evaluates to {@code false}).
+         * Called if the LWT this is tracking does not apply (it's condition evaluates to {@code false}).
          */
         void onNotApplied();
 
         /**
-         * Called if the LWT this is tracking does applies.
+         * Called if the LWT this is tracking does apply.
          *
          * @param update the update that is committed by the LWT.
          */
@@ -284,6 +310,16 @@ public interface QueryInfoTracker
 
             @Override
             public void onRow(Row row)
+            {
+            }
+
+            @Override
+            public void onFilteredPartition(DecoratedKey partitionKey)
+            {
+            }
+
+            @Override
+            public void onFilteredRow(Row row)
             {
             }
 

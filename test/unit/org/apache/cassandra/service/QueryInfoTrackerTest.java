@@ -410,6 +410,9 @@ public class QueryInfoTrackerTest extends CQLTester
         public final AtomicInteger rangeReads = new AtomicInteger();
         public final AtomicInteger readRows = new AtomicInteger();
         public final AtomicInteger readPartitions = new AtomicInteger();
+        public final AtomicInteger readFilteredPartitions = new AtomicInteger();
+        public final AtomicInteger readFilteredRows = new AtomicInteger();
+
         public final AtomicInteger errorReads = new AtomicInteger();
         public final AtomicInteger replicaPlans = new AtomicInteger();
 
@@ -477,7 +480,7 @@ public class QueryInfoTrackerTest extends CQLTester
         {
             if (shouldIgnore(table))
                 return ReadTracker.NOOP;
-            return new TestReadTracker();
+            return new TestReadTracker(table);
         }
 
         @Override
@@ -488,7 +491,7 @@ public class QueryInfoTrackerTest extends CQLTester
         {
             if (shouldIgnore(table))
                 return ReadTracker.NOOP;
-            return new TestRangeReadTracker();
+            return new TestRangeReadTracker(table);
         }
 
         @Override
@@ -504,6 +507,13 @@ public class QueryInfoTrackerTest extends CQLTester
 
         private class TestReadTracker implements ReadTracker
         {
+            private TableMetadata table;
+
+            private TestReadTracker(TableMetadata table)
+            {
+                this.table = table;
+            }
+
             @Override
             public void onDone()
             {
@@ -533,10 +543,29 @@ public class QueryInfoTrackerTest extends CQLTester
             {
                 readRows.incrementAndGet();
             }
+
+            @Override
+            public void onFilteredPartition(DecoratedKey partitionKey)
+            {
+                readFilteredPartitions.incrementAndGet();
+            }
+
+            @Override
+            public void onFilteredRow(Row row)
+            {
+                readFilteredRows.incrementAndGet();
+            }
         }
 
         private class TestRangeReadTracker implements ReadTracker
         {
+            private final TableMetadata table;
+
+            private TestRangeReadTracker(TableMetadata table)
+            {
+                this.table = table;
+            }
+
             @Override
             public void onDone()
             {
@@ -565,6 +594,20 @@ public class QueryInfoTrackerTest extends CQLTester
             public void onRow(Row row)
             {
                 readRows.incrementAndGet();
+            }
+
+            @Override
+            public void onFilteredPartition(DecoratedKey partitionKey)
+            {
+                logger.info("range read: filtered partition {}", partitionKey);
+                readFilteredPartitions.incrementAndGet();
+            }
+
+            @Override
+            public void onFilteredRow(Row row)
+            {
+                logger.info("range read: filtered row {}", row.toString(table, true));
+                readFilteredRows.incrementAndGet();
             }
         }
 
@@ -611,6 +654,18 @@ public class QueryInfoTrackerTest extends CQLTester
             public void onRow(Row row)
             {
                 readRows.incrementAndGet();
+            }
+
+            @Override
+            public void onFilteredPartition(DecoratedKey partitionKey)
+            {
+                readFilteredPartitions.incrementAndGet();
+            }
+
+            @Override
+            public void onFilteredRow(Row row)
+            {
+                readFilteredRows.incrementAndGet();
             }
         }
     }
