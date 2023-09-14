@@ -24,10 +24,8 @@ clients
 * `commitlog_archiving.properties`: set archiving parameters for the
 `commitlog`
 
-Two sample configuration files can also be found in `./conf`:
+The sample configuration files can also be found in `./conf`:
 
-* `metrics-reporter-config-sample.yaml`: configuring what the
-metrics-report will collect
 * `cqlshrc.sample`: how the CQL shell, cqlsh, can be configured
 
 == Main runtime properties
