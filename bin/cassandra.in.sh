@@ -122,13 +122,22 @@ jvmver=`echo "$java_ver_output" | grep '[openjdk|java] version' | awk -F'"' 'NR=
 JVM_VERSION=${jvmver%_*}
 short=$(echo "${jvmver}" | cut -c1-2)
 
-JAVA_VERSION=17
 if [ "$short" = "11" ]  ; then
      JAVA_VERSION=11
 elif [ "$JVM_VERSION" \< "17" ] ; then
     echo "Cassandra 5.0 requires Java 11 or Java 17."
     exit 1;
 fi
+# Allow execution if a supported Java version is used or CASSANDRA_USE_ALL_JDK argument is set
+java_versions_supported=11,17
+supported_version=$(echo "$java_versions_supported" | tr "," '\n' | grep -F -x "$short")
+
+if [ "x$CASSANDRA_USE_ALL_JDK" != "xtrue" ] && [ "x$supported_version" = "x" ] ; then
+    echo "Cassandra 5.0 requires Java 11, Java 17 (or newer LTS)."
+    echo "If you would like to test with other Java versions >17, set \$CASSANDRA_USE_ALL_JDK=true"
+    exit 1;
+fi
+JAVA_VERSION=$short
 
 jvm=`echo "$java_ver_output" | grep -A 1 '[openjdk|java] version' | awk 'NR==2 {print $1}'`
 case "$jvm" in
