@@ -106,7 +106,7 @@ public class CollectionIndexingTest extends SAITester
     public void indexFrozenMapQueryEntries() throws Throwable
     {
         createPopulatedFrozenMap(createIndexDDL("FULL(value)"));
-        assertInvalidMessage("Map-entry equality predicates on frozen map column value are not supported",
+        assertInvalidMessage("Map-entry predicates on frozen map column value are not supported",
                 "SELECT * FROM %s WHERE value[1] = 'v1'");
     }
 

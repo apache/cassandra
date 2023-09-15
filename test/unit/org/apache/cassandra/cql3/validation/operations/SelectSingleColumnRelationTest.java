@@ -63,7 +63,7 @@ public class SelectSingleColumnRelationTest extends CQLTester
                              "SELECT * FROM %s WHERE c = 0 AND b <= ?", set(0));
         assertInvalidMessage("Collection column 'b' (set<int>) cannot be restricted by a 'IN' relation",
                              "SELECT * FROM %s WHERE c = 0 AND b IN (?)", set(0));
-        assertInvalidMessage("Unsupported \"!=\" relation: b != 5",
+        assertInvalidMessage("Unsupported '!=' relation: b != 5",
                 "SELECT * FROM %s WHERE c = 0 AND b != 5");
         assertInvalidMessage("Unsupported restriction: b IS NOT NULL",
                 "SELECT * FROM %s WHERE c = 0 AND b IS NOT NULL");
@@ -140,7 +140,7 @@ public class SelectSingleColumnRelationTest extends CQLTester
 
         assertEmpty(execute("select * from %s where a = ? and c > ? and c < ? and b in (?, ?)", "first", 6, 7, 3, 2));
 
-        assertInvalidMessage("Column \"c\" cannot be restricted by both an equality and an inequality relation",
+        assertInvalidMessage("c cannot be restricted by more than one relation if it includes an Equal",
                              "select * from %s where a = ? and c > ? and c = ? and b in (?, ?)", "first", 6, 7, 3, 2);
 
         assertInvalidMessage("c cannot be restricted by more than one relation if it includes an Equal",
@@ -577,7 +577,7 @@ public class SelectSingleColumnRelationTest extends CQLTester
         assertInvalidMessage("Invalid unset value for column i", "SELECT * from %s WHERE k = 1 AND i IN(?,?)", 1, unset());
         assertInvalidMessage("Invalid unset value for column i", "SELECT * from %s WHERE i = ? ALLOW FILTERING", unset());
         // indexed column
-        assertInvalidMessage("Unsupported unset value for column s", "SELECT * from %s WHERE s = ?", unset());
+        assertInvalidMessage("Invalid unset value for column s", "SELECT * from %s WHERE s = ?", unset());
         // range
         assertInvalidMessage("Invalid unset value for column i", "SELECT * from %s WHERE k = 1 AND i > ?", unset());
     }
@@ -643,7 +643,7 @@ public class SelectSingleColumnRelationTest extends CQLTester
         assertInvalidMessage(msg, "SELECT * FROM %s WHERE b <= ?", udt);
         assertInvalidMessage(msg, "SELECT * FROM %s WHERE b IN (?)", udt);
         assertInvalidMessage(msg, "SELECT * FROM %s WHERE b LIKE ?", udt);
-        assertInvalidMessage("Unsupported \"!=\" relation: b != {a: 0}",
+        assertInvalidMessage("Unsupported '!=' relation: b != {a: 0}",
                              "SELECT * FROM %s WHERE b != {a: 0}", udt);
         assertInvalidMessage("Unsupported restriction: b IS NOT NULL",
                              "SELECT * FROM %s WHERE b IS NOT NULL", udt);
@@ -681,7 +681,7 @@ public class SelectSingleColumnRelationTest extends CQLTester
                                 row(20, 21, 1, "s1"),
                                 row(20, 22, 2, "s3"));
 
-        assertInvalidMessage("Invalid null value in condition for column c2",
+        assertInvalidMessage("Invalid null value for column c2",
                              "SELECT * from %s WHERE key = 10 AND c2 IN (1, null) ALLOW FILTERING");
     }
 
@@ -783,5 +783,25 @@ public class SelectSingleColumnRelationTest extends CQLTester
         assertRows(execute("SELECT * FROM %s WHERE v IN (?, ?) ALLOW FILTERING", 0L, 1L),
                    row(1, 1L),
                    row(3, 1L));
+    }
+
+    @Test
+    public void testSliceRestrictionWithNegativeClusteringColumnValues() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, c int, v int, PRIMARY KEY (pk, c))");
+
+        execute("INSERT INTO %s (pk, c, v) VALUES (1, -2, -2)");
+        execute("INSERT INTO %s (pk, c, v) VALUES (1, -1, -1)");
+        execute("INSERT INTO %s (pk, c, v) VALUES (1, 0, 0)");
+        execute("INSERT INTO %s (pk, c, v) VALUES (1, 1, 1)");
+        execute("INSERT INTO %s (pk, c, v) VALUES (1, 2, 2)");
+
+        assertRows(execute("SELECT * from %s WHERE pk = ? AND c > ? AND c <= ?", 1, 0, 2),
+                   row(1, 1, 1),
+                   row(1, 2, 2));
+
+        assertRows(execute("SELECT * from %s WHERE pk = ? AND c > ? AND c <= ?", 1, -4, -1),
+                   row(1, -2, -2),
+                   row(1, -1, -1));
     }
 }

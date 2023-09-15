@@ -48,25 +48,6 @@ public final class Tuples
                                        (getTupleType(column.type)).type(component));
     }
 
-    public static ColumnSpecification makeReceiver(List<? extends ColumnSpecification> receivers)
-    {
-        List<AbstractType<?>> types = new ArrayList<>(receivers.size());
-        StringBuilder inName = new StringBuilder("(");
-        for (int i = 0; i < receivers.size(); i++)
-        {
-            ColumnSpecification receiver = receivers.get(i);
-            inName.append(receiver.name);
-            if (i < receivers.size() - 1)
-                inName.append(',');
-            types.add(receiver.type);
-        }
-        inName.append(')');
-
-        ColumnIdentifier identifier = new ColumnIdentifier(inName.toString(), true);
-        TupleType type = new TupleType(types);
-        return new ColumnSpecification(receivers.get(0).ksName, receivers.get(0).cfName, identifier, type);
-    }
-
     /**
      * A raw, literal tuple.  When prepared, this will become a Tuples.Value or Tuples.DelayedValue, depending
      * on whether the tuple holds NonTerminals.

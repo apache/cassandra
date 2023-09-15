@@ -37,25 +37,6 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 public interface Terms
 {
     /**
-     * The {@code List} returned when the list was not set.
-     */
-    @SuppressWarnings("rawtypes")
-    List UNSET_LIST = new AbstractList()
-    {
-        @Override
-        public Object get(int index)
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public int size()
-        {
-            throw new UnsupportedOperationException();
-        }
-    };
-
-    /**
      * The terminals returned when they were unset.
      */
     Terminals UNSET_TERMINALS = new Terminals()
@@ -64,14 +45,14 @@ public interface Terms
         @SuppressWarnings("unchecked")
         public List<ByteBuffer> get()
         {
-            return (List<ByteBuffer>) UNSET_LIST;
+            return Term.UNSET_LIST;
         }
 
         @Override
         @SuppressWarnings("unchecked")
         public List<List<ByteBuffer>> getElements()
         {
-            return (List<List<ByteBuffer>>) UNSET_LIST;
+            return Term.UNSET_LIST;
         }
 
         @Override
@@ -92,9 +73,9 @@ public interface Terms
         }
 
         @Override
-        public Term asSingleTerm()
+        public String toString()
         {
-            throw new UnsupportedOperationException();
+            return "UNSET";
         }
     };
 
@@ -186,13 +167,6 @@ public interface Terms
     boolean containsSingleTerm();
 
     /**
-     * If this {@code terms} contains a single term it will be returned otherwise an UnsupportedOperationException will be thrown.
-     * @return a single term representing the single element of this {@code terms}.
-     * @throws UnsupportedOperationException if this term does not know how many terms it contains or contains more than one term
-     */
-    Term asSingleTerm();
-
-    /**
      * Adds all functions (native and user-defined) of the specified terms to the list.
      * @param functions the list to add to
      */
@@ -224,6 +198,18 @@ public interface Terms
          * @return a String representation of the raw terms that can be used when reconstructing a CQL query string.
          */
         public abstract String getText();
+
+        @Override
+        public int hashCode()
+        {
+            return getText().hashCode();
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            return this == o || (o instanceof Terms.Raw && getText().equals(((Terms.Raw) o).getText()));
+        }
 
         /**
          * The type of the {@code Terms} if it can be inferred.
@@ -280,6 +266,36 @@ public interface Terms
                 public TestResult testAssignment(String keyspace, ColumnSpecification receiver)
                 {
                     return AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
+                }
+            };
+        }
+
+        public static Raw of(Term.Raw raw)
+        {
+            return new Raw()
+            {
+                @Override
+                public Terms prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
+                {
+                    return Terms.of(raw.prepare(keyspace, receiver));
+                }
+
+                @Override
+                public String getText()
+                {
+                    return raw.getText();
+                }
+
+                @Override
+                public AbstractType<?> getExactTypeIfKnown(String keyspace)
+                {
+                    return raw.getExactTypeIfKnown(keyspace);
+                }
+
+                @Override
+                public TestResult testAssignment(String keyspace, ColumnSpecification receiver)
+                {
+                    return raw.testAssignment(keyspace, receiver);
                 }
             };
         }
@@ -370,9 +386,9 @@ public interface Terms
                 }
 
                 @Override
-                public Term asSingleTerm()
+                public String toString()
                 {
-                    return terminal;
+                    return terminal.toString();
                 }
             };
         }
@@ -426,11 +442,9 @@ public interface Terms
                 }
 
                 @Override
-                public Terminal asSingleTerm()
+                public String toString()
                 {
-                    if (!containsSingleTerm())
-                        throw new UnsupportedOperationException("This terms content cannot be converted in a single term");
-                    return terminals.get(0);
+                    return terminals.stream().map(Objects::toString).collect(Collectors.joining(", ", "(", ")"));
                 }
             };
         }
@@ -482,9 +496,9 @@ public interface Terms
                 }
 
                 @Override
-                public Term.NonTerminal asSingleTerm()
+                public String toString()
                 {
-                    return term;
+                    return term.toString();
                 }
             };
         }
@@ -555,11 +569,9 @@ public interface Terms
                 }
 
                 @Override
-                public Term asSingleTerm()
+                public String toString()
                 {
-                    if (!containsSingleTerm())
-                        throw new UnsupportedOperationException("This Terms cannot be converted in a single Term");
-                    return terms.get(0);
+                    return terms.stream().map(Objects::toString).collect(Collectors.joining(", ", "(", ")"));
                 }
             };
         }

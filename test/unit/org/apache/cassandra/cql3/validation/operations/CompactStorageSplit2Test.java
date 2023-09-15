@@ -109,18 +109,18 @@ public class CompactStorageSplit2Test extends CQLTester
         // Checks filtering with null
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE c = null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE c = null ALLOW FILTERING");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE c > null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE c > null ALLOW FILTERING");
 
         // Checks filtering with unset
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE c = ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE c > ? ALLOW FILTERING",
                              unset());
 
@@ -182,18 +182,18 @@ public class CompactStorageSplit2Test extends CQLTester
         // Checks filtering with null
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE c = null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE c = null ALLOW FILTERING");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE c > null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE c > null ALLOW FILTERING");
 
         // // Checks filtering with unset
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE c = ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE c > ? ALLOW FILTERING",
                              unset());
     }
@@ -257,25 +257,25 @@ public class CompactStorageSplit2Test extends CQLTester
         // Checks filtering with null
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE c = null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE c = null ALLOW FILTERING");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE c > null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE c > null ALLOW FILTERING");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE c CONTAINS null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE c CONTAINS null ALLOW FILTERING");
 
         // Checks filtering with unset
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE c = ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE c > ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE c CONTAINS ? ALLOW FILTERING",
                              unset());
 
@@ -335,25 +335,25 @@ public class CompactStorageSplit2Test extends CQLTester
         // Checks filtering with null
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE c = null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE c = null ALLOW FILTERING");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE c > null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE c > null ALLOW FILTERING");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE c CONTAINS null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE c CONTAINS null ALLOW FILTERING");
 
         // Checks filtering with unset
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE c = ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE c > ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE c CONTAINS ? ALLOW FILTERING",
                              unset());
     }
@@ -416,25 +416,25 @@ public class CompactStorageSplit2Test extends CQLTester
         // Checks filtering with null
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE c = null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE c = null ALLOW FILTERING");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE c > null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE c > null ALLOW FILTERING");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE c CONTAINS null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE c CONTAINS null ALLOW FILTERING");
 
         // Checks filtering with unset
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE c = ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE c > ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE c CONTAINS ? ALLOW FILTERING",
                              unset());
 
@@ -494,25 +494,25 @@ public class CompactStorageSplit2Test extends CQLTester
         // Checks filtering with null
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE c = null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE c = null ALLOW FILTERING");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE c > null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE c > null ALLOW FILTERING");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE c CONTAINS null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE c CONTAINS null ALLOW FILTERING");
 
         // Checks filtering with unset
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE c = ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE c > ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE c CONTAINS ? ALLOW FILTERING",
                              unset());
     }
@@ -656,25 +656,25 @@ public class CompactStorageSplit2Test extends CQLTester
         // Checks filtering with null
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE a > 1 AND c = null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE a > 1 AND c = null ALLOW FILTERING");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE a > 1 AND c > null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE a > 1 AND c > null ALLOW FILTERING");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE a > 1 AND c CONTAINS null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE a > 1 AND c CONTAINS null ALLOW FILTERING");
 
         // Checks filtering with unset
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE a > 1 AND c = ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE a > 1 AND c > ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE a > 1 AND c CONTAINS ? ALLOW FILTERING",
                              unset());
 
@@ -732,25 +732,25 @@ public class CompactStorageSplit2Test extends CQLTester
         // Checks filtering with null
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE a > 1 AND c = null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE a > 1 AND c = null ALLOW FILTERING");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE a > 1 AND c > null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE a > 1 AND c > null ALLOW FILTERING");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE a > 1 AND c CONTAINS null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE a > 1 AND c CONTAINS null ALLOW FILTERING");
 
         // Checks filtering with unset
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE a > 1 AND c = ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE a > 1 AND c > ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE a > 1 AND c CONTAINS ? ALLOW FILTERING",
                              unset());
     }
@@ -814,30 +814,30 @@ public class CompactStorageSplit2Test extends CQLTester
         // Checks filtering with null
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE a >= 1 AND c = null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE a >= 1 AND c = null ALLOW FILTERING");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE a >= 1 AND c > null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE a >= 1 AND c > null ALLOW FILTERING");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS null ALLOW FILTERING");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS KEY null ALLOW FILTERING");
 
         // Checks filtering with unset
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE a >= 1 AND c = ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE a >= 1 AND c > ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS KEY ? ALLOW FILTERING",
                              unset());
 
@@ -898,32 +898,32 @@ public class CompactStorageSplit2Test extends CQLTester
         // Checks filtering with null
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE a >= 1 AND c = null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE a >= 1 AND c = null ALLOW FILTERING");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE a >= 1 AND c > null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE a >= 1 AND c > null ALLOW FILTERING");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS null ALLOW FILTERING");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS KEY null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS KEY null ALLOW FILTERING");
 
         // Checks filtering with unset
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE a >= 1 AND c = ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE a >= 1 AND c > ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS KEY ? ALLOW FILTERING",
                              unset());
     }
@@ -986,25 +986,25 @@ public class CompactStorageSplit2Test extends CQLTester
         // Checks filtering with null
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE a >= 1 AND c = null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE a >= 1 AND c = null ALLOW FILTERING");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE a >= 1 AND c > null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE a >= 1 AND c > null ALLOW FILTERING");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS null ALLOW FILTERING");
 
         // Checks filtering with unset
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE a >= 1 AND c = ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE a >= 1 AND c > ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS ? ALLOW FILTERING",
                              unset());
 
@@ -1064,25 +1064,25 @@ public class CompactStorageSplit2Test extends CQLTester
         // Checks filtering with null
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE a >= 1 AND c = null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE a >= 1 AND c = null ALLOW FILTERING");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE a >= 1 AND c > null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE a >= 1 AND c > null ALLOW FILTERING");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS null ALLOW FILTERING");
 
         // Checks filtering with unset
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE a >= 1 AND c = ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE a >= 1 AND c > ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE a >= 1 AND c CONTAINS ? ALLOW FILTERING",
                              unset());
     }
@@ -1143,16 +1143,16 @@ public class CompactStorageSplit2Test extends CQLTester
         // Checks filtering with null
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE d = null");
-        assertInvalidMessage("Unsupported null value for column a",
+        assertInvalidMessage("Invalid null value for column a",
                              "SELECT * FROM %s WHERE a = null ALLOW FILTERING");
-        assertInvalidMessage("Unsupported null value for column a",
+        assertInvalidMessage("Invalid null value for column a",
                              "SELECT * FROM %s WHERE a > null ALLOW FILTERING");
 
         // Checks filtering with unset
-        assertInvalidMessage("Unsupported unset value for column a",
+        assertInvalidMessage("Invalid unset value for column a",
                              "SELECT * FROM %s WHERE a = ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column a",
+        assertInvalidMessage("Invalid unset value for column a",
                              "SELECT * FROM %s WHERE a > ? ALLOW FILTERING",
                              unset());
 
@@ -1308,30 +1308,30 @@ public class CompactStorageSplit2Test extends CQLTester
         // Checks filtering with null
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE c = null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE c = null ALLOW FILTERING");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE c > null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE c > null ALLOW FILTERING");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE c CONTAINS null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE c CONTAINS null ALLOW FILTERING");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE c CONTAINS KEY null ALLOW FILTERING");
 
         // Checks filtering with unset
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE c = ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE c > ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE c CONTAINS ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE c CONTAINS KEY ? ALLOW FILTERING",
                              unset());
 
@@ -1392,32 +1392,32 @@ public class CompactStorageSplit2Test extends CQLTester
         // Checks filtering with null
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE c = null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE c = null ALLOW FILTERING");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE c > null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE c > null ALLOW FILTERING");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE c CONTAINS null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE c CONTAINS null ALLOW FILTERING");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE c CONTAINS KEY null");
-        assertInvalidMessage("Unsupported null value for column c",
+        assertInvalidMessage("Invalid null value for column c",
                              "SELECT * FROM %s WHERE c CONTAINS KEY null ALLOW FILTERING");
 
         // Checks filtering with unset
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE c = ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE c > ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE c CONTAINS ? ALLOW FILTERING",
                              unset());
-        assertInvalidMessage("Unsupported unset value for column c",
+        assertInvalidMessage("Invalid unset value for column c",
                              "SELECT * FROM %s WHERE c CONTAINS KEY ? ALLOW FILTERING",
                              unset());
     }

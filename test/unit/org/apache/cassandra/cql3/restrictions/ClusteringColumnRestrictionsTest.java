@@ -20,7 +20,6 @@ package org.apache.cassandra.cql3.restrictions;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import com.google.common.collect.Iterables;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -33,7 +32,6 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.cql3.statements.Bound;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -60,13 +58,9 @@ public class ClusteringColumnRestrictionsTest
 
         ClusteringColumnRestrictions restrictions = restrictions(tableMetadata);
 
-        SortedSet<ClusteringBound<?>> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEmptyStart(get(bounds, 0));
-
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEmptyEnd(get(bounds, 0));
+        Slices slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        assertEquals(slices.get(0), Slice.ALL);
     }
 
     /**
@@ -78,17 +72,15 @@ public class ClusteringColumnRestrictionsTest
         TableMetadata tableMetadata = newTableMetadata(Sort.ASC);
 
         ByteBuffer clustering_0 = ByteBufferUtil.bytes(1);
-        Restriction eq = newSingleEq(tableMetadata, 0, clustering_0);
+        Restriction eq = newSingleRestriction(tableMetadata, 0, Operator.EQ, clustering_0);
 
         ClusteringColumnRestrictions restrictions =  restrictions(tableMetadata, eq);
 
-        SortedSet<ClusteringBound<?>> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), true, clustering_0);
-
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), true, clustering_0);
+        Slices slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        Slice slice = slices.get(0);
+        assertStartBound(slice, true, clustering_0);
+        assertEndBound(slice, true, clustering_0);
     }
 
     /**
@@ -100,17 +92,15 @@ public class ClusteringColumnRestrictionsTest
         TableMetadata tableMetadata = newTableMetadata(Sort.ASC, Sort.ASC);
 
         ByteBuffer clustering_0 = ByteBufferUtil.bytes(1);
-        Restriction eq = newSingleEq(tableMetadata, 0, clustering_0);
+        Restriction eq = newSingleRestriction(tableMetadata, 0, Operator.EQ, clustering_0);
 
         ClusteringColumnRestrictions restrictions =  restrictions(tableMetadata, eq);
 
-        SortedSet<ClusteringBound<?>> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), true, clustering_0);
-
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), true, clustering_0);
+        Slices slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        Slice slice = slices.get(0);
+        assertStartBound(slice, true, clustering_0);
+        assertEndBound(slice, true, clustering_0);
     }
 
     /**
@@ -125,20 +115,21 @@ public class ClusteringColumnRestrictionsTest
 
         TableMetadata tableMetadata = newTableMetadata(Sort.ASC, Sort.ASC);
 
-        Restriction in = newSingleIN(tableMetadata, 0, value1, value2, value3);
+        Restriction in = newSingleRestriction(tableMetadata, 0, Operator.IN, value1, value2, value3);
         ClusteringColumnRestrictions restrictions = restrictions(tableMetadata, in);
 
-        SortedSet<ClusteringBound<?>> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(3, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1);
-        assertStartBound(get(bounds, 1), true, value2);
-        assertStartBound(get(bounds, 2), true, value3);
+        Slices slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(3, slices.size());
+        Slice slice = slices.get(0);
+        assertStartBound(slice, true, value1);
+        assertEndBound(slice, true, value1);
+        slice = slices.get(1);
+        assertStartBound(slice, true, value2);
+        assertEndBound(slice, true, value2);
+        slice = slices.get(2);
+        assertStartBound(slice, true, value3);
+        assertEndBound(slice, true, value3);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(3, bounds.size());
-        assertEndBound(get(bounds, 0), true, value1);
-        assertEndBound(get(bounds, 1), true, value2);
-        assertEndBound(get(bounds, 2), true, value3);
     }
 
     /**
@@ -152,73 +143,61 @@ public class ClusteringColumnRestrictionsTest
         ByteBuffer value1 = ByteBufferUtil.bytes(1);
         ByteBuffer value2 = ByteBufferUtil.bytes(2);
 
-        Restriction slice = newSingleSlice(tableMetadata, 0, Bound.START, false, value1);
-        ClusteringColumnRestrictions restrictions = restrictions(tableMetadata, slice);
+        Restriction restriction = newSingleRestriction(tableMetadata, 0, Operator.GT, value1);
+        ClusteringColumnRestrictions restrictions = restrictions(tableMetadata, restriction);
 
-        SortedSet<ClusteringBound<?>> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), false, value1);
+        Slices slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        Slice slice = slices.get(0);
+        assertStartBound(slice, false, value1);
+        assertEmptyEnd(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEmptyEnd(get(bounds, 0));
+        restriction = newSingleRestriction(tableMetadata, 0, Operator.GTE, value1);
+        restrictions = restrictions(tableMetadata, restriction);
 
-        slice = newSingleSlice(tableMetadata, 0, Bound.START, true, value1);
-        restrictions = restrictions(tableMetadata, slice);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertStartBound(slice, true, value1);
+        assertEmptyEnd(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1);
+        restriction = newSingleRestriction(tableMetadata, 0, Operator.LTE, value1);
+        restrictions = restrictions(tableMetadata, restriction);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEmptyEnd(get(bounds, 0));
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertEmptyStart(slice);
+        assertEndBound(slice, true, value1);
 
-        slice = newSingleSlice(tableMetadata, 0, Bound.END, true, value1);
-        restrictions = restrictions(tableMetadata, slice);
+        restriction = newSingleRestriction(tableMetadata, 0, Operator.LT, value1);
+        restrictions = restrictions(tableMetadata, restriction);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEmptyStart(get(bounds, 0));
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertEmptyStart(slice);
+        assertEndBound(slice, false, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), true, value1);
+        restriction = newSingleRestriction(tableMetadata, 0, Operator.GT, value1);
+        Restriction restriction2 = newSingleRestriction(tableMetadata, 0, Operator.LT, value2);
+        restrictions = restrictions(tableMetadata, restriction, restriction2);
 
-        slice = newSingleSlice(tableMetadata, 0, Bound.END, false, value1);
-        restrictions = restrictions(tableMetadata, slice);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertStartBound(slice, false, value1);
+        assertEndBound(slice, false, value2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEmptyStart(get(bounds, 0));
+        restriction = newSingleRestriction(tableMetadata, 0, Operator.GTE, value1);
+        restriction2 = newSingleRestriction(tableMetadata, 0, Operator.LTE, value2);
+        restrictions = restrictions(tableMetadata, restriction, restriction2);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), false, value1);
-
-        slice = newSingleSlice(tableMetadata, 0, Bound.START, false, value1);
-        Restriction slice2 = newSingleSlice(tableMetadata, 0, Bound.END, false, value2);
-        restrictions = restrictions(tableMetadata, slice, slice2);
-
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), false, value1);
-
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), false, value2);
-
-        slice = newSingleSlice(tableMetadata, 0, Bound.START, true, value1);
-        slice2 = newSingleSlice(tableMetadata, 0, Bound.END, true, value2);
-        restrictions = restrictions(tableMetadata, slice, slice2);
-
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1);
-
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), true, value2);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertStartBound(slice, true, value1);
+        assertEndBound(slice, true, value2);
     }
 
     /**
@@ -232,73 +211,61 @@ public class ClusteringColumnRestrictionsTest
         ByteBuffer value1 = ByteBufferUtil.bytes(1);
         ByteBuffer value2 = ByteBufferUtil.bytes(2);
 
-        Restriction slice = newSingleSlice(tableMetadata, 0, Bound.START, false, value1);
-        ClusteringColumnRestrictions restrictions = restrictions(tableMetadata, slice);
+        Restriction restriction = newSingleRestriction(tableMetadata, 0, Operator.GT, value1);
+        ClusteringColumnRestrictions restrictions = restrictions(tableMetadata, restriction);
 
-        SortedSet<ClusteringBound<?>> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEmptyStart(get(bounds, 0));
+        Slices slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        Slice slice = slices.get(0);
+        assertEmptyStart(slice);
+        assertEndBound(slice, false, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), false, value1);
+        restriction = newSingleRestriction(tableMetadata, 0, Operator.GTE, value1);
+        restrictions = restrictions(tableMetadata, restriction);
 
-        slice = newSingleSlice(tableMetadata, 0, Bound.START, true, value1);
-        restrictions = restrictions(tableMetadata, slice);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertEmptyStart(slice);
+        assertEndBound(slice, true, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEmptyStart(get(bounds, 0));
+        restriction = newSingleRestriction(tableMetadata, 0, Operator.LTE, value1);
+        restrictions = restrictions(tableMetadata, restriction);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), true, value1);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertStartBound(slice, true, value1);
+        assertEmptyEnd(slice);
 
-        slice = newSingleSlice(tableMetadata, 0, Bound.END, true, value1);
-        restrictions = restrictions(tableMetadata, slice);
+        restriction = newSingleRestriction(tableMetadata, 0, Operator.LT, value1);
+        restrictions = restrictions(tableMetadata, restriction);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertStartBound(slice, false, value1);
+        assertEmptyEnd(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEmptyEnd(get(bounds, 0));
+        restriction = newSingleRestriction(tableMetadata, 0, Operator.GT, value1);
+        Restriction restriction2 = newSingleRestriction(tableMetadata, 0, Operator.LT, value2);
+        restrictions = restrictions(tableMetadata, restriction, restriction2);
 
-        slice = newSingleSlice(tableMetadata, 0, Bound.END, false, value1);
-        restrictions = restrictions(tableMetadata, slice);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertStartBound(slice, false, value2);
+        assertEndBound(slice, false, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), false, value1);
+        restriction = newSingleRestriction(tableMetadata, 0, Operator.GTE, value1);
+        restriction2 = newSingleRestriction(tableMetadata, 0, Operator.LTE, value2);
+        restrictions = restrictions(tableMetadata, restriction, restriction2);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEmptyEnd(get(bounds, 0));
-
-        slice = newSingleSlice(tableMetadata, 0, Bound.START, false, value1);
-        Restriction slice2 = newSingleSlice(tableMetadata, 0, Bound.END, false, value2);
-        restrictions = restrictions(tableMetadata, slice, slice2);
-
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), false, value2);
-
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), false, value1);
-
-        slice = newSingleSlice(tableMetadata, 0, Bound.START, true, value1);
-        slice2 = newSingleSlice(tableMetadata, 0, Bound.END, true, value2);
-        restrictions = restrictions(tableMetadata, slice, slice2);
-
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), true, value2);
-
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), true, value1);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertStartBound(slice, true, value2);
+        assertEndBound(slice, true, value1);
     }
 
     /**
@@ -312,21 +279,21 @@ public class ClusteringColumnRestrictionsTest
         ByteBuffer value1 = ByteBufferUtil.bytes(1);
         ByteBuffer value2 = ByteBufferUtil.bytes(2);
         ByteBuffer value3 = ByteBufferUtil.bytes(3);
-        Restriction eq = newSingleEq(tableMetadata, 0, value1);
-        Restriction in = newSingleIN(tableMetadata, 1, value1, value2, value3);
+        Restriction eq = newSingleRestriction(tableMetadata, 0, Operator.EQ, value1);
+        Restriction in = newSingleRestriction(tableMetadata, 1, Operator.IN, value1, value2, value3);
         ClusteringColumnRestrictions restrictions = restrictions(tableMetadata, eq, in);
 
-        SortedSet<ClusteringBound<?>> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(3, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1, value1);
-        assertStartBound(get(bounds, 1), true, value1, value2);
-        assertStartBound(get(bounds, 2), true, value1, value3);
-
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(3, bounds.size());
-        assertEndBound(get(bounds, 0), true, value1, value1);
-        assertEndBound(get(bounds, 1), true, value1, value2);
-        assertEndBound(get(bounds, 2), true, value1, value3);
+        Slices slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(3, slices.size());
+        Slice slice = slices.get(0);
+        assertStartBound(slice, true, value1, value1);
+        assertEndBound(slice, true, value1, value1);
+        slice = slices.get(1);
+        assertStartBound(slice, true, value1, value2);
+        assertEndBound(slice, true, value1, value2);
+        slice = slices.get(2);
+        assertStartBound(slice, true, value1, value3);
+        assertEndBound(slice, true, value1, value3);
     }
 
     /**
@@ -341,75 +308,63 @@ public class ClusteringColumnRestrictionsTest
         ByteBuffer value2 = ByteBufferUtil.bytes(2);
         ByteBuffer value3 = ByteBufferUtil.bytes(3);
 
-        Restriction eq = newSingleEq(tableMetadata, 0, value3);
+        Restriction eq = newSingleRestriction(tableMetadata, 0, Operator.EQ, value3);
 
-        Restriction slice = newSingleSlice(tableMetadata, 1, Bound.START, false, value1);
-        ClusteringColumnRestrictions restrictions = restrictions(tableMetadata, eq, slice);
+        Restriction restriction = newSingleRestriction(tableMetadata, 1, Operator.GT, value1);
+        ClusteringColumnRestrictions restrictions = restrictions(tableMetadata, eq, restriction);
 
-        SortedSet<ClusteringBound<?>> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), false, value3, value1);
+        Slices slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        Slice slice = slices.get(0);
+        assertStartBound(slice, false, value3, value1);
+        assertEndBound(slice, true, value3);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), true, value3);
+        restriction = newSingleRestriction(tableMetadata, 1, Operator.GTE, value1);
+        restrictions = restrictions(tableMetadata, eq, restriction);
 
-        slice = newSingleSlice(tableMetadata, 1, Bound.START, true, value1);
-        restrictions = restrictions(tableMetadata, eq, slice);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertStartBound(slice, true, value3, value1);
+        assertEndBound(slice, true, value3);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), true, value3, value1);
+        restriction = newSingleRestriction(tableMetadata, 1, Operator.LTE, value1);
+        restrictions =  restrictions(tableMetadata, eq, restriction);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), true, value3);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertStartBound(slice, true, value3);
+        assertEndBound(slice, true, value3, value1);
 
-        slice = newSingleSlice(tableMetadata, 1, Bound.END, true, value1);
-        restrictions =  restrictions(tableMetadata, eq, slice);
+        restriction = newSingleRestriction(tableMetadata, 1, Operator.LT, value1);
+        restrictions =  restrictions(tableMetadata, eq, restriction);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), true, value3);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertStartBound(slice, true, value3);
+        assertEndBound(slice, false, value3, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), true, value3, value1);
+        restriction = newSingleRestriction(tableMetadata, 1, Operator.GT, value1);
+        Restriction restriction2 = newSingleRestriction(tableMetadata, 1, Operator.LT, value2);
+        restrictions =  restrictions(tableMetadata, eq, restriction, restriction2);
 
-        slice = newSingleSlice(tableMetadata, 1, Bound.END, false, value1);
-        restrictions =  restrictions(tableMetadata, eq, slice);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertStartBound(slice, false, value3, value1);
+        assertEndBound(slice, false, value3, value2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), true, value3);
+        restriction = newSingleRestriction(tableMetadata, 1, Operator.GTE, value1);
+        restriction2 = newSingleRestriction(tableMetadata, 1, Operator.LTE, value2);
+        restrictions =  restrictions(tableMetadata, eq, restriction, restriction2);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), false, value3, value1);
-
-        slice = newSingleSlice(tableMetadata, 1, Bound.START, false, value1);
-        Restriction slice2 = newSingleSlice(tableMetadata, 1, Bound.END, false, value2);
-        restrictions =  restrictions(tableMetadata, eq, slice, slice2);
-
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), false, value3, value1);
-
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), false, value3, value2);
-
-        slice = newSingleSlice(tableMetadata, 1, Bound.START, true, value1);
-        slice2 = newSingleSlice(tableMetadata, 1, Bound.END, true, value2);
-        restrictions =  restrictions(tableMetadata, eq, slice, slice2);
-
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), true, value3, value1);
-
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), true, value3, value2);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertStartBound(slice, true, value3, value1);
+        assertEndBound(slice, true, value3, value2);
     }
 
     /**
@@ -425,13 +380,11 @@ public class ClusteringColumnRestrictionsTest
         Restriction eq = newMultiEq(tableMetadata, 0, value1, value2);
         ClusteringColumnRestrictions restrictions = restrictions(tableMetadata, eq);
 
-        SortedSet<ClusteringBound<?>> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1, value2);
-
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), true, value1, value2);
+        Slices slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        Slice slice = slices.get(0);
+        assertStartBound(slice, true, value1, value2);
+        assertEndBound(slice, true, value1, value2);
     }
 
     /**
@@ -448,15 +401,16 @@ public class ClusteringColumnRestrictionsTest
         Restriction in = newMultiIN(tableMetadata, 0, asList(value1, value2), asList(value2, value3));
         ClusteringColumnRestrictions restrictions = restrictions(tableMetadata, in);
 
-        SortedSet<ClusteringBound<?>> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1, value2);
-        assertStartBound(get(bounds, 1), true, value2, value3);
+        Slices slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(2, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertEndBound(get(bounds, 0), true, value1, value2);
-        assertEndBound(get(bounds, 1), true, value2, value3);
+        Slice slice = slices.get(0);
+        assertStartBound(slice, true, value1, value2);
+        assertEndBound(slice, true, value1, value2);
+
+        slice = slices.get(1);
+        assertStartBound(slice, true, value2, value3);
+        assertEndBound(slice, true, value2, value3);
     }
 
     /**
@@ -471,73 +425,61 @@ public class ClusteringColumnRestrictionsTest
         ByteBuffer value1 = ByteBufferUtil.bytes(1);
         ByteBuffer value2 = ByteBufferUtil.bytes(2);
 
-        Restriction slice = newMultiSlice(tableMetadata, 0, Bound.START, false, value1);
-        ClusteringColumnRestrictions restrictions = restrictions(tableMetadata, slice);
+        Restriction restriction = newMultiSlice(tableMetadata, 0, Operator.GT, value1);
+        ClusteringColumnRestrictions restrictions = restrictions(tableMetadata, restriction);
 
-        SortedSet<ClusteringBound<?>> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), false, value1);
+        Slices slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        Slice slice = slices.get(0);
+        assertStartBound(slice, false, value1);
+        assertEmptyEnd(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEmptyEnd(get(bounds, 0));
+        restriction = newMultiSlice(tableMetadata, 0, Operator.GTE, value1);
+        restrictions = restrictions(tableMetadata, restriction);
 
-        slice = newMultiSlice(tableMetadata, 0, Bound.START, true, value1);
-        restrictions = restrictions(tableMetadata, slice);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertStartBound(slice, true, value1);
+        assertEmptyEnd(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.LTE, value1);
+        restrictions = restrictions(tableMetadata, restriction);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEmptyEnd(get(bounds, 0));
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertEmptyStart(slice);
+        assertEndBound(slice, true, value1);
 
-        slice = newMultiSlice(tableMetadata, 0, Bound.END, true, value1);
-        restrictions = restrictions(tableMetadata, slice);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.LT, value1);
+        restrictions = restrictions(tableMetadata, restriction);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEmptyStart(get(bounds, 0));
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertEmptyStart(slice);
+        assertEndBound(slice, false, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), true, value1);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.GT, value1);
+        Restriction restriction2 = newMultiSlice(tableMetadata, 0, Operator.LT, value2);
+        restrictions = restrictions(tableMetadata, restriction, restriction2);
 
-        slice = newMultiSlice(tableMetadata, 0, Bound.END, false, value1);
-        restrictions = restrictions(tableMetadata, slice);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertStartBound(slice, false, value1);
+        assertEndBound(slice, false, value2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEmptyStart(get(bounds, 0));
+        restriction = newMultiSlice(tableMetadata, 0, Operator.GTE, value1);
+        restriction2 = newMultiSlice(tableMetadata, 0, Operator.LTE, value2);
+        restrictions = restrictions(tableMetadata, restriction, restriction2);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), false, value1);
-
-        slice = newMultiSlice(tableMetadata, 0, Bound.START, false, value1);
-        Restriction slice2 = newMultiSlice(tableMetadata, 0, Bound.END, false, value2);
-        restrictions = restrictions(tableMetadata, slice, slice2);
-
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), false, value1);
-
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), false, value2);
-
-        slice = newMultiSlice(tableMetadata, 0, Bound.START, true, value1);
-        slice2 = newMultiSlice(tableMetadata, 0, Bound.END, true, value2);
-        restrictions = restrictions(tableMetadata, slice, slice2);
-
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1);
-
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), true, value2);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertStartBound(slice, true, value1);
+        assertEndBound(slice, true, value2);
     }
 
     /**
@@ -552,73 +494,61 @@ public class ClusteringColumnRestrictionsTest
         ByteBuffer value1 = ByteBufferUtil.bytes(1);
         ByteBuffer value2 = ByteBufferUtil.bytes(2);
 
-        Restriction slice = newMultiSlice(tableMetadata, 0, Bound.START, false, value1);
-        ClusteringColumnRestrictions restrictions =  restrictions(tableMetadata, slice);
+        Restriction restriction = newMultiSlice(tableMetadata, 0, Operator.GT, value1);
+        ClusteringColumnRestrictions restrictions =  restrictions(tableMetadata, restriction);
 
-        SortedSet<ClusteringBound<?>> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEmptyStart(get(bounds, 0));
+        Slices slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        Slice slice = slices.get(0);
+        assertEmptyStart(slice);
+        assertEndBound(slice, false, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), false, value1);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.GTE, value1);
+        restrictions = restrictions(tableMetadata, restriction);
 
-        slice = newMultiSlice(tableMetadata, 0, Bound.START, true, value1);
-        restrictions = restrictions(tableMetadata, slice);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertEmptyStart(slice);
+        assertEndBound(slice, true, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEmptyStart(get(bounds, 0));
+        restriction = newMultiSlice(tableMetadata, 0, Operator.LTE, value1);
+        restrictions = restrictions(tableMetadata, restriction);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), true, value1);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertStartBound(slice, true, value1);
+        assertEmptyEnd(slice);
 
-        slice = newMultiSlice(tableMetadata, 0, Bound.END, true, value1);
-        restrictions = restrictions(tableMetadata, slice);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.LT, value1);
+        restrictions = restrictions(tableMetadata, restriction);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertStartBound(slice, false, value1);
+        assertEmptyEnd(slice);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEmptyEnd(get(bounds, 0));
+        restriction = newMultiSlice(tableMetadata, 0, Operator.GT, value1);
+        Restriction restriction2 = newMultiSlice(tableMetadata, 0, Operator.LT, value2);
+        restrictions = restrictions(tableMetadata, restriction, restriction2);
 
-        slice = newMultiSlice(tableMetadata, 0, Bound.END, false, value1);
-        restrictions = restrictions(tableMetadata, slice);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertStartBound(slice, false, value2);
+        assertEndBound(slice, false, value1);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), false, value1);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.GTE, value1);
+        restriction2 = newMultiSlice(tableMetadata, 0, Operator.LTE, value2);
+        restrictions = restrictions(tableMetadata, restriction, restriction2);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEmptyEnd(get(bounds, 0));
-
-        slice = newMultiSlice(tableMetadata, 0, Bound.START, false, value1);
-        Restriction slice2 = newMultiSlice(tableMetadata, 0, Bound.END, false, value2);
-        restrictions = restrictions(tableMetadata, slice, slice2);
-
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), false, value2);
-
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), false, value1);
-
-        slice = newMultiSlice(tableMetadata, 0, Bound.START, true, value1);
-        slice2 = newMultiSlice(tableMetadata, 0, Bound.END, true, value2);
-        restrictions = restrictions(tableMetadata, slice, slice2);
-
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), true, value2);
-
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), true, value1);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertStartBound(slice, true, value2);
+        assertEndBound(slice, true, value1);
     }
 
     /**
@@ -633,78 +563,66 @@ public class ClusteringColumnRestrictionsTest
         ByteBuffer value2 = ByteBufferUtil.bytes(2);
 
         // (clustering_0, clustering1) > (1, 2)
-        Restriction slice = newMultiSlice(tableMetadata, 0, Bound.START, false, value1, value2);
-        ClusteringColumnRestrictions restrictions =  restrictions(tableMetadata, slice);
+        Restriction restriction = newMultiSlice(tableMetadata, 0, Operator.GT, value1, value2);
+        ClusteringColumnRestrictions restrictions =  restrictions(tableMetadata, restriction);
 
-        SortedSet<ClusteringBound<?>> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), false, value1, value2);
-
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEmptyEnd(get(bounds, 0));
+        Slices slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        Slice slice = slices.get(0);
+        assertStartBound(slice, false, value1, value2);
+        assertEmptyEnd(slice);
 
         // (clustering_0, clustering1) >= (1, 2)
-        slice = newMultiSlice(tableMetadata, 0, Bound.START, true, value1, value2);
-        restrictions = restrictions(tableMetadata, slice);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.GTE, value1, value2);
+        restrictions = restrictions(tableMetadata, restriction);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1, value2);
-
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEmptyEnd(get(bounds, 0));
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertStartBound(slice, true, value1, value2);
+        assertEmptyEnd(slice);
 
         // (clustering_0, clustering1) <= (1, 2)
-        slice = newMultiSlice(tableMetadata, 0, Bound.END, true, value1, value2);
-        restrictions = restrictions(tableMetadata, slice);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.LTE, value1, value2);
+        restrictions = restrictions(tableMetadata, restriction);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEmptyStart(get(bounds, 0));
-
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), true, value1, value2);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertEmptyStart(slice);
+        assertEndBound(slice, true, value1, value2);
 
         // (clustering_0, clustering1) < (1, 2)
-        slice = newMultiSlice(tableMetadata, 0, Bound.END, false, value1, value2);
-        restrictions = restrictions(tableMetadata, slice);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.LT, value1, value2);
+        restrictions = restrictions(tableMetadata, restriction);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEmptyStart(get(bounds, 0));
-
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), false, value1, value2);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertEmptyStart(slice);
+        assertEndBound(slice, false, value1, value2);
 
         // (clustering_0, clustering1) > (1, 2) AND (clustering_0) < (2)
-        slice = newMultiSlice(tableMetadata, 0, Bound.START, false, value1, value2);
-        Restriction slice2 = newMultiSlice(tableMetadata, 0, Bound.END, false, value2);
-        restrictions = restrictions(tableMetadata, slice, slice2);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.GT, value1, value2);
+        Restriction restriction2 = newMultiSlice(tableMetadata, 0, Operator.LT, value2);
+        restrictions = restrictions(tableMetadata, restriction, restriction2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), false, value1, value2);
-
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), false, value2);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertStartBound(slice, false, value1, value2);
+        assertEndBound(slice, false, value2);
 
         // (clustering_0, clustering1) >= (1, 2) AND (clustering_0, clustering1) <= (2, 1)
-        slice = newMultiSlice(tableMetadata, 0, Bound.START, true, value1, value2);
-        slice2 = newMultiSlice(tableMetadata, 0, Bound.END, true, value2, value1);
-        restrictions = restrictions(tableMetadata, slice, slice2);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.GTE, value1, value2);
+        restriction2 = newMultiSlice(tableMetadata, 0, Operator.LTE, value2, value1);
+        restrictions = restrictions(tableMetadata, restriction, restriction2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1, value2);
-
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), true, value2, value1);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertStartBound(slice, true, value1, value2);
+        assertEndBound(slice, true, value2, value1);
     }
 
     /**
@@ -719,79 +637,66 @@ public class ClusteringColumnRestrictionsTest
         ByteBuffer value2 = ByteBufferUtil.bytes(2);
 
         // (clustering_0, clustering1) > (1, 2)
-        Restriction slice = newMultiSlice(tableMetadata, 0, Bound.START, false, value1, value2);
-        ClusteringColumnRestrictions restrictions =  restrictions(tableMetadata, slice);
+        Restriction restriction = newMultiSlice(tableMetadata, 0, Operator.GT, value1, value2);
+        ClusteringColumnRestrictions restrictions =  restrictions(tableMetadata, restriction);
 
-        SortedSet<ClusteringBound<?>> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEmptyStart(get(bounds, 0));
-
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), false, value1, value2);
+        Slices slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        Slice slice = slices.get(0);
+        assertEmptyStart(slice);
+        assertEndBound(slice, false, value1, value2);
 
         // (clustering_0, clustering1) >= (1, 2)
-        slice = newMultiSlice(tableMetadata, 0, Bound.START, true, value1, value2);
-        restrictions = restrictions(tableMetadata, slice);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.GTE, value1, value2);
+        restrictions = restrictions(tableMetadata, restriction);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEmptyStart(get(bounds, 0));
-
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), true, value1, value2);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertEmptyStart(slice);
+        assertEndBound(slice, true, value1, value2);
 
         // (clustering_0, clustering1) <= (1, 2)
-        slice = newMultiSlice(tableMetadata, 0, Bound.END, true, value1, value2);
-        restrictions = restrictions(tableMetadata, slice);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.LTE, value1, value2);
+        restrictions = restrictions(tableMetadata, restriction);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1, value2);
-
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEmptyEnd(get(bounds, 0));
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertStartBound(slice, true, value1, value2);
+        assertEmptyEnd(slice);
 
         // (clustering_0, clustering1) < (1, 2)
-        slice = newMultiSlice(tableMetadata, 0, Bound.END, false, value1, value2);
-        restrictions = restrictions(tableMetadata, slice);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.LT, value1, value2);
+        restrictions = restrictions(tableMetadata, restriction);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), false, value1, value2);
-
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEmptyEnd(get(bounds, 0));
-
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertStartBound(slice, false, value1, value2);
+        assertEmptyEnd(slice);
 
         // (clustering_0, clustering1) > (1, 2) AND (clustering_0) < (2)
-        slice = newMultiSlice(tableMetadata, 0, Bound.START, false, value1, value2);
-        Restriction slice2 = newMultiSlice(tableMetadata, 0, Bound.END, false, value2);
-        restrictions = restrictions(tableMetadata, slice, slice2);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.GT, value1, value2);
+        Restriction restriction2 = newMultiSlice(tableMetadata, 0, Operator.LT, value2);
+        restrictions = restrictions(tableMetadata, restriction, restriction2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), false, value2);
-
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), false, value1, value2);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertStartBound(slice, false, value2);
+        assertEndBound(slice, false, value1, value2);
 
         // (clustering_0, clustering1) >= (1, 2) AND (clustering_0, clustering1) <= (2, 1)
-        slice = newMultiSlice(tableMetadata, 0, Bound.START, true, value1, value2);
-        slice2 = newMultiSlice(tableMetadata, 0, Bound.END, true, value2, value1);
-        restrictions = restrictions(tableMetadata, slice, slice2);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.GTE, value1, value2);
+        restriction2 = newMultiSlice(tableMetadata, 0, Operator.LTE, value2, value1);
+        restrictions = restrictions(tableMetadata, restriction, restriction2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), true, value2, value1);
-
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), true, value1, value2);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
+        slice = slices.get(0);
+        assertStartBound(slice, true, value2, value1);
+        assertEndBound(slice, true, value1, value2);
     }
 
     /**
@@ -807,107 +712,116 @@ public class ClusteringColumnRestrictionsTest
         ByteBuffer value2 = ByteBufferUtil.bytes(2);
 
         // (clustering_0, clustering1) > (1, 2)
-        Restriction slice = newMultiSlice(tableMetadata, 0, Bound.START, false, value1, value2);
-        ClusteringColumnRestrictions restrictions =  restrictions(tableMetadata, slice);
+        Restriction restriction = newMultiSlice(tableMetadata, 0, Operator.GT, value1, value2);
+        ClusteringColumnRestrictions restrictions =  restrictions(tableMetadata, restriction);
 
-        SortedSet<ClusteringBound<?>> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertEmptyStart(get(bounds, 0));
-        assertStartBound(get(bounds, 1), false, value1, value2);
+        Slices slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(2, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertEndBound(get(bounds, 0), false, value1);
-        assertEndBound(get(bounds, 1), true, value1);
+        Slice slice = slices.get(0);
+        assertEmptyStart(slice);
+        assertEndBound(slice, false, value1);
+
+        slice = slices.get(1);
+        assertEndBound(slice, true, value1);
+        assertStartBound(slice, false, value1, value2);
 
         // (clustering_0, clustering1) >= (1, 2)
-        slice = newMultiSlice(tableMetadata, 0, Bound.START, true, value1, value2);
-        restrictions = restrictions(tableMetadata, slice);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.GTE, value1, value2);
+        restrictions = restrictions(tableMetadata, restriction);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertEmptyStart(get(bounds, 0));
-        assertStartBound(get(bounds, 1), true, value1, value2);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(2, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertEndBound(get(bounds, 0), false, value1);
-        assertEndBound(get(bounds, 1), true, value1);
+        slice = slices.get(0);
+        assertEmptyStart(slice);
+        assertEndBound(slice, false, value1);
+
+        slice = slices.get(1);
+        assertStartBound(slice, true, value1, value2);
+        assertEndBound(slice, true, value1);
 
         // (clustering_0, clustering1) <= (1, 2)
-        slice = newMultiSlice(tableMetadata, 0, Bound.END, true, value1, value2);
-        restrictions = restrictions(tableMetadata, slice);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.LTE, value1, value2);
+        restrictions = restrictions(tableMetadata, restriction);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1);
-        assertStartBound(get(bounds, 1), false, value1);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(2, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertEndBound(get(bounds, 0), true, value1, value2);
-        assertEmptyEnd(get(bounds, 1));
+        slice = slices.get(0);
+        assertStartBound(slice, true, value1);
+        assertEndBound(slice, true, value1, value2);
+
+        slice = slices.get(1);
+        assertStartBound(slice, false, value1);
+        assertEmptyEnd(slice);
 
         // (clustering_0, clustering1) < (1, 2)
-        slice = newMultiSlice(tableMetadata, 0, Bound.END, false, value1, value2);
-        restrictions = restrictions(tableMetadata, slice);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.LT, value1, value2);
+        restrictions = restrictions(tableMetadata, restriction);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1);
-        assertStartBound(get(bounds, 1), false, value1);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(2, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertEndBound(get(bounds, 0), false, value1, value2);
-        assertEmptyEnd(get(bounds, 1));
+        slice = slices.get(0);
+        assertStartBound(slice, true, value1);
+        assertEndBound(slice, false, value1, value2);
+
+        slice = slices.get(1);
+        assertStartBound(slice, false, value1);
+        assertEmptyEnd(slice);
 
         // (clustering_0, clustering1) > (1, 2) AND (clustering_0) < (2)
-        slice = newMultiSlice(tableMetadata, 0, Bound.START, false, value1, value2);
-        Restriction slice2 = newMultiSlice(tableMetadata, 0, Bound.END, false, value2);
-        restrictions = restrictions(tableMetadata, slice, slice2);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.GT, value1, value2);
+        Restriction restriction2 = newMultiSlice(tableMetadata, 0, Operator.LT, value2);
+        restrictions = restrictions(tableMetadata, restriction, restriction2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertStartBound(get(bounds, 0), false, value2);
-        assertStartBound(get(bounds, 1), false, value1, value2);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(2, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertEndBound(get(bounds, 0), false, value1);
-        assertEndBound(get(bounds, 1), true, value1);
+        slice = slices.get(0);
+        assertStartBound(slice, false, value2);
+        assertEndBound(slice, false, value1);
+
+        slice = slices.get(1);
+        assertEndBound(slice, true, value1);
+        assertStartBound(slice, false, value1, value2);
 
         // (clustering_0) > (1) AND (clustering_0, clustering1) < (2, 1)
-        slice = newMultiSlice(tableMetadata, 0, Bound.START, false, value1);
-        slice2 = newMultiSlice(tableMetadata, 0, Bound.END, false, value2, value1);
-        restrictions = restrictions(tableMetadata, slice, slice2);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.GT, value1);
+        restriction2 = newMultiSlice(tableMetadata, 0, Operator.LT, value2, value1);
+        restrictions = restrictions(tableMetadata, restriction, restriction2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertStartBound(get(bounds, 0), true, value2);
-        assertStartBound(get(bounds, 1), false, value2);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(2, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertEndBound(get(bounds, 0), false, value2, value1);
-        assertEndBound(get(bounds, 1), false, value1);
+        slice = slices.get(0);
+        assertStartBound(slice, true, value2);
+        assertEndBound(slice, false, value2, value1);
+
+        slice = slices.get(1);
+        assertStartBound(slice, false, value2);
+        assertEndBound(slice, false, value1);
 
         // (clustering_0, clustering1) >= (1, 2) AND (clustering_0, clustering1) <= (2, 1)
-        slice = newMultiSlice(tableMetadata, 0, Bound.START, true, value1, value2);
-        slice2 = newMultiSlice(tableMetadata, 0, Bound.END, true, value2, value1);
-        restrictions = restrictions(tableMetadata, slice, slice2);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.GTE, value1, value2);
+        restriction2 = newMultiSlice(tableMetadata, 0, Operator.LTE, value2, value1);
+        restrictions = restrictions(tableMetadata, restriction, restriction2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(3, bounds.size());
-        assertStartBound(get(bounds, 0), true, value2);
-        assertStartBound(get(bounds, 1), false, value2);
-        assertStartBound(get(bounds, 2), true, value1, value2);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(3, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(3, bounds.size());
-        assertEndBound(get(bounds, 0), true, value2, value1);
-        assertEndBound(get(bounds, 1), false, value1);
-        assertEndBound(get(bounds, 2), true, value1);
+        slice = slices.get(0);
+        assertStartBound(slice, true, value2);
+        assertEndBound(slice, true, value2, value1);
+
+        slice = slices.get(1);
+        assertEndBound(slice, false, value1);
+        assertStartBound(slice, false, value2);
+
+        slice = slices.get(2);
+        assertStartBound(slice, true, value1, value2);
+        assertEndBound(slice, true, value1);
     }
 
     /**
@@ -923,92 +837,100 @@ public class ClusteringColumnRestrictionsTest
         ByteBuffer value2 = ByteBufferUtil.bytes(2);
 
         // (clustering_0, clustering1) > (1, 2)
-        Restriction slice = newMultiSlice(tableMetadata, 0, Bound.START, false, value1, value2);
-        ClusteringColumnRestrictions restrictions =  restrictions(tableMetadata, slice);
+        Restriction restriction = newMultiSlice(tableMetadata, 0, Operator.GT, value1, value2);
+        ClusteringColumnRestrictions restrictions =  restrictions(tableMetadata, restriction);
 
-        SortedSet<ClusteringBound<?>> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1);
-        assertStartBound(get(bounds, 1), false, value1);
+        Slices slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(2, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertEndBound(get(bounds, 0), false, value1, value2);
-        assertEmptyEnd(get(bounds, 1));
+        Slice slice = slices.get(0);
+        assertStartBound(slice, true, value1);
+        assertEndBound(slice, false, value1, value2);
+
+        slice = slices.get(1);
+        assertStartBound(slice, false, value1);
+        assertEmptyEnd(slice);
 
         // (clustering_0, clustering1) >= (1, 2)
-        slice = newMultiSlice(tableMetadata, 0, Bound.START, true, value1, value2);
-        restrictions = restrictions(tableMetadata, slice);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.GTE, value1, value2);
+        restrictions = restrictions(tableMetadata, restriction);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1);
-        assertStartBound(get(bounds, 1), false, value1);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(2, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertEndBound(get(bounds, 0), true, value1, value2);
-        assertEmptyEnd(get(bounds, 1));
+        slice = slices.get(0);
+        assertStartBound(slice, true, value1);
+        assertEndBound(slice, true, value1, value2);
+
+        slice = slices.get(1);
+        assertStartBound(slice, false, value1);
+        assertEmptyEnd(slice);
 
         // (clustering_0, clustering1) <= (1, 2)
-        slice = newMultiSlice(tableMetadata, 0, Bound.END, true, value1, value2);
-        restrictions = restrictions(tableMetadata, slice);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.LTE, value1, value2);
+        restrictions = restrictions(tableMetadata, restriction);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertEmptyStart(get(bounds, 0));
-        assertStartBound(get(bounds, 1), true, value1, value2);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(2, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertEndBound(get(bounds, 0), false, value1);
-        assertEndBound(get(bounds, 1), true, value1);
+        slice = slices.get(0);
+        assertEmptyStart(slice);
+        assertEndBound(slice, false, value1);
+
+        slice = slices.get(1);
+        assertStartBound(slice, true, value1, value2);
+        assertEndBound(slice, true, value1);
 
         // (clustering_0, clustering1) < (1, 2)
-        slice = newMultiSlice(tableMetadata, 0, Bound.END, false, value1, value2);
-        restrictions = restrictions(tableMetadata, slice);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.LT, value1, value2);
+        restrictions = restrictions(tableMetadata, restriction);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertEmptyStart(get(bounds, 0));
-        assertStartBound(get(bounds, 1), false, value1, value2);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(2, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertEndBound(get(bounds, 0), false, value1);
-        assertEndBound(get(bounds, 1), true, value1);
+        slice = slices.get(0);
+        assertEmptyStart(slice);
+        assertEndBound(slice, false, value1);
+
+        slice = slices.get(1);
+        assertStartBound(slice, false, value1, value2);
+        assertEndBound(slice, true, value1);
 
         // (clustering_0, clustering1) > (1, 2) AND (clustering_0) < (2)
-        slice = newMultiSlice(tableMetadata, 0, Bound.START, false, value1, value2);
-        Restriction slice2 = newMultiSlice(tableMetadata, 0, Bound.END, false, value2);
-        restrictions = restrictions(tableMetadata, slice, slice2);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.GT, value1, value2);
+        Restriction restriction2 = newMultiSlice(tableMetadata, 0, Operator.LT, value2);
+        restrictions = restrictions(tableMetadata, restriction, restriction2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1);
-        assertStartBound(get(bounds, 1), false, value1);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(2, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertEndBound(get(bounds, 0), false, value1, value2);
-        assertEndBound(get(bounds, 1), false, value2);
+        slice = slices.get(0);
+        assertStartBound(slice, true, value1);
+        assertEndBound(slice, false, value1, value2);
+
+        slice = slices.get(1);
+        assertStartBound(slice, false, value1);
+        assertEndBound(slice, false, value2);
 
         // (clustering_0, clustering1) >= (1, 2) AND (clustering_0, clustering1) <= (2, 1)
-        slice = newMultiSlice(tableMetadata, 0, Bound.START, true, value1, value2);
-        slice2 = newMultiSlice(tableMetadata, 0, Bound.END, true, value2, value1);
-        restrictions = restrictions(tableMetadata, slice, slice2);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.GTE, value1, value2);
+        restriction2 = newMultiSlice(tableMetadata, 0, Operator.LTE, value2, value1);
+        restrictions = restrictions(tableMetadata, restriction, restriction2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(3, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1);
-        assertStartBound(get(bounds, 1), false, value1);
-        assertStartBound(get(bounds, 2), true, value2, value1);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(3, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(3, bounds.size());
-        assertEndBound(get(bounds, 0), true, value1, value2);
-        assertEndBound(get(bounds, 1), false, value2);
-        assertEndBound(get(bounds, 2), true, value2);
+        slice = slices.get(0);
+        assertStartBound(slice, true, value1);
+        assertEndBound(slice, true, value1, value2);
+
+        slice = slices.get(1);
+        assertStartBound(slice, false, value1);
+        assertEndBound(slice, false, value2);
+
+        slice = slices.get(2);
+        assertStartBound(slice, true, value2, value1);
+        assertEndBound(slice, true, value2);
     }
 
     /**
@@ -1026,138 +948,150 @@ public class ClusteringColumnRestrictionsTest
         ByteBuffer value4 = ByteBufferUtil.bytes(4);
 
         // (clustering_0, clustering1, clustering_2, clustering_3) > (1, 2, 3, 4)
-        Restriction slice = newMultiSlice(tableMetadata, 0, Bound.START, false, value1, value2, value3, value4);
-        ClusteringColumnRestrictions restrictions =  restrictions(tableMetadata, slice);
+        Restriction restriction = newMultiSlice(tableMetadata, 0, Operator.GT, value1, value2, value3, value4);
+        ClusteringColumnRestrictions restrictions =  restrictions(tableMetadata, restriction);
 
-        SortedSet<ClusteringBound<?>> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1, value2);
-        assertStartBound(get(bounds, 1), false, value1, value2);
+        Slices slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(2, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertEndBound(get(bounds, 0), false, value1, value2, value3, value4);
-        assertEmptyEnd(get(bounds, 1));
+        Slice slice = slices.get(0);
+        assertStartBound(slice, true, value1, value2);
+        assertEndBound(slice, false, value1, value2, value3, value4);
+
+        slice = slices.get(1);
+        assertStartBound(slice, false, value1, value2);
+        assertEmptyEnd(slice);
 
         // clustering_0 = 1 AND (clustering_1, clustering_2, clustering_3) > (2, 3, 4)
-        Restriction eq = newSingleEq(tableMetadata, 0, value1);
-        slice = newMultiSlice(tableMetadata, 1, Bound.START, false, value2, value3, value4);
-        restrictions = restrictions(tableMetadata, slice, eq);
+        Restriction eq = newSingleRestriction(tableMetadata, 0, Operator.EQ, value1);
+        restriction = newMultiSlice(tableMetadata, 1, Operator.GT, value2, value3, value4);
+        restrictions = restrictions(tableMetadata, restriction, eq);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1, value2);
-        assertStartBound(get(bounds, 1), false, value1, value2);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(2, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertEndBound(get(bounds, 0), false, value1, value2, value3, value4);
-        assertEndBound(get(bounds, 1), true, value1);
+        slice = slices.get(0);
+        assertStartBound(slice, true, value1, value2);
+        assertEndBound(slice, false, value1, value2, value3, value4);
+
+        slice = slices.get(1);
+        assertStartBound(slice, false, value1, value2);
+        assertEndBound(slice, true, value1);
 
         // clustering_0 IN (1, 2) AND (clustering_1, clustering_2, clustering_3) > (2, 3, 4)
-        Restriction in = newSingleIN(tableMetadata, 0, value1, value2);
-        slice = newMultiSlice(tableMetadata, 1, Bound.START, false, value2, value3, value4);
-        restrictions = restrictions(tableMetadata, slice, in);
+        Restriction in = newSingleRestriction(tableMetadata, 0, Operator.IN, value1, value2);
+        restriction = newMultiSlice(tableMetadata, 1, Operator.GT, value2, value3, value4);
+        restrictions = restrictions(tableMetadata, restriction, in);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(4, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1, value2);
-        assertStartBound(get(bounds, 1), false, value1, value2);
-        assertStartBound(get(bounds, 2), true, value2, value2);
-        assertStartBound(get(bounds, 3), false, value2, value2);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(4, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(4, bounds.size());
-        assertEndBound(get(bounds, 0), false, value1, value2, value3, value4);
-        assertEndBound(get(bounds, 1), true, value1);
-        assertEndBound(get(bounds, 2), false, value2, value2, value3, value4);
-        assertEndBound(get(bounds, 3), true, value2);
+        slice = slices.get(0);
+        assertStartBound(slice, true, value1, value2);
+        assertEndBound(slice, false, value1, value2, value3, value4);
+
+        slice = slices.get(1);
+        assertStartBound(slice, false, value1, value2);
+        assertEndBound(slice, true, value1);
+
+        slice = slices.get(2);
+        assertStartBound(slice, true, value2, value2);
+        assertEndBound(slice, false, value2, value2, value3, value4);
+
+        slice = slices.get(3);
+        assertStartBound(slice, false, value2, value2);
+        assertEndBound(slice, true, value2);
 
         // (clustering_0, clustering1) >= (1, 2)
-        slice = newMultiSlice(tableMetadata, 0, Bound.START, true, value1, value2);
-        restrictions = restrictions(tableMetadata, slice);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.GTE, value1, value2);
+        restrictions = restrictions(tableMetadata, restriction);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1, value2);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEmptyEnd(get(bounds, 0));
+        slice = slices.get(0);
+        assertStartBound(slice, true, value1, value2);
+        assertEmptyEnd(slice);
 
         // (clustering_0, clustering1, clustering_2, clustering_3) >= (1, 2, 3, 4)
-        slice = newMultiSlice(tableMetadata, 0, Bound.START, true, value1, value2, value3, value4);
-        restrictions = restrictions(tableMetadata, slice);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.GTE, value1, value2, value3, value4);
+        restrictions = restrictions(tableMetadata, restriction);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1, value2);
-        assertStartBound(get(bounds, 1), false, value1, value2);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(2, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertEndBound(get(bounds, 0), true, value1, value2, value3, value4);
-        assertEmptyEnd(get(bounds, 1));
+        slice = slices.get(0);
+        assertStartBound(slice, true, value1, value2);
+        assertEndBound(slice, true, value1, value2, value3, value4);
+        slice = slices.get(1);
+        assertStartBound(slice, false, value1, value2);
+        assertEmptyEnd(slice);
 
         // (clustering_0, clustering1, clustering_2, clustering_3) <= (1, 2, 3, 4)
-        slice = newMultiSlice(tableMetadata, 0, Bound.END, true, value1, value2, value3, value4);
-        restrictions = restrictions(tableMetadata, slice);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.LTE, value1, value2, value3, value4);
+        restrictions = restrictions(tableMetadata, restriction);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertEmptyStart(get(bounds, 0));
-        assertStartBound(get(bounds, 1), true, value1, value2, value3, value4);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(2, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertEndBound(get(bounds, 0), false, value1, value2);
-        assertEndBound(get(bounds, 1), true, value1, value2);
+        slice = slices.get(0);
+        assertEmptyStart(slice);
+        assertEndBound(slice, false, value1, value2);
+
+        slice = slices.get(1);
+        assertStartBound(slice, true, value1, value2, value3, value4);
+        assertEndBound(slice, true, value1, value2);
 
         // (clustering_0, clustering1, clustering_2, clustering_3) < (1, 2, 3, 4)
-        slice = newMultiSlice(tableMetadata, 0, Bound.END, false, value1, value2, value3, value4);
-        restrictions = restrictions(tableMetadata, slice);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.LT, value1, value2, value3, value4);
+        restrictions = restrictions(tableMetadata, restriction);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertEmptyStart(get(bounds, 0));
-        assertStartBound(get(bounds, 1), false, value1, value2, value3, value4);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(2, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertEndBound(get(bounds, 0), false, value1, value2);
-        assertEndBound(get(bounds, 1), true, value1, value2);
+        slice = slices.get(0);
+        assertEmptyStart(slice);
+        assertEndBound(slice, false, value1, value2);
+
+        slice = slices.get(1);
+        assertStartBound(slice, false, value1, value2, value3, value4);
+        assertEndBound(slice, true, value1, value2);
 
         // (clustering_0, clustering1, clustering_2, clustering_3) > (1, 2, 3, 4) AND (clustering_0, clustering_1) < (2, 3)
-        slice = newMultiSlice(tableMetadata, 0, Bound.START, false, value1, value2, value3, value4);
-        Restriction slice2 = newMultiSlice(tableMetadata, 0, Bound.END, false, value2, value3);
-        restrictions = restrictions(tableMetadata, slice, slice2);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.GT, value1, value2, value3, value4);
+        Restriction restriction2 = newMultiSlice(tableMetadata, 0, Operator.LT, value2, value3);
+        restrictions = restrictions(tableMetadata, restriction, restriction2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1, value2);
-        assertStartBound(get(bounds, 1), false, value1, value2);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(2, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertEndBound(get(bounds, 0), false, value1, value2, value3, value4);
-        assertEndBound(get(bounds, 1), false, value2, value3);
+        slice = slices.get(0);
+        assertStartBound(slice, true, value1, value2);
+        assertEndBound(slice, false, value1, value2, value3, value4);
+
+        slice = slices.get(1);
+        assertStartBound(slice, false, value1, value2);
+        assertEndBound(slice, false, value2, value3);
 
         // (clustering_0, clustering1, clustering_2, clustering_3) >= (1, 2, 3, 4) AND (clustering_0, clustering1, clustering_2, clustering_3) <= (4, 3, 2, 1)
-        slice = newMultiSlice(tableMetadata, 0, Bound.START, true, value1, value2, value3, value4);
-        slice2 = newMultiSlice(tableMetadata, 0, Bound.END, true, value4, value3, value2, value1);
-        restrictions = restrictions(tableMetadata, slice, slice2);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.GTE, value1, value2, value3, value4);
+        restriction2 = newMultiSlice(tableMetadata, 0, Operator.LTE, value4, value3, value2, value1);
+        restrictions = restrictions(tableMetadata, restriction, restriction2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(3, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1, value2);
-        assertStartBound(get(bounds, 1), false, value1, value2);
-        assertStartBound(get(bounds, 2), true, value4, value3, value2, value1);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(3, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(3, bounds.size());
-        assertEndBound(get(bounds, 0), true, value1, value2, value3, value4);
-        assertEndBound(get(bounds, 1), false, value4, value3);
-        assertEndBound(get(bounds, 2), true, value4, value3);
+        slice = slices.get(0);
+        assertStartBound(slice, true, value1, value2);
+        assertEndBound(slice, true, value1, value2, value3, value4);
+
+        slice = slices.get(1);
+        assertStartBound(slice, false, value1, value2);
+        assertEndBound(slice, false, value4, value3);
+
+        slice = slices.get(2);
+        assertStartBound(slice, true, value4, value3, value2, value1);
+        assertEndBound(slice, true, value4, value3);
     }
 
     /**
@@ -1175,154 +1109,195 @@ public class ClusteringColumnRestrictionsTest
         ByteBuffer value4 = ByteBufferUtil.bytes(4);
 
         // (clustering_0, clustering1, clustering_2, clustering_3) > (1, 2, 3, 4)
-        Restriction slice = newMultiSlice(tableMetadata, 0, Bound.START, false, value1, value2, value3, value4);
-        ClusteringColumnRestrictions restrictions = restrictions(tableMetadata, slice);
+        Restriction restriction = newMultiSlice(tableMetadata, 0, Operator.GT, value1, value2, value3, value4);
+        ClusteringColumnRestrictions restrictions = restrictions(tableMetadata, restriction);
 
-        SortedSet<ClusteringBound<?>> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(4, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1);
-        assertStartBound(get(bounds, 1), true, value1, value2, value3);
-        assertStartBound(get(bounds, 2), false, value1, value2, value3);
-        assertStartBound(get(bounds, 3), false, value1);
+        Slices slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(4, slices.size());
 
+        Slice slice = slices.get(0);
+        assertStartBound(slice, true, value1);
+        assertEndBound(slice, false, value1, value2);
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(4, bounds.size());
-        assertEndBound(get(bounds, 0), false, value1, value2);
-        assertEndBound(get(bounds, 1), false, value1, value2, value3, value4);
-        assertEndBound(get(bounds, 2), true, value1, value2);
-        assertEmptyEnd(get(bounds, 3));
+        slice = slices.get(1);
+        assertStartBound(slice, true, value1, value2, value3);
+        assertEndBound(slice, false, value1, value2, value3, value4);
+
+        slice = slices.get(2);
+        assertStartBound(slice, false, value1, value2, value3);
+        assertEndBound(slice, true, value1, value2);
+
+        slice = slices.get(3);
+        assertStartBound(slice, false, value1);
+        assertEmptyEnd(slice);
 
         // clustering_0 = 1 AND (clustering_1, clustering_2, clustering_3) > (2, 3, 4)
-        Restriction eq = newSingleEq(tableMetadata, 0, value1);
-        slice = newMultiSlice(tableMetadata, 1, Bound.START, false, value2, value3, value4);
-        restrictions = restrictions(tableMetadata, slice, eq);
+        Restriction eq = newSingleRestriction(tableMetadata, 0, Operator.EQ, value1);
+        restriction = newMultiSlice(tableMetadata, 1, Operator.GT, value2, value3, value4);
+        restrictions = restrictions(tableMetadata, restriction, eq);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(3, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1);
-        assertStartBound(get(bounds, 1), true, value1, value2, value3);
-        assertStartBound(get(bounds, 2), false, value1, value2, value3);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(3, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(3, bounds.size());
-        assertEndBound(get(bounds, 0), false, value1, value2);
-        assertEndBound(get(bounds, 1), false, value1, value2, value3, value4);
-        assertEndBound(get(bounds, 2), true, value1, value2);
+        slice = slices.get(0);
+        assertStartBound(slice, true, value1);
+        assertEndBound(slice, false, value1, value2);
+
+        slice = slices.get(1);
+        assertStartBound(slice, true, value1, value2, value3);
+        assertEndBound(slice, false, value1, value2, value3, value4);
+
+        slice = slices.get(2);
+        assertStartBound(slice, false, value1, value2, value3);
+        assertEndBound(slice, true, value1, value2);
 
         // (clustering_0, clustering1) >= (1, 2)
-        slice = newMultiSlice(tableMetadata, 0, Bound.START, true, value1, value2);
-        restrictions = restrictions(tableMetadata, slice);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.GTE, value1, value2);
+        restrictions = restrictions(tableMetadata, restriction);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1);
-        assertStartBound(get(bounds, 1), false, value1);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(2, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertEndBound(get(bounds, 0), true, value1, value2);
-        assertEmptyEnd(get(bounds, 1));
+        slice = slices.get(0);
+        assertStartBound(slice, true, value1);
+        assertEndBound(slice, true, value1, value2);
+
+        slice = slices.get(1);
+        assertStartBound(slice, false, value1);
+        assertEmptyEnd(slice);
 
         // (clustering_0, clustering1, clustering_2, clustering_3) >= (1, 2, 3, 4)
-        slice = newMultiSlice(tableMetadata, 0, Bound.START, true, value1, value2, value3, value4);
-        restrictions = restrictions(tableMetadata, slice);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.GTE, value1, value2, value3, value4);
+        restrictions = restrictions(tableMetadata, restriction);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(4, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1);
-        assertStartBound(get(bounds, 1), true, value1, value2, value3);
-        assertStartBound(get(bounds, 2), false, value1, value2, value3);
-        assertStartBound(get(bounds, 3), false, value1);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(4, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(4, bounds.size());
-        assertEndBound(get(bounds, 0), false, value1, value2);
-        assertEndBound(get(bounds, 1), true, value1, value2, value3, value4);
-        assertEndBound(get(bounds, 2), true, value1, value2);
-        assertEmptyEnd(get(bounds, 3));
+        slice = slices.get(0);
+        assertStartBound(slice, true, value1);
+        assertEndBound(slice, false, value1, value2);
+
+        slice = slices.get(1);
+        assertStartBound(slice, true, value1, value2, value3);
+        assertEndBound(slice, true, value1, value2, value3, value4);
+
+        slice = slices.get(2);
+        assertStartBound(slice, false, value1, value2, value3);
+        assertEndBound(slice, true, value1, value2);
+
+        slice = slices.get(3);
+        assertStartBound(slice, false, value1);
+        assertEmptyEnd(slice);
 
         // (clustering_0, clustering1, clustering_2, clustering_3) <= (1, 2, 3, 4)
-        slice = newMultiSlice(tableMetadata, 0, Bound.END, true, value1, value2, value3, value4);
-        restrictions = restrictions(tableMetadata, slice);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.LTE, value1, value2, value3, value4);
+        restrictions = restrictions(tableMetadata, restriction);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(4, bounds.size());
-        assertEmptyStart(get(bounds, 0));
-        assertStartBound(get(bounds, 1), true, value1, value2);
-        assertStartBound(get(bounds, 2), true, value1, value2, value3, value4);
-        assertStartBound(get(bounds, 3), false, value1, value2);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(4, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(4, bounds.size());
-        assertEndBound(get(bounds, 0), false, value1);
-        assertEndBound(get(bounds, 1), false, value1, value2, value3);
-        assertEndBound(get(bounds, 2), true, value1, value2, value3);
-        assertEndBound(get(bounds, 3), true, value1);
+        slice = slices.get(0);
+        assertEmptyStart(slice);
+        assertEndBound(slice, false, value1);
+
+        slice = slices.get(1);
+        assertStartBound(slice, true, value1, value2);
+        assertEndBound(slice, false, value1, value2, value3);
+
+        slice = slices.get(2);
+        assertStartBound(slice, true, value1, value2, value3, value4);
+        assertEndBound(slice, true, value1, value2, value3);
+
+        slice = slices.get(3);
+        assertStartBound(slice, false, value1, value2);
+        assertEndBound(slice, true, value1);
 
         // (clustering_0, clustering1, clustering_2, clustering_3) < (1, 2, 3, 4)
-        slice = newMultiSlice(tableMetadata, 0, Bound.END, false, value1, value2, value3, value4);
-        restrictions = restrictions(tableMetadata, slice);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.LT, value1, value2, value3, value4);
+        restrictions = restrictions(tableMetadata, restriction);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(4, bounds.size());
-        assertEmptyStart(get(bounds, 0));
-        assertStartBound(get(bounds, 1), true, value1, value2);
-        assertStartBound(get(bounds, 2), false, value1, value2, value3, value4);
-        assertStartBound(get(bounds, 3), false, value1, value2);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(4, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(4, bounds.size());
-        assertEndBound(get(bounds, 0), false, value1);
-        assertEndBound(get(bounds, 1), false, value1, value2, value3);
-        assertEndBound(get(bounds, 2), true, value1, value2, value3);
-        assertEndBound(get(bounds, 3), true, value1);
+        slice = slices.get(0);
+        assertEmptyStart(slice);
+        assertEndBound(slice, false, value1);
+
+        slice = slices.get(1);
+        assertStartBound(slice, true, value1, value2);
+        assertEndBound(slice, false, value1, value2, value3);
+
+        slice = slices.get(2);
+        assertStartBound(slice, false, value1, value2, value3, value4);
+        assertEndBound(slice, true, value1, value2, value3);
+
+        slice = slices.get(3);
+        assertStartBound(slice, false, value1, value2);
+        assertEndBound(slice, true, value1);
 
         // (clustering_0, clustering1, clustering_2, clustering_3) > (1, 2, 3, 4) AND (clustering_0, clustering_1) < (2, 3)
-        slice = newMultiSlice(tableMetadata, 0, Bound.START, false, value1, value2, value3, value4);
-        Restriction slice2 = newMultiSlice(tableMetadata, 0, Bound.END, false, value2, value3);
-        restrictions = restrictions(tableMetadata, slice, slice2);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.GT, value1, value2, value3, value4);
+        Restriction restriction2 = newMultiSlice(tableMetadata, 0, Operator.LT, value2, value3);
+        restrictions = restrictions(tableMetadata, restriction, restriction2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(5, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1);
-        assertStartBound(get(bounds, 1), true, value1, value2, value3);
-        assertStartBound(get(bounds, 2), false, value1, value2, value3);
-        assertStartBound(get(bounds, 3), false, value1);
-        assertStartBound(get(bounds, 4), false, value2, value3);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(5, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(5, bounds.size());
-        assertEndBound(get(bounds, 0), false, value1, value2);
-        assertEndBound(get(bounds, 1), false, value1, value2, value3, value4);
-        assertEndBound(get(bounds, 2), true, value1, value2);
-        assertEndBound(get(bounds, 3), false, value2);
-        assertEndBound(get(bounds, 4), true, value2);
+        slice = slices.get(0);
+        assertStartBound(slice, true, value1);
+        assertEndBound(slice, false, value1, value2);
+
+        slice = slices.get(1);
+        assertStartBound(slice, true, value1, value2, value3);
+        assertEndBound(slice, false, value1, value2, value3, value4);
+
+        slice = slices.get(2);
+        assertStartBound(slice, false, value1, value2, value3);
+        assertEndBound(slice, true, value1, value2);
+
+        slice = slices.get(3);
+        assertStartBound(slice, false, value1);
+        assertEndBound(slice, false, value2);
+
+        slice = slices.get(4);
+        assertStartBound(slice, false, value2, value3);
+        assertEndBound(slice, true, value2);
 
         // (clustering_0, clustering1, clustering_2, clustering_3) >= (1, 2, 3, 4) AND (clustering_0, clustering1, clustering_2, clustering_3) <= (4, 3, 2, 1)
-        slice = newMultiSlice(tableMetadata, 0, Bound.START, true, value1, value2, value3, value4);
-        slice2 = newMultiSlice(tableMetadata, 0, Bound.END, true, value4, value3, value2, value1);
-        restrictions = restrictions(tableMetadata, slice, slice2);
+        restriction = newMultiSlice(tableMetadata, 0, Operator.GTE, value1, value2, value3, value4);
+        restriction2 = newMultiSlice(tableMetadata, 0, Operator.LTE, value4, value3, value2, value1);
+        restrictions = restrictions(tableMetadata, restriction, restriction2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(7, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1);
-        assertStartBound(get(bounds, 1), true, value1, value2, value3);
-        assertStartBound(get(bounds, 2), false, value1, value2, value3);
-        assertStartBound(get(bounds, 3), false, value1);
-        assertStartBound(get(bounds, 4), true, value4, value3);
-        assertStartBound(get(bounds, 5), true, value4, value3, value2, value1);
-        assertStartBound(get(bounds, 6), false, value4, value3);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(7, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(7, bounds.size());
-        assertEndBound(get(bounds, 0), false, value1, value2);
-        assertEndBound(get(bounds, 1), true, value1, value2, value3, value4);
-        assertEndBound(get(bounds, 2), true, value1, value2);
-        assertEndBound(get(bounds, 3), false, value4);
-        assertEndBound(get(bounds, 4), false, value4, value3, value2);
-        assertEndBound(get(bounds, 5), true, value4, value3, value2);
-        assertEndBound(get(bounds, 6), true, value4);
+        slice = slices.get(0);
+        assertStartBound(slice, true, value1);
+        assertEndBound(slice, false, value1, value2);
+
+        slice = slices.get(1);
+        assertStartBound(slice, true, value1, value2, value3);
+        assertEndBound(slice, true, value1, value2, value3, value4);
+
+        slice = slices.get(2);
+        assertStartBound(slice, false, value1, value2, value3);
+        assertEndBound(slice, true, value1, value2);
+
+        slice = slices.get(3);
+        assertStartBound(slice, false, value1);
+        assertEndBound(slice, false, value4);
+
+        slice = slices.get(4);
+        assertStartBound(slice, true, value4, value3);
+        assertEndBound(slice, false, value4, value3, value2);
+
+        slice = slices.get(5);
+        assertStartBound(slice, true, value4, value3, value2, value1);
+        assertEndBound(slice, true, value4, value3, value2);
+
+        slice = slices.get(6);
+        assertStartBound(slice, false, value4, value3);
+        assertEndBound(slice, true, value4);
     }
 
     /**
@@ -1339,58 +1314,54 @@ public class ClusteringColumnRestrictionsTest
         ByteBuffer value4 = ByteBufferUtil.bytes(4);
 
         // clustering_0 = 1 AND (clustering_1, clustering_2) = (2, 3)
-        Restriction singleEq = newSingleEq(tableMetadata, 0, value1);
+        Restriction singleEq = newSingleRestriction(tableMetadata, 0, Operator.EQ, value1);
         Restriction multiEq = newMultiEq(tableMetadata, 1, value2, value3);
         ClusteringColumnRestrictions restrictions = restrictions(tableMetadata, singleEq, multiEq);
 
-        SortedSet<ClusteringBound<?>> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1, value2, value3);
+        Slices slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), true, value1, value2, value3);
+        Slice slice = slices.get(0);
+        assertStartBound(slice, true, value1, value2, value3);
+        assertEndBound(slice, true, value1, value2, value3);
 
         // clustering_0 = 1 AND clustering_1 = 2 AND (clustering_2, clustering_3) = (3, 4)
-        singleEq = newSingleEq(tableMetadata, 0, value1);
-        Restriction singleEq2 = newSingleEq(tableMetadata, 1, value2);
+        singleEq = newSingleRestriction(tableMetadata, 0, Operator.EQ, value1);
+        Restriction singleEq2 = newSingleRestriction(tableMetadata, 1, Operator.EQ, value2);
         multiEq = newMultiEq(tableMetadata, 2, value3, value4);
         restrictions = restrictions(tableMetadata, singleEq, singleEq2, multiEq);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1, value2, value3, value4);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), true, value1, value2, value3, value4);
+        slice = slices.get(0);
+        assertStartBound(slice, true, value1, value2, value3, value4);
+        assertEndBound(slice, true, value1, value2, value3, value4);
 
         // (clustering_0, clustering_1) = (1, 2) AND clustering_2 = 3
-        singleEq = newSingleEq(tableMetadata, 2, value3);
+        singleEq = newSingleRestriction(tableMetadata, 2, Operator.EQ, value3);
         multiEq = newMultiEq(tableMetadata, 0, value1, value2);
         restrictions = restrictions(tableMetadata, singleEq, multiEq);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1, value2, value3);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), true, value1, value2, value3);
+        slice = slices.get(0);
+        assertStartBound(slice, true, value1, value2, value3);
+        assertEndBound(slice, true, value1, value2, value3);
 
         // clustering_0 = 1 AND (clustering_1, clustering_2) = (2, 3) AND clustering_3 = 4
-        singleEq = newSingleEq(tableMetadata, 0, value1);
-        singleEq2 = newSingleEq(tableMetadata, 3, value4);
+        singleEq = newSingleRestriction(tableMetadata, 0, Operator.EQ, value1);
+        singleEq2 = newSingleRestriction(tableMetadata, 3, Operator.EQ, value4);
         multiEq = newMultiEq(tableMetadata, 1, value2, value3);
         restrictions = restrictions(tableMetadata, singleEq, multiEq, singleEq2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1, value2, value3, value4);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), true, value1, value2, value3, value4);
+        slice = slices.get(0);
+        assertStartBound(slice, true, value1, value2, value3, value4);
+        assertEndBound(slice, true, value1, value2, value3, value4);
     }
 
     /**
@@ -1408,48 +1379,50 @@ public class ClusteringColumnRestrictionsTest
         ByteBuffer value5 = ByteBufferUtil.bytes(5);
 
         // clustering_0 = 1 AND (clustering_1, clustering_2) IN ((2, 3), (4, 5))
-        Restriction singleEq = newSingleEq(tableMetadata, 0, value1);
+        Restriction singleEq = newSingleRestriction(tableMetadata, 0, Operator.EQ, value1);
         Restriction multiIN = newMultiIN(tableMetadata, 1, asList(value2, value3), asList(value4, value5));
         ClusteringColumnRestrictions restrictions = restrictions(tableMetadata, singleEq, multiIN);
 
-        SortedSet<ClusteringBound<?>> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1, value2, value3);
-        assertStartBound(get(bounds, 1), true, value1, value4, value5);
+        Slices slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(2, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertEndBound(get(bounds, 0), true, value1, value2, value3);
-        assertEndBound(get(bounds, 1), true, value1, value4, value5);
+        Slice slice = slices.get(0);
+        assertStartBound(slice, true, value1, value2, value3);
+        assertEndBound(slice, true, value1, value2, value3);
+
+        slice = slices.get(1);
+        assertStartBound(slice, true, value1, value4, value5);
+        assertEndBound(slice, true, value1, value4, value5);
 
         // clustering_0 = 1 AND (clustering_1, clustering_2) IN ((2, 3))
-        singleEq = newSingleEq(tableMetadata, 0, value1);
+        singleEq = newSingleRestriction(tableMetadata, 0, Operator.EQ, value1);
         multiIN = newMultiIN(tableMetadata, 1, asList(value2, value3));
         restrictions = restrictions(tableMetadata, multiIN, singleEq);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1, value2, value3);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), true, value1, value2, value3);
+        slice = slices.get(0);
+
+        assertStartBound(slice, true, value1, value2, value3);
+        assertEndBound(slice, true, value1, value2, value3);
 
         // clustering_0 = 1 AND clustering_1 = 5 AND (clustering_2, clustering_3) IN ((2, 3), (4, 5))
-        singleEq = newSingleEq(tableMetadata, 0, value1);
-        Restriction singleEq2 = newSingleEq(tableMetadata, 1, value5);
+        singleEq = newSingleRestriction(tableMetadata, 0, Operator.EQ, value1);
+        Restriction singleEq2 = newSingleRestriction(tableMetadata, 1, Operator.EQ, value5);
         multiIN = newMultiIN(tableMetadata, 2, asList(value2, value3), asList(value4, value5));
         restrictions = restrictions(tableMetadata, singleEq, multiIN, singleEq2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1, value5, value2, value3);
-        assertStartBound(get(bounds, 1), true, value1, value5, value4, value5);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(2, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertEndBound(get(bounds, 0), true, value1, value5, value2, value3);
-        assertEndBound(get(bounds, 1), true, value1, value5, value4, value5);
+        slice = slices.get(0);
+        assertStartBound(slice, true, value1, value5, value2, value3);
+        assertEndBound(slice, true, value1, value5, value2, value3);
+
+        slice = slices.get(1);
+        assertStartBound(slice, true, value1, value5, value4, value5);
+        assertEndBound(slice, true, value1, value5, value4, value5);
     }
 
     /**
@@ -1468,45 +1441,42 @@ public class ClusteringColumnRestrictionsTest
         ByteBuffer value5 = ByteBufferUtil.bytes(5);
 
         // clustering_0 = 1 AND (clustering_1, clustering_2) > (2, 3)
-        Restriction singleEq = newSingleEq(tableMetadata, 0, value1);
-        Restriction multiSlice = newMultiSlice(tableMetadata, 1, Bound.START, false, value2, value3);
+        Restriction singleEq = newSingleRestriction(tableMetadata, 0, Operator.EQ, value1);
+        Restriction multiSlice = newMultiSlice(tableMetadata, 1, Operator.GT, value2, value3);
         ClusteringColumnRestrictions restrictions = restrictions(tableMetadata, singleEq, multiSlice);
 
-        SortedSet<ClusteringBound<?>> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), false, value1, value2, value3);
+        Slices slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), true, value1);
+        Slice slice = slices.get(0);
+        assertStartBound(slice, false, value1, value2, value3);
+        assertEndBound(slice, true, value1);
 
         // clustering_0 = 1 AND (clustering_1, clustering_2) > (2, 3) AND (clustering_1) < (4)
-        singleEq = newSingleEq(tableMetadata, 0, value1);
-        multiSlice = newMultiSlice(tableMetadata, 1, Bound.START, false, value2, value3);
-        Restriction multiSlice2 = newMultiSlice(tableMetadata, 1, Bound.END, false, value4);
+        singleEq = newSingleRestriction(tableMetadata, 0, Operator.EQ, value1);
+        multiSlice = newMultiSlice(tableMetadata, 1, Operator.GT, value2, value3);
+        Restriction multiSlice2 = newMultiSlice(tableMetadata, 1, Operator.LT, value4);
         restrictions = restrictions(tableMetadata, multiSlice2, singleEq, multiSlice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), false, value1, value2, value3);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), false, value1, value4);
+        slice = slices.get(0);
+        assertStartBound(slice, false, value1, value2, value3);
+        assertEndBound(slice, false, value1, value4);
 
         // clustering_0 = 1 AND (clustering_1, clustering_2) => (2, 3) AND (clustering_1, clustering_2) <= (4, 5)
-        singleEq = newSingleEq(tableMetadata, 0, value1);
-        multiSlice = newMultiSlice(tableMetadata, 1, Bound.START, true, value2, value3);
-        multiSlice2 = newMultiSlice(tableMetadata, 1, Bound.END, true, value4, value5);
+        singleEq = newSingleRestriction(tableMetadata, 0, Operator.EQ, value1);
+        multiSlice = newMultiSlice(tableMetadata, 1, Operator.GTE, value2, value3);
+        multiSlice2 = newMultiSlice(tableMetadata, 1, Operator.LTE, value4, value5);
         restrictions = restrictions(tableMetadata, multiSlice2, singleEq, multiSlice);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1, value2, value3);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), true, value1, value4, value5);
+        slice = slices.get(0);
+        assertStartBound(slice, true, value1, value2, value3);
+        assertEndBound(slice, true, value1, value4, value5);
     }
 
     /**
@@ -1524,16 +1494,15 @@ public class ClusteringColumnRestrictionsTest
 
         // (clustering_0, clustering_1) = (1, 2) AND clustering_2 > 3
         Restriction multiEq = newMultiEq(tableMetadata, 0, value1, value2);
-        Restriction singleSlice = newSingleSlice(tableMetadata, 2, Bound.START, false, value3);
+        Restriction singleSlice = newSingleRestriction(tableMetadata, 2, Operator.GT, value3);
         ClusteringColumnRestrictions restrictions = restrictions(tableMetadata, multiEq, singleSlice);
 
-        SortedSet<ClusteringBound<?>> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), false, value1, value2, value3);
+        Slices slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), true, value1, value2);
+        Slice slice = slices.get(0);
+        assertStartBound(slice, false, value1, value2, value3);
+        assertEndBound(slice, true, value1, value2);
     }
 
     @Test
@@ -1549,88 +1518,86 @@ public class ClusteringColumnRestrictionsTest
 
         // (clustering_0, clustering_1) = (1, 2) AND (clustering_2, clustering_3) > (3, 4)
         Restriction multiEq = newMultiEq(tableMetadata, 0, value1, value2);
-        Restriction multiSlice = newMultiSlice(tableMetadata, 2, Bound.START, false, value3, value4);
+        Restriction multiSlice = newMultiSlice(tableMetadata, 2, Operator.GT, value3, value4);
         ClusteringColumnRestrictions restrictions = restrictions(tableMetadata, multiEq, multiSlice);
 
-        SortedSet<ClusteringBound<?>> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), false, value1, value2, value3, value4);
+        Slices slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), true, value1, value2);
+        Slice slice = slices.get(0);
+        assertEndBound(slice, true, value1, value2);
 
         // (clustering_0, clustering_1) = (1, 2) AND (clustering_2, clustering_3) IN ((3, 4), (4, 5))
         multiEq = newMultiEq(tableMetadata, 0, value1, value2);
         Restriction multiIN = newMultiIN(tableMetadata, 2, asList(value3, value4), asList(value4, value5));
         restrictions = restrictions(tableMetadata, multiEq, multiIN);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1, value2, value3, value4);
-        assertStartBound(get(bounds, 1), true, value1, value2, value4, value5);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(2, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(2, bounds.size());
-        assertEndBound(get(bounds, 0), true, value1, value2, value3, value4);
-        assertEndBound(get(bounds, 1), true, value1, value2, value4, value5);
+        slice = slices.get(0);
+        assertStartBound(slice, true, value1, value2, value3, value4);
+        assertEndBound(slice, true, value1, value2, value3, value4);
+
+        slice = slices.get(1);
+        assertStartBound(slice, true, value1, value2, value4, value5);
+        assertEndBound(slice, true, value1, value2, value4, value5);
 
         // (clustering_0, clustering_1) = (1, 2) AND (clustering_2, clustering_3) = (3, 4)
         multiEq = newMultiEq(tableMetadata, 0, value1, value2);
         Restriction multiEq2 = newMultiEq(tableMetadata, 2, value3, value4);
         restrictions = restrictions(tableMetadata, multiEq, multiEq2);
 
-        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertStartBound(get(bounds, 0), true, value1, value2, value3, value4);
+        slices = restrictions.slices(QueryOptions.DEFAULT);
+        assertEquals(1, slices.size());
 
-        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
-        assertEquals(1, bounds.size());
-        assertEndBound(get(bounds, 0), true, value1, value2, value3, value4);
+        slice = slices.get(0);
+        assertStartBound(slice, true, value1, value2, value3, value4);
+        assertEndBound(slice, true, value1, value2, value3, value4);
     }
 
     /**
-     * Asserts that the specified <code>Bound</code> is an empty start.
+     * Asserts that the start bound of the specified slice is empty.
      *
-     * @param bound the bound to check
+     * @param slice the slice to check
      */
-    private static void assertEmptyStart(ClusteringBound<?> bound)
+    private static void assertEmptyStart(Slice slice)
     {
-        assertTrue(bound.isBottom());
+        assertTrue(slice.start().isBottom());
     }
 
     /**
-     * Asserts that the specified <code>Bound</code> is an empty end.
+     * Asserts that the end bound of the specified slice is empty.
      *
-     * @param bound the bound to check
+     * @param slice the slice to check
      */
-    private static void assertEmptyEnd(ClusteringBound<?> bound)
+    private static void assertEmptyEnd(Slice slice)
     {
-        assertTrue(bound.isTop());
+        assertTrue(slice.end().isTop());
     }
 
     /**
-     * Asserts that the specified <code>ClusteringBound</code> is a start with the specified elements.
+     * Asserts that the start bound of the specified slice has the specified value and type (inclusive or not).
      *
-     * @param bound the bound to check
+     * @param slice the slice to check
      * @param isInclusive if the bound is expected to be inclusive
      * @param elements the expected elements of the clustering
      */
-    private static void assertStartBound(ClusteringBound<?> bound, boolean isInclusive, ByteBuffer... elements)
+    private static void assertStartBound(Slice slice, boolean isInclusive, ByteBuffer... elements)
     {
-        assertBound(bound, true, isInclusive, elements);
+        assertBound(slice.start(), true, isInclusive, elements);
     }
 
     /**
-     * Asserts that the specified <code>ClusteringBound</code> is a end with the specified elements.
+     * Asserts that the end bound of the specified slice has the specified value and type (inclusive or not).
      *
-     * @param bound the bound to check
+     * @param slice the slice to check
      * @param isInclusive if the bound is expected to be inclusive
      * @param elements the expected elements of the clustering
      */
-    private static void assertEndBound(ClusteringBound<?> bound, boolean isInclusive, ByteBuffer... elements)
+    private static void assertEndBound(Slice slice, boolean isInclusive, ByteBuffer... elements)
     {
-        assertBound(bound, false, isInclusive, elements);
+        assertBound(slice.end(), false, isInclusive, elements);
     }
 
     private static void assertBound(ClusteringBound<?> bound, boolean isStart, boolean isInclusive, ByteBuffer... elements)
@@ -1666,17 +1633,18 @@ public class ClusteringColumnRestrictionsTest
     }
 
     /**
-     * Creates a new <code>SingleColumnRestriction.EQ</code> instance for the specified clustering column.
+     * Creates a new <code>SingleColumnRestriction</code> instance for the specified clustering column.
      *
      * @param tableMetadata the column family meta data
      * @param index the clustering column index
-     * @param value the equality value
-     * @return a new <code>SingleColumnRestriction.EQ</code> instance for the specified clustering column
+     * @param operator the restriction operator
+     * @param values the values
+     * @return a new <code>SingleColumnRestriction</code> instance for the specified clustering column
      */
-    private static Restriction newSingleEq(TableMetadata tableMetadata, int index, ByteBuffer value)
+    private static Restriction newSingleRestriction(TableMetadata tableMetadata, int index, Operator operator, ByteBuffer... values)
     {
-        ColumnMetadata columnDef = getClusteringColumnDefinition(tableMetadata, index);
-        return new SingleColumnRestriction.EQRestriction(columnDef, toTerm(value));
+        ColumnMetadata column = getClusteringColumnDefinition(tableMetadata, index);
+        return new SimpleRestriction(ColumnsExpression.singleColumn(column), operator, toTerms(values));
     }
 
     /**
@@ -1698,7 +1666,9 @@ public class ClusteringColumnRestrictionsTest
             types.add(column.type);
         }
         TupleType tupleType = new TupleType(types);
-        return new MultiColumnRestriction.EQRestriction(columns, new MultiElements.Value(tupleType, Arrays.asList(values)));
+        return new SimpleRestriction(ColumnsExpression.multiColumns(columns),
+                                     Operator.EQ,
+                                     Terms.of(new MultiElements.Value(tupleType, asList(values))));
     }
 
     /**
@@ -1729,21 +1699,7 @@ public class ClusteringColumnRestrictionsTest
         {
             terms.add(new MultiElements.Value(tupleType, values[i]));
         }
-        return new MultiColumnRestriction.INRestriction(columns, Terms.of(terms));
-    }
-
-    /**
-     * Creates a new <code>SingleColumnRestriction.IN</code> instance for the specified clustering column.
-     *
-     * @param tableMetadata the column family meta data
-     * @param index the clustering column index
-     * @param values the in values
-     * @return a new <code>SingleColumnRestriction.IN</code> instance for the specified clustering column
-     */
-    private static Restriction newSingleIN(TableMetadata tableMetadata, int index, ByteBuffer... values)
-    {
-        ColumnMetadata columnDef = getClusteringColumnDefinition(tableMetadata, index);
-        return new SingleColumnRestriction.INRestriction(columnDef, toTerms(values));
+        return new SimpleRestriction(ColumnsExpression.multiColumns(columns), Operator.IN, Terms.of(terms));
     }
 
     /**
@@ -1762,40 +1718,25 @@ public class ClusteringColumnRestrictionsTest
      * Creates a new <code>SingleColumnRestriction.Slice</code> instance for the specified clustering column.
      *
      * @param tableMetadata the column family meta data
-     * @param index the clustering column index
-     * @param bound the slice bound
-     * @param inclusive <code>true</code> if the bound is inclusive
-     * @param value the bound value
-     * @return a new <code>SingleColumnRestriction.Slice</code> instance for the specified clustering column
-     */
-    private static Restriction newSingleSlice(TableMetadata tableMetadata, int index, Bound bound, boolean inclusive, ByteBuffer value)
-    {
-        ColumnMetadata columnDef = getClusteringColumnDefinition(tableMetadata, index);
-        return new SingleColumnRestriction.SliceRestriction(columnDef, bound, inclusive, toTerm(value));
-    }
-
-    /**
-     * Creates a new <code>SingleColumnRestriction.Slice</code> instance for the specified clustering column.
-     *
-     * @param tableMetadata the column family meta data
      * @param firstIndex the clustering column index
-     * @param bound the slice bound
-     * @param inclusive <code>true</code> if the bound is inclusive
+     * @param operator the slice operator
      * @param values the bound value
      * @return a new <code>SingleColumnRestriction.Slice</code> instance for the specified clustering column
      */
-    private static Restriction newMultiSlice(TableMetadata tableMetadata, int firstIndex, Bound bound, boolean inclusive, ByteBuffer... values)
+    private static Restriction newMultiSlice(TableMetadata tableMetadata, int firstIndex, Operator operator, ByteBuffer... values)
     {
-        List<ColumnMetadata> columnMetadatas = new ArrayList<>(values.length);
+        List<ColumnMetadata> columns = new ArrayList<>(values.length);
         List<AbstractType<?>> types = new ArrayList<>(values.length);
         for (int i = 0; i < values.length; i++)
         {
             ColumnMetadata column = getClusteringColumnDefinition(tableMetadata, i + firstIndex);
-            columnMetadatas.add(column);
+            columns.add(column);
             types.add(column.type);
         }
         TupleType type = new TupleType(types);
-        return new MultiColumnRestriction.SliceRestriction(columnMetadatas, bound, inclusive, new MultiElements.Value(type, Arrays.asList(values)));
+        return new SimpleRestriction(ColumnsExpression.multiColumns(columns),
+                                     operator,
+                                     Terms.of(new MultiElements.Value(type, asList(values))));
     }
 
     /**
@@ -1823,11 +1764,6 @@ public class ClusteringColumnRestrictionsTest
         return Terms.of(terms);
     }
 
-    private static <T> T get(SortedSet<T> set, int i)
-    {
-        return Iterables.get(set, i);
-    }
-    
     private static ClusteringColumnRestrictions restrictions(TableMetadata table, Restriction... restrictions)
     {
         ClusteringColumnRestrictions clusteringColumnRestrictions = new ClusteringColumnRestrictions(table, false);

@@ -838,39 +838,9 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     }
 
     @VisibleForTesting
-    public Slices makeSlices(QueryOptions options)
-    throws InvalidRequestException
+    public Slices makeSlices(QueryOptions options) throws InvalidRequestException
     {
-        SortedSet<ClusteringBound<?>> startBounds = restrictions.getClusteringColumnsBounds(Bound.START, options);
-        SortedSet<ClusteringBound<?>> endBounds = restrictions.getClusteringColumnsBounds(Bound.END, options);
-        assert startBounds.size() == endBounds.size();
-
-        // The case where startBounds == 1 is common enough that it's worth optimizing
-        if (startBounds.size() == 1)
-        {
-            ClusteringBound<?> start = startBounds.first();
-            ClusteringBound<?> end = endBounds.first();
-            return Slice.isEmpty(table.comparator, start, end)
-                 ? Slices.NONE
-                 : Slices.with(table.comparator, Slice.make(start, end));
-        }
-
-        Slices.Builder builder = new Slices.Builder(table.comparator, startBounds.size());
-        Iterator<ClusteringBound<?>> startIter = startBounds.iterator();
-        Iterator<ClusteringBound<?>> endIter = endBounds.iterator();
-        while (startIter.hasNext() && endIter.hasNext())
-        {
-            ClusteringBound<?> start = startIter.next();
-            ClusteringBound<?> end = endIter.next();
-
-            // Ignore slices that are nonsensical
-            if (Slice.isEmpty(table.comparator, start, end))
-                continue;
-
-            builder.add(start, end);
-        }
-
-        return builder.build();
+        return restrictions.getSlices(options);
     }
 
     private DataLimits getDataLimits(int userLimit,
@@ -1744,7 +1714,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 
             Index.QueryPlan indexQueryPlan = Keyspace.openAndGetStore(table).indexManager.getBestIndexQueryPlanFor(rowFilter);
 
-            Index index = restriction.findSupportingIndexFromQueryPlan(indexQueryPlan);
+            Index index = restriction.findSupportingIndex(indexQueryPlan.getIndexes());
             assert index != null;
             Comparator<ByteBuffer> comparator = index.getPostQueryOrdering(restriction, options);
             return (a, b) -> compare(comparator, a.get(columnIndex), b.get(columnIndex));
