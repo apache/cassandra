@@ -125,6 +125,9 @@ short=$(echo "${jvmver}" | cut -c1-2)
 JAVA_VERSION=17
 if [ "$short" = "11" ]  ; then
      JAVA_VERSION=11
+elif [ "$JVM_VERSION" \< "17" ] ; then
+    echo "Cassandra 5.0 requires Java 11 or Java 17."
+    exit 1;
 fi
 
 jvm=`echo "$java_ver_output" | grep -A 1 '[openjdk|java] version' | awk 'NR==2 {print $1}'`
