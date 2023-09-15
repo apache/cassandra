@@ -242,7 +242,7 @@ public class SecondaryIndexOnMapEntriesTest extends CQLTester
         }
         catch (InvalidRequestException e)
         {
-            String expectedMessage = "Map-entry equality predicates on frozen map column v are not supported";
+            String expectedMessage = "Map-entry predicates on frozen map column v are not supported";
             assertTrue("Expected error message to contain '" + expectedMessage + "' but got '" +
                        e.getMessage() + "'", e.getMessage().contains(expectedMessage));
         }

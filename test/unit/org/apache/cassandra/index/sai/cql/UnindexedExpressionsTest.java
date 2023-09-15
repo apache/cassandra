@@ -70,7 +70,7 @@ public class UnindexedExpressionsTest extends SAITester
         assertInvalidMessage("Unsupported restriction:", "SELECT pk FROM %s WHERE val1 = 1 AND val2 is not null");
 
         // The != operator is currently not supported at all
-        assertInvalidMessage("Unsupported \"!=\" relation:", "SELECT pk FROM %s WHERE val1 = 1 AND val2 != '22'");
+        assertInvalidMessage("Unsupported '!=' relation: val2 != '22'", "SELECT pk FROM %s WHERE val1 = 1 AND val2 != '22'");
 
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE, "SELECT pk FROM %s WHERE val1 = 1 AND val2 < '22'");
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE, "SELECT pk FROM %s WHERE val1 = 1 AND val2 <= '11'");

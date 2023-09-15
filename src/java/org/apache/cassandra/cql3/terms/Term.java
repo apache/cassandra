@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3.terms;
 
 import java.nio.ByteBuffer;
+import java.util.AbstractList;
 import java.util.Collections;
 import java.util.List;
 
@@ -32,6 +33,7 @@ import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
  * A CQL3 term, i.e. a column value with or without bind variables.
@@ -42,6 +44,25 @@ import org.apache.cassandra.schema.SchemaConstants;
  */
 public interface Term
 {
+    /**
+     * The {@code List} returned when the list was not set.
+     */
+    @SuppressWarnings("rawtypes")
+    List UNSET_LIST = Collections.unmodifiableList(new AbstractList()
+    {
+        @Override
+        public ByteBuffer get(int index)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int size()
+        {
+            throw new UnsupportedOperationException();
+        }
+    });
+
     /**
      * Collects the column specification for the bind variables in this Term.
      * This is obviously a no-op if the term is Terminal.
@@ -236,7 +257,9 @@ public interface Term
         public List<ByteBuffer> getElements()
         {
             ByteBuffer value = get();
-            return value == null ? Collections.emptyList() : Collections.singletonList(value);
+            return value == null ? Collections.emptyList()
+                                 : value == ByteBufferUtil.UNSET_BYTE_BUFFER ? UNSET_LIST
+                                                                             : Collections.singletonList(value);
         }
 
         @Override

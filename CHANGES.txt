@@ -1,4 +1,5 @@
 5.1
+ * Refactor Relation and Restriction hierarchies (CASSANDRA-19341)
  * Raise priority of TCM internode messages during critical operations (CASSANDRA-19517)
  * Add nodetool command to unregister LEFT nodes (CASSANDRA-19581)
  * Add cluster metadata id to gossip syn messages (CASSANDRA-19613)
