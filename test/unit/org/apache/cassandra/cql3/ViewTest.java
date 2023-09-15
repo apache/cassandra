@@ -19,6 +19,7 @@
 package org.apache.cassandra.cql3;
 
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 
@@ -36,6 +37,7 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspaceTables;
 import org.apache.cassandra.service.ClientWarn;
@@ -325,7 +327,9 @@ public class ViewTest extends ViewAbstractTest
 
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(currentView());
         Util.flush(cfs);
-        Assert.assertEquals(1, cfs.getLiveSSTables().size());
+        Set<SSTableReader> tables = cfs.getLiveSSTables();
+        // cf may have flushed due to the commit log being dirty, plus our explicit flush above
+        Assert.assertTrue(String.format("Expected one or two sstables, got %s", tables), tables.size() > 0 && tables.size() <= 2);
     }
 
     @Test

@@ -28,12 +28,11 @@
 
 -Djdk.attach.allowAttachSelf=true
 --add-exports java.base/jdk.internal.misc=ALL-UNNAMED
---add-exports java.base/jdk.internal.ref=ALL-UNNAMED
---add-exports java.base/sun.nio.ch=ALL-UNNAMED
 --add-exports java.management.rmi/com.sun.jmx.remote.internal.rmi=ALL-UNNAMED
 --add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED
 --add-exports java.rmi/sun.rmi.server=ALL-UNNAMED
 --add-exports java.sql/java.sql=ALL-UNNAMED
+--add-exports java.base/java.lang.ref=ALL-UNNAMED
 --add-exports jdk.unsupported/sun.misc=ALL-UNNAMED
 --add-exports jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED
 --add-exports jdk.attach/sun.tools.attach=ALL-UNNAMED
@@ -48,21 +47,12 @@
 --add-opens java.base/jdk.internal.util.jar=ALL-UNNAMED
 --add-opens jdk.management/com.sun.management.internal=ALL-UNNAMED
 --add-opens java.base/sun.nio.ch=ALL-UNNAMED
-# to be addressed in CASSANDRA-17850
---add-opens java.base/sun.nio.ch=ALL-UNNAMED
 --add-opens java.base/java.io=ALL-UNNAMED
-# to be addressed during jamm maintenance
---add-opens java.base/java.util.concurrent=ALL-UNNAMED
---add-opens java.base/java.util=ALL-UNNAMED
---add-opens java.base/java.util.concurrent.atomic=ALL-UNNAMED
-# jamm and the in-jvm tests...
 --add-opens java.base/java.lang=ALL-UNNAMED
-# jamm
---add-opens java.base/java.math=ALL-UNNAMED
 --add-opens jdk.compiler/com.sun.tools.javac=ALL-UNNAMED
---add-opens java.base/java.lang=ALL-UNNAMED
 --add-opens java.base/java.lang.reflect=ALL-UNNAMED
-#jamm post CASSANDRA-17199
---add-opens java.base/java.net=ALL-UNNAMED
+--add-opens java.base/java.util=ALL-UNNAMED
+--add-opens java.base/java.nio=ALL-UNNAMED
+
 
 # The newline in the end of file is intentional

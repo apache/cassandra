@@ -1,11 +1,11 @@
 = Bulk Loading
 
-Bulk loading Apache Cassandra data is supported by different tools. 
+Bulk loading Apache Cassandra data is supported by different tools.
 The data to bulk load must be in the form of SSTables.
 Cassandra does not support loading data in any other format such as CSV,
-JSON, and XML directly. 
+JSON, and XML directly.
 Although the cqlsh `COPY` command can load CSV data, it is not a good option
-for amounts of data. 
+for amounts of data.
 Bulk loading is used to:
 
 * Restore incremental backups and snapshots. Backups and snapshots are
@@ -23,15 +23,15 @@ Cassandra provides two commands or tools for bulk loading data:
 
 The `sstableloader` and `nodetool import` are accessible if the
 Cassandra installation `bin` directory is in the `PATH` environment
-variable. 
-Or these may be accessed directly from the `bin` directory. 
-The examples use the keyspaces and tables created in xref:cql/operating/backups.adoc[Backups].
+variable.
+Or these may be accessed directly from the `bin` directory.
+The examples use the keyspaces and tables created in xref:cassandra:developing/cql/operating/backups.adoc[Backups].
 
 == Using sstableloader
 
-The `sstableloader` is the main tool for bulk uploading data. 
-`sstableloader` streams SSTable data files to a running cluster, 
-conforming to the replication strategy and replication factor. 
+The `sstableloader` is the main tool for bulk uploading data.
+`sstableloader` streams SSTable data files to a running cluster,
+conforming to the replication strategy and replication factor.
 The table to upload data to does need not to be empty.
 
 The only requirements to run `sstableloader` are:
@@ -46,20 +46,20 @@ sstableloader [options] <dir_path>
 ----
 
 Sstableloader bulk loads the SSTables found in the directory
-`<dir_path>` to the configured cluster. 
-The `<dir_path>` is used as the target _keyspace/table_ name. 
-For example, to load an SSTable named `Standard1-g-1-Data.db` into `Keyspace1/Standard1`, 
+`<dir_path>` to the configured cluster.
+The `<dir_path>` is used as the target _keyspace/table_ name.
+For example, to load an SSTable named `Standard1-g-1-Data.db` into `Keyspace1/Standard1`,
 you will need to have the files `Standard1-g-1-Data.db` and `Standard1-g-1-Index.db` in a
 directory `/path/to/Keyspace1/Standard1/`.
 
 === Sstableloader Option to accept Target keyspace name
 
-Often as part of a backup strategy, some Cassandra DBAs store an entire data directory. 
-When corruption in the data is found, restoring data in the same cluster (for large clusters 200 nodes) 
+Often as part of a backup strategy, some Cassandra DBAs store an entire data directory.
+When corruption in the data is found, restoring data in the same cluster (for large clusters 200 nodes)
 is common, but with a different keyspace name.
 
-Currently `sstableloader` derives keyspace name from the folder structure. 
-As an option, to specify target keyspace name as part of `sstableloader`, 
+Currently `sstableloader` derives keyspace name from the folder structure.
+As an option, to specify target keyspace name as part of `sstableloader`,
 version 4.0 adds support for the `--target-keyspace` option
 (https://issues.apache.org/jira/browse/CASSANDRA-13884[CASSANDRA-13884]).
 
@@ -136,7 +136,7 @@ The following options are supported, with `-d,--nodes <initial hosts>` required:
 ----
 
 The `cassandra.yaml` file can be provided on the command-line with `-f` option to set up streaming throughput, client and server encryption
-options. 
+options.
 Only `stream_throughput_outbound_megabits_per_sec`, `server_encryption_options` and `client_encryption_options` are read
 from the `cassandra.yaml` file.
 You can override options read from `cassandra.yaml` with corresponding command line options.
@@ -144,7 +144,7 @@ You can override options read from `cassandra.yaml` with corresponding command l
 === A sstableloader Demo
 
 An example shows how to use `sstableloader` to upload incremental backup data for the table `catalogkeyspace.magazine`.
-In addition, a snapshot of the same table is created to bulk upload, also with `sstableloader`. 
+In addition, a snapshot of the same table is created to bulk upload, also with `sstableloader`.
 
 The backups and snapshots for the `catalogkeyspace.magazine` table are listed as follows:
 
@@ -166,14 +166,14 @@ The directory path structure of SSTables to be uploaded using
 `sstableloader` is used as the target keyspace/table.
 You can directly upload from the `backups` and `snapshots`
 directories respectively, if the directory structure is in the format
-used by `sstableloader`. 
+used by `sstableloader`.
 But the directory path of backups and snapshots for SSTables is
 `/catalogkeyspace/magazine-446eae30c22a11e9b1350d927649052c/backups` and
 `/catalogkeyspace/magazine-446eae30c22a11e9b1350d927649052c/snapshots`
 respectively, and cannot be used to upload SSTables to
-`catalogkeyspace.magazine` table. 
-The directory path structure must be `/catalogkeyspace/magazine/` to use `sstableloader`. 
-Create a new directory structure to upload SSTables with `sstableloader` 
+`catalogkeyspace.magazine` table.
+The directory path structure must be `/catalogkeyspace/magazine/` to use `sstableloader`.
+Create a new directory structure to upload SSTables with `sstableloader`
 located at `/catalogkeyspace/magazine` and set appropriate permissions.
 
 [source,bash]
@@ -184,9 +184,9 @@ $ sudo chmod -R 777 /catalogkeyspace/magazine
 
 ==== Bulk Loading from an Incremental Backup
 
-An incremental backup does not include the DDL for a table; the table must already exist. 
-If the table was dropped, it can be created using the `schema.cql` file generated with every snapshot of a table. 
-Prior to using `sstableloader` to load SSTables to the `magazine` table, the table must exist. 
+An incremental backup does not include the DDL for a table; the table must already exist.
+If the table was dropped, it can be created using the `schema.cql` file generated with every snapshot of a table.
+Prior to using `sstableloader` to load SSTables to the `magazine` table, the table must exist.
 The table does not need to be empty but we have used an empty table as indicated by a CQL query:
 
 [source,cql]
@@ -226,7 +226,7 @@ $ sstableloader --nodes 10.0.2.238  /catalogkeyspace/magazine/
 ----
 
 results in
- 
+
 [source,none]
 ----
 Opening SSTables and calculating sections to stream
@@ -304,7 +304,7 @@ $ sudo cp ./cassandra/data/data/catalogkeyspace/magazine-446eae30c22a11e9b1350d9
 /catalogkeyspace/magazine
 ----
 
-List the files in the `/catalogkeyspace/magazine` directory. 
+List the files in the `/catalogkeyspace/magazine` directory.
 The `schema.cql` will also be listed.
 
 [source,bash]
@@ -339,7 +339,7 @@ $ ln -s <path_to_snapshot_folder> <keyspace_name>/<table_name>
 ----
 
 If the `magazine` table was dropped, run the DDL in the `schema.cql` to
-create the table. 
+create the table.
 Run the `sstableloader` with the following command:
 
 [source,bash]
@@ -382,7 +382,7 @@ any data in memtables.
 == Using nodetool import
 
 Importing SSTables into a table using the `nodetool import` command is recommended instead of the deprecated
-`nodetool refresh` command. 
+`nodetool refresh` command.
 The `nodetool import` command has an option to load new SSTables from a separate directory.
 
 The command usage is as follows:
@@ -454,7 +454,7 @@ The following options are supported:
 
 Because the keyspace and table are specified on the command line for
 `nodetool import`, there is not the same requirement as with
-`sstableloader`, to have the SSTables in a specific directory path. 
+`sstableloader`, to have the SSTables in a specific directory path.
 When importing snapshots or incremental backups with
 `nodetool import`, the SSTables don’t need to be copied to another
 directory.
@@ -462,14 +462,14 @@ directory.
 === Importing Data from an Incremental Backup
 
 Using `nodetool import` to import SSTables from an incremental backup, and restoring
-the table is shown below. 
+the table is shown below.
 
 [source,cql]
 ----
 DROP table t;
 ----
 
-An incremental backup for a table does not include the schema definition for the table. 
+An incremental backup for a table does not include the schema definition for the table.
 If the schema definition is not kept as a separate
 backup, the `schema.cql` from a backup of the table may be used to
 create the table as follows:
@@ -516,7 +516,7 @@ id | k | v
 ----
 
 Run the `nodetool import` command, providing the keyspace, table and
-the backups directory. 
+the backups directory.
 Don’t copy the table backups to another directory, as with `sstableloader`.
 
 [source,bash]
@@ -544,7 +544,7 @@ id | k | v
 === Importing Data from a Snapshot
 
 Importing SSTables from a snapshot with the `nodetool import` command is
-similar to importing SSTables from an incremental backup. 
+similar to importing SSTables from an incremental backup.
 Shown here is an import of a snapshot for table `catalogkeyspace.journal`, after
 dropping the table to demonstrate the restore.
 
@@ -554,7 +554,7 @@ USE CATALOGKEYSPACE;
 DROP TABLE journal;
 ----
 
-Use the `catalog-ks` snapshot for the `journal` table. 
+Use the `catalog-ks` snapshot for the `journal` table.
 Check the files in the snapshot, and note the existence of the `schema.cql` file.
 
 [source,bash]
@@ -637,10 +637,10 @@ id | name                      | publisher
 Bulk loading external data directly is not supported by any of the tools
 we have discussed which include `sstableloader` and `nodetool import`.
 The `sstableloader` and `nodetool import` require data to be in the form
-of SSTables. 
+of SSTables.
 Apache Cassandra supports a Java API for generating SSTables from input data, using the
 `org.apache.cassandra.io.sstable.CQLSSTableWriter` Java class.
-Subsequently, either `sstableloader` or `nodetool import` is used to bulk load the SSTables. 
+Subsequently, either `sstableloader` or `nodetool import` is used to bulk load the SSTables.
 
 === Generating SSTables with CQLSSTableWriter Java API
 
@@ -700,15 +700,15 @@ Create a File object for the output directory.
 File outputDir = new File(OUTPUT_DIR + File.separator + "CQLKeyspace" + File.separator + "t");
 ----
 
-Obtain a `CQLSSTableWriter.Builder` object using `static` method `CQLSSTableWriter.builder()`. 
+Obtain a `CQLSSTableWriter.Builder` object using `static` method `CQLSSTableWriter.builder()`.
 Set the following items:
 
-* output directory `File` object 
-* user-defined type 
-* SSTable schema 
-* buffer size 
-* prepared statement 
-* optionally any of the other builder options 
+* output directory `File` object
+* user-defined type
+* SSTable schema
+* buffer size
+* prepared statement
+* optionally any of the other builder options
 
 and invoke the `build()` method to create a `CQLSSTableWriter` object:
 
@@ -791,7 +791,7 @@ insertion statement used when creating by this SSTable writer.
 to the writer given already serialized binary values. Returns a
 CQLSSTableWriter object. The row values must correspond to the bind
 variables of the insertion statement used when creating by this SSTable
-writer. 
+writer.
 
 |rawAddRow(java.util.Map<java.lang.String, java.nio.ByteBuffer> values)
 |Adds a new row to the writer given already serialized binary values.
@@ -803,7 +803,7 @@ SSTable writer.
 SSTable Writer that can be used to create UDTValue instances.
 |===
 
-Other public methods the `CQLSSTableWriter.Builder` class provides are: 
+Other public methods the `CQLSSTableWriter.Builder` class provides are:
 
 [cols=",",options="header",]
 |===

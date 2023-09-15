@@ -78,7 +78,7 @@ public class BlockBalancedTreePostingsWriterTest extends SAIRandomizedTester
             fp = writer.finish(output, leaves, indexContext);
         }
 
-        BlockBalancedTreePostingsIndex postingsIndex = new BlockBalancedTreePostingsIndex(indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext), fp);
+        BlockBalancedTreePostingsIndex postingsIndex = new BlockBalancedTreePostingsIndex(indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext, null), fp);
         assertEquals(10, postingsIndex.size());
 
         // Internal postings...
@@ -126,7 +126,7 @@ public class BlockBalancedTreePostingsWriterTest extends SAIRandomizedTester
         }
 
         // There is only a single posting list...the leaf posting list.
-        BlockBalancedTreePostingsIndex postingsIndex = new BlockBalancedTreePostingsIndex(indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext), fp);
+        BlockBalancedTreePostingsIndex postingsIndex = new BlockBalancedTreePostingsIndex(indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext, null), fp);
         assertEquals(1, postingsIndex.size());
     }
 
@@ -148,7 +148,7 @@ public class BlockBalancedTreePostingsWriterTest extends SAIRandomizedTester
         }
 
         // There is only a single posting list...the leaf posting list.
-        BlockBalancedTreePostingsIndex postingsIndex = new BlockBalancedTreePostingsIndex(indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext), fp);
+        BlockBalancedTreePostingsIndex postingsIndex = new BlockBalancedTreePostingsIndex(indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext, null), fp);
         assertEquals(1, postingsIndex.size());
     }
 

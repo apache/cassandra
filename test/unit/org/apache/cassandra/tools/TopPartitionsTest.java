@@ -31,7 +31,6 @@ import java.util.stream.Collectors;
 import javax.management.openmbean.CompositeData;
 
 import com.google.common.collect.Lists;
-import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -43,6 +42,8 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.metrics.Sampler;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.Util;
+
 
 import static java.lang.String.format;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
@@ -217,11 +218,7 @@ public class TopPartitionsTest
 
         assertTrue("Existing scheduled sampling tasks should be cancellable", ss.stopSamplingPartitions(null, null));
 
-        int timeout = 10;
-        while (timeout-- > 0 && ss.getSampleTasks().size() > 0)
-            Uninterruptibles.sleepUninterruptibly(10, TimeUnit.MILLISECONDS);
-
-        assertEquals("Scheduled sampled tasks should be removed", Collections.emptyList(), ss.getSampleTasks());
+        Util.spinAssertEquals(Collections.emptyList(), ss::getSampleTasks, 30);
 
         assertTrue("When nothing is scheduled, you should be able to stop all scheduled sampling tasks",
                    ss.stopSamplingPartitions(null, null));

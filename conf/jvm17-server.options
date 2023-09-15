@@ -63,19 +63,14 @@
 
 -Djdk.attach.allowAttachSelf=true
 --add-exports java.base/jdk.internal.misc=ALL-UNNAMED
---add-exports java.base/jdk.internal.ref=ALL-UNNAMED
-# https://chronicle.software/chronicle-support-java-17/
---add-exports java.base/sun.nio.ch=ALL-UNNAMED
 --add-exports java.management.rmi/com.sun.jmx.remote.internal.rmi=ALL-UNNAMED
 --add-exports java.rmi/sun.rmi.registry=ALL-UNNAMED
 --add-exports java.rmi/sun.rmi.server=ALL-UNNAMED
 --add-exports java.sql/java.sql=ALL-UNNAMED
-
-#chronicle, AuditLog https://chronicle.software/chronicle-support-java-17/
 --add-exports java.base/java.lang.ref=ALL-UNNAMED
---add-exports java.base/jdk.internal.util=ALL-UNNAMED
 --add-exports jdk.unsupported/sun.misc=ALL-UNNAMED
 --add-exports jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED
+--add-exports jdk.attach/sun.tools.attach=ALL-UNNAMED
 
 --add-opens java.base/java.lang.module=ALL-UNNAMED
 --add-opens java.base/jdk.internal.loader=ALL-UNNAMED
@@ -85,25 +80,13 @@
 --add-opens java.base/jdk.internal.module=ALL-UNNAMED
 --add-opens java.base/jdk.internal.util.jar=ALL-UNNAMED
 --add-opens jdk.management/com.sun.management.internal=ALL-UNNAMED
-
-#to be addressed in CASSANDRA-17850
 --add-opens java.base/sun.nio.ch=ALL-UNNAMED
-# https://chronicle.software/chronicle-support-java-17/
 --add-opens java.base/java.io=ALL-UNNAMED
-#to be addressed during jamm maintenance
---add-opens java.base/java.util.concurrent=ALL-UNNAMED
---add-opens java.base/java.util=ALL-UNNAMED
---add-opens java.base/java.util.concurrent.atomic=ALL-UNNAMED
-# https://chronicle.software/chronicle-support-java-17/ explains also --add-opens java.base/java.util=ALL-UNNAMED, further to jamm
-# many cqlsh tests fail if we do not open the below one - jamm and at org.apache.cassandra.net.Verb.getModifiersField(Verb.java:388)
-# in-jvm tests
---add-opens java.base/java.lang=ALL-UNNAMED
-#jamm
---add-opens java.base/java.math=ALL-UNNAMED
-#in-jvm tests? plus # https://chronicle.software/chronicle-support-java-17/
 --add-opens java.base/java.lang.reflect=ALL-UNNAMED
-#jamm post CASSANDRA-17199
---add-opens java.base/java.net=ALL-UNNAMED
+--add-opens jdk.compiler/com.sun.tools.javac=ALL-UNNAMED
+--add-opens java.base/java.lang=ALL-UNNAMED
+--add-opens java.base/java.util=ALL-UNNAMED
+--add-opens java.base/java.nio=ALL-UNNAMED
 
 ### GC logging options -- uncomment to enable
 

@@ -48,6 +48,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.CassandraWriteContext;
@@ -96,6 +97,9 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
 public class StorageAttachedIndex implements Index
 {
     public static final String NAME = "sai";
+
+    @VisibleForTesting
+    public static final String ANALYSIS_ON_KEY_COLUMNS_MESSAGE = "Analysis options are not supported on primary key columns, but found ";
     
     private static final Logger logger = LoggerFactory.getLogger(StorageAttachedIndex.class);
 
@@ -174,6 +178,7 @@ public class StorageAttachedIndex implements Index
         this.indexContext = new IndexContext(tableMetadata.keyspace,
                                              tableMetadata.name,
                                              tableMetadata.partitionKeyType,
+                                             tableMetadata.partitioner,
                                              tableMetadata.comparator,
                                              target.left,
                                              target.right,
@@ -253,7 +258,12 @@ public class StorageAttachedIndex implements Index
             throw new InvalidRequestException("Unsupported type: " + type.asCQL3Type());
         }
 
-        AbstractAnalyzer.fromOptions(type, options);
+        Map<String, String> analysisOptions = AbstractAnalyzer.getAnalyzerOptions(options);
+        if (target.left.isPrimaryKeyColumn() && !analysisOptions.isEmpty())
+        {
+            throw new InvalidRequestException(ANALYSIS_ON_KEY_COLUMNS_MESSAGE + new CqlBuilder().append(analysisOptions));
+        }
+        AbstractAnalyzer.fromOptions(type, analysisOptions);
 
         return Collections.emptyMap();
     }

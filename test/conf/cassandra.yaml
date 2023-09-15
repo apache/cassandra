@@ -6,7 +6,6 @@ cluster_name: Test Cluster
 # memtable_allocation_type: heap_buffers
 memtable_allocation_type: offheap_objects
 commitlog_sync: batch
-commitlog_sync_batch_window_in_ms: 1.0
 commitlog_segment_size: 5MiB
 commitlog_directory: build/test/cassandra/commitlog
 # commitlog_compression:
@@ -57,7 +56,7 @@ full_query_logging_options:
 auto_hints_cleanup_enabled: true
 
 heap_dump_path: build/test
-dump_heap_on_uncaught_exception: true
+dump_heap_on_uncaught_exception: false
 
 read_thresholds_enabled: true
 coordinator_read_size_warn_threshold: 1024KiB

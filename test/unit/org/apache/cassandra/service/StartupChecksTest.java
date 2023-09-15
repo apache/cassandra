@@ -154,7 +154,7 @@ public class StartupChecksTest
         Path dirWithoutNumbers = StartupChecks.getReadAheadKBPath("/dev/sca");
         Assert.assertEquals(Paths.get("/sys/block/sca/queue/read_ahead_kb"), dirWithoutNumbers);
 
-        Path invalidDir = StartupChecks.getReadAheadKBPath("/tmp/xpto");
+        Path invalidDir = StartupChecks.getReadAheadKBPath("/invaliddir/xpto");
         Assert.assertNull(invalidDir);
     }
 

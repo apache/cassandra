@@ -342,8 +342,6 @@ public abstract class Cell<V> extends ColumnData
                 }
             }
 
-            if (timestamp < 0)
-                throw new IOException("Invalid negative timestamp: " + timestamp);
             if (ttl < 0)
                 throw new IOException("Invalid TTL: " + ttl);
             localDeletionTime = decodeLocalDeletionTime(localDeletionTime, ttl, helper);

@@ -28,7 +28,6 @@ granularity of archiving; 8 or 16 MiB is reasonable.
 `max_mutation_size` is a half the size of `commitlog_segment_size`.
 
 [NOTE]
-.Note
 ====
 If `max_mutation_size` is set explicitly then
 `commitlog_segment_size` must be set to at least twice the size of
@@ -37,14 +36,8 @@ If `max_mutation_size` is set explicitly then
 
 * `commitlog_sync`: may be either _periodic_ or _batch_.
 ** `batch`: In batch mode, Cassandra won’t ack writes until the commit
-log has been fsynced to disk. It will wait
-"commitlog_sync_batch_window_in_ms" milliseconds between fsyncs. This
-window should be kept short because the writer threads will be unable to
-do extra work while waiting. You may need to increase concurrent_writes
-for the same reason.
+log has been fsynced to disk.
 +
-- `commitlog_sync_batch_window_in_ms`: Time to wait between "batch"
-fsyncs _Default Value:_ 2
 ** `periodic`: In periodic mode, writes are immediately ack'ed, and the
 CommitLog is simply synced every "commitlog_sync_period"
 milliseconds.
@@ -55,7 +48,6 @@ _Default Value:_ 10000ms
 _Default Value:_ batch
 
 [NOTE]
-.Note
 ====
 In the event of an unexpected shutdown, Cassandra can lose up
 to the sync period or more if the sync is delayed. If using "batch"
@@ -224,5 +216,5 @@ match the "ib" SSTable version
 
 [source,bash]
 ----
-include::example$BASH/find_sstables.sh[]
+include::cassandra:example$BASH/find_sstables.sh[]
 ----

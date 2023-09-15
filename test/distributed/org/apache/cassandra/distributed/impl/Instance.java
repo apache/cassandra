@@ -765,17 +765,18 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
         initialized = true;
     }
 
-    private void startJmx()
+    private synchronized void startJmx()
     {
         this.isolatedJmx = new IsolatedJmx(this, inInstancelogger);
         isolatedJmx.startJmx();
     }
 
-    private void stopJmx() throws IllegalAccessException, NoSuchFieldException, InterruptedException
+    private synchronized void stopJmx()
     {
         if (config.has(JMX))
         {
             isolatedJmx.stopJmx();
+            isolatedJmx = null;
         }
     }
 
@@ -809,7 +810,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     @Override
     public void postStartup()
     {
-        StorageService.instance.doAuthSetup(false);
+        sync(() ->
+            StorageService.instance.doAuthSetup(false)
+        ).run();
     }
 
     private void mkdirs()

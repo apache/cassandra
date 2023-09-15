@@ -38,7 +38,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 /**
  * In memory representation of {@link PrimaryKey} to row ID mappings which only contains
  * {@link Row} regardless of whether it's live or deleted. ({@link RangeTombstoneMarker} is not included.)
- *
+ * <p>
  * While this inherits the threading behaviour of {@link InMemoryTrie} of single-writer / multiple-reader,
  * since it is only used by {@link StorageAttachedIndexWriter}, which is not threadsafe, we can consider
  * this class not threadsafe as well.
@@ -102,7 +102,7 @@ public class RowMapping
         assert complete : "RowMapping is not built.";
 
         Iterator<Pair<ByteComparable, PrimaryKeys>> iterator = index.iterator();
-        return new AbstractGuavaIterator<Pair<ByteComparable, LongArrayList>>()
+        return new AbstractGuavaIterator<>()
         {
             @Override
             protected Pair<ByteComparable, LongArrayList> computeNext()
@@ -116,9 +116,7 @@ public class RowMapping
 
                     while (primaryKeys.hasNext())
                     {
-                        PrimaryKey primaryKey = primaryKeys.next();
-                        ByteComparable byteComparable = primaryKey::asComparableBytes;
-                        Long sstableRowId = rowMapping.get(byteComparable);
+                        Long sstableRowId = rowMapping.get(primaryKeys.next());
 
                         // The in-memory index does not handle deletions, so it is possible to
                         // have a primary key in the index that doesn't exist in the row mapping
@@ -157,8 +155,7 @@ public class RowMapping
     {
         assert !complete : "Cannot modify built RowMapping.";
 
-        ByteComparable byteComparable = key::asComparableBytes;
-        rowMapping.putSingleton(byteComparable, sstableRowId, OVERWRITE_TRANSFORMER);
+        rowMapping.putSingleton(key, sstableRowId, OVERWRITE_TRANSFORMER);
 
         maxSSTableRowId = Math.max(maxSSTableRowId, sstableRowId);
 

@@ -105,16 +105,14 @@ public class InstanceConfig implements IInstanceConfig
                 .set("native_transport_port", native_transport_port)
                 .set("endpoint_snitch", DistributedTestSnitch.class.getName())
                 .set("seed_provider", new ParameterizedClass(SimpleSeedProvider.class.getName(),
-                        Collections.singletonMap("seeds", seedIp + ":" + seedPort)))
+                        Collections.singletonMap("seeds", seedIp + ':' + seedPort)))
                 // required settings for dtest functionality
                 .set("diagnostic_events_enabled", true)
                 .set("auto_bootstrap", false)
                 // capacities that are based on `totalMemory` that should be fixed size
                 .set("index_summary_capacity", "50MiB")
                 .set("counter_cache_size", "50MiB")
-                .set("key_cache_size", "50MiB")
-                // legacy parameters
-                .forceSet("commitlog_sync_batch_window_in_ms", "1");
+                .set("key_cache_size", "50MiB");
         this.featureFlags = EnumSet.noneOf(Feature.class);
         this.jmxPort = jmx_port;
     }

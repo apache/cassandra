@@ -62,12 +62,12 @@ public class InvertedIndexSearcherTest extends SAIRandomizedTester
 {
     public static final PrimaryKeyMap TEST_PRIMARY_KEY_MAP = new PrimaryKeyMap()
     {
-        private final PrimaryKey.Factory primaryKeyFactory = new PrimaryKey.Factory(new ClusteringComparator());
+        private final PrimaryKey.Factory primaryKeyFactory = new PrimaryKey.Factory(Murmur3Partitioner.instance, new ClusteringComparator());
 
         @Override
         public PrimaryKey primaryKeyFromRowId(long sstableRowId)
         {
-            return primaryKeyFactory.createTokenOnly(new Murmur3Partitioner.LongToken(sstableRowId));
+            return primaryKeyFactory.create(new Murmur3Partitioner.LongToken(sstableRowId));
         }
 
         @Override
@@ -127,7 +127,7 @@ public class InvertedIndexSearcherTest extends SAIRandomizedTester
                     final int idxToSkip = numPostings - 7;
                     // tokens are equal to their corresponding row IDs
                     final long tokenToSkip = termsEnum.get(t).right.get(idxToSkip);
-                    results.skipTo(SAITester.TEST_FACTORY.createTokenOnly(new Murmur3Partitioner.LongToken(tokenToSkip)));
+                    results.skipTo(SAITester.TEST_FACTORY.create(new Murmur3Partitioner.LongToken(tokenToSkip)));
 
                     for (int p = idxToSkip; p < numPostings; ++p)
                     {
@@ -189,8 +189,8 @@ public class InvertedIndexSearcherTest extends SAIRandomizedTester
                                                                     size,
                                                                     0,
                                                                     Long.MAX_VALUE,
-                                                                    SAITester.TEST_FACTORY.createTokenOnly(DatabaseDescriptor.getPartitioner().getMinimumToken()),
-                                                                    SAITester.TEST_FACTORY.createTokenOnly(DatabaseDescriptor.getPartitioner().getMaximumToken()),
+                                                                    SAITester.TEST_FACTORY.create(DatabaseDescriptor.getPartitioner().getMinimumToken()),
+                                                                    SAITester.TEST_FACTORY.create(DatabaseDescriptor.getPartitioner().getMaximumToken()),
                                                                     wrap(termsEnum.get(0).left),
                                                                     wrap(termsEnum.get(terms - 1).left),
                                                                     indexMetas);
