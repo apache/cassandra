@@ -24,7 +24,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 1
+    parallelism: 15
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -110,29 +110,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -143,7 +143,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -201,29 +201,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -267,29 +267,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -298,10 +298,10 @@ jobs:
   j8_cqlsh_dtests_py311_vnode:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 20
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -309,6 +309,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -378,29 +379,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -408,10 +409,10 @@ jobs:
   j11_dtests_vnode_repeat:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -441,6 +442,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -534,29 +536,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -565,7 +567,7 @@ jobs:
   j8_dtests_large_vnode:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
     parallelism: 4
@@ -576,6 +578,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -621,29 +624,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -654,7 +657,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -740,29 +743,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -814,29 +817,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -847,7 +850,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -905,29 +908,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -936,10 +939,10 @@ jobs:
   j11_cqlsh_dtests_py311:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 20
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -947,6 +950,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -1016,29 +1020,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -1050,7 +1054,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 1
+    parallelism: 39
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1136,29 +1140,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -1169,7 +1173,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1227,29 +1231,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -1260,7 +1264,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 42
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1346,29 +1350,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -1377,10 +1381,10 @@ jobs:
   j8_cqlsh_dtests_py3:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 20
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1388,6 +1392,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -1457,29 +1462,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -1487,10 +1492,10 @@ jobs:
   j11_cqlsh_dtests_py38:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 20
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1498,6 +1503,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -1567,29 +1573,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -1601,7 +1607,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1659,29 +1665,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -1693,7 +1699,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1855,29 +1861,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -1886,7 +1892,7 @@ jobs:
   j11_dtests_large_vnode:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
     parallelism: 4
@@ -1897,6 +1903,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -1942,29 +1949,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -1973,10 +1980,10 @@ jobs:
   j11_dtests_large_vnode_repeat:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -1984,6 +1991,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -2077,29 +2085,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -2108,10 +2116,10 @@ jobs:
   j8_cqlsh_dtests_py311:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 20
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2119,6 +2127,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -2188,29 +2197,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -2218,10 +2227,10 @@ jobs:
   j11_cqlsh_dtests_py38_offheap:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 20
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2229,6 +2238,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -2298,29 +2308,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -2329,7 +2339,7 @@ jobs:
   j11_dtests_large:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
     parallelism: 4
@@ -2340,6 +2350,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -2385,29 +2396,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -2419,7 +2430,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2477,29 +2488,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -2508,10 +2519,10 @@ jobs:
   j8_cqlsh_dtests_py3_vnode:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 20
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2519,6 +2530,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -2588,29 +2600,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -2618,10 +2630,10 @@ jobs:
   j11_cqlsh_dtests_py3:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 20
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2629,6 +2641,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -2698,29 +2711,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -2764,29 +2777,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -2797,7 +2810,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -2883,29 +2896,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -2957,29 +2970,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -2991,7 +3004,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -3077,29 +3090,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -3107,10 +3120,10 @@ jobs:
   j8_dtests_offheap_repeat:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -3118,6 +3131,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -3211,29 +3225,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -3241,10 +3255,10 @@ jobs:
   j11_dtests_offheap_repeat:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -3252,6 +3266,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -3345,29 +3360,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -3376,10 +3391,10 @@ jobs:
   j8_dtests_large_repeat:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -3387,6 +3402,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -3480,29 +3496,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -3513,7 +3529,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 1
+    parallelism: 39
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -3599,29 +3615,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -3715,29 +3731,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -3748,7 +3764,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -3834,29 +3850,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -3907,29 +3923,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -3941,7 +3957,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 42
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -3999,29 +4015,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -4029,7 +4045,7 @@ jobs:
   j8_dtests_large:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
     parallelism: 4
@@ -4040,6 +4056,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -4085,29 +4102,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -4158,29 +4175,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -4189,10 +4206,10 @@ jobs:
   j8_cqlsh_dtests_py38_offheap:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 20
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -4200,6 +4217,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -4269,29 +4287,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -4299,10 +4317,10 @@ jobs:
   j8_upgrade_dtests_repeat:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -4310,6 +4328,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -4403,29 +4422,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -4436,7 +4455,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -4494,29 +4513,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -4525,10 +4544,10 @@ jobs:
   j11_dtests_repeat:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -4558,6 +4577,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -4651,29 +4671,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -4685,7 +4705,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -4743,29 +4763,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -4776,7 +4796,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 39
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -4834,29 +4854,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -4867,7 +4887,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -4953,29 +4973,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -4984,10 +5004,10 @@ jobs:
   j8_cqlsh_dtests_py38:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 20
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -4995,6 +5015,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -5064,29 +5085,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -5094,10 +5115,10 @@ jobs:
   j11_cqlsh_dtests_py3_offheap:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 20
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -5105,6 +5126,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -5174,29 +5196,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -5208,7 +5230,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -5266,29 +5288,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -5296,10 +5318,10 @@ jobs:
   j11_cqlsh_dtests_py311_offheap:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 20
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -5307,6 +5329,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -5376,29 +5399,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -5410,7 +5433,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -5468,29 +5491,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -5498,10 +5521,10 @@ jobs:
   j11_dtests_large_repeat:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -5509,6 +5532,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -5602,29 +5626,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -5633,10 +5657,10 @@ jobs:
   j8_cqlsh_dtests_py3_offheap:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 20
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -5644,6 +5668,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -5713,29 +5738,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -5746,7 +5771,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -5804,29 +5829,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -5834,10 +5859,10 @@ jobs:
   j8_dtests_vnode_repeat:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -5845,6 +5870,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -5938,29 +5964,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -5968,10 +5994,10 @@ jobs:
   j11_cqlsh_dtests_py3_vnode:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 20
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -5979,6 +6005,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -6048,29 +6075,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -6079,10 +6106,10 @@ jobs:
   j8_upgrade_dtests:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: xlarge
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 20
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -6090,6 +6117,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -6135,29 +6163,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -6165,10 +6193,10 @@ jobs:
   j11_dtests_offheap:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -6198,6 +6226,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -6243,29 +6272,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -6277,7 +6306,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 15
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -6335,29 +6364,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -6365,10 +6394,10 @@ jobs:
   j11_cqlsh_dtests_py38_vnode:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 20
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -6376,6 +6405,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -6445,29 +6475,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -6479,7 +6509,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 39
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -6537,29 +6567,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -6568,10 +6598,10 @@ jobs:
   j11_cqlsh_dtests_py311_vnode:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 20
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -6579,6 +6609,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -6648,29 +6679,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -6682,7 +6713,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -6740,29 +6771,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -6770,10 +6801,10 @@ jobs:
   j8_dtests_offheap:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -6781,6 +6812,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -6826,29 +6858,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -6859,7 +6891,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 42
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -6945,29 +6977,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -6978,7 +7010,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 1
+    parallelism: 39
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -7064,29 +7096,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -7098,7 +7130,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 39
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -7156,29 +7188,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -7265,29 +7297,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -7296,10 +7328,10 @@ jobs:
   j8_dtests:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -7307,6 +7339,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -7352,29 +7385,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -7382,10 +7415,10 @@ jobs:
   j8_dtests_vnode:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -7393,6 +7426,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -7438,29 +7472,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -7502,29 +7536,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -7536,7 +7570,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 39
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -7594,29 +7628,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -7624,10 +7658,10 @@ jobs:
   j11_dtests:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -7657,6 +7691,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -7702,29 +7737,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -7736,7 +7771,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -7898,29 +7933,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -7971,29 +8006,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -8004,7 +8039,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -8090,29 +8125,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -8120,10 +8155,10 @@ jobs:
   j8_cqlsh_dtests_py311_offheap:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 20
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -8131,6 +8166,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -8200,29 +8236,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -8230,10 +8266,10 @@ jobs:
   j8_dtests_repeat:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -8241,6 +8277,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -8334,29 +8371,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -8367,7 +8404,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 1
+    parallelism: 39
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -8453,29 +8490,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -8561,29 +8598,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -8591,10 +8628,10 @@ jobs:
   j8_cqlsh_dtests_py38_vnode:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 20
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -8602,6 +8639,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -8671,29 +8709,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -8704,7 +8742,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 42
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -8762,29 +8800,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -8836,29 +8874,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -8900,29 +8938,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -8930,10 +8968,10 @@ jobs:
   j11_dtests_vnode:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 50
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -8963,6 +9001,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -9008,29 +9047,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -9042,7 +9081,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -9100,29 +9139,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -9130,10 +9169,10 @@ jobs:
   j8_dtests_large_vnode_repeat:
     docker:
     - image: apache/cassandra-testing-ubuntu2004-java11-w-dependencies:latest
-    resource_class: medium
+    resource_class: large
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -9141,6 +9180,7 @@ jobs:
         name: Clone Cassandra dtest Repository (via git)
         command: |
           git clone --single-branch --branch $DTEST_BRANCH --depth 1 $DTEST_REPO ~/cassandra-dtest
+          sed -i 's;https://github.com/riptano/ccm.git@cassandra-test;https://github.com/riptano/ccm.git@cassandra-test;g' ~/cassandra-dtest/requirements.txt
     - run:
         name: Configure virtualenv and python Dependencies
         command: |
@@ -9234,29 +9274,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
@@ -9267,7 +9307,7 @@ jobs:
     resource_class: medium
     working_directory: ~/
     shell: /bin/bash -eo pipefail -l
-    parallelism: 4
+    parallelism: 25
     steps:
     - attach_workspace:
         at: /home/cassandra
@@ -9325,29 +9365,29 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-11-openjdk-amd64
@@ -9431,83 +9471,52 @@ jobs:
     - CCM_MAX_HEAP_SIZE: 1024M
     - CCM_HEAP_NEWSIZE: 256M
     - REPEATED_TESTS_STOP_ON_FAILURE: false
-    - REPEATED_UTESTS: null
+    - REPEATED_UTESTS:
     - REPEATED_UTESTS_COUNT: 500
-    - REPEATED_UTESTS_FQLTOOL: null
+    - REPEATED_UTESTS_FQLTOOL:
     - REPEATED_UTESTS_FQLTOOL_COUNT: 500
-    - REPEATED_UTESTS_LONG: null
+    - REPEATED_UTESTS_LONG:
     - REPEATED_UTESTS_LONG_COUNT: 100
-    - REPEATED_UTESTS_STRESS: null
+    - REPEATED_UTESTS_STRESS:
     - REPEATED_UTESTS_STRESS_COUNT: 500
-    - REPEATED_SIMULATOR_DTESTS: null
+    - REPEATED_SIMULATOR_DTESTS:
     - REPEATED_SIMULATOR_DTESTS_COUNT: 500
-    - REPEATED_JVM_DTESTS: null
+    - REPEATED_JVM_DTESTS:
     - REPEATED_JVM_DTESTS_COUNT: 500
-    - REPEATED_JVM_UPGRADE_DTESTS: null
+    - REPEATED_JVM_UPGRADE_DTESTS:
     - REPEATED_JVM_UPGRADE_DTESTS_COUNT: 500
-    - REPEATED_DTESTS: null
+    - REPEATED_DTESTS:
     - REPEATED_DTESTS_COUNT: 500
-    - REPEATED_LARGE_DTESTS: null
+    - REPEATED_LARGE_DTESTS:
     - REPEATED_LARGE_DTESTS_COUNT: 100
-    - REPEATED_UPGRADE_DTESTS: null
+    - REPEATED_UPGRADE_DTESTS:
     - REPEATED_UPGRADE_DTESTS_COUNT: 25
     - REPEATED_ANT_TEST_TARGET: testsome
-    - REPEATED_ANT_TEST_CLASS: null
-    - REPEATED_ANT_TEST_METHODS: null
+    - REPEATED_ANT_TEST_CLASS:
+    - REPEATED_ANT_TEST_METHODS:
     - REPEATED_ANT_TEST_VNODES: false
     - REPEATED_ANT_TEST_COUNT: 500
     - JAVA_HOME: /usr/lib/jvm/java-8-openjdk-amd64
     - JDK_HOME: /usr/lib/jvm/java-8-openjdk-amd64
 workflows:
   version: 2
-  java8_separate_tests:
+  java8_tests:
     jobs:
-    - start_j8_build:
-        type: approval
-    - j8_build:
-        requires:
-        - start_j8_build
-    - start_j8_unit_tests:
-        type: approval
+    - j8_build: {}
     - j8_unit_tests:
         requires:
-        - start_j8_unit_tests
         - j8_build
-    - start_j8_jvm_dtests:
-        type: approval
     - j8_jvm_dtests:
         requires:
-        - start_j8_jvm_dtests
         - j8_build
-    - start_j8_jvm_dtests_vnode:
-        type: approval
     - j8_jvm_dtests_vnode:
         requires:
-        - start_j8_jvm_dtests_vnode
         - j8_build
-    - start_j11_jvm_dtests:
-        type: approval
-    - j11_jvm_dtests:
-        requires:
-        - start_j11_jvm_dtests
-        - j8_build
-    - start_j11_jvm_dtests_vnode:
-        type: approval
-    - j11_jvm_dtests_vnode:
-        requires:
-        - start_j11_jvm_dtests_vnode
-        - j8_build
-    - start_j8_simulator_dtests:
-        type: approval
     - j8_simulator_dtests:
         requires:
-        - start_j8_simulator_dtests
         - j8_build
-    - start_j8_cqlshlib_tests:
-        type: approval
     - j8_cqlshlib_tests:
         requires:
-        - start_j8_cqlshlib_tests
         - j8_build
     - start_j8_cqlshlib_cython_tests:
         type: approval
@@ -9515,143 +9524,41 @@ workflows:
         requires:
         - start_j8_cqlshlib_cython_tests
         - j8_build
-    - start_j11_cqlshlib_tests:
-        type: approval
-    - j11_cqlshlib_tests:
-        requires:
-        - start_j11_cqlshlib_tests
-        - j8_build
-    - start_j11_cqlshlib_cython_tests:
-        type: approval
-    - j11_cqlshlib_cython_tests:
-        requires:
-        - start_j11_cqlshlib_cython_tests
-        - j8_build
-    - start_j11_unit_tests:
-        type: approval
-    - j11_unit_tests:
-        requires:
-        - start_j11_unit_tests
-        - j8_build
-    - start_j8_utests_long:
-        type: approval
     - j8_utests_long:
         requires:
-        - start_j8_utests_long
         - j8_build
-    - start_j11_utests_long:
-        type: approval
-    - j11_utests_long:
-        requires:
-        - start_j11_utests_long
-        - j8_build
-    - start_j8_utests_cdc:
-        type: approval
     - j8_utests_cdc:
         requires:
-        - start_j8_utests_cdc
         - j8_build
-    - start_j11_utests_cdc:
-        type: approval
-    - j11_utests_cdc:
-        requires:
-        - start_j11_utests_cdc
-        - j8_build
-    - start_j8_utests_compression:
-        type: approval
     - j8_utests_compression:
         requires:
-        - start_j8_utests_compression
         - j8_build
-    - start_j11_utests_compression:
-        type: approval
-    - j11_utests_compression:
-        requires:
-        - start_j11_utests_compression
-        - j8_build
-    - start_j8_utests_stress:
-        type: approval
     - j8_utests_stress:
         requires:
-        - start_j8_utests_stress
         - j8_build
-    - start_j11_utests_stress:
-        type: approval
-    - j11_utests_stress:
-        requires:
-        - start_j11_utests_stress
-        - j8_build
-    - start_j8_utests_fqltool:
-        type: approval
     - j8_utests_fqltool:
         requires:
-        - start_j8_utests_fqltool
         - j8_build
-    - start_j11_utests_fqltool:
-        type: approval
-    - j11_utests_fqltool:
-        requires:
-        - start_j11_utests_fqltool
-        - j8_build
-    - start_j8_utests_system_keyspace_directory:
-        type: approval
     - j8_utests_system_keyspace_directory:
         requires:
-        - start_j8_utests_system_keyspace_directory
         - j8_build
-    - start_j11_utests_system_keyspace_directory:
-        type: approval
-    - j11_utests_system_keyspace_directory:
-        requires:
-        - start_j11_utests_system_keyspace_directory
-        - j8_build
-    - start_j8_dtest_jars_build:
-        type: approval
     - j8_dtest_jars_build:
         requires:
         - j8_build
-        - start_j8_dtest_jars_build
-    - start_jvm_upgrade_dtests:
-        type: approval
     - j8_jvm_upgrade_dtests:
         requires:
-        - start_jvm_upgrade_dtests
         - j8_dtest_jars_build
-    - start_j8_dtests:
-        type: approval
     - j8_dtests:
         requires:
-        - start_j8_dtests
         - j8_build
-    - start_j8_dtests_vnode:
-        type: approval
     - j8_dtests_vnode:
         requires:
-        - start_j8_dtests_vnode
         - j8_build
     - start_j8_dtests_offheap:
         type: approval
     - j8_dtests_offheap:
         requires:
         - start_j8_dtests_offheap
-        - j8_build
-    - start_j11_dtests:
-        type: approval
-    - j11_dtests:
-        requires:
-        - start_j11_dtests
-        - j8_build
-    - start_j11_dtests_vnode:
-        type: approval
-    - j11_dtests_vnode:
-        requires:
-        - start_j11_dtests_vnode
-        - j8_build
-    - start_j11_dtests_offheap:
-        type: approval
-    - j11_dtests_offheap:
-        requires:
-        - start_j11_dtests_offheap
         - j8_build
     - start_j8_dtests_large:
         type: approval
@@ -9665,49 +9572,26 @@ workflows:
         requires:
         - start_j8_dtests_large_vnode
         - j8_build
-    - start_j11_dtests_large:
-        type: approval
-    - j11_dtests_large:
-        requires:
-        - start_j11_dtests_large
-        - j8_build
-    - start_j11_dtests_large_vnode:
-        type: approval
-    - j11_dtests_large_vnode:
-        requires:
-        - start_j11_dtests_large_vnode
-        - j8_build
-    - start_upgrade_dtests:
-        type: approval
     - j8_upgrade_dtests:
         requires:
-        - start_upgrade_dtests
         - j8_build
-    - start_j8_cqlsh_tests:
-        type: approval
     - j8_cqlsh_dtests_py3:
         requires:
-        - start_j8_cqlsh_tests
         - j8_build
     - j8_cqlsh_dtests_py3_vnode:
         requires:
-        - start_j8_cqlsh_tests
         - j8_build
     - j8_cqlsh_dtests_py38:
         requires:
-        - start_j8_cqlsh_tests
         - j8_build
     - j8_cqlsh_dtests_py311:
         requires:
-        - start_j8_cqlsh_tests
         - j8_build
     - j8_cqlsh_dtests_py38_vnode:
         requires:
-        - start_j8_cqlsh_tests
         - j8_build
     - j8_cqlsh_dtests_py311_vnode:
         requires:
-        - start_j8_cqlsh_tests
         - j8_build
     - start_j8_cqlsh_tests_offheap:
         type: approval
@@ -9723,298 +9607,20 @@ workflows:
         requires:
         - start_j8_cqlsh_tests_offheap
         - j8_build
-    - start_j11_cqlsh_tests:
-        type: approval
-    - j11_cqlsh_dtests_py3:
-        requires:
-        - start_j11_cqlsh_tests
-        - j8_build
-    - j11_cqlsh_dtests_py3_vnode:
-        requires:
-        - start_j11_cqlsh_tests
-        - j8_build
-    - j11_cqlsh_dtests_py38:
-        requires:
-        - start_j11_cqlsh_tests
-        - j8_build
-    - j11_cqlsh_dtests_py311:
-        requires:
-        - start_j11_cqlsh_tests
-        - j8_build
-    - j11_cqlsh_dtests_py38_vnode:
-        requires:
-        - start_j11_cqlsh_tests
-        - j8_build
-    - j11_cqlsh_dtests_py311_vnode:
-        requires:
-        - start_j11_cqlsh_tests
-        - j8_build
-    - start_j11_cqlsh_tests_offheap:
-        type: approval
-    - j11_cqlsh_dtests_py3_offheap:
-        requires:
-        - start_j11_cqlsh_tests_offheap
-        - j8_build
-    - j11_cqlsh_dtests_py38_offheap:
-        requires:
-        - start_j11_cqlsh_tests_offheap
-        - j8_build
-    - j11_cqlsh_dtests_py311_offheap:
-        requires:
-        - start_j11_cqlsh_tests_offheap
-        - j8_build
-  java8_pre-commit_tests:
+  java11_tests:
     jobs:
-    - start_pre-commit_tests:
-        type: approval
-    - j8_build:
-        requires:
-        - start_pre-commit_tests
-    - j8_unit_tests:
-        requires:
-        - j8_build
-    - j8_simulator_dtests:
-        requires:
-        - j8_build
-    - j8_jvm_dtests:
-        requires:
-        - j8_build
-    - j8_jvm_dtests_vnode:
-        requires:
-        - j8_build
-    - j11_jvm_dtests:
-        requires:
-        - j8_build
-    - j11_jvm_dtests_vnode:
-        requires:
-        - j8_build
-    - j8_cqlshlib_tests:
-        requires:
-        - j8_build
-    - j8_cqlshlib_cython_tests:
-        requires:
-        - j8_build
-    - j11_cqlshlib_tests:
-        requires:
-        - j8_build
-    - j11_cqlshlib_cython_tests:
-        requires:
-        - j8_build
+    - j11_build: {}
     - j11_unit_tests:
         requires:
-        - j8_build
-    - start_utests_long:
-        type: approval
-    - j8_utests_long:
-        requires:
-        - start_utests_long
-        - j8_build
-    - j11_utests_long:
-        requires:
-        - start_utests_long
-        - j8_build
-    - start_utests_cdc:
-        type: approval
-    - j8_utests_cdc:
-        requires:
-        - start_utests_cdc
-        - j8_build
-    - j11_utests_cdc:
-        requires:
-        - start_utests_cdc
-        - j8_build
-    - start_utests_compression:
-        type: approval
-    - j8_utests_compression:
-        requires:
-        - start_utests_compression
-        - j8_build
-    - j11_utests_compression:
-        requires:
-        - start_utests_compression
-        - j8_build
-    - start_utests_stress:
-        type: approval
-    - j8_utests_stress:
-        requires:
-        - start_utests_stress
-        - j8_build
-    - j11_utests_stress:
-        requires:
-        - start_utests_stress
-        - j8_build
-    - start_utests_fqltool:
-        type: approval
-    - j8_utests_fqltool:
-        requires:
-        - start_utests_fqltool
-        - j8_build
-    - j11_utests_fqltool:
-        requires:
-        - start_utests_fqltool
-        - j8_build
-    - start_utests_system_keyspace_directory:
-        type: approval
-    - j8_utests_system_keyspace_directory:
-        requires:
-        - j8_build
-    - j11_utests_system_keyspace_directory:
-        requires:
-        - start_utests_system_keyspace_directory
-        - j8_build
-    - start_jvm_upgrade_dtests:
-        type: approval
-    - j8_dtest_jars_build:
-        requires:
-        - j8_build
-        - start_jvm_upgrade_dtests
-    - j8_jvm_upgrade_dtests:
-        requires:
-        - j8_dtest_jars_build
-    - j8_dtests:
-        requires:
-        - j8_build
-    - j8_dtests_vnode:
-        requires:
-        - j8_build
-    - start_j8_dtests_offheap:
-        type: approval
-    - j8_dtests_offheap:
-        requires:
-        - start_j8_dtests_offheap
-        - j8_build
-    - j11_dtests:
-        requires:
-        - j8_build
-    - j11_dtests_vnode:
-        requires:
-        - j8_build
-    - start_j11_dtests_offheap:
-        type: approval
-    - j11_dtests_offheap:
-        requires:
-        - start_j11_dtests_offheap
-        - j8_build
-    - start_j8_dtests_large:
-        type: approval
-    - j8_dtests_large:
-        requires:
-        - start_j8_dtests_large
-        - j8_build
-    - j8_dtests_large_vnode:
-        requires:
-        - start_j8_dtests_large
-        - j8_build
-    - start_j11_dtests_large:
-        type: approval
-    - j11_dtests_large:
-        requires:
-        - start_j11_dtests_large
-        - j8_build
-    - j11_dtests_large_vnode:
-        requires:
-        - start_j11_dtests_large
-        - j8_build
-    - start_upgrade_dtests:
-        type: approval
-    - j8_upgrade_dtests:
-        requires:
-        - j8_build
-        - start_upgrade_dtests
-    - j8_cqlsh_dtests_py3:
-        requires:
-        - j8_build
-    - j8_cqlsh_dtests_py3_vnode:
-        requires:
-        - j8_build
-    - j8_cqlsh_dtests_py38:
-        requires:
-        - j8_build
-    - j8_cqlsh_dtests_py311:
-        requires:
-        - j8_build
-    - j8_cqlsh_dtests_py38_vnode:
-        requires:
-        - j8_build
-    - j8_cqlsh_dtests_py311_vnode:
-        requires:
-        - j8_build
-    - start_j8_cqlsh_dtests_offheap:
-        type: approval
-    - j8_cqlsh_dtests_py3_offheap:
-        requires:
-        - start_j8_cqlsh_dtests_offheap
-        - j8_build
-    - j8_cqlsh_dtests_py38_offheap:
-        requires:
-        - start_j8_cqlsh_dtests_offheap
-        - j8_build
-    - j8_cqlsh_dtests_py311_offheap:
-        requires:
-        - start_j8_cqlsh_dtests_offheap
-        - j8_build
-    - j11_cqlsh_dtests_py3:
-        requires:
-        - j8_build
-    - j11_cqlsh_dtests_py3_vnode:
-        requires:
-        - j8_build
-    - j11_cqlsh_dtests_py38:
-        requires:
-        - j8_build
-    - j11_cqlsh_dtests_py311:
-        requires:
-        - j8_build
-    - j11_cqlsh_dtests_py38_vnode:
-        requires:
-        - j8_build
-    - j11_cqlsh_dtests_py311_vnode:
-        requires:
-        - j8_build
-    - start_j11_cqlsh-dtests-offheap:
-        type: approval
-    - j11_cqlsh_dtests_py3_offheap:
-        requires:
-        - start_j11_cqlsh-dtests-offheap
-        - j8_build
-    - j11_cqlsh_dtests_py38_offheap:
-        requires:
-        - start_j11_cqlsh-dtests-offheap
-        - j8_build
-    - j11_cqlsh_dtests_py311_offheap:
-        requires:
-        - start_j11_cqlsh-dtests-offheap
-        - j8_build
-  java11_separate_tests:
-    jobs:
-    - start_j11_build:
-        type: approval
-    - j11_build:
-        requires:
-        - start_j11_build
-    - start_j11_unit_tests:
-        type: approval
-    - j11_unit_tests:
-        requires:
-        - start_j11_unit_tests
         - j11_build
-    - start_j11_jvm_dtests:
-        type: approval
     - j11_jvm_dtests:
         requires:
-        - start_j11_jvm_dtests
         - j11_build
-    - start_j11_jvm_dtests_vnode:
-        type: approval
     - j11_jvm_dtests_vnode:
         requires:
-        - start_j11_jvm_dtests_vnode
         - j11_build
-    - start_j11_cqlshlib_tests:
-        type: approval
     - j11_cqlshlib_tests:
         requires:
-        - start_j11_cqlshlib_tests
         - j11_build
     - start_j11_cqlshlib_cython_tests:
         type: approval
@@ -10022,17 +9628,11 @@ workflows:
         requires:
         - start_j11_cqlshlib_cython_tests
         - j11_build
-    - start_j11_dtests:
-        type: approval
     - j11_dtests:
         requires:
-        - start_j11_dtests
         - j11_build
-    - start_j11_dtests_vnode:
-        type: approval
     - j11_dtests_vnode:
         requires:
-        - start_j11_dtests_vnode
         - j11_build
     - start_j11_dtests_offheap:
         type: approval
@@ -10052,126 +9652,6 @@ workflows:
         requires:
         - start_j11_dtests_large_vnode
         - j11_build
-    - start_j11_cqlsh_tests:
-        type: approval
-    - j11_cqlsh_dtests_py3:
-        requires:
-        - start_j11_cqlsh_tests
-        - j11_build
-    - j11_cqlsh_dtests_py3_vnode:
-        requires:
-        - start_j11_cqlsh_tests
-        - j11_build
-    - j11_cqlsh_dtests_py38:
-        requires:
-        - start_j11_cqlsh_tests
-        - j11_build
-    - j11_cqlsh_dtests_py311:
-        requires:
-        - start_j11_cqlsh_tests
-        - j11_build
-    - j11_cqlsh_dtests_py38_vnode:
-        requires:
-        - start_j11_cqlsh_tests
-        - j11_build
-    - j11_cqlsh_dtests_py311_vnode:
-        requires:
-        - start_j11_cqlsh_tests
-        - j11_build
-    - start_j11_cqlsh-dtests-offheap:
-        type: approval
-    - j11_cqlsh_dtests_py3_offheap:
-        requires:
-        - start_j11_cqlsh-dtests-offheap
-        - j11_build
-    - j11_cqlsh_dtests_py38_offheap:
-        requires:
-        - start_j11_cqlsh-dtests-offheap
-        - j11_build
-    - j11_cqlsh_dtests_py311_offheap:
-        requires:
-        - start_j11_cqlsh-dtests-offheap
-        - j11_build
-    - start_j11_utests_long:
-        type: approval
-    - j11_utests_long:
-        requires:
-        - start_j11_utests_long
-        - j11_build
-    - start_j11_utests_cdc:
-        type: approval
-    - j11_utests_cdc:
-        requires:
-        - start_j11_utests_cdc
-        - j11_build
-    - start_j11_utests_compression:
-        type: approval
-    - j11_utests_compression:
-        requires:
-        - start_j11_utests_compression
-        - j11_build
-    - start_j11_utests_stress:
-        type: approval
-    - j11_utests_stress:
-        requires:
-        - start_j11_utests_stress
-        - j11_build
-    - start_j11_utests_fqltool:
-        type: approval
-    - j11_utests_fqltool:
-        requires:
-        - start_j11_utests_fqltool
-        - j11_build
-    - start_j11_utests_system_keyspace_directory:
-        type: approval
-    - j11_utests_system_keyspace_directory:
-        requires:
-        - start_j11_utests_system_keyspace_directory
-        - j11_build
-  java11_pre-commit_tests:
-    jobs:
-    - start_pre-commit_tests:
-        type: approval
-    - j11_build:
-        requires:
-        - start_pre-commit_tests
-    - j11_unit_tests:
-        requires:
-        - j11_build
-    - j11_jvm_dtests:
-        requires:
-        - j11_build
-    - j11_jvm_dtests_vnode:
-        requires:
-        - j11_build
-    - j11_cqlshlib_tests:
-        requires:
-        - j11_build
-    - j11_cqlshlib_cython_tests:
-        requires:
-        - j11_build
-    - j11_dtests:
-        requires:
-        - j11_build
-    - j11_dtests_vnode:
-        requires:
-        - j11_build
-    - start_j11_dtests_offheap:
-        type: approval
-    - j11_dtests_offheap:
-        requires:
-        - start_j11_dtests_offheap
-        - j11_build
-    - start_j11_dtests_large:
-        type: approval
-    - j11_dtests_large:
-        requires:
-        - start_j11_dtests_large
-        - j11_build
-    - j11_dtests_large_vnode:
-        requires:
-        - start_j11_dtests_large
-        - j11_build
     - j11_cqlsh_dtests_py3:
         requires:
         - j11_build
@@ -10204,39 +9684,21 @@ workflows:
         requires:
         - start_j11_cqlsh-dtests-offheap
         - j11_build
-    - start_utests_long:
-        type: approval
     - j11_utests_long:
         requires:
-        - start_utests_long
         - j11_build
-    - start_utests_cdc:
-        type: approval
     - j11_utests_cdc:
         requires:
-        - start_utests_cdc
         - j11_build
-    - start_utests_compression:
-        type: approval
     - j11_utests_compression:
         requires:
-        - start_utests_compression
         - j11_build
-    - start_utests_stress:
-        type: approval
     - j11_utests_stress:
         requires:
-        - start_utests_stress
         - j11_build
-    - start_utests_fqltool:
-        type: approval
     - j11_utests_fqltool:
         requires:
-        - start_utests_fqltool
         - j11_build
-    - start_utests_system_keyspace_directory:
-        type: approval
     - j11_utests_system_keyspace_directory:
         requires:
-        - start_utests_system_keyspace_directory
         - j11_build
