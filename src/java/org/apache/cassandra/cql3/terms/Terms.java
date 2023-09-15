@@ -37,25 +37,6 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 public interface Terms
 {
     /**
-     * The {@code List} returned when the list was not set.
-     */
-    @SuppressWarnings("rawtypes")
-    List UNSET_LIST = new AbstractList()
-    {
-        @Override
-        public Object get(int index)
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public int size()
-        {
-            throw new UnsupportedOperationException();
-        }
-    };
-
-    /**
      * The terminals returned when they were unset.
      */
     Terminals UNSET_TERMINALS = new Terminals()
@@ -64,14 +45,14 @@ public interface Terms
         @SuppressWarnings("unchecked")
         public List<ByteBuffer> get()
         {
-            return (List<ByteBuffer>) UNSET_LIST;
+            return Term.UNSET_LIST;
         }
 
         @Override
         @SuppressWarnings("unchecked")
         public List<List<ByteBuffer>> getElements()
         {
-            return (List<List<ByteBuffer>>) UNSET_LIST;
+            return Term.UNSET_LIST;
         }
 
         @Override
@@ -89,12 +70,6 @@ public interface Terms
         public boolean containsSingleTerm()
         {
             return false;
-        }
-
-        @Override
-        public Term asSingleTerm()
-        {
-            throw new UnsupportedOperationException();
         }
     };
 
@@ -184,13 +159,6 @@ public interface Terms
      * @return {@code true} if this {@code terms} know contains a single {@code term}, {@code false} otherwise.
      */
     boolean containsSingleTerm();
-
-    /**
-     * If this {@code terms} contains a single term it will be returned otherwise an UnsupportedOperationException will be thrown.
-     * @return a single term representing the single element of this {@code terms}.
-     * @throws UnsupportedOperationException if this term does not know how many terms it contains or contains more than one term
-     */
-    Term asSingleTerm();
 
     /**
      * Adds all functions (native and user-defined) of the specified terms to the list.
@@ -283,6 +251,36 @@ public interface Terms
                 }
             };
         }
+
+        public static Raw of(Term.Raw raw)
+        {
+            return new Raw()
+            {
+                @Override
+                public Terms prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
+                {
+                    return Terms.of(raw.prepare(keyspace, receiver));
+                }
+
+                @Override
+                public String getText()
+                {
+                    return raw.getText();
+                }
+
+                @Override
+                public AbstractType<?> getExactTypeIfKnown(String keyspace)
+                {
+                    return raw.getExactTypeIfKnown(keyspace);
+                }
+
+                @Override
+                public TestResult testAssignment(String keyspace, ColumnSpecification receiver)
+                {
+                    return raw.testAssignment(keyspace, receiver);
+                }
+            };
+        }
     }
 
     /**
@@ -368,12 +366,6 @@ public interface Terms
                 {
                     return true;
                 }
-
-                @Override
-                public Term asSingleTerm()
-                {
-                    return terminal;
-                }
             };
         }
 
@@ -424,14 +416,6 @@ public interface Terms
                 {
                     return terminals.size() == 1;
                 }
-
-                @Override
-                public Terminal asSingleTerm()
-                {
-                    if (!containsSingleTerm())
-                        throw new UnsupportedOperationException("This terms content cannot be converted in a single term");
-                    return terminals.get(0);
-                }
             };
         }
     }
@@ -479,12 +463,6 @@ public interface Terms
                 public boolean containsSingleTerm()
                 {
                     return true;
-                }
-
-                @Override
-                public Term.NonTerminal asSingleTerm()
-                {
-                    return term;
                 }
             };
         }
@@ -552,14 +530,6 @@ public interface Terms
                 public boolean containsSingleTerm()
                 {
                     return terms.size() == 1;
-                }
-
-                @Override
-                public Term asSingleTerm()
-                {
-                    if (!containsSingleTerm())
-                        throw new UnsupportedOperationException("This Terms cannot be converted in a single Term");
-                    return terms.get(0);
                 }
             };
         }

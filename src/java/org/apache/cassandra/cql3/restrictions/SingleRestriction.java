@@ -17,82 +17,58 @@
  */
 package org.apache.cassandra.cql3.restrictions;
 
+import java.util.List;
+
+import com.google.common.collect.RangeSet;
+
 import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.statements.Bound;
-import org.apache.cassandra.db.MultiCBuilder;
+import org.apache.cassandra.index.Index;
 
 /**
  * A single restriction/clause on one or multiple column.
  */
 public interface SingleRestriction extends Restriction
 {
-    public default boolean isSlice()
-    {
-        return false;
-    }
-
-    public default boolean isEQ()
-    {
-        return false;
-    }
-
-    public default boolean isLIKE()
-    {
-        return false;
-    }
-
-    public default boolean isIN()
-    {
-        return false;
-    }
-
-    public default boolean isContains()
-    {
-        return false;
-    }
-
-    public default boolean isANN()
-    {
-        return false;
-    }
+    /**
+     * Checks if the restriction applies to the column level.
+     * @return {@code true} if the applies to the column level, {@code false} otherwise.
+     */
+    boolean isColumnLevel();
 
     /**
-     * @return <code>true</code> if this restriction is based on equality comparison rather than a range or negation
+     * Checks if this restriction use an {@code EQ} operator.
+     * @return {@code true} if this restriction use an {@code EQ} operator, {@code false} otherwise.
      */
-    default boolean isEqualityBased()
-    {
-        return isEQ() || isIN();
-    }
-
-    public default boolean isNotNull()
-    {
-        return false;
-    }
-
-    public default boolean isMultiColumn()
-    {
-        return false;
-    }
+    boolean isEQ();
 
     /**
-     * Checks if the specified bound is set or not.
-     * @param b the bound type
-     * @return <code>true</code> if the specified bound is set, <code>false</code> otherwise
+     * Checks if this restriction use an {@code IN} operator.
+     * @return {@code true} if this restriction use an {@code IN} operator, {@code false} otherwise.
      */
-    public default boolean hasBound(Bound b)
-    {
-        return true;
-    }
+    boolean isIN();
 
     /**
-     * Checks if the specified bound is inclusive or not.
-     * @param b the bound type
-     * @return <code>true</code> if the specified bound is inclusive, <code>false</code> otherwise
+     * Checks if this restriction use an {@code ANN} operator.
+     * @return {@code true} if this restriction use an {@code ANN} operator, {@code false} otherwise.
      */
-    public default boolean isInclusive(Bound b)
-    {
-        return true;
-    }
+    boolean isANN();
+
+    /**
+     * Checks if this restriction is selecting a range of values.
+     * @return {@code true} if this restriction is selecting a range of values, {@code false} otherwise.
+     */
+    boolean isSlice();
+
+    boolean isMultiColumn();
+
+    /**
+     * Check if this type of restriction is supported by the specified index.
+     *
+     * @param index the secondary index
+     * @return <code>true</code> this type of restriction is supported by the specified index,
+     * <code>false</code> otherwise.
+     */
+    boolean isSupportedBy(Index index);
 
     /**
      * Merges this restriction with the specified one.
@@ -101,30 +77,29 @@ public interface SingleRestriction extends Restriction
      * The reason behind this choice is that it allow a great flexibility in the way the merging can done while
      * preventing any side effect.</p>
      *
-     * @param otherRestriction the restriction to merge into this one
+     * @param other the restriction to merge into this one
      * @return the restriction resulting of the merge
      */
-    public SingleRestriction mergeWith(SingleRestriction otherRestriction);
-
-    /**
-     * Appends the values of this <code>SingleRestriction</code> to the specified builder.
-     *
-     * @param builder the <code>MultiCBuilder</code> to append to.
-     * @param options the query options
-     * @return the <code>MultiCBuilder</code>
-     */
-    public MultiCBuilder appendTo(MultiCBuilder builder, QueryOptions options);
-
-    /**
-     * Appends the values of the <code>SingleRestriction</code> for the specified bound to the specified builder.
-     *
-     * @param builder the <code>MultiCBuilder</code> to append to.
-     * @param bound the bound
-     * @param options the query options
-     * @return the <code>MultiCBuilder</code>
-     */
-    public default MultiCBuilder appendBoundTo(MultiCBuilder builder, Bound bound, QueryOptions options)
+    default SingleRestriction mergeWith(SingleRestriction other)
     {
-        return appendTo(builder, options);
+        return new MergedRestriction(this, (SimpleRestriction) other);
     }
+
+    /**
+     * Returns the values selected by this restriction if the operator is an {@code EQ} or an {@code IN}.
+     *
+     * @param options the query options
+     * @return the values selected by this restriction if the operator is an {@code EQ} or an {@code IN}.
+     * @throws UnsupportedOperationException if the operator is not an {@code EQ} or an {@code IN}.
+     */
+    List<ValueList> values(QueryOptions options);
+
+    /**
+     * Adds the ranges of values selected by this restriction to the specified {@code RangeSet} if the operator is an operator selecting ranges of data.
+     *
+     * @param rangeSet the range set to add to
+     * @param options the query options
+     * @throws UnsupportedOperationException if the operator is not an operator selecting ranges of data.
+     */
+    RangeSet<ValueList> restrict(RangeSet<ValueList> rangeSet, QueryOptions options);
 }

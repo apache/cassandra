@@ -1744,7 +1744,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 
             Index.QueryPlan indexQueryPlan = Keyspace.openAndGetStore(table).indexManager.getBestIndexQueryPlanFor(rowFilter);
 
-            Index index = restriction.findSupportingIndexFromQueryPlan(indexQueryPlan);
+            Index index = restriction.findSupportingIndex(indexQueryPlan.getIndexes());
             assert index != null;
             Comparator<ByteBuffer> comparator = index.getPostQueryOrdering(restriction, options);
             return (a, b) -> compare(comparator, a.get(columnIndex), b.get(columnIndex));

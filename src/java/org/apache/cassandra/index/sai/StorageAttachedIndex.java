@@ -53,7 +53,8 @@ import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.restrictions.Restriction;
-import org.apache.cassandra.cql3.restrictions.SingleColumnRestriction;
+import org.apache.cassandra.cql3.restrictions.SimpleRestriction;
+import org.apache.cassandra.cql3.restrictions.ValueList;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.CassandraWriteContext;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -453,14 +454,17 @@ public class StorageAttachedIndex implements Index
     public Comparator<ByteBuffer> getPostQueryOrdering(Restriction restriction, QueryOptions options)
     {
         // For now, only support ANN
-        assert restriction instanceof SingleColumnRestriction.AnnRestriction;
+        assert restriction instanceof SimpleRestriction
+               && ((SimpleRestriction) restriction).operator() == Operator.ANN;
 
         Preconditions.checkState(indexTermType.isVector());
 
-        SingleColumnRestriction.AnnRestriction annRestriction = (SingleColumnRestriction.AnnRestriction) restriction;
+        SimpleRestriction annRestriction = (SimpleRestriction) restriction;
         VectorSimilarityFunction function = indexWriterConfig.getSimilarityFunction();
 
-        float[] target = indexTermType.decomposeVector(annRestriction.value(options).duplicate());
+        List<ValueList> elementsList = annRestriction.values(options);
+        ByteBuffer serializedVector = elementsList.get(0).get(0).duplicate();
+        float[] target = indexTermType.decomposeVector(serializedVector);
 
         return (leftBuf, rightBuf) -> {
             float[] left = indexTermType.decomposeVector(leftBuf.duplicate());

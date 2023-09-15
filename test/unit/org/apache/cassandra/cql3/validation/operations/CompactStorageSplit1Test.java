@@ -2148,7 +2148,7 @@ public class CompactStorageSplit1Test extends CQLTester
 
         assertEmpty(execute("select * from %s where a = ? and c > ? and c < ? and b in (?, ?)", "first", 6, 7, 3, 2));
 
-        assertInvalidMessage("Column \"c\" cannot be restricted by both an equality and an inequality relation",
+        assertInvalidMessage("c cannot be restricted by more than one relation if it includes an Equal",
                              "select * from %s where a = ? and c > ? and c = ? and b in (?, ?)", "first", 6, 7, 3, 2);
 
         assertInvalidMessage("c cannot be restricted by more than one relation if it includes an Equal",

@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.NavigableSet;
 
 import org.apache.cassandra.schema.ColumnMetadata;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
 /**
@@ -48,16 +47,6 @@ public abstract class MultiCBuilder
     protected boolean built;
 
     /**
-     * <code>true</code> if the clusterings contains some <code>null</code> elements.
-     */
-    protected boolean containsNull;
-
-    /**
-     * <code>true</code> if the composites contains some <code>unset</code> elements.
-     */
-    protected boolean containsUnset;
-
-    /**
      * <code>true</code> if some empty collection have been added.
      */
     protected boolean hasMissingElements;
@@ -78,31 +67,7 @@ public abstract class MultiCBuilder
     }
 
     /**
-     * Adds the specified element to all the clusterings.
-     * <p>
-     * If this builder contains 2 clustering: A-B and A-C a call to this method to add D will result in the clusterings:
-     * A-B-D and A-C-D.
-     * </p>
-     *
-     * @param value the value of the next element
-     * @return this <code>MulitCBuilder</code>
-     */
-    public abstract MultiCBuilder addElementToAll(ByteBuffer value);
-
-    /**
-     * Adds individually each of the specified elements to the end of all of the existing clusterings.
-     * <p>
-     * If this builder contains 2 clusterings: A-B and A-C a call to this method to add D and E will result in the 4
-     * clusterings: A-B-D, A-B-E, A-C-D and A-C-E.
-     * </p>
-     *
-     * @param values the elements to add
-     * @return this <code>CompositeBuilder</code>
-     */
-    public abstract MultiCBuilder addEachElementToAll(List<ByteBuffer> values);
-
-    /**
-     * Adds individually each of the specified list of elements to the end of all of the existing composites.
+     * Adds individually each of the specified list of elements to the end of all the existing composites.
      * <p>
      * If this builder contains 2 composites: A-B and A-C a call to this method to add [[D, E], [F, G]] will result in the 4
      * composites: A-B-D-E, A-B-F-G, A-C-D-E and A-C-F-G.
@@ -111,7 +76,7 @@ public abstract class MultiCBuilder
      * @param values the elements to add
      * @return this <code>CompositeBuilder</code>
      */
-    public abstract MultiCBuilder addAllElementsToAll(List<List<ByteBuffer>> values);
+    public abstract MultiCBuilder addAllElementsToAll(List<? extends List<ByteBuffer>> values);
 
     protected void checkUpdateable()
     {
@@ -135,26 +100,6 @@ public abstract class MultiCBuilder
      * @return the current number of build results
      */
     public abstract int buildSize();
-
-    /**
-     * Checks if the clusterings contains null elements.
-     *
-     * @return <code>true</code> if the clusterings contains <code>null</code> elements, <code>false</code> otherwise.
-     */
-    public boolean containsNull()
-    {
-        return containsNull;
-    }
-
-    /**
-     * Checks if the clusterings contains unset elements.
-     *
-     * @return <code>true</code> if the clusterings contains <code>unset</code> elements, <code>false</code> otherwise.
-     */
-    public boolean containsUnset()
-    {
-        return containsUnset;
-    }
 
     /**
      * Checks if some empty list of values have been added
@@ -221,42 +166,21 @@ public abstract class MultiCBuilder
             this.elements = new ByteBuffer[comparator.size()];
         }
 
-        public MultiCBuilder addElementToAll(ByteBuffer value)
+        public MultiCBuilder addAllElementsToAll(List<? extends List<ByteBuffer>> values)
         {
-            checkUpdateable();
-
-            if (value == null)
-                containsNull = true;
-            if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
-                containsUnset = true;
-
-            elements[size++] = value;
+            if (values.isEmpty())
+            {
+                hasMissingElements = true;
+                return this;
+            }
+            assert values.size() == 1;
+            List<ByteBuffer> buffers = values.get(0);
+            for (int i = 0, m = buffers.size(); i < m; i++)
+            {
+                checkUpdateable();
+                elements[size++] = buffers.get(i);
+            }
             return this;
-        }
-
-        public MultiCBuilder addEachElementToAll(List<ByteBuffer> values)
-        {
-            if (values.isEmpty())
-            {
-                hasMissingElements = true;
-                return this;
-            }
-
-            assert values.size() == 1;
-
-            return addElementToAll(values.get(0));
-        }
-
-        public MultiCBuilder addAllElementsToAll(List<List<ByteBuffer>> values)
-        {
-            if (values.isEmpty())
-            {
-                hasMissingElements = true;
-                return this;
-            }
-
-            assert values.size() == 1;
-            return addEachElementToAll(values.get(0));
         }
 
         @Override
@@ -281,7 +205,10 @@ public abstract class MultiCBuilder
                                                                    boolean isOtherBoundInclusive,
                                                                    List<ColumnMetadata> columnDefs)
         {
-            return buildBound(isStart, columnDefs.get(0).isReversedType() ? isOtherBoundInclusive : isInclusive);
+            ColumnMetadata column = columnDefs.get(0);
+            // If the column position is equals to the size we are in a no bound case and inclusive should be true
+            boolean inclusive = column.position() == size || (column.isReversedType() ? isOtherBoundInclusive : isInclusive);
+            return buildBound(isStart, inclusive);
         }
 
         public NavigableSet<ClusteringBound<?>> buildBound(boolean isStart, boolean isInclusive)
@@ -317,63 +244,7 @@ public abstract class MultiCBuilder
             super(comparator);
         }
 
-        public MultiCBuilder addElementToAll(ByteBuffer value)
-        {
-            checkUpdateable();
-
-            if (elementsList.isEmpty())
-                elementsList.add(new ArrayList<>());
-
-            if (value == null)
-                containsNull = true;
-            else if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
-                containsUnset = true;
-
-            for (int i = 0, m = elementsList.size(); i < m; i++)
-                elementsList.get(i).add(value);
-
-            size++;
-            return this;
-        }
-
-        public MultiCBuilder addEachElementToAll(List<ByteBuffer> values)
-        {
-            checkUpdateable();
-
-            if (elementsList.isEmpty())
-                elementsList.add(new ArrayList<>());
-
-            if (values.isEmpty())
-            {
-                hasMissingElements = true;
-            }
-            else
-            {
-                for (int i = 0, m = elementsList.size(); i < m; i++)
-                {
-                    List<ByteBuffer> oldComposite = elementsList.remove(0);
-
-                    for (int j = 0, n = values.size(); j < n; j++)
-                    {
-                        List<ByteBuffer> newComposite = new ArrayList<>(oldComposite);
-                        elementsList.add(newComposite);
-
-                        ByteBuffer value = values.get(j);
-
-                        if (value == null)
-                            containsNull = true;
-                        if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
-                            containsUnset = true;
-
-                        newComposite.add(values.get(j));
-                    }
-                }
-            }
-            size++;
-            return this;
-        }
-
-        public MultiCBuilder addAllElementsToAll(List<List<ByteBuffer>> values)
+        public MultiCBuilder addAllElementsToAll(List<? extends List<ByteBuffer>> values)
         {
             checkUpdateable();
 
@@ -396,11 +267,6 @@ public abstract class MultiCBuilder
                         elementsList.add(newComposite);
 
                         List<ByteBuffer> value = values.get(j);
-
-                        if (value.contains(null))
-                            containsNull = true;
-                        if (value.contains(ByteBufferUtil.UNSET_BYTE_BUFFER))
-                            containsUnset = true;
 
                         newComposite.addAll(value);
                     }

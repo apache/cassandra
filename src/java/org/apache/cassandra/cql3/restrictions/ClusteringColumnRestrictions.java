@@ -17,9 +17,15 @@
  */
 package org.apache.cassandra.cql3.restrictions;
 
+import java.nio.ByteBuffer;
 import java.util.*;
 
 import javax.annotation.Nullable;
+
+import com.google.common.collect.BoundType;
+import com.google.common.collect.Range;
+import com.google.common.collect.RangeSet;
+import com.google.common.collect.TreeRangeSet;
 
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.schema.ColumnMetadata;
@@ -53,7 +59,7 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
 
     public ClusteringColumnRestrictions(TableMetadata table, boolean allowFiltering)
     {
-        this(table.comparator, new RestrictionSet(), allowFiltering);
+        this(table.comparator, RestrictionSet.empty(), allowFiltering);
     }
 
     private ClusteringColumnRestrictions(ClusteringComparator comparator,
@@ -75,8 +81,8 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
             SingleRestriction lastRestriction = restrictions.lastRestriction();
             assert lastRestriction != null;
 
-            ColumnMetadata lastRestrictionStart = lastRestriction.getFirstColumn();
-            ColumnMetadata newRestrictionStart = restriction.getFirstColumn();
+            ColumnMetadata lastRestrictionStart = lastRestriction.firstColumn();
+            ColumnMetadata newRestrictionStart = restriction.firstColumn();
 
             checkFalse(lastRestriction.isSlice() && newRestrictionStart.position() > lastRestrictionStart.position(),
                        "Clustering column \"%s\" cannot be restricted (preceding column \"%s\" is restricted by a non-EQ relation)",
@@ -92,24 +98,16 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
         return new ClusteringColumnRestrictions(this.comparator, newRestrictionSet, allowFiltering);
     }
 
-    private boolean hasMultiColumnSlice()
-    {
-        for (SingleRestriction restriction : restrictions)
-        {
-            if (restriction.isMultiColumn() && restriction.isSlice())
-                return true;
-        }
-        return false;
-    }
-
     public NavigableSet<Clustering<?>> valuesAsClustering(QueryOptions options, ClientState state) throws InvalidRequestException
     {
         MultiCBuilder builder = MultiCBuilder.create(comparator, hasIN());
         for (SingleRestriction r : restrictions)
         {
-            r.appendTo(builder, options);
+            List<ValueList> values = r.values(options);
+            builder.addAllElementsToAll(values);
 
-            if (hasIN() && Guardrails.inSelectCartesianProduct.enabled(state))
+            // If values is greater than 1 we know that the restriction is an IN
+            if (values.size() > 1 && Guardrails.inSelectCartesianProduct.enabled(state))
                 Guardrails.inSelectCartesianProduct.guard(builder.buildSize(), "clustering key", false, state);
 
             if (builder.hasMissingElements())
@@ -130,39 +128,115 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
 
             if (r.isSlice())
             {
-                r.appendBoundTo(builder, bound, options);
+                RangeSet<ValueList> rangeSet = TreeRangeSet.create();
+                rangeSet.add(Range.all());
+                rangeSet = r.restrict(rangeSet, options);
+                
+                if (rangeSet.isEmpty())
+                    return BTreeSet.empty(comparator);
+
+                Set<Range<ValueList>> ranges = rangeSet.asRanges();
+
+                if (ranges.size() > 1)
+                    throw new IllegalStateException("Not implemented!");
+
+                appendBoundTo(builder, bound, r.columns(), ranges);
+
+                Range<ValueList> range = ranges.iterator().next();
+                boolean isStartInclusive = range.hasLowerBound() && range.lowerBoundType() == BoundType.CLOSED;
+                boolean isEndInclusive = range.hasUpperBound() && range.upperBoundType() == BoundType.CLOSED;
                 return builder.buildBoundForSlice(bound.isStart(),
-                                                  r.isInclusive(bound),
-                                                  r.isInclusive(bound.reverse()),
-                                                  r.getColumnDefs());
+                                                  bound.isStart() ? isStartInclusive : isEndInclusive,
+                                                  bound.reverse().isStart() ? isStartInclusive : isEndInclusive,
+                                                  r.columns());
             }
 
-            r.appendBoundTo(builder, bound, options);
+            builder.addAllElementsToAll(r.values(options));
 
             if (builder.hasMissingElements())
                 return BTreeSet.empty(comparator);
 
-            keyPosition = r.getLastColumn().position() + 1;
+            keyPosition = r.lastColumn().position() + 1;
         }
 
         // Everything was an equal (or there was nothing)
         return builder.buildBound(bound.isStart(), true);
     }
 
-    /**
-     * Checks if any of the underlying restriction is a CONTAINS or CONTAINS KEY.
-     *
-     * @return <code>true</code> if any of the underlying restriction is a CONTAINS or CONTAINS KEY,
-     * <code>false</code> otherwise
-     */
-    public boolean hasContains()
+    private boolean hasMultiColumnSlice()
     {
         for (SingleRestriction restriction : restrictions)
         {
-            if (restriction.isContains())
+            if (restriction.isMultiColumn() && restriction.isSlice())
                 return true;
         }
         return false;
+    }
+
+
+    private void appendBoundTo(MultiCBuilder builder, Bound bound, List<ColumnMetadata> columns, Set<Range<ValueList>> ranges)
+    {
+        List<List<ByteBuffer>> toAdd = new ArrayList<>();
+
+        for (Range<ValueList> range : ranges)
+        {
+            boolean reversed = columns.get(0).isReversedType();
+
+            EnumMap<Bound, ValueList> componentBounds = new EnumMap<>(Bound.class);
+            componentBounds.put(Bound.START, range.hasLowerBound() ? range.lowerEndpoint() : ValueList.of());
+            componentBounds.put(Bound.END, range.hasUpperBound() ? range.upperEndpoint() : ValueList.of());
+
+            List<ByteBuffer> values = new ArrayList<>();
+
+            for (int i = 0, m = columns.size(); i < m; i++)
+            {
+                ColumnMetadata column = columns.get(i);
+                Bound b = bound.reverseIfNeeded(column);
+
+                // For mixed order columns, we need to create additional slices when 2 columns are in reverse order
+                if (reversed != column.isReversedType())
+                {
+                    reversed = column.isReversedType();
+                    // As we are switching direction we need to add the current composite
+                    toAdd.add(values);
+
+                    // The new bound side has no value for this component.  just stop
+                    if (!hasComponent(b, i, componentBounds))
+                        continue;
+
+                    // The other side has still some components. We need to end the slice that we have just open.
+                    if (hasComponent(b.reverse(), i, componentBounds))
+                        toAdd.add(values);
+
+                    // We need to rebuild where we are in this bound side
+                    values = new ArrayList<>();
+
+                    ValueList vals = componentBounds.get(b);
+
+                    int n = Math.min(i, vals.size());
+                    for (int j = 0; j < n; j++)
+                    {
+                        values.add(vals.get(j));
+                    }
+                }
+
+                if (!hasComponent(b, i, componentBounds))
+                    continue;
+
+                values.add(componentBounds.get(b).get(i));
+            }
+            toAdd.add(values);
+        }
+
+        if (bound.isEnd())
+            Collections.reverse(toAdd);
+
+        builder.addAllElementsToAll(toAdd);
+    }
+
+    private boolean hasComponent(Bound b, int index, EnumMap<Bound, ValueList> componentBounds)
+    {
+        return componentBounds.get(b).size() > index;
     }
 
     /**
@@ -197,9 +271,9 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
                 return true;
 
             if (!restriction.isSlice())
-                position = restriction.getLastColumn().position() + 1;
+                position = restriction.lastColumn().position() + 1;
         }
-        return hasContains();
+        return false;
     }
 
     @Override
@@ -219,12 +293,12 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
             }
 
             if (!restriction.isSlice())
-                position = restriction.getLastColumn().position() + 1;
+                position = restriction.lastColumn().position() + 1;
         }
     }
 
     private boolean handleInFilter(SingleRestriction restriction, int index)
     {
-        return restriction.isContains() || restriction.isLIKE() || index != restriction.getFirstColumn().position();
+        return restriction.needsFilteringOrIndexing() || index != restriction.firstColumn().position();
     }
 }

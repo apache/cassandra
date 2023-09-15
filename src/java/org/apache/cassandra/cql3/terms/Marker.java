@@ -31,8 +31,6 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
-
 /**
  * A placeholder, also called bind marker, for a single value represented in CQL as {@code ?} for an unnamed marker or {@code :<name>} for a named marker.
  * For example, {@code SELECT ... WHERE pk = ?} or {@code SELECT ... WHERE pk = :myKey}.
@@ -81,10 +79,7 @@ public final class Marker extends Term.NonTerminal
                 return null;
 
             if (bytes == ByteBufferUtil.UNSET_BYTE_BUFFER)
-            {
-                checkFalse(receiver.type.isTuple(), "Invalid unset value for tuple %s", receiver.name);
                 return Constants.UNSET_VALUE;
-            }
 
             if (receiver.type instanceof MultiElementType<?>)
                 return MultiElements.Value.fromSerialized(bytes, (MultiElementType<?>) receiver.type);
