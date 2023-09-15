@@ -8,6 +8,7 @@ Merged from 4.0:
  * Fix BulkLoader ignoring cipher suites options (CASSANDRA-18582)
  * Migrate Python optparse to argparse (CASSANDRA-17914)
 Merged from 3.11:
+ * Revert CASSANDRA-18543 (CASSANDRA-18854)
  * Fix NPE when using udfContext in UDF after a restart of a node (CASSANDRA-18739)
 Merged from 3.0:
  * Add cqlshrc.sample and credentials.sample into Debian package (CASSANDRA-18818)
