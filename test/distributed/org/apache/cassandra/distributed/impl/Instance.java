@@ -810,7 +810,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     @Override
     public void postStartup()
     {
-        StorageService.instance.doAuthSetup(false);
+        sync(() ->
+            StorageService.instance.doAuthSetup(false)
+        ).run();
     }
 
     private void mkdirs()
