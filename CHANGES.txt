@@ -12,7 +12,9 @@ Merged from 3.11:
 Merged from 3.0:
  * Add cqlshrc.sample and credentials.sample into Debian package (CASSANDRA-18818)
 
+
 5.0-alpha1
+ * Remove wrong assertion in SSTableLoader (CASSANDRA-18840)
  * Fix rpm installations to work with jdk17 (CASSANDRA-18817)
  * Fix Depends and Build-Depends for Java for Debian packages (CASSANDRA-18809)
  * Update command line flags --add-exports and --add-opens for JDK17 (CASSANDRA-18439)
