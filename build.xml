@@ -33,7 +33,7 @@
     <property name="debuglevel" value="source,lines,vars"/>
 
     <!-- default version and SCM information -->
-    <property name="base.version" value="4.0.12"/>
+    <property name="base.version" value="4.0.11"/>
     <property name="scm.connection" value="scm:git:ssh://git@github.com:datastax/cassandra.git"/>
     <property name="scm.developerConnection" value="scm:git:ssh://git@github.com:datastax/cassandra.git"/>
     <property name="scm.url" value="scm:git:ssh://git@github.com:datastax/cassandra.git"/>
