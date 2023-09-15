@@ -17,33 +17,78 @@
  */
 package org.apache.cassandra.cql3;
 
+import java.util.List;
+
+import org.apache.cassandra.cql3.restrictions.SimpleRestriction;
+import org.apache.cassandra.cql3.restrictions.SingleRestriction;
 import org.apache.cassandra.cql3.terms.Term;
 import org.apache.cassandra.cql3.terms.Terms;
+import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.cql3.restrictions.Restriction;
-import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
-public abstract class Relation
+public final class Relation
 {
-    protected Operator operator;
+    /**
+     * The raw columns'expression.
+     */
+    private final ColumnsExpression.Raw rawExpressions;
+
+    /**
+     * The relation operator
+     */
+    private final Operator operator;
+
+    /**
+     * The raw terms.
+     */
+    private final Terms.Raw rawTerms;
+
+    private Relation(ColumnsExpression.Raw rawExpressions, Operator operator, Terms.Raw rawTerms)
+    {
+        this.rawExpressions = rawExpressions;
+        this.operator = operator;
+        this.rawTerms = rawTerms;
+    }
 
     public Operator operator()
     {
         return operator;
     }
 
-    /**
-     * Returns the raw value for this relation, or null if this is an IN relation.
-     */
-    public abstract Term.Raw getValue();
+    public static Relation singleColumn(ColumnIdentifier identifier, Operator operator, Term.Raw rawTerm)
+    {
+        return new Relation(ColumnsExpression.Raw.singleColumn(identifier), operator, Terms.Raw.of(rawTerm));
+    }
 
-    /**
-     * Returns the list of raw IN values for this relation, or null if this is not an IN relation.
-     */
-    public abstract Terms.Raw getInValues();
+    public static Relation singleColumn(ColumnIdentifier identifier, Operator operator, Terms.Raw rawTerms)
+    {
+        return new Relation(ColumnsExpression.Raw.singleColumn(identifier), operator, rawTerms);
+    }
+
+    public static Relation mapElement(ColumnIdentifier identifier, Term.Raw rawKey, Operator operator, Term.Raw rawTerm)
+    {
+        return new Relation(ColumnsExpression.Raw.mapElement(identifier, rawKey), operator, Terms.Raw.of(rawTerm));
+    }
+
+    public static Relation multiColumns(List<ColumnIdentifier> identifiers, Operator operator, Term.Raw rawTerm)
+    {
+        return new Relation(ColumnsExpression.Raw.multiColumns(identifiers), operator, Terms.Raw.of(rawTerm));
+    }
+
+    public static Relation multiColumns(List<ColumnIdentifier> identifiers, Operator operator, Terms.Raw rawTerms)
+    {
+        return new Relation(ColumnsExpression.Raw.multiColumns(identifiers), operator, rawTerms);
+    }
+
+    public static Relation token(List<ColumnIdentifier> identifiers, Operator operator, Term.Raw rawTerm)
+    {
+        return new Relation(ColumnsExpression.Raw.token(identifiers), operator, Terms.Raw.of(rawTerm));
+    }
+
+
 
     /**
      * Checks if this relation is a token relation (e.g. <pre>token(a) = token(1)</pre>).
@@ -52,69 +97,7 @@ public abstract class Relation
      */
     public boolean onToken()
     {
-        return false;
-    }
-
-    /**
-     * Checks if the operator of this relation is a <code>CONTAINS</code>.
-     * @return <code>true</code>  if the operator of this relation is a <code>CONTAINS</code>, <code>false</code>
-     * otherwise.
-     */
-    public final boolean isContains()
-    {
-        return operator == Operator.CONTAINS;
-    }
-
-    /**
-     * Checks if the operator of this relation is a <code>CONTAINS_KEY</code>.
-     * @return <code>true</code>  if the operator of this relation is a <code>CONTAINS_KEY</code>, <code>false</code>
-     * otherwise.
-     */
-    public final boolean isContainsKey()
-    {
-        return operator == Operator.CONTAINS_KEY;
-    }
-
-    /**
-     * Checks if the operator of this relation is a <code>IN</code>.
-     * @return <code>true</code>  if the operator of this relation is a <code>IN</code>, <code>false</code>
-     * otherwise.
-     */
-    public final boolean isIN()
-    {
-        return operator == Operator.IN;
-    }
-
-    /**
-     * Checks if the operator of this relation is a <code>EQ</code>.
-     * @return <code>true</code>  if the operator of this relation is a <code>EQ</code>, <code>false</code>
-     * otherwise.
-     */
-    public final boolean isEQ()
-    {
-        return operator == Operator.EQ;
-    }
-
-    public final boolean isLIKE()
-    {
-        return operator == Operator.LIKE_PREFIX
-               || operator == Operator.LIKE_SUFFIX
-               || operator == Operator.LIKE_CONTAINS
-               || operator == Operator.LIKE_MATCHES
-               || operator == Operator.LIKE;
-    }
-
-    /**
-     * Checks if the operator of this relation is a <code>Slice</code> (GT, GTE, LTE, LT).
-     *
-     * @return <code>true</code> if the operator of this relation is a <code>Slice</code>, <code>false</code> otherwise.
-     */
-    public final boolean isSlice()
-    {
-        return operator == Operator.GT
-               || operator == Operator.GTE
-               || operator == Operator.LTE
-               || operator == Operator.LT;
+        return rawExpressions.kind() == ColumnsExpression.Kind.TOKEN;
     }
 
     /**
@@ -125,119 +108,28 @@ public abstract class Relation
      * @return the <code>Restriction</code> corresponding to this <code>Relation</code>
      * @throws InvalidRequestException if this <code>Relation</code> is not valid
      */
-    public final Restriction toRestriction(TableMetadata table, VariableSpecifications boundNames)
+    public SingleRestriction toRestriction(TableMetadata table, VariableSpecifications boundNames)
     {
-        switch (operator)
-        {
-            case EQ: return newEQRestriction(table, boundNames);
-            case LT: return newSliceRestriction(table, boundNames, Bound.END, false);
-            case LTE: return newSliceRestriction(table, boundNames, Bound.END, true);
-            case GTE: return newSliceRestriction(table, boundNames, Bound.START, true);
-            case GT: return newSliceRestriction(table, boundNames, Bound.START, false);
-            case IN: return newINRestriction(table, boundNames);
-            case CONTAINS: return newContainsRestriction(table, boundNames, false);
-            case CONTAINS_KEY: return newContainsRestriction(table, boundNames, true);
-            case IS_NOT: return newIsNotRestriction(table, boundNames);
-            case LIKE_PREFIX:
-            case LIKE_SUFFIX:
-            case LIKE_CONTAINS:
-            case LIKE_MATCHES:
-            case LIKE:
-                return newLikeRestriction(table, boundNames, operator);
-            case ANN:
-                throw invalidRequest("ANN is only supported in ORDER BY");
-            default: throw invalidRequest("Unsupported \"!=\" relation: %s", this);
-        }
-    }
+        if (operator == Operator.NEQ)
+            throw invalidRequest("Unsupported '!=' relation: %s", this);
 
-    /**
-     * Creates a new EQ restriction instance.
-     *
-     * @param table the table meta data
-     * @param boundNames the variables specification where to collect the bind variables
-     * @return a new EQ restriction instance.
-     * @throws InvalidRequestException if the relation cannot be converted into an EQ restriction.
-     */
-    protected abstract Restriction newEQRestriction(TableMetadata table, VariableSpecifications boundNames);
+        ColumnsExpression expression = rawExpressions.prepare(table);
+        expression.collectMarkerSpecification(boundNames);
 
-    /**
-     * Creates a new IN restriction instance.
-     *
-     * @param table the table meta data
-     * @param boundNames the variables specification where to collect the bind variables
-     * @return a new IN restriction instance
-     * @throws InvalidRequestException if the relation cannot be converted into an IN restriction.
-     */
-    protected abstract Restriction newINRestriction(TableMetadata table, VariableSpecifications boundNames);
+        operator.validateFor(expression);
 
-    /**
-     * Creates a new Slice restriction instance.
-     *
-     * @param table the table meta data
-     * @param boundNames the variables specification where to collect the bind variables
-     * @param bound the slice bound
-     * @param inclusive <code>true</code> if the bound is included.
-     * @return a new slice restriction instance
-     * @throws InvalidRequestException if the <code>Relation</code> is not valid
-     */
-    protected abstract Restriction newSliceRestriction(TableMetadata table,
-                                                       VariableSpecifications boundNames,
-                                                       Bound bound,
-                                                       boolean inclusive);
+        ColumnSpecification receiver = expression.columnSpecification(table);
+        if (!operator.appliesToColumnValues())
+            receiver = ((CollectionType<?>) receiver.type).makeCollectionReceiver(receiver, operator.appliesToMapKeys());
 
-    /**
-     * Creates a new Contains restriction instance.
-     *
-     * @param table the table meta data
-     * @param boundNames the variables specification where to collect the bind variables
-     * @param isKey <code>true</code> if the restriction to create is a CONTAINS KEY
-     * @return a new Contains <code>Restriction</code> instance
-     * @throws InvalidRequestException if the <code>Relation</code> is not valid
-     */
-    protected abstract Restriction newContainsRestriction(TableMetadata table, VariableSpecifications boundNames, boolean isKey);
-
-    protected abstract Restriction newIsNotRestriction(TableMetadata table, VariableSpecifications boundNames);
-
-    protected abstract Restriction newLikeRestriction(TableMetadata table, VariableSpecifications boundNames, Operator operator);
-
-    /**
-     * Converts the specified <code>Raw</code> into a <code>Term</code>.
-     * @param receiver the column to which the values must be associated at
-     * @param raw the raw term to convert
-     * @param keyspace the keyspace name
-     * @param boundNames the variables specification where to collect the bind variables
-     *
-     * @return the <code>Term</code> corresponding to the specified <code>Raw</code>
-     * @throws InvalidRequestException if the <code>Raw</code> term is not valid
-     */
-    protected final Term toTerm(ColumnSpecification receiver,
-                                Term.Raw raw,
-                                String keyspace,
-                                VariableSpecifications boundNames)
-    {
-        Term term = raw.prepare(keyspace, receiver);
-        term.collectMarkerSpecification(boundNames);
-        return term;
-    }
-
-    /**
-     * Converts the specified <code>Raw</code> terms into a <code>Terms</code>.
-     * @param receiver the column to which the values must be associated at
-     * @param raws the raw terms to convert
-     * @param keyspace the keyspace name
-     * @param boundNames the variables specification where to collect the bind variables
-     *
-     * @return the <code>Term</code>s corresponding to the specified <code>Raw</code> terms
-     * @throws InvalidRequestException if the <code>Raw</code> terms are not valid
-     */
-    protected final Terms toTerms(ColumnSpecification receiver,
-                                  Terms.Raw raws,
-                                  String keyspace,
-                                  VariableSpecifications boundNames)
-    {
-        Terms terms = raws.prepare(keyspace, receiver);
+        Terms terms = rawTerms.prepare(table.keyspace, receiver);
         terms.collectMarkerSpecification(boundNames);
-        return terms;
+
+        // An IN restriction with only one element is the same as an EQ restriction
+        if (operator.isIN() && terms.containsSingleTerm())
+            return new SimpleRestriction(expression, Operator.EQ, terms);
+
+        return new SimpleRestriction(expression, operator, terms);
     }
 
     /**
@@ -247,14 +139,20 @@ public abstract class Relation
      * @return this object, if the old identifier is not in the set of entities that this relation covers; otherwise
      *         a new Relation with "from" replaced by "to" is returned.
      */
-    public abstract Relation renameIdentifier(ColumnIdentifier from, ColumnIdentifier to);
+    public Relation renameIdentifier(ColumnIdentifier from, ColumnIdentifier to)
+    {
+        return new Relation(rawExpressions.renameIdentifier(from, to), operator, rawTerms);
+    }
 
     /**
      * Returns a CQL representation of this relation.
      *
      * @return a CQL representation of this relation
      */
-    public abstract String toCQLString();
+    public String toCQLString()
+    {
+        return String.format("%s %s %s", rawExpressions.toCQLString(), operator, rawTerms.getText());
+    }
 
     @Override
     public String toString()

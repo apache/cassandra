@@ -759,7 +759,7 @@ public abstract class CQLSSTableWriterTest
         }
         catch (InvalidRequestException e)
         {
-            assertEquals("Invalid null value in condition for column c2",
+            assertEquals("Invalid null value for column c2",
                          e.getMessage());
         }
 
