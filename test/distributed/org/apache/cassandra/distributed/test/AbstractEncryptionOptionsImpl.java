@@ -200,7 +200,7 @@ public class AbstractEncryptionOptionsImpl extends TestBaseImpl
 
             SslContext sslContext = SSLFactory.getOrCreateSslContext(
                 encryptionOptions.withAcceptedProtocols(acceptedProtocols).withCipherSuites(cipherSuites),
-                true, ISslContextFactory.SocketType.CLIENT);
+                true, ISslContextFactory.SocketType.CLIENT, "test");
 
             EventLoopGroup workerGroup = new NioEventLoopGroup();
             Bootstrap b = new Bootstrap();
