@@ -176,6 +176,7 @@ Merged from 3.0:
  * Remove unused suppressions (CASSANDRA-18724)
 
 Unreleased
+ * [SO-24377] Upgrade jacoco to 0.8.8 and Byteman to 4.0.20
  * [SO-23724] Metrics for CREATE and ALTER statements with and without compaction option specified
  * [SO-23106] Enforce LCS for create schema / alter schema compaction options DDLs
 4.0.6.7
