@@ -48,7 +48,10 @@ export PATH="$ANT_HOME/bin:$JAVA_HOME/bin:$PATH"
 
 ant realclean
 if [ "$#" -eq 0 ]; then
-    ANT_ARGS=("${ANT_TARGET:-test}")
+    # generate Jacoco code coverage report
+    ANT_ARGS=("codecoverage")
+    ANT_ARGS+=("-Dtaskname=${ANT_TARGET:-test}")
+
     if [ -n "$TEST_NAME" ]; then
         ANT_ARGS+=("-Dtest.name=${TEST_NAME}")
     fi
@@ -62,3 +65,27 @@ if [ "$#" -eq 0 ]; then
 else
     ant "$@"
 fi
+
+# add phab comment for unit tests
+if [[ -f "build/jacoco/report.xml" ]] && [[ "${ANT_TARGET:-test}" == "test" ]]; then
+  if [[ ! -f "build/comment" ]]; then
+    mkdir "build/comment"
+  fi
+  FILE_PHAB_COMMENT="build/comment/phabricator-comment-${ANT_TARGET:-test}"
+
+  # setup python env
+  python3 --version
+  set -e
+  virtualenv --python=python3 venv
+  source venv/bin/activate
+  pip3 install --upgrade setuptools
+  pip3 install -r .jenkins/code_coverage/requirements.txt
+
+  comment=$(python3 ".jenkins/code_coverage/parse_jacoco_html.py" "-p" "build/jacoco/index.html")
+  echo "$comment" >> "$FILE_PHAB_COMMENT"
+fi
+
+# rename jacoco report xml+html file and upload it to buildkite artifact
+mkdir "build/coverage"
+cp "build/jacoco/report.xml" "build/coverage/report-${ANT_TARGET:-test}.xml"
+cp "build/jacoco/index.html" "build/coverage/index-${ANT_TARGET:-test}.html"

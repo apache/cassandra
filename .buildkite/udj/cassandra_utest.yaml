@@ -23,3 +23,9 @@ uown: 99295401-c534-41b4-949d-26efbebc4ad4 # cassandra-service
 command: ".jenkins/test.sh"
 
 timeout_in_minutes: 300
+
+artifact_paths:
+  - build/jacoco/*.xml
+  - build/jacoco/*.html
+  - build/coverage/*
+  - build/comment/phabricator-comment*

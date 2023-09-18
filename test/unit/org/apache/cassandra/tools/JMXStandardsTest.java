@@ -27,6 +27,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -123,6 +124,10 @@ public class JMXStandardsTest
                                                          .add(Serializable.class)
                                                          .add(Exception.class)
                                                          .build();
+    /**
+     * These are the method names that shouldn't be included in this test
+     */
+    private static final Set<String> IGNORE_METHODS = ImmutableSet.of("$jacocoInit");
 
     @Test
     public void interfaces() throws ClassNotFoundException
@@ -133,6 +138,7 @@ public class JMXStandardsTest
                                          .filter(s -> mbeanPattern.matcher(s).find())
                                          .collect(Collectors.toSet());
 
+
         List<String> warnings = new ArrayList<>();
         List<String> errors = new ArrayList<>();
         for (String className : matches)
@@ -140,7 +146,9 @@ public class JMXStandardsTest
             for (Class<?> klass = Class.forName(className); klass != null && !Object.class.equals(klass); klass = klass.getSuperclass())
             {
                 Assertions.assertThat(klass).isInterface();
-                Method[] methods = klass.getDeclaredMethods();
+                Method[] methods = Arrays.stream(klass.getDeclaredMethods())
+                                         .filter(m -> !IGNORE_METHODS.contains(m.getName()))
+                                         .toArray(Method[]::new);
                 for (int i = 0; i < methods.length; i++)
                 {
                     Method method = methods[i];
