@@ -132,7 +132,7 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
                                             .setMetadataCollector(metadataCollector)
                                             .setSerializationHeader(header)
                                             .addDefaultComponents(indexGroups)
-                                            .addFlushObserversForSecondaryIndexes(indexGroups, lifecycleNewTracker, metadata.get())
+                                            .setSecondaryIndexGroups(indexGroups)
                                             .build(lifecycleNewTracker, owner);
         return new SimpleSSTableMultiWriter(writer, lifecycleNewTracker);
     }

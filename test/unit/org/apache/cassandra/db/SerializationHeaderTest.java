@@ -100,7 +100,6 @@ public class SerializationHeaderTest
                                                              .setTableMetadataRef(TableMetadataRef.forOfflineTools(schema))
                                                              .setKeyCount(1)
                                                              .setSerializationHeader(header)
-                                                             .setFlushObservers(Collections.emptyList())
                                                              .setMetadataCollector(new MetadataCollector(schema.comparator))
                                                              .addDefaultComponents(Collections.emptySet())
                                                              .build(txn, null))

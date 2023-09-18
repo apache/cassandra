@@ -84,7 +84,7 @@ public class Upgrader
                          .setMetadataCollector(sstableMetadataCollector)
                          .setSerializationHeader(SerializationHeader.make(cfs.metadata(), Sets.newHashSet(sstable)))
                          .addDefaultComponents(cfs.indexManager.listIndexGroups())
-                         .addFlushObserversForSecondaryIndexes(cfs.indexManager.listIndexGroups(), transaction, cfs.metadata.get())
+                         .setSecondaryIndexGroups(cfs.indexManager.listIndexGroups())
                          .build(transaction, cfs);
     }
 

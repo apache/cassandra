@@ -319,7 +319,7 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
                          .setTransientSSTable(isTransient)
                          .setRepairedAt(minRepairedAt)
                          .setPendingRepair(pendingRepair)
-                         .addFlushObserversForSecondaryIndexes(cfs.indexManager.listIndexGroups(), txn, cfs.metadata.get())
+                         .setSecondaryIndexGroups(cfs.indexManager.listIndexGroups())
                          .addDefaultComponents(cfs.indexManager.listIndexGroups());
     }
 }

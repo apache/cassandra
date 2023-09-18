@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.io.sstable.format;
 
+import java.io.IOError;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -30,6 +31,9 @@ import java.util.function.Supplier;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SerializationHeader;
@@ -51,7 +55,6 @@ import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.MmappedRegionsCache;
-import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Transactional;
@@ -65,6 +68,8 @@ import static com.google.common.base.Preconditions.checkNotNull;
  */
 public abstract class SSTableWriter extends SSTable implements Transactional
 {
+    private final static Logger logger = LoggerFactory.getLogger(SSTableWriter.class);
+
     protected long repairedAt;
     protected TimeUUID pendingRepair;
     protected boolean isTransient;
@@ -72,7 +77,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
     protected final long keyCount;
     protected final MetadataCollector metadataCollector;
     protected final SerializationHeader header;
-    protected final Collection<SSTableFlushObserver> observers;
+    protected final List<SSTableFlushObserver> observers;
     protected final MmappedRegionsCache mmappedRegionsCache;
     protected final TransactionalProxy txnProxy = txnProxy();
     protected final LifecycleNewTracker lifecycleNewTracker;
@@ -88,7 +93,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
     protected SSTableWriter(Builder<?, ?> builder, LifecycleNewTracker lifecycleNewTracker, SSTable.Owner owner)
     {
         super(builder, owner);
-        checkNotNull(builder.getFlushObservers());
+        checkNotNull(builder.getIndexGroups());
         checkNotNull(builder.getMetadataCollector());
         checkNotNull(builder.getSerializationHeader());
 
@@ -98,11 +103,60 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         this.isTransient = builder.isTransientSSTable();
         this.metadataCollector = builder.getMetadataCollector();
         this.header = builder.getSerializationHeader();
-        this.observers = builder.getFlushObservers();
         this.mmappedRegionsCache = builder.getMmappedRegionsCache();
         this.lifecycleNewTracker = lifecycleNewTracker;
 
+        // We need to ensure that no sstable components exist before the lifecycle transaction starts tracking it.
+        // Otherwise, it means that we either want to overwrite some existing sstable, which is not allowed, or some
+        // sstable files were created before the sstable is registered in the lifecycle transaction, which may lead
+        // to a race such that the sstable is listed as completed due to the lack of the transaction file before
+        // anything is actually written to it.
+        Set<Component> existingComponents = Sets.filter(components, c -> descriptor.fileFor(c).exists());
+        assert existingComponents.isEmpty() : String.format("Cannot create a new SSTable in directory %s as component files %s already exist there",
+                                                            descriptor.directory,
+                                                            existingComponents);
+
         lifecycleNewTracker.trackNew(this);
+
+        try
+        {
+            ArrayList<SSTableFlushObserver> observers = new ArrayList<>();
+            this.observers = Collections.unmodifiableList(observers);
+            for (Index.Group group : builder.getIndexGroups())
+            {
+                SSTableFlushObserver observer = group.getFlushObserver(descriptor, lifecycleNewTracker, metadata.getLocal());
+                if (observer != null)
+                {
+                    observer.begin();
+                    observers.add(observer);
+                }
+            }
+        }
+        catch (RuntimeException | IOError ex)
+        {
+            handleConstructionFailure(ex);
+            throw ex;
+        }
+    }
+
+    /**
+     * Constructors of subclasses, if they open any resources, should wrap that in a try-catch block and call this
+     * method in the 'catch' section after closing any resources opened in the constructor. This method would remove
+     * the sstable from the transaction and delete the orphaned components, if any were created during the construction.
+     * The caught exception should be then rethrown so the {@link Builder} can handle it and close any resources opened
+     * implicitly by the builder.
+     * <p>
+     * See {@link SortedTableWriter#SortedTableWriter(SortedTableWriter.Builder, LifecycleNewTracker, Owner)} as of CASSANDRA-18737.
+     *
+     * @param ex the exception thrown during the construction
+     */
+    protected void handleConstructionFailure(Throwable ex)
+    {
+        logger.warn("Failed to open " + descriptor + " for writing", ex);
+        for (int i = observers.size()-1; i >= 0; i--)
+            observers.get(i).abort(ex);
+        descriptor.getFormat().deleteOrphanedComponents(descriptor, components);
+        lifecycleNewTracker.untrackNew(this);
     }
 
     @Override
@@ -382,7 +436,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         private TimeUUID pendingRepair;
         private boolean transientSSTable;
         private SerializationHeader serializationHeader;
-        private Collection<SSTableFlushObserver> flushObservers;
+        private List<Index.Group> indexGroups;
 
         public B setMetadataCollector(MetadataCollector metadataCollector)
         {
@@ -420,12 +474,6 @@ public abstract class SSTableWriter extends SSTable implements Transactional
             return (B) this;
         }
 
-        public B setFlushObservers(Collection<SSTableFlushObserver> flushObservers)
-        {
-            this.flushObservers = ImmutableList.copyOf(flushObservers);
-            return (B) this;
-        }
-
         public B addDefaultComponents(Collection<Index.Group> indexGroups)
         {
             checkNotNull(getTableMetadataRef());
@@ -460,26 +508,11 @@ public abstract class SSTableWriter extends SSTable implements Transactional
             return components;
         }
 
-        public B addFlushObserversForSecondaryIndexes(Collection<Index.Group> indexGroups, LifecycleNewTracker tracker, TableMetadata metadata)
+        public B setSecondaryIndexGroups(Collection<Index.Group> indexGroups)
         {
-            if (indexGroups == null)
-                return (B) this;
-
-            Collection<SSTableFlushObserver> current = this.flushObservers != null ? this.flushObservers : Collections.emptyList();
-            List<SSTableFlushObserver> observers = new ArrayList<>(indexGroups.size() + current.size());
-            observers.addAll(current);
-
-            for (Index.Group group : indexGroups)
-            {
-                SSTableFlushObserver observer = group.getFlushObserver(descriptor, tracker, metadata);
-                if (observer != null)
-                {
-                    observer.begin();
-                    observers.add(observer);
-                }
-            }
-
-            return setFlushObservers(observers);
+            checkNotNull(indexGroups);
+            this.indexGroups = ImmutableList.copyOf(indexGroups);
+            return (B) this;
         }
 
         public MetadataCollector getMetadataCollector()
@@ -512,9 +545,9 @@ public abstract class SSTableWriter extends SSTable implements Transactional
             return serializationHeader;
         }
 
-        public Collection<SSTableFlushObserver> getFlushObservers()
+        public List<Index.Group> getIndexGroups()
         {
-            return flushObservers;
+            return indexGroups == null ? Collections.emptyList() : indexGroups;
         }
 
         public abstract MmappedRegionsCache getMmappedRegionsCache();

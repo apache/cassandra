@@ -1,4 +1,5 @@
 5.0-alpha2
+ * Do not create sstable files before registering in txn (CASSANDRA-18737)
  * Do not log stacktrace on mismatched cache and schema version and checksum error in AutoSavingCache (CASSANDRA-18862)
  * Remove wrong assertion in SSTableLoader (CASSANDRA-18840)
  * Fix accessing java.nio.Bits.TOTAL_CAPACITY in Java17 (CASSANDRA-18848)

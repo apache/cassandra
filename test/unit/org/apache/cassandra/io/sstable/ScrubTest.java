@@ -839,7 +839,6 @@ public class ScrubTest
                                          .setTableMetadataRef(cfs.metadata)
                                          .setMetadataCollector(collector)
                                          .setSerializationHeader(header)
-                                         .setFlushObservers(Collections.emptyList())
                                          .addDefaultComponents(Collections.emptySet())
                                          .build(txn, cfs);
 
