@@ -163,7 +163,7 @@ public class SSTableWriterTestBase extends SchemaLoader
                    .setPendingRepair(pendingRepair)
                    .setTransientSSTable(isTransient)
                    .setSerializationHeader(new SerializationHeader(true, cfs.metadata(), cfs.metadata().regularAndStaticColumns(), EncodingStats.NO_STATS))
-                   .addFlushObserversForSecondaryIndexes(cfs.indexManager.listIndexGroups(), txn, cfs.metadata.get())
+                   .setSecondaryIndexGroups(cfs.indexManager.listIndexGroups())
                    .setMetadataCollector(new MetadataCollector(cfs.metadata().comparator))
                    .addDefaultComponents(cfs.indexManager.listIndexGroups())
                    .build(txn, cfs);

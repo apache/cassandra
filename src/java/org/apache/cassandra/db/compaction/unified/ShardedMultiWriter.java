@@ -117,7 +117,7 @@ public class ShardedMultiWriter implements SSTableMultiWriter
                          .setMetadataCollector(metadataCollector)
                          .setSerializationHeader(header)
                          .addDefaultComponents(indexGroups)
-                         .addFlushObserversForSecondaryIndexes(indexGroups, lifecycleNewTracker, cfs.metadata.get())
+                         .setSecondaryIndexGroups(indexGroups)
                          .build(lifecycleNewTracker, cfs);
     }
 
