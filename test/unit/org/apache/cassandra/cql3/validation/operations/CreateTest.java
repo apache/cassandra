@@ -681,24 +681,16 @@ public class CreateTest extends CQLTester
         assertSchemaOption("compression", map("chunk_length_in_kb", "32", "class", "org.apache.cassandra.io.compress.SnappyCompressor"));
 
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
-                + " WITH compression = { 'sstable_compression' : 'SnappyCompressor', 'chunk_length_kb' : 32 };");
-        assertSchemaOption("compression", map("chunk_length_in_kb", "32", "class", "org.apache.cassandra.io.compress.SnappyCompressor"));
-
-        createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
-                + " WITH compression = { 'sstable_compression' : 'SnappyCompressor', 'min_compress_ratio' : 2 };");
+                + " WITH compression = { 'class' : 'SnappyCompressor', 'min_compress_ratio' : 2 };");
         assertSchemaOption("compression", map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.SnappyCompressor", "min_compress_ratio", "2.0"));
 
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
-                    + " WITH compression = { 'sstable_compression' : 'SnappyCompressor', 'min_compress_ratio' : 1 };");
+                    + " WITH compression = { 'class' : 'SnappyCompressor', 'min_compress_ratio' : 1 };");
         assertSchemaOption("compression", map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.SnappyCompressor", "min_compress_ratio", "1.0"));
 
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
-                    + " WITH compression = { 'sstable_compression' : 'SnappyCompressor', 'min_compress_ratio' : 0 };");
+                    + " WITH compression = { 'class' : 'SnappyCompressor', 'min_compress_ratio' : 0 };");
         assertSchemaOption("compression", map("chunk_length_in_kb", "16", "class", "org.apache.cassandra.io.compress.SnappyCompressor"));
-
-        createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
-                + " WITH compression = { 'sstable_compression' : '', 'chunk_length_kb' : 32 };");
-        assertSchemaOption("compression", map("enabled", "false"));
 
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                 + " WITH compression = { 'enabled' : 'false'};");
@@ -719,14 +711,6 @@ public class CreateTest extends CQLTester
         assertThrowsConfigurationException("If the 'enabled' option is set to false no other options must be specified",
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
                                            + " WITH compression = { 'enabled' : 'false', 'chunk_length_in_kb' : 32};");
-
-        assertThrowsConfigurationException("The 'sstable_compression' option must not be used if the compression algorithm is already specified by the 'class' option",
-                                           "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
-                                           + " WITH compression = { 'sstable_compression' : 'SnappyCompressor', 'class' : 'SnappyCompressor'};");
-
-        assertThrowsConfigurationException("The 'chunk_length_kb' option must not be used if the chunk length is already specified by the 'chunk_length_in_kb' option",
-                                           "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
-                                           + " WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_kb' : 32 , 'chunk_length_in_kb' : 32 };");
 
         assertThrowsConfigurationException("chunk_length_in_kb must be a power of 2",
                                            "CREATE TABLE %s (a text, b int, c int, primary key (a, b))"
