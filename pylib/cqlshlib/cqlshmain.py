@@ -23,6 +23,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import traceback
 import warnings
 import webbrowser
@@ -329,7 +330,7 @@ class Shell(cmd.Cmd):
     default_page_size = 100
 
     def __init__(self, hostname, port, color=False,
-                 username=None, encoding=None, stdin=None, tty=True,
+                 username=None, encoding=None, elapsed_enabled=False, stdin=None, tty=True,
                  completekey=DEFAULT_COMPLETEKEY, browser=None, use_conn=None,
                  cqlver=None, keyspace=None,
                  tracing_enabled=False, expand_enabled=False,
@@ -412,6 +413,7 @@ class Shell(cmd.Cmd):
 
         self.tty = tty
         self.encoding = encoding
+        self.elapsed_enabled = elapsed_enabled
 
         self.output_codec = codecs.lookup(encoding)
 
@@ -970,6 +972,7 @@ class Shell(cmd.Cmd):
         if not statement:
             return False, None
 
+        start_time = time.time()
         future = self.session.execute_async(statement, trace=self.tracing_enabled)
         result = None
         try:
@@ -990,6 +993,8 @@ class Shell(cmd.Cmd):
                               "nodes in system.local and system.peers.")
                 self.conn.refresh_schema_metadata(-1)
 
+        elapsed = int((time.time() - start_time) * 1000)
+
         if result is None:
             return False, None
 
@@ -1003,6 +1008,8 @@ class Shell(cmd.Cmd):
             # CAS INSERT/UPDATE
             self.writeresult("")
             self.print_static_result(result, self.parse_for_update_meta(statement.query_string), with_header=True, tty=self.tty)
+        if self.elapsed_enabled:
+            self.writeresult("(%dms elapsed)" % elapsed)
         self.flush_output()
         return True, future
 
@@ -1551,7 +1558,8 @@ class Shell(cmd.Cmd):
             return
         subshell = Shell(self.hostname, self.port, color=self.color,
                          username=self.username,
-                         encoding=self.encoding, stdin=f, tty=False, use_conn=self.conn,
+                         encoding=self.encoding, elapsed_enabled=self.elapsed_enabled,
+                         stdin=f, tty=False, use_conn=self.conn,
                          cqlver=self.cql_version, keyspace=self.current_keyspace,
                          tracing_enabled=self.tracing_enabled,
                          display_nanotime_format=self.display_nanotime_format,
@@ -1655,6 +1663,22 @@ class Shell(cmd.Cmd):
         """
         self.tracing_enabled \
             = self.on_off_switch("TRACING", self.tracing_enabled, parsed.get_binding('switch'))
+
+    def do_elapsed(self, parsed):
+        """
+        ELAPSED
+
+          Returns whether displaying of elapsed time for each CQL query is enabled on not
+
+        ELAPSED ON
+
+          Enables displaying of elapsed time for each CQL query
+
+        ELAPSED OFF
+
+          Disables displaying of elapsed time for each CQL query
+        """
+        self.elapsed_enabled = self.on_off_switch("ELAPSED", self.elapsed_enabled, parsed.get_binding('switch'))
 
     def do_expand(self, parsed):
         """
