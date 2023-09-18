@@ -23,6 +23,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import traceback
 import warnings
 import webbrowser
@@ -966,6 +967,7 @@ class Shell(cmd.Cmd):
         if not statement:
             return False, None
 
+        start_time = time.time()
         future = self.session.execute_async(statement, trace=self.tracing_enabled)
         result = None
         try:
@@ -989,20 +991,23 @@ class Shell(cmd.Cmd):
         if result is None:
             return False, None
 
+        elapsed = int((time.time() - start_time) * 1000)
+
         if statement.query_string[:6].lower() == 'select':
-            self.print_result(result, self.parse_for_select_meta(statement.query_string))
+            self.print_result(result, self.parse_for_select_meta(statement.query_string), elapsed)
         elif statement.query_string.lower().startswith("list users") or statement.query_string.lower().startswith("list roles"):
-            self.print_result(result, self.get_table_meta('system_auth', 'roles'))
+            self.print_result(result, self.get_table_meta('system_auth', 'roles'), elapsed)
         elif statement.query_string.lower().startswith("list"):
-            self.print_result(result, self.get_table_meta('system_auth', 'role_permissions'))
+            self.print_result(result, self.get_table_meta('system_auth', 'role_permissions'), elapsed)
         elif result:
             # CAS INSERT/UPDATE
             self.writeresult("")
             self.print_static_result(result, self.parse_for_update_meta(statement.query_string), with_header=True, tty=self.tty)
+            self.writeresult("(%dms elapsed)" % elapsed)
         self.flush_output()
         return True, future
 
-    def print_result(self, result, table_meta):
+    def print_result(self, result, table_meta, elapsed):
         self.decoding_errors = []
 
         self.writeresult("")
@@ -1030,7 +1035,7 @@ class Shell(cmd.Cmd):
             return num_rows
 
         num_rows = print_all(result, table_meta, self.tty)
-        self.writeresult("(%d rows)" % num_rows)
+        self.writeresult("(%d rows, %dms elapsed)" % (num_rows, elapsed))
 
         if self.decoding_errors:
             for err in self.decoding_errors[:2]:
