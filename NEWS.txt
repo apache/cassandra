@@ -225,6 +225,7 @@ Upgrading
     - `commitlog_sync_batch_window_in_ms` configuration property in cassandra.yaml was removed. Please ensure your configuration is not using this property.
     - The pluggable metrics reporter called metrics-reporter-config is removed. The way that metrics can be exported is
       fully covered by the dropwizard metrics library itself, using e.g. CsvReporter. See CASSANDRA-18743 for more details.
+    - Deprecated CQL compression parameters for table, `sstable_compression` and `chunk_length_kb`, were removed. Please use `class` and `chunk_length_in_kb` instead.
 
 
 Deprecation
