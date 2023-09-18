@@ -253,23 +253,26 @@ Some useful combinations of these parameters:
 - The basic scheme above uses a sstable growth $\lambda=0$, and a minimum sstable size $m=0$. The graph below
   illustrates it for base shard count $b=4$ and target sstable size $t=1\mathrm{GB}$:
 
-  ![Graph with lambda 0](unified/shards_graph_lambda_0.svg)
+![Graph with lambda 0](unified/shards_graph_lambda_0.svg)
+
 - Using $\lambda = 0.5$ makes the strategy grow the shard count and sstable size evenly. When the density
   quadruples, both the shard count and the expected sstable size for that density band will double. The example
   below uses $b=8$, $t=1\mathrm{GB}$ and also applies a minimal size $m=100\mathrm{MB}$:
 
-  ![Graph with lambda 0.5](unified/shards_graph_lambda_0_5.svg)
+![Graph with lambda 0.5](unified/shards_graph_lambda_0_5.svg)
+
 - Similarly, $\lambda = 1/3$ makes the sstable growth the cubic root of the density growth, i.e. the sstable size
   grows with the square root of the growth of the shard count. The graph below uses $b=1$ and $t = 1\mathrm{GB}$ 
   (note: when $b=1$ the minimal size has no effect):
 
-  ![Graph with lambda 0.33](unified/shards_graph_lambda_0_33.svg)
+![Graph with lambda 0.33](unified/shards_graph_lambda_0_33.svg)
+
 - A growth component of 1 constructs a hierarchy with exactly $b$ shards at every level. Combined with a minumum
   sstable size, this defines a mode of operation similar to UCS V1 (as used in DSE 6.8), where we use a pre-specified
   number of shards, but split only after reaching a minimum size. Illustrated below for $b=10$ and $m=100\mathrm{MB}$ 
   (note: the target sstable size is irrelevant when $\lambda=1$):
 
-  ![Graph with lambda 1](unified/shards_graph_lambda_1.svg)
+![Graph with lambda 1](unified/shards_graph_lambda_1.svg)
 
 ## Choosing sstables to compact
 
