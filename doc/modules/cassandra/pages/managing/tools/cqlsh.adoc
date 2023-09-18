@@ -322,6 +322,35 @@ EXPAND ON
 EXPAND OFF
 ----
 
+=== `ELAPSED`
+
+Enables or disables the printing of the elapsed time for a query. Except a quick evalution
+of how long a CQL statement took, this is also a complementary output to `TRACING` (if enabled).
+A user can debug if there is a communication delay to a node or not comparing the timestamps as `TRACING` tracks
+the time elapsed only on the server side.
+
+`Usage`:
+
+[source,none]
+----
+cqlsh> ELAPSED ON
+ELAPSED set to ON
+cqlsh> select * from myks.mytb limit 5;
+
+ id | age
+----+-----
+  5 |  10
+ 10 |  10
+ 11 |  10
+  1 |  10
+  8 |  10
+
+(5 rows)
+(6ms elapsed)
+cqlsh> DROP KEYSPACE myks ;
+(510ms elapsed)
+----
+
 === `LOGIN`
 
 Authenticate as a specified Cassandra user for the current session.

@@ -33,6 +33,7 @@ my_commands_ending_with_newline = (
     'debug',
     'tracing',
     'expand',
+    'elapsed',
     'paging',
     'exit',
     'quit',
@@ -71,6 +72,7 @@ cqlsh_special_cmd_command_syntax_rules = r'''
                    | <helpCommand>
                    | <tracingCommand>
                    | <expandCommand>
+                   | <elapsedCommand>
                    | <exitCommand>
                    | <pagingCommand>
                    | <clearCommand>
@@ -194,6 +196,11 @@ cqlsh_paging_cmd_syntax_rules = r'''
                   ;
 '''
 
+cqlsh_elapsed_cmd_syntax_rules = r'''
+<elapsedCommand> ::= "ELAPSED" ( switch=( "ON" | "OFF" ) )?
+                  ;
+'''
+
 cqlsh_login_cmd_syntax_rules = r'''
 <loginCommand> ::= "LOGIN" username=<username> (password=<stringLiteral>)?
                  ;
@@ -236,6 +243,7 @@ cqlsh_extra_syntax_rules = cqlsh_cmd_syntax_rules + \
     cqlsh_tracing_cmd_syntax_rules + \
     cqlsh_expand_cmd_syntax_rules + \
     cqlsh_paging_cmd_syntax_rules + \
+    cqlsh_elapsed_cmd_syntax_rules + \
     cqlsh_login_cmd_syntax_rules + \
     cqlsh_exit_cmd_syntax_rules + \
     cqlsh_clear_cmd_syntax_rules + \
