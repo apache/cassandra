@@ -39,7 +39,7 @@ public class GuardrailAllowUncompressedTablesTest extends GuardrailTester
     {
         setGuardrail(true);
         String table = createTableName();
-        schemaChange(String.format("CREATE TABLE %s.%s (k int primary key, v int) WITH compression={'sstable_compression':''}", KEYSPACE, table));
+        schemaChange(String.format("CREATE TABLE %s.%s (k int primary key, v int) WITH compression={'enabled':false}", KEYSPACE, table));
         TableMetadata tmd = Schema.instance.getTableMetadata(KEYSPACE, table);
         Assert.assertFalse(tmd.params.compression.isEnabled());
     }
@@ -52,7 +52,7 @@ public class GuardrailAllowUncompressedTablesTest extends GuardrailTester
     {
         setGuardrail(false);
         String table = createTableName();
-        assertFails(String.format("CREATE TABLE %s.%s (k int primary key, v int) WITH compression={'sstable_compression':''}", KEYSPACE, table), "Uncompressed table is not allowed");
+        assertFails(String.format("CREATE TABLE %s.%s (k int primary key, v int) WITH compression={'enabled': false}", KEYSPACE, table), "Uncompressed table is not allowed");
     }
 
     @Test
@@ -61,7 +61,7 @@ public class GuardrailAllowUncompressedTablesTest extends GuardrailTester
         setGuardrail(true);
         String table = createTableName();
         schemaChange(String.format("CREATE TABLE %s.%s (k int primary key, v int)", KEYSPACE, table));
-        schemaChange(String.format("ALTER TABLE %s.%s WITH compression = {'sstable_compression': ''}", KEYSPACE, table));
+        schemaChange(String.format("ALTER TABLE %s.%s WITH compression = {'enabled': false}", KEYSPACE, table));
         TableMetadata tmd = Schema.instance.getTableMetadata(KEYSPACE, table);
         Assert.assertFalse(tmd.params.compression.isEnabled());
     }
@@ -72,6 +72,6 @@ public class GuardrailAllowUncompressedTablesTest extends GuardrailTester
         setGuardrail(false);
         String table = createTableName();
         schemaChange(String.format("CREATE TABLE %s.%s (k int primary key, v int)", KEYSPACE, table));
-        assertFails(String.format("ALTER TABLE %s.%s WITH compression = {'sstable_compression': ''}", KEYSPACE, table), "Uncompressed table is not allowed");
+        assertFails(String.format("ALTER TABLE %s.%s WITH compression = {'enabled': false}", KEYSPACE, table), "Uncompressed table is not allowed");
     }
 }
