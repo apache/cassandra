@@ -274,7 +274,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
             catch (Throwable t)
             {
                 JVMStabilityInspector.inspectThrowable(t);
-                logger.info(String.format("Harmless error reading saved cache %s", dataPath.absolutePath()), t);
+                logger.debug(String.format("Harmless error reading saved cache: %s", dataPath.absolutePath()), t.getMessage());
             }
             finally
             {
