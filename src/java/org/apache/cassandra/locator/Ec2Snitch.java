@@ -17,12 +17,7 @@
  */
 package org.apache.cassandra.locator;
 
-import java.io.DataInputStream;
-import java.io.FilterInputStream;
 import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Set;
 
@@ -34,13 +29,28 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.nodes.Nodes;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * A snitch that assumes an EC2 region is a DC and an EC2 availability_zone
- *  is a rack. This information is available in the config for the node.
+ * is a rack. This information is available in the config for the node.
+
+ * Since CASSANDRA-16555, it is possible to choose version of AWS IMDS.
+ *
+ * By default, since CASSANDRA-16555, IMDSv2 is used.
+ *
+ * The version of IMDS is driven by property {@link Ec2MetadataServiceConnector#EC2_METADATA_TYPE_PROPERTY} and
+ * can be of value either 'v1' or 'v2'.
+ *
+ * It is possible to specify custom URL of IMDS by {@link Ec2MetadataServiceConnector#EC2_METADATA_URL_PROPERTY}.
+ * A user is not meant to change this under normal circumstances, it is suitable for testing only.
+ *
+ * IMDSv2 is secured by a token which needs to be fetched from IDMSv2 first, and it has to be passed in a header
+ * for the actual queries to IDMSv2. Ec2Snitch is doing this automatically. The only configuration parameter exposed
+ * to a user is {@link Ec2MetadataServiceConnector.V2Connector#AWS_EC2_METADATA_TOKEN_TTL_SECONDS_HEADER_PROPERTY}
+ * which is by default set to {@link Ec2MetadataServiceConnector.V2Connector#MAX_TOKEN_TIME_IN_SECONDS}. TTL has
+ * to be an integer from the range [30, 21600].
  */
 public class Ec2Snitch extends AbstractNetworkTopologySnitch
 {
@@ -50,7 +60,9 @@ public class Ec2Snitch extends AbstractNetworkTopologySnitch
     static final String EC2_NAMING_LEGACY = "legacy";
     private static final String EC2_NAMING_STANDARD = "standard";
 
-    private static final String ZONE_NAME_QUERY_URL = "http://169.254.169.254/latest/meta-data/placement/availability-zone";
+    @VisibleForTesting
+    public static final String ZONE_NAME_QUERY = "/latest/meta-data/placement/availability-zone";
+
     private static final String DEFAULT_DC = "UNKNOWN-DC";
     private static final String DEFAULT_RACK = "UNKNOWN-RACK";
 
@@ -60,6 +72,8 @@ public class Ec2Snitch extends AbstractNetworkTopologySnitch
 
     private Map<InetAddressAndPort, Map<String, String>> savedEndpoints;
 
+    protected final Ec2MetadataServiceConnector connector;
+
     public Ec2Snitch() throws IOException, ConfigurationException
     {
         this(new SnitchProperties());
@@ -67,7 +81,13 @@ public class Ec2Snitch extends AbstractNetworkTopologySnitch
 
     public Ec2Snitch(SnitchProperties props) throws IOException, ConfigurationException
     {
-        String az = awsApiCall(ZONE_NAME_QUERY_URL);
+        this(props, Ec2MetadataServiceConnector.create(props));
+    }
+
+    Ec2Snitch(SnitchProperties props, Ec2MetadataServiceConnector connector) throws IOException
+    {
+        this.connector = connector;
+        String az = connector.apiCall(ZONE_NAME_QUERY);
 
         // if using the full naming scheme, region name is created by removing letters from the
         // end of the availability zone and zone is the full zone name
@@ -94,37 +114,12 @@ public class Ec2Snitch extends AbstractNetworkTopologySnitch
 
         String datacenterSuffix = props.get("dc_suffix", "");
         ec2region = region.concat(datacenterSuffix);
-        logger.info("EC2Snitch using region: {}, zone: {}.", ec2region, ec2zone);
+        logger.info("EC2Snitch using region: {}, zone: {}, properties: {}", ec2region, ec2zone, connector);
     }
 
     private static boolean isUsingLegacyNaming(SnitchProperties props)
     {
         return props.get(SNITCH_PROP_NAMING_SCHEME, EC2_NAMING_STANDARD).equalsIgnoreCase(EC2_NAMING_LEGACY);
-    }
-
-    String awsApiCall(String url) throws IOException, ConfigurationException
-    {
-        // Populate the region and zone by introspection, fail if 404 on metadata
-        HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
-        DataInputStream d = null;
-        try
-        {
-            conn.setRequestMethod("GET");
-            if (conn.getResponseCode() != 200)
-                throw new ConfigurationException("Ec2Snitch was unable to execute the API call. Not an ec2 node?");
-
-            // Read the information. I wish I could say (String) conn.getContent() here...
-            int cl = conn.getContentLength();
-            byte[] b = new byte[cl];
-            d = new DataInputStream((FilterInputStream) conn.getContent());
-            d.readFully(b);
-            return new String(b, StandardCharsets.UTF_8);
-        }
-        finally
-        {
-            FileUtils.close(d);
-            conn.disconnect();
-        }
     }
 
     public String getRack(InetAddressAndPort endpoint)

@@ -140,6 +140,22 @@ public class Info extends NodeToolCmd
             // Chunk cache is not on.
         }
 
+        // network Cache: capacity, size
+        try
+        {
+            out.printf("%-23s: size %s, overflow size: %s, capacity %s%n", "Network Cache",
+                       FileUtils.stringifyFileSize((long) probe.getBufferPoolMetric("networking", "Size")),
+                       FileUtils.stringifyFileSize((long) probe.getBufferPoolMetric("networking", "OverflowSize")),
+                       FileUtils.stringifyFileSize((long) probe.getBufferPoolMetric("networking", "Capacity")));
+        }
+        catch (RuntimeException e)
+        {
+            if (!(e.getCause() instanceof InstanceNotFoundException))
+                throw e;
+
+            // network cache is not on.
+        }
+
         // Global table stats
         out.printf("%-23s: %s%%%n", "Percent Repaired", probe.getColumnFamilyMetric(null, null, "PercentRepaired"));
 

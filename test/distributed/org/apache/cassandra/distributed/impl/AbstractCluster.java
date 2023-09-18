@@ -47,6 +47,7 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.IPartitioner;
@@ -68,11 +69,9 @@ import org.apache.cassandra.distributed.api.LogAction;
 import org.apache.cassandra.distributed.api.NodeToolResult;
 import org.apache.cassandra.distributed.api.TokenSupplier;
 import org.apache.cassandra.distributed.shared.InstanceClassLoader;
-import org.apache.cassandra.distributed.shared.Isolated;
 import org.apache.cassandra.distributed.shared.MessageFilters;
 import org.apache.cassandra.distributed.shared.Metrics;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
-import org.apache.cassandra.distributed.shared.Shared;
 import org.apache.cassandra.distributed.shared.ShutdownException;
 import org.apache.cassandra.distributed.shared.Versions;
 import org.apache.cassandra.io.util.FileUtils;
@@ -80,6 +79,8 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Isolated;
+import org.apache.cassandra.utils.Shared;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 import org.reflections.Reflections;
 import org.reflections.util.ConfigurationBuilder;
@@ -163,6 +164,14 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
         extends org.apache.cassandra.distributed.shared.AbstractBuilder<I, C, B>
     {
         private INodeProvisionStrategy.Strategy nodeProvisionStrategy = INodeProvisionStrategy.Strategy.MultipleNetworkInterfaces;
+
+        {
+            // Indicate that we are running in the in-jvm dtest environment
+            CassandraRelevantProperties.DTEST_IS_IN_JVM_DTEST.setBoolean(true);
+            // those properties may be set for unit-test optimizations; those should not be used when running dtests
+            CassandraRelevantProperties.FLUSH_LOCAL_SCHEMA_CHANGES.reset();
+            CassandraRelevantProperties.NON_GRACEFUL_SHUTDOWN.reset();
+        }
 
         public AbstractBuilder(Factory<I, C, B> factory)
         {
@@ -502,6 +511,16 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
     public I get(InetSocketAddress addr)
     {
         return instanceMap.get(addr);
+    }
+
+    public List<I> get(int... nodes)
+    {
+        if (nodes == null || nodes.length == 0)
+            throw new IllegalArgumentException("No nodes provided");
+        List<I> list = new ArrayList<>(nodes.length);
+        for (int i : nodes)
+            list.add(get(i));
+        return list;
     }
 
     public I getFirstRunningInstance()
@@ -956,4 +975,3 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
                .collect(Collectors.toSet());
     }
 }
-

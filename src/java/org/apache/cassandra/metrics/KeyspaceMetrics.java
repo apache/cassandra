@@ -133,6 +133,7 @@ public class KeyspaceMetrics
     public final Timer coordinatorWriteLatency;
     /** Time spent waiting for free memtable space, either on- or off-heap */
     public final Histogram waitingOnFreeMemtableSpace;
+    public final Histogram coordinatorReadSize;
 
     /*
      * Metrics for inconsistencies detected between repaired data sets across replicas. These
@@ -242,6 +243,8 @@ public class KeyspaceMetrics
         coordinatorScanLatency = createKeyspaceTimer("CoordinatorScanLatency");
         coordinatorWriteLatency = createKeyspaceTimer("CoordinatorWriteLatency");
         waitingOnFreeMemtableSpace = createKeyspaceHistogram("WaitingOnFreeMemtableSpace", false);
+        coordinatorReadSize = createKeyspaceHistogram("CoordinatorReadSize", false);
+
 
         confirmedRepairedInconsistencies = createKeyspaceMeter("RepairedDataInconsistenciesConfirmed");
         unconfirmedRepairedInconsistencies = createKeyspaceMeter("RepairedDataInconsistenciesUnconfirmed");

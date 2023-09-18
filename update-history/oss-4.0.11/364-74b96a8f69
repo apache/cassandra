@@ -1,0 +1,136 @@
+--- a/src/java/org/apache/cassandra/db/compaction/CompactionTask.java
++++ b/src/java/org/apache/cassandra/db/compaction/CompactionTask.java
+@@ -235,25 +235,6 @@
+             long  endsize = SSTableReader.getTotalBytes(newSStables);
+ 
+ 
+-<<<<<<<
+-            UUID taskTimeUUID = UUIDGen.getTimeUUID();
+-            String mergeSummary = updateCompactionHistory(taskTimeUUID, cfs.keyspace.getName(), cfs.getTableName(), mergedRowCounts, startsize, endsize);
+-
+-            logger.info(String.format("Compacted (task id: %s, compaction history id: %s) %d sstables to [%s] to level=%d.  %s to %s (~%d%% of original) in %,dms.  Read Throughput = %s, Write Throughput = %s, Row Throughput = ~%,d/s.  %,d total partitions merged to %,d.  Partition merge counts were {%s}",
+-                                       taskId,
+-                                       taskTimeUUID,
+-                                       transaction.originals().size(),
+-                                       newSSTableNames.toString(),
+-                                       getLevel(),
+-                                       FBUtilities.prettyPrintMemory(startsize),
+-                                       FBUtilities.prettyPrintMemory(endsize),
+-                                       (int) (ratio * 100),
+-                                       dTime,
+-                                       FBUtilities.prettyPrintMemoryPerSecond(startsize, durationInNano),
+-                                       FBUtilities.prettyPrintMemoryPerSecond(endsize, durationInNano),
+-                                       (int) totalSourceCQLRows / (TimeUnit.NANOSECONDS.toSeconds(durationInNano) + 1),
+-                                       totalSourceRows,
+-=======
+             updateCompactionHistory(taskId,
+             cfs.keyspace.getName(),
+                 cfs.getTableName(),
+@@ -267,13 +248,12 @@
+                                        {
+                                        debugLogCompactionSummaryInfo(taskId,
+                                        start,
+->>>>>>>
+                                        totalKeysWritten,
+                                        inputSizeBytes,
+                                        newSStables,
+                                        mergedRowsHistogram,
+                                        (int) totalSourceCQLRows ,
+-                                       endsize);
++                                      endsize);
+                                        }
+             if (logger.isTraceEnabled())
+             {
+@@ -295,8 +275,6 @@
+         return new DefaultCompactionWriter(cfs, directories, transaction, nonExpiredSSTables, keepOriginals, getLevel());
+     }
+ 
+-<<<<<<<
+-=======
+     public static String updateCompactionHistory(UUID taskId, String keyspaceName, String columnFamilyName, long[] mergedRowCounts, long startSize, long endSize)
+     {
+         StringBuilder mergeSummary = new StringBuilder(mergedRowCounts.length * 10);
+@@ -315,7 +293,6 @@
+         return mergeSummary.toString();
+     }
+ 
+->>>>>>>
+     protected Directories getDirectories()
+     {
+         return cfs.getDirectories();
+@@ -522,31 +499,6 @@
+     }
+ 
+ 
+-    private static void updateCompactionHistory(UUID id,
+-                                                String keyspaceName,
+-                                                String columnFamilyName,
+-                                                long[] mergedRowsHistogram,
+-                                                long startSize,
+-                                                long endSize)
+-    {
+-        Map<Integer, Long> mergedRows = new HashMap<>(mergedRowsHistogram.length);
+-        for (int i = 0; i < mergedRowsHistogram.length; i++)
+-        {
+-            long count = mergedRowsHistogram[i];
+-            if (count == 0)
+-                continue;
+-
+-            int rows = i + 1;
+-            mergedRows.put(rows, count);
+-        }
+-        SystemKeyspace.updateCompactionHistory(id,
+-                                               keyspaceName,
+-                                               columnFamilyName,
+-                                               System.currentTimeMillis(),
+-                                               startSize,
+-                                               endSize,
+-                                               mergedRows);
+-    }
+ 
+     private void traceLogCompactionSummaryInfo(long totalKeysWritten, long estimatedKeys, long endsize)
+     {
+diff --git a/src/java/org/apache/cassandra/io/sstable/format/trieindex/TrieIndexSSTableReader.java b/src/java/org/apache/cassandra/io/sstable/format/trieindex/TrieIndexSSTableReader.java
+index ba1243de3b..5c74dadeab 100644
+--- a/src/java/org/apache/cassandra/io/sstable/format/trieindex/TrieIndexSSTableReader.java
++++ b/src/java/org/apache/cassandra/io/sstable/format/trieindex/TrieIndexSSTableReader.java
+@@ -327,7 +327,7 @@ public class TrieIndexSSTableReader extends SSTableReader
+         if (!bf.isPresent(dk))
+         {
+             listener.onSSTableSkipped(this, SkippingReason.BLOOM_FILTER);
+-            Tracing.trace("Bloom filter allows skipping sstable {}", descriptor.id.asString());
++            Tracing.trace("Bloom filter allows skipping sstable {}", descriptor.id);
+             return null;
+         }
+ 
+diff --git a/test/distributed/org/apache/cassandra/distributed/test/sai/AbstractQueryTester.java b/test/distributed/org/apache/cassandra/distributed/test/sai/AbstractQueryTester.java
+index 33a2eb2372..22d94fef01 100644
+--- a/test/distributed/org/apache/cassandra/distributed/test/sai/AbstractQueryTester.java
++++ b/test/distributed/org/apache/cassandra/distributed/test/sai/AbstractQueryTester.java
+@@ -31,10 +31,10 @@ import org.junit.runners.Parameterized;
+ 
+ import org.apache.cassandra.distributed.Cluster;
+ import org.apache.cassandra.distributed.shared.Byteman;
+-import org.apache.cassandra.distributed.shared.Shared;
+ import org.apache.cassandra.distributed.test.TestBaseImpl;
+ import org.apache.cassandra.index.sai.cql.DataModel;
+ import org.apache.cassandra.index.sai.cql.IndexQuerySupport;
++import org.apache.cassandra.utils.Shared;
+ 
+ @RunWith(Parameterized.class)
+ public class AbstractQueryTester extends TestBaseImpl
+diff --git a/test/distributed/org/apache/cassandra/distributed/test/sai/IndexConsistencyTest.java b/test/distributed/org/apache/cassandra/distributed/test/sai/IndexConsistencyTest.java
+index 243cbd0cad..1dd3e91d22 100644
+--- a/test/distributed/org/apache/cassandra/distributed/test/sai/IndexConsistencyTest.java
++++ b/test/distributed/org/apache/cassandra/distributed/test/sai/IndexConsistencyTest.java
+@@ -34,9 +34,9 @@ import org.apache.cassandra.distributed.Cluster;
+ import org.apache.cassandra.distributed.api.ConsistencyLevel;
+ import org.apache.cassandra.distributed.shared.AssertUtils;
+ import org.apache.cassandra.distributed.shared.Byteman;
+-import org.apache.cassandra.distributed.shared.Shared;
+ import org.apache.cassandra.distributed.test.TestBaseImpl;
+ import org.apache.cassandra.index.sai.StorageAttachedIndex;
++import org.apache.cassandra.utils.Shared;
+ 
+ import static org.apache.cassandra.distributed.shared.AssertUtils.fail;
+ import static org.apache.cassandra.distributed.shared.AssertUtils.row;

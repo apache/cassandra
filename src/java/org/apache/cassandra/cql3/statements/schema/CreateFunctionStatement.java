@@ -95,6 +95,9 @@ public final class CreateFunctionStatement extends AlterSchemaStatement
 
         UDFunction.assertUdfsEnabled(language);
 
+        if (!FunctionName.isNameValid(functionName))
+            throw ire("Function name '%s' is invalid", functionName);
+
         if (new HashSet<>(argumentNames).size() != argumentNames.size())
             throw ire("Duplicate argument names for given function %s with argument names %s", functionName, argumentNames);
 

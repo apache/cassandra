@@ -162,13 +162,14 @@ public class CompactionTask extends AbstractCompactionTask
         if (partialCompactionsAcceptable() && transaction.originals().size() > 1)
         {
             // Try again w/o the largest one.
-            logger.warn("insufficient space to compact all requested files. {}MB required, {} for compaction {}",
+            SSTableReader removedSSTable = getMaxSizeFile(nonExpiredSSTables);
+            logger.warn("insufficient space to compact all requested files. {}MB required, {} for compaction {} - removing largest SSTable: {}",
                         (float) expectedSize / 1024 / 1024,
                         StringUtils.join(transaction.originals(), ", "),
-                        transaction.opId());
+                        transaction.opId(),
+                        removedSSTable);
             // Note that we have removed files that are still marked as compacting.
             // This suboptimal but ok since the caller will unmark all the sstables at the end.
-            SSTableReader removedSSTable = getMaxSizeFile(nonExpiredSSTables);
             transaction.cancel(removedSSTable);
             return true;
         }
@@ -193,6 +194,8 @@ public class CompactionTask extends AbstractCompactionTask
         if (DatabaseDescriptor.isSnapshotBeforeCompaction())
             realm.snapshotWithoutMemtable(System.currentTimeMillis() + "-compact-" + realm.getTableName());
 
+        // The set of sstables given here may be later modified by buildCompactionCandidatesForAvailableDiskSpace() and
+        // the compaction iterators in CompactionController and OverlapTracker will reflect the updated set of sstables.
         try (CompactionController controller = getCompactionController(transaction.originals());
              CompactionOperation operation = createCompactionOperation(controller, strategy))
         {
@@ -204,8 +207,16 @@ public class CompactionTask extends AbstractCompactionTask
     {
         Set<CompactionSSTable> fullyExpiredSSTables = controller.getFullyExpiredSSTables();
         // select SSTables to compact based on available disk space.
-        buildCompactionCandidatesForAvailableDiskSpace(fullyExpiredSSTables);
-        // sanity check: all sstables must belong to the same cfs
+        if (!buildCompactionCandidatesForAvailableDiskSpace(fullyExpiredSSTables))
+        {
+            // The set of sstables has changed (one or more were excluded due to limited available disk space).
+            // We need to recompute the overlaps between sstables. The iterators used in the compaction controller 
+            // and tracker will reflect the changed set of sstables made by LifecycleTransaction.cancel(),
+            // so refreshing the overlaps will be based on the updated set of sstables.
+            controller.refreshOverlaps();
+        }
+
+        // sanity check: all sstables must belong to the same table
         assert !Iterables.any(transaction.originals(), sstable -> !sstable.descriptor.cfname.equals(realm.getTableName()));
 
         Set<SSTableReader> actuallyCompact = Sets.difference(transaction.originals(), fullyExpiredSSTables);
@@ -802,6 +813,24 @@ public class CompactionTask extends AbstractCompactionTask
         return new DefaultCompactionWriter(realm, directories, transaction, nonExpiredSSTables, keepOriginals, getLevel());
     }
 
+    public static String updateCompactionHistory(UUID taskId, String keyspaceName, String columnFamilyName, long[] mergedRowCounts, long startSize, long endSize)
+    {
+        StringBuilder mergeSummary = new StringBuilder(mergedRowCounts.length * 10);
+        Map<Integer, Long> mergedRows = new HashMap<>();
+        for (int i = 0; i < mergedRowCounts.length; i++)
+        {
+            long count = mergedRowCounts[i];
+            if (count == 0)
+                continue;
+
+            int rows = i + 1;
+            mergeSummary.append(String.format("%d:%d, ", rows, count));
+            mergedRows.put(rows, count);
+        }
+        SystemKeyspace.updateCompactionHistory(taskId, keyspaceName, columnFamilyName, System.currentTimeMillis(), startSize, endSize, mergedRows);
+        return mergeSummary.toString();
+    }
+
     protected Directories getDirectories()
     {
         return realm.getDirectories();
@@ -854,13 +883,15 @@ public class CompactionTask extends AbstractCompactionTask
      * Checks if we have enough disk space to execute the compaction.  Drops the largest sstable out of the Task until
      * there's enough space (in theory) to handle the compaction.  Does not take into account space that will be taken by
      * other compactions.
+     *
+     * @return true if there is enough disk space to execute the complete compaction, false if some sstables are excluded.
      */
-    protected void buildCompactionCandidatesForAvailableDiskSpace(final Set<CompactionSSTable> fullyExpiredSSTables)
+    protected boolean buildCompactionCandidatesForAvailableDiskSpace(final Set<CompactionSSTable> fullyExpiredSSTables)
     {
         if(!realm.isCompactionDiskSpaceCheckEnabled() && compactionType == OperationType.COMPACTION)
         {
-            logger.info("Compaction space check is disabled");
-            return; // try to compact all SSTables
+            logger.info("Compaction space check is disabled - trying to compact all sstables");
+            return true;
         }
 
         final Set<SSTableReader> nonExpiredSSTables = Sets.difference(transaction.originals(), fullyExpiredSSTables);
@@ -905,8 +936,9 @@ public class CompactionTask extends AbstractCompactionTask
         {
             CompactionManager.instance.incrementCompactionsReduced();
             CompactionManager.instance.incrementSstablesDropppedFromCompactions(sstablesRemoved);
+            return false;
         }
-
+        return true;
     }
 
     protected int getLevel()

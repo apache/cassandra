@@ -1,0 +1,127 @@
+--- a/src/java/org/apache/cassandra/db/lifecycle/LogTransaction.java
++++ b/src/java/org/apache/cassandra/db/lifecycle/LogTransaction.java
+@@ -377,15 +377,10 @@
+ 
+         public void run()
+         {
+-<<<<<<<
+             // While this may be a dummy tracker w/out information in the metrics table, we attempt to delete regardless
+             // and allow the delete to silently fail if this is an invalid ks + cf combination at time of tidy run.
+             if (DatabaseDescriptor.isDaemonInitialized())
+-                SystemKeyspace.clearSSTableReadMeter(desc.ksname, desc.cfname, desc.generation);
+-=======
+-            if (tracker != null && !tracker.isDummy())
+                 SystemKeyspace.clearSSTableReadMeter(desc.ksname, desc.cfname, desc.id);
+->>>>>>>
+ 
+             synchronized (lock)
+             {
+--- a/test/unit/org/apache/cassandra/db/DirectoriesTest.java
++++ b/test/unit/org/apache/cassandra/db/DirectoriesTest.java
+@@ -42,9 +42,6 @@
+ import org.junit.runner.RunWith;
+ import org.junit.runners.Parameterized;
+ 
+-<<<<<<<
+-import org.apache.cassandra.Util;
+-=======
+ import org.slf4j.LoggerFactory;
+ import org.slf4j.MDC;
+ // Our version of Sfl4j seems to be missing the ListAppender class.
+@@ -55,7 +52,7 @@
+ import ch.qos.logback.classic.spi.ILoggingEvent;
+ import ch.qos.logback.core.read.ListAppender;
+ 
+->>>>>>>
++import org.apache.cassandra.Util;
+ import org.apache.cassandra.cql3.ColumnIdentifier;
+ import org.apache.cassandra.io.sstable.SSTableId;
+ import org.apache.cassandra.io.sstable.SequenceBasedSSTableId;
+@@ -99,14 +96,12 @@
+     private static Set<TableMetadata> CFM;
+     private static Map<String, List<File>> files;
+ 
+-<<<<<<<
+ 
+     private static final String MDCID = "test-DirectoriesTest-id";
+     private static AtomicInteger diyThreadId = new AtomicInteger(1);
+     private int myDiyId = -1;
+     private static Logger logger;
+     private ListAppender<ILoggingEvent> listAppender;
+-=======
+     @Parameterized.Parameter(0)
+     public SSTableId.Builder<? extends SSTableId> idBuilder;
+ 
+@@ -119,7 +114,6 @@
+         return Arrays.asList(new Object[]{ SequenceBasedSSTableId.Builder.instance, Util.newSeqGen() },
+                              new Object[]{ UUIDBasedSSTableId.Builder.instance, Util.newUUIDGen() });
+     }
+->>>>>>>
+ 
+     @BeforeClass
+     public static void beforeClass()
+@@ -172,7 +166,6 @@
+         return new DataDirectory[] { new DataDirectory(location) };
+     }
+ 
+-<<<<<<<
+     private static DataDirectory[] toDataDirectories(File[] locations)
+     {
+         DataDirectory[] dirs = new DataDirectory[locations.length];
+@@ -183,10 +176,7 @@
+         return dirs;
+     }
+ 
+-    private static void createTestFiles() throws IOException
+-=======
+     private void createTestFiles() throws IOException
+->>>>>>>
+     {
+         for (TableMetadata cfm : CFM)
+         {
+diff --git a/src/java/org/apache/cassandra/db/Directories.java b/src/java/org/apache/cassandra/db/Directories.java
+index 1ae63dbd58..953296d646 100644
+--- a/src/java/org/apache/cassandra/db/Directories.java
++++ b/src/java/org/apache/cassandra/db/Directories.java
+@@ -43,6 +43,7 @@ import org.apache.cassandra.io.FSNoDiskAvailableForWriteError;
+ import org.apache.cassandra.io.FSWriteError;
+ import org.apache.cassandra.io.sstable.*;
+ import org.apache.cassandra.io.sstable.SnapshotDeletingTask;
++import org.apache.cassandra.io.sstable.format.SSTableReader;
+ import org.apache.cassandra.io.util.FileUtils;
+ import org.apache.cassandra.schema.SchemaConstants;
+ import org.apache.cassandra.schema.TableMetadata;
+@@ -892,7 +893,7 @@ public class Directories
+         public List<Map.Entry<Descriptor, Set<Component>>> sortedList()
+         {
+             List<Map.Entry<Descriptor, Set<Component>>> sortedEntries = new ArrayList<>(list().entrySet());
+-            sortedEntries.sort(Comparator.comparingInt(e -> e.getKey().generation));
++            sortedEntries.sort(Comparator.comparing(t -> t.getKey().id, SSTableIdFactory.COMPARATOR));
+             return sortedEntries;
+         }
+ 
+diff --git a/test/unit/org/apache/cassandra/cql3/BatchTest.java b/test/unit/org/apache/cassandra/cql3/BatchTest.java
+index d0edc40d1b..330271e982 100644
+--- a/test/unit/org/apache/cassandra/cql3/BatchTest.java
++++ b/test/unit/org/apache/cassandra/cql3/BatchTest.java
+@@ -33,7 +33,7 @@ import org.junit.Test;
+ 
+ import java.io.IOException;
+ 
+-public class BatchTests extends CQLTester
++public class BatchTest extends CQLTester
+ {
+     private static EmbeddedCassandraService cassandra;
+ 
+diff --git a/test/unit/org/apache/cassandra/db/ColumnFamilyStoreTest.java b/test/unit/org/apache/cassandra/db/ColumnFamilyStoreTest.java
+index d9bb6f06f8..2abfc3fd29 100644
+--- a/test/unit/org/apache/cassandra/db/ColumnFamilyStoreTest.java
++++ b/test/unit/org/apache/cassandra/db/ColumnFamilyStoreTest.java
+@@ -48,6 +48,7 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+ import org.apache.cassandra.db.lifecycle.SSTableSet;
+ import org.apache.cassandra.db.partitions.FilteredPartition;
+ import org.apache.cassandra.db.rows.Cell;
++import org.apache.cassandra.db.rows.EncodingStats;
+ import org.apache.cassandra.db.rows.Row;
+ import org.apache.cassandra.exceptions.ConfigurationException;
+ import org.apache.cassandra.io.sstable.Component;

@@ -33,6 +33,7 @@ import sys
 import threading
 import time
 import traceback
+import errno
 
 from bisect import bisect_right
 from calendar import timegm

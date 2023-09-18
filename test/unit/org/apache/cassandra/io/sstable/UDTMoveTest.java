@@ -43,27 +43,29 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class UDTMoveTest extends CQLTester
 {
     @Test
-    public void testMovingKeyspacdManually() throws Throwable
+    public void testMovingKeyspaceManually() throws Throwable
     {
         String table = "tab";
         String udt = "udt";
         String ks1 = createKeyspace("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}");
         String ks2 = createKeyspace("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}");
         schemaChange(String.format("CREATE TYPE %s.%s (a int, b int)", ks1, udt));
-        schemaChange(String.format("CREATE TABLE %s.%s (id int PRIMARY KEY, v udt)", ks1, table));
+        schemaChange(String.format("CREATE TABLE %s.%s (id int PRIMARY KEY, v udt, a int, b text, c float)", ks1, table));
         schemaChange(String.format("CREATE TYPE %s.%s (a int, b int)", ks2, udt));
-        schemaChange(String.format("CREATE TABLE %s.%s (id int PRIMARY KEY, v udt)", ks2, table));
+        schemaChange(String.format("CREATE TABLE %s.%s (id int PRIMARY KEY, v udt, a int, b text, c float)", ks2, table));
 
         disableCompaction(ks1, table);
         disableCompaction(ks2, table);
 
-        execute(String.format("INSERT INTO %s.%s (id, v) VALUES (1, {a: 1, b: 2})", ks1, table));
-        execute(String.format("INSERT INTO %s.%s (id, v) VALUES (2, {a: 2, b: 3})", ks1, table));
+        execute(String.format("INSERT INTO %s.%s (id, v, a, b, c) VALUES (1, {a: 1, b: 2}, 3, '4', 5.0)", ks1, table));
+        execute(String.format("INSERT INTO %s.%s (id, v, a, b, c) VALUES (2, {a: 2, b: 3}, 6, '7', 8.0)", ks1, table));
         flush(ks1, table);
 
         // query data
         UntypedResultSet rows = execute(String.format("SELECT * FROM %s.%s", ks1, table));
-        assertRows(rows, row(1, userType("a", 1, "b", 2)), row(2, userType("a", 2, "b", 3)));
+        assertRows(rows,
+                   row(1, 3, "4", 5.0f, userType("a", 1, "b", 2)),
+                   row(2, 6, "7", 8.0f, userType("a", 2, "b", 3)));
 
         Set<SSTableReader> sstableReaders1 = getColumnFamilyStore(ks1, table).getLiveSSTables();
         Path sstablesLocation2 = getColumnFamilyStore(ks2, table).getDirectories().getDirectoryForNewSSTables().toPath();
@@ -104,19 +106,31 @@ public class UDTMoveTest extends CQLTester
 
         getColumnFamilyStore(ks2, table).loadNewSSTables();
         rows = execute(String.format("SELECT * FROM %s.%s", ks2, table));
-        assertRows(rows, row(1, userType("a", 1, "b", 2)), row(2, userType("a", 2, "b", 3)));
+        assertRows(rows,
+                   row(1, 3, "4", 5.0f, userType("a", 1, "b", 2)),
+                   row(2, 6, "7", 8.0f, userType("a", 2, "b", 3)));
 
-        execute(String.format("INSERT INTO %s.%s (id, v) VALUES (2, {a: 3, b: 2})", ks2, table));
-        execute(String.format("INSERT INTO %s.%s (id, v) VALUES (3, {a: 3, b: 4})", ks2, table));
+        execute(String.format("INSERT INTO %s.%s (id, v, a, b, c) VALUES (2, {a: 3, b: 2}, 4, '5', 6.0)", ks2, table));
+        execute(String.format("INSERT INTO %s.%s (id, v, a, b, c) VALUES (3, {a: 3, b: 4}, 7, '8', 9.0)", ks2, table));
+
         rows = execute(String.format("SELECT * FROM %s.%s", ks2, table));
-        assertRows(rows, row(1, userType("a", 1, "b", 2)), row(2, userType("a", 3, "b", 2)), row(3, userType("a", 3, "b", 4)));
+        assertRows(rows,
+                   row(1, 3, "4", 5.0f, userType("a", 1, "b", 2)),
+                   row(2, 4, "5", 6.0f, userType("a", 3, "b", 2)),
+                   row(3, 7, "8", 9.0f, userType("a", 3, "b", 4)));
 
         flush(ks2, table);
         rows = execute(String.format("SELECT * FROM %s.%s", ks2, table));
-        assertRows(rows, row(1, userType("a", 1, "b", 2)), row(2, userType("a", 3, "b", 2)), row(3, userType("a", 3, "b", 4)));
+        assertRows(rows,
+                   row(1, 3, "4", 5.0f, userType("a", 1, "b", 2)),
+                   row(2, 4, "5", 6.0f, userType("a", 3, "b", 2)),
+                   row(3, 7, "8", 9.0f, userType("a", 3, "b", 4)));
 
         compact(ks2, table);
         rows = execute(String.format("SELECT * FROM %s.%s", ks2, table));
-        assertRows(rows, row(1, userType("a", 1, "b", 2)), row(2, userType("a", 3, "b", 2)), row(3, userType("a", 3, "b", 4)));
+        assertRows(rows,
+                   row(1, 3, "4", 5.0f, userType("a", 1, "b", 2)),
+                   row(2, 4, "5", 6.0f, userType("a", 3, "b", 2)),
+                   row(3, 7, "8", 9.0f, userType("a", 3, "b", 4)));
     }
 }

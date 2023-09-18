@@ -21,6 +21,8 @@ import java.io.InputStream;
 import java.net.URL;
 import java.util.Properties;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.io.util.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,6 +59,12 @@ public class SnitchProperties
         {
             FileUtils.closeQuietly(stream);
         }
+    }
+
+    @VisibleForTesting
+    public SnitchProperties(Properties properties)
+    {
+        this.properties = properties;
     }
 
     /**

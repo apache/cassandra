@@ -30,6 +30,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
@@ -63,6 +64,7 @@ public class SSTableLoaderTest
     public static final String CF_STANDARD1 = "Standard1";
     public static final String CF_STANDARD2 = "Standard2";
     public static final String CF_BACKUPS = Directories.BACKUPS_SUBDIR;
+    public static final String CF_SNAPSHOTS = Directories.SNAPSHOT_SUBDIR;
 
     private static final String schema = "CREATE TABLE %s.%s (key ascii, name ascii, val ascii, val1 ascii, PRIMARY KEY (key, name))";
     private static final String query = "INSERT INTO %s.%s (key, name, val) VALUES (?, ?, ?)";
@@ -77,7 +79,8 @@ public class SSTableLoaderTest
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD2),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_BACKUPS));
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_BACKUPS),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_SNAPSHOTS));
 
         SchemaLoader.createKeyspace(KEYSPACE2,
                 KeyspaceParams.simple(1),
@@ -258,19 +261,47 @@ public class SSTableLoaderTest
     @Test
     public void testLoadingBackupsTable() throws Exception
     {
-        File dataDir = dataDir(CF_BACKUPS);
-        TableMetadata metadata = Schema.instance.getTableMetadata(KEYSPACE1, CF_BACKUPS);
+        testLoadingTable(CF_BACKUPS);
+    }
+
+    @Test
+    public void testLoadingSnapshotsTable() throws Exception
+    {
+        testLoadingTable(CF_SNAPSHOTS);
+    }
+
+    private void testLoadingTable(String tableName) throws Exception
+    {
+        testLoadingTable(CF_BACKUPS, false);
+    }
+
+    @Test
+    public void testLoadingLegacyBackupsTable() throws Exception
+    {
+        testLoadingTable(CF_BACKUPS, true);
+    }
+
+    @Test
+    public void testLoadingLegacySnapshotsTable() throws Exception
+    {
+        testLoadingTable(CF_SNAPSHOTS, true);
+    }
+
+    private void testLoadingTable(String tableName, boolean isLegacyTable) throws Exception
+    {
+        File dataDir = dataDir(tableName, isLegacyTable);
+        TableMetadata metadata = Schema.instance.getTableMetadata(KEYSPACE1, tableName);
 
         try (CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                        .inDirectory(dataDir)
-                                                       .forTable(String.format(schema, KEYSPACE1, CF_BACKUPS))
-                                                       .using(String.format(query, KEYSPACE1, CF_BACKUPS))
+                                                       .forTable(String.format(schema, KEYSPACE1, tableName))
+                                                       .using(String.format(query, KEYSPACE1, tableName))
                                                        .build())
         {
             writer.addRow("key", "col1", "100");
         }
 
-        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_BACKUPS);
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(tableName);
         cfs.forceBlockingFlush(UNIT_TESTS); // wait for sstables to be on disk else we won't be able to stream them
 
         final CountDownLatch latch = new CountDownLatch(1);
@@ -293,7 +324,14 @@ public class SSTableLoaderTest
 
     private File dataDir(String cf)
     {
-        File dataDir = new File(tmpdir.absolutePath() + File.pathSeparator() + SSTableLoaderTest.KEYSPACE1 + File.pathSeparator() + cf);
+        return dataDir(cf, false);
+    }
+
+    private File dataDir(String cf, boolean isLegacyTable)
+    {
+        // Add -{tableUuid} suffix to table dir if not a legacy table
+        File dataDir = new File(tmpdir.absolutePath() + File.pathSeparator() + SSTableLoaderTest.KEYSPACE1 + File.pathSeparator() + cf
+                                + (isLegacyTable ? "" : String.format("-%s", TableId.generate().toHexString())));
         assert dataDir.tryCreateDirectories();
         //make sure we have no tables...
         assertEquals(Objects.requireNonNull(dataDir.tryList()).length, 0);

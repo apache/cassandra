@@ -1,0 +1,68 @@
+--- a/src/java/org/apache/cassandra/db/commitlog/CommitLog.java
++++ b/src/java/org/apache/cassandra/db/commitlog/CommitLog.java
+@@ -85,10 +85,10 @@
+ 
+     public static final CommitLog instance = CommitLog.construct();
+ 
+-    private static final BiPredicate<File, String> unmanagedFilesFilter = (dir, name) -> CommitLogDescriptor.isValid(name) && CommitLogSegment.shouldReplay(name);
+-
+     private volatile AbstractCommitLogSegmentManager segmentManager;
+ 
++    private final BiPredicate<File, String> unmanagedFilesFilter = (dir, name) -> CommitLogDescriptor.isValid(name) && segmentManager.shouldReplay(name);
++
+     public final CommitLogArchiver archiver;
+     public final CommitLogMetrics metrics;
+     final AbstractCommitLogService executor;
+@@ -172,11 +172,6 @@
+         return started;
+     }
+ 
+-    public boolean hasFilesToReplay()
+-    {
+-        return getUnmanagedFiles().length > 0;
+-    }
+-
+     private File[] getUnmanagedFiles()
+     {
+         File[] files = segmentManager.storageDirectory.tryList(unmanagedFilesFilter);
+@@ -212,11 +207,6 @@
+      */
+     public Map<Keyspace, Integer> recoverSegmentsOnDisk(ColumnFamilyStore.FlushReason flushReason) throws IOException
+     {
+-<<<<<<<
+-=======
+-        BiPredicate<File, String> unmanagedFilesFilter = (dir, name) -> CommitLogDescriptor.isValid(name) && segmentManager.shouldReplay(name);
+-
+->>>>>>>
+         // submit all files for this segment manager for archiving prior to recovery - CASSANDRA-6904
+         // The files may have already been archived by normal CommitLog operation. This may cause errors in this
+         // archiving pass, which we should not treat as serious.
+diff --git a/src/java/org/apache/cassandra/db/commitlog/CommitLog.java b/src/java/org/apache/cassandra/db/commitlog/CommitLog.java
+index 0a822b4988..fbbb1cf429 100644
+--- a/src/java/org/apache/cassandra/db/commitlog/CommitLog.java
++++ b/src/java/org/apache/cassandra/db/commitlog/CommitLog.java
+@@ -85,10 +85,10 @@ public class CommitLog implements CommitLogMBean
+ 
+     public static final CommitLog instance = CommitLog.construct();
+ 
+-    private static final BiPredicate<File, String> unmanagedFilesFilter = (dir, name) -> CommitLogDescriptor.isValid(name) && CommitLogSegment.shouldReplay(name);
+-
+     private volatile AbstractCommitLogSegmentManager segmentManager;
+ 
++    private final BiPredicate<File, String> unmanagedFilesFilter = (dir, name) -> CommitLogDescriptor.isValid(name) && segmentManager.shouldReplay(name);
++
+     public final CommitLogArchiver archiver;
+     public final CommitLogMetrics metrics;
+     final AbstractCommitLogService executor;
+@@ -172,11 +172,6 @@ public class CommitLog implements CommitLogMBean
+         return started;
+     }
+ 
+-    public boolean hasFilesToReplay()
+-    {
+-        return getUnmanagedFiles().length > 0;
+-    }
+-
+     private File[] getUnmanagedFiles()
+     {
+         File[] files = segmentManager.storageDirectory.tryList(unmanagedFilesFilter);

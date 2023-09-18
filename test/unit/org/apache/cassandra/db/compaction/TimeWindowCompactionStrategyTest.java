@@ -28,6 +28,7 @@ import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -49,6 +50,7 @@ import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.MockSchema;
 
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
 import static org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy.getWindowBoundsInMillis;
@@ -374,6 +376,30 @@ public class TimeWindowCompactionStrategyTest extends SchemaLoader
         assertEquals(sstable, expiredSSTable);
         twcs.shutdown();
         t.transaction.abort();
+    }
+
+    @Test
+    public void testGroupForAntiCompaction()
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS("test_group_for_anticompaction");
+        cfs.setCompactionParameters(ImmutableMap.of("class", "TimeWindowCompactionStrategy",
+                                                    "timestamp_resolution", "MILLISECONDS",
+                                                    "compaction_window_size", "1",
+                                                    "compaction_window_unit", "MINUTES"));
+
+        List<SSTableReader> sstables = new ArrayList<>(10);
+        long curr = System.currentTimeMillis();
+        for (int i = 0; i < 10; i++)
+            sstables.add(MockSchema.sstableWithTimestamp(i, curr + TimeUnit.MILLISECONDS.convert(i, TimeUnit.MINUTES), cfs));
+
+        cfs.addSSTables(sstables);
+        CompactionStrategyContainer compactionStrategyContainer = cfs.getCompactionStrategyContainer();
+        assert compactionStrategyContainer instanceof CompactionStrategyManager;
+        CompactionStrategyManager compactionStrategyManager = (CompactionStrategyManager) compactionStrategyContainer;
+        Collection<Collection<CompactionSSTable>> groups = compactionStrategyManager.getCompactionStrategyFor(sstables.get(0)).groupSSTablesForAntiCompaction(sstables);
+        assertTrue(groups.size() > 0);
+        for (Collection<CompactionSSTable> group : groups)
+            assertEquals(1, group.size());
     }
 
     private static Set<CompactionPick> toCompactions(List<CompactionAggregate> aggregates)

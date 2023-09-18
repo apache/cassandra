@@ -1,0 +1,152 @@
+--- a/src/java/org/apache/cassandra/db/SystemKeyspace.java
++++ b/src/java/org/apache/cassandra/db/SystemKeyspace.java
+@@ -508,7 +508,12 @@
+ 
+     public static void persistLocalMetadata()
+     {
+-<<<<<<<
++        persistLocalMetadata(UUID::randomUUID);
++    }
++
++    @VisibleForTesting
++    public static void persistLocalMetadata(Supplier<UUID> nodeIdSupplier)
++    {
+         Nodes.local().update(info -> {
+             info.setClusterName(DatabaseDescriptor.getClusterName());
+             info.setReleaseVersion(SystemKeyspace.CURRENT_VERSION);
+@@ -523,45 +528,6 @@
+             info.setListenAddressAndPort(FBUtilities.getLocalAddressAndPort());
+             return info;
+         }, true, true);
+-=======
+-        persistLocalMetadata(UUID::randomUUID);
+-    }
+-
+-    @VisibleForTesting
+-    public static void persistLocalMetadata(Supplier<UUID> nodeIdSupplier)
+-    {
+-        String req = "INSERT INTO system.%s (" +
+-                     "key," +
+-                     "cluster_name," +
+-                     "release_version," +
+-                     "cql_version," +
+-                     "native_protocol_version," +
+-                     "data_center," +
+-                     "rack," +
+-                     "partitioner," +
+-                     "rpc_address," +
+-                     "rpc_port," +
+-                     "broadcast_address," +
+-                     "broadcast_port," +
+-                     "listen_address," +
+-                     "listen_port" +
+-                     ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+-        IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
+-        executeOnceInternal(format(req, LOCAL),
+-                            LOCAL,
+-                            DatabaseDescriptor.getClusterName(),
+-                            FBUtilities.getReleaseVersionString(),
+-                            QueryProcessor.CQL_VERSION.toString(),
+-                            String.valueOf(ProtocolVersion.CURRENT.asInt()),
+-                            snitch.getLocalDatacenter(),
+-                            snitch.getLocalRack(),
+-                            DatabaseDescriptor.getPartitioner().getClass().getName(),
+-                            DatabaseDescriptor.getRpcAddress(),
+-                            DatabaseDescriptor.getNativeTransportPort(),
+-                            FBUtilities.getJustBroadcastAddress(),
+-                            DatabaseDescriptor.getStoragePort(),
+-                            FBUtilities.getJustLocalAddress(),
+-                            DatabaseDescriptor.getStoragePort());
+ 
+         // We should store host ID as soon as possible in the system.local table and flush that table to disk so that
+         // we can be sure that those changes are stored in sstable and not in the commit log (see CASSANDRA-18153).
+@@ -569,7 +535,6 @@
+         // this change only to the new installations or the user should just flush system.local table.
+         if (!CommitLog.instance.hasFilesToReplay())
+             SystemKeyspace.getOrInitializeLocalHostId(nodeIdSupplier);
+->>>>>>>
+     }
+ 
+     public static void updateCompactionHistory(UUID taskId,
+@@ -822,24 +787,13 @@
+      */
+     public static InetAddressAndPort getPreferredIP(InetAddressAndPort ep)
+     {
+-<<<<<<<
++        Preconditions.checkState(DatabaseDescriptor.isDaemonInitialized()); // Make sure being used as a daemon, not a tool
++        
+         PeerInfo info = Nodes.peers().get(ep);
+         if (info != null && info.getPreferredAddressAndPort() != null && info.isExisting())
+             return info.getPreferredAddressAndPort();
+         else
+             return ep;
+-=======
+-        Preconditions.checkState(DatabaseDescriptor.isDaemonInitialized()); // Make sure being used as a daemon, not a tool
+-        
+-        String req = "SELECT preferred_ip, preferred_port FROM system.%s WHERE peer=? AND peer_port = ?";
+-        UntypedResultSet result = executeInternal(String.format(req, PEERS_V2), ep.address, ep.port);
+-        if (!result.isEmpty() && result.one().has("preferred_ip"))
+-        {
+-            UntypedResultSet.Row row = result.one();
+-            return InetAddressAndPort.getByAddressOverrideDefaults(row.getInetAddress("preferred_ip"), row.getInt("preferred_port"));
+-        }
+-        return ep;
+->>>>>>>
+     }
+ 
+     /**
+@@ -1042,14 +996,7 @@
+      */
+     public static UUID setLocalHostId(UUID hostId)
+     {
+-<<<<<<<
+-        String req = "INSERT INTO system.%s (key, host_id) VALUES ('%s', ?)";
+-        executeInternal(format(req, LOCAL, LOCAL), hostId);
+-        forceBlockingFlush(LOCAL);
+-        return hostId;
+-=======
+         return Nodes.local().update(info -> info.setHostId(hostId), false).getHostId();
+->>>>>>>
+     }
+ 
+     /**
+--- a/src/java/org/apache/cassandra/locator/Ec2Snitch.java
++++ b/src/java/org/apache/cassandra/locator/Ec2Snitch.java
+@@ -27,15 +27,8 @@
+ 
+ import org.apache.cassandra.db.SystemKeyspace;
+ import org.apache.cassandra.exceptions.ConfigurationException;
+-<<<<<<<
+-import org.apache.cassandra.gms.ApplicationState;
+-import org.apache.cassandra.gms.EndpointState;
+-import org.apache.cassandra.gms.Gossiper;
+-=======
+-import org.apache.cassandra.io.util.FileUtils;
+ import org.apache.cassandra.nodes.NodeInfo;
+ import org.apache.cassandra.nodes.Nodes;
+->>>>>>>
+ import org.apache.cassandra.utils.FBUtilities;
+ 
+ /**
+--- a/test/unit/org/apache/cassandra/db/compaction/NeverPurgeTest.java
++++ b/test/unit/org/apache/cassandra/db/compaction/NeverPurgeTest.java
+@@ -34,7 +34,6 @@
+ import org.apache.cassandra.io.sstable.format.SSTableReader;
+ 
+ import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
+-import static org.assertj.core.api.Assertions.assertThat;
+ import static org.junit.Assert.assertEquals;
+ 
+ public class NeverPurgeTest extends CQLTester
+@@ -103,11 +102,7 @@
+ 
+     private void verifyContainsTombstones(Collection<SSTableReader> sstables, int expectedTombstoneCount) throws Exception
+     {
+-<<<<<<<
+         assertEquals(1, sstables.size()); // always run a major compaction before calling this
+-=======
+-        assertThat(sstables).hasSize(1); // always run a major compaction before calling this
+->>>>>>>
+         SSTableReader sstable = sstables.iterator().next();
+         int tombstoneCount = 0;
+         try (ISSTableScanner scanner = sstable.getScanner())

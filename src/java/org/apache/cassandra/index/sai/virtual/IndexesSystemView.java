@@ -54,6 +54,7 @@ public class IndexesSystemView extends AbstractVirtualTable
     static final String IS_STRING = "is_string";
     static final String ANALYZER = "analyzer";
     static final String INDEXED_SSTABLE_COUNT = "indexed_sstable_count";
+    static final String SSTABLE_COUNT = "sstable_count";
     static final String CELL_COUNT = "cell_count";
     static final String PER_TABLE_DISK_SIZE = "per_table_disk_size";
     static final String PER_COLUMN_DISK_SIZE = "per_column_disk_size";
@@ -73,6 +74,7 @@ public class IndexesSystemView extends AbstractVirtualTable
                            .addRegularColumn(IS_STRING, BooleanType.instance)
                            .addRegularColumn(ANALYZER, UTF8Type.instance)
                            .addRegularColumn(INDEXED_SSTABLE_COUNT, Int32Type.instance)
+                           .addRegularColumn(SSTABLE_COUNT, Int32Type.instance)
                            .addRegularColumn(CELL_COUNT, LongType.instance)
                            .addRegularColumn(PER_TABLE_DISK_SIZE, LongType.instance)
                            .addRegularColumn(PER_COLUMN_DISK_SIZE, LongType.instance)
@@ -102,6 +104,7 @@ public class IndexesSystemView extends AbstractVirtualTable
                 SecondaryIndexManager manager = cfs.indexManager;
                 StorageAttachedIndexGroup group = StorageAttachedIndexGroup.getIndexGroup(cfs);
 
+                int sstables = cfs.getLiveSSTables().size();
                 if (group != null)
                 {
                     for (Index index : group.getIndexes())
@@ -118,6 +121,7 @@ public class IndexesSystemView extends AbstractVirtualTable
                                .column(IS_STRING, context.isLiteral())
                                .column(ANALYZER, context.getAnalyzerFactory().toString())
                                .column(INDEXED_SSTABLE_COUNT, view.size())
+                               .column(SSTABLE_COUNT, sstables)
                                .column(CELL_COUNT, context.getCellCount())
                                .column(PER_TABLE_DISK_SIZE, group.diskUsage())
                                .column(PER_COLUMN_DISK_SIZE, context.diskUsage());

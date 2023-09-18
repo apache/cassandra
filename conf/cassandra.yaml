@@ -1348,6 +1348,8 @@ audit_logging_options:
     # max_log_size: 17179869184 # 16 GiB
     ## archive command is "/path/to/script.sh %path" where %path is replaced with the file being rolled:
     # archive_command:
+    ## note that enabling this allows anyone with JMX/nodetool access to run local shell commands as the user running cassandra
+    # allow_nodetool_archive_command: false
     # max_archive_retries: 10
 
 # validate tombstones on reads and compaction

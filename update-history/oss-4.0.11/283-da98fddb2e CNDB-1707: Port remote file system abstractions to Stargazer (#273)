@@ -1,0 +1,135 @@
+--- a/src/java/org/apache/cassandra/db/Directories.java
++++ b/src/java/org/apache/cassandra/db/Directories.java
+@@ -43,11 +43,8 @@
+ import org.apache.cassandra.io.FSNoDiskAvailableForWriteError;
+ import org.apache.cassandra.io.FSWriteError;
+ import org.apache.cassandra.io.sstable.*;
+-<<<<<<<
+ import org.apache.cassandra.io.sstable.SnapshotDeletingTask;
+-=======
+ import org.apache.cassandra.io.storage.StorageProvider;
+->>>>>>>
+ import org.apache.cassandra.io.util.File;
+ import org.apache.cassandra.io.util.FileUtils;
+ import org.apache.cassandra.io.util.PathUtils;
+--- a/src/java/org/apache/cassandra/db/commitlog/CommitLog.java
++++ b/src/java/org/apache/cassandra/db/commitlog/CommitLog.java
+@@ -170,7 +170,7 @@
+ 
+     private File[] getUnmanagedFiles()
+     {
+-        File[] files = new File(segmentManager.storageDirectory).tryList(unmanagedFilesFilter);
++        File[] files = segmentManager.storageDirectory.tryList(unmanagedFilesFilter);
+         if (files == null)
+             return new File[0];
+         return files;
+@@ -187,11 +187,7 @@
+         // submit all files for this segment manager for archiving prior to recovery - CASSANDRA-6904
+         // The files may have already been archived by normal CommitLog operation. This may cause errors in this
+         // archiving pass, which we should not treat as serious.
+-<<<<<<<
+         for (File file : getUnmanagedFiles())
+-=======
+-        for (File file : segmentManager.storageDirectory.tryList(unmanagedFilesFilter))
+->>>>>>>
+         {
+             archiver.maybeArchive(file.path(), file.name());
+             archiver.maybeWaitForArchiving(file.name());
+@@ -201,11 +197,7 @@
+         archiver.maybeRestoreArchive();
+ 
+         // List the files again as archiver may have added segments.
+-<<<<<<<
+         File[] files = getUnmanagedFiles();
+-=======
+-        File[] files = segmentManager.storageDirectory.tryList(unmanagedFilesFilter);
+->>>>>>>
+         int replayed = 0;
+         if (files.length == 0)
+         {
+--- a/src/java/org/apache/cassandra/db/lifecycle/LogTransaction.java
++++ b/src/java/org/apache/cassandra/db/lifecycle/LogTransaction.java
+@@ -27,13 +27,7 @@
+ import java.util.Queue;
+ import java.util.UUID;
+ import java.util.concurrent.ConcurrentLinkedQueue;
+-<<<<<<<
+-=======
+-import java.util.concurrent.TimeUnit;
+-import java.util.function.Predicate;
+-
+ import com.codahale.metrics.Counter;
+->>>>>>>
+ import javax.annotation.Nullable;
+ 
+ import com.google.common.annotations.VisibleForTesting;
+@@ -43,11 +37,6 @@
+ import com.codahale.metrics.Counter;
+ import org.apache.cassandra.concurrent.ScheduledExecutors;
+ import org.apache.cassandra.config.DatabaseDescriptor;
+-<<<<<<<
+-=======
+-import org.apache.cassandra.schema.TableMetadata;
+-import org.apache.cassandra.db.Directories;
+->>>>>>>
+ import org.apache.cassandra.db.SystemKeyspace;
+ import org.apache.cassandra.db.compaction.OperationType;
+ import org.apache.cassandra.db.lifecycle.LogRecord.Type;
+@@ -402,13 +391,7 @@
+         @Override
+         public void commit()
+         {
+-<<<<<<<
+-            // While this may be a dummy tracker w/out information in the metrics table, we attempt to delete regardless
+-            // and allow the delete to silently fail if this is an invalid ks + cf combination at time of tidy run.
+-            if (DatabaseDescriptor.isDaemonInitialized())
+-=======
+             if (onlineTxn && DatabaseDescriptor.supportsSSTableReadMeter())
+->>>>>>>
+                 SystemKeyspace.clearSSTableReadMeter(desc.ksname, desc.cfname, desc.id);
+ 
+             synchronized (lock)
+--- a/src/java/org/apache/cassandra/utils/NativeLibrary.java
++++ b/src/java/org/apache/cassandra/utils/NativeLibrary.java
+@@ -39,28 +39,10 @@
+ import static org.apache.cassandra.utils.INativeLibrary.OSType.MAC;
+ import static org.apache.cassandra.utils.INativeLibrary.OSType.WINDOWS;
+ 
+-<<<<<<<
+-@Shared
+-public final class NativeLibrary
+-{
+-    private static final Logger logger = LoggerFactory.getLogger(NativeLibrary.class);
+-
+-    @Shared
+-    public enum OSType
+-    {
+-        LINUX,
+-        MAC,
+-        WINDOWS,
+-        AIX,
+-        OTHER;
+-    }
+-
+-=======
+ public class NativeLibrary implements INativeLibrary
+ {
+     private static final Logger logger = LoggerFactory.getLogger(NativeLibrary.class);
+ 
+->>>>>>>
+     public static final OSType osType;
+ 
+     private static final int MCL_CURRENT;
+diff --git a/src/java/org/apache/cassandra/db/commitlog/CommitLog.java b/src/java/org/apache/cassandra/db/commitlog/CommitLog.java
+index 0202f86469..5983215169 100644
+--- a/src/java/org/apache/cassandra/db/commitlog/CommitLog.java
++++ b/src/java/org/apache/cassandra/db/commitlog/CommitLog.java
+@@ -170,7 +170,7 @@ public class CommitLog implements CommitLogMBean
+ 
+     private File[] getUnmanagedFiles()
+     {
+-        File[] files = new File(segmentManager.storageDirectory).tryList(unmanagedFilesFilter);
++        File[] files = segmentManager.storageDirectory.tryList(unmanagedFilesFilter);
+         if (files == null)
+             return new File[0];
+         return files;

@@ -1,0 +1,44 @@
+--- a/build.xml
++++ b/build.xml
+@@ -120,12 +120,10 @@
+     <!-- skip flushing schema tables during tests -->
+     <property name="cassandra.test.flush_local_schema_changes" value="false" />
+ 
+-<<<<<<<
+     <!-- fast shutdown of messaging service -->
+     <property name="cassandra.test.messagingService.nonGracefulShutdown" value="true"/>
+-=======
++
+     <property name="cassandra.test.fail_on_forbidden_log_entries" value="false"/>
+->>>>>>>
+ 
+     <!-- https://www.eclemma.org/jacoco/ -->
+     <property name="jacoco.export.dir" value="${build.dir}/jacoco/" />
+--- a/ide/idea/workspace.xml
++++ b/ide/idea/workspace.xml
+@@ -180,7 +180,6 @@
+       <option name="MAIN_CLASS_NAME" value="" />
+       <option name="METHOD_NAME" value="" />
+       <option name="TEST_OBJECT" value="class" />
+-<<<<<<<
+       <option name="VM_PARAMETERS" value="
+                                           -Dcassandra.config=file://$PROJECT_DIR$/test/conf/cassandra.yaml
+                                           -Dcassandra.disable_tcactive_openssl=true 
+@@ -192,6 +191,7 @@
+                                           -Dcassandra.test.messagingService.nonGracefulShutdown=true
+                                           -Dcassandra.tolerate_sstable_size=true
+                                           -Dcassandra.use_nix_recursive_delete=true
++                                          -Dcassandra.testtag=ide
+                                           -Dinvalid-legacy-sstable-root=$PROJECT_DIR$/test/data/invalid-legacy-sstables
+                                           -Djava.library.path=$PROJECT_DIR$/lib/sigar-bin
+                                           -Dlegacy-sstable-root=$PROJECT_DIR$/test/data/legacy-sstables
+@@ -200,9 +200,6 @@
+                                           -XX:ActiveProcessorCount=4
+                                           -XX:SoftRefLRUPolicyMSPerMB=0
+                                           -ea" />
+-=======
+-      <option name="VM_PARAMETERS" value="-Dcassandra.config=file://$PROJECT_DIR$/test/conf/cassandra.yaml -Dlogback.configurationFile=file://$PROJECT_DIR$/test/conf/logback-test.xml -Dcassandra.logdir=$PROJECT_DIR$/build/test/logs -Djava.library.path=$PROJECT_DIR$/lib/sigar-bin -Dlegacy-sstable-root=$PROJECT_DIR$/test/data/legacy-sstables -Dinvalid-legacy-sstable-root=$PROJECT_DIR$/test/data/invalid-legacy-sstables -Dcassandra.ring_delay_ms=1000 -Dcassandra.skip_sync=true -ea -XX:SoftRefLRUPolicyMSPerMB=0 -Dcassandra.strict.runtime.checks=true -Dlegacy-sstable-root=$PROJECT_DIR$/test/data/legacy-sstables -Dinvalid-legacy-sstable-root=$PROJECT_DIR$/test/data/invalid-legacy-sstables -Dmigration-sstable-root=$PROJECT_DIR$/test/data/migration-sstables -Dcassandra.ring_delay_ms=1000 -Dcassandra.tolerate_sstable_size=true -Dcassandra.skip_sync=true -Dcassandra.disable_tcactive_openssl=true -Dcassandra.use_nix_recursive_delete=true -XX:ActiveProcessorCount=2 -Dcassandra.testtag=ide" />
+->>>>>>>
+       <option name="PARAMETERS" value="" />
+       <fork_mode value="class" />
+       <option name="WORKING_DIRECTORY" value="" />

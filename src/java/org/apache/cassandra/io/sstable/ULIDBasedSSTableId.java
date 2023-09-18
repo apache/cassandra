@@ -38,7 +38,7 @@ import org.apache.cassandra.utils.TimeUUID;
  * SSTable generation identifiers that can be stored across nodes in one directory/bucket
  * Uses the ULID based identifiers
  */
-public final class ULIDBasedSSTableId implements SSTableId, Comparable<ULIDBasedSSTableId>
+public final class ULIDBasedSSTableId implements SSTableId<ULIDBasedSSTableId>
 {
     public static final int STRING_LEN = 26;
     public static final int BYTES_LEN = 16;

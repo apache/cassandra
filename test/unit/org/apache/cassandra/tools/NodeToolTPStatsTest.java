@@ -124,6 +124,7 @@ public class NodeToolTPStatsTest extends CQLTester
         createTable("CREATE TABLE %s (pk int, c int, PRIMARY KEY(pk))");
         execute("INSERT INTO %s (pk, c) VALUES (?, ?)", 1, 1);
         flush();
+
         tool = ToolRunner.invokeNodetool("tpstats");
         assertTrue(tool.getCleanedStderr().isEmpty());
         assertEquals(0, tool.getExitCode());

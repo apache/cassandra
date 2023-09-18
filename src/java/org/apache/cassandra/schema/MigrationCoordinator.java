@@ -69,6 +69,7 @@ import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
@@ -91,6 +92,7 @@ import static org.apache.cassandra.net.Verb.SCHEMA_PUSH_REQ;
 public class MigrationCoordinator
 {
     private static final Logger logger = LoggerFactory.getLogger(MigrationCoordinator.class);
+    private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(MigrationCoordinator.logger, 1, TimeUnit.MINUTES);
     private static final CompletableFuture<Void> FINISHED_FUTURE = CompletableFuture.completedFuture(null);
 
     private static final int MIGRATION_DELAY_IN_MS = CassandraRelevantProperties.MIGRATION_DELAY.getInt();
@@ -679,7 +681,7 @@ public class MigrationCoordinator
 
         if (!gossiper.isAlive(endpoint))
         {
-            logger.warn("Can't send schema pull request: node {} is down.", endpoint);
+            noSpamLogger.warn("Can't send schema pull request: node {} is down.", endpoint);
             callback.onFailure(endpoint, RequestFailureReason.UNKNOWN);
             return;
         }

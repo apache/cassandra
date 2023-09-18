@@ -975,7 +975,7 @@ public class CollectionsTest extends CQLTester
         createTable("CREATE TABLE %s(pk int PRIMARY KEY, s set<text>)");
         assertInvalidMessage("Not enough bytes to read a set",
                              "INSERT INTO %s (pk, s) VALUES (?, ?)", 1, "test");
-        assertInvalidMessage("String didn't validate.",
+        assertInvalidMessage("Null value read when not allowed",
                              "INSERT INTO %s (pk, s) VALUES (?, ?)", 1, Long.MAX_VALUE);
         assertInvalidMessage("Not enough bytes to read a set",
                              "INSERT INTO %s (pk, s) VALUES (?, ?)", 1, "");
@@ -989,7 +989,7 @@ public class CollectionsTest extends CQLTester
         createTable("CREATE TABLE %s(pk int PRIMARY KEY, m map<text, text>)");
         assertInvalidMessage("Not enough bytes to read a map",
                              "INSERT INTO %s (pk, m) VALUES (?, ?)", 1, "test");
-        assertInvalidMessage("String didn't validate.",
+        assertInvalidMessage("Null value read when not allowed",
                              "INSERT INTO %s (pk, m) VALUES (?, ?)", 1, Long.MAX_VALUE);
         assertInvalidMessage("Not enough bytes to read a map",
                              "INSERT INTO %s (pk, m) VALUES (?, ?)", 1, "");
@@ -2078,4 +2078,44 @@ public class CollectionsTest extends CQLTester
         });
     }
     // End tests for CASSANDRA-17623
+
+    @Test
+    public void testMapReversed() throws Throwable
+    {
+        createTable("CREATE TABLE %s (" +
+                    "   k int, " +
+                    "   c frozen<map<text, int>>, " +
+                    "   v int, " +
+                    "   PRIMARY KEY(k, c)" +
+                    ") WITH CLUSTERING ORDER BY (c DESC)");
+
+        execute("INSERT INTO %s(k, c, v) VALUES (1, {'t1':1,'t2':2,'t3':3,'t4':4}, 2)");
+        assertRows(execute("SELECT c['nonexisting'] FROM %s"), row((Object)null));
+        assertRows(execute("SELECT c['t1'] FROM %s"), row(1));
+        assertRows(execute("SELECT c['t1'..'t3'] FROM %s"), row(map("t1", 1, "t2", 2, "t3", 3)));
+        assertRows(execute("SELECT c['t3'..'t5'] FROM %s"), row(map("t3", 3, "t4", 4)));
+        assertRows(execute("SELECT c[..'t2'] FROM %s"), row(map("t1", 1, "t2", 2)));
+        assertRows(execute("SELECT c['t3'..] FROM %s"), row(map("t3", 3, "t4", 4)));
+        assertRows(execute("SELECT c[..'t5'] FROM %s"), row(map("t1", 1, "t2", 2, "t3", 3, "t4", 4)));
+    }
+
+    @Test
+    public void testSetReversed() throws Throwable
+    {
+        createTable("CREATE TABLE %s (" +
+                    "   k int, " +
+                    "   c frozen<set<text>>, " +
+                    "   v int, " +
+                    "   PRIMARY KEY(k, c)" +
+                    ") WITH CLUSTERING ORDER BY (c DESC)");
+
+        execute("INSERT INTO %s(k, c, v) VALUES (1, {'t1','t2','t3','t4'}, 2)");
+        assertRows(execute("SELECT c['nonexisting'] FROM %s"), row((Object)null));
+        assertRows(execute("SELECT c['t1'] FROM %s"), row("t1"));
+        assertRows(execute("SELECT c['t1'..'t3'] FROM %s"), row(set("t1", "t2", "t3")));
+        assertRows(execute("SELECT c['t3'..'t5'] FROM %s"), row(set("t3", "t4")));
+        assertRows(execute("SELECT c[..'t2'] FROM %s"), row(set("t1", "t2")));
+        assertRows(execute("SELECT c['t3'..] FROM %s"), row(set("t3", "t4")));
+        assertRows(execute("SELECT c[..'t5'] FROM %s"), row(set("t1", "t2", "t3", "t4")));
+    }
 }

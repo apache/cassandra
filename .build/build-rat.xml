@@ -27,7 +27,7 @@
     </target>
 
     <target name="_build_ratinclude" depends="_rat_init">
-        <exec executable="git" failifexecutionfails="false" failonerror="false" resultproperty="git.success" output="build/.versioned_files">
+        <exec executable="git" failifexecutionfails="false" failonerror="false" resultproperty="git.success" output="${build.dir}/.versioned_files">
             <arg line="ls-tree -r HEAD --name-only"/>
         </exec>
         <condition property="rat.skip" value="true">
@@ -35,7 +35,10 @@
                 <equals arg1="${git.success}" arg2="0"/>
             </not>
         </condition>
-        <copy file="build/.versioned_files" tofile="build/.ratinclude">
+    </target>
+
+    <target name="_rat_copy_versioned_files" depends="_build_ratinclude" unless="${rat.skip}">
+        <copy file="${build.dir}/.versioned_files" tofile="${build.dir}/.ratinclude">
             <filterchain>
                 <linecontainsregexp>
                     <regexp pattern=".*\.(java|py|sh|xml|spec|md|iml|bat|btm|cql|css|g|html|jflex|jks|mod|name|pom|textile|yml|yaml|MIDRES|HIGHRES|LOWRES)$"/>
@@ -44,9 +47,9 @@
         </copy>
     </target>
 
-    <target name="rat-check" depends="_build_ratinclude" unless="${rat.skip}" description="License checks on source" >
+    <target name="rat-check" depends="_rat_copy_versioned_files" unless="${rat.skip}" description="License checks on source" >
         <rat:report reportFile="${build.dir}/rat.txt">
-            <fileset dir="." includesfile="build/.ratinclude">
+            <fileset dir="." includesfile="${build.dir}/.ratinclude">
                  <!-- Config files with not much creativity -->
                  <exclude name="**/ide/**/*"/>
                  <exclude name="**/metrics-reporter-config-sample.yaml"/>
@@ -98,7 +101,7 @@
         <fail message="The rat report at build/rat.txt was not generated. Please ensure that the rat-check task is able to run successfully. For dev builds only, touch build/rat.txt to skip this check">
             <condition>
                 <not>
-                    <available file="build/rat.txt" />
+                    <available file="${build.dir}/rat.txt" />
                 </not>
             </condition>
         </fail>

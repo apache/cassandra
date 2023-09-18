@@ -37,7 +37,7 @@ import org.apache.cassandra.io.util.File;
  * - must be case-insensitive because the sstables can be stored on case-insensitive file system
  * <p>
  */
-public interface SSTableId
+public interface SSTableId<T> extends Comparable<T>
 {
     /**
      * Creates a byte format of the identifier that can be parsed by

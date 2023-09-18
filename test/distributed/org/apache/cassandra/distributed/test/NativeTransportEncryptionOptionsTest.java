@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.test;
 import java.net.InetAddress;
 import java.util.Collections;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
 import org.junit.Test;
@@ -136,6 +137,9 @@ public class NativeTransportEncryptionOptionsTest extends AbstractEncryptionOpti
     }
 
 
+    /**
+     * Tests that the negotiated protocol is the highest common protocol between the client and server.
+     */
     @Test
     public void negotiatedProtocolMustBeAcceptedProtocolTest() throws Throwable
     {

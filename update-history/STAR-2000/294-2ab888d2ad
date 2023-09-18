@@ -1,0 +1,47 @@
+--- a/src/java/org/apache/cassandra/net/Message.java
++++ b/src/java/org/apache/cassandra/net/Message.java
+@@ -439,7 +439,12 @@
+             return (TraceType) params.getOrDefault(ParamType.TRACE_TYPE, TraceType.QUERY);
+         }
+ 
+-<<<<<<<
++        @Nullable
++        public Map<String,byte[]> customParams()
++        {
++            return (Map<String, byte[]>) params.get(ParamType.CUSTOM_MAP);
++        }
++
+         /**
+          * Keyspace that is beeing traced by the trace session attached to this message (if any).
+          */
+@@ -447,12 +452,6 @@
+         public String traceKeyspace()
+         {
+             return (String) params.get(ParamType.TRACE_KEYSPACE);
+-=======
+-        @Nullable
+-        public Map<String,byte[]> customParams()
+-        {
+-            return (Map<String,byte[]>) params.get(ParamType.CUSTOM_MAP);
+->>>>>>>
+         }
+     }
+ 
+--- a/src/java/org/apache/cassandra/net/ParamType.java
++++ b/src/java/org/apache/cassandra/net/ParamType.java
+@@ -58,14 +58,12 @@
+     @Deprecated
+     TRACK_REPAIRED_DATA (7, "TrackRepaired", LegacyFlag.serializer),
+ 
+-<<<<<<<
+     /**
+      * Messages with tracing sessions are decorated with the traced keyspace.
+      */
+     TRACE_KEYSPACE      (8, "TraceKeyspace", StringSerializer.serializer);
+-=======
++
+     CUSTOM_MAP          (14, "CUSTOM",       CustomParamsSerializer.serializer);
+->>>>>>>
+ 
+     final int id;
+     @Deprecated final String legacyAlias; // pre-4.0 we used to serialize entire param name string

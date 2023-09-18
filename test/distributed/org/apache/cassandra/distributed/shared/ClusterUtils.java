@@ -54,6 +54,7 @@ import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tools.SystemExitException;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Isolated;
 
 import static com.google.common.util.concurrent.Uninterruptibles.sleepUninterruptibly;
 import static org.apache.cassandra.config.CassandraRelevantProperties.BOOTSTRAP_SCHEMA_DELAY_MS;

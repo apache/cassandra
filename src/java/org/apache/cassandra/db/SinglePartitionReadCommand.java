@@ -621,7 +621,8 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                 if (partition == null)
                     continue;
 
-                minTimestamp = Math.min(minTimestamp, memtable.getMinTimestamp());
+                if (memtable.getMinTimestamp() != Memtable.NO_MIN_TIMESTAMP)
+                    minTimestamp = Math.min(minTimestamp, memtable.getMinTimestamp());
 
                 @SuppressWarnings("resource") // 'iter' is added to iterators which is closed on exception, or through the closing of the final merged iterator
                 UnfilteredRowIterator iter = filter.getUnfilteredRowIterator(columnFilter(), partition);

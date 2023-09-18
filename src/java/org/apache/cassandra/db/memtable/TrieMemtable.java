@@ -297,13 +297,21 @@ public class TrieMemtable extends AbstractAllocatorMemtable
 
         return total;
     }
+
+    /**
+     * Returns the minTS if one available, otherwise NO_MIN_TIMESTAMP.
+     *
+     * EncodingStats uses a synthetic epoch TS at 2015. We don't want to leak that (CASSANDRA-18118) so we return NO_MIN_TIMESTAMP instead.
+     *
+     * @return The minTS or NO_MIN_TIMESTAMP if none available
+     */
     @Override
     public long getMinTimestamp()
     {
         long min = Long.MAX_VALUE;
         for (MemtableShard shard : shards)
             min =  Long.min(min, shard.minTimestamp());
-        return min;
+        return min != EncodingStats.NO_STATS.minTimestamp ? min : NO_MIN_TIMESTAMP;
     }
 
     @Override

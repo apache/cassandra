@@ -430,6 +430,10 @@ public class PagingState
         // Old (pre-3.0) encoding of cells. We need that for the protocol v3 as that is how things where encoded
         private static ByteBuffer encodeCellName(TableMetadata metadata, Clustering<?> clustering, ByteBuffer columnName, ByteBuffer collectionElement)
         {
+            // v30 and v3X don't use composites for single-element clusterings in compact tables
+            if (metadata.isCompactTable() && metadata.comparator.size() == 1)
+                return clustering.bufferAt(0);
+
             boolean isStatic = clustering == Clustering.STATIC_CLUSTERING;
 
             // We use comparator.size() rather than clustering.size() because of static clusterings
@@ -465,6 +469,10 @@ public class PagingState
             int csize = metadata.comparator.size();
             if (csize == 0)
                 return Clustering.EMPTY;
+
+            // v30 and v3X don't use composites for single-element clusterings in compact tables
+            if (metadata.isCompactTable() && metadata.comparator.size() == 1)
+                return Clustering.make(value);
 
             if (CompositeType.isStaticName(value, ByteBufferAccessor.instance))
                 return Clustering.STATIC_CLUSTERING;

@@ -99,17 +99,28 @@ public class CassandraTableRepairManager implements TableRepairManager
     @Override
     public synchronized void snapshot(String name, Collection<Range<Token>> ranges, boolean force)
     {
-        if (force || !cfs.snapshotExists(name))
+        try
         {
-            cfs.snapshot(name, new Predicate<SSTableReader>()
-            {
-                public boolean apply(SSTableReader sstable)
+            ActiveRepairService.instance.snapshotExecutor.submit(() -> {
+                if (force || !cfs.snapshotExists(name))
                 {
-                    return sstable != null &&
-                           !sstable.metadata().isIndex() && // exclude SSTables from 2i
-                           new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(ranges);
+                    cfs.snapshot(name, new Predicate<SSTableReader>()
+                    {
+                        public boolean apply(SSTableReader sstable)
+                        {
+                            return sstable != null &&
+                                   !sstable.metadata().isIndex() && // exclude SSTables from 2i
+                                   new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(ranges);
+                        }
+                    }, true, false); //ephemeral snapshot, if repair fails, it will be cleaned next startup
                 }
-            }, true, false); //ephemeral snapshot, if repair fails, it will be cleaned next startup
+            }).get();
+        }
+        catch (Exception ex)
+        {
+            if (ex instanceof InterruptedException)
+                Thread.currentThread().interrupt();
+            throw new RuntimeException(String.format("Unable to take a snapshot %s on %s.%s", name, cfs.metadata.keyspace, cfs.metadata.name), ex);
         }
 
     }

@@ -361,8 +361,8 @@ public abstract class SSTableHeaderFix
         List<AbstractType<?>> clusteringTypes = validateClusteringColumns(desc, tableMetadata, header);
 
         // check static and regular columns
-        Map<ByteBuffer, AbstractType<?>> staticColumns = validateColumns(desc, tableMetadata, header.getStaticColumns(), ColumnMetadata.Kind.STATIC);
-        Map<ByteBuffer, AbstractType<?>> regularColumns = validateColumns(desc, tableMetadata, header.getRegularColumns(), ColumnMetadata.Kind.REGULAR);
+        LinkedHashMap<ByteBuffer, AbstractType<?>> staticColumns = validateColumns(desc, tableMetadata, header.getStaticColumns(), ColumnMetadata.Kind.STATIC);
+        LinkedHashMap<ByteBuffer, AbstractType<?>> regularColumns = validateColumns(desc, tableMetadata, header.getRegularColumns(), ColumnMetadata.Kind.REGULAR);
 
         SerializationHeader.Component newHeader = SerializationHeader.Component.buildComponentForTools(keyType,
                                                                                                        clusteringTypes,
@@ -485,9 +485,9 @@ public abstract class SSTableHeaderFix
         return clusteringTypes;
     }
 
-    private Map<ByteBuffer, AbstractType<?>> validateColumns(Descriptor desc, TableMetadata tableMetadata, Map<ByteBuffer, AbstractType<?>> columns, ColumnMetadata.Kind kind)
+    private LinkedHashMap<ByteBuffer, AbstractType<?>> validateColumns(Descriptor desc, TableMetadata tableMetadata, Map<ByteBuffer, AbstractType<?>> columns, ColumnMetadata.Kind kind)
     {
-        Map<ByteBuffer, AbstractType<?>> target = new LinkedHashMap<>();
+        LinkedHashMap<ByteBuffer, AbstractType<?>> target = new LinkedHashMap<>();
         for (Map.Entry<ByteBuffer, AbstractType<?>> nameAndType : columns.entrySet())
         {
             ByteBuffer name = nameAndType.getKey();

@@ -1,0 +1,72 @@
+--- a/src/java/org/apache/cassandra/schema/MigrationCoordinator.java
++++ b/src/java/org/apache/cassandra/schema/MigrationCoordinator.java
+@@ -69,11 +69,8 @@
+ import org.apache.cassandra.net.Verb;
+ import org.apache.cassandra.service.StorageService;
+ import org.apache.cassandra.utils.FBUtilities;
+-<<<<<<<
+ import org.apache.cassandra.utils.NoSpamLogger;
+-=======
+ import org.apache.cassandra.utils.Pair;
+->>>>>>>
+ import org.apache.cassandra.utils.concurrent.WaitQueue;
+ 
+ import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORED_SCHEMA_CHECK_ENDPOINTS;
+@@ -95,11 +92,8 @@
+ public class MigrationCoordinator
+ {
+     private static final Logger logger = LoggerFactory.getLogger(MigrationCoordinator.class);
+-<<<<<<<
+-    private static final CompletableFuture<Void> FINISHED_FUTURE = CompletableFuture.completedFuture(null);
+-=======
+     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(MigrationCoordinator.logger, 1, TimeUnit.MINUTES);
+-    private static final Future<Void> FINISHED_FUTURE = Futures.immediateFuture(null);
++    private static final CompletableFuture<Void> FINISHED_FUTURE = CompletableFuture.completedFuture(null);
+ 
+     private static LongSupplier getUptimeFn = () -> ManagementFactory.getRuntimeMXBean().getUptime();
+ 
+@@ -109,8 +103,6 @@
+         getUptimeFn = supplier;
+     }
+ 
+->>>>>>>
+-
+     private static final int MIGRATION_DELAY_IN_MS = CassandraRelevantProperties.MIGRATION_DELAY.getInt();
+     public static final int MAX_OUTSTANDING_VERSION_REQUESTS = 3;
+ 
+@@ -697,13 +689,8 @@
+ 
+         if (!gossiper.isAlive(endpoint))
+         {
+-<<<<<<<
+-            logger.warn("Can't send schema pull request: node {} is down.", endpoint);
++            noSpamLogger.warn("Can't send schema pull request: node {} is down.", endpoint);
+             callback.onFailure(endpoint, RequestFailureReason.UNKNOWN);
+-=======
+-            noSpamLogger.warn("Can't send schema pull request: node {} is down.", callback.endpoint);
+-            callback.fail();
+->>>>>>>
+             return;
+         }
+ 
+@@ -820,4 +807,4 @@
+                && messagingService.versions.getRaw(endpoint) == MessagingService.current_version;
+     }
+ 
+-}
+\ No newline at end of file
++}
+--- a/src/java/org/apache/cassandra/service/StorageService.java
++++ b/src/java/org/apache/cassandra/service/StorageService.java
+@@ -219,11 +219,7 @@
+ import static org.apache.cassandra.index.SecondaryIndexManager.isIndexColumnFamily;
+ import static org.apache.cassandra.net.NoPayload.noPayload;
+ import static org.apache.cassandra.net.Verb.REPLICATION_DONE_REQ;
+-<<<<<<<
+-=======
+-import static org.apache.cassandra.schema.MigrationManager.evolveSystemKeyspace;
+ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
+->>>>>>>
+ 
+ /**
+  * This abstraction contains the token/identifier of this node

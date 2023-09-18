@@ -35,7 +35,6 @@ import org.junit.Test;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.db.marshal.TimeUUIDType;
-
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 

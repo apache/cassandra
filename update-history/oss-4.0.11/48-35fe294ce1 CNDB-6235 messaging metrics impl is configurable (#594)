@@ -1,0 +1,14 @@
+--- a/src/java/org/apache/cassandra/net/MessagingService.java
++++ b/src/java/org/apache/cassandra/net/MessagingService.java
+@@ -46,11 +46,7 @@
+ import static java.util.Collections.synchronizedList;
+ import static java.util.concurrent.TimeUnit.MINUTES;
+ import static org.apache.cassandra.concurrent.Stage.MUTATION;
+-<<<<<<<
+ import static org.apache.cassandra.config.CassandraRelevantProperties.CUSTOM_MESSAGING_METRICS_PROVIDER_PROPERTY;
+-=======
+-import static org.apache.cassandra.config.CassandraRelevantProperties.NON_GRACEFUL_SHUTDOWN;
+->>>>>>>
+ import static org.apache.cassandra.utils.Throwables.maybeFail;
+ 
+ /**

@@ -1,0 +1,93 @@
+--- a/test/burn/org/apache/cassandra/utils/LongBTreeTest.java
++++ b/test/burn/org/apache/cassandra/utils/LongBTreeTest.java
+@@ -341,14 +341,14 @@
+         final CountDownLatch latch = new CountDownLatch(threads);
+         final AtomicLong errors = new AtomicLong();
+         final AtomicLong count = new AtomicLong();
+-        final long totalCount = threads * perThreadTrees * perTreeSelections / 100;
++        final long totalCount = threads * perThreadTrees * perTreeSelections;
+         for (int t = 0 ; t < threads ; t++)
+         {
+             Runnable runnable = () -> {
+                 final Random seedGenerator = new Random(outerSeedGenerator.nextLong());
+                 try
+                 {
+-                    for (int i = 0 ; i < perThreadTrees / 100; i++)
++                    for (int i = 0 ; i < perThreadTrees ; i++)
+                     {
+                         long dataSeed = seedGenerator.nextLong();
+                         RandomTree tree = randomTree(dataSeed, minTreeSize, maxTreeSize);
+@@ -783,11 +783,7 @@
+     @Test
+     public void testIndividualInsertsMediumSparseRange() throws ExecutionException, InterruptedException
+     {
+-<<<<<<<
+         testInsertions(randomSeed(), 500, 10, 1, true);
+-=======
+-        testInsertions(randomSeed(), perThreadTrees / 1000, 500, 10, 1, true);
+->>>>>>>
+     }
+ 
+     @Test
+@@ -799,22 +795,14 @@
+     @Test
+     public void testLargeBatchesLargeRange() throws ExecutionException, InterruptedException
+     {
+-<<<<<<<
+         testInsertions(randomSeed(), Math.max(maxTreeSize, 5000), 3, 100, true);
+-=======
+-        testInsertions(randomSeed(), perThreadTrees / 1000, Math.max(maxTreeSize, 5000), 3, 100, true);
+->>>>>>>
+     }
+ 
+     @Test
+     public void testRandomRangeAndBatches() throws ExecutionException, InterruptedException
+     {
+         Random seedGenerator = new Random(randomSeed());
+-<<<<<<<
+         for (int i = 0 ; i < 10 ; i++)
+-=======
+-        for (int i = 0 ; i < perThreadTrees / 1000 ; i++)
+->>>>>>>
+         {
+             int treeSize = nextInt(seedGenerator, maxTreeSize / 10, maxTreeSize * 10);
+             testInsertions(seedGenerator.nextLong(), treeSize, nextInt(seedGenerator, 1, 100) / 10f, treeSize / 100, true);
+@@ -829,7 +817,7 @@
+ 
+     private static void testInsertions(long seed, int perTestCount, float testKeyRatio, int modificationBatchSize, boolean quickEquality) throws ExecutionException, InterruptedException
+     {
+-        int tests = perThreadTrees * threads / 100;
++        int tests = perThreadTrees * threads;
+         testInsertions(seed, tests, perTestCount, testKeyRatio, modificationBatchSize, quickEquality);
+     }
+ 
+diff --git a/test/burn/org/apache/cassandra/utils/LongBTreeTest.java b/test/burn/org/apache/cassandra/utils/LongBTreeTest.java
+index 252e8eb269..aaa4e530f3 100644
+--- a/test/burn/org/apache/cassandra/utils/LongBTreeTest.java
++++ b/test/burn/org/apache/cassandra/utils/LongBTreeTest.java
+@@ -341,14 +341,14 @@ public class LongBTreeTest
+         final CountDownLatch latch = new CountDownLatch(threads);
+         final AtomicLong errors = new AtomicLong();
+         final AtomicLong count = new AtomicLong();
+-        final long totalCount = threads * perThreadTrees * perTreeSelections / 100;
++        final long totalCount = threads * perThreadTrees * perTreeSelections;
+         for (int t = 0 ; t < threads ; t++)
+         {
+             Runnable runnable = () -> {
+                 final Random seedGenerator = new Random(outerSeedGenerator.nextLong());
+                 try
+                 {
+-                    for (int i = 0 ; i < perThreadTrees / 100; i++)
++                    for (int i = 0 ; i < perThreadTrees ; i++)
+                     {
+                         long dataSeed = seedGenerator.nextLong();
+                         RandomTree tree = randomTree(dataSeed, minTreeSize, maxTreeSize);
+@@ -817,7 +817,7 @@ public class LongBTreeTest
+ 
+     private static void testInsertions(long seed, int perTestCount, float testKeyRatio, int modificationBatchSize, boolean quickEquality) throws ExecutionException, InterruptedException
+     {
+-        int tests = perThreadTrees * threads / 100;
++        int tests = perThreadTrees * threads;
+         testInsertions(seed, tests, perTestCount, testKeyRatio, modificationBatchSize, quickEquality);
+     }
+ 

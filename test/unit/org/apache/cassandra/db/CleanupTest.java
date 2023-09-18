@@ -124,9 +124,11 @@ public class CleanupTest
     }
 
     @Test
-    public void testCleanup() throws ExecutionException, InterruptedException
+    public void testCleanup() throws ExecutionException, InterruptedException, UnknownHostException
     {
-        StorageService.instance.getTokenMetadata().clearUnsafe();
+        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
+        tmd.clearUnsafe();
+        tmd.updateNormalToken(token(new byte[]{ 50 }), InetAddressAndPort.getByName("127.0.0.1"));
 
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD1);

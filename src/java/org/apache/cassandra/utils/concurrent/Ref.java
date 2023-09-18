@@ -700,7 +700,7 @@ public final class Ref<T> implements RefCounted<T>
                 List<String> names = new ArrayList<>(this.candidates.size());
                 for (Tidy tidy : this.candidates)
                     names.add(tidy.name());
-                logger.warn("Strong reference leak candidates detected: {}", names);
+                logger.error("Strong reference leak candidates detected: {}", names);
             }
             this.candidates = candidates;
         }

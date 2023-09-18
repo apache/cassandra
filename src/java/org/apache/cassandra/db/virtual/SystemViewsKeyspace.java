@@ -21,6 +21,7 @@ import java.util.Collection;
 
 import com.google.common.collect.ImmutableList;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.index.sai.virtual.AnalyzerView;
 import org.apache.cassandra.index.sai.virtual.IndexesSystemView;
 import org.apache.cassandra.index.sai.virtual.SSTablesSystemView;
@@ -33,8 +34,6 @@ import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_VIEWS;
 
 public final class SystemViewsKeyspace extends VirtualKeyspace
 {
-    private static final boolean ONLY_LOCAL_AND_PEERS = Boolean.getBoolean("cassandra.system_view.only_local_and_peers_table");
-
     public static SystemViewsKeyspace instance = new SystemViewsKeyspace();
 
     private SystemViewsKeyspace()
@@ -45,7 +44,7 @@ public final class SystemViewsKeyspace extends VirtualKeyspace
     private static Collection<VirtualTable> buildTables()
     {
         ImmutableList.Builder<VirtualTable> tables = new ImmutableList.Builder<>();
-        if (!ONLY_LOCAL_AND_PEERS)
+        if (CassandraRelevantProperties.SYSTEM_VIEWS_INCLUDE_ALL.getBoolean())
             tables.add(new CachesTable(VIRTUAL_VIEWS))
                   .add(new ClientsTable(VIRTUAL_VIEWS))
                   .add(new SettingsTable(VIRTUAL_VIEWS))
@@ -56,12 +55,17 @@ public final class SystemViewsKeyspace extends VirtualKeyspace
                   .add(new InternodeInboundTable(VIRTUAL_VIEWS))
                   .add(new SSTablesSystemView(VIRTUAL_VIEWS))
                   .add(new SegmentsSystemView(VIRTUAL_VIEWS))
-                  .add(new IndexesSystemView(VIRTUAL_VIEWS))
                   .add(new AnalyzerView(VIRTUAL_VIEWS))
                   .addAll(TableMetricTables.getAll(VIRTUAL_VIEWS));
-        tables.add(new LocalNodeSystemView())
-              .add(new PeersSystemView())
-              .add(new LegacyPeersSystemView());
+        if (CassandraRelevantProperties.SYSTEM_VIEWS_INCLUDE_ALL.getBoolean()
+            || CassandraRelevantProperties.SYSTEM_VIEWS_INCLUDE_LOCAL_AND_PEERS.getBoolean())
+            tables.add(new LocalNodeSystemView())
+                  .add(new PeersSystemView())
+                  .add(new LegacyPeersSystemView());
+        if (CassandraRelevantProperties.SYSTEM_VIEWS_INCLUDE_ALL.getBoolean()
+            || CassandraRelevantProperties.SYSTEM_VIEWS_INCLUDE_INDEXES.getBoolean())
+            tables.add(new IndexesSystemView(VIRTUAL_VIEWS));
+
         return tables.build();
     }
 }

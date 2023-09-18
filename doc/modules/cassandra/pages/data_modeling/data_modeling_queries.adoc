@@ -28,7 +28,7 @@ here, however, you’ll want to think not only from the customer
 perspective in terms of how the data is written, but also in terms of
 how the data will be queried by downstream use cases.
 
-You natural tendency as might be to focus first on designing the tables
+Your natural tendency might be to focus first on designing the tables
 to store reservation and guest records, and only then start thinking
 about the queries that would access them. You may have felt a similar
 tension already when discussing the shopping queries before, thinking

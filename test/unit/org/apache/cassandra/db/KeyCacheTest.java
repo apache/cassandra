@@ -18,6 +18,7 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
+import java.net.UnknownHostException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -42,8 +43,8 @@ import org.apache.cassandra.cache.AutoSavingCache;
 import org.apache.cassandra.cache.ICache;
 import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.big.BigTableRowIndexEntry;
@@ -85,7 +86,7 @@ public class KeyCacheTest
 
 
     @BeforeClass
-    public static void defineSchema() throws ConfigurationException
+    public static void defineSchema() throws ConfigurationException, UnknownHostException
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
@@ -103,7 +104,6 @@ public class KeyCacheTest
         SchemaLoader.createKeyspace(KEYSPACE2,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE2, COLUMN_FAMILY_K2_1));
-
     }
 
     @AfterClass
@@ -357,7 +357,6 @@ public class KeyCacheTest
         // Here max time to load cache is negative which means no time left to load cache. So the keyCache size should
         // be zero after loadSaved().
         assertKeyCacheSize(0, KEYSPACE1, cf);
-        assertEquals(0, CacheService.instance.keyCache.size());
     }
 
     @Test
@@ -380,7 +379,6 @@ public class KeyCacheTest
         // be zero after load.
         assertKeyCacheSize(numberOfRows, KEYSPACE1, columnFamily1);
         assertKeyCacheSize(numberOfRows, KEYSPACE2, columnFamily2);
-        assertEquals(numberOfRows * tables.size(), CacheService.instance.keyCache.size());
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })

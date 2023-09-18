@@ -25,6 +25,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
@@ -50,6 +52,14 @@ public abstract class AbstractMemtable implements Memtable
         this.columnsCollector = new ColumnsCollector(metadata.get().regularAndStaticColumns());
     }
 
+    @VisibleForTesting
+    public AbstractMemtable(TableMetadataRef metadataRef, long minTimestamp)
+    {
+        this.metadata = metadataRef;
+        this.columnsCollector = new ColumnsCollector(metadata.get().regularAndStaticColumns());
+        this.minTimestamp = new AtomicLong(minTimestamp);
+    }
+
     public TableMetadata metadata()
     {
         return metadata.get();
@@ -60,9 +70,16 @@ public abstract class AbstractMemtable implements Memtable
         return currentOperations.get();
     }
 
+    /**
+     * Returns the minTS if one available, otherwise NO_MIN_TIMESTAMP.
+     * 
+     * EncodingStats uses a synthetic epoch TS at 2015. We don't want to leak that (CASSANDRA-18118) so we return NO_MIN_TIMESTAMP instead.
+     * 
+     * @return The minTS or NO_MIN_TIMESTAMP if none available
+     */
     public long getMinTimestamp()
     {
-        return minTimestamp.get();
+        return minTimestamp.get() != EncodingStats.NO_STATS.minTimestamp ? minTimestamp.get() : NO_MIN_TIMESTAMP;
     }
 
     protected void updateMin(AtomicLong minTracker, long newValue)

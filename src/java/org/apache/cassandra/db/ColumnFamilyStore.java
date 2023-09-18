@@ -776,7 +776,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         }
 
         strategyContainer.shutdown();
-        Nodes.local().removeTruncationRecord(metadata.id);
+
+        // Do not remove truncation records for index CFs, given they have the same ID as their backing/base tables.
+        if (!metadata.get().isIndex())
+            Nodes.local().removeTruncationRecord(metadata.id);
 
         storageHandler.runWithReloadingDisabled(() -> {
             if (status.isInvalidAndShouldDropData())
@@ -1027,11 +1030,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public KeyspaceMetrics getKeyspaceMetrics()
     {
         return keyspace.metric;
-    }
-
-    public void publishMetrics()
-    {
-        getTracker().publishMetrics(metrics().createMetricsNotification());
     }
 
     public Descriptor newSSTableDescriptor(File directory)
@@ -3674,6 +3672,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             return false;
         }
 
+        public void refreshOverlaps()
+        {
+            if (this.overlappingSSTables != null)
+                close();
+            collectOverlaps();
+        }
+        
         private void collectOverlaps()
         {
             if (compacting == null)

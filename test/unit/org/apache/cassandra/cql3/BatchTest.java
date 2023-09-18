@@ -33,7 +33,6 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
@@ -41,7 +40,9 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.Assert.assertSame;
 
-public class BatchTest
+import java.io.IOException;
+
+public class BatchTest extends CQLTester
 {
     private static EmbeddedCassandraService cassandra;
 

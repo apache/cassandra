@@ -49,6 +49,8 @@ import org.apache.cassandra.locator.EndpointsByRange;
 import org.apache.cassandra.locator.EndpointsByReplica;
 import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.ReplicaCollection;
+
+import com.google.common.collect.ImmutableMultimap;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -63,9 +65,11 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaMultimap;
+import org.apache.cassandra.locator.SimpleSnitch;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.locator.SystemReplicas;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.mockito.Mockito;
 
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.nodes.Nodes;
@@ -207,6 +211,58 @@ public class StorageServiceTest
         assertMultimapEqualsIgnoreOrder(result, expectedResult.build());
     }
 
+    @Test
+    public void testRebuildFailOnNonExistingDatacenter()
+    {
+        String nonExistentDC = "NON_EXISTENT_DC";
+
+        try
+        {
+            getStorageService().rebuild(nonExistentDC, "StorageServiceTest", null, null);
+            fail();
+        }
+        catch (IllegalArgumentException ex)
+        {
+            assertEquals(String.format("Provided datacenter '%s' is not a valid datacenter, available datacenters are: %s",
+                                       nonExistentDC,
+                                       SimpleSnitch.DATA_CENTER_NAME),
+                         ex.getMessage());
+        }
+    }
+
+    @Test
+    public void testRebuildingWithTokensWithoutKeyspace() throws Exception
+    {
+        try
+        {
+            getStorageService().rebuild("datacenter1", null, "123", null);
+            fail();
+        }
+        catch (IllegalArgumentException ex)
+        {
+            assertEquals("Cannot specify tokens without keyspace.", ex.getMessage());
+        }
+    }
+
+    private StorageService getStorageService()
+    {
+        ImmutableMultimap.Builder<String, InetAddressAndPort> builder = ImmutableMultimap.builder();
+        builder.put(SimpleSnitch.DATA_CENTER_NAME, aAddress);
+
+        TokenMetadata.Topology tokenMetadataTopology = Mockito.mock(TokenMetadata.Topology.class);
+        Mockito.when(tokenMetadataTopology.getDatacenterEndpoints()).thenReturn(builder.build());
+
+        TokenMetadata metadata = new TokenMetadata(new SimpleSnitch());
+        TokenMetadata spiedMetadata = Mockito.spy(metadata);
+
+        Mockito.when(spiedMetadata.getTopology()).thenReturn(tokenMetadataTopology);
+
+        StorageService spiedStorageService = Mockito.spy(StorageService.instance);
+        Mockito.when(spiedStorageService.getTokenMetadata()).thenReturn(spiedMetadata);
+        Mockito.when(spiedMetadata.cloneOnlyTokenMap()).thenReturn(spiedMetadata);
+
+        return spiedStorageService;
+    }
     @Test
     public void testSourceReplicasIsEmptyWithDeadNodes()
     {

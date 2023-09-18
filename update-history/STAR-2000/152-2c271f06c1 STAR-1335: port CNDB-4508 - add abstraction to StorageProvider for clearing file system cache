@@ -1,0 +1,28 @@
+--- a/test/unit/org/apache/cassandra/io/sstable/DescriptorTest.java
++++ b/test/unit/org/apache/cassandra/io/sstable/DescriptorTest.java
+@@ -180,7 +180,6 @@
+     }
+ 
+     @Test
+-<<<<<<<
+     public void testKeyspaceTableParsing()
+     {
+         // from Cassandra dirs
+@@ -330,7 +329,9 @@
+             Assert.assertEquals(expectedKeyspace, descriptor.ksname);
+             Assert.assertEquals(expectedTable, descriptor.cfname);
+         }
+-=======
++    }
++
++    @Test
+     public void testLegacyDSEAPI()
+     {
+         File dir = new File(".");
+@@ -339,6 +340,5 @@
+         assertEquals(dir.toCanonical().toPath(), desc.getDirectory());
+         assertEquals(desc.fileFor(Component.DATA).toPath(), desc.pathFor(Component.DATA));
+         assertEquals(desc.baseFileUri(), desc.baseFileURI());
+->>>>>>>
+     }
+ }

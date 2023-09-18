@@ -1,0 +1,17 @@
+--- a/test/unit/org/apache/cassandra/io/sstable/SSTableLoaderTest.java
++++ b/test/unit/org/apache/cassandra/io/sstable/SSTableLoaderTest.java
+@@ -299,13 +299,8 @@
+             writer.addRow("key", "col1", "100");
+         }
+ 
+-<<<<<<<
+-        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_BACKUPS);
+-        cfs.forceBlockingFlush(UNIT_TESTS); // wait for sstables to be on disk else we won't be able to stream them
+-=======
+         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(tableName);
+-        cfs.forceBlockingFlush(); // wait for sstables to be on disk else we won't be able to stream them
+->>>>>>>
++        cfs.forceBlockingFlush(UNIT_TESTS); // wait for sstables to be on disk else we won't be able to stream them
+ 
+         final CountDownLatch latch = new CountDownLatch(1);
+         SSTableLoader loader = new SSTableLoader(dataDir, new TestClient(), new OutputHandler.SystemOutput(false, false));

@@ -3314,6 +3314,11 @@ public class DatabaseDescriptor
         return  conf.full_query_logging_options;
     }
 
+    public static void setFullQueryLogOptions(FullQueryLoggerOptions options)
+    {
+        conf.full_query_logging_options = options;
+    }
+
     public static boolean getBlockForPeersInRemoteDatacenters()
     {
         return conf.block_for_peers_in_remote_dcs;

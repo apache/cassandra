@@ -123,6 +123,8 @@ public class TableStatsHolder implements StatsHolder
     private Map<String, Object> convertStatsTableToMap(StatsTable table)
     {
         Map<String, Object> mpTable = new HashMap<>();
+        mpTable.put("sstable_count", table.sstableCount);
+        mpTable.put("old_sstable_count", table.oldSSTableCount);
         mpTable.put("sstables_in_each_level", table.sstablesInEachLevel);
         mpTable.put("space_used_live", table.spaceUsedLive);
         mpTable.put("space_used_total", table.spaceUsedTotal);

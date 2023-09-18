@@ -113,13 +113,12 @@ public class StorageAttachedIndex implements Index
 
     private static class StorageAttachedIndexBuildingSupport implements IndexBuildingSupport
     {
-        public SecondaryIndexBuilder getIndexBuildTask(ColumnFamilyStore cfs,
+        public NavigableMap<SSTableReader, Set<StorageAttachedIndex>> prepareSSTablesToBuild(StorageAttachedIndexGroup group,
                                                        Set<Index> indexes,
                                                        Collection<SSTableReader> sstablesToRebuild,
                                                        boolean isFullRebuild)
         {
             NavigableMap<SSTableReader, Set<StorageAttachedIndex>> sstables = new TreeMap<>(SSTableReader.idComparator);
-            StorageAttachedIndexGroup group = StorageAttachedIndexGroup.getIndexGroup(cfs);
 
             indexes.stream()
                    .filter((i) -> i instanceof StorageAttachedIndex)
@@ -148,7 +147,37 @@ public class StorageAttachedIndex implements Index
                                            });
                             });
 
-            return new StorageAttachedIndexBuilder(StorageAttachedIndexGroup.getIndexGroup(cfs), sstables, isFullRebuild, false);
+            return sstables;
+        }
+
+        @Override
+        public SecondaryIndexBuilder getIndexBuildTask(ColumnFamilyStore cfs, Set<Index> indexes, Collection<SSTableReader> sstablesToRebuild, boolean isFullRebuild)
+        {
+            StorageAttachedIndexGroup group = StorageAttachedIndexGroup.getIndexGroup(cfs);
+            NavigableMap<SSTableReader, Set<StorageAttachedIndex>> sstables = prepareSSTablesToBuild(group, indexes, sstablesToRebuild, isFullRebuild);
+            return new StorageAttachedIndexBuilder(group, sstables, isFullRebuild, false);
+        }
+
+        @Override
+        public List<SecondaryIndexBuilder> getParallelIndexBuildTasks(ColumnFamilyStore cfs, Set<Index> indexes, Collection<SSTableReader> sstablesToRebuild, boolean isFullRebuild)
+        {
+            StorageAttachedIndexGroup indexGroup = StorageAttachedIndexGroup.getIndexGroup(cfs);
+            NavigableMap<SSTableReader, Set<StorageAttachedIndex>> sstables = prepareSSTablesToBuild(indexGroup, indexes, sstablesToRebuild, isFullRebuild);
+
+            List<List<SSTableReader>> groups = groupBySize(new ArrayList<>(sstables.keySet()), DatabaseDescriptor.getConcurrentCompactors());
+            List<SecondaryIndexBuilder> builders = new ArrayList<>();
+
+            for (List<SSTableReader> group : groups)
+            {
+                SortedMap<SSTableReader, Set<StorageAttachedIndex>> current = new TreeMap<>(Comparator.comparing(sstable -> sstable.descriptor.id));
+                group.forEach(sstable -> current.put(sstable, sstables.get(sstable)));
+
+                builders.add(new StorageAttachedIndexBuilder(indexGroup, current, isFullRebuild, false));
+            }
+
+            logger.info("Creating {} parallel index builds over {} total sstables for {}...", builders.size(), sstables.size(), cfs.metadata());
+
+            return builders;
         }
     }
 

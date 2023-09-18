@@ -250,8 +250,8 @@ public class SerializationHeader
 
     public Component toComponent()
     {
-        Map<ByteBuffer, AbstractType<?>> staticColumns = new LinkedHashMap<>();
-        Map<ByteBuffer, AbstractType<?>> regularColumns = new LinkedHashMap<>();
+        LinkedHashMap<ByteBuffer, AbstractType<?>> staticColumns = new LinkedHashMap<>();
+        LinkedHashMap<ByteBuffer, AbstractType<?>> regularColumns = new LinkedHashMap<>();
         for (ColumnMetadata column : columns.statics)
             staticColumns.put(column.name.bytes, column.type);
         for (ColumnMetadata column : columns.regulars)
@@ -273,14 +273,14 @@ public class SerializationHeader
     {
         private final AbstractType<?> keyType;
         private final List<AbstractType<?>> clusteringTypes;
-        private final Map<ByteBuffer, AbstractType<?>> staticColumns;
-        private final Map<ByteBuffer, AbstractType<?>> regularColumns;
+        private final LinkedHashMap<ByteBuffer, AbstractType<?>> staticColumns;
+        private final LinkedHashMap<ByteBuffer, AbstractType<?>> regularColumns;
         private final EncodingStats stats;
 
         private Component(AbstractType<?> keyType,
                           List<AbstractType<?>> clusteringTypes,
-                          Map<ByteBuffer, AbstractType<?>> staticColumns,
-                          Map<ByteBuffer, AbstractType<?>> regularColumns,
+                          LinkedHashMap<ByteBuffer, AbstractType<?>> staticColumns,
+                          LinkedHashMap<ByteBuffer, AbstractType<?>> regularColumns,
                           EncodingStats stats)
         {
             this.keyType = keyType;
@@ -295,8 +295,8 @@ public class SerializationHeader
          */
         public static Component buildComponentForTools(AbstractType<?> keyType,
                                                        List<AbstractType<?>> clusteringTypes,
-                                                       Map<ByteBuffer, AbstractType<?>> staticColumns,
-                                                       Map<ByteBuffer, AbstractType<?>> regularColumns,
+                                                       LinkedHashMap<ByteBuffer, AbstractType<?>> staticColumns,
+                                                       LinkedHashMap<ByteBuffer, AbstractType<?>> regularColumns,
                                                        EncodingStats stats)
         {
             return new Component(keyType, clusteringTypes, staticColumns, regularColumns, stats);
@@ -404,8 +404,16 @@ public class SerializationHeader
 
             AbstractType<?> newKeyType = keyType.overrideKeyspace(ks -> keyspaceMapping.getOrDefault(ks, ks));
             List<AbstractType<?>> clusteringTypes = this.clusteringTypes.stream().map(t -> t.overrideKeyspace(ks -> keyspaceMapping.getOrDefault(ks, ks))).collect(Collectors.toList());
-            Map<ByteBuffer, AbstractType<?>> staticColumns = this.staticColumns.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().overrideKeyspace(ks -> keyspaceMapping.getOrDefault(ks, ks))));
-            Map<ByteBuffer, AbstractType<?>> regularColumns = this.regularColumns.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().overrideKeyspace(ks -> keyspaceMapping.getOrDefault(ks, ks))));
+            LinkedHashMap<ByteBuffer, AbstractType<?>> staticColumns = this.staticColumns.entrySet().stream().collect(Collectors.toMap(
+                    Map.Entry::getKey,
+                    e -> e.getValue().overrideKeyspace(ks -> keyspaceMapping.getOrDefault(ks, ks)),
+                    (a, b) -> { throw new IllegalArgumentException("Duplicate key"); },
+                    LinkedHashMap::new));
+            LinkedHashMap<ByteBuffer, AbstractType<?>> regularColumns = this.regularColumns.entrySet().stream().collect(Collectors.toMap(
+                    Map.Entry::getKey,
+                    e -> e.getValue().overrideKeyspace(ks -> keyspaceMapping.getOrDefault(ks, ks)),
+                    (a, b) -> { throw new IllegalArgumentException("Duplicate key"); },
+                    LinkedHashMap::new));
             return new Component(newKeyType, clusteringTypes, staticColumns, regularColumns, stats);
         }
 
@@ -494,8 +502,8 @@ public class SerializationHeader
             AbstractType<?> keyType = typeSerializer.deserialize(in);
             List<AbstractType<?>> clusteringTypes = typeSerializer.deserializeList(in);
 
-            Map<ByteBuffer, AbstractType<?>> staticColumns = readColumnsWithType(in);
-            Map<ByteBuffer, AbstractType<?>> regularColumns = readColumnsWithType(in);
+            LinkedHashMap<ByteBuffer, AbstractType<?>> staticColumns = readColumnsWithType(in);
+            LinkedHashMap<ByteBuffer, AbstractType<?>> regularColumns = readColumnsWithType(in);
 
             return new Component(keyType, clusteringTypes, staticColumns, regularColumns, stats);
         }
@@ -536,10 +544,10 @@ public class SerializationHeader
             return size;
         }
 
-        private Map<ByteBuffer, AbstractType<?>> readColumnsWithType(DataInputPlus in) throws IOException
+        private LinkedHashMap<ByteBuffer, AbstractType<?>> readColumnsWithType(DataInputPlus in) throws IOException
         {
             int length = (int) in.readUnsignedVInt();
-            Map<ByteBuffer, AbstractType<?>> typeMap = new LinkedHashMap<>(length);
+            LinkedHashMap<ByteBuffer, AbstractType<?>> typeMap = new LinkedHashMap<>(length);
             for (int i = 0; i < length; i++)
             {
                 ByteBuffer name = ByteBufferUtil.readWithVIntLength(in);

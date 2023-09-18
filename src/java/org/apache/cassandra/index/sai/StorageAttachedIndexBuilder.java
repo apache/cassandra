@@ -212,6 +212,7 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
                 completeSSTable(indexWriter, sstable, indexes, perSSTableFileLock);
                 txn.trackNewAttachedIndexFiles(sstable);
             }
+            logger.debug("Completed indexing sstable {}", sstable.descriptor);
 
             return false;
         }

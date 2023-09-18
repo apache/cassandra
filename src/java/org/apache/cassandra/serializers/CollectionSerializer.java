@@ -122,6 +122,14 @@ public abstract class CollectionSerializer<T> extends TypeSerializer<T>
         return accessor.slice(input, offset + TypeSizes.INT_SIZE, size);
     }
 
+    public static <V> V readNonNullValue(V input, ValueAccessor<V> accessor, int offset, ProtocolVersion version)
+    {
+        V value = readValue(input, accessor, offset, version);
+        if (value == null)
+            throw new MarshalException("Null value read when not allowed");
+        return value;
+    }
+
     protected static void skipValue(ByteBuffer input, ProtocolVersion version)
     {
         int size = input.getInt();

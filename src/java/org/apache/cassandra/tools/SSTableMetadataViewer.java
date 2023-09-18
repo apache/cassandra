@@ -364,6 +364,7 @@ public class SSTableMetadataViewer
                   stats.getEstimatedDroppableTombstoneRatio((int) (System.currentTimeMillis() / 1000) - this.gc));
             field("SSTable Level", stats.sstableLevel);
             field("Repaired at", stats.repairedAt, toDateString(stats.repairedAt, TimeUnit.MILLISECONDS));
+            field("Originating host id", stats.originatingHostId);
             field("Pending repair", stats.pendingRepair);
             field("Replay positions covered", stats.commitLogIntervals);
             field("totalColumnsSet", stats.totalColumnsSet);

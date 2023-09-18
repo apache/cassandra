@@ -71,7 +71,7 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
             int offset = sizeOfCollectionSize(n, version);
             for (int i = 0; i < n; i++)
             {
-                V value = readValue(input, accessor, offset, version);
+                V value = readNonNullValue(input, accessor, offset, version);
                 offset += sizeOfValue(value, accessor, version);
                 elements.validate(value, accessor);
             }
@@ -102,7 +102,12 @@ public class ListSerializer<T> extends CollectionSerializer<List<T>>
             List<T> l = new ArrayList<T>(Math.min(n, 256));
             for (int i = 0; i < n; i++)
             {
-                // We can have nulls in lists that are used for IN values
+                // CASSANDRA-6839: "We can have nulls in lists that are used for IN values"
+                // CASSANDRA-8613 checks IN clauses and throws an exception if null is in the list.
+                // Leaving for this as-is for now in case there is some unknown use
+                // for it, but should likely be changed to readNonNull. Validate has been
+                // changed to throw on null elements as otherwise it would NPE, and it's unclear
+                // if callers could handle null elements.
                 V databb = readValue(input, accessor, offset, version);
                 offset += sizeOfValue(databb, accessor, version);
                 if (databb != null)

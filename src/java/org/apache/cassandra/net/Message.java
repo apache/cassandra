@@ -19,7 +19,9 @@ package org.apache.cassandra.net;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -47,6 +49,7 @@ import org.apache.cassandra.utils.NoSpamLogger;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 import static org.apache.cassandra.locator.InetAddressAndPort.Serializer.inetAddressAndPortSerializer;
@@ -437,6 +440,12 @@ public class Message<T>
             return (TraceType) params.getOrDefault(ParamType.TRACE_TYPE, TraceType.QUERY);
         }
 
+        @Nullable
+        public Map<String,byte[]> customParams()
+        {
+            return (Map<String, byte[]>) params.get(ParamType.CUSTOM_MAP);
+        }
+
         /**
          * Keyspace that is beeing traced by the trace session attached to this message (if any).
          */
@@ -492,6 +501,15 @@ public class Message<T>
         public Builder<T> withParam(ParamType type, Object value)
         {
             params.put(type, value);
+            return this;
+        }
+
+        public Builder<T> withCustomParam(String name, byte[] value)
+        {
+            Map<String,byte[]> customParams  = (Map<String,byte[]>)
+                    params.computeIfAbsent(ParamType.CUSTOM_MAP, (t) -> new HashMap<String,byte[]>());
+
+            customParams.put(name, value);
             return this;
         }
 

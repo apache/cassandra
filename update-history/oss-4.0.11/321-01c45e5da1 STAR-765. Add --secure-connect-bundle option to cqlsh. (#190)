@@ -1,0 +1,88 @@
+--- a/bin/cqlsh.py
++++ b/bin/cqlsh.py
+@@ -207,11 +207,12 @@
+ parser.add_argument("--browser", dest='browser', help="""The browser to use to display CQL help, where BROWSER can be:
+                                                     - one of the supported browsers in https://docs.python.org/3/library/webbrowser.html.
+                                                     - browser path followed by %s, example: /usr/bin/google-chrome-stable %s""")
+-<<<<<<<
+ parser.add_argument('--ssl', action='store_true', help='Use SSL', default=False)
+ parser.add_argument("-u", "--username", help="Authenticate as user.")
+ parser.add_argument("-p", "--password", help="Authenticate using password.")
+ parser.add_argument('-k', '--keyspace', help='Authenticate to the given keyspace.')
++parser.add_argument('-b', '--secure-connect-bundle',
++                    help="Connect using secure connect bundle. If this option is specified host, port settings are ignored.")
+ parser.add_argument("-f", "--file", help="Execute commands from FILE, then exit")
+ parser.add_argument('--debug', action='store_true',
+                     help='Show additional debugging information')
+@@ -224,30 +225,8 @@
+                     help='Specify a particular CQL version, '
+                     'by default the highest version supported by the server will be used.'
+                     ' Examples: "3.0.3", "3.1.0"')
+-parser.add_argument("--protocol-version", type=int, default=None,
++parser.add_argument("--protocol-version", type="int", default=None,
+                     help='Specify a specific protcol version otherwise the client will default and downgrade as necessary')
+-=======
+-parser.add_option('--ssl', action='store_true', help='Use SSL', default=False)
+-parser.add_option("-u", "--username", help="Authenticate as user.")
+-parser.add_option("-p", "--password", help="Authenticate using password.")
+-parser.add_option('-k', '--keyspace', help='Authenticate to the given keyspace.')
+-parser.add_option('-b', '--secure-connect-bundle',
+-                  help="Connect using secure connect bundle. If this option is specified host, port settings are ignored.")
+-parser.add_option("-f", "--file", help="Execute commands from FILE, then exit")
+-parser.add_option('--debug', action='store_true',
+-                  help='Show additional debugging information')
+-parser.add_option('--coverage', action='store_true',
+-                  help='Collect coverage data')
+-parser.add_option("--encoding", help="Specify a non-default encoding for output."
+-                  + " (Default: %s)" % (UTF8,))
+-parser.add_option("--cqlshrc", help="Specify an alternative cqlshrc file location.")
+-parser.add_option('--cqlversion', default=None,
+-                  help='Specify a particular CQL version, '
+-                       'by default the highest version supported by the server will be used.'
+-                       ' Examples: "3.0.3", "3.1.0"')
+-parser.add_option("--protocol-version", type="int", default=None,
+-                  help='Specify a specific protcol version otherwise the client will default and downgrade as necessary')
+->>>>>>>
+ 
+ parser.add_argument("-e", "--execute", help='Execute the statement and quit.')
+ parser.add_argument("--connect-timeout", default=DEFAULT_CONNECT_TIMEOUT_SECONDS, dest='connect_timeout',
+@@ -2203,23 +2182,14 @@
+     rawconfigs = configparser.RawConfigParser()
+     rawconfigs.read(CONFIG_FILE)
+ 
+-<<<<<<<
+     argvalues = argparse.Namespace()
+ 
+     argvalues.username = option_with_default(configs.get, 'authentication', 'username')
+     argvalues.password = option_with_default(rawconfigs.get, 'authentication', 'password')
+     argvalues.keyspace = option_with_default(configs.get, 'authentication', 'keyspace')
++    argvalues.secure_connect_bundle = option_with_default(configs.get, 'connection', 'secure_connect_bundle')
+     argvalues.browser = option_with_default(configs.get, 'ui', 'browser', None)
+     argvalues.completekey = option_with_default(configs.get, 'ui', 'completekey',
+-=======
+-    optvalues = optparse.Values()
+-    optvalues.username = option_with_default(configs.get, 'authentication', 'username')
+-    optvalues.password = option_with_default(rawconfigs.get, 'authentication', 'password')
+-    optvalues.keyspace = option_with_default(configs.get, 'authentication', 'keyspace')
+-    optvalues.secure_connect_bundle = option_with_default(configs.get, 'connection', 'secure_connect_bundle')
+-    optvalues.browser = option_with_default(configs.get, 'ui', 'browser', None)
+-    optvalues.completekey = option_with_default(configs.get, 'ui', 'completekey',
+->>>>>>>
+                                                 DEFAULT_COMPLETEKEY)
+     argvalues.color = option_with_default(configs.getboolean, 'ui', 'color')
+     argvalues.time_format = raw_option_with_default(configs, 'ui', 'time_format',
+@@ -2247,13 +2217,8 @@
+     argvalues.ssl = option_with_default(configs.getboolean, 'connection', 'ssl', DEFAULT_SSL)
+     argvalues.encoding = option_with_default(configs.get, 'ui', 'encoding', UTF8)
+ 
+-<<<<<<<
+-    argvalues.consistency_level = option_with_default(configs.get, 'cql', 'consistency_level', 'ONE')
++    argvalues.consistency_level = option_with_default(configs.get, 'cql', 'consistency_level', None)
+     argvalues.serial_consistency_level = option_with_default(configs.get, 'cql', 'serial_consistency_level', 'SERIAL')
+-=======
+-    optvalues.consistency_level = option_with_default(configs.get, 'cql', 'consistency_level', None)
+-    optvalues.serial_consistency_level = option_with_default(configs.get, 'cql', 'serial_consistency_level', 'SERIAL')
+->>>>>>>
+ 
+     argvalues.tty = option_with_default(configs.getboolean, 'ui', 'tty', sys.stdin.isatty())
+     argvalues.protocol_version = option_with_default(configs.getint, 'protocol', 'version', None)

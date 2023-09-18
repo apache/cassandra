@@ -53,6 +53,8 @@ enable_sasi_indexes: true
 enable_materialized_views: true
 enable_drop_compact_storage: true
 file_cache_enabled: true
+full_query_logging_options:
+  allow_nodetool_archive_command: true
 read_request_timeout_in_ms: 20000
 range_request_timeout_in_ms: 20000
 write_request_timeout_in_ms: 20000

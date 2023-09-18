@@ -24,15 +24,17 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.apache.cassandra.CassandraIsolatedJunit4ClassRunner;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
 @RunWith(CassandraIsolatedJunit4ClassRunner.class)
 public class CommitLogInitWithExceptionTest
 {
-    private static Thread initThread;
+    private final static SimpleCondition killed = new SimpleCondition();
 
     @BeforeClass
     public static void setUp()
@@ -57,41 +59,20 @@ public class CommitLogInitWithExceptionTest
             }
             finally
             {
-                Assert.assertNotNull(initThread);
-                // We have to manually stop init thread because the JVM does not exit actually.
-                initThread.stop();
+                killed.signalAll();
             }
         };
     }
 
-    @Test(timeout = 30000)
+    @Test
     public void testCommitLogInitWithException() {
         // This line will trigger initialization process because it's the first time to access CommitLog class.
-        initThread = new Thread(CommitLog.instance::start);
+        Thread initThread = new Thread(CommitLog.instance::start);
 
         initThread.setName("initThread");
         initThread.start();
 
-        try
-        {
-            initThread.join(); // Should not block here
-        }
-        catch (InterruptedException expected)
-        {
-        }
-
-        Assert.assertFalse(initThread.isAlive());
-
-        try
-        {
-            Thread.sleep(1000); // Wait for COMMIT-LOG-ALLOCATOR exit
-        }
-        catch (InterruptedException e)
-        {
-            Assert.fail();
-        }
-
-        Assert.assertEquals(Thread.State.TERMINATED, CommitLog.instance.getSegmentManager().managerThread.getState()); // exit successfully
+        Util.spinAssertEquals(true, killed::isSignaled, 120);
     }
 
     private static class MockCommitLogSegmentMgr extends CommitLogSegmentManagerStandard {

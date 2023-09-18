@@ -58,6 +58,7 @@ import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
 import static ch.qos.logback.core.CoreConstants.RECONFIGURE_ON_CHANGE_TASK;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -2231,5 +2232,21 @@ public class AggregationTest extends CQLTester
 
         assertRows(execute("select sum(v1), sum(v2), sum(v3) from %s;"),
                    row((float) 15.3, 15.3, BigDecimal.valueOf(15.3)));
+    }
+
+    @Test
+    public void testRejectInvalidAggregateNamesOnCreation()
+    {
+        for (String funcName : Arrays.asList("my/fancy/aggregate", "my_other[fancy]aggregate"))
+        {
+            assertThatThrownBy(() -> {
+                createAggregateOverload(String.format("%s.\"%s\"", KEYSPACE_PER_TEST, funcName), "int",
+                                        " CREATE AGGREGATE IF NOT EXISTS %s(text, text)\n" +
+                                        " SFUNC func\n" +
+                                        " STYPE map<text,bigint>\n" +
+                                        " INITCOND { };");
+            }).hasRootCauseInstanceOf(InvalidRequestException.class)
+              .hasRootCauseMessage("Aggregate name '%s' is invalid", funcName);
+        }
     }
 }

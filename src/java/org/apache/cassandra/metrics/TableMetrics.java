@@ -65,7 +65,6 @@ import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.metrics.Sampler.SamplerType;
-import org.apache.cassandra.notifications.MetricsNotification;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
@@ -328,7 +327,7 @@ public class TableMetrics
     public final Counter speculativeFailedRetries;
     public final Counter speculativeInsufficientReplicas;
     public final Gauge<Long> speculativeSampleLatencyNanos;
-
+    public final TableHistogram coordinatorReadSize;
     public final Counter additionalWrites;
     public final Gauge<Long> additionalWriteLatencyNanos;
 
@@ -981,6 +980,7 @@ public class TableMetrics
         coordinatorScanLatency = createTableTimer("CoordinatorScanLatency", cfs.getKeyspaceMetrics().coordinatorReadLatency);
         coordinatorWriteLatency = createTableTimer("CoordinatorWriteLatency", cfs.getKeyspaceMetrics().coordinatorWriteLatency);
         waitingOnFreeMemtableSpace = createTableHistogram("WaitingOnFreeMemtableSpace", cfs.getKeyspaceMetrics().waitingOnFreeMemtableSpace, false);
+        coordinatorReadSize = createTableHistogram("CoordinatorReadSize", cfs.getKeyspaceMetrics().coordinatorReadSize, false);
 
         // We do not want to capture view mutation specific metrics for a view
         // They only makes sense to capture on the base table
@@ -1102,11 +1102,6 @@ public class TableMetrics
 
         if (intersectingCount > 0)
             sstablePartitionReadLatency.update(elapsedNanos / (double) intersectingCount);
-    }
-
-    public MetricsNotification createMetricsNotification()
-    {
-        return new MetricsNotification(bytesInserted.getCount(), readRequests.getCount(), flushSizeOnDisk().get(), sstablePartitionReadLatency.get(), flushTimePerKb.get());
     }
 
     /**

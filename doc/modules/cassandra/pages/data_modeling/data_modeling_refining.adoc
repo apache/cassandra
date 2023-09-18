@@ -1,4 +1,5 @@
 = Evaluating and Refining Data Models
+:stem: latexmath
 
 Once you’ve created a physical model, there are some steps you’ll want
 to take to evaluate and refine table designs to help ensure optimal

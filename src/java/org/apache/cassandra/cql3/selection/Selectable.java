@@ -107,9 +107,9 @@ public interface Selectable extends AssignmentTestable
         return idx;
     }
 
-    default ColumnSpecification specForElementOrSlice(Selectable selected, ColumnSpecification receiver, String selectionType)
+    default ColumnSpecification specForElementOrSlice(Selectable selected, ColumnSpecification receiver, CollectionType.Kind kind, String selectionType)
     {
-        switch (((CollectionType)receiver.type).kind)
+        switch (kind)
         {
             case LIST: throw new InvalidRequestException(String.format("%s selection is only allowed on sets and maps, but %s is a list", selectionType, selected));
             case SET: return Sets.valueSpecOf(receiver);
@@ -1288,14 +1288,19 @@ public interface Selectable extends AssignmentTestable
             Selector.Factory factory = selected.newSelectorFactory(cfm, null, defs, boundNames);
             ColumnSpecification receiver = factory.getColumnSpecification(cfm);
 
-            if (!(receiver.type instanceof CollectionType))
-                throw new InvalidRequestException(String.format("Invalid element selection: %s is of type %s is not a collection", selected, receiver.type.asCQL3Type()));
+            AbstractType<?> type = receiver.type;
+            if (receiver.isReversedType())
+            {
+                type = ((ReversedType<?>) type).baseType;
+            }
+            if (!(type instanceof CollectionType))
+                throw new InvalidRequestException(String.format("Invalid element selection: %s is of type %s is not a collection", selected, type.asCQL3Type()));
 
-            ColumnSpecification boundSpec = specForElementOrSlice(selected, receiver, "Element");
+            ColumnSpecification boundSpec = specForElementOrSlice(selected, receiver, ((CollectionType) type).kind, "Element");
 
             Term elt = element.prepare(cfm.keyspace, boundSpec);
             elt.collectMarkerSpecification(boundNames);
-            return ElementsSelector.newElementFactory(toString(), factory, (CollectionType)receiver.type, elt);
+            return ElementsSelector.newElementFactory(toString(), factory, (CollectionType)type, elt);
         }
 
         public AbstractType<?> getExactTypeIfKnown(String keyspace)
@@ -1370,10 +1375,15 @@ public interface Selectable extends AssignmentTestable
             Selector.Factory factory = selected.newSelectorFactory(cfm, expectedType, defs, boundNames);
             ColumnSpecification receiver = factory.getColumnSpecification(cfm);
 
-            if (!(receiver.type instanceof CollectionType))
-                throw new InvalidRequestException(String.format("Invalid slice selection: %s of type %s is not a collection", selected, receiver.type.asCQL3Type()));
+            AbstractType<?> type = receiver.type;
+            if (receiver.isReversedType())
+            {
+                type = ((ReversedType<?>) type).baseType;
+            }
+            if (!(type instanceof CollectionType))
+                throw new InvalidRequestException(String.format("Invalid slice selection: %s of type %s is not a collection", selected, type.asCQL3Type()));
 
-            ColumnSpecification boundSpec = specForElementOrSlice(selected, receiver, "Slice");
+            ColumnSpecification boundSpec = specForElementOrSlice(selected, receiver, ((CollectionType) type).kind, "Slice");
 
             // If from or to are null, this means the user didn't provide on in the syntax (we had c[x..] or c[..x]).
             // The equivalent of doing this when preparing values would be to use UNSET.
@@ -1381,7 +1391,7 @@ public interface Selectable extends AssignmentTestable
             Term t = to == null ? Constants.UNSET_VALUE : to.prepare(cfm.keyspace, boundSpec);
             f.collectMarkerSpecification(boundNames);
             t.collectMarkerSpecification(boundNames);
-            return ElementsSelector.newSliceFactory(toString(), factory, (CollectionType)receiver.type, f, t);
+            return ElementsSelector.newSliceFactory(toString(), factory, (CollectionType)type, f, t);
         }
 
         public AbstractType<?> getExactTypeIfKnown(String keyspace)

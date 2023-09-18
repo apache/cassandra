@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import com.codahale.metrics.Counter;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -361,7 +362,6 @@ final class LogTransaction extends AbstractLogTransaction
         private final boolean wasNew;
         private final Object lock;
         private final Ref<LogTransaction> parentRef;
-        private final UUID txnId;
         private final boolean onlineTxn;
         private final Counter totalDiskSpaceUsed;
 
@@ -372,12 +372,17 @@ final class LogTransaction extends AbstractLogTransaction
             this.wasNew = wasNew;
             this.lock = parent.lock;
             this.parentRef = parent.selfRef.tryRef();
-            this.txnId = parent.id();
             this.onlineTxn = tracker != null && !tracker.isDummy();
-            this.totalDiskSpaceUsed = tracker != null && tracker.cfstore != null ? tracker.cfstore.metric.totalDiskSpaceUsed : null;
 
             if (this.parentRef == null)
                 throw new IllegalStateException("Transaction already completed");
+
+            // While the parent cfs may be dropped in the interim of us taking a reference to this and using it, at worst
+            // we'll be updating a metric for a now dropped ColumnFamilyStore. We do not hold a reference to the tracker or
+            // cfs as that would create a strong ref loop and violate our ability to do leak detection.
+            totalDiskSpaceUsed = tracker != null && tracker.cfstore != null ?
+                                 tracker.cfstore.metric.totalDiskSpaceUsed :
+                                 null;
         }
 
         @Override
@@ -411,7 +416,10 @@ final class LogTransaction extends AbstractLogTransaction
                     return;
                 }
 
-                if (totalDiskSpaceUsed != null && !wasNew)
+                // It's possible we're the last one's holding a ref to this metric if it's already been released in the
+                // parent TableMetrics; we run this regardless rather than holding a ref to that CFS or Tracker and thus
+                // creating a strong ref loop
+                if (DatabaseDescriptor.isDaemonInitialized() && totalDiskSpaceUsed != null && !wasNew)
                     totalDiskSpaceUsed.dec(sizeOnDisk);
 
                 // release the referent to the parent so that the all transaction files can be released

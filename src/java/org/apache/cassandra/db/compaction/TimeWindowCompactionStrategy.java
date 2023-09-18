@@ -381,6 +381,20 @@ public class TimeWindowCompactionStrategy extends LegacyAbstractCompactionStrate
         return ret;
     }
 
+    /**
+     * TWCS should not group sstables for anticompaction - this can mix new and old data
+     */
+    @Override
+    public Collection<Collection<CompactionSSTable>> groupSSTablesForAntiCompaction(Collection<? extends CompactionSSTable> sstablesToGroup)
+    {
+        Collection<Collection<CompactionSSTable>> groups = new ArrayList<>(sstablesToGroup.size());
+        for (CompactionSSTable sstable : sstablesToGroup)
+        {
+            groups.add(Collections.singleton(sstable));
+        }
+        return groups;
+    }
+
     boolean ignoreOverlaps()
     {
         return twcsOptions.ignoreOverlaps;

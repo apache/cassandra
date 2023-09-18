@@ -1,0 +1,34 @@
+--- a/build.xml
++++ b/build.xml
+@@ -1690,11 +1690,7 @@
+       <testhelper testdelegate="testlist-bigtable" />
+   </target>
+ 
+-<<<<<<<
+-  <target name="test-system-keyspace-directory" depends="build-test" description="Execute unit tests with a system keyspaces directory configured">
+-=======
+   <target name="test-system-keyspace-directory" depends="maybe-build-test" description="Execute unit tests with a system keyspaces directory configured">
+->>>>>>>
+     <path id="all-test-classes-path">
+       <fileset dir="${test.unit.src}" includes="**/${test.name}.java" />
+     </path>
+@@ -1702,9 +1698,6 @@
+     <testhelper testdelegate="testlist-system-keyspace-directory" />
+   </target>
+ 
+-<<<<<<<
+-  <target name="msg-ser-gen-test" depends="maybe-build-test" description="Generates message serializations">
+-=======
+   <target name="test-sai-legacy" depends="build-test" description="Execute unit tests using a legacy SAI index format">
+     <path id="all-test-classes-path">
+         <fileset dir="${test.unit.src}" includes="**/${test.name}.java" />
+@@ -1713,8 +1706,7 @@
+     <testhelper testdelegate="testlist-sai-legacy" />
+   </target>
+ 
+-    <target name="msg-ser-gen-test" depends="build-test" description="Generates message serializations">
+->>>>>>>
++  <target name="msg-ser-gen-test" depends="maybe-build-test" description="Generates message serializations">
+     <testmacro inputdir="${test.unit.src}"
+         timeout="${test.timeout}" filter="**/SerializationsTest.java">
+       <jvmarg value="-Dcassandra.test-serialization-writes=True"/>

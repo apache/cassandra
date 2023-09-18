@@ -1,0 +1,60 @@
+--- a/bin/cqlsh.py
++++ b/bin/cqlsh.py
+@@ -226,7 +226,6 @@
+ parser.add_argument("--protocol-version", type=int, default=None,
+                     help='Specify a specific protcol version otherwise the client will default and downgrade as necessary')
+ 
+-<<<<<<<
+ parser.add_argument("-e", "--execute", help='Execute the statement and quit.')
+ parser.add_argument("--connect-timeout", default=DEFAULT_CONNECT_TIMEOUT_SECONDS, dest='connect_timeout',
+                     help='Specify the connection timeout in seconds (default: %default seconds).')
+@@ -234,20 +233,11 @@
+                     help='Specify the default request timeout in seconds (default: %default seconds).')
+ parser.add_argument("-t", "--tty", action='store_true', dest='tty',
+                     help='Force tty mode (command prompt).')
++parser.add_argument("--no-file-io", action='store_true', dest='no_file_io',
++                    help='Disable cqlsh commands that perform file I/O.')
++parser.add_argument('--disable-history', action='store_true', help='Disable saving of history', default=False)
+ 
+ cfarguments, args = parser.parse_known_args()
+-=======
+-parser.add_option("-e", "--execute", help='Execute the statement and quit.')
+-parser.add_option("--connect-timeout", default=DEFAULT_CONNECT_TIMEOUT_SECONDS, dest='connect_timeout',
+-                  help='Specify the connection timeout in seconds (default: %default seconds).')
+-parser.add_option("--request-timeout", default=DEFAULT_REQUEST_TIMEOUT_SECONDS, dest='request_timeout',
+-                  help='Specify the default request timeout in seconds (default: %default seconds).')
+-parser.add_option("-t", "--tty", action='store_true', dest='tty',
+-                  help='Force tty mode (command prompt).')
+-parser.add_option("--no-file-io", action='store_true', dest='no_file_io',
+-                  help='Disable cqlsh commands that perform file I/O.')
+-parser.add_option('--disable-history', action='store_true', help='Disable saving of history', default=False)
+->>>>>>>
+ 
+ 
+ # BEGIN history/config definition
+@@ -2192,23 +2182,14 @@
+     argvalues.ssl = option_with_default(configs.getboolean, 'connection', 'ssl', DEFAULT_SSL)
+     argvalues.encoding = option_with_default(configs.get, 'ui', 'encoding', UTF8)
+ 
+-<<<<<<<
+     argvalues.tty = option_with_default(configs.getboolean, 'ui', 'tty', sys.stdin.isatty())
+     argvalues.protocol_version = option_with_default(configs.getint, 'protocol', 'version', None)
+     argvalues.cqlversion = option_with_default(configs.get, 'cql', 'version', None)
+     argvalues.connect_timeout = option_with_default(configs.getint, 'connection', 'timeout', DEFAULT_CONNECT_TIMEOUT_SECONDS)
+     argvalues.request_timeout = option_with_default(configs.getint, 'connection', 'request_timeout', DEFAULT_REQUEST_TIMEOUT_SECONDS)
+     argvalues.execute = None
+-=======
+-    optvalues.tty = option_with_default(configs.getboolean, 'ui', 'tty', sys.stdin.isatty())
+-    optvalues.protocol_version = option_with_default(configs.getint, 'protocol', 'version', None)
+-    optvalues.cqlversion = option_with_default(configs.get, 'cql', 'version', None)
+-    optvalues.connect_timeout = option_with_default(configs.getint, 'connection', 'timeout', DEFAULT_CONNECT_TIMEOUT_SECONDS)
+-    optvalues.request_timeout = option_with_default(configs.getint, 'connection', 'request_timeout', DEFAULT_REQUEST_TIMEOUT_SECONDS)
+-    optvalues.execute = None
+-    optvalues.no_file_io = option_with_default(configs.getboolean, 'ui', 'no_file_io', DEFAULT_NO_FILE_IO)
+-    optvalues.disable_history = option_with_default(configs.getboolean, 'history', 'disabled', False)
+->>>>>>>
++    argvalues.no_file_io = option_with_default(configs.getboolean, 'ui', 'no_file_io', DEFAULT_NO_FILE_IO)
++    argvalues.disable_history = option_with_default(configs.getboolean, 'history', 'disabled', False)
+ 
+     options, arguments = parser.parse_known_args(cmdlineargs, argvalues)
+     # Make sure some user values read from the command line are in unicode

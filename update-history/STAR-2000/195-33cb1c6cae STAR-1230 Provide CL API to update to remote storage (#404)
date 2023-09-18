@@ -1,0 +1,33 @@
+--- a/test/unit/org/apache/cassandra/db/commitlog/CommitLogInitWithExceptionTest.java
++++ b/test/unit/org/apache/cassandra/db/commitlog/CommitLogInitWithExceptionTest.java
+@@ -72,30 +72,7 @@
+         initThread.setName("initThread");
+         initThread.start();
+ 
+-<<<<<<<
+         Util.spinAssertEquals(true, killed::isSignaled, 120);
+-=======
+-        try
+-        {
+-            initThread.join(); // Should not block here
+-        }
+-        catch (InterruptedException expected)
+-        {
+-        }
+-
+-        Assert.assertFalse(initThread.isAlive());
+-
+-        try
+-        {
+-            Thread.sleep(1000); // Wait for COMMIT-LOG-ALLOCATOR exit
+-        }
+-        catch (InterruptedException e)
+-        {
+-            Assert.fail();
+-        }
+-
+-        Assert.assertEquals(Thread.State.TERMINATED, CommitLog.instance.getSegmentManager().managerThread.getState()); // exit successfully
+->>>>>>>
+     }
+ 
+     private static class MockCommitLogSegmentMgr extends CommitLogSegmentManagerStandard {

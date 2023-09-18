@@ -798,6 +798,14 @@ tablePartitionKey[CreateTableStatement.Raw stmt]
     | '(' k1=ident { l.add(k1); } ( ',' kn=ident { l.add(kn); } )* ')'
     ;
 
+/**
+ * Graph structures are not supported by this version of C*. Skip graph-related keywords.
+ */
+mockVertex
+    : (ident | '(' ident (',' ident)* ')')
+    (',' ident)*
+    ;
+
 tableProperty[CreateTableStatement.Raw stmt]
     @init { boolean isStatic = false; }
     : property[stmt.attrs]
@@ -805,8 +813,8 @@ tableProperty[CreateTableStatement.Raw stmt]
     | K_CLUSTERING K_ORDER K_BY '(' tableClusteringOrder[stmt] (',' tableClusteringOrder[stmt])* ')'
     | K_VERTEX K_LABEL ( noncol_ident )? {stmt.attrs.addProperty("dse_vertex_label_property", "vertex");}
     | K_EDGE K_LABEL ( noncol_ident ) ?
-             K_FROM noncol_ident '(' ident (',' ident)* ')'
-             K_TO noncol_ident '(' ident (',' ident)* ')'
+             K_FROM noncol_ident '(' mockVertex ')'
+             K_TO noncol_ident '(' mockVertex ')'
              {stmt.attrs.addProperty("dse_edge_label_property", "edge");}
     | K_DROPPED K_COLUMN K_RECORD
           k=ident v=comparatorType (K_STATIC {isStatic = true;})?

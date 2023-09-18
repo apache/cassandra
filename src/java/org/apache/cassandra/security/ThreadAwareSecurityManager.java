@@ -35,8 +35,9 @@ import org.slf4j.LoggerFactory;
 
 import io.netty.util.concurrent.FastThreadLocal;
 
-import org.apache.cassandra.utils.logging.LoggingSupportFactory;
+import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.utils.logging.LoggingSupportFactory;
 
 /**
  * Custom {@link SecurityManager} and {@link Policy} implementation that only performs access checks

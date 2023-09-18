@@ -59,6 +59,7 @@ if [ "$CASSANDRA_USE_JDK11" = true ] ; then
     TESTSUITE_NAME="${TESTSUITE_NAME}.jdk11"
 else
     TESTSUITE_NAME="${TESTSUITE_NAME}.jdk8"
+    unset JAVA11_HOME
 fi
 
 ant -buildfile ${CASSANDRA_DIR}/build.xml realclean
@@ -80,13 +81,15 @@ fi
 set -e # enable immediate exit if venv setup fails
 virtualenv --python=$PYTHON_VERSION venv
 source venv/bin/activate
+# 3.11 needs the newest pip
+curl -sS https://bootstrap.pypa.io/get-pip.py | $PYTHON_VERSION
 
 pip install -r ${CASSANDRA_DIR}/pylib/requirements.txt
 pip freeze
 
 if [ "$cython" = "yes" ]; then
     TESTSUITE_NAME="${TESTSUITE_NAME}.cython"
-    pip install "Cython>=0.20,<0.25"
+    pip install "Cython>=0.29.15,<3.0"
     cd pylib/; python setup.py build_ext --inplace
     cd ${WORKSPACE}
 else
@@ -126,7 +129,7 @@ ccm start --wait-for-binary-proto
 cd ${CASSANDRA_DIR}/pylib/cqlshlib/
 
 set +e # disable immediate exit from this point
-nosetests
+pytest
 RETURN="$?"
 
 ccm remove

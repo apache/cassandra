@@ -41,7 +41,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 // Note: This test can be run in idea with the allocation type configured in the test yaml and memtable using the
 // value memtableClass is initialized with.
-public class MemtableSizeTestBase extends CQLTester
+public abstract class MemtableSizeTestBase extends CQLTester
 {
     // The meter in ObjectSizes uses omitSharedBufferOverhead which counts off-heap data too
     // Note: To see a printout of the usage for each object, add .enableDebug() here (most useful with smaller number of

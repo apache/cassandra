@@ -29,7 +29,9 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 import javax.management.InstanceAlreadyExistsException;
 import javax.management.InstanceNotFoundException;
+import javax.management.MBeanServer;
 import javax.management.ObjectName;
+import javax.management.QueryExp;
 
 import com.google.common.collect.ImmutableSet;
 import org.junit.Assert;
@@ -57,7 +59,6 @@ public class TableMetricTest extends TestBaseImpl
         MBEAN_REGISTRATION_CLASS.setString(MapMBeanWrapper.class.getName());
         IS_DISABLED_MBEAN_REGISTRATION.setBoolean(false);
     }
-
     private static volatile Map<String, Collection<String>> SYSTEM_TABLES = null;
     private static Set<String> TABLE_METRIC_NAMES = ImmutableSet.of("WriteLatency");
 
@@ -165,7 +166,7 @@ public class TableMetricTest extends TestBaseImpl
     {
         inst.runOnInstance(() -> {
             // cast only to make sure it linked properly
-            MapMBeanWrapper mbeans = (MapMBeanWrapper) MBeanWrapper.instance;
+            MapMBeanWrapper mbeans = getMapMBeanWrapper();
             Assert.assertTrue("Unable to find table mbean for " + keyspace + "." + table,
                               mbeans.isRegistered(ColumnFamilyStore.getTableMBeanName(keyspace, table, false)));
             Assert.assertTrue("Unable to find column family mbean for " + keyspace + "." + table,
@@ -177,7 +178,7 @@ public class TableMetricTest extends TestBaseImpl
     {
         inst.runOnInstance(() -> {
             // cast only to make sure it linked properly
-            MapMBeanWrapper mbeans = (MapMBeanWrapper) MBeanWrapper.instance;
+            MapMBeanWrapper mbeans = getMapMBeanWrapper();
             Assert.assertFalse("Found table mbean for " + keyspace + "." + table,
                                mbeans.isRegistered(ColumnFamilyStore.getTableMBeanName(keyspace, table, false)));
             Assert.assertFalse("Found column family mbean for " + keyspace + "." + table,
@@ -189,7 +190,7 @@ public class TableMetricTest extends TestBaseImpl
     {
         inst.runOnInstance(() -> {
             // cast only to make sure it linked properly
-            MapMBeanWrapper mbeans = (MapMBeanWrapper) MBeanWrapper.instance;
+            MapMBeanWrapper mbeans = getMapMBeanWrapper();
             String mbean = getTableMetricName(keyspace, table, name);
             Assert.assertTrue("Unable to find metric " + name + " for " + keyspace + "." + table, mbeans.isRegistered(mbean));
 
@@ -203,7 +204,7 @@ public class TableMetricTest extends TestBaseImpl
     {
         inst.runOnInstance(() -> {
             // cast only to make sure it linked properly
-            MapMBeanWrapper mbeans = (MapMBeanWrapper) MBeanWrapper.instance;
+            MapMBeanWrapper mbeans = getMapMBeanWrapper();
             String mbean = getTableMetricName(keyspace, table, name);
             Assert.assertFalse("Found metric " + name + " for " + keyspace + "." + table, mbeans.isRegistered(mbean));
 
@@ -226,7 +227,7 @@ public class TableMetricTest extends TestBaseImpl
     {
         inst.runOnInstance(() -> {
             // cast only to make sure it linked properly
-            MapMBeanWrapper mbeans = (MapMBeanWrapper) MBeanWrapper.instance;
+            MapMBeanWrapper mbeans = getMapMBeanWrapper();
 
             String keyspaceMBean = getKeyspaceMetricName(keyspace, name);
             Assert.assertFalse("Found keyspace metric " + keyspaceMBean + " for " + keyspace, mbeans.isRegistered(keyspaceMBean));
@@ -243,6 +244,10 @@ public class TableMetricTest extends TestBaseImpl
         return String.format("org.apache.cassandra.metrics:type=Table,keyspace=%s,scope=%s,name=%s", keyspace, table, name);
     }
 
+    private static MapMBeanWrapper getMapMBeanWrapper()
+    {
+        return (MapMBeanWrapper) ((MBeanWrapper.DelegatingMbeanWrapper)MBeanWrapper.instance).getDelegate();
+    }
     public static final class MapMBeanWrapper implements MBeanWrapper
     {
         private final ConcurrentMap<ObjectName, Object> map = new ConcurrentHashMap<>();
@@ -267,6 +272,18 @@ public class TableMetricTest extends TestBaseImpl
             Object previous = map.remove(mbeanName);
             if (previous == null)
                 onException.handler.accept(new InstanceNotFoundException("MBean " + mbeanName + " was not found"));
+        }
+
+        @Override
+        public Set<ObjectName> queryNames(ObjectName name, QueryExp query)
+        {
+            return null;
+        }
+
+        @Override
+        public MBeanServer getMBeanServer()
+        {
+            return null;
         }
     }
 }

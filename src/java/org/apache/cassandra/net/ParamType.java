@@ -29,6 +29,7 @@ import org.apache.cassandra.utils.StringSerializer;
 import org.apache.cassandra.utils.UUIDSerializer;
 
 import static java.lang.Math.max;
+
 import static org.apache.cassandra.locator.InetAddressAndPort.FwdFrmSerializer.fwdFrmSerializer;
 
 /**
@@ -60,7 +61,9 @@ public enum ParamType
     /**
      * Messages with tracing sessions are decorated with the traced keyspace.
      */
-    TRACE_KEYSPACE      (8, "TraceKeyspace", StringSerializer.serializer);
+    TRACE_KEYSPACE      (8, "TraceKeyspace", StringSerializer.serializer),
+
+    CUSTOM_MAP          (14, "CUSTOM",       CustomParamsSerializer.serializer);
 
     final int id;
     @Deprecated final String legacyAlias; // pre-4.0 we used to serialize entire param name string

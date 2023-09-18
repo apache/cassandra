@@ -1,0 +1,168 @@
+--- a/src/java/org/apache/cassandra/db/compaction/CompactionTask.java
++++ b/src/java/org/apache/cassandra/db/compaction/CompactionTask.java
+@@ -53,11 +53,7 @@
+ import org.apache.cassandra.schema.TableMetadata;
+ import org.apache.cassandra.service.ActiveRepairService;
+ import org.apache.cassandra.utils.FBUtilities;
+-<<<<<<<
+ import org.apache.cassandra.utils.Throwables;
+-=======
+-import org.apache.cassandra.utils.UUIDGen;
+->>>>>>>
+ import org.apache.cassandra.utils.concurrent.Refs;
+ 
+ import static org.apache.cassandra.db.compaction.CompactionManager.compactionRateLimiterAcquire;
+@@ -411,35 +407,7 @@
+             if (transaction.isOffline())
+                 return;
+ 
+-<<<<<<<
+-            // log a bunch of statistics about the result and save to system table compaction_history
+-            long  endsize = SSTableReader.getTotalBytes(newSStables);
+-
+-
+-            updateCompactionHistory(taskId,
+-            cfs.keyspace.getName(),
+-                cfs.getTableName(),
+-            mergedRowsHistogram,
+-            inputSizeBytes,
+-                endsize);
+-
+-            if (
+-
+-            logger.isDebugEnabled())
+-                                       {
+-                                       debugLogCompactionSummaryInfo(taskId,
+-                                       start,
+-                                       totalKeysWritten,
+-                                       inputSizeBytes,
+-                                       newSStables,
+-                                       mergedRowsHistogram,
+-                                       (int) totalSourceCQLRows ,
+-                                      endsize);
+-                                       }
+-            if (logger.isTraceEnabled())
+-=======
+             if (completed)
+->>>>>>>
+             {
+                 updateCompactionHistory(taskId, cfs.keyspace.getName(), cfs.getTableName(), progress);
+ 
+@@ -877,8 +845,6 @@
+     }
+ 
+ 
+-<<<<<<<
+-=======
+     private static void updateCompactionHistory(UUID id,
+                                                 String keyspaceName,
+                                                 String columnFamilyName,
+@@ -903,7 +869,6 @@
+                                                progress.outputDiskSize(),
+                                                mergedPartitions);
+     }
+->>>>>>>
+ 
+     private void traceLogCompactionSummaryInfo(long totalKeysWritten,
+                                                long estimatedKeys,
+--- a/src/java/org/apache/cassandra/db/lifecycle/LogTransaction.java
++++ b/src/java/org/apache/cassandra/db/lifecycle/LogTransaction.java
+@@ -28,12 +28,9 @@
+ import java.util.concurrent.TimeUnit;
+ import java.util.function.Predicate;
+ 
+-<<<<<<<
+ import com.codahale.metrics.Counter;
+-=======
+ import javax.annotation.Nullable;
+ 
+->>>>>>>
+ import com.google.common.annotations.VisibleForTesting;
+ import com.google.common.util.concurrent.Runnables;
+ 
+@@ -353,11 +350,7 @@
+         private final boolean wasNew;
+         private final Object lock;
+         private final Ref<LogTransaction> parentRef;
+-<<<<<<<
+-=======
+-        private final UUID txnId;
+         private final boolean onlineTxn;
+->>>>>>>
+         private final Counter totalDiskSpaceUsed;
+ 
+         public SSTableTidier(SSTableReader referent, boolean wasNew, LogTransaction parent, Tracker tracker)
+@@ -367,12 +360,7 @@
+             this.wasNew = wasNew;
+             this.lock = parent.lock;
+             this.parentRef = parent.selfRef.tryRef();
+-<<<<<<<
+-=======
+-            this.txnId = parent.id();
+             this.onlineTxn = tracker != null && !tracker.isDummy();
+-            this.totalDiskSpaceUsed = tracker != null && tracker.cfstore != null ? tracker.cfstore.metric.totalDiskSpaceUsed : null;
+->>>>>>>
+ 
+             if (this.parentRef == null)
+                 throw new IllegalStateException("Transaction already completed");
+@@ -380,20 +368,16 @@
+             // While the parent cfs may be dropped in the interim of us taking a reference to this and using it, at worst
+             // we'll be updating a metric for a now dropped ColumnFamilyStore. We do not hold a reference to the tracker or
+             // cfs as that would create a strong ref loop and violate our ability to do leak detection.
+-            totalDiskSpaceUsed = parent.tracker != null && parent.tracker.cfstore != null ?
+-                                 parent.tracker.cfstore.metric.totalDiskSpaceUsed :
++            totalDiskSpaceUsed = tracker != null && tracker.cfstore != null ?
++                                 tracker.cfstore.metric.totalDiskSpaceUsed :
+                                  null;
+         }
+ 
+         public void run()
+         {
+-<<<<<<<
+             // While this may be a dummy tracker w/out information in the metrics table, we attempt to delete regardless
+             // and allow the delete to silently fail if this is an invalid ks + cf combination at time of tidy run.
+             if (DatabaseDescriptor.isDaemonInitialized())
+-=======
+-            if (onlineTxn)
+->>>>>>>
+                 SystemKeyspace.clearSSTableReadMeter(desc.ksname, desc.cfname, desc.id);
+ 
+             synchronized (lock)
+@@ -421,14 +405,10 @@
+                     return;
+                 }
+ 
+-<<<<<<<
+                 // It's possible we're the last one's holding a ref to this metric if it's already been released in the
+                 // parent TableMetrics; we run this regardless rather than holding a ref to that CFS or Tracker and thus
+                 // creating a strong ref loop
+                 if (DatabaseDescriptor.isDaemonInitialized() && totalDiskSpaceUsed != null && !wasNew)
+-=======
+-                if (totalDiskSpaceUsed != null && !wasNew)
+->>>>>>>
+                     totalDiskSpaceUsed.dec(sizeOnDisk);
+ 
+                 // release the referent to the parent so that the all transaction files can be released
+diff --git a/src/java/org/apache/cassandra/db/lifecycle/LogTransaction.java b/src/java/org/apache/cassandra/db/lifecycle/LogTransaction.java
+index 90826268fb..8bade4c3fd 100644
+--- a/src/java/org/apache/cassandra/db/lifecycle/LogTransaction.java
++++ b/src/java/org/apache/cassandra/db/lifecycle/LogTransaction.java
+@@ -361,7 +361,6 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
+             this.lock = parent.lock;
+             this.parentRef = parent.selfRef.tryRef();
+             this.onlineTxn = tracker != null && !tracker.isDummy();
+-            this.totalDiskSpaceUsed = tracker != null && tracker.cfstore != null ? tracker.cfstore.metric.totalDiskSpaceUsed : null;
+ 
+             if (this.parentRef == null)
+                 throw new IllegalStateException("Transaction already completed");
+@@ -369,8 +368,8 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
+             // While the parent cfs may be dropped in the interim of us taking a reference to this and using it, at worst
+             // we'll be updating a metric for a now dropped ColumnFamilyStore. We do not hold a reference to the tracker or
+             // cfs as that would create a strong ref loop and violate our ability to do leak detection.
+-            totalDiskSpaceUsed = parent.tracker != null && parent.tracker.cfstore != null ?
+-                                 parent.tracker.cfstore.metric.totalDiskSpaceUsed :
++            totalDiskSpaceUsed = tracker != null && tracker.cfstore != null ?
++                                 tracker.cfstore.metric.totalDiskSpaceUsed :
+                                  null;
+         }
+ 

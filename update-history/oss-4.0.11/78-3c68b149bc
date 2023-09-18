@@ -1,0 +1,19 @@
+--- a/.build/build-resolver.xml
++++ b/.build/build-resolver.xml
+@@ -54,16 +54,11 @@
+ 
+         <typedef uri="antlib:org.apache.maven.resolver.ant" resource="org/apache/maven/resolver/ant/antlib.xml" classpathref="resolver-ant-tasks.classpath" />
+         <resolver:remoterepos id="all">
+-<<<<<<<
+             <remoterepo id="resolver-central"  url="${artifact.remoteRepository.central}"/>
+             <remoterepo id="resolver-apache"   url="${artifact.remoteRepository.apache}"/>
+             <remoterepo id="resolver-datastax" url="${artifact.remoteRepository.datastax}"/>
+-=======
+-            <remoterepo id="resolver-central" url="${artifact.remoteRepository.central}"/>
+-            <remoterepo id="resolver-apache" url="${artifact.remoteRepository.apache}"/>
+             <!-- Snapshots are not allowed, but for feature branches they may be needed, so uncomment the below to allow snapshots to work -->
+             <!-- <remoterepo id="resolver-apache-snapshot" url="https://repository.apache.org/content/repositories/snapshots" releases="false" snapshots="true" updates="always" checksums="fail" /> -->
+->>>>>>>
+         </resolver:remoterepos>
+ 
+         <macrodef name="resolve">

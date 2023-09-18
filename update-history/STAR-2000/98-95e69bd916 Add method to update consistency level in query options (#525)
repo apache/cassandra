@@ -1,0 +1,21 @@
+--- a/test/unit/org/apache/cassandra/cql3/BatchTest.java
++++ b/test/unit/org/apache/cassandra/cql3/BatchTest.java
+@@ -33,15 +33,11 @@
+ import org.junit.Ignore;
+ import org.junit.Test;
+ 
+-import java.io.IOException;
+-
+-<<<<<<<
+ import static org.junit.Assert.assertSame;
+ 
+-public class BatchTest
+-=======
+-public class BatchTests extends CQLTester
+->>>>>>>
++import java.io.IOException;
++
++public class BatchTest extends CQLTester
+ {
+     private static EmbeddedCassandraService cassandra;
+ 

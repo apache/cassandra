@@ -19,6 +19,7 @@ package org.apache.cassandra.schema;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.function.Function;
 
 import javax.annotation.Nullable;
 
@@ -593,15 +594,14 @@ public class TableMetadata implements SchemaElement
 
     /**
      * Create a copy of this {@code TableMetadata} for a new keyspace.
+     * Note that a new table id will be generated for the returned {@link TableMetadata}.
      *
      * @param newKeyspace the name of the new keyspace
      * @param udts the user defined types of the new keyspace
-     * @param tables the tables of the new keyspace
      * @return a copy of this {@code TableMetadata} for a new keyspace
      */
     TableMetadata withNewKeyspace(String newKeyspace,
-                                  Types udts,
-                                  Map<String, TableMetadata> tables)
+                                  Types udts)
     {
         return builder(newKeyspace, name).partitioner(partitioner)
                                          .kind(kind)
@@ -612,6 +612,27 @@ public class TableMetadata implements SchemaElement
                                          .indexes(indexes)
                                          .triggers(triggers)
                                          .build();
+    }
+
+    /**
+     * Create a copy of this {@code TableMetadata} with new params computed by applying the <code>transformFunction</code>.
+     * Note that the table id will be maintained.
+     *
+     * @param transformFunction The function used to transform the params.
+     * @return a copy of this {@code TableMetadata} containing the transformed params.
+     */
+    TableMetadata withTransformedParams(Function<TableParams, TableParams> transformFunction)
+    {
+        return builder(keyspace, name, id)
+                .partitioner(partitioner)
+                .kind(kind)
+                .params(transformFunction.apply(params))
+                .flags(flags)
+                .addColumns(columns())
+                .droppedColumns(droppedColumns)
+                .indexes(indexes)
+                .triggers(triggers)
+                .build();
     }
 
     public TableMetadata withUpdatedUserType(UserType udt)

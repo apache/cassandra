@@ -21,6 +21,7 @@ import java.io.IOException;
 
 import net.nicoulaj.compilecommand.annotations.Inline;
 import org.apache.cassandra.db.marshal.ByteArrayAccessor;
+import org.apache.cassandra.io.util.TrackedDataInputPlus;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.Row.Deletion;
@@ -28,6 +29,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.io.util.TrackedDataInputPlus;
 import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.WrappedException;
 
@@ -578,7 +580,8 @@ public class UnfilteredSerializer
 
             if (header.isForSSTable())
             {
-                in.readUnsignedVInt(); // Skip row size
+                int rowSize = Math.toIntExact(in.readUnsignedVInt());
+                in = new TrackedDataInputPlus(in, rowSize);
                 in.readUnsignedVInt(); // previous unfiltered size
             }
 
@@ -600,13 +603,14 @@ public class UnfilteredSerializer
 
             try
             {
+                DataInputPlus finalIn = in;
                 columns.apply(column -> {
                     try
                     {
                         if (column.isSimple())
-                            readSimpleColumn(column, in, header, helper, builder, livenessInfo);
+                            readSimpleColumn(column, finalIn, header, helper, builder, livenessInfo);
                         else
-                            readComplexColumn(column, in, header, helper, hasComplexDeletion, builder, livenessInfo);
+                            readComplexColumn(column, finalIn, header, helper, hasComplexDeletion, builder, livenessInfo);
                     }
                     catch (IOException e)
                     {

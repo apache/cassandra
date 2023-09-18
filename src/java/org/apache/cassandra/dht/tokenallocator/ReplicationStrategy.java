@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.dht.tokenallocator;
 
-interface ReplicationStrategy<Unit>
+public interface ReplicationStrategy<Unit>
 {
     int replicas();
 

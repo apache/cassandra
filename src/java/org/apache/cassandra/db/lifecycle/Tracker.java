@@ -504,6 +504,13 @@ public class Tracker
         return view.get().liveSSTables();
     }
 
+    // used by CNDB
+    @Nullable
+    public SSTableReader getLiveSSTable(String filename)
+    {
+        return view.get().getLiveSSTable(filename);
+    }
+
     public void maybeIncrementallyBackup(final Iterable<SSTableReader> sstables)
     {
         if (!DatabaseDescriptor.isIncrementalBackupsEnabled())
@@ -603,11 +610,6 @@ public class Tracker
     {
         for (INotificationConsumer subscriber : subscribers)
             subscriber.handleNotification(notification, this);
-    }
-
-    public void publishMetrics(MetricsNotification metricsNotification)
-    {
-        notify(metricsNotification);
     }
 
     public boolean isDummy()

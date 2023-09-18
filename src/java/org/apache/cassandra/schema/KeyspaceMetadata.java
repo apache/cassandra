@@ -24,6 +24,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -143,6 +144,38 @@ public final class KeyspaceMetadata implements SchemaElement
         return new KeyspaceMetadata(name, kind, params, tables, views, types, functions);
     }
 
+    /**
+     * Returns a new instance of this {@link KeyspaceMetadata} which is obtained by applying the provided
+     * <code>transformFunction</code> to the {@link TableParams} of all the tables and views contained in
+     * this keyspace.
+     *
+     * @param transformFunction the function used to transform the table parameters
+     * @return a copy of this keyspace with table params transformed in all tables and views
+     */
+    public KeyspaceMetadata withTransformedTableParams(java.util.function.Function<TableParams, TableParams> transformFunction)
+    {
+        // Transform the params for all the tables
+        Tables newTables = tables.withTransformedParams(transformFunction);
+        Views.Builder newViews = Views.builder();
+
+        // Then transform the params for all the views
+        for (ViewMetadata view : views)
+        {
+            String baseTableName = view.baseTableName;
+            TableMetadata newBaseTable = newTables.getNullable(baseTableName);
+            Preconditions.checkNotNull(newBaseTable, "Table " + baseTableName + " is the base table of the view "
+                                        + view.name() + " but has not been found among the updated tables.");
+
+            newViews.put(new ViewMetadata(view.baseTableId,
+                                          view.baseTableName,
+                                          view.includeAllColumns,
+                                          view.whereClause,
+                                          newBaseTable));
+        }
+
+        return new KeyspaceMetadata(name, kind, params, newTables, newViews.build(), types, userFunctions);
+    }
+
     public KeyspaceMetadata empty()
     {
         return new KeyspaceMetadata(this.name, this.kind, this.params, Tables.none(), Views.none(), Types.none(), UserFunctions.none());
@@ -180,6 +213,12 @@ public final class KeyspaceMetadata implements SchemaElement
         return view == null
              ? tables.getNullable(tableOrViewName)
              : view.metadata;
+    }
+
+    @Nullable
+    public TableMetadata getTableNullable(String tableName)
+    {
+        return tables.getNullable(tableName);
     }
 
     public boolean hasTable(String tableName)

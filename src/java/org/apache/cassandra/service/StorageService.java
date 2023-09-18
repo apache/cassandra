@@ -112,6 +112,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.SizeEstimatesRecorder;
 import org.apache.cassandra.db.SnapshotDetailsTabularData;
 import org.apache.cassandra.db.SystemKeyspace;
@@ -231,6 +232,7 @@ import static org.apache.cassandra.index.SecondaryIndexManager.getIndexName;
 import static org.apache.cassandra.index.SecondaryIndexManager.isIndexColumnFamily;
 import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.Verb.REPLICATION_DONE_REQ;
+import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
 /**
  * This abstraction contains the token/identifier of this node
@@ -1346,16 +1348,35 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void rebuild(String sourceDc, String keyspace, String tokens, String specificSources)
     {
-        // check ongoing rebuild
-        if (!isRebuilding.compareAndSet(false, true))
+        try
         {
-            throw new IllegalStateException("Node is still rebuilding. Check nodetool netstats.");
-        }
+            // check ongoing rebuild
+            if (!isRebuilding.compareAndSet(false, true))
+            {
+                throw new IllegalStateException("Node is still rebuilding. Check nodetool netstats.");
+            }
 
-        // check the arguments
-        if (keyspace == null && tokens != null)
+            if (sourceDc != null)
+            {
+                TokenMetadata.Topology topology = getTokenMetadata().cloneOnlyTokenMap().getTopology();
+                Set<String> availableDCs = topology.getDatacenterEndpoints().keySet();
+                if (!availableDCs.contains(sourceDc))
+                {
+                    throw new IllegalArgumentException(String.format("Provided datacenter '%s' is not a valid datacenter, available datacenters are: %s",
+                                                                     sourceDc, String.join(",", availableDCs)));
+                }
+            }
+
+            // check the arguments
+            if (keyspace == null && tokens != null)
+            {
+                throw new IllegalArgumentException("Cannot specify tokens without keyspace.");
+            }
+        }
+        catch (Throwable ex)
         {
-            throw new IllegalArgumentException("Cannot specify tokens without keyspace.");
+            isRebuilding.set(false);
+            throw ex;
         }
 
         logger.info("rebuild from dc: {}, {}, {}", sourceDc == null ? "(any dc)" : sourceDc,
@@ -2352,12 +2373,21 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public String getLocalHostId()
     {
-        return getLocalHostUUID().toString();
+        UUID id = getLocalHostUUID();
+        return id != null ? id.toString() : null;
     }
 
     public UUID getLocalHostUUID()
     {
-        return Nodes.local().get().getHostId();
+        UUID id = getTokenMetadata().getHostId(FBUtilities.getBroadcastAddressAndPort());
+        if (id != null)
+            return id;
+        // this condition is to prevent accessing the tables when the node is not started yet, and in particular,
+        // when it is not going to be started at all (e.g. when running some unit tests or client tools).
+        else if (CommitLog.instance.isStarted())
+            return Nodes.local().get().getHostId();
+
+        return null;
     }
 
     public Map<String, String> getHostIdMap()
@@ -3832,6 +3862,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         if (SchemaConstants.isLocalSystemKeyspace(keyspaceName))
             throw new RuntimeException("Cleanup of the system keyspace is neither necessary nor wise");
+
+        if (getTokenMetadata().getPendingRanges(keyspaceName, getBroadcastAddressAndPort()).size() > 0)
+            throw new RuntimeException("Node is involved in cluster membership changes. Not safe to run cleanup.");
 
         CompactionManager.AllSSTableOpStatus status = CompactionManager.AllSSTableOpStatus.SUCCESSFUL;
         for (ColumnFamilyStore cfStore : getValidColumnFamilies(false, false, keyspaceName, tables))
@@ -6192,6 +6225,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         blocking = blocking != null ? blocking : fqlOptions.block;
         maxQueueWeight = maxQueueWeight != Integer.MIN_VALUE ? maxQueueWeight : fqlOptions.max_queue_weight;
         maxLogSize = maxLogSize != Long.MIN_VALUE ? maxLogSize : fqlOptions.max_log_size;
+        if (archiveCommand != null && !fqlOptions.allow_nodetool_archive_command)
+            throw new ConfigurationException("Can't enable full query log archiving via nodetool unless full_query_logging_options.allow_nodetool_archive_command is set to true");
         archiveCommand = archiveCommand != null ? archiveCommand : fqlOptions.archive_command;
         maxArchiveRetries = maxArchiveRetries != Integer.MIN_VALUE ? maxArchiveRetries : fqlOptions.max_archive_retries;
 

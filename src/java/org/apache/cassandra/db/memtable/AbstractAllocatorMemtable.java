@@ -30,6 +30,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -71,26 +72,35 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
     @VisibleForTesting
     static MemtablePool createMemtableAllocatorPool()
     {
+        Config.MemtableAllocationType allocationType = DatabaseDescriptor.getMemtableAllocationType();
         long heapLimit = DatabaseDescriptor.getMemtableHeapSpaceInMb() << 20;
         long offHeapLimit = DatabaseDescriptor.getMemtableOffheapSpaceInMb() << 20;
         float memtableCleanupThreshold = DatabaseDescriptor.getMemtableCleanupThreshold();
         MemtableCleaner cleaner = AbstractAllocatorMemtable::flushLargestMemtable;
-        switch (DatabaseDescriptor.getMemtableAllocationType())
+        return createMemtableAllocatorPool(allocationType, heapLimit, offHeapLimit, memtableCleanupThreshold, cleaner);
+    }
+
+    @VisibleForTesting
+    public static MemtablePool createMemtableAllocatorPool(Config.MemtableAllocationType allocationType, 
+                                                           long heapLimit, long offHeapLimit, 
+                                                           float memtableCleanupThreshold, MemtableCleaner cleaner)
+    {
+        switch (allocationType)
         {
-        case unslabbed_heap_buffers:
-            logger.debug("Memtables allocating with on-heap buffers");
-            return new HeapPool(heapLimit, memtableCleanupThreshold, cleaner);
-        case heap_buffers:
-            logger.debug("Memtables allocating with on-heap slabs");
-            return new SlabPool(heapLimit, 0, memtableCleanupThreshold, cleaner);
-        case offheap_buffers:
-            logger.debug("Memtables allocating with off-heap buffers");
-            return new SlabPool(heapLimit, offHeapLimit, memtableCleanupThreshold, cleaner);
-        case offheap_objects:
-            logger.debug("Memtables allocating with off-heap objects");
-            return new NativePool(heapLimit, offHeapLimit, memtableCleanupThreshold, cleaner);
-        default:
-            throw new AssertionError();
+            case unslabbed_heap_buffers:
+                logger.debug("Memtables allocating with on-heap buffers");
+                return new HeapPool(heapLimit, memtableCleanupThreshold, cleaner);
+            case heap_buffers:
+                logger.debug("Memtables allocating with on-heap slabs");
+                return new SlabPool(heapLimit, 0, memtableCleanupThreshold, cleaner);
+            case offheap_buffers:
+                logger.debug("Memtables allocating with off-heap buffers");
+                return new SlabPool(heapLimit, offHeapLimit, memtableCleanupThreshold, cleaner);
+            case offheap_objects:
+                logger.debug("Memtables allocating with off-heap objects");
+                return new NativePool(heapLimit, offHeapLimit, memtableCleanupThreshold, cleaner);
+            default:
+                throw new AssertionError();
         }
     }
 

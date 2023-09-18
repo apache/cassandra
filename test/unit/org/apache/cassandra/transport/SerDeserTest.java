@@ -36,6 +36,7 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.CollectionSerializer;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Event.TopologyChange;
@@ -107,6 +108,41 @@ public class SerDeserTest
         }
 
         assertEquals(m, mt.getSerializer().deserializeForNativeProtocol(CollectionSerializer.pack(mb, m.size(), version), version));
+    }
+
+    @Test(expected = MarshalException.class)
+    public void setsMayNotContainNullsTest()
+    {
+        ProtocolVersion version = ProtocolVersion.MIN_SUPPORTED_VERSION;
+        SetType<?> st = SetType.getInstance(UTF8Type.instance, true);
+        List<ByteBuffer> sb = new ArrayList<>(1);
+        sb.add(null);
+
+        st.getSerializer().deserializeForNativeProtocol(CollectionSerializer.pack(sb, sb.size(), version), version);
+    }
+
+    @Test(expected = MarshalException.class)
+    public void mapKeysMayNotContainNullsTest()
+    {
+        ProtocolVersion version = ProtocolVersion.MIN_SUPPORTED_VERSION;
+        MapType<?, ?> mt = MapType.getInstance(UTF8Type.instance, LongType.instance, true);
+        List<ByteBuffer> mb = new ArrayList<>(2);
+        mb.add(null);
+        mb.add(LongType.instance.decompose(999L));
+
+        mt.getSerializer().deserializeForNativeProtocol(CollectionSerializer.pack(mb, mb.size(), version), version);
+    }
+
+    @Test(expected = MarshalException.class)
+    public void mapValueMayNotContainNullsTest()
+    {
+        ProtocolVersion version = ProtocolVersion.MIN_SUPPORTED_VERSION;
+        MapType<?, ?> mt = MapType.getInstance(UTF8Type.instance, LongType.instance, true);
+        List<ByteBuffer> mb = new ArrayList<>(2);
+        mb.add(UTF8Type.instance.decompose("danger"));
+        mb.add(null);
+
+        mt.getSerializer().deserializeForNativeProtocol(CollectionSerializer.pack(mb, mb.size(), version), version);
     }
 
     @Test

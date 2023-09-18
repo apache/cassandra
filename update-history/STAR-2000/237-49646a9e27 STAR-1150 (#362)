@@ -1,0 +1,15 @@
+--- a/build.xml
++++ b/build.xml
+@@ -1938,11 +1938,7 @@
+     </sequential>
+   </macrodef>
+ 
+-<<<<<<<
+-  <target name="test" depends="build-test" description="Test Runner">
+-=======
+-  <target name="test" depends="eclipse-warnings,maybe-build-test" description="Test Runner">
+->>>>>>>
++  <target name="test" depends="maybe-build-test" description="Test Runner">
+     <path id="all-test-classes-path">
+       <fileset dir="${test.unit.src}" includes="**/${test.name}.java" excludes="**/distributed/test/UpgradeTest*.java" />
+     </path>

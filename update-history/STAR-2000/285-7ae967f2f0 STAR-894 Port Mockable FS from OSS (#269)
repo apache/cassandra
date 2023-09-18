@@ -1,0 +1,159 @@
+--- a/src/java/org/apache/cassandra/io/sstable/Descriptor.java
++++ b/src/java/org/apache/cassandra/io/sstable/Descriptor.java
+@@ -309,22 +309,15 @@
+         }
+ 
+         // Then it can be a backup or a snapshot
+-<<<<<<<
+-        if (tableDir.getName().equals(Directories.BACKUPS_SUBDIR) && tableDir.getParentFile().getName().contains("-"))
+-            tableDir = tableDir.getParentFile();
++        if (tableDir.name().equals(Directories.BACKUPS_SUBDIR) && tableDir.parent().name().contains("-"))
++            tableDir = tableDir.parent();
+         else
+         {
+             File keyspaceOrSnapshotDir = parentOf(name, tableDir);
+-            if (keyspaceOrSnapshotDir.getName().equals(Directories.SNAPSHOT_SUBDIR)
+-                && parentOf(name, keyspaceOrSnapshotDir).getName().contains("-"))
++            if (keyspaceOrSnapshotDir.name().equals(Directories.SNAPSHOT_SUBDIR)
++                && parentOf(name, keyspaceOrSnapshotDir).name().contains("-"))
+                 tableDir = parentOf(name, keyspaceOrSnapshotDir);
+         }
+-=======
+-        if (tableDir.name().equals(Directories.BACKUPS_SUBDIR))
+-            tableDir = tableDir.parent();
+-        else if (parentOf(name, tableDir).name().equals(Directories.SNAPSHOT_SUBDIR))
+-            tableDir = parentOf(name, parentOf(name, tableDir));
+->>>>>>>
+ 
+         String table = tableDir.name().split("-")[0] + indexName;
+         String keyspace = parentOf(name, tableDir).name();
+--- a/src/java/org/apache/cassandra/io/sstable/SSTableLoader.java
++++ b/src/java/org/apache/cassandra/io/sstable/SSTableLoader.java
+@@ -109,8 +109,6 @@
+                                               return false;
+ 
+                                           TableMetadataRef metadata = client.getTableMetadata(desc.cfname);
+-<<<<<<<
+-=======
+ 
+                                           if (metadata == null && // we did not find metadata
+                                               directory.name().equals(Directories.BACKUPS_SUBDIR)) // and it's likely we hit CASSANDRA-16235
+@@ -134,7 +132,6 @@
+                                               }
+                                           }
+ 
+->>>>>>>
+                                           if (metadata == null)
+                                           {
+                                               outputHandler.output(String.format("Skipping file %s: table %s.%s doesn't exist", name, keyspace, desc.cfname));
+--- a/src/java/org/apache/cassandra/utils/binlog/BinLog.java
++++ b/src/java/org/apache/cassandra/utils/binlog/BinLog.java
+@@ -35,11 +35,7 @@
+ import org.slf4j.LoggerFactory;
+ 
+ import net.openhft.chronicle.queue.ChronicleQueue;
+-<<<<<<<
+-=======
+ import net.openhft.chronicle.queue.impl.single.SingleChronicleQueue;
+-import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
+->>>>>>>
+ import net.openhft.chronicle.queue.ExcerptAppender;
+ import net.openhft.chronicle.queue.RollCycles;
+ import net.openhft.chronicle.queue.impl.single.SingleChronicleQueueBuilder;
+@@ -495,21 +491,7 @@
+ 
+     public static Throwable cleanDirectory(File directory, Throwable accumulate)
+     {
+-<<<<<<<
+-        if (!directory.exists())
+-        {
+-            return Throwables.merge(accumulate, new RuntimeException(String.format("%s does not exists", directory)));
+-        }
+-        if (!directory.isDirectory())
+-        {
+-            return Throwables.merge(accumulate, new RuntimeException(String.format("%s is not a directory", directory)));
+-        }
+-        for (File f : directory.tryList())
+-        {
+-            accumulate = deleteRecursively(f, accumulate);
+-        }
+-=======
+-        return cleanDirectory(directory, accumulate, File::listFiles);
++        return cleanDirectory(directory, accumulate, File::tryList);
+     }
+ 
+     private static Throwable cleanDirectory(File directory, Throwable accumulate, Function<File, File[]> lister)
+@@ -525,7 +507,6 @@
+             for (File f : files)
+                 accumulate = deleteRecursively(f, accumulate);
+ 
+->>>>>>>
+         if (accumulate instanceof FSError)
+             JVMStabilityInspector.inspectThrowable(accumulate);
+ 
+@@ -536,17 +517,10 @@
+     {
+         if (fileOrDirectory.isDirectory())
+         {
+-<<<<<<<
+-            File[] files = fileOrDirectory.listFiles();
++            File[] files = fileOrDirectory.tryList();
+             if (files != null)
+                 for (File f : files)
+                     accumulate = FileUtils.deleteWithConfirm(f, accumulate);
+-=======
+-            for (File f : fileOrDirectory.tryList())
+-            {
+-                accumulate = FileUtils.deleteWithConfirm(f, accumulate);
+-            }
+->>>>>>>
+         }
+         return FileUtils.deleteWithConfirm(fileOrDirectory, accumulate);
+     }
+--- a/test/unit/org/apache/cassandra/io/sstable/SSTableLoaderTest.java
++++ b/test/unit/org/apache/cassandra/io/sstable/SSTableLoaderTest.java
+@@ -30,20 +30,11 @@
+ 
+ import org.apache.cassandra.SchemaLoader;
+ import org.apache.cassandra.Util;
+-<<<<<<<
++import org.apache.cassandra.schema.TableId;
+ import org.apache.cassandra.db.Clustering;
+ import org.apache.cassandra.db.ColumnFamilyStore;
+ import org.apache.cassandra.db.Directories;
+ import org.apache.cassandra.db.Keyspace;
+-=======
+-import org.apache.cassandra.locator.Replica;
+-import org.apache.cassandra.schema.TableId;
+-import org.apache.cassandra.schema.TableMetadata;
+-import org.apache.cassandra.schema.TableMetadataRef;
+-import org.apache.cassandra.schema.Schema;
+-import org.apache.cassandra.db.*;
+-import org.apache.cassandra.db.partitions.*;
+->>>>>>>
+ import org.apache.cassandra.db.marshal.AsciiType;
+ import org.apache.cassandra.db.partitions.FilteredPartition;
+ import org.apache.cassandra.io.FSWriteError;
+@@ -333,20 +324,15 @@
+ 
+     private File dataDir(String cf)
+     {
+-<<<<<<<
+-        File dataDir = new File(tmpdir.absolutePath() + File.pathSeparator() + SSTableLoaderTest.KEYSPACE1 + File.pathSeparator() + cf);
+-        assert dataDir.tryCreateDirectories();
+-=======
+         return dataDir(cf, false);
+     }
+ 
+     private File dataDir(String cf, boolean isLegacyTable)
+     {
+         // Add -{tableUuid} suffix to table dir if not a legacy table
+-        File dataDir = new File(tmpdir.getAbsolutePath() + File.separator + SSTableLoaderTest.KEYSPACE1 + File.separator + cf
++        File dataDir = new File(tmpdir.absolutePath() + File.pathSeparator() + SSTableLoaderTest.KEYSPACE1 + File.pathSeparator() + cf
+                                 + (isLegacyTable ? "" : String.format("-%s", TableId.generate().toHexString())));
+-        assert dataDir.mkdirs();
+->>>>>>>
++        assert dataDir.tryCreateDirectories();
+         //make sure we have no tables...
+         assertEquals(Objects.requireNonNull(dataDir.tryList()).length, 0);
+         return dataDir;

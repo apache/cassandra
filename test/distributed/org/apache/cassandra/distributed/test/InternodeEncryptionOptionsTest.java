@@ -21,6 +21,7 @@ package org.apache.cassandra.distributed.test;
 import java.net.InetAddress;
 import java.util.Collections;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.junit.Assert;
 import org.junit.Test;
@@ -217,6 +218,9 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsImp
         }
     }
 
+    /**
+     * Tests that the negotiated protocol is the highest common protocol between the client and server.
+     */
     @Test
     public void negotiatedProtocolMustBeAcceptedProtocolTest() throws Throwable
     {
@@ -225,7 +229,7 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsImp
             c.set("server_encryption_options",
                   ImmutableMap.builder().putAll(validKeystore)
                               .put("internode_encryption", "all")
-                              .put("accepted_protocols", Collections.singletonList("TLSv1.3"))
+                              .put("accepted_protocols", ImmutableList.of("TLSv1.2", "TLSv1.3"))
                               .build());
         }).start())
         {
@@ -243,9 +247,9 @@ public class InternodeEncryptionOptionsTest extends AbstractEncryptionOptionsImp
             tls11Connection.assertReceivedHandshakeException();
 
             TlsConnection tls12Connection = new TlsConnection(address.getHostAddress(), port, Collections.singletonList("TLSv1.2"));
-            Assert.assertEquals("Should not be possible to establish a TLSv1.2 connection",
-                                ConnectResult.FAILED_TO_NEGOTIATE, tls12Connection.connect());
-            tls12Connection.assertReceivedHandshakeException();
+            Assert.assertEquals("Should be possible to establish a TLSv1.2 connection",
+                                ConnectResult.NEGOTIATED, tls12Connection.connect());
+            Assert.assertEquals("TLSv1.2", tls12Connection.lastProtocol());
 
             TlsConnection tls13Connection = new TlsConnection(address.getHostAddress(), port, Collections.singletonList("TLSv1.3"));
             Assert.assertEquals("Should be possible to establish a TLSv1.3 connection",

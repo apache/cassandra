@@ -150,6 +150,14 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
     public ComplexColumnData getComplexColumnData(ColumnMetadata c);
 
     /**
+     * The data for a regular or complex column.
+     *
+     * @param c the column for which to return the complex data.
+     * @return the data for {@code c} or {@code null} if the row has no data for this column.
+     */
+    public ColumnData getColumnData(ColumnMetadata c);
+
+    /**
      * An iterable over the cells of this row.
      * <p>
      * The iterable guarantees that cells are returned in order of {@link Cell#comparator}.

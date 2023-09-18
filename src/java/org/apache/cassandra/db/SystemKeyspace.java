@@ -409,7 +409,7 @@ public final class SystemKeyspace
                          Repairs);
     }
 
-    public static void updateCompactionHistory(UUID id,
+    public static void updateCompactionHistory(UUID taskId,
                                                String ksname,
                                                String cfname,
                                                long compactedAt,
@@ -423,7 +423,7 @@ public final class SystemKeyspace
         // For historical reasons (pre 3.0 refactor) we call the final field rows_merged but we actually store partitions!
         String req = "INSERT INTO system.%s (id, keyspace_name, columnfamily_name, compacted_at, bytes_in, bytes_out, rows_merged) VALUES (?, ?, ?, ?, ?, ?, ?)";
         executeInternal(format(req, COMPACTION_HISTORY),
-                        id,
+                        taskId,
                         ksname,
                         cfname,
                         ByteBufferUtil.bytes(compactedAt),

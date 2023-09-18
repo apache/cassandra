@@ -51,6 +51,10 @@ public class CreateTableStatementGraphTest extends CQLTester
             "VERTEX LABEL personlabel AND CLUSTERING ORDER BY (v DESC)",
             "CLUSTERING ORDER BY (v DESC) AND VERTEX LABEL",
             "EDGE LABEL person_authored_book FROM person(name,person_id) TO book(name, book_id,  cover)",
+            "EDGE LABEL person_authored_book FROM person((name),person_id) TO book((name), book_id,  cover)",
+            "EDGE LABEL person_authored_book FROM person((name,person_id)) TO book((name, book_id),  cover)",
+            "EDGE LABEL person_authored_book FROM person((name,person_id), address) TO book((name, book_id),  cover)",
+            "EDGE LABEL person_authored_book FROM person((name)) TO book((name))",
             "EDGE LABEL person_authored_book FROM person(name) TO book(cover)",
             "VERTEX LABEL AND EDGE LABEL person_authored_book FROM person(name) TO book(cover)"
         );

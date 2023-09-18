@@ -1,0 +1,51 @@
+--- a/ide/idea/workspace.xml
++++ b/ide/idea/workspace.xml
+@@ -180,7 +180,6 @@
+       <option name="MAIN_CLASS_NAME" value="" />
+       <option name="METHOD_NAME" value="" />
+       <option name="TEST_OBJECT" value="class" />
+-<<<<<<<
+       <option name="VM_PARAMETERS" value="
+                                           -Dcassandra.config=file://$PROJECT_DIR$/test/conf/cassandra.yaml
+                                           -Dcassandra.disable_tcactive_openssl=true 
+@@ -198,12 +197,8 @@
+                                           -Dlogback.configurationFile=file://$PROJECT_DIR$/test/conf/logback-test.xml
+                                           -Dmigration-sstable-root=$PROJECT_DIR$/test/data/migration-sstables
+                                           -XX:ActiveProcessorCount=4
+-                                          -XX:MaxMetaspaceSize=512M
+                                           -XX:SoftRefLRUPolicyMSPerMB=0
+                                           -ea" />
+-=======
+-      <option name="VM_PARAMETERS" value="-Dcassandra.config=file://$PROJECT_DIR$/test/conf/cassandra.yaml -Dlogback.configurationFile=file://$PROJECT_DIR$/test/conf/logback-test.xml -Dcassandra.logdir=$PROJECT_DIR$/build/test/logs -Djava.library.path=$PROJECT_DIR$/lib/sigar-bin -Dlegacy-sstable-root=$PROJECT_DIR$/test/data/legacy-sstables -Dinvalid-legacy-sstable-root=$PROJECT_DIR$/test/data/invalid-legacy-sstables -Dcassandra.ring_delay_ms=1000 -Dcassandra.skip_sync=true -ea -XX:SoftRefLRUPolicyMSPerMB=0 -Dcassandra.strict.runtime.checks=true -Dlegacy-sstable-root=$PROJECT_DIR$/test/data/legacy-sstables -Dinvalid-legacy-sstable-root=$PROJECT_DIR$/test/data/invalid-legacy-sstables -Dmigration-sstable-root=$PROJECT_DIR$/test/data/migration-sstables -Dcassandra.ring_delay_ms=1000 -Dcassandra.tolerate_sstable_size=true -Dcassandra.skip_sync=true -Dcassandra.disable_tcactive_openssl=true -Dcassandra.use_nix_recursive_delete=true -XX:ActiveProcessorCount=2" />
+->>>>>>>
+       <option name="PARAMETERS" value="" />
+       <fork_mode value="class" />
+       <option name="WORKING_DIRECTORY" value="" />
+--- a/test/distributed/org/apache/cassandra/distributed/impl/AbstractCluster.java
++++ b/test/distributed/org/apache/cassandra/distributed/impl/AbstractCluster.java
+@@ -47,11 +47,7 @@
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+ 
+-<<<<<<<
+-import org.apache.cassandra.Util;
+-=======
+ import org.apache.cassandra.config.CassandraRelevantProperties;
+->>>>>>>
+ import org.apache.cassandra.db.ColumnFamilyStore;
+ import org.apache.cassandra.db.Keyspace;
+ import org.apache.cassandra.dht.IPartitioner;
+--- a/test/distributed/org/apache/cassandra/distributed/impl/InstanceConfig.java
++++ b/test/distributed/org/apache/cassandra/distributed/impl/InstanceConfig.java
+@@ -43,11 +43,7 @@
+ import org.apache.cassandra.io.util.File;
+ import org.apache.cassandra.locator.InetAddressAndPort;
+ import org.apache.cassandra.locator.SimpleSeedProvider;
+-<<<<<<<
+ import org.apache.cassandra.utils.Shared;
+-=======
+-import org.apache.cassandra.utils.Throwables;
+->>>>>>>
+ 
+ @Shared
+ public class InstanceConfig implements IInstanceConfig

@@ -24,18 +24,31 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import com.google.common.collect.Iterators;
+import com.googlecode.concurrenttrees.common.Iterables;
+import org.apache.cassandra.db.commitlog.CommitLogPosition;
+import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.memtable.AbstractAllocatorMemtable;
+import org.apache.cassandra.db.memtable.AbstractMemtable;
+import org.apache.cassandra.db.memtable.Memtable;
+import org.apache.cassandra.db.partitions.Partition;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.index.transactions.UpdateTransaction;
+import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import com.googlecode.concurrenttrees.common.Iterables;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.Util;
@@ -47,6 +60,7 @@ import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.Component;
@@ -61,9 +75,6 @@ import org.apache.cassandra.schema.MockSchema;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
-import org.json.simple.JSONArray;
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
 
 import static junit.framework.Assert.assertNotNull;
 import static org.apache.cassandra.db.ColumnFamilyStore.FlushReason.UNIT_TESTS;
@@ -100,6 +111,13 @@ public class ColumnFamilyStoreTest
         Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1).truncateBlocking();
         Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD2).truncateBlocking();
         Keyspace.open(KEYSPACE2).getColumnFamilyStore(CF_STANDARD1).truncateBlocking();
+    }
+
+    @Test
+    public void testMemtableTimestamp() throws Throwable
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
+        assertEquals(AbstractAllocatorMemtable.NO_MIN_TIMESTAMP, fakeMemTableWithMinTS(cfs, EncodingStats.NO_STATS.minTimestamp).getMinTimestamp());
     }
 
     @Test
@@ -642,5 +660,124 @@ public class ColumnFamilyStoreTest
             assertEquals(0, reader.selfRef().globalCount());
             assertEquals(!dropData, Files.exists(reader.descriptor.pathFor(Component.DATA)));
         });
+    }
+
+    private Memtable fakeMemTableWithMinTS(ColumnFamilyStore cfs, long minTS)
+    {
+        return new AbstractMemtable(cfs.metadata, minTS)
+        {
+            @Override
+            public long put(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup)
+            {
+                return 0;
+            }
+
+            @Override
+            public Partition getPartition(DecoratedKey key)
+            {
+                return null;
+            }
+
+            @Override
+            public MemtableUnfilteredPartitionIterator makePartitionIterator(ColumnFilter columnFilter, DataRange dataRange)
+            {
+                return null;
+            }
+
+            @Override
+            public long partitionCount()
+            {
+                return 0;
+            }
+
+            @Override
+            public long getLiveDataSize()
+            {
+                return 0;
+            }
+
+            @Override
+            public void addMemoryUsageTo(Memtable.MemoryUsage usage)
+            {
+            }
+
+            @Override
+            public void markExtraOnHeapUsed(long additionalSpace, OpOrder.Group opGroup)
+            {
+            }
+
+            @Override
+            public void markExtraOffHeapUsed(long additionalSpace, OpOrder.Group opGroup)
+            {
+            }
+
+            @Override
+            public Memtable.FlushCollection<?> getFlushSet(PartitionPosition from, PartitionPosition to)
+            {
+                return null;
+            }
+
+            @Override
+            public void switchOut(OpOrder.Barrier writeBarrier, AtomicReference<CommitLogPosition> commitLogUpperBound)
+            {
+            }
+
+            @Override
+            public void discard()
+            {
+            }
+
+            @Override
+            public boolean accepts(OpOrder.Group opGroup, CommitLogPosition commitLogPosition)
+            {
+                return false;
+            }
+
+            @Override
+            public CommitLogPosition getApproximateCommitLogLowerBound()
+            {
+                return null;
+            }
+
+            @Override
+            public CommitLogPosition getCommitLogLowerBound()
+            {
+                return null;
+            }
+
+            @Override
+            public LastCommitLogPosition getFinalCommitLogUpperBound()
+            {
+                return null;
+            }
+
+            @Override
+            public boolean mayContainDataBefore(CommitLogPosition position)
+            {
+                return false;
+            }
+
+            @Override
+            public boolean isClean()
+            {
+                return false;
+            }
+
+            @Override
+            public boolean shouldSwitch(ColumnFamilyStore.FlushReason reason)
+            {
+                return false;
+            }
+
+            @Override
+            public void metadataUpdated()
+            {
+            }
+
+            @Override
+            public void performSnapshot(String snapshotName)
+            {
+            }
+        };
     }
 }

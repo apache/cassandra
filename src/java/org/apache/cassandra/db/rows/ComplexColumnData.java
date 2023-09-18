@@ -148,7 +148,7 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell<?>>
 
     public long unsharedHeapSizeExcludingData()
     {
-        long heapSize = EMPTY_SIZE + ObjectSizes.sizeOfArray(cells);
+        long heapSize = EMPTY_SIZE + BTree.sizeOnHeapOf(cells);
         // TODO: this can be turned into a simple multiplication, at least while we have only one Cell implementation
         for (Cell<?> cell : this)
             heapSize += cell.unsharedHeapSizeExcludingData();

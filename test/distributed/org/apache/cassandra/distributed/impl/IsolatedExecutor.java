@@ -53,7 +53,7 @@ public class IsolatedExecutor implements IIsolatedExecutor
 {
     final ExecutorService isolatedExecutor;
     private final String name;
-    private final ClassLoader classLoader;
+    final ClassLoader classLoader;
     private final Method deserializeOnInstance;
 
     IsolatedExecutor(String name, ClassLoader classLoader)

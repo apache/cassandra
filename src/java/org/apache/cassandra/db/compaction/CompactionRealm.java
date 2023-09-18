@@ -267,6 +267,8 @@ public interface CompactionRealm
          * Done to avoid holding on to references of obsolete sstables, which will prevent them from being deleted.
          */
         boolean maybeRefresh();
+        
+        void refreshOverlaps();
     }
 
     /**

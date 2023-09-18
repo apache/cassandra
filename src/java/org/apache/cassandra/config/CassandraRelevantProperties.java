@@ -88,6 +88,19 @@ public enum CassandraRelevantProperties
      */
     COM_SUN_MANAGEMENT_JMXREMOTE_AUTHENTICATE ("com.sun.management.jmxremote.authenticate"),
 
+
+    /**
+     * Controls the JMX server threadpool keap-alive time.
+     * Should only be set by in-jvm dtests.
+     */
+    SUN_RMI_TRANSPORT_TCP_THREADKEEPALIVETIME("sun.rmi.transport.tcp.threadKeepAliveTime"),
+
+    /**
+     * Controls the distributed garbage collector lease time for JMX objects.
+     * Should only be set by in-jvm dtests.
+     */
+    JAVA_RMI_DGC_LEASE_VALUE_IN_JVM_DTEST("java.rmi.dgc.leaseValue"),
+
     /**
      * The port number to which the RMI connector will be bound - com.sun.management.jmxremote.rmi.port.
      * An Integer object that represents the value of the second argument is returned
@@ -239,9 +252,12 @@ public enum CassandraRelevantProperties
     /** what class to use for mbean registeration */
     MBEAN_REGISTRATION_CLASS("org.apache.cassandra.mbean_registration_class"),
 
+    /** This property indicates if the code is running under the in-jvm dtest framework */
+    DTEST_IS_IN_JVM_DTEST("org.apache.cassandra.dtest.is_in_jvm_dtest"),
+
     /** Represents the maximum size (in bytes) of a serialized mutation that can be cached **/
     CACHEABLE_MUTATION_SIZE_LIMIT("cassandra.cacheable_mutation_size_limit_bytes", Long.toString(1_000_000)),
-
+    
     MIGRATION_DELAY("cassandra.migration_delay_ms", "60000"),
     /** Defines how often schema definitions are pulled from the other nodes */
     SCHEMA_PULL_INTERVAL_MS("cassandra.schema_pull_interval_ms", "60000"),
@@ -252,6 +268,36 @@ public enum CassandraRelevantProperties
      */
     SCHEMA_PULL_BACKOFF_DELAY_MS("cassandra.schema_pull_backoff_delay_ms", "3000"),
 
+    /** When enabled, recursive directory deletion will be executed using a unix command `rm -rf` instead of traversing
+     * and removing individual files. This is now used only tests, but eventually we will make it true by default.*/
+    USE_NIX_RECURSIVE_DELETE("cassandra.use_nix_recursive_delete"),
+
+    /** If set, {@link org.apache.cassandra.net.MessagingService} is shutdown abrtuptly without waiting for anything.
+     * This is an optimization used in unit tests becuase we never restart a node there. The only node is stopoped
+     * when the JVM terminates. Therefore, we can use such optimization and not wait unnecessarily. */
+    NON_GRACEFUL_SHUTDOWN("cassandra.test.messagingService.nonGracefulShutdown"),
+
+    /** Flush changes of {@link org.apache.cassandra.schema.SchemaKeyspace} after each schema modification. In production,
+     * we always do that. However, tests which do not restart nodes may disable this functionality in order to run
+     * faster. Note that this is disabled for unit tests but if an individual test requires schema to be flushed, it
+     * can be also done manually for that particular case: {@code flush(SchemaConstants.SCHEMA_KEYSPACE_NAME);}. */
+    FLUSH_LOCAL_SCHEMA_CHANGES("cassandra.test.flush_local_schema_changes", "true"),
+
+    /**
+     * Delay before checking if gossip is settled.
+     */
+    GOSSIP_SETTLE_MIN_WAIT_MS("cassandra.gossip_settle_min_wait_ms", "5000"),
+
+    /**
+     * Interval delay between checking gossip is settled.
+     */
+    GOSSIP_SETTLE_POLL_INTERVAL_MS("cassandra.gossip_settle_interval_ms", "1000"),
+
+    /**
+     * Number of polls without gossip state change to consider gossip as settled.
+     */
+    GOSSIP_SETTLE_POLL_SUCCESSES_REQUIRED("cassandra.gossip_settle_poll_success_required", "3"),
+    
     /** Which class to use for token metadata provider */
     CUSTOM_TMD_PROVIDER_PROPERTY("cassandra.custom_token_metadata_provider_class"),
 
@@ -302,8 +348,6 @@ public enum CassandraRelevantProperties
 
     NEVER_PURGE_TOMBSTONES_PROPERTY("cassandra.never_purge_tombstones"),
 
-    USE_NIX_RECURSIVE_DELETE("cassandra.use_nix_recursive_delete"),
-
     SYSTEM_DISTRIBUTED_NTS_RF_OVERRIDE_PROPERTY("cassandra.system_distributed_replication_per_dc"),
     SYSTEM_DISTRIBUTED_NTS_DC_OVERRIDE_PROPERTY("cassandra.system_distributed_replication_dc_names"),
 
@@ -337,7 +381,17 @@ public enum CassandraRelevantProperties
     TABLE_METRICS_DEFAULT_HISTOGRAMS_AGGREGATION("cassandra.table_metrics_default_histograms_aggregation", TableMetrics.MetricsAggregation.INDIVIDUAL.name()),
     // Determines if table metrics should be also exported to shared global metric
     TABLE_METRICS_EXPORT_GLOBALS("cassandra.table_metrics_export_globals", "true"),
-    FILE_CACHE_SIZE_IN_MB("cassandra.file_cache_size_in_mb", "2048");
+    FILE_CACHE_SIZE_IN_MB("cassandra.file_cache_size_in_mb", "2048"),
+    CUSTOM_HINTS_RATE_LIMITER_FACTORY("cassandra.custom_hints_rate_limiter_factory"),
+
+    CUSTOM_INDEX_BUILD_DECIDER("cassandra.custom_index_build_decider"),
+
+    // Allows admin to include only some system views (see two below)
+    SYSTEM_VIEWS_INCLUDE_ALL("cassandra.system_view.include_all", "true"),
+    //This only applies if include all is false
+    SYSTEM_VIEWS_INCLUDE_LOCAL_AND_PEERS("cassandra.system_view.include_local_and_peers"),
+    //This only applies if include all is false
+    SYSTEM_VIEWS_INCLUDE_INDEXES("cassandra.system_view.include_indexes");
 
     CassandraRelevantProperties(String key, String defaultVal)
     {
@@ -368,6 +422,17 @@ public enum CassandraRelevantProperties
         String value = System.getProperty(key);
 
         return value == null ? defaultVal : STRING_CONVERTER.convert(value);
+    }
+
+    /**
+     * Sets the property to its default value if a default value was specified. Remove the property otherwise.
+     */
+    public void reset()
+    {
+        if (defaultVal != null)
+            System.setProperty(key, defaultVal);
+        else
+            System.getProperties().remove(key);
     }
 
     /**
@@ -580,4 +645,3 @@ public enum CassandraRelevantProperties
         return System.getProperties().containsKey(key);
     }
 }
-

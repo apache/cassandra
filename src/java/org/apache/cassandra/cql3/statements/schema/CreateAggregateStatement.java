@@ -99,6 +99,9 @@ public final class CreateAggregateStatement extends AlterSchemaStatement
         if (ifNotExists && orReplace)
             throw ire("Cannot use both 'OR REPLACE' and 'IF NOT EXISTS' directives");
 
+        if (!FunctionName.isNameValid(aggregateName))
+            throw ire("Aggregate name '%s' is invalid", aggregateName);
+
         rawArgumentTypes.stream()
                         .filter(raw -> !raw.isTuple() && raw.isFrozen())
                         .findFirst()

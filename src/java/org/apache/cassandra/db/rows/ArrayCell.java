@@ -105,7 +105,7 @@ public class ArrayCell extends AbstractCell<byte[]>
     @Override
     public Cell<?> clone(ByteBufferCloner cloner)
     {
-        if (value.length == 0)
+        if (value.length == 0 && path == null)
             return this;
 
         return super.clone(cloner);

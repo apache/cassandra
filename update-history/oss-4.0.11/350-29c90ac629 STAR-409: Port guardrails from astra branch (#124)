@@ -1,0 +1,46 @@
+--- a/test/unit/org/apache/cassandra/cql3/CQLTester.java
++++ b/test/unit/org/apache/cassandra/cql3/CQLTester.java
+@@ -573,43 +573,6 @@
+     private static void initializeNetwork(Consumer<Server.Builder> decorator, Consumer<Cluster.Builder> clusterConfigurator)
+     {
+         startServer(decorator);
+-<<<<<<<
+-=======
+-
+-        for (ProtocolVersion version : PROTOCOL_VERSIONS)
+-        {
+-            if (clusters.containsKey(version))
+-                continue;
+-
+-            SocketOptions socketOptions = new SocketOptions()
+-                                          .setConnectTimeoutMillis(Integer.getInteger("cassandra.test.driver.connection_timeout_ms", DEFAULT_CONNECT_TIMEOUT_MILLIS)) // default is 5000
+-                                          .setReadTimeoutMillis(Integer.getInteger("cassandra.test.driver.read_timeout_ms", DEFAULT_READ_TIMEOUT_MILLIS)); // default is 12000
+-
+-            logger.info("Timeouts: {} / {}", socketOptions.getConnectTimeoutMillis(), socketOptions.getReadTimeoutMillis());
+-
+-            Cluster.Builder builder = Cluster.builder()
+-                                             .withoutJMXReporting()
+-                                             .addContactPoints(nativeAddr)
+-                                             .withClusterName("Test Cluster")
+-                                             .withPort(nativePort)
+-                                             .withSocketOptions(socketOptions)
+-                                             .withNettyOptions(IMMEDIATE_CONNECTION_SHUTDOWN_NETTY_OPTIONS);
+-
+-        if (clusterConfigurator != null)
+-                clusterConfigurator.accept(builder);
+-
+-            if (version.isBeta())
+-                builder = builder.allowBetaProtocolVersion();
+-            else
+-                builder = builder.withProtocolVersion(com.datastax.driver.core.ProtocolVersion.fromInt(version.asInt()));
+-
+-            Cluster cluster = builder.build();
+-            clusters.put(version, cluster);
+-            sessions.put(version, cluster.connect());
+-
+-            logger.info("Started Java Driver instance for protocol version {}", version);
+-        }
+->>>>>>>
+     }
+ 
+     private static void startServer(Consumer<Server.Builder> decorator)

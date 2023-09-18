@@ -19,24 +19,25 @@ package org.apache.cassandra.hints;
 
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import com.google.common.util.concurrent.RateLimiter;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.service.StorageService;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.SKIP_REWRITING_HINTS_ON_HOST_LEFT;
 
@@ -50,7 +51,7 @@ final class HintsDispatchExecutor
     private static final Logger logger = LoggerFactory.getLogger(HintsDispatchExecutor.class);
 
     private final File hintsDirectory;
-    private final ExecutorService executor;
+    private final JMXEnabledThreadPoolExecutor executor;
     private final AtomicBoolean isPaused;
     private final Predicate<UUID> isAlive;
     private final Map<UUID, Future> scheduledDispatches;
@@ -201,15 +202,7 @@ final class HintsDispatchExecutor
         {
             this.store = store;
             this.hostId = hostId;
-
-            // rate limit is in bytes per second. Uses Double.MAX_VALUE if disabled (set to 0 in cassandra.yaml).
-            // max rate is scaled by the number of nodes in the cluster (CASSANDRA-5272).
-            // the goal is to bound maximum hints traffic going towards a particular node from the rest of the cluster,
-            // not total outgoing hints traffic from this node - this is why the rate limiter is not shared between
-            // all the dispatch tasks (as there will be at most one dispatch task for a particular host id at a time).
-            int nodesCount = Math.max(1, StorageService.instance.getTokenMetadata().getAllEndpoints().size() - 1);
-            double throttleInBytes = DatabaseDescriptor.getHintedHandoffThrottleInKB() * 1024.0 / nodesCount;
-            this.rateLimiter = RateLimiter.create(throttleInBytes == 0 ? Double.MAX_VALUE : throttleInBytes);
+            this.rateLimiter = HintsRateLimiterFactory.instance.create(hostId);
         }
 
         public void run()
@@ -324,5 +317,32 @@ final class HintsDispatchExecutor
     public boolean hasScheduledDispatches()
     {
         return !scheduledDispatches.isEmpty();
+    }
+
+    public void updateDispatcherConcurrency(int concurrency)
+    {
+        logger.info("updating HintsDispatchExecutor with new concurrency = {} (current value = {})", concurrency, executor.getCorePoolSize());
+        if (concurrency > executor.getCorePoolSize())
+        {
+            // we are increasing the value
+            executor.setMaximumPoolSize(concurrency);
+            executor.setCorePoolSize(concurrency);
+        }
+        else if (concurrency < executor.getCorePoolSize())
+        {
+            // we are reducing the value
+            executor.setCorePoolSize(concurrency);
+            executor.setMaximumPoolSize(concurrency);
+        }
+    }
+
+    public int getDispatcherCorePoolSize()
+    {
+        return executor.getCorePoolSize();
+    }
+
+    public int getDispatcherMaxPoolSize()
+    {
+        return executor.getMaximumPoolSize();
     }
 }

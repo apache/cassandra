@@ -1,0 +1,61 @@
+--- a/src/java/org/apache/cassandra/db/compaction/CompactionTask.java
++++ b/src/java/org/apache/cassandra/db/compaction/CompactionTask.java
+@@ -207,8 +207,14 @@
+     {
+         Set<CompactionSSTable> fullyExpiredSSTables = controller.getFullyExpiredSSTables();
+         // select SSTables to compact based on available disk space.
+-        buildCompactionCandidatesForAvailableDiskSpace(fullyExpiredSSTables);
+-        // sanity check: all sstables must belong to the same cfs
++        if (!buildCompactionCandidatesForAvailableDiskSpace(fullyExpiredSSTables))
++        {
++            // The set of sstables has changed (one or more were excluded due to limited available disk space).
++            // We need to recompute the overlaps between sstables.
++            controller.maybeRefreshOverlaps();
++        }
++
++        // sanity check: all sstables must belong to the same table
+         assert !Iterables.any(transaction.originals(), sstable -> !sstable.descriptor.cfname.equals(realm.getTableName()));
+ 
+         Set<SSTableReader> actuallyCompact = Sets.difference(transaction.originals(), fullyExpiredSSTables);
+@@ -282,20 +288,6 @@
+             this.actuallyCompact = actuallyCompact;
+             this.taskId = transaction.opId();
+ 
+-<<<<<<<
+-=======
+-            // select SSTables to compact based on available disk space.
+-            if (!buildCompactionCandidatesForAvailableDiskSpace(fullyExpiredSSTables))
+-            {
+-                // The set of sstables has changed (one or more were excluded due to limited available disk space).
+-                // We need to recompute the overlaps between sstables.
+-                controller.maybeRefreshOverlaps();
+-            }
+-
+-            // sanity check: all sstables must belong to the same table
+-            assert !Iterables.any(transaction.originals(), sstable -> !sstable.descriptor.cfname.equals(realm.getTableName()));
+-
+->>>>>>>
+             this.limiter = CompactionManager.instance.getRateLimiter();
+             this.startNanos = System.nanoTime();
+             this.startTime = System.currentTimeMillis();
+diff --git a/src/java/org/apache/cassandra/db/compaction/CompactionTask.java b/src/java/org/apache/cassandra/db/compaction/CompactionTask.java
+index 34a7f900a1..2db21ec50e 100644
+--- a/src/java/org/apache/cassandra/db/compaction/CompactionTask.java
++++ b/src/java/org/apache/cassandra/db/compaction/CompactionTask.java
+@@ -207,8 +207,14 @@ public class CompactionTask extends AbstractCompactionTask
+     {
+         Set<CompactionSSTable> fullyExpiredSSTables = controller.getFullyExpiredSSTables();
+         // select SSTables to compact based on available disk space.
+-        buildCompactionCandidatesForAvailableDiskSpace(fullyExpiredSSTables);
+-        // sanity check: all sstables must belong to the same cfs
++        if (!buildCompactionCandidatesForAvailableDiskSpace(fullyExpiredSSTables))
++        {
++            // The set of sstables has changed (one or more were excluded due to limited available disk space).
++            // We need to recompute the overlaps between sstables.
++            controller.maybeRefreshOverlaps();
++        }
++
++        // sanity check: all sstables must belong to the same table
+         assert !Iterables.any(transaction.originals(), sstable -> !sstable.descriptor.cfname.equals(realm.getTableName()));
+ 
+         Set<SSTableReader> actuallyCompact = Sets.difference(transaction.originals(), fullyExpiredSSTables);

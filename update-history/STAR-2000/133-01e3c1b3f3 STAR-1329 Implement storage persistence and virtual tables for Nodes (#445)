@@ -1,0 +1,17 @@
+--- a/src/java/org/apache/cassandra/net/OutboundConnectionSettings.java
++++ b/src/java/org/apache/cassandra/net/OutboundConnectionSettings.java
+@@ -460,13 +460,9 @@
+     {
+         InetAddressAndPort connectTo = this.connectTo;
+         if (connectTo == null)
+-<<<<<<<
+-            connectTo = Nodes.peers().getPreferred(to);
+-=======
+-            connectTo = SystemKeyspace.getPreferredIP(to);
++            connectTo = Nodes.peers().getPreferredIP(to);
+         if (FBUtilities.getBroadcastAddressAndPort().equals(connectTo))
+             return FBUtilities.getLocalAddressAndPort();
+->>>>>>>
+         return connectTo;
+     }
+ 

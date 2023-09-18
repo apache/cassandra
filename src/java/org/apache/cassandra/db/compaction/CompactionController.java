@@ -104,6 +104,15 @@ public class CompactionController extends AbstractCompactionController
             closeDataFiles();
     }
 
+    public void refreshOverlaps()
+    {
+        if (overlapTracker != null)
+        {
+            overlapTracker.refreshOverlaps();
+            closeDataFiles();
+        }
+    }
+
     void closeDataFiles()
     {
         FileUtils.closeQuietly(openDataFiles.values());
@@ -183,8 +192,11 @@ public class CompactionController extends AbstractCompactionController
     private static long minTimestamp(Iterable<Memtable> memtables)
     {
         long minTimestamp = Long.MAX_VALUE;
-        for (Memtable memtable : memtables)
-            minTimestamp = Math.min(minTimestamp, memtable.getMinTimestamp());
+        for (Memtable memtable : memtables) 
+        {
+            if (memtable.getMinTimestamp() != Memtable.NO_MIN_TIMESTAMP)
+                minTimestamp = Math.min(minTimestamp, memtable.getMinTimestamp());
+        }
         return minTimestamp;
     }
 
@@ -199,6 +211,7 @@ public class CompactionController extends AbstractCompactionController
             if (sstable.getMaxLocalDeletionTime() >= gcBefore)
                 minTimestamp = Math.min(minTimestamp, sstable.getMinTimestamp());
         }
+
         return minTimestamp;
     }
 
@@ -244,7 +257,8 @@ public class CompactionController extends AbstractCompactionController
 
         for (Memtable memtable : memtables)
         {
-            if (memtable.getMinTimestamp() >= minTimestampSeen)
+            long memtableMinTimestamp = memtable.getMinTimestamp();
+            if (memtableMinTimestamp >= minTimestampSeen || memtableMinTimestamp == Memtable.NO_MIN_TIMESTAMP)
                 continue;
 
             Partition partition = memtable.getPartition(key);

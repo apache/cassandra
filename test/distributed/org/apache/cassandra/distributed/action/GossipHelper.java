@@ -65,6 +65,18 @@ public class GossipHelper
         };
     }
 
+    public static InstanceAction statusToDecommission(IInvokableInstance newNode)
+    {
+        return (instance) ->
+        {
+            changeGossipState(instance,
+                              newNode,
+                              Arrays.asList(tokens(newNode),
+                                            statusLeaving(newNode),
+                                            statusWithPortLeaving(newNode)));
+        };
+    }
+
     public static InstanceAction statusToNormal(IInvokableInstance peer)
     {
         return (target) ->

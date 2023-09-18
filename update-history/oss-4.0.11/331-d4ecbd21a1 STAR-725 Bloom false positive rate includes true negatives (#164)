@@ -1,0 +1,16 @@
+--- a/src/java/org/apache/cassandra/io/sstable/format/trieindex/TrieIndexSSTableReader.java
++++ b/src/java/org/apache/cassandra/io/sstable/format/trieindex/TrieIndexSSTableReader.java
+@@ -327,13 +327,9 @@
+         if (!bf.isPresent(dk))
+         {
+             listener.onSSTableSkipped(this, SkippingReason.BLOOM_FILTER);
+-<<<<<<<
+             Tracing.trace("Bloom filter allows skipping sstable {}", descriptor.id);
+-=======
+-            Tracing.trace("Bloom filter allows skipping sstable {}", descriptor.id.asString());
+             if (updateStats)
+                 bloomFilterTracker.addTrueNegative();
+->>>>>>>
+             return null;
+         }
+ 
