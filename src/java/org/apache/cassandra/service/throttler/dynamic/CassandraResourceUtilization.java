@@ -53,7 +53,7 @@ public class CassandraResourceUtilization
     private final ScheduledExecutorPlus reportThread = executorFactory().scheduled(false, "CassandraResourceUtilization", Thread.MAX_PRIORITY);
     private static final DecimalFormat df = new DecimalFormat("0");
 
-    public static final String THROW_MESSAGE = "from dynamic throttler: %s";
+    private static final String THROW_MESSAGE = "from dynamic throttler";
 
     // TODO: make this configurable
     public final IResourceUtilzation resourceUtilzation = new NativeResourceUtilization();
@@ -306,7 +306,7 @@ public class CassandraResourceUtilization
     public void throttle(String keyspaceName, boolean reads) throws OverloadedException
     {
         if (throttleUserTraffic(keyspaceName, reads)) {
-            throw new OverloadedException(String.format(THROW_MESSAGE, FBUtilities.getJustLocalAddress().getHostAddress()));
+            throw buildOverloadeExceptionDuetoRateLimiter();
         }
     }
 
@@ -474,5 +474,15 @@ public class CassandraResourceUtilization
             return true;
         }
         return false;
+    }
+
+    public static OverloadedException buildOverloadeExceptionDuetoRateLimiter()
+    {
+        return new OverloadedException(String.format(THROW_MESSAGE + ": %s", FBUtilities.getJustLocalAddress().getHostAddress()));
+    }
+
+    public static boolean isExceptionDuetoRateLimiter(OverloadedException e)
+    {
+        return e.getMessage().contains(THROW_MESSAGE.toLowerCase());
     }
 }

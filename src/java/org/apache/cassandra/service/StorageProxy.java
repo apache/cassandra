@@ -186,7 +186,6 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.apache.cassandra.utils.concurrent.CountDownLatch.newCountDownLatch;
-import static org.apache.cassandra.service.throttler.dynamic.CassandraResourceUtilization.THROW_MESSAGE;
 
 public class StorageProxy implements StorageProxyMBean
 {
@@ -1005,8 +1004,10 @@ public class StorageProxy implements StorageProxyMBean
         }
         catch (OverloadedException e)
         {
-            // TODO: Needs some rework here as we should distinguish the exceptions better
-            if (e.getMessage().contains("from dynamic throttler"))
+            // Currently, the OverloadedException can be thrown in Cassandra for a couple of reasons.
+            // The first reason is due to the OSS Memory-based rate limiter, and the second is due to the dynamic rate limiter.
+            // We need to distinguish the source to emit the correct metrics cleanly.
+            if (CassandraResourceUtilization.isExceptionDuetoRateLimiter(e))
             {
                 writeMetrics.rateLimiterThrottles.mark();
                 StorageProxyMetricsManager.getMetrics(keyspaceName, consistencyLevel).writeMetrics.rateLimiterThrottles.mark();
@@ -3401,7 +3402,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             if (failureReasonEndpoint.getValue() == RequestFailureReason.TRAFFIC_THROTTLED)
             {
-                return new OverloadedException(String.format(THROW_MESSAGE, failureReasonEndpoint.getKey().getHostAddress(false)));
+                return CassandraResourceUtilization.buildOverloadeExceptionDuetoRateLimiter();
             }
         }
         return null;

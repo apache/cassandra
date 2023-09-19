@@ -25,9 +25,8 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.metrics.CassandraMetricsRegistry;
+import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.metrics.KeyspaceMetrics;
-import org.apache.cassandra.service.RateLimiterService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.throttler.dynamic.metrics.KeyspaceThrottlingMetrics;
 import org.apache.cassandra.service.throttler.dynamic.metrics.ThrottlingMetrics;
@@ -660,6 +659,18 @@ public class CassandraResourceUtilizationTest extends CQLTester
         Assert.assertFalse(cassandraResourceUtilization.shouldThrottle);
     }
 
+    @Test(expected = OverloadedException.class)
+    public void testThrowOverloadedException()
+    {
+        throw CassandraResourceUtilization.buildOverloadeExceptionDuetoRateLimiter();
+    }
+
+    @Test
+    public void testDifferentiateOverloadedException()
+    {
+        Assert.assertTrue(CassandraResourceUtilization.isExceptionDuetoRateLimiter(CassandraResourceUtilization.buildOverloadeExceptionDuetoRateLimiter()));
+        Assert.assertFalse(CassandraResourceUtilization.isExceptionDuetoRateLimiter(new OverloadedException("Something else")));
+    }
 
     private ResourcesStats getResourceStats()
     {
