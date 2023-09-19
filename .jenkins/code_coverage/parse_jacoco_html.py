@@ -19,6 +19,7 @@ import argparse
 
 parser = argparse.ArgumentParser(description='Parse Jacoco HTML report.')
 parser.add_argument("-p", "--path", required=True, help='path of the Jacoco HTML report')
+parser.add_argument("-t", "--test", default="test", help='name of the test group in Cassandra (ANT_TARGET)')
 
 class Counter():
     def __init__(self, name: str):
@@ -49,7 +50,7 @@ class Counter():
     def get_cov(self):
         if not hasattr(self, "coverage"):
             self.cal_cov()
-        return "**" + self.coverage + "**"
+        return self.coverage
 
 class JacocoReportRow():
     def __init__(self, package: str):
@@ -85,21 +86,25 @@ class JacocoReportRow():
             self.classes.set_count(kwargs["count"])
 
     def get_coverage_row(self, cols):
-        assert set(cols).issubset(["package"] + self.types)
+        assert set(cols).issubset(["package", "lines_count"] + self.types)
         cov_row = []
         for col in cols:
             if col == "package":
                 cov_row.append("##" + self.package + "##")
+            elif col == "lines_count":
+                cov_row.append(f"{getattr(self, 'lines').count}")
             else:
-                cov_row.append(getattr(self, col).get_cov())
+                cov_row.append("**" + getattr(self, col).get_cov() + "**")
+                    
         return cov_row
 
 
 
 class JacocoReport():
-    def __init__(self):
+    def __init__(self, test_group):
         self.rows = []
-        self.cols = ["package", "lines", "instructions", "branches", "classes"]
+        self.cols = ["package", "lines", "lines_count", "instructions", "branches", "classes"]
+        self.test_group = test_group
 
     def __str__(self):
         # phab comment style
@@ -112,15 +117,16 @@ class JacocoReport():
         return report_str
 
     def gen_header(self):
-        header = '|' + '|'.join(self.cols) + '|' + '\n'
+        header = f"= Jacoco code coverage report for Cassandra (test_group={self.test_group}) = \n"
+        header += '|' + '|'.join(self.cols) + '|' + '\n'
         header += '|' + '|'.join(["----"] * len(self.cols)) + '|' + '\n'
         return header
 
     def add_row(self, row: JacocoReportRow):
         self.rows.append(row)
 
-def parse_jacoco_html(df):
-    report = JacocoReport()
+def parse_jacoco_html(df, test_group):
+    report = JacocoReport(test_group)
     for _, v in df.iterrows():
         row = JacocoReportRow(package=v["element"])
         row.set_counter("instructions", coverage=v["instructions-Coverage"])
@@ -151,7 +157,7 @@ def main(args):
     ]
     html_df = html_df.sort_values(by=["element"]).reset_index(drop=True)
     html_df = html_df.drop(["instructions", "branches"], axis=1)
-    report = parse_jacoco_html(html_df)
+    report = parse_jacoco_html(html_df, args.test)
     print(report)
 
 if __name__ == "__main__":

@@ -81,7 +81,7 @@ if [[ -f "build/jacoco/report.xml" ]] && [[ "${ANT_TARGET:-test}" == "test" ]]; 
   pip3 install --upgrade setuptools
   pip3 install -r .jenkins/code_coverage/requirements.txt
 
-  comment=$(python3 ".jenkins/code_coverage/parse_jacoco_html.py" "-p" "build/jacoco/index.html")
+  comment=$(python3 ".jenkins/code_coverage/parse_jacoco_html.py" "-p" "build/jacoco/index.html" "-t" "${ANT_TARGET:-test}")
   echo "$comment" >> "$FILE_PHAB_COMMENT"
 fi
 
