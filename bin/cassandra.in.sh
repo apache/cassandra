@@ -133,8 +133,8 @@ java_versions_supported=11,17
 supported_version=$(echo "$java_versions_supported" | tr "," '\n' | grep -F -x "$short")
 
 if [ "x$CASSANDRA_USE_ALL_JDK" != "x" ] && [ "x$supported_version" = "x" ] ; then
-    echo "Cassandra 5.0 requires Java 11, Java 17 (or newer LTS)."
-    echo "If you would like to test with other Java versions >17, set \$CASSANDRA_USE_ALL_JDK=true"
+    echo "Cassandra 5.0 requires Java 11, Java 17."
+    echo "If you would like to test with other Java versions > 17, set \$CASSANDRA_USE_ALL_JDK=true"
     exit 1;
 fi
 JAVA_VERSION=$short
