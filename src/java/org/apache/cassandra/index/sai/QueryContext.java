@@ -181,20 +181,18 @@ public class QueryContext
         if (ignoredOrdinals == null)
             return null;
 
-        return new IgnoringBits(graph, ignoredOrdinals, metadata);
+        return new IgnoringBits(ignoredOrdinals, graph.size());
     }
 
     private static class IgnoringBits implements Bits
     {
-        private final CassandraOnDiskHnsw graph;
         private final Set<Integer> ignoredOrdinals;
-        private final int length;
+        private final int maxOrdinal;
 
-        public IgnoringBits(CassandraOnDiskHnsw graph, Set<Integer> ignoredOrdinals, SegmentMetadata metadata)
+        public IgnoringBits(Set<Integer> ignoredOrdinals, int maxOrdinal)
         {
-            this.graph = graph;
             this.ignoredOrdinals = ignoredOrdinals;
-            this.length = 1 + metadata.toSegmentRowId(metadata.maxSSTableRowId);
+            this.maxOrdinal = maxOrdinal;
         }
 
         @Override
@@ -206,7 +204,7 @@ public class QueryContext
         @Override
         public int length()
         {
-            return length;
+            return maxOrdinal;
         }
     }
 
