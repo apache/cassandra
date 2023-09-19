@@ -24,6 +24,7 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.file.StandardOpenOption;
 
+import com.sun.nio.file.ExtendedOpenOption;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.concurrent.RefCounted;
@@ -44,11 +45,16 @@ public final class ChannelProxy extends SharedCloseableImpl
     private final String filePath;
     private final FileChannel channel;
 
+    public static volatile boolean direct = false;
+
     public static FileChannel openChannel(File file)
     {
         try
         {
-            return FileChannel.open(file.toPath(), StandardOpenOption.READ);
+            if (direct)
+                return FileChannel.open(file.toPath(), StandardOpenOption.READ, ExtendedOpenOption.DIRECT);
+            else
+                return FileChannel.open(file.toPath(), StandardOpenOption.READ);
         }
         catch (IOException e)
         {

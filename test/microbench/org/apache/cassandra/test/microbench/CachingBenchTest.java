@@ -76,6 +76,7 @@ public class CachingBenchTest extends CQLTester
     @BeforeClass
     public static void setUpClass()
     {
+        DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setCommitLogSync(CommitLogSync.periodic);
         DatabaseDescriptor.setCommitLogSyncPeriod(100);
         CQLTester.setUpClass();
