@@ -166,7 +166,7 @@ public class ClientStatsTest
         tool.assertOnCleanExit();
         String stdout = tool.getStdout();
         assertThat(stdout).containsPattern("Address +SSL +Cipher +Protocol +Version +User +Keyspace +Requests +Driver-Name +Driver-Version");
-        assertThat(stdout).containsPattern("/127.0.0.1:[0-9]+ false undefined undefined [0-9]+ +anonymous +[0-9]+ +DataStax Java Driver 3.11.0");
+        assertThat(stdout).containsPattern("/127.0.0.1:[0-9]+ false undefined undefined [0-9]+ +anonymous +[0-9]+ +DataStax Java Driver 3.11.5");
         assertThat(stdout).contains("Total connected clients: 2");
         assertThat(stdout).contains("User      Connections");
         assertThat(stdout).contains("anonymous 2");
@@ -179,9 +179,9 @@ public class ClientStatsTest
         tool.assertOnCleanExit();
         String stdout = tool.getStdout();
         assertThat(stdout).containsPattern("Address +SSL +Cipher +Protocol +Version +User +Keyspace +Requests +Driver-Name +Driver-Version +Client-Options");
-        assertThat(stdout).containsPattern("/127.0.0.1:[0-9]+ false undefined undefined [0-9]+ +anonymous +[0-9]+ +DataStax Java Driver 3.11.0");
+        assertThat(stdout).containsPattern("/127.0.0.1:[0-9]+ false undefined undefined [0-9]+ +anonymous +[0-9]+ +DataStax Java Driver 3.11.5");
         assertThat(stdout).containsPattern("DRIVER_NAME=DataStax Java Driver");
-        assertThat(stdout).containsPattern("DRIVER_VERSION=3.11.0");
+        assertThat(stdout).containsPattern("DRIVER_VERSION=3.11.5");
         assertThat(stdout).containsPattern("CQL_VERSION=3.0.0");
         assertThat(stdout).contains("Total connected clients: 2");
         assertThat(stdout).contains("User      Connections");
