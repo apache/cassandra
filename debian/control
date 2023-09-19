@@ -3,7 +3,7 @@ Section: misc
 Priority: extra
 Maintainer: Eric Evans <eevans@apache.org>
 Uploaders: Sylvain Lebresne <slebresne@apache.org>
-Build-Depends: debhelper (>= 11), openjdk-11-jdk | openjdk-11-jdk-headless | openjdk-17-jdk | openjdk-17-jdk-headless, ant (>= 1.10), ant-optional (>= 1.10), dh-python, python3-dev (>= 3.6), quilt, bash-completion
+Build-Depends: debhelper (>= 11), openjdk-17-jdk-headless | openjdk-11-jdk-headless | java17-sdk | java11-sdk, ant (>= 1.10), ant-optional (>= 1.10), dh-python, python3-dev (>= 3.6), quilt, bash-completion
 Homepage: https://cassandra.apache.org
 Vcs-Git: https://gitbox.apache.org/repos/asf/cassandra.git
 Vcs-Browser: https://gitbox.apache.org/repos/asf?p=cassandra.git
@@ -11,7 +11,7 @@ Standards-Version: 3.8.3
 
 Package: cassandra
 Architecture: all
-Depends: openjdk-11-jre-headless | openjdk-17-jre-headless | openjdk-11-jre | openjdk-17-jre, adduser, python3 (>= 3.6), procps, ${misc:Depends}
+Depends: openjdk-17-jre-headless | openjdk-11-jre-headless | java17-runtime | java11-runtime, adduser, python3 (>= 3.6), procps, ${misc:Depends}
 Recommends: ntp | time-daemon
 Suggests: cassandra-tools
 Conflicts: apache-cassandra1
