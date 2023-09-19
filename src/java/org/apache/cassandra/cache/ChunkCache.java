@@ -62,27 +62,39 @@ public class ChunkCache
     static class Key
     {
         final ChunkReader file;
-        final String path;
+        final String internedPath;
         final long position;
+        final int hashCode;
 
-        public Key(ChunkReader file, long position)
+        /**
+         * Attention!  internedPath must be interned by caller -- intern() is too expensive
+         * to be done for every Key instantiation.
+         */
+        private Key(ChunkReader file, String internedPath, long position)
         {
             super();
             this.file = file;
             this.position = position;
-            this.path = file.channel().filePath();
+            this.internedPath = internedPath;
+            hashCode = hashCodeInternal();
         }
 
-        public int hashCode()
+        @Override
+        public int hashCode() {
+            return hashCode;
+        }
+
+        private int hashCodeInternal()
         {
             final int prime = 31;
             int result = 1;
-            result = prime * result + path.hashCode();
-            result = prime * result + file.getClass().hashCode();
+            result = prime * result + internedPath.hashCode();
             result = prime * result + Long.hashCode(position);
+            result = prime * result + Integer.hashCode(file.chunkSize());
             return result;
         }
 
+        @Override
         public boolean equals(Object obj)
         {
             if (this == obj)
@@ -92,8 +104,8 @@ public class ChunkCache
 
             Key other = (Key) obj;
             return (position == other.position)
-                    && file.getClass() == other.file.getClass()
-                    && path.equals(other.path);
+                   && internedPath == other.internedPath // == is okay b/c we explicitly intern
+                   && file.chunkSize() == other.file.chunkSize(); // TODO we should not allow different chunk sizes
         }
     }
 
@@ -191,9 +203,10 @@ public class ChunkCache
         return instance.wrapper.apply(file);
     }
 
-    public void invalidateFile(String fileName)
+    public void invalidateFile(String filePath)
     {
-        cache.invalidateAll(Iterables.filter(cache.asMap().keySet(), x -> x.path.equals(fileName)));
+        var internedPath = filePath.intern();
+        cache.invalidateAll(Iterables.filter(cache.asMap().keySet(), x -> x.internedPath == internedPath));
     }
 
     @VisibleForTesting
@@ -221,11 +234,13 @@ public class ChunkCache
     class CachingRebufferer implements Rebufferer, RebuffererFactory
     {
         private final ChunkReader source;
+        private final String internedPath;
         final long alignmentMask;
 
         public CachingRebufferer(ChunkReader file)
         {
             source = file;
+            internedPath = source.channel().filePath().intern();
             int chunkSize = file.chunkSize();
             assert Integer.bitCount(chunkSize) == 1 : String.format("%d must be a power of two", chunkSize);
             alignmentMask = -chunkSize;
@@ -239,7 +254,7 @@ public class ChunkCache
             {
                 long pageAlignedPos = position & alignmentMask;
                 Buffer buf;
-                Key key = new Key(source, pageAlignedPos);
+                Key key = new Key(source, internedPath, pageAlignedPos);
                 while (true)
                 {
                     buf = cache.get(key).reference();
@@ -274,7 +289,7 @@ public class ChunkCache
         public void invalidateIfCached(long position)
         {
             long pageAlignedPos = position & alignmentMask;
-            cache.invalidate(new Key(source, pageAlignedPos));
+            cache.invalidate(new Key(source, internedPath, pageAlignedPos));
         }
 
         @Override
@@ -345,6 +360,7 @@ public class ChunkCache
      */
     @VisibleForTesting
     public int sizeOfFile(String filePath) {
-        return (int) cache.asMap().keySet().stream().filter(x -> x.path.equals(filePath)).count();
+        var internedPath = filePath.intern();
+        return (int) cache.asMap().keySet().stream().filter(x -> x.internedPath == internedPath).count();
     }
 }
