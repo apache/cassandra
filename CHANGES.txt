@@ -11,6 +11,7 @@ Merged from 5.0:
 Merged from 4.1:
  * Nodetool paxos-only repair is no longer incremental (CASSANDRA-18466)
 Merged from 4.0:
+ * Enable 3rd party JDK installations for Debian package (CASSANDRA-18844)
 Merged from 3.11:
  * Revert CASSANDRA-18543 (CASSANDRA-18854)
 Merged from 3.0:
