@@ -352,11 +352,6 @@ public class RandomPartitioner implements IPartitioner
         return partitionOrdering.withPartitionKeyType(partitionKeyType);
     }
 
-    public AbstractType<?> partitionOrdering(AbstractType<?> partitionKeyType)
-    {
-        return partitionOrdering.withPartitionKeyType(partitionKeyType);
-    }
-
     public Optional<Splitter> splitter()
     {
         return Optional.of(splitter);
