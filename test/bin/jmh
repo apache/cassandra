@@ -16,7 +16,7 @@
 # limitations under the License.
 
 jvmoptions_variant="-server"
-export CASSANDRA_HOME=`dirname "$0"`/../../
+export CASSANDRA_HOME="$(cd $(dirname "$0")/../../; pwd)"
 . $CASSANDRA_HOME/bin/cassandra.in.sh
 
 # Use JAVA_HOME if set, otherwise look for java in PATH
@@ -127,11 +127,15 @@ cassandra_parms="$cassandra_parms -XX:+PreserveFramePointer"
 # Create log directory, some tests require that
 mkdir -p $CASSANDRA_HOME/logs
 
-if [ ! -f $CASSANDRA_HOME/build/test/benchmarks.jar ] ; then
-    echo "$CASSANDRA_HOME/build/test/benchmarks.jar does not exist - execute 'ant build-jmh'"
+if [ ! -f $CASSANDRA_HOME/build/apache-cassandra-*.jar ] ; then
+    echo "$CASSANDRA_HOME/build/apache-cassandra-*.jar does not exist - execute 'ant jar' first"
     exit 1
 fi
 
-exec $NUMACTL "$JAVA" -cp "$CLASSPATH:$CASSANDRA_HOME/build/test/benchmarks.jar:$CASSANDRA_HOME/build/test/deps.jar" org.openjdk.jmh.Main -jvmArgs="$cassandra_parms $JVM_OPTS" $@
+CLASSPATH="$CLASSPATH:$CASSANDRA_HOME/test/conf/"
+CLASSPATH="$CLASSPATH:$CASSANDRA_HOME/build/test/classes/"
+CLASSPATH="$CLASSPATH:$CASSANDRA_HOME/build/test/lib/jars/*"
+
+exec $NUMACTL "$JAVA" -cp "$CLASSPATH" org.openjdk.jmh.Main -jvmArgs="$cassandra_parms $JVM_OPTS" "$@"
 
 # vi:ai sw=4 ts=4 tw=0 et

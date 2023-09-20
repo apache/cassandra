@@ -42,7 +42,7 @@ import org.openjdk.jmh.annotations.*;
 @Fork(value = 1)
 @Threads(1)
 @State(Scope.Benchmark)
-public abstract class ReadTest extends CQLTester
+public abstract class ReadBenchBase extends CQLTester
 {
     static String keyspace;
     String table;

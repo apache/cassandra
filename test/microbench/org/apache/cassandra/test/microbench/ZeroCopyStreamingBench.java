@@ -87,7 +87,7 @@ import org.openjdk.jmh.annotations.Warmup;
 @Measurement(iterations = 10, time = 1, timeUnit = TimeUnit.SECONDS)
 @Fork(value = 1)
 @Threads(1)
-public class ZeroCopyStreamingBenchmark
+public class ZeroCopyStreamingBench
 {
     static final int STREAM_SIZE = 50 * 1024 * 1024;
 

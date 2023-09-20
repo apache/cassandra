@@ -21,7 +21,7 @@ package org.apache.cassandra.test.microbench.instance;
 
 import org.openjdk.jmh.annotations.Benchmark;
 
-public class ReadTestSmallPartitions extends ReadTest
+public class ReadSmallPartitionsBench extends ReadBenchBase
 {
     String readStatement()
     {

@@ -35,7 +35,7 @@ import java.util.concurrent.TimeUnit;
 @Fork(value = 1, jvmArgsAppend = "-Xmx512M")
 @Threads(1)
 @State(Scope.Benchmark)
-public class Sample
+public class SampleBench
 {
     @Param({"65536"})
     private int pageSize;
