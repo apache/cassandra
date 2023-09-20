@@ -1030,18 +1030,40 @@
     </copy>
   </target>
 
+    <macrodef name="check-test-names">
+        <attribute name="annotationName"/>
+        <attribute name="regex"/>
+        <attribute name="scanClassPath" default="${test.classes}:${fqltool.test.classes}:${stress.test.classes}"/>
+        <attribute name="packageName" default="org.apache.cassandra"/>
+        <attribute name="expand" default="true"/>
+        <attribute name="normalize" default="true"/>
+        <attribute name="verbose" default="false"/>
+
+        <sequential>
+            <java taskname="check-test-names" fork="true" failonerror="yes" classname="org.apache.cassandra.anttasks.TestNameCheckTask">
+                <classpath>
+                    <path refid="cassandra.classpath.test"/>
+                    <pathelement location="${fqltool.build.classes}"/>
+                    <pathelement location="${stress.build.classes}"/>
+                    <pathelement location="${test.classes}"/>
+                    <pathelement location="${fqltool.test.classes}"/>
+                    <pathelement location="${stress.test.classes}"/>
+                </classpath>
+                <jvmarg line="${java-jvmargs}"/>
+                <jvmarg value="-DscanClassPath=@{scanClassPath}"/>
+                <jvmarg value="-DpackageName=@{packageName}"/>
+                <jvmarg value="-DannotationName=@{annotationName}"/>
+                <jvmarg value="-Dexpand=@{expand}"/>
+                <jvmarg value="-Dnormalize=@{normalize}"/>
+                <jvmarg value="-Dverbose=@{verbose}"/>
+                <jvmarg value="-Dregex=@{regex}"/>
+            </java>
+        </sequential>
+    </macrodef>
+
   <target name="_check-test-names">
-    <java taskname="check-test-names" fork="true" failonerror="yes" classname="org.apache.cassandra.anttasks.TestNameCheckTask" classpath="${test.classes}">
-      <classpath>
-        <path refid="cassandra.classpath" />
-        <pathelement location="${test.classes}"/>
-        <pathelement location="${fqltool.build.classes}" />
-        <fileset dir="${test.lib}">
-          <include name="**/*.jar" />
-        </fileset>
-      </classpath>
-      <jvmarg line="${java-jvmargs}"/>
-    </java>
+      <check-test-names annotationName="org.junit.Test" regex=".*Test$"/>
+      <check-test-names annotationName="org.openjdk.jmh.annotations.Benchmark" regex=".*(Bench|_jmhType.*)$"/>
   </target>
 
   <!-- Run tests separately and report errors after and generate a junit report -->
