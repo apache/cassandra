@@ -31,7 +31,7 @@ import org.openjdk.jmh.annotations.*;
 @Fork(value = 1)
 @Threads(1)
 @State(Scope.Benchmark)
-public class WriteTest extends SimpleTableWriter
+public class WriteBench extends SimpleTableWriter
 {
 
     public enum EndOp
@@ -81,7 +81,7 @@ public class WriteTest extends SimpleTableWriter
 
     void doExtraChecks()
     {
-        if (flush == WriteTest.EndOp.INMEM && !cfs.getLiveSSTables().isEmpty())
+        if (flush == WriteBench.EndOp.INMEM && !cfs.getLiveSSTables().isEmpty())
             throw new AssertionError("SSTables created for INMEM test.");
     }
 
