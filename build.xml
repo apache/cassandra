@@ -144,6 +144,18 @@
     <property name="jacoco.partialexecfile" value="${jacoco.partials.dir}/partial.exec" />
     <property name="jacoco.finalexecfile" value="${jacoco.export.dir}/jacoco.exec" />
 
+    <condition property="isMac" value="true">
+        <os family="mac"/>
+    </condition>
+    <condition property="isLinux" value="true">
+        <and>
+            <os family="unix"/>
+            <not>
+                <os family="mac"/>
+            </not>
+        </and>
+    </condition>
+
     <property name="jflex.version" value="1.8.2"/>
     <property name="jamm.version" value="0.4.0"/>
     <property name="ecj.version" value="3.33.0"/>
@@ -1805,36 +1817,12 @@
       </concat>
   </target>
 
-  <!-- run microbenchmarks suite -->
   <target name="microbench" depends="jar">
-      <java classname="org.openjdk.jmh.Main"
-            fork="true"
-            failonerror="true">
-          <classpath>
-              <path refid="cassandra.classpath.test" />
-              <pathelement location="${test.classes}"/>
-              <pathelement location="${test.conf}"/>
-              <fileset dir="${test.lib}">
-                  <include name="**/*.jar" />
-              </fileset>
-          </classpath>
-          <arg value="-foe"/>
-          <arg value="true"/>
-          <arg value="-rf"/>
-          <arg value="json"/>
-          <arg value="-rff"/>
-          <arg value="${build.test.dir}/jmh-result.json"/>
-          <arg value="-v"/>
-          <arg value="EXTRA"/>
-          <jvmarg line="${java-jvmargs}"/>
-          <jvmarg line="${_std-test-jvmargs}"/>
-          <jvmarg line="${test.jvm.args}"/>
+    <antcall target="-microbench" inheritrefs="true"/>
+  </target>
 
-          <!-- Broken: ZeroCopyStreamingBench,MutationBench,FastThreadLocalBench  (FIXME) -->
-          <arg value="-e"/><arg value="ZeroCopyStreamingBench|MutationBench|FastThreadLocalBench"/>
-
-          <arg value=".*microbench.*${benchmark.name}"/>
-      </java>
+  <target name="microbench-with-profiler" depends="jar">
+    <antcall target="-microbench-with-profiler" inheritrefs="true"/>
   </target>
 
   <!-- run arbitrary mains in tests, for example to run the long running memory tests with lots of memory pressure
@@ -2056,4 +2044,5 @@
   <import file="${build.helpers.dir}/build-git.xml"/>
   <import file="${build.helpers.dir}/build-checkstyle.xml"/>
   <import file="${build.helpers.dir}/build-cqlsh.xml"/>
+  <import file="${build.helpers.dir}/build-bench.xml"/>
 </project>
