@@ -100,7 +100,7 @@ public class AccordSyncPropagatorTest
             RandomDelayQueue delayQueue = new RandomDelayQueue.Factory(rs).get();
             PendingQueue queue = new PropagatingPendingQueue(failures, delayQueue);
             Agent agent = new TestAgent.RethrowAgent();
-            SimulatedDelayedExecutorService globalExecutor = new SimulatedDelayedExecutorService(queue, agent, rs.fork());
+            SimulatedDelayedExecutorService globalExecutor = new SimulatedDelayedExecutorService(queue, agent);
             ScheduledExecutorPlus scheduler = new AdaptingScheduledExecutorPlus(globalExecutor);
 
             Cluster cluster = new Cluster(nodes, rs, scheduler);
@@ -361,7 +361,7 @@ public class AccordSyncPropagatorTest
             {
                 if (self.equals(ep)) return true;
 
-                return !nodeRuns.computeIfAbsent(ep, ignore -> Gens.bools().runs(.01)).next(rs);
+                return !nodeRuns.computeIfAbsent(ep, ignore -> Gens.bools().biasedRepeatingRuns(.01)).next(rs);
             }
 
             @Override

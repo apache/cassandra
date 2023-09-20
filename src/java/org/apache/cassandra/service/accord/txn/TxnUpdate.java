@@ -33,6 +33,7 @@ import accord.api.Update;
 import accord.api.Write;
 import accord.primitives.Keys;
 import accord.primitives.Ranges;
+import accord.primitives.RoutableKey;
 import accord.primitives.Timestamp;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.db.TypeSizes;
@@ -174,7 +175,7 @@ public class TxnUpdate implements Update
     public Write apply(Timestamp executeAt, Data data)
     {
         if (!checkCondition(data))
-            return TxnWrite.EMPTY;
+            return TxnWrite.EMPTY_CONDITION_FAILED;
 
         List<TxnWrite.Fragment> fragments = deserialize(this.fragments, TxnWrite.Fragment.serializer);
         List<TxnWrite.Update> updates = new ArrayList<>(fragments.size());
@@ -182,9 +183,23 @@ public class TxnUpdate implements Update
         AccordUpdateParameters parameters = new AccordUpdateParameters((TxnData) data, options);
 
         for (TxnWrite.Fragment fragment : fragments)
-            updates.add(fragment.complete(parameters));
+            // Filter out fragments that already constitute complete updates to avoid persisting them via TxnWrite:
+            if (!fragment.isComplete())
+                updates.add(fragment.complete(parameters));
 
-        return new TxnWrite(updates);
+        return new TxnWrite(updates, true);
+    }
+
+    public List<TxnWrite.Update> completeUpdatesForKey(RoutableKey key)
+    {
+        List<TxnWrite.Fragment> fragments = deserialize(this.fragments, TxnWrite.Fragment.serializer);
+        List<TxnWrite.Update> updates = new ArrayList<>(fragments.size());
+
+        for (TxnWrite.Fragment fragment : fragments)
+            if (fragment.isComplete() && fragment.key.equals(key))
+                updates.add(fragment.toUpdate());
+
+        return updates;
     }
 
     public static final IVersionedSerializer<TxnUpdate> serializer = new IVersionedSerializer<TxnUpdate>()

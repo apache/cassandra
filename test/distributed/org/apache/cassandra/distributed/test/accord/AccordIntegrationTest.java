@@ -28,7 +28,6 @@ import org.apache.cassandra.distributed.impl.Instance;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.Verb;
 
-@SuppressWarnings("Convert2MethodRef")
 public class AccordIntegrationTest extends AccordTestBase
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordIntegrationTest.class);
