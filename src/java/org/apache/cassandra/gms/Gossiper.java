@@ -2298,7 +2298,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             int currentSize = Gossiper.instance.getEndpointCount();
             int currentLive = Gossiper.instance.getLiveMembers().size();
             totalPolls++;
-            if (currentSize == epSize && currentLive == liveSize && (epSize == liveSize || liveSize > 1))
+            if (currentSize == epSize && currentLive == liveSize)
             {
                 logger.debug("Gossip looks settled.");
                 numOkay++;
