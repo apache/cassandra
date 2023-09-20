@@ -781,12 +781,14 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
      * @param sstables a collection of the sstables to be assigned to arenas
      * @param compactionFilter a filter to exclude CompactionSSTables,
      *                         e.g., {@link CompactionSSTable#isSuitableForCompaction()}
+     * @param filterUnsuitable true if sstable should be non-compacting and filtered by {@code compactionFilter}
      * @return a list of arenas, where each arena contains sstables that belong to that arena
      */
     public Collection<Arena> getCompactionArenas(Collection<? extends CompactionSSTable> sstables,
-                                                 Predicate<CompactionSSTable> compactionFilter)
+                                                 Predicate<CompactionSSTable> compactionFilter,
+                                                 boolean filterUnsuitable)
     {
-        return getCompactionArenas(sstables, compactionFilter, this.arenaSelector,true);
+        return getCompactionArenas(sstables, compactionFilter, this.arenaSelector, filterUnsuitable);
     }
 
     Collection<Arena> getCompactionArenas(Collection<? extends CompactionSSTable> sstables, boolean filterUnsuitable)
@@ -853,8 +855,26 @@ public class UnifiedCompactionStrategy extends AbstractCompactionStrategy
     public Map<Arena, List<Level>> getLevels(Collection<? extends CompactionSSTable> sstables,
                                              Predicate<CompactionSSTable> compactionFilter)
     {
+        return getLevels(sstables, compactionFilter, true);
+    }
+
+    /**
+     * Groups the sstables passed in into arenas and buckets. This is used by the strategy to determine
+     * new compactions, and by external tools in CNDB to analyze the strategy decisions.
+     *
+     * @param sstables a collection of the sstables to be assigned to arenas
+     * @param compactionFilter a filter to exclude CompactionSSTables,
+     *                         e.g., {@link CompactionSSTable#isSuitableForCompaction()}
+     * @param filterUnsuitable true if sstable should be non-compacting and filtered by {@code compactionFilter}
+     *
+     * @return a map of arenas to their buckets
+     */
+    public Map<Arena, List<Level>> getLevels(Collection<? extends CompactionSSTable> sstables,
+                                             Predicate<CompactionSSTable> compactionFilter,
+                                             boolean filterUnsuitable)
+    {
         maybeUpdateSelector();
-        Collection<Arena> arenas = getCompactionArenas(sstables, compactionFilter);
+        Collection<Arena> arenas = getCompactionArenas(sstables, compactionFilter, filterUnsuitable);
         Map<Arena, List<Level>> ret = new LinkedHashMap<>(); // should preserve the order of arenas
 
         for (Arena arena : arenas)
