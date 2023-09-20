@@ -50,14 +50,7 @@ public abstract class CassandraHnswGraphBuilder<T>
                                  int maximumNodeConnections,
                                  int constructionBeamWidth)
         {
-            try
-            {
-                builder = ConcurrentHnswGraphBuilder.create(vectorValues, vectorEncoding, similarityFunction, maximumNodeConnections, constructionBeamWidth);
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
+            builder = new ConcurrentHnswGraphBuilder<>(vectorValues, vectorEncoding, similarityFunction, maximumNodeConnections, constructionBeamWidth);
         }
 
         @Override

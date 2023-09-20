@@ -144,11 +144,11 @@ public class VectorSegmentationTest extends VectorTester
         ConcurrentVectorValues vectorValues = new ConcurrentVectorValues(query.length);
         int ordinal = 0;
 
-        ConcurrentHnswGraphBuilder<float[]> graphBuilder = ConcurrentHnswGraphBuilder.create(vectorValues,
-                                                                                             VectorEncoding.FLOAT32,
-                                                                                             VectorSimilarityFunction.COSINE,
-                                                                                             16,
-                                                                                             100);
+        ConcurrentHnswGraphBuilder<float[]> graphBuilder = new ConcurrentHnswGraphBuilder<>(vectorValues,
+                                                                                            VectorEncoding.FLOAT32,
+                                                                                            VectorSimilarityFunction.COSINE,
+                                                                                            16,
+                                                                                            100);
 
         for (float[] vector : vectors)
         {
