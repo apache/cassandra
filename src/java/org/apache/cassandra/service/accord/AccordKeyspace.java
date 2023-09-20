@@ -154,7 +154,6 @@ import org.apache.cassandra.service.accord.serializers.KeySerializers;
 import org.apache.cassandra.service.accord.serializers.ListenerSerializers;
 import org.apache.cassandra.service.accord.serializers.TopologySerializers;
 import org.apache.cassandra.service.accord.serializers.WaitingOnSerializer;
-import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
@@ -250,7 +249,6 @@ public class AccordKeyspace
               + format("accepted_ballot %s,", TIMESTAMP_TUPLE)
               + "dependencies blob,"
               + "writes blob,"
-              + "result blob,"
               + "waiting_on blob,"
               + "listeners set<blob>, "
               + "PRIMARY KEY((store_id, domain, txn_id))"
@@ -266,7 +264,6 @@ public class AccordKeyspace
         static final LocalVersionedSerializer<PartialTxn> partialTxn = localSerializer(CommandSerializers.partialTxn);
         static final LocalVersionedSerializer<PartialDeps> partialDeps = localSerializer(DepsSerializer.partialDeps);
         static final LocalVersionedSerializer<Writes> writes = localSerializer(CommandSerializers.writes);
-        static final LocalVersionedSerializer<TxnData> result = localSerializer(TxnData.serializer);
         static final LocalVersionedSerializer<Command.DurableAndIdempotentListener> listeners = localSerializer(ListenerSerializers.listener);
         static final LocalVersionedSerializer<Topology> topology = localSerializer(TopologySerializers.topology);
         static final LocalVersionedSerializer<ReducingRangeMap<Timestamp>> rejectBefore = localSerializer(CommandStoreSerializers.rejectBefore);
@@ -304,13 +301,12 @@ public class AccordKeyspace
         static final ColumnMetadata accepted_ballot = getColumn(Commands, "accepted_ballot");
         static final ColumnMetadata dependencies = getColumn(Commands, "dependencies");
         static final ColumnMetadata writes = getColumn(Commands, "writes");
-        static final ColumnMetadata result = getColumn(Commands, "result");
         static final ColumnMetadata waiting_on = getColumn(Commands, "waiting_on");
         static final ColumnMetadata listeners = getColumn(Commands, "listeners");
 
         public static ColumnMetadata[][] TRUNCATE_FIELDS = new ColumnMetadata[][] {
              new ColumnMetadata[] { durability, execute_at, route, status },
-             new ColumnMetadata[] { durability, execute_at, result, route, status, writes },
+             new ColumnMetadata[] { durability, execute_at, route, status, writes },
         };
 
         static
@@ -385,61 +381,56 @@ public class AccordKeyspace
             }
         }
 
-        private static Object[] truncatedApplyLeaf(long newTimestamp, SaveStatus newSaveStatus, Cell durabilityCell, Cell executeAtCell, @Nullable Cell resultCell, Cell routeCell, @Nullable Cell writesCell, boolean updateTimestamps)
+        private static Object[] truncatedApplyLeaf(long newTimestamp, SaveStatus newSaveStatus, Cell<?> durabilityCell, Cell<?> executeAtCell, Cell<?> routeCell, @Nullable Cell<?> writesCell, boolean updateTimestamps)
         {
             checkArgument(durabilityCell.column() == CommandsColumns.durability);
             checkArgument(executeAtCell.column() == CommandsColumns.execute_at);
-            checkArgument(resultCell == null || resultCell.column() == CommandsColumns.result);
             checkArgument(routeCell.column() == CommandsColumns.route);
             checkArgument(writesCell == null || writesCell.column() == CommandsColumns.writes);
-            boolean includeOutcome = resultCell != null;
+            boolean includeOutcome = writesCell != null;
             Object[] newLeaf = BTree.unsafeAllocateNonEmptyLeaf(TRUNCATE_FIELDS[includeOutcome ? 1 : 0].length);
             int colIndex = 0;
             newLeaf[colIndex++] = updateTimestamps ? durabilityCell.withUpdatedTimestamp(newTimestamp) : durabilityCell;
             newLeaf[colIndex++] = updateTimestamps ? executeAtCell.withUpdatedTimestamp(newTimestamp) : executeAtCell;
-            if (includeOutcome)
-                newLeaf[colIndex++] = updateTimestamps ? resultCell.withUpdatedTimestamp(newTimestamp) : resultCell;
             newLeaf[colIndex++] = updateTimestamps ? routeCell.withUpdatedTimestamp(newTimestamp) : routeCell;
             // Status always needs to use the new timestamp since we are replacing the existing value
             // All the other columns are being retained unmodified with at most updated timestamps to accomdate deletion
             newLeaf[colIndex++] = BufferCell.live(status, newTimestamp, ByteBufferAccessor.instance.valueOf(newSaveStatus.ordinal()));
             if (includeOutcome)
+                //noinspection UnusedAssignment
                 newLeaf[colIndex++] = updateTimestamps ? writesCell.withUpdatedTimestamp(newTimestamp) : writesCell;
             return newLeaf;
         }
 
-        public static Row truncatedApply(SaveStatus newSaveStatus, Row row, long nowInSec, Durability durability, Cell durabilityCell, Cell executeAtCell, Cell routeCell, boolean withOutcome)
+        public static Row truncatedApply(SaveStatus newSaveStatus, Row row, long nowInSec, Durability durability, Cell<?> durabilityCell, Cell<?> executeAtCell, Cell<?> routeCell, boolean withOutcome)
         {
             checkArgument(durabilityCell.column() == CommandsColumns.durability);
             checkArgument(executeAtCell.column() == CommandsColumns.execute_at);
             checkArgument(routeCell.column() == CommandsColumns.route);
             long oldTimestamp = row.primaryKeyLivenessInfo().timestamp();
             long newTimestamp = oldTimestamp + 1;
-            Cell resultCell = withOutcome ? row.getCell(CommandsColumns.result) : null;
-            Cell writesCell = withOutcome ? row.getCell(CommandsColumns.writes) : null;
-            checkState((resultCell != null) == (writesCell != null), "result and writes should always be set together");
-            boolean doDeletion = true;
+            Cell<?> writesCell = withOutcome ? row.getCell(CommandsColumns.writes) : null;
+
             // If durability is not universal we don't want to delete older versions of the row that might have recorded
             // a higher durability value. maybeDropTruncatedCommandColumns will take care of dropping things even if we don't drop via tombstones.
             // durability should be the only column that could have an older value that is insufficient for propagating forward
-            if (durability != Durability.Universal)
-                doDeletion = false;
+            boolean doDeletion = durability == Durability.Universal;
+
             // We may not have what we need to generate a deletion and include the outcome in the truncated row
             // so need to wait until we can have the outcome to issue the deletion otherwise it would be shadowed and lost
-            if (withOutcome && resultCell == null)
+            if (withOutcome && writesCell == null)
                 doDeletion = false;
 
-            Object[] newLeaf = truncatedApplyLeaf(newTimestamp, newSaveStatus, durabilityCell, executeAtCell, resultCell, routeCell, writesCell, doDeletion);
+            Object[] newLeaf = truncatedApplyLeaf(newTimestamp, newSaveStatus, durabilityCell, executeAtCell, routeCell, writesCell, doDeletion);
 
             // Including a deletion allows future compactions to drop data before it gets to the purger
             // but it is pretty optional because maybeDropTruncatedCommandColumns will drop the extra columns
             // regardless
             Row.Deletion deletion = doDeletion ? new Row.Deletion(DeletionTime.build(oldTimestamp, nowInSec), false) : Deletion.LIVE;
-            return BTreeRow.create(row.clustering(), LivenessInfo.create(newTimestamp, nowInSec),
-                            deletion, newLeaf);
+            return BTreeRow.create(row.clustering(), LivenessInfo.create(newTimestamp, nowInSec), deletion, newLeaf);
         }
 
-        public static Row maybeDropTruncatedCommandColumns(Row row, boolean withOutcome, Cell durabilityCell, Cell executeAtCell, Cell routeCell, Cell statusCell)
+        public static Row maybeDropTruncatedCommandColumns(Row row, boolean withOutcome, Cell<?> durabilityCell, Cell<?> executeAtCell, Cell<?> routeCell, Cell<?> statusCell)
         {
             checkArgument(durabilityCell.column() == CommandsColumns.durability);
             checkArgument(executeAtCell.column() == CommandsColumns.execute_at);
@@ -448,36 +439,27 @@ public class AccordKeyspace
             int colCount = row.columnCount();
             // If it's the exact length of the post truncate column count without outcome fields
             // then it is exactly the columns needed for getting this far and withOutcome doesn't matter since
-            // nothing additional is available to include anyways
+            // nothing additional is available to include anyway
             if (colCount == TRUNCATE_FIELDS[0].length)
                 return row;
 
-            Cell resultCell = row.getCell(CommandsColumns.result);
-            Cell writesCell = row.getCell(CommandsColumns.writes);
-            checkState((resultCell != null) == (writesCell != null), "result and writes should always be set together");
-            boolean includeOutcome = withOutcome && resultCell != null;
+            Cell<?> writesCell = row.getCell(CommandsColumns.writes);
             // This has just the columns needed for truncation with outcome so return it unmodified
-            if (colCount == TRUNCATE_FIELDS[1].length && includeOutcome)
+            if (colCount == TRUNCATE_FIELDS[1].length && withOutcome)
                 return row;
 
             // Construct a replacement with just the available columns that are still needed
-            Object[] newLeaf = BTree.unsafeAllocateNonEmptyLeaf(TRUNCATE_FIELDS[includeOutcome ? 1 : 0].length);
+            Object[] newLeaf = BTree.unsafeAllocateNonEmptyLeaf(TRUNCATE_FIELDS[withOutcome ? 1 : 0].length);
             int colIndex = 0;
             newLeaf[colIndex++] = durabilityCell;
             newLeaf[colIndex++] = executeAtCell;
-            if (includeOutcome)
-                newLeaf[colIndex++] = resultCell;
             newLeaf[colIndex++] = routeCell;
             newLeaf[colIndex++] = statusCell;
-            if (includeOutcome)
+            if (withOutcome && writesCell != null)
+                //noinspection UnusedAssignment
                 newLeaf[colIndex++] = writesCell;
 
             return  BTreeRow.create(row.clustering(), row.primaryKeyLivenessInfo(), row.deletion(), newLeaf);
-        }
-
-        public static Result getResult(Row row) throws IOException
-        {
-            return deserializeWithVersionOr(row, result, LocalVersionedSerializers.result, () -> null);
         }
 
         public static Writes getWrites(Row row) throws IOException
@@ -917,7 +899,6 @@ public class AccordKeyspace
             addSetChanges(CommandsColumns.listeners, Command::durableListeners, v -> serialize(v, LocalVersionedSerializers.listeners), builder, timestampMicros, nowInSeconds, original, command);
 
             addCellIfModified(CommandsColumns.writes, Command::writes, v -> serialize(v, LocalVersionedSerializers.writes), builder, timestampMicros, nowInSeconds, original, command);
-            addCellIfModified(CommandsColumns.result, Command::result, v -> serialize((TxnData) v, LocalVersionedSerializers.result), builder, timestampMicros, nowInSeconds, original, command);
 
             // TODO review this is just to work around Truncated not being committed but having a status after committed
             // so status claims it is committed.
@@ -1313,7 +1294,6 @@ public class AccordKeyspace
             Ballot promised = deserializeTimestampOrNull(row, "promised_ballot", Ballot::fromBits);
             Ballot accepted = deserializeTimestampOrNull(row, "accepted_ballot", Ballot::fromBits);
             Writes writes = deserializeWithVersionOr(row, "writes", LocalVersionedSerializers.writes, () -> null);
-            Result result = deserializeWithVersionOr(row, "result", LocalVersionedSerializers.result, () -> null);
 
             switch (status.status)
             {
@@ -1330,9 +1310,9 @@ public class AccordKeyspace
                     return Command.SerializerSupport.committed(attributes, status, executeAt, promised, accepted, waitingOn);
                 case PreApplied:
                 case Applied:
-                    return Command.SerializerSupport.executed(attributes, status, executeAt, promised, accepted, waitingOn, writes, result);
+                    return Command.SerializerSupport.executed(attributes, status, executeAt, promised, accepted, waitingOn, writes, Result.APPLIED);
                 case Truncated:
-                    return Command.SerializerSupport.truncatedApply(attributes, status, executeAt, writes, result);
+                    return Command.SerializerSupport.truncatedApply(attributes, status, executeAt, writes, Result.APPLIED);
                 case Invalidated:
                     return Command.SerializerSupport.invalidated(txnId, attributes.durableListeners());
                 default:
