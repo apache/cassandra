@@ -27,16 +27,13 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
+import accord.primitives.*;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 
 import accord.api.DataStore;
 import accord.api.Write;
 import accord.local.SafeCommandStore;
-import accord.primitives.RoutableKey;
-import accord.primitives.Seekable;
-import accord.primitives.Timestamp;
-import accord.primitives.Writes;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import org.apache.cassandra.concurrent.Stage;
@@ -56,6 +53,7 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.service.accord.AccordSafeCommandsForKey;
 import org.apache.cassandra.service.accord.AccordSafeCommandStore;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.utils.BooleanSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 
@@ -66,9 +64,9 @@ import static org.apache.cassandra.utils.ArraySerializers.serializedArraySize;
 
 public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Write
 {
-    public static final TxnWrite EMPTY = new TxnWrite(Collections.emptyList());
+    public static final TxnWrite EMPTY_CONDITION_FAILED = new TxnWrite(Collections.emptyList(), false);
 
-    private static final long EMPTY_SIZE = ObjectSizes.measure(EMPTY);
+    private static final long EMPTY_SIZE = ObjectSizes.measure(EMPTY_CONDITION_FAILED);
 
     public static class Update extends AbstractSerialized<PartitionUpdate>
     {
@@ -218,10 +216,20 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
             return "Fragment{key=" + key + ", index=" + index + ", baseUpdate=" + baseUpdate + ", referenceOps=" + referenceOps + '}';
         }
 
+        public boolean isComplete()
+        {
+            return referenceOps.isEmpty();
+        }
+        
+        public Update toUpdate()
+        {
+            return new Update(key, index, baseUpdate);
+        }
+        
         public Update complete(AccordUpdateParameters parameters)
         {
-            if (referenceOps.isEmpty())
-                return new Update(key, index, baseUpdate);
+            if (isComplete())
+                return toUpdate();
 
             DecoratedKey key = baseUpdate.partitionKey();
             PartitionUpdate.Builder updateBuilder = new PartitionUpdate.Builder(baseUpdate.metadata(),
@@ -314,14 +322,18 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
         };
     }
 
-    private TxnWrite(Update[] items)
+    private final boolean isConditionMet;
+    
+    private TxnWrite(Update[] items, boolean isConditionMet)
     {
         super(items);
+        this.isConditionMet = isConditionMet;
     }
 
-    public TxnWrite(List<Update> items)
+    public TxnWrite(List<Update> items, boolean isConditionMet)
     {
         super(items);
+        this.isConditionMet = isConditionMet;
     }
 
     @Override
@@ -343,7 +355,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
     }
 
     @Override
-    public AsyncChain<Void> apply(Seekable key, SafeCommandStore safeStore, Timestamp executeAt, DataStore store)
+    public AsyncChain<Void> apply(Seekable key, SafeCommandStore safeStore, Timestamp executeAt, DataStore store, PartialTxn txn)
     {
         // TODO (expected, efficiency): 99.9999% of the time we can just use executeAt.hlc(), so can avoid bringing
         //  cfk into memory by retaining at all times in memory key ranges that are dirty and must use this logic;
@@ -355,7 +367,21 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
         int nowInSeconds = cfk.nowInSecondsFor(executeAt, true);
 
         List<AsyncChain<Void>> results = new ArrayList<>();
+
+        // Apply updates not specified fully by the client but built from fragments completed by data from reads.
+        // This occurs, for example, when an UPDATE statement uses a value assigned by a LET statement.
         forEachWithKey((PartitionKey) key, write -> results.add(write.write(timestamp, nowInSeconds)));
+
+        if (isConditionMet)
+        {
+            // Apply updates that are fully specified by the client and not reliant on data from reads.
+            // ex. INSERT INTO tbl (a, b, c) VALUES (1, 2, 3)
+            // These updates are persisted only in TxnUpdate and not in TxnWrite to avoid duplication.
+            TxnUpdate txnUpdate = (TxnUpdate) txn.update();
+            assert txnUpdate != null : "PartialTxn should contain an update if we're applying a write!";
+            List<Update> updates = txnUpdate.completeUpdatesForKey((RoutableKey) key);
+            updates.forEach(update -> results.add(update.write(timestamp, nowInSeconds)));
+        }
 
         if (results.isEmpty())
             return Writes.SUCCESS;
@@ -379,19 +405,21 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
         @Override
         public void serialize(TxnWrite write, DataOutputPlus out, int version) throws IOException
         {
+            BooleanSerializer.serializer.serialize(write.isConditionMet, out, version);
             serializeArray(write.items, out, version, Update.serializer);
         }
 
         @Override
         public TxnWrite deserialize(DataInputPlus in, int version) throws IOException
         {
-            return new TxnWrite(deserializeArray(in, version, Update.serializer, Update[]::new));
+            boolean isConditionMet = BooleanSerializer.serializer.deserialize(in, version);
+            return new TxnWrite(deserializeArray(in, version, Update.serializer, Update[]::new), isConditionMet);
         }
 
         @Override
         public long serializedSize(TxnWrite write, int version)
         {
-            return serializedArraySize(write.items, version, Update.serializer);
+            return BooleanSerializer.serializer.serializedSize(write.isConditionMet, version) + serializedArraySize(write.items, version, Update.serializer);
         }
     };
 }

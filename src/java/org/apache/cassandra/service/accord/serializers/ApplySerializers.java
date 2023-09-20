@@ -20,13 +20,13 @@ package org.apache.cassandra.service.accord.serializers;
 
 import java.io.IOException;
 
+import accord.api.Result;
 import accord.messages.Apply;
 import accord.primitives.PartialRoute;
 import accord.primitives.TxnId;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.utils.NullableSerializer;
 
 public class ApplySerializers
@@ -41,7 +41,6 @@ public class ApplySerializers
             DepsSerializer.partialDeps.serialize(apply.deps, out, version);
             NullableSerializer.serializeNullable(apply.txn, out, version, CommandSerializers.partialTxn);
             CommandSerializers.writes.serialize(apply.writes, out, version);
-            TxnData.serializer.serialize((TxnData) apply.result, out, version);
         }
 
         @Override
@@ -53,7 +52,7 @@ public class ApplySerializers
                                                      DepsSerializer.partialDeps.deserialize(in, version),
                                                      NullableSerializer.deserializeNullable(in, version, CommandSerializers.partialTxn),
                                                      CommandSerializers.writes.deserialize(in, version),
-                                                     TxnData.serializer.deserialize(in, version));
+                                                     Result.APPLIED);
         }
 
         @Override
@@ -63,8 +62,7 @@ public class ApplySerializers
                    + CommandSerializers.timestamp.serializedSize(apply.executeAt, version)
                    + DepsSerializer.partialDeps.serializedSize(apply.deps, version)
                    + NullableSerializer.serializedNullableSize(apply.txn, version, CommandSerializers.partialTxn)
-                   + CommandSerializers.writes.serializedSize(apply.writes, version)
-                   + TxnData.serializer.serializedSize((TxnData) apply.result, version);
+                   + CommandSerializers.writes.serializedSize(apply.writes, version);
         }
     };
 

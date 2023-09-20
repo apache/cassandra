@@ -330,7 +330,9 @@ public class AccordObjectSizes
         size += sizeNullable(command.partialDeps(), AccordObjectSizes::dependencies);
         size += sizeNullable(command.accepted(), AccordObjectSizes::timestamp);
         size += sizeNullable(command.writes(), AccordObjectSizes::writes);
-        size += sizeNullable(command.result(), AccordObjectSizes::results);
+
+        if (command.result() instanceof TxnData)
+            size += sizeNullable(command.result(), AccordObjectSizes::results);
 
         if (!(command instanceof Command.Committed))
             return size;
@@ -352,9 +354,9 @@ public class AccordObjectSizes
         return size;
     }
 
-    private static long EMPTY_CFK_SIZE = measure(CommandsForKey.SerializerSupport.create(null, null, null, 0, null, null,
-                                                                                         ImmutableSortedMap.of(),
-                                                                                         ImmutableSortedMap.of()));
+    private static final long EMPTY_CFK_SIZE = measure(CommandsForKey.SerializerSupport.create(null, null, null, 0, null, null,
+                                                                                               ImmutableSortedMap.of(),
+                                                                                               ImmutableSortedMap.of()));
     public static long commandsForKey(CommandsForKey cfk)
     {
         long size = EMPTY_CFK_SIZE;

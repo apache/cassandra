@@ -121,7 +121,7 @@ public class AccordCommandStoreTest
         attrs.addListener(new Command.ProxyListener(oldTxnId1));
         Pair<Writes, Result> result = AccordTestUtils.processTxnResult(commandStore, txnId, txn, executeAt);
         Command command = Command.SerializerSupport.executed(attrs, SaveStatus.Applied, executeAt, promised, accepted,
-                                                             waitingOn, result.left, result.right);
+                                                             waitingOn, result.left, Result.APPLIED);
 
         AccordSafeCommand safeCommand = new AccordSafeCommand(loaded(txnId, null));
         safeCommand.set(command);
