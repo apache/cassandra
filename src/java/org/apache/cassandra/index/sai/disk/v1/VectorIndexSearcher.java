@@ -137,6 +137,8 @@ public class VectorIndexSearcher extends IndexSearcher implements SegmentOrderin
             var nRows = maxSSTableRowId - minSSTableRowId + 1;
             int mbfr = getMaxBruteForceRows(limit);
             int maxBruteForceRows = Math.min(globalBruteForceRows, mbfr);
+            logger.debug("SAI materialized {} rows; max brute force rows is {} for sstable index with {} nodes of degree {}, LIMIT {}",
+                         nRows, maxBruteForceRows, graph.size(), indexContext.getIndexWriterConfig().getMaximumNodeConnections(), limit);
             if (nRows <= maxBruteForceRows)
             {
                 IntArrayList postings = new IntArrayList(Math.toIntExact(nRows), -1);

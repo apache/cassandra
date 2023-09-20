@@ -182,6 +182,8 @@ public class VectorMemtableIndex implements MemtableIndex
                 return RangeIterator.emptyKeys();
 
             int bruteForceRows = getMaxBruteForceRows(limit, indexContext.getIndexWriterConfig().getMaximumNodeConnections(), graph.size());
+            logger.debug("SAI materialized {} rows; max brute force rows is {} for memtable index with {} nodes of degree {}, LIMIT {}",
+                         resultKeys.size(), bruteForceRows, graph.size(), indexContext.getIndexWriterConfig().getMaximumNodeConnections(), limit);
             if (resultKeys.size() < max(limit, bruteForceRows))
                 return new ReorderingRangeIterator(new PriorityQueue<>(resultKeys));
             else
