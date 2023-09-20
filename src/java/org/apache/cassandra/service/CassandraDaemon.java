@@ -817,7 +817,7 @@ public class CassandraDaemon
             }
             else
             {
-                throw new IllegalStateException("Not starting client transports because startup sequence has not completed");
+                throw new IllegalStateException("Node is not yet bootstrapped completely");
             }
         }
         else

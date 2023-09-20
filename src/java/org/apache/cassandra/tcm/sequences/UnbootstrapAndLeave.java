@@ -44,6 +44,9 @@ import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
+import static org.apache.cassandra.tcm.sequences.SequenceState.continuable;
+import static org.apache.cassandra.tcm.sequences.SequenceState.error;
+
 public class UnbootstrapAndLeave extends InProgressSequence<UnbootstrapAndLeave>
 {
     private static final Logger logger = LoggerFactory.getLogger(UnbootstrapAndLeave.class);
@@ -115,7 +118,7 @@ public class UnbootstrapAndLeave extends InProgressSequence<UnbootstrapAndLeave>
     }
 
     @Override
-    public boolean executeNext()
+    public SequenceState executeNext()
     {
         switch (next)
         {
@@ -128,7 +131,7 @@ public class UnbootstrapAndLeave extends InProgressSequence<UnbootstrapAndLeave>
                 catch (Throwable t)
                 {
                     JVMStabilityInspector.inspectThrowable(t);
-                    return true;
+                    return continuable();
                 }
                 break;
             case MID_LEAVE:
@@ -151,7 +154,7 @@ public class UnbootstrapAndLeave extends InProgressSequence<UnbootstrapAndLeave>
                 {
                     logger.warn("Error committing midLeave", t);
                     JVMStabilityInspector.inspectThrowable(t);
-                    return true;
+                    return continuable();
                 }
                 break;
             case FINISH_LEAVE:
@@ -162,14 +165,14 @@ public class UnbootstrapAndLeave extends InProgressSequence<UnbootstrapAndLeave>
                 catch (Throwable t)
                 {
                     JVMStabilityInspector.inspectThrowable(t);
-                    return true;
+                    return continuable();
                 }
                 break;
             default:
-                throw new IllegalStateException("Can't proceed with leave from " + next);
+                return error(new IllegalStateException("Can't proceed with leave from " + next));
         }
 
-        return true;
+        return continuable();
     }
 
     @Override

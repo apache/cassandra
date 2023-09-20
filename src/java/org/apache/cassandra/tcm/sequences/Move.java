@@ -68,6 +68,9 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
+import static org.apache.cassandra.tcm.sequences.SequenceState.continuable;
+import static org.apache.cassandra.tcm.sequences.SequenceState.error;
+
 public class Move extends InProgressSequence<Move>
 {
     private static final Logger logger = LoggerFactory.getLogger(Move.class);
@@ -129,7 +132,7 @@ public class Move extends InProgressSequence<Move>
     }
 
     @Override
-    public boolean executeNext()
+    public SequenceState executeNext()
     {
         switch (next)
         {
@@ -146,7 +149,7 @@ public class Move extends InProgressSequence<Move>
                 catch (Throwable t)
                 {
                     JVMStabilityInspector.inspectThrowable(t);
-                    return true;
+                    return continuable() ;
                 }
                 break;
             case MID_MOVE:
@@ -194,7 +197,7 @@ public class Move extends InProgressSequence<Move>
                 }
                 catch (InterruptedException e)
                 {
-                    return true;
+                    return continuable();
                 }
                 catch (ExecutionException e)
                 {
@@ -208,7 +211,7 @@ public class Move extends InProgressSequence<Move>
                 catch (Throwable t)
                 {
                     JVMStabilityInspector.inspectThrowable(t);
-                    return true;
+                    return continuable();
                 }
                 break;
             case FINISH_MOVE:
@@ -220,15 +223,15 @@ public class Move extends InProgressSequence<Move>
                 catch (Throwable t)
                 {
                     JVMStabilityInspector.inspectThrowable(t);
-                    return true;
+                    return continuable();
                 }
 
                 break;
             default:
-                throw new IllegalStateException("Can't proceed with join from " + next);
+                return error(new IllegalStateException("Can't proceed with join from " + next));
         }
 
-        return true;
+        return continuable();
     }
 
 

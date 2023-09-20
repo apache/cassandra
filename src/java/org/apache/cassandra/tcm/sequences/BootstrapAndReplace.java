@@ -55,6 +55,9 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static org.apache.cassandra.tcm.sequences.BootstrapAndJoin.bootstrap;
+import static org.apache.cassandra.tcm.sequences.SequenceState.continuable;
+import static org.apache.cassandra.tcm.sequences.SequenceState.error;
+import static org.apache.cassandra.tcm.sequences.SequenceState.halted;
 
 public class BootstrapAndReplace extends InProgressSequence<BootstrapAndReplace>
 {
@@ -125,7 +128,7 @@ public class BootstrapAndReplace extends InProgressSequence<BootstrapAndReplace>
     }
 
     @Override
-    public boolean executeNext()
+    public SequenceState executeNext()
     {
         switch (next)
         {
@@ -139,7 +142,7 @@ public class BootstrapAndReplace extends InProgressSequence<BootstrapAndReplace>
                 {
                     JVMStabilityInspector.inspectThrowable(e);
                     logger.warn("Got exception committing startReplace", e);
-                    return true;
+                    return continuable();
                 }
                 break;
             case MID_REPLACE:
@@ -161,17 +164,22 @@ public class BootstrapAndReplace extends InProgressSequence<BootstrapAndReplace>
                         {
                             logger.warn("Some data streaming failed. Use nodetool to check bootstrap state and resume. " +
                                         "For more, see `nodetool help bootstrap`. {}", SystemKeyspace.getBootstrapState());
-                            return false;
+                            return halted();
                         }
                     }
 
                     commit(midReplace);
                 }
+                catch (IllegalStateException e)
+                {
+                    logger.error("Can't complete replacement", e);
+                    return error(e);
+                }
                 catch (Throwable e)
                 {
                     JVMStabilityInspector.inspectThrowable(e);
                     logger.warn("Got exception committing midReplace", e);
-                    return false;
+                    return halted();
                 }
                 break;
             case FINISH_REPLACE:
@@ -188,21 +196,21 @@ public class BootstrapAndReplace extends InProgressSequence<BootstrapAndReplace>
                     else
                     {
                         logger.info("Startup complete, but write survey mode is active, not becoming an active ring member. Use JMX (StorageService->joinRing()) to finalize ring joining.");
-                        return false;
+                        return halted();
                     }
                 }
                 catch (Throwable e)
                 {
                     JVMStabilityInspector.inspectThrowable(e);
                     logger.warn("Got exception committing finishReplace", e);
-                    return false;
+                    return halted();
                 }
                 break;
             default:
-                throw new IllegalStateException("Can't proceed with replacement from " + next);
+                return error(new IllegalStateException("Can't proceed with replacement from " + next));
         }
 
-        return true;
+        return continuable();
     }
 
     /**

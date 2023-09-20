@@ -23,8 +23,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeoutException;
 
-import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,7 +56,7 @@ public class FailedBootstrapTest extends TestBaseImpl
     private static final int NODE_TO_REMOVE = 2;
 
     @Test
-    public void roleSetupDoesNotProduceUnavailables() throws IOException
+    public void test() throws IOException, InterruptedException, TimeoutException
     {
         Cluster.Builder builder = Cluster.build(3)
                                          .withConfig(c -> c.with(Feature.values()))
@@ -73,18 +73,10 @@ public class FailedBootstrapTest extends TestBaseImpl
             stopUnchecked(nodeToRemove);
 
             // should fail to join, but should start up!
-            IInvokableInstance added = null;
-            try
-            {
-                IInstanceConfig toReplaceConf = nodeToRemove.config();
-                added = addInstance(cluster, toReplaceConf, c -> c.set("auto_bootstrap", true));
-                startHostReplacement(nodeToRemove, added, (a_, b_) -> {});
-                Assert.fail("Has not failed");
-            }
-            catch (Throwable t)
-            {
-                Assert.assertTrue(t.getMessage().contains("Did not finish joining the ring."));
-            }
+            IInstanceConfig toReplaceConf = nodeToRemove.config();
+            IInvokableInstance added = addInstance(cluster, toReplaceConf, c -> c.set("auto_bootstrap", true));
+            startHostReplacement(nodeToRemove, added, (a_, b_) -> {});
+            added.logs().watchFor("Node is not yet bootstrapped completely");
             alive.forEach(i -> {
                 NodeToolResult result = i.nodetoolResult("gossipinfo");
                 result.asserts().success();

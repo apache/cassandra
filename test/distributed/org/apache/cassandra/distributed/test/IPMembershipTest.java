@@ -26,6 +26,7 @@ import java.util.UUID;
 import com.google.common.collect.ImmutableSet;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.Constants;
 import org.apache.cassandra.distributed.api.Feature;
@@ -57,7 +58,7 @@ public class IPMembershipTest extends TestBaseImpl
             IInvokableInstance nodeToReplace = cluster.get(3);
 
             ToolRunner.invokeCassandraStress("write", "n=10000", "-schema", "replication(factor=3)", "-port", "native=9042").assertOnExitCode();
-
+            DatabaseDescriptor.toolInitialization(); // needed for deleteRecursive below
             for (boolean auto_bootstrap : Arrays.asList(true, false))
             {
                 stopUnchecked(nodeToReplace);

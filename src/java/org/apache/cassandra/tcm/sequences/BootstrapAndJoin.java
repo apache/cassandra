@@ -61,6 +61,9 @@ import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.apache.cassandra.tcm.sequences.SequenceState.continuable;
+import static org.apache.cassandra.tcm.sequences.SequenceState.error;
+import static org.apache.cassandra.tcm.sequences.SequenceState.halted;
 
 public class BootstrapAndJoin extends InProgressSequence<BootstrapAndJoin>
 {
@@ -168,7 +171,7 @@ public class BootstrapAndJoin extends InProgressSequence<BootstrapAndJoin>
     }
 
     @Override
-    public boolean executeNext()
+    public SequenceState executeNext()
     {
         switch (next)
         {
@@ -182,7 +185,7 @@ public class BootstrapAndJoin extends InProgressSequence<BootstrapAndJoin>
                 {
                     JVMStabilityInspector.inspectThrowable(e);
                     logger.warn("Exception committing startJoin", e);
-                    return true;
+                    return continuable();
                 }
 
                 break;
@@ -207,7 +210,7 @@ public class BootstrapAndJoin extends InProgressSequence<BootstrapAndJoin>
                         {
                             logger.warn("Some data streaming failed. Use nodetool to check bootstrap state and resume. " +
                                         "For more, see `nodetool help bootstrap`. {}", SystemKeyspace.getBootstrapState());
-                            return false;
+                            return halted();
                         }
                     }
                     else
@@ -220,13 +223,13 @@ public class BootstrapAndJoin extends InProgressSequence<BootstrapAndJoin>
                 catch (IllegalStateException e)
                 {
                     logger.error("Can't complete bootstrap", e);
-                    return false;
+                    return error(e);
                 }
                 catch (Throwable e)
                 {
                     JVMStabilityInspector.inspectThrowable(e);
                     logger.info("Exception committing midJoin", e);
-                    return false;
+                    return halted();
                 }
 
                 break;
@@ -244,7 +247,7 @@ public class BootstrapAndJoin extends InProgressSequence<BootstrapAndJoin>
                     else
                     {
                         logger.info("Startup complete, but write survey mode is active, not becoming an active ring member. Use JMX (StorageService->joinRing()) to finalize ring joining.");
-                        return false;
+                        return halted();
                     }
 
                 }
@@ -252,13 +255,13 @@ public class BootstrapAndJoin extends InProgressSequence<BootstrapAndJoin>
                 {
                     JVMStabilityInspector.inspectThrowable(e);
                     logger.warn("Exception committing finishJoin", e);
-                    return true;
+                    return continuable();
                 }
                 break;
             default:
-                throw new IllegalStateException("Can't proceed with join from " + next);
+                return error(new IllegalStateException("Can't proceed with join from " + next));
         }
-        return true;
+        return continuable();
     }
 
     @VisibleForTesting

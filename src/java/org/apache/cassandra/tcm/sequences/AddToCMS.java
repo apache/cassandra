@@ -61,6 +61,7 @@ import org.apache.cassandra.utils.concurrent.Future;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.tcm.sequences.InProgressSequences.Kind.JOIN_OWNERSHIP_GROUP;
+import static org.apache.cassandra.tcm.sequences.SequenceState.continuable;
 import static org.apache.cassandra.tcm.transformations.cms.EntireRange.entireRange;
 
 /**
@@ -195,7 +196,7 @@ public class AddToCMS extends InProgressSequence<AddToCMS>
     }
 
     @Override
-    public boolean executeNext()
+    public SequenceState executeNext()
     {
         try
         {
@@ -205,10 +206,9 @@ public class AddToCMS extends InProgressSequence<AddToCMS>
         catch (Throwable t)
         {
             logger.error("Could not finish adding the node to the metadata ownership group", t);
-            return true;
         }
 
-        return false;
+        return continuable();
     }
 
     @Override

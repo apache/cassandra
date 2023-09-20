@@ -20,6 +20,7 @@ package org.apache.cassandra.tcm;
 
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
+import org.apache.cassandra.tcm.sequences.SequenceState;
 import org.apache.cassandra.tcm.sequences.ProgressBarrier;
 
 public abstract class InProgressSequence<T extends InProgressSequence<T>>
@@ -43,7 +44,7 @@ public abstract class InProgressSequence<T extends InProgressSequence<T>>
      * false in cases when bootstrap streaming failed, or when the user has requested to halt the bootstrap sequence
      * and avoid joining the ring.
      */
-    public abstract boolean executeNext();
+    public abstract SequenceState executeNext();
 
     /**
      * Advance the state of in-progress sequence after execution

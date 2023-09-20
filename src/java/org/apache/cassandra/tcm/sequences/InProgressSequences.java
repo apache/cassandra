@@ -163,9 +163,6 @@ public class InProgressSequences implements MetadataValue<InProgressSequences>
     }
 
     @VisibleForTesting
-    public enum SequenceState { BLOCKED, CONTINUING, HALTED}
-
-    @VisibleForTesting
     public static BiFunction<InProgressSequence<?>, SequenceState, SequenceState> listener = (s, o) -> o;
 
     @VisibleForTesting
@@ -180,10 +177,14 @@ public class InProgressSequences implements MetadataValue<InProgressSequences>
     {
         SequenceState state;
         if (sequence.barrier().await())
-            state = listener.apply(sequence, sequence.executeNext() ? SequenceState.CONTINUING : SequenceState.HALTED);
+            state = listener.apply(sequence, sequence.executeNext());
         else
-            state = listener.apply(sequence, SequenceState.BLOCKED);
-        return state == SequenceState.CONTINUING;
+            state = listener.apply(sequence, SequenceState.blocked());
+
+        if (state.isError())
+            throw ((SequenceState.Error)state).cause();
+
+        return state.isContinuable();
     }
 
     public static boolean isLeave(InProgressSequence<?> sequence)

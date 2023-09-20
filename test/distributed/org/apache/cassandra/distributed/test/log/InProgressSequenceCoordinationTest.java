@@ -38,7 +38,7 @@ import org.apache.cassandra.tcm.transformations.PrepareReplace;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.InProgressSequence;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
-import org.apache.cassandra.tcm.sequences.InProgressSequences.SequenceState;
+import org.apache.cassandra.tcm.sequences.SequenceState;
 import org.apache.cassandra.utils.concurrent.Condition;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_ADDRESS_FIRST_BOOT;
@@ -48,8 +48,9 @@ import static org.apache.cassandra.distributed.shared.ClusterUtils.addInstance;
 import static org.apache.cassandra.distributed.shared.ClusterUtils.getSequenceAfterCommit;
 import static org.apache.cassandra.net.Verb.TCM_CURRENT_EPOCH_REQ;
 import static org.apache.cassandra.net.Verb.TCM_FETCH_PEER_LOG_RSP;
-import static org.apache.cassandra.tcm.sequences.InProgressSequences.SequenceState.BLOCKED;
-import static org.apache.cassandra.tcm.sequences.InProgressSequences.SequenceState.CONTINUING;
+import static org.apache.cassandra.tcm.sequences.SequenceState.blocked;
+import static org.apache.cassandra.tcm.sequences.SequenceState.continuable;
+import static org.apache.cassandra.tcm.sequences.SequenceState.halted;
 
 public class InProgressSequenceCoordinationTest extends FuzzTestBase
 {
@@ -81,11 +82,12 @@ public class InProgressSequenceCoordinationTest extends FuzzTestBase
             // ensure that they do not receive the join events for the new instance. They will then not be able to ack
             // them as the joining node attempts to progress its startup sequence, which should consequently fail.
             cluster.filters().allVerbs().from(1).to(2,3).drop();
+            cluster.filters().verbs(TCM_FETCH_PEER_LOG_RSP.id).from(4).to(2, 3).drop();
 
             // Have the joining node pause when the mid join event fails due to ack timeout.
             // The StartJoin event has no prerequisite, so we should see a CONTINUING state, but execution of the
             // MidJoin should be BLOCKED as nodes 2 & 3 can't ack the StartJoin.
-            Callable<Void> progressBlocked = waitForListener(newInstance, CONTINUING, BLOCKED);
+            Callable<Void> progressBlocked = waitForListener(newInstance, continuable(), blocked());
             new Thread(() -> newInstance.startup()).start();
             progressBlocked.call();
 
@@ -133,7 +135,7 @@ public class InProgressSequenceCoordinationTest extends FuzzTestBase
 
             // Have the joining node pause when the StartLeave event fails due to ack timeout.
             IInvokableInstance leavingInstance = cluster.get(4);
-            Callable<Void> progressBlocked = waitForListener(leavingInstance, BLOCKED);
+            Callable<Void> progressBlocked = waitForListener(leavingInstance, blocked());
             Thread t = new Thread(() -> leavingInstance.runOnInstance(() -> StorageService.instance.decommission(true)));
             t.start();
             progressBlocked.call();
@@ -150,7 +152,7 @@ public class InProgressSequenceCoordinationTest extends FuzzTestBase
             // Unpause the leaving node and have it retry the StartLeave, which should now be able to proceed as 2 & 3
             // will ack the PrepareJoin. Its progress should be blocked as it comes to submit the next event, its
             // MidJoin, so set a new BLOCKED expectation.
-            progressBlocked = waitForExistingListener(leavingInstance, BLOCKED);
+            progressBlocked = waitForExistingListener(leavingInstance, blocked());
             leavingInstance.runOnInstance(() -> {
                 TestExecutionListener listener = (TestExecutionListener) InProgressSequences.listener;
                 listener.releaseAndRetry();
@@ -209,7 +211,7 @@ public class InProgressSequenceCoordinationTest extends FuzzTestBase
             cluster.filters().verbs(TCM_CURRENT_EPOCH_REQ.id).from(4).drop();
 
             // Have the joining node pause when the StartReplace event fails due to ack timeout.
-            Callable<Void> progressBlocked = waitForListener(replacement, CONTINUING, BLOCKED);
+            Callable<Void> progressBlocked = waitForListener(replacement, continuable(), blocked());
             new Thread(() -> {
                 try (WithProperties replacementProps = new WithProperties())
                 {
@@ -299,7 +301,7 @@ public class InProgressSequenceCoordinationTest extends FuzzTestBase
             if (null == expectations || expectations.length == 0)
                 return state;
 
-            if (state != expectations[index])
+            if (!state.equals(expectations[index]))
                 throw new IllegalStateException(String.format("Unexpected outcome for %s@%s; Expected: %s, Actual: %s",
                                                               sequence.kind(), sequence.nextStep(), expectations[index], state));
 
@@ -309,9 +311,9 @@ public class InProgressSequenceCoordinationTest extends FuzzTestBase
                 expectationsMet.signal();
                 barrier.awaitUninterruptibly();
                 if (retry)
-                    state = sequence.executeNext()
-                            ? SequenceState.CONTINUING
-                            : SequenceState.HALTED;
+                    state = sequence.executeNext().isContinuable()
+                            ? continuable()
+                            : halted();
                 return state;
             }
 

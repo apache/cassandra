@@ -109,8 +109,7 @@ class OnClusterLeave extends OnClusterChangeTopology
 
                 UnbootstrapAndLeave unbootstrapAndLeave = ((UnbootstrapAndLeave) sequence);
                 assert unbootstrapAndLeave.next.ordinal() == kind : String.format("Expected next step to be %s, but got %s", Transformation.Kind.values()[kind], unbootstrapAndLeave.next);
-                boolean res = unbootstrapAndLeave.executeNext();
-                assert res;
+                assert unbootstrapAndLeave.executeNext().isContinuable();
             });
         }
     }

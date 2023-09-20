@@ -75,6 +75,8 @@ import com.google.common.collect.Ordering;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.RateLimiter;
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.apache.cassandra.utils.progress.ProgressEvent;
+import org.apache.cassandra.utils.progress.ProgressEventType;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -493,6 +495,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         jmxObjectName = "org.apache.cassandra.db:type=StorageService";
 
         sstablesTracker = new SSTablesGlobalTracker(DatabaseDescriptor.getSelectedSSTableFormat());
+        registerMBeans();
     }
 
     private void registerMBeans()
@@ -863,8 +866,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
                 if (ClusterMetadata.current().directory.peerState(self) == JOINED)
                     SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.COMPLETED);
-                else if (finishJoiningRing)
-                    throw new IllegalStateException("Did not finish joining the ring. Please check logs for details.");
                 else
                 {
                     logger.info("Did not finish joining the ring; node state is {}, bootstrap state is {}",
@@ -892,8 +893,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private void completeInitialization()
     {
-        if (!initialized)
-            registerMBeans();
         initialized = true;
     }
 
@@ -1106,12 +1105,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             else
             {
                 logger.warn("Can't join the ring because in write_survey mode and bootstrap hasn't completed");
+                throw new IllegalStateException("Cannot join the ring until bootstrap completes");
             }
         }
         else if (isBootstrapMode())
         {
             // bootstrap is not complete hence node cannot join the ring
             logger.warn("Can't join the ring because bootstrap hasn't completed.");
+            throw new IllegalStateException("Cannot join the ring until bootstrap completes");
         }
     }
 
@@ -1129,6 +1130,23 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             return true;
 
         return false;
+    }
+
+    public void resumeBootstrapSequence()
+    {
+        ClusterMetadata metadata = ClusterMetadata.current();
+        NodeId id = metadata.myNodeId();
+        InProgressSequence<?> sequence = metadata.inProgressSequences.get(id);
+
+        if (!(sequence instanceof BootstrapAndJoin) && !(sequence instanceof BootstrapAndReplace))
+            throw new IllegalStateException("Can not resume bootstrap as join sequence has not been started");
+        ongoingBootstrap.set(null);
+        finishInProgressSequences(id);
+        if (!isNativeTransportRunning())
+            daemon.initializeClientTransports();
+        daemon.start();
+        progressSupport.progress("bootstrap", new ProgressEvent(ProgressEventType.COMPLETE, 1, 1, "Resume bootstrap complete"));
+        logger.info("Resume complete");
     }
 
     public void finishJoiningRing()
@@ -1149,8 +1167,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // Note, this does not replace the existing sequence in ClusterMetadata, but it will remove it
         // as usual if execution is successful.
         boolean success = (sequence instanceof BootstrapAndJoin)
-                          ? ((BootstrapAndJoin)sequence).finishJoiningRing().executeNext()
-                          : ((BootstrapAndReplace)sequence).finishJoiningRing().executeNext();
+                          ? ((BootstrapAndJoin)sequence).finishJoiningRing().executeNext().isContinuable()
+                          : ((BootstrapAndReplace)sequence).finishJoiningRing().executeNext().isContinuable();
         if (!success)
             throw new RuntimeException("Could not finish joining ring, restart this node and inflight operations will " +
                                        "attempt to complete. If no progress is made, cancel the join process for this node and retry");
@@ -1612,83 +1630,19 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return SystemKeyspace.getBootstrapState().name();
     }
 
-    // TODO: (TM/alexp): we can not use this method directly, since we need to be able to commit the "join" event.
     public boolean resumeBootstrap()
     {
-        // todo:
-//        if (isBootstrapMode && SystemKeyspace.bootstrapInProgress())
-//        {
-//            logger.info("Resuming bootstrap...");
-//
-//            // already bootstrapped ranges are filtered during bootstrap
-//            BootStrapper bootstrapper = ongoingBootstrap.get();
-//            if (bootstrapper == null)
-//                throw new IllegalStateException("Can't continue bootstrap since it hasn't been started");
-//
-//            InetAddressAndPort replacingEndpoint = replacing
-//                                                   ? DatabaseDescriptor.getReplaceAddress()
-//                                                   : null;
-//
-//            Future<StreamState> bootstrapStream = bootstrapper.bootstrap(streamStateStore,
-//                                                                         useStrictConsistency && !replacing,
-//                                                                         replacingEndpoint); // handles token update
-//            bootstrapStream.addCallback(new FutureCallback<StreamState>()
-//            {
-//                @Override
-//                public void onSuccess(StreamState streamState)
-//                {
-//                    try
-//                    {
-//                        bootstrapFinished();
-//                        if (isSurveyMode)
-//                        {
-//                            logger.info("Startup complete, but write survey mode is active, not becoming an active ring member. Use JMX (StorageService->joinRing()) to finalize ring joining.");
-//                        }
-//                        else
-//                        {
-//                            isSurveyMode = false;
-//                            progressSupport.progress("bootstrap", ProgressEvent.createNotification("Joining ring..."));
-//                            finishJoiningRing();
-//                            doAuthSetup(false);
-//                        }
-//                        progressSupport.progress("bootstrap", new ProgressEvent(ProgressEventType.COMPLETE, 1, 1, "Resume bootstrap complete"));
-//                        if (!isNativeTransportRunning())
-//                            daemon.initializeClientTransports();
-//                        daemon.start();
-//                        logger.info("Resume complete");
-//                    }
-//                    catch(Exception e)
-//                    {
-//                        onFailure(e);
-//                        throw e;
-//                    }
-//                }
-//
-//                @Override
-//                public void onFailure(Throwable e)
-//                {
-//                    String message = "Error during bootstrap: ";
-//                    if (e instanceof ExecutionException && e.getCause() != null)
-//                    {
-//                        message += e.getCause().getMessage();
-//                    }
-//                    else
-//                    {
-//                        message += e.getMessage();
-//                    }
-//                    logger.error(message, e);
-//                    progressSupport.progress("bootstrap", new ProgressEvent(ProgressEventType.ERROR, 1, 1, message));
-//                    progressSupport.progress("bootstrap", new ProgressEvent(ProgressEventType.COMPLETE, 1, 1, "Resume bootstrap complete"));
-//                }
-//            });
-//            return true;
-//        }
-//        else
-//        {
-//            logger.info("Resuming bootstrap is requested, but the node is already bootstrapped.");
-//            return false;
-//        }
-        return false;
+        if (isBootstrapMode() && SystemKeyspace.bootstrapInProgress())
+        {
+            logger.info("Resuming bootstrap...");
+            resumeBootstrapSequence();
+            return true;
+        }
+        else
+        {
+            logger.info("Resuming bootstrap is requested, but the node is already bootstrapped.");
+            return false;
+        }
     }
 
     public void abortBootstrap(String nodeStr, String endpoint)

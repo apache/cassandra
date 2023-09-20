@@ -159,8 +159,7 @@ class OnClusterReplace extends OnClusterChangeTopology
 
                 BootstrapAndReplace bootstrapAndReplace = ((BootstrapAndReplace) sequence);
                 assert bootstrapAndReplace.next.ordinal() == kind : String.format("Expected next step to be %s, but got %s", Transformation.Kind.values()[kind], bootstrapAndReplace.next);
-                boolean res = bootstrapAndReplace.executeNext();
-                assert res;
+                assert bootstrapAndReplace.executeNext().isContinuable();
             });
         }
     }
