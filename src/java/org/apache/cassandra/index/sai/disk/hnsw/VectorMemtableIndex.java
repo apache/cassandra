@@ -56,6 +56,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.lucene.util.Bits;
 
+import static java.lang.Math.min;
 import static java.lang.Math.pow;
 import static org.apache.cassandra.index.sai.disk.hnsw.CassandraOnHeapHnsw.InvalidVectorBehavior.FAIL;
 
@@ -232,7 +233,7 @@ public class VectorMemtableIndex implements MemtableIndex
     {
         // constants are computed by Code Interpreter based on observed comparison counts in tests
         // https://chat.openai.com/share/29a25377-786f-4690-b146-12acb6acb75b
-        int expectedNodesVisited = (int) (0.26 * log(graphSize) * M * pow(limit, 0.7933));
+        int expectedNodesVisited = min(graphSize, (int) (0.26 * log(graphSize) * M * pow(limit, 0.7933)));
         int expectedComparisons = M * expectedNodesVisited;
         // 0.8 because that's approximately our stdev -- we'd rather underestimate, since
         // that results in doing more actual searches
