@@ -509,6 +509,32 @@ public class AccordCQLTest extends AccordTestBase
     }
 
     @Test
+    public void testFailedConditionWithCompleteInsert() throws Throwable
+    {
+        test(cluster ->
+        {
+            cluster.coordinator(1).execute("INSERT INTO " + currentTable + " (k, c, v) VALUES (1, 0, 3);", ConsistencyLevel.ALL);
+
+            String query = "BEGIN TRANSACTION\n" +
+                           "  LET row0 = (SELECT * FROM " + currentTable + " WHERE k = ? AND c = ?);\n" +
+                           "  LET row1 = (SELECT * FROM " + currentTable + " WHERE k = ? AND c = ?);\n" +
+                           "  SELECT row1.v;\n" +
+                           "  IF row0 IS NULL AND row1.v = ? THEN\n" +
+                           "    INSERT INTO " + currentTable + " (k, c, v) VALUES (?, ?, ?);\n" +
+                           "  END IF\n" +
+                           "COMMIT TRANSACTION";
+            SimpleQueryResult result = cluster.coordinator(1).executeWithResult(query, ConsistencyLevel.ANY, 0, 0, 1, 0, 2, 0, 0, 1);
+            assertEquals(ImmutableList.of("row1.v"), result.names());
+            assertThat(result).hasSize(1).contains(3);
+
+            String check = "BEGIN TRANSACTION\n" +
+                           "  SELECT * FROM " + currentTable + " WHERE k=0 AND c=0;\n" +
+                           "COMMIT TRANSACTION";
+            assertEmptyWithPreemptedRetry(cluster, check);
+        });
+    }
+
+    @Test
     public void testReversedClusteringReference() throws Exception
     {
         test("CREATE TABLE " + currentTable + " (k int, c int, v int, PRIMARY KEY (k, c)) WITH CLUSTERING ORDER BY (c DESC)",

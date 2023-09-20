@@ -85,7 +85,6 @@ import org.apache.cassandra.service.accord.AccordKeyspace.CommandsColumns;
 import org.apache.cassandra.service.accord.AccordKeyspace.CommandsForKeyRows;
 import org.apache.cassandra.service.accord.AccordTestUtils;
 import org.apache.cassandra.service.accord.IAccordService;
-import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
@@ -129,7 +128,7 @@ public class CompactionAccordIteratorsTest
     static ColumnFamilyStore commands;
     static ColumnFamilyStore commandsForKey;
     static TableMetadata table;
-    static FullRoute route;
+    static FullRoute<?> route;
     Random random;
 
     /*
@@ -304,7 +303,6 @@ public class CompactionAccordIteratorsTest
                 for (ColumnMetadata cm : CommandsColumns.TRUNCATE_FIELDS[1])
                     assertNotNull(row.getColumnData(cm));
                 assertEquals(TXN_ID, CommandRows.getTxnId(partitionKeyComponents));
-                assertEquals(1, ((TxnData)CommandRows.getResult(row)).entrySet().size());
                 assertNotNull(CommandRows.getWrites(row));
                 assertEquals(Durability.Local, CommandRows.getDurability(row));
                 assertEquals(TXN_ID, CommandRows.getExecuteAt(row));

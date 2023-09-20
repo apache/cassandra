@@ -41,7 +41,6 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.service.accord.txn.TxnData;
 
 import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
 import static org.apache.cassandra.utils.NullableSerializer.serializeNullable;
@@ -96,11 +95,10 @@ public class RecoverySerializers
             DepsSerializer.deps.serialize(recoverOk.earlierAcceptedNoWitness, out, version);
             out.writeBoolean(recoverOk.rejectsFastPath);
             serializeNullable(recoverOk.writes, out, version, CommandSerializers.writes);
-            serializeNullable((TxnData) recoverOk.result, out, version, TxnData.serializer);
         }
 
         @Override
-        public final void serialize(RecoverReply reply, DataOutputPlus out, int version) throws IOException
+        public void serialize(RecoverReply reply, DataOutputPlus out, int version) throws IOException
         {
             out.writeBoolean(reply.isOk());
             if (!reply.isOk())
@@ -120,14 +118,23 @@ public class RecoverySerializers
         }
 
         @Override
-        public final RecoverReply deserialize(DataInputPlus in, int version) throws IOException
+        public RecoverReply deserialize(DataInputPlus in, int version) throws IOException
         {
             boolean isOk = in.readBoolean();
             if (!isOk)
                 return deserializeNack(CommandSerializers.nullableBallot.deserialize(in, version), in, version);
 
-            return deserializeOk(CommandSerializers.txnId.deserialize(in, version),
-                                 CommandSerializers.status.deserialize(in, version),
+            TxnId id = CommandSerializers.txnId.deserialize(in, version);
+            Status status = CommandSerializers.status.deserialize(in, version);
+
+            Result result = null;
+            if (status == Status.PreApplied || status == Status.Applied || status == Status.Truncated)
+                result = Result.APPLIED;
+            else if (status == Status.Invalidated)
+                result = Result.INVALIDATED;
+
+            return deserializeOk(id,
+                                 status,
                                  CommandSerializers.ballot.deserialize(in, version),
                                  deserializeNullable(in, version, CommandSerializers.timestamp),
                                  DepsSerializer.partialDeps.deserialize(in, version),
@@ -136,7 +143,7 @@ public class RecoverySerializers
                                  DepsSerializer.deps.deserialize(in, version),
                                  in.readBoolean(),
                                  deserializeNullable(in, version, CommandSerializers.writes),
-                                 deserializeNullable(in, version, TxnData.serializer),
+                                 result,
                                  in,
                                  version);
         }
@@ -158,12 +165,11 @@ public class RecoverySerializers
             size += DepsSerializer.deps.serializedSize(recoverOk.earlierAcceptedNoWitness, version);
             size += TypeSizes.sizeof(recoverOk.rejectsFastPath);
             size += serializedNullableSize(recoverOk.writes, version, CommandSerializers.writes);
-            size += serializedNullableSize((TxnData) recoverOk.result, version, TxnData.serializer);
             return size;
         }
 
         @Override
-        public final long serializedSize(RecoverReply reply, int version)
+        public long serializedSize(RecoverReply reply, int version)
         {
             return TypeSizes.sizeof(reply.isOk())
                    + (reply.isOk() ? serializedOkSize((RecoverOk) reply, version) : serializedNackSize((RecoverNack) reply, version));

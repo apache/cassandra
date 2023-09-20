@@ -43,7 +43,6 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.service.accord.txn.TxnData;
 
 import static accord.messages.CheckStatus.SerializationSupport.createOk;
 import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
@@ -121,7 +120,6 @@ public class CheckStatusSerializers
             serializeNullable(okFull.partialTxn, out, version, CommandSerializers.partialTxn);
             serializeNullable(okFull.committedDeps, out, version, DepsSerializer.partialDeps);
             serializeNullable(okFull.writes, out, version, CommandSerializers.writes);
-            serializeNullable((TxnData) okFull.result, out, version, TxnData.serializer);
         }
 
         @Override
@@ -154,7 +152,14 @@ public class CheckStatusSerializers
                     PartialTxn partialTxn = deserializeNullable(in, version, CommandSerializers.partialTxn);
                     PartialDeps committedDeps = deserializeNullable(in, version, DepsSerializer.partialDeps);
                     Writes writes = deserializeNullable(in, version, CommandSerializers.writes);
-                    Result result = deserializeNullable(in, version, TxnData.serializer);
+
+                    Result result = null;
+                    if (status == SaveStatus.PreApplied || status == SaveStatus.Applied
+                        || status == SaveStatus.TruncatedApply || status == SaveStatus.TruncatedApplyWithOutcome || status == SaveStatus.TruncatedApplyWithDeps)
+                        result = Result.APPLIED;
+                    else if (status == SaveStatus.Invalidated)
+                        result = Result.INVALIDATED;
+
                     return createOk(truncated, invalidIfNotAtLeast, status, maxStatus, promised, accepted, executeAt,
                                     isCoordinating, durability, route, homeKey, partialTxn, committedDeps, writes, result);
             }
@@ -187,7 +192,6 @@ public class CheckStatusSerializers
             size += serializedNullableSize(okFull.partialTxn, version, CommandSerializers.partialTxn);
             size += serializedNullableSize(okFull.committedDeps, version, DepsSerializer.partialDeps);
             size += serializedNullableSize(okFull.writes, version, CommandSerializers.writes);
-            size += serializedNullableSize((TxnData) okFull.result, version, TxnData.serializer);
             return size;
         }
     };
