@@ -241,8 +241,12 @@ public final class SSLFactory
     {
         cachedSslContexts.forEachKey(1, cacheKey -> {
             // This can be replaced by a simple options.equals(cacheKey.entryptionOptions)
-            // once the legacy ssl storage port code is removed
-            if (Objects.equals(options.keystore, cacheKey.encryptionOptions.keystore) &&
+            // once the legacy ssl storage port code is removed.  The encryption option configuration
+            // used for the legacy ssl storage port is not used when SSL Cert hot reloading is initialized,
+            // so will never be return true for shouldReload. Instead, if there is a keystore present
+            // and the paths/password match, use that to invalidate instead.
+            if (cacheKey.encryptionOptions.keystore != null &&
+                Objects.equals(options.keystore, cacheKey.encryptionOptions.keystore) &&
                 Objects.equals(options.keystore_password, cacheKey.encryptionOptions.keystore_password) &&
                 Objects.equals(options.truststore, cacheKey.encryptionOptions.truststore) &&
                 Objects.equals(options.truststore_password, cacheKey.encryptionOptions.truststore_password))
