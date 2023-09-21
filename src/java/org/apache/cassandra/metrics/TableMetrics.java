@@ -946,7 +946,7 @@ public class TableMetrics
         liveScannedHistogram = createTableHistogram("LiveScannedHistogram", cfs.getKeyspaceMetrics().liveScannedHistogram, false);
         colUpdateTimeDeltaHistogram = createTableHistogram("ColUpdateTimeDeltaHistogram", cfs.getKeyspaceMetrics().colUpdateTimeDeltaHistogram, false);
         coordinatorReadLatency = createTableTimer("CoordinatorReadLatency", cfs.getKeyspaceMetrics().coordinatorReadLatency);
-        coordinatorScanLatency = createTableTimer("CoordinatorScanLatency", cfs.getKeyspaceMetrics().coordinatorReadLatency);
+        coordinatorScanLatency = createTableTimer("CoordinatorScanLatency", cfs.getKeyspaceMetrics().coordinatorScanLatency);
         coordinatorWriteLatency = createTableTimer("CoordinatorWriteLatency", cfs.getKeyspaceMetrics().coordinatorWriteLatency);
         waitingOnFreeMemtableSpace = createTableHistogram("WaitingOnFreeMemtableSpace", cfs.getKeyspaceMetrics().waitingOnFreeMemtableSpace, false);
         coordinatorReadSize = createTableHistogram("CoordinatorReadSize", cfs.getKeyspaceMetrics().coordinatorReadSize, false);
