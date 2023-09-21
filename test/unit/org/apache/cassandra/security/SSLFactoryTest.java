@@ -95,10 +95,12 @@ public class SSLFactoryTest
         {
             ServerEncryptionOptions options = addKeystoreOptions(encryptionOptions)
                                               .withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all);
-
-            SSLFactory.initHotReloading(options, options, true);
+            ServerEncryptionOptions legacyOptions = options.withOptional(false).withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all);
+            options.sslContextFactoryInstance.initHotReloading();
+            legacyOptions.sslContextFactoryInstance.initHotReloading();
 
             SslContext oldCtx = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT, "test");
+            SslContext oldLegacyCtx = SSLFactory.getOrCreateSslContext(legacyOptions, true, ISslContextFactory.SocketType.CLIENT, "test legacy");
             File keystoreFile = new File(options.keystore);
 
             SSLFactory.checkCertFilesForHotReloading();
@@ -107,8 +109,10 @@ public class SSLFactoryTest
 
             SSLFactory.checkCertFilesForHotReloading();
             SslContext newCtx = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT, "test");
+            SslContext newLegacyCtx = SSLFactory.getOrCreateSslContext(legacyOptions, true, ISslContextFactory.SocketType.CLIENT, "test legacy");
 
             Assert.assertNotSame(oldCtx, newCtx);
+            Assert.assertNotSame(oldLegacyCtx, newLegacyCtx);
         }
         catch (Exception e)
         {
@@ -129,8 +133,8 @@ public class SSLFactoryTest
                                               .withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.dc);
             // emulate InboundSockets and share the cert but with different options, no extra hot reloading init
             ServerEncryptionOptions legacyOptions = options.withOptional(false).withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all);
-
-            SSLFactory.initHotReloading(options, options, true); // deliberately not initializing with legacyOptions to match InboundSockets.addBindings
+            options.sslContextFactoryInstance.initHotReloading();
+            legacyOptions.sslContextFactoryInstance.initHotReloading();
 
             SslContext oldCtx = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT, "test");
             SslContext oldLegacyCtx = SSLFactory.getOrCreateSslContext(legacyOptions, true, ISslContextFactory.SocketType.CLIENT, "test legacy");
@@ -315,13 +319,6 @@ public class SSLFactoryTest
         );
 
         Assert.assertNotEquals(cacheKey1, cacheKey2);
-    }
-
-    public static class TestFileBasedSSLContextFactory extends FileBasedSslContextFactory {
-        public TestFileBasedSSLContextFactory(Map<String, Object> parameters)
-        {
-            super(parameters);
-        }
     }
 
     void changeKeystorePassword(String filename, String currentPassword, String newPassword)

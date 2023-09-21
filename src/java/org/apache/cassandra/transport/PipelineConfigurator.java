@@ -203,7 +203,6 @@ public class PipelineConfigurator
                                                                              encryptionOptions.require_client_auth,
                                                                              ISslContextFactory.SocketType.SERVER,
                                                                              SSL_FACTORY_CONTEXT_DESCRIPTION);
-                    InetSocketAddress peer = encryptionOptions.require_endpoint_verification ? (InetSocketAddress) channel.remoteAddress() : null;
                     channel.pipeline().addFirst(SSL_HANDLER, sslContext.newHandler(channel.alloc()));
                 };
             default:
