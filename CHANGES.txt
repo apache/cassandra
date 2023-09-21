@@ -4,6 +4,7 @@
  * Fix BulkLoader ignoring cipher suites options (CASSANDRA-18582)
  * Migrate Python optparse to argparse (CASSANDRA-17914)
 Merged from 3.11:
+ * Fix delayed SSTable release with unsafe_aggressive_sstable_expiration (CASSANDRA-18756)
  * Revert CASSANDRA-18543 (CASSANDRA-18854)
  * Fix NPE when using udfContext in UDF after a restart of a node (CASSANDRA-18739)
  * Moved jflex from runtime to build dependencies (CASSANDRA-18664)
