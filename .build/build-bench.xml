@@ -70,7 +70,7 @@
     <macrodef name="jmh">
         <element name="extra-args" optional="true"/>
         <sequential>
-            <java classname="org.openjdk.jmh.Main" fork="true" failonerror="true">
+            <java classname="org.openjdk.jmh.Main" fork="true" failonerror="true" >
                 <classpath>
                     <path refid="cassandra.classpath.test"/>
                     <pathelement location="${test.classes}"/>
@@ -78,6 +78,11 @@
                     <pathelement location="${async-profiler.base}/lib/async-profiler.jar"/>
                     <pathelement location="${async-profiler.base}/lib/converter.jar"/>
                 </classpath>
+
+                <jvmarg line="${java-jvmargs}"/>
+                <jvmarg line="${_std-test-jvmargs}"/>
+                <jvmarg line="${test.jvm.args}"/>
+
                 <arg value="-foe"/>
                 <arg value="true"/>
                 <arg value="-rf"/>
@@ -86,15 +91,14 @@
                 <arg value="${build.test.dir}/jmh-result.json"/>
                 <arg value="-v"/>
                 <arg value="EXTRA"/>
-                <jvmarg line="${java-jvmargs}"/>
-                <jvmarg line="${_std-test-jvmargs}"/>
-                <jvmarg line="${test.jvm.args}"/>
+
+                <arg line="${jmh.args}"/>
 
                 <extra-args/>
 
                 <!-- Broken: ZeroCopyStreamingBench,MutationBench,FastThreadLocalBench  (FIXME) -->
-                <arg value="-e"/>
-                <arg value="ZeroCopyStreamingBench|MutationBench|FastThreadLocalBench"/>
+                <arg value="-e" if:blank="${benchmark.name}"/>
+                <arg value="ZeroCopyStreamingBench|MutationBench|FastThreadLocalBench" if:blank="${benchmark.name}"/>
 
                 <arg value=".*microbench.*${benchmark.name}"/>
             </java>

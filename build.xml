@@ -72,6 +72,7 @@
     <property name="test.classlistfile" value="testlist.txt"/>
     <property name="test.classlistprefix" value="unit"/>
     <property name="benchmark.name" value=""/>
+    <property name="jmh.args" value=""/>
     <property name="test.methods" value=""/>
     <property name="test.anttasks.src" value="${test.dir}/anttasks"/>
     <property name="test.unit.src" value="${test.dir}/unit"/>
