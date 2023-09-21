@@ -28,6 +28,8 @@ import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.github.jbellis.jvector.util.Bits;
+import io.github.jbellis.jvector.util.SparseFixedBitSet;
 import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.marshal.VectorType;
@@ -36,16 +38,15 @@ import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.v1.PerColumnIndexFiles;
-import org.apache.cassandra.index.sai.disk.v1.vector.hnsw.CassandraOnDiskHnsw;
 import org.apache.cassandra.index.sai.disk.v1.postings.ReorderingPostingList;
+import org.apache.cassandra.index.sai.disk.v1.vector.CassandraDiskAnn;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.postings.IntArrayPostingList;
+import org.apache.cassandra.index.sai.postings.PeekablePostingList;
 import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.index.sai.utils.RangeUtil;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
-import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.SparseFixedBitSet;
 
 /**
  * Executes ann search against the HNSW graph for an individual index segment.
@@ -54,7 +55,7 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
 {
     private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
-    private final CassandraOnDiskHnsw graph;
+    private final CassandraDiskAnn graph;
     private final VectorType<float[]> type;
     private int maxBruteForceRows; // not final so test can inject its own setting
     private final ThreadLocal<SparseFixedBitSet> cachedBitSets;
@@ -65,7 +66,7 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
                                IndexContext indexContext) throws IOException
     {
         super(primaryKeyMapFactory, perIndexFiles, segmentMetadata, indexContext);
-        graph = new CassandraOnDiskHnsw(segmentMetadata.componentMetadatas, perIndexFiles, indexContext);
+        graph = new CassandraDiskAnn(segmentMetadata.componentMetadatas, perIndexFiles, indexContext);
         type = (VectorType<float[]>) indexContext.getValidator();
         cachedBitSets = ThreadLocal.withInitial(() -> new SparseFixedBitSet(graph.size()));
 
@@ -100,7 +101,7 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
 
         ByteBuffer buffer = exp.lower.value.raw;
         float[] queryVector = TypeUtil.decomposeVector(indexContext, buffer.duplicate());
-        return graph.search(queryVector, context.limit(), bitsOrPostingList.getBits(), Integer.MAX_VALUE, context);
+        return graph.search(queryVector, context.limit(), bitsOrPostingList.getBits(), context);
     }
 
     /**
@@ -181,7 +182,7 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
     }
 
     @Override
-    public KeyRangeIterator limitToTopResults(QueryContext context, PostingList postingList, Expression exp) throws IOException
+    public KeyRangeIterator limitToTopResults(QueryContext context, PeekablePostingList postingList, Expression exp) throws IOException
     {
         // the iterator represents keys from all the segments in our sstable -- we'll only pull of those that
         // are from our own token range so we can use row ids to order the results by vector similarity.
@@ -193,10 +194,12 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
         {
             while (true)
             {
-                long sstableRowId = postingList.nextPosting();
+                long sstableRowId = postingList.peek();
                 // if sstable row id has exceeded current ANN segment, stop
                 if (sstableRowId > metadata.maxSSTableRowId)
                     break;
+
+                postingList.nextPosting();
 
                 // skip rows that are not in our segment (or more preciesely, have no vectors that were indexed)
                 if (sstableRowId < metadata.minSSTableRowId)
@@ -227,7 +230,7 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
         // else ask hnsw to perform a search limited to the bits we created
         ByteBuffer buffer = exp.lower.value.raw;
         float[] queryVector = type.getSerializer().deserializeFloatArray(buffer);
-        var results = graph.search(queryVector, context.limit(), bits, Integer.MAX_VALUE, context);
+        var results = graph.search(queryVector, context.limit(), bits, context);
         return toPrimaryKeyIterator(results, context);
     }
 

@@ -25,18 +25,15 @@ import java.util.NavigableSet;
 import java.util.Set;
 import java.util.TreeSet;
 
+import io.github.jbellis.jvector.util.Bits;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
-import org.apache.cassandra.index.sai.disk.v1.vector.hnsw.CassandraOnDiskHnsw;
-import org.apache.cassandra.index.sai.disk.v1.vector.hnsw.CassandraOnHeapHnsw;
+import org.apache.cassandra.index.sai.disk.v1.vector.CassandraDiskAnn;
+import org.apache.cassandra.index.sai.disk.v1.vector.CassandraOnHeapGraph;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
-import org.apache.lucene.util.Bits;
 
 public class VectorContext
 {
-    public int hnswVectorsAccessed;
-    public int hnswVectorCacheHits;
-
     private TreeSet<PrimaryKey> shadowedPrimaryKeys; // allocate when needed
 
     public void recordShadowedPrimaryKey(PrimaryKey primaryKey)
@@ -67,7 +64,7 @@ public class VectorContext
         return shadowedPrimaryKeys;
     }
 
-    public Bits bitsetForShadowedPrimaryKeys(CassandraOnHeapHnsw<PrimaryKey> graph)
+    public Bits bitsetForShadowedPrimaryKeys(CassandraOnHeapGraph<PrimaryKey> graph)
     {
         if (shadowedPrimaryKeys == null)
             return null;
@@ -75,7 +72,7 @@ public class VectorContext
         return new IgnoredKeysBits(graph, shadowedPrimaryKeys);
     }
 
-    public Bits bitsetForShadowedPrimaryKeys(SegmentMetadata metadata, PrimaryKeyMap primaryKeyMap, CassandraOnDiskHnsw graph) throws IOException
+    public Bits bitsetForShadowedPrimaryKeys(SegmentMetadata metadata, PrimaryKeyMap primaryKeyMap, CassandraDiskAnn graph) throws IOException
     {
         Set<Integer> ignoredOrdinals = null;
         try (var ordinalsView = graph.getOrdinalsView())
@@ -111,20 +108,17 @@ public class VectorContext
         if (ignoredOrdinals == null)
             return null;
 
-        return new IgnoringBits(graph, ignoredOrdinals, metadata);
+        return new IgnoringBits(ignoredOrdinals, metadata);
     }
 
     private static class IgnoringBits implements Bits
     {
-        private final CassandraOnDiskHnsw graph;
         private final Set<Integer> ignoredOrdinals;
         private final int length;
 
-        public IgnoringBits(CassandraOnDiskHnsw graph, Set<Integer> ignoredOrdinals, SegmentMetadata metadata)
+        public IgnoringBits(Set<Integer> ignoredOrdinals, SegmentMetadata metadata)
         {
-            this.graph = graph;
             this.ignoredOrdinals = ignoredOrdinals;
-            // TODO We should be able to replace this with metadata.numRows
             this.length = 1 + Math.toIntExact(metadata.maxSSTableRowId - metadata.rowIdOffset);
         }
 
@@ -143,10 +137,10 @@ public class VectorContext
 
     private static class IgnoredKeysBits implements Bits
     {
-        private final CassandraOnHeapHnsw<PrimaryKey> graph;
+        private final CassandraOnHeapGraph<PrimaryKey> graph;
         private final NavigableSet<PrimaryKey> ignored;
 
-        public IgnoredKeysBits(CassandraOnHeapHnsw<PrimaryKey> graph, NavigableSet<PrimaryKey> ignored)
+        public IgnoredKeysBits(CassandraOnHeapGraph<PrimaryKey> graph, NavigableSet<PrimaryKey> ignored)
         {
             this.graph = graph;
             this.ignored = ignored;

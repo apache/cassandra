@@ -16,16 +16,18 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.index.sai.disk.v1.vector.hnsw;
-
-import org.apache.cassandra.db.marshal.VectorType;
-import org.apache.cassandra.io.util.SequentialWriter;
-import org.apache.lucene.util.RamUsageEstimator;
+package org.apache.cassandra.index.sai.disk.v1.vector;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import javax.annotation.concurrent.NotThreadSafe;
 
+import io.github.jbellis.jvector.util.RamUsageEstimator;
+import org.apache.cassandra.db.marshal.VectorType;
+import org.apache.cassandra.io.util.SequentialWriter;
+
+@NotThreadSafe
 public class CompactionVectorValues implements RamAwareVectorValues
 {
     private final int dimension;
@@ -59,14 +61,15 @@ public class CompactionVectorValues implements RamAwareVectorValues
     /** return approximate bytes used by the new vector */
     public long add(int ordinal, ByteBuffer value)
     {
-        while (ordinal >= values.size())
-            values.add(null);
-        values.set(ordinal, value);
+        if (ordinal != values.size())
+            throw new IllegalArgumentException(String.format("CVV requires vectors to be added in ordinal order (%d given, expected %d)",
+                                                             ordinal, values.size()));
+        values.add(value);
         return RamEstimation.concurrentHashMapRamUsed(1) + oneVectorBytesUsed();
     }
 
     @Override
-    public RandomAccessVectorValues<float[]> copy()
+    public CompactionVectorValues copy()
     {
         return this;
     }

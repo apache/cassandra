@@ -18,9 +18,6 @@
 
 package org.apache.cassandra.index.sai.cql;
 
-import org.apache.cassandra.cql3.UntypedResultSet;
-import org.junit.Test;
-
 import java.io.BufferedInputStream;
 import java.io.DataInputStream;
 import java.io.FileInputStream;
@@ -33,6 +30,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
+
+import org.junit.Test;
+
+import org.apache.cassandra.cql3.UntypedResultSet;
 
 import static org.junit.Assert.assertTrue;
 
@@ -52,11 +53,11 @@ public class VectorSiftSmallTest extends VectorTester
 
         insertVectors(baseVectors);
         double memoryRecall = testRecall(queryVectors, groundTruth);
-        assertTrue(memoryRecall > 0.975);
+        assertTrue("Memory recall is " + memoryRecall, memoryRecall > 0.975);
 
         flush();
         var diskRecall = testRecall(queryVectors, groundTruth);
-        assertTrue(diskRecall > 0.975);
+        assertTrue("Disk recall is " + diskRecall, diskRecall > 0.95);
     }
 
     public static ArrayList<float[]> readFvecs(String filePath) throws IOException
@@ -122,13 +123,16 @@ public class VectorSiftSmallTest extends VectorTester
             float[] queryVector = queryVectors.get(i);
             String queryVectorAsString = Arrays.toString(queryVector);
 
-            try {
+            try
+            {
                 UntypedResultSet result = execute("SELECT pk FROM %s ORDER BY val ANN OF " + queryVectorAsString + " LIMIT " + topK);
                 var gt = groundTruth.get(i);
 
                 int n = (int)result.stream().filter(row -> gt.contains(row.getInt("pk"))).count();
                 topKfound.addAndGet(n);
-            } catch (Throwable throwable) {
+            }
+            catch (Throwable throwable)
+            {
                 throw new RuntimeException(throwable);
             }
         });
@@ -141,9 +145,12 @@ public class VectorSiftSmallTest extends VectorTester
         IntStream.range(0, baseVectors.size()).parallel().forEach(i -> {
             float[] arrayVector = baseVectors.get(i);
             String vectorAsString = Arrays.toString(arrayVector);
-            try {
+            try
+            {
                 execute("INSERT INTO %s " + String.format("(pk, val) VALUES (%d, %s)", i, vectorAsString));
-            } catch (Throwable throwable) {
+            }
+            catch (Throwable throwable)
+            {
                 throw new RuntimeException(throwable);
             }
         });

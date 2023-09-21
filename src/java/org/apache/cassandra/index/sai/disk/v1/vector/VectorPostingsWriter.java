@@ -16,13 +16,17 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.index.sai.disk.v1.vector.hnsw;
+package org.apache.cassandra.index.sai.disk.v1.vector;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.utils.Pair;
-
-import java.io.IOException;
-import java.util.*;
 
 public class VectorPostingsWriter<T>
 {

@@ -16,12 +16,13 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.index.sai.disk.v1.vector.hnsw;
-
-import org.apache.lucene.util.Bits;
-import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
+package org.apache.cassandra.index.sai.disk.v1.vector;
 
 import java.util.Set;
+
+import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
+
+import io.github.jbellis.jvector.util.Bits;
 
 public class BitsUtil
 {
@@ -37,7 +38,7 @@ public class BitsUtil
         return toAccept == null ? new NoDeletedPostings(postings) : new NoDeletedIntersectingPostings(toAccept, postings);
     }
 
-    private static abstract class BitsWithoutLength implements Bits
+    private static abstract class BitsWithoutLength implements Bits, org.apache.lucene.util.Bits
     {
         @Override
         public int length()

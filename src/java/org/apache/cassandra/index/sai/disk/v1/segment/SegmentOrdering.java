@@ -23,6 +23,7 @@ import java.io.IOException;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
+import org.apache.cassandra.index.sai.postings.PeekablePostingList;
 import org.apache.cassandra.index.sai.postings.PostingList;
 
 /**
@@ -41,7 +42,7 @@ public interface SegmentOrdering
     /**
      * Reorder, limit, and put back into original order the results from a single sstable
      */
-    default KeyRangeIterator limitToTopResults(QueryContext context, PostingList iterator, Expression exp) throws IOException
+    default KeyRangeIterator limitToTopResults(QueryContext context, PeekablePostingList iterator, Expression exp) throws IOException
     {
         throw new UnsupportedOperationException();
     }

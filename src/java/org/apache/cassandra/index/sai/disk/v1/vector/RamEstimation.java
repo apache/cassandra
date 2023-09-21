@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.index.sai.disk.v1.vector.hnsw;
+package org.apache.cassandra.index.sai.disk.v1.vector;
 
 import org.apache.lucene.util.RamUsageEstimator;
 

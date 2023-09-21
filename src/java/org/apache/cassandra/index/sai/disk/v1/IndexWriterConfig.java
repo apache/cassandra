@@ -21,10 +21,10 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.lucene.index.VectorSimilarityFunction;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_VECTOR_SEARCH_MAX_TOP_K;
 
