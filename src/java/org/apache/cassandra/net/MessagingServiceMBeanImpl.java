@@ -274,7 +274,7 @@ public class MessagingServiceMBeanImpl implements MessagingServiceMBean
     }
 
     @Override
-    public void reloadSslCertificates() throws IOException
+    public void reloadSslCertificates()
     {
         SSLFactory.forceCheckCertFiles();
     }
