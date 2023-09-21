@@ -213,6 +213,7 @@ public class MessagingService extends MessagingServiceMBeanImpl
     public static final int current_version = VERSION_40;
     static AcceptVersions accept_messaging = new AcceptVersions(minimum_version, current_version);
     static AcceptVersions accept_streaming = new AcceptVersions(current_version, current_version);
+    public static String SSL_FACTORY_CONTEXT_DESCRIPTION = "server_encryption_options";
 
     public enum Version
     {

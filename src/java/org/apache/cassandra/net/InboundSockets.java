@@ -24,6 +24,8 @@ import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -43,6 +45,7 @@ import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
 class InboundSockets
 {
+    private static Logger logger = LoggerFactory.getLogger(InboundSockets.class);
     /**
      * A simple struct to wrap up the components needed for each listening socket.
      */
@@ -219,6 +222,15 @@ class InboundSockets
 
         if (settings.encryption.legacy_ssl_storage_port_enabled)
         {
+            // Initialize hot reloading here rather than in org.apache.cassandra.security.SSLFactory.initHotReloading
+            // as the legacySettings.encryption.sslContextFactory is not shared outside the messaging system.
+            // Any SslContexts created will be checked when checkCertFilesForHotReloading is called if initialization
+            // is successful.
+            try {
+                legacySettings.encryption.sslContextFactoryInstance.initHotReloading();
+            } catch (Throwable tr) {
+                logger.warn("Unable to initialize hot reloading for legacy internode socket - continuing disabled", tr);
+            }
             out.add(new InboundSocket(legacySettings));
 
             /*
