@@ -63,6 +63,8 @@ public class PipelineConfigurator
     // which will throttle a system under any normal load.
     private static final boolean DEBUG = Boolean.getBoolean("cassandra.unsafe_verbose_debug_client_protocol");
 
+    public static final String SSL_FACTORY_CONTEXT_DESCRIPTION = "client_encryption_options";
+
     // Stateless handlers
     private static final ConnectionLimitHandler connectionLimitHandler = new ConnectionLimitHandler();
 
@@ -164,7 +166,8 @@ public class PipelineConfigurator
                 return channel -> {
                     SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions,
                                                                              encryptionOptions.require_client_auth,
-                                                                             ISslContextFactory.SocketType.SERVER);
+                                                                             ISslContextFactory.SocketType.SERVER,
+                                                                             SSL_FACTORY_CONTEXT_DESCRIPTION);
 
                     channel.pipeline().addFirst(SSL_HANDLER, new ByteToMessageDecoder()
                     {
@@ -198,7 +201,8 @@ public class PipelineConfigurator
                 return channel -> {
                     SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions,
                                                                              encryptionOptions.require_client_auth,
-                                                                             ISslContextFactory.SocketType.SERVER);
+                                                                             ISslContextFactory.SocketType.SERVER,
+                                                                             SSL_FACTORY_CONTEXT_DESCRIPTION);
                     channel.pipeline().addFirst(SSL_HANDLER, sslContext.newHandler(channel.alloc()));
                 };
             default:

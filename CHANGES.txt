@@ -1,4 +1,5 @@
 4.1.4
+ * Internode legacy SSL storage port certificate is not hot reloaded on update (CASSANDRA-18681)
  * Nodetool paxos-only repair is no longer incremental (CASSANDRA-18466)
  * Waiting indefinitely on ReceivedMessage response in StreamSession#receive() can cause deadlock (CASSANDRA-18733)
  * Allow empty keystore_password in encryption_options (CASSANDRA-18778)
