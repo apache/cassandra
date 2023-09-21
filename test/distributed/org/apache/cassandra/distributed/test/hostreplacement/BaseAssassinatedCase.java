@@ -88,7 +88,7 @@ public abstract class BaseAssassinatedCase extends TestBaseImpl
                                    // matter for this test
                                    properties.set(BOOTSTRAP_SCHEMA_DELAY_MS, 10);
                                }))
-            .hasMessageContaining("Rejecting this plan as the replaced node");
+            .hasMessageContaining("Cannot replace node /127.0.0.2:7012 which is not currently joined");
         }
     }
 }

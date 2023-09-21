@@ -800,10 +800,10 @@ public class CassandraDaemon
     public void validateTransportsCanStart()
     {
         ClusterMetadata metadata = ClusterMetadata.current();
-        InProgressSequence startupSequence = metadata.inProgressSequences.get(metadata.myNodeId());
+        InProgressSequence<?> startupSequence = metadata.inProgressSequences.get(metadata.myNodeId());
 
-        // We only start transports if bootstrap has completed and we're not in survey mode, OR if we are in
-        // survey mode and streaming has completed but we're not using auth.
+        // We only start transports if bootstrap has completed, and we're not in survey mode, OR if we are in
+        // survey mode and streaming has completed, but we're not using auth.
         // OR if we have not joined the ring yet.
         if (startupSequence != null)
         {
@@ -822,6 +822,11 @@ public class CassandraDaemon
         }
         else
         {
+            // Bootstrap with same address is an edge-case here, since we rely on HIBERNATE to prevent writes
+            // toward the bootstrapping replacement, so there's no startup sequence involved.
+            if (StorageService.instance.isReplacingSameAddress() && StorageService.instance.isSurveyMode())
+                return;
+
             // This node has not joined the ring (i.e. it was started with -Dcassandra.join_ring=false)
             if (StorageService.instance.isStarting())
                 return;

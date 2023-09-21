@@ -209,6 +209,7 @@ import org.apache.cassandra.tcm.sequences.BootstrapAndReplace;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.LeaveStreams;
 import org.apache.cassandra.tcm.sequences.ProgressBarrier;
+import org.apache.cassandra.tcm.sequences.ReplaceSameAddress;
 import org.apache.cassandra.tcm.transformations.Assassinate;
 import org.apache.cassandra.tcm.transformations.CancelInProgressSequence;
 import org.apache.cassandra.tcm.transformations.PrepareJoin;
@@ -776,25 +777,58 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                        valueFactory.sstableVersions(versions));
         });
 
-        Gossiper.instance.start(SystemKeyspace.incrementAndGetGeneration(),
-                                ClusterMetadataService.state() != ClusterMetadataService.State.GOSSIP); // only populate local state if not running in gossip mode
-        Gossiper.instance.register(this);
-        Gossiper.instance.addLocalApplicationState(ApplicationState.NET_VERSION, valueFactory.networkVersion());
-        Gossiper.instance.addLocalApplicationState(ApplicationState.SSTABLE_VERSIONS,
-                                                   valueFactory.sstableVersions(sstablesTracker.versionsInUse()));
-
         if (SystemKeyspace.wasDecommissioned())
             throw new ConfigurationException("This node was decommissioned and will not rejoin the ring unless cassandra.override_decommission=true has been set, or all existing data is removed and the node is bootstrapped again");
 
         if (DatabaseDescriptor.getReplaceTokens().size() > 0 || DatabaseDescriptor.getReplaceNode() != null)
             throw new RuntimeException("Replace method removed; use cassandra.replace_address instead");
 
+        if (isReplacing())
+        {
+            if (SystemKeyspace.bootstrapComplete())
+                throw new RuntimeException("Cannot replace with a node that is already bootstrapped");
+
+            InetAddressAndPort replaceAddress = DatabaseDescriptor.getReplaceAddress();
+            Directory directory = ClusterMetadata.current().directory;
+            if (directory.peerId(replaceAddress) == null || directory.peerState(replaceAddress) != JOINED)
+                throw new RuntimeException(String.format("Cannot replace node %s which is not currently joined", replaceAddress));
+
+            BootstrapAndReplace.checkUnsafeReplace(shouldBootstrap());
+        }
+
+        if (isReplacingSameAddress())
+        {
+            BootstrapAndReplace.gossipStateToHibernate(ClusterMetadata.current(), ClusterMetadata.currentNullable().myNodeId());
+            Gossiper.instance.start(SystemKeyspace.incrementAndGetGeneration(), false);
+        }
+        else
+        {
+            Gossiper.instance.start(SystemKeyspace.incrementAndGetGeneration(),
+                                    ClusterMetadataService.state() != ClusterMetadataService.State.GOSSIP); // only populate local state if not running in gossip mode
+        }
+
+        Gossiper.instance.register(this);
+        Gossiper.instance.addLocalApplicationState(ApplicationState.NET_VERSION, valueFactory.networkVersion());
+        Gossiper.instance.addLocalApplicationState(ApplicationState.SSTABLE_VERSIONS,
+                                                   valueFactory.sstableVersions(sstablesTracker.versionsInUse()));
+
         if (ClusterMetadataService.state() == ClusterMetadataService.State.REMOTE)
             Gossiper.instance.triggerRoundWithCMS();
 
         Gossiper.waitToSettle();
 
-        NodeId self = Register.maybeRegister();
+        NodeId self;
+        if (isReplacingSameAddress())
+        {
+            self = ClusterMetadata.current().myNodeId();
+            if (self == null)
+                throw new IllegalStateException("Tried to replace same address, but node does not seem to be registered");
+        }
+        else
+        {
+            self = Register.maybeRegister();
+        }
+
         Startup.maybeExecuteStartupTransformation(self);
 
         try
@@ -805,14 +839,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             {
                 ClusterMetadata metadata = ClusterMetadata.current();
                 if (metadata.myNodeState() == JOINED)
-                {
-                    // order is important here, the gossiper can fire in between adding these two states.  It's ok to send TOKENS without STATUS, but *not* vice versa.
-                    List<Pair<ApplicationState, VersionedValue>> states = new ArrayList<>();
-                    states.add(Pair.create(ApplicationState.TOKENS, valueFactory.tokens(metadata.tokenMap.tokens(metadata.myNodeId()))));
-                    states.add(Pair.create(ApplicationState.STATUS_WITH_PORT, valueFactory.hibernate(true)));
-                    states.add(Pair.create(ApplicationState.STATUS, valueFactory.hibernate(true)));
-                    Gossiper.instance.addLocalApplicationStates(states);
-                }
+                    BootstrapAndReplace.gossipStateToHibernate(metadata, metadata.myNodeId());
+
                 logger.info("Not joining ring as requested. Use JMX (StorageService->joinRing()) to initiate ring joining");
             }
         }
@@ -874,6 +902,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     break;
                 }
             case JOINED:
+                if (isReplacingSameAddress())
+                    ReplaceSameAddress.streamData(self, metadata, shouldBootstrap(), finishJoiningRing);
+
                 // JOINED appears before BOOTSTRAPPING & BOOT_REPLACE so we can fall
                 // through when we start as REGISTERED/LEFT and complete a full startup
                 logger.info("{}", NORMAL);
@@ -961,17 +992,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         ClusterMetadata metadata = ClusterMetadata.current();
         if (isReplacing())
         {
-            if (SystemKeyspace.bootstrapComplete())
-                throw new RuntimeException("Cannot replace with a node that is already bootstrapped");
-
-            if (!shouldBootstrap() && !CassandraRelevantProperties.ALLOW_UNSAFE_REPLACE.getBoolean())
-            {
-                throw new RuntimeException("Replacing a node without bootstrapping risks invalidating consistency " +
-                                           "guarantees as the expected data may not be present until repair is run. " +
-                                           "To perform this operation, please restart with " +
-                                           "-Dcassandra.allow_unsafe_replace=true");
-            }
-
             InetAddressAndPort replacingEndpoint = DatabaseDescriptor.getReplaceAddress();
 
             NodeId replaced = ClusterMetadata.current().directory.peerId(replacingEndpoint);
@@ -1042,7 +1062,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         snapshotManager.start();
     }
 
-     public static boolean isReplacingSameAddress()
+    public static boolean isReplacingSameAddress()
     {
         InetAddressAndPort replaceAddress = DatabaseDescriptor.getReplaceAddress();
         return replaceAddress != null && replaceAddress.equals(getBroadcastAddressAndPort());
@@ -1175,13 +1195,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     }
 
-    public void doAuthSetup()
-    {
-        doAuthSetup(true);
-    }
-
     @VisibleForTesting
-    public void doAuthSetup(boolean asyncRoleSetup)
+    public void doAuthSetup()
     {
         if (!authSetupCalled.getAndSet(true))
         {

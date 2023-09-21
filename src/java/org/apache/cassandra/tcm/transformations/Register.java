@@ -121,8 +121,6 @@ public class Register implements Transformation
         }
         else
         {
-            // TODO: for now, we do not support replacing a node with the same address. It is still possible to support it by passing a boolean to Register, but we
-            //       would like to check implications.
             throw new IllegalStateException(String.format("A node with address %s already exists, cancelling join. Use cassandra.replace_address if you want to replace this node.", nodeAddresses.broadcastAddress));
         }
 

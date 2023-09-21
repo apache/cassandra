@@ -121,7 +121,7 @@ public class CMSHandoffTest extends FuzzTestBase
     }
 
     @Test
-    public void testReplaceCMSMember() throws IOException, ExecutionException, InterruptedException
+    public void testReplaceCMSMember() throws IOException
     {
         try (Cluster cluster = Cluster.build(5)
                                       .withTokenSupplier(evenlyDistributedTokens(6, 1))

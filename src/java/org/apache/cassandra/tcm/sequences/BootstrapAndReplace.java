@@ -19,7 +19,9 @@
 package org.apache.cassandra.tcm.sequences;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.StreamSupport;
@@ -27,11 +29,15 @@ import java.util.stream.StreamSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.gms.ApplicationState;
+import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.EndpointsByReplica;
@@ -52,6 +58,7 @@ import org.apache.cassandra.tcm.serialization.AsymmetricMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.PrepareReplace;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static org.apache.cassandra.tcm.sequences.BootstrapAndJoin.bootstrap;
@@ -326,6 +333,29 @@ public class BootstrapAndReplace extends InProgressSequence<BootstrapAndReplace>
     public int hashCode()
     {
         return Objects.hash(latestModification, lockKey, bootstrapTokens, startReplace, midReplace, finishReplace, next, finishJoiningRing, streamData);
+    }
+
+    public static void checkUnsafeReplace(boolean shouldBootstrap)
+    {
+        if (!shouldBootstrap && !CassandraRelevantProperties.ALLOW_UNSAFE_REPLACE.getBoolean())
+        {
+            throw new RuntimeException("Replacing a node without bootstrapping risks invalidating consistency " +
+                                       "guarantees as the expected data may not be present until repair is run. " +
+                                       "To perform this operation, please restart with " +
+                                       "-Dcassandra.allow_unsafe_replace=true");
+        }
+
+    }
+
+    public static void gossipStateToHibernate(ClusterMetadata metadata, NodeId nodeId)
+    {
+        // order is important here, the gossiper can fire in between adding these two states.  It's ok to send TOKENS without STATUS, but *not* vice versa.
+        List<Pair<ApplicationState, VersionedValue>> states = new ArrayList<>();
+        VersionedValue.VersionedValueFactory valueFactory = StorageService.instance.valueFactory;
+        states.add(Pair.create(ApplicationState.TOKENS, valueFactory.tokens(metadata.tokenMap.tokens(nodeId))));
+        states.add(Pair.create(ApplicationState.STATUS_WITH_PORT, valueFactory.hibernate(true)));
+        states.add(Pair.create(ApplicationState.STATUS, valueFactory.hibernate(true)));
+        Gossiper.instance.addLocalApplicationStates(states);
     }
 
     public static class Serializer implements AsymmetricMetadataSerializer<InProgressSequence<?>, BootstrapAndReplace>
