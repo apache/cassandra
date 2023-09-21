@@ -24,6 +24,8 @@ import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
@@ -40,10 +42,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import javax.net.ssl.SSLException;
 
 class InboundSockets
 {
@@ -230,8 +228,8 @@ class InboundSockets
             // is successful.
             try {
                 legacySettings.encryption.sslContextFactoryInstance.initHotReloading();
-            } catch (SSLException e) {
-                logger.warn("Unable to initialize hot reloading for legacy internode socket - continuing disabled");
+            } catch (Throwable tr) {
+                logger.warn("Unable to initialize hot reloading for legacy internode socket - continuing disabled", tr);
             }
             out.add(new InboundSocket(legacySettings));
 
