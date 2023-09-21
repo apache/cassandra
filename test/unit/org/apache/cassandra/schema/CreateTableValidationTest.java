@@ -31,7 +31,7 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 public class CreateTableValidationTest extends CQLTester
 {
     @Test
-    public void testInvalidBloomFilterFPRatio() throws Throwable
+    public void testInvalidBloomFilterFPRatio()
     {
         expectedFailure(ConfigurationException.class, "CREATE TABLE %s (a int PRIMARY KEY, b int) WITH bloom_filter_fp_chance = 0.0000001",
                         "bloom_filter_fp_chance must be larger than " + BloomCalculations.minSupportedBloomFilterFpChance() + " and less than or equal to 1.0 (got 1.0E-7)");
