@@ -51,6 +51,12 @@
        <property name="influenceFormat" value="0"/>
     </module>
 
+    <module name="SuppressWithNearbyCommentFilter">
+      <property name="commentFormat" value="checkstyle: permit this invocation"/>
+      <property name="checkFormat" value="RegexpSinglelineJava"/>
+      <property name="influenceFormat" value="0"/>
+    </module>
+
     <module name="IllegalImport">
       <property name="illegalPkgs" value="junit.framework"/>
       <property name="illegalClasses" value=""/>

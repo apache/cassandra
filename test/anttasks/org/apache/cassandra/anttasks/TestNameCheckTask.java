@@ -171,13 +171,13 @@ public class TestNameCheckTask
     public static void main(String[] args)
     {
         TestNameCheckTask check = new TestNameCheckTask();
-        Optional.ofNullable(System.getProperty("scanClassPath")).ifPresent(check::setScanClassPath);
-        Optional.ofNullable(System.getProperty("packageName")).ifPresent(check::setPackageName);
-        Optional.ofNullable(System.getProperty("annotationName")).ifPresent(check::setAnnotationName);
-        Optional.ofNullable(System.getProperty("regex")).ifPresent(check::setRegex);
-        Optional.ofNullable(System.getProperty("expand")).map(Boolean::parseBoolean).ifPresent(check::setExpand);
-        Optional.ofNullable(System.getProperty("normalize")).map(Boolean::parseBoolean).ifPresent(check::setNormalize);
-        Optional.ofNullable(System.getProperty("verbose")).map(Boolean::parseBoolean).ifPresent(check::setVerbose);
+        Optional.ofNullable(System.getProperty("scanClassPath")).ifPresent(check::setScanClassPath); // checkstyle: permit this invocation
+        Optional.ofNullable(System.getProperty("packageName")).ifPresent(check::setPackageName); // checkstyle: permit this invocation
+        Optional.ofNullable(System.getProperty("annotationName")).ifPresent(check::setAnnotationName); // checkstyle: permit this invocation
+        Optional.ofNullable(System.getProperty("regex")).ifPresent(check::setRegex); // checkstyle: permit this invocation
+        Optional.ofNullable(System.getProperty("expand")).map(Boolean::parseBoolean).ifPresent(check::setExpand); // checkstyle: permit this invocation
+        Optional.ofNullable(System.getProperty("normalize")).map(Boolean::parseBoolean).ifPresent(check::setNormalize); // checkstyle: permit this invocation
+        Optional.ofNullable(System.getProperty("verbose")).map(Boolean::parseBoolean).ifPresent(check::setVerbose); // checkstyle: permit this invocation
         check.execute();
     }
 
