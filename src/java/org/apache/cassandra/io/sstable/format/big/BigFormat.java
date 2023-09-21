@@ -123,7 +123,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
 
     public BigFormat(Map<String, String> options)
     {
-        super(NAME, options);
+        super(options, NAME);
     }
 
     public static boolean is(SSTableFormat<?, ?> format)

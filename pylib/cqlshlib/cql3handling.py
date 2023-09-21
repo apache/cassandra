@@ -55,6 +55,7 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         ('memtable_flush_period_in_ms', None),
         ('cdc', None),
         ('read_repair', None),
+        ('sstable_format', None),
     )
 
     columnfamily_layout_map_options = (

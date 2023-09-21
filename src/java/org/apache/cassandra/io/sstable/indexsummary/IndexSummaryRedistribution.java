@@ -176,8 +176,8 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
             if (isStopRequested())
                 throw new CompactionInterruptedException(getCompactionInfo());
 
-            int minIndexInterval = sstable.metadata().params.minIndexInterval;
-            int maxIndexInterval = sstable.metadata().params.maxIndexInterval;
+            int minIndexInterval = sstable.metadata().params.getMinIndexInterval();
+            int maxIndexInterval = sstable.metadata().params.getMaxIndexInterval();
 
             double readsPerSec = sstable.getReadMeter() == null ? 0.0 : sstable.getReadMeter().fifteenMinuteRate();
             long idealSpace = Math.round(remainingSpace * (readsPerSec / totalReadsPerSec));

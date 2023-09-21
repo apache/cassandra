@@ -104,6 +104,7 @@ public class Flushing
                                        Directories.DataDirectory flushLocation)
     {
         Memtable.FlushablePartitionSet<?> flushSet = memtable.getFlushSet(from, to);
+        // TODO make this per table ,use table's sstable_format type
         SSTableFormat<?, ?> format = DatabaseDescriptor.getSelectedSSTableFormat();
         long estimatedSize = format.getWriterFactory().estimateSize(flushSet);
 

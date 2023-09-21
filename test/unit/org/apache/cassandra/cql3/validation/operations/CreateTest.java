@@ -760,6 +760,115 @@ public class CreateTest extends CQLTester
         }
     }
 
+    @Test
+    public void testCreateTableWitSSTableFormatParams() throws Throwable
+    {
+        //use test cassandra.yaml
+        createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b)) WITH sstable_format = 'bti-fast'");
+        assertSchemaOption("sstable_format", map("bloom_filter_fp_chance", "0.01", "crc_check_chance", "0.1", "max_index_interval", "2048", "min_index_interval", "128", "type", "bti-fast"));
+
+        //define all the options
+        createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b)) WITH sstable_format = { 'type': 'bti-fast', 'bloom_filter_fp_chance': 0.001, 'crc_check_chance': 0.01, 'max_index_interval': 512, 'min_index_interval': 64} ");
+        assertSchemaOption("sstable_format", map("bloom_filter_fp_chance", "0.001", "crc_check_chance", "0.01", "max_index_interval", "512", "min_index_interval", "64", "type", "bti-fast"));
+
+        //define part of the options, others will use the default vale
+        createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b)) WITH sstable_format = { 'type' : 'bti-fast', 'bloom_filter_fp_chance': 0.001};");
+        assertSchemaOption("sstable_format", map("bloom_filter_fp_chance", "0.001", "crc_check_chance", "0.1", "max_index_interval", "2048", "min_index_interval", "128", "type", "bti-fast"));
+
+        createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b)) WITH bloom_filter_fp_chance  = 0.5 AND crc_check_chance = 0.01 AND max_index_interval = 512 AND min_index_interval = 64;");
+        //test deprecated properties
+        assertSchemaOption("bloom_filter_fp_chance", 0.5);
+        assertSchemaOption("crc_check_chance", 0.01);
+        assertSchemaOption("max_index_interval", 512);
+        assertSchemaOption("min_index_interval", 64);
+        //not define so set to null
+        assertSchemaOption("sstable_format", null);
+
+        //use a sstable format that have not been defined defore
+        try
+        {
+            createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b)) WITH sstable_format = 'bti-slow'");
+            fail();
+        }
+        catch (Throwable throwable)
+        {
+            assertTrue(throwable.getCause().getMessage().contains("SSTableFormat configuration \"bti-slow\" not found."));
+        }
+    }
+
+    @Test
+    public void testCreateTableWitSSTableFormatParamsConflict() throws Throwable
+    {
+
+        //set both all deprecated properties and sstable_format properties with same values
+        createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b)) WITH bloom_filter_fp_chance = 0.5 \n" +
+                                                                                     "AND crc_check_chance = 0.01 \n" +
+                                                                                     "AND max_index_interval = 512 \n" +
+                                                                                     "AND min_index_interval = 64 \n" +
+                                                                                     "AND sstable_format = { 'type': 'bti-fast', " +
+                                                                                                            "'bloom_filter_fp_chance': 0.5, " +
+                                                                                                            "'crc_check_chance': 0.01, " +
+                                                                                                            "'max_index_interval': 512, " +
+                                                                                                            "'min_index_interval': 64} ");
+        assertSchemaOption("bloom_filter_fp_chance", 0.5);
+        assertSchemaOption("crc_check_chance", 0.01);
+        assertSchemaOption("max_index_interval", 512);
+        assertSchemaOption("min_index_interval", 64);
+        assertSchemaOption("sstable_format", map("bloom_filter_fp_chance", "0.5", "crc_check_chance", "0.01", "max_index_interval", "512", "min_index_interval", "64", "type", "bti-fast"));
+
+        //set same parts of deprecated properties and sstable_format properties with same values
+        createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b)) WITH bloom_filter_fp_chance = 0.5 \n" +
+                                                                                     "AND min_index_interval = 64 \n" +
+                                                                                     "AND sstable_format = { 'type': 'bti-fast', " +
+                                                                                                            "'bloom_filter_fp_chance': 0.5, " +
+                                                                                                            "'min_index_interval': 64} ");
+        assertSchemaOption("bloom_filter_fp_chance", 0.5);
+        assertSchemaOption("crc_check_chance", SSTableFormatParams.DEFAULT_CRC_CHECK_CHANCE);//default deprecated property value
+        assertSchemaOption("max_index_interval", SSTableFormatParams.DEFAULT_MAX_INDEX_INTERVAL);//default deprecated property value
+        assertSchemaOption("min_index_interval", 64);
+        assertSchemaOption("sstable_format", map("bloom_filter_fp_chance", "0.5", "crc_check_chance", "0.1", "max_index_interval", "2048", "min_index_interval", "64", "type", "bti-fast"));
+
+        try
+        {
+            // cassandra.yaml's sstable format properties is different with deprecated properties
+            createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b)) WITH sstable_format = 'bti-fast' " +
+                                                                                         "AND bloom_filter_fp_chance = 0.111;");
+            fail();
+        }
+        catch (Throwable throwable)
+        {
+            assertTrue(throwable.getCause().getMessage().contains("Cannot define bloom_filter_fp_chance AND sstable_format' bloom_filter_fp_chance at the same time with different value."));
+        }
+
+        try
+        {
+            //set same parts of deprecated properties and sstable_format properties with different values
+            createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b)) WITH bloom_filter_fp_chance = 0.5 \n" +
+                                                                                         "AND min_index_interval = 64 \n" +
+                                                                                         "AND sstable_format = { 'type': 'bti-fast', " +
+                                                                                                                "'bloom_filter_fp_chance': 0.1, " +
+                                                                                                                "'min_index_interval': 128} ");
+            fail();
+        }
+        catch (Throwable throwable)
+        {
+            assertTrue(throwable.getCause().getMessage().contains("Cannot define bloom_filter_fp_chance AND sstable_format' bloom_filter_fp_chance at the same time with different value."));
+        }
+
+        //set different parts of deprecated properties and sstable_format properties with different values
+        createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b)) WITH bloom_filter_fp_chance = 0.01 \n" +
+                                                                                     "AND min_index_interval = 128 \n" +
+                                                                                     "AND sstable_format = { 'type': 'bti-fast', " +
+                                                                                                            "'crc_check_chance': 0.2, " +
+                                                                                                            "'max_index_interval': 512} ");
+        assertSchemaOption("bloom_filter_fp_chance", 0.01);
+        assertSchemaOption("crc_check_chance", SSTableFormatParams.DEFAULT_CRC_CHECK_CHANCE); //default deprecated property value
+        assertSchemaOption("max_index_interval", SSTableFormatParams.DEFAULT_MAX_INDEX_INTERVAL);//default deprecated property value
+        assertSchemaOption("min_index_interval", 128);
+        assertSchemaOption("sstable_format", map("bloom_filter_fp_chance", "0.01", "crc_check_chance", "0.2", "max_index_interval", "512", "min_index_interval", "128", "type", "bti-fast"));
+
+    }
+
     private void assertTriggerExists(String name)
     {
         TableMetadata metadata = Schema.instance.getTableMetadata(keyspace(), currentTable());

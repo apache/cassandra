@@ -160,7 +160,7 @@ public class SSTableFormatTest
 
     private static final String yamlContent2 = "sstable:\n" +
                                                "   selected_format: aaa\n" +
-                                               "   format:\n" +
+                                               "   sstable_format_options:\n" +
                                                "       aaa:\n" +
                                                "           param1: value1\n" +
                                                "           param2: value2\n" +
@@ -172,11 +172,39 @@ public class SSTableFormatTest
     {
         {
             selected_format = "aaa";
-            format = ImmutableMap.of("aaa", ImmutableMap.of("param1", "value1", "param2", "value2"),
+            sstable_format_options = ImmutableMap.of("aaa", ImmutableMap.of("param1", "value1", "param2", "value2"),
                                      "bbb", ImmutableMap.of("param3", "value3", "param4", "value4"));
         }
     };
 
+    private static final String yamlContent3 = "sstable:\n" +
+                                               "    selected_format: big\n" +
+                                               "    sstable_format_options:\n" +
+                                               "        bti-fast:\n" +
+                                               "            bloom_filter_fp_chance: '0.01'\n" +
+                                               "            crc_check_chance: '0.2'\n" +
+                                               "            min_index_interval: '128'\n" +
+                                               "            max_index_interval: '256'\n" +
+                                               "        bti-small:\n" +
+                                               "            bloom_filter_fp_chance: '0.02'\n" +
+                                               "            crc_check_chance: '0.4'\n" +
+                                               "            min_index_interval: '128'\n" +
+                                               "            max_index_interval: '256'\n";
+    private static final Config.SSTableConfig expected3 = new SSTableConfig()
+    {
+        {
+            selected_format = "big";
+            sstable_format_options = ImmutableMap.of("bti-fast", ImmutableMap.of("bloom_filter_fp_chance", "0.01",
+                                                                                 "crc_check_chance", "0.2",
+                                                                                 "min_index_interval", "128",
+                                                                                 "max_index_interval", "256"),
+                                                     "bti-small", ImmutableMap.of("bloom_filter_fp_chance", "0.02",
+                                                                                  "crc_check_chance", "0.4",
+                                                                                  "min_index_interval", "128",
+                                                                                  "max_index_interval", "256"));
+            ;
+        }
+    };
     private static final SSTableConfig unexpected = new Config.SSTableConfig()
     {
         {
@@ -192,7 +220,10 @@ public class SSTableFormatTest
         File f = FileUtils.createTempFile("sstable_format_test_config", ".yaml");
         URL url = f.toPath().toUri().toURL();
 
-        ImmutableMap.of(yamlContent0, expected0, yamlContent1, expected1, yamlContent2, expected2).forEach((yamlContent, expected) -> {
+        ImmutableMap.of(yamlContent0, expected0,
+                        yamlContent1, expected1,
+                        yamlContent2, expected2,
+                        yamlContent3, expected3).forEach((yamlContent, expected) -> {
             try (FileOutputStreamPlus out = f.newOutputStream(File.WriteMode.OVERWRITE))
             {
                 out.write(yamlContent.getBytes());
@@ -233,14 +264,15 @@ public class SSTableFormatTest
     {
         configure(expected1, factory("aaa", Format1.class));
         assertThat(DatabaseDescriptor.getSSTableFormats()).hasSize(1);
-        verifyFormat("aaa", ImmutableMap.of());
+        // as we add some default value if sstable_format_options is not setted See #{@code DatabaseDescriptor.validateAndMatchSSTableFormatOptions}
+        verifyFormat("aaa", ImmutableMap.of("bloom_filter_fp_chance", "0.01", "crc_check_chance", "1.0", "max_index_interval", "2048", "min_index_interval", "128", "type", "aaa"));
         verifySelectedFormat("aaa");
 
         configure(expected2, factory("aaa", Format1.class), factory("bbb", Format2.class), factory("ccc", Format3.class));
         assertThat(DatabaseDescriptor.getSSTableFormats()).hasSize(3);
-        verifyFormat("aaa", ImmutableMap.of("param1", "value1", "param2", "value2"));
-        verifyFormat("bbb", ImmutableMap.of("param3", "value3", "param4", "value4"));
-        verifyFormat("ccc", ImmutableMap.of());
+        verifyFormat("aaa", ImmutableMap.of("param1", "value1", "param2", "value2", "type", "aaa"));
+        verifyFormat("bbb", ImmutableMap.of("param3", "value3", "param4", "value4", "type", "bbb"));
+        verifyFormat("ccc", ImmutableMap.of("bloom_filter_fp_chance", "0.01", "crc_check_chance", "1.0", "max_index_interval", "2048", "min_index_interval", "128", "type", "ccc"));
         verifySelectedFormat("aaa");
     }
 

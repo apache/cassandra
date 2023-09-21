@@ -66,6 +66,20 @@ local_read_size_fail_threshold: 8192KiB
 row_index_read_size_warn_threshold: 4096KiB
 row_index_read_size_fail_threshold: 8192KiB
 
+# sstale format options for test
+sstable:
+    sstable_format_options:
+        bti-fast:
+            bloom_filter_fp_chance: 0.01
+            crc_check_chance: 0.1
+            min_index_interval: 128
+            max_index_interval: 2048
+        bti-small:
+            bloom_filter_fp_chance: 0.02
+            crc_check_chance: 0.2
+            min_index_interval: 256
+            max_index_interval: 2048
+
 memtable:
     configurations:
         skiplist:

@@ -148,7 +148,7 @@ public class CorruptedSSTablesCompactionsTest
         final ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(tableName);
 
         final int ROWS_PER_SSTABLE = 10;
-        final int SSTABLES = cfs.metadata().params.minIndexInterval * 2 / ROWS_PER_SSTABLE;
+        final int SSTABLES = cfs.metadata().params.getMinIndexInterval() * 2 / ROWS_PER_SSTABLE;
         final int SSTABLES_TO_CORRUPT = 8;
 
         assertTrue(String.format("Not enough sstables (%d), expected at least %d sstables to corrupt", SSTABLES, SSTABLES_TO_CORRUPT),

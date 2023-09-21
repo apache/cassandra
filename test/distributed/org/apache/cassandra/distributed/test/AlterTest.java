@@ -183,4 +183,67 @@ public class AlterTest extends TestBaseImpl
             node3.executeInternalWithResult("INSERT INTO " + KEYSPACE + ".tbl (pk) VALUES (?)", 3);
         }
     }
+
+    @Test
+    public void unknownSSTableFormatTest() throws Throwable
+    {
+        Logger logger = LoggerFactory.getLogger(getClass());
+        try (Cluster cluster = Cluster.build(1)
+                                      .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(3, 1))
+                                      .withConfig(c -> c.with(Feature.values())
+                                                        .set("sstable", ImmutableMap.of(
+                                                        "sstable_format_options", ImmutableMap.of(
+                                                        "big-small", ImmutableMap.of(
+                                                        "bloom_filter_fp_chance", "0.01",
+                                                        "crc_check_chance", "0.1",
+                                                        "min_index_interval", "256",
+                                                        "max_index_interval", "5120")))))
+                                      .start())
+        {
+            init(cluster);
+            cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int PRIMARY KEY)");
+            // Start Node 2 without the sstable format configuration definition.
+            IInvokableInstance node1 = cluster.get(1);
+            IInvokableInstance node2 = ClusterUtils.addInstance(cluster, node1.config(), c -> c.set("sstable", ImmutableMap.of()));
+            node2.startup(cluster);
+            List<String> errorInLog = node1.logs().grep("ERROR.*Invalid sstable format configuration*").getResult();
+            Assert.assertTrue(errorInLog.size() == 0);
+
+            try
+            {
+                cluster.schemaChange("ALTER TABLE " + KEYSPACE + ".tbl WITH sstable_format = 'big-small'", false, node2);
+                fail("Expected ALTER to fail with unknown sstable_format configuration.");
+            }
+            catch (Throwable t)
+            {
+                // expected
+                logger.info("Expected: {}", t.getMessage());
+                Assert.assertTrue(Throwables.isCausedBy(t, x -> x.getMessage().matches("SSTableFormat configuration \"big-small\" not found.")));
+            }
+            long mark = node2.logs().mark();
+
+            cluster.schemaChange("ALTER TABLE " + KEYSPACE + ".tbl WITH sstable_format = 'big-small'", false, node1);
+            // the above should succeed, the configuration is acceptable to node1
+            ClusterUtils.awaitGossipSchemaMatch(cluster);
+            errorInLog = node2.logs().grep(mark,"ERROR.*Invalid sstable format configuration*").getResult();
+            Assert.assertTrue(errorInLog.size() > 0);
+            logger.info(Lists.listToString(errorInLog));
+            // Add a new node that has an invalid definition but should accept the already defined table schema.
+            IInvokableInstance node3 = ClusterUtils.addInstance(cluster,
+                                                                node2.config(),
+                                                                c -> c.set("sstable", ImmutableMap.of(
+                                                                "sstable_format_options", ImmutableMap.of())));
+
+            node3.startup(cluster);
+            ClusterUtils.awaitGossipSchemaMatch(cluster);
+            errorInLog = node3.logs().grep("ERROR.*Invalid sstable format configuration*").getResult();
+            Assert.assertTrue(errorInLog.size() > 0);
+            logger.info(Lists.listToString(errorInLog));
+
+            // verify that all nodes can write to the table
+            node1.executeInternalWithResult("INSERT INTO " + KEYSPACE + ".tbl (pk) VALUES (?)", 1);
+            node2.executeInternalWithResult("INSERT INTO " + KEYSPACE + ".tbl (pk) VALUES (?)", 2);
+            node3.executeInternalWithResult("INSERT INTO " + KEYSPACE + ".tbl (pk) VALUES (?)", 3);
+        }
+    }
 }

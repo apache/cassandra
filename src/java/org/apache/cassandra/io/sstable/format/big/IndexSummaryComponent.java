@@ -84,8 +84,8 @@ public class IndexSummaryComponent
         {
             summary = IndexSummary.serializer.deserialize(iStream,
                                                           metadata.partitioner,
-                                                          metadata.params.minIndexInterval,
-                                                          metadata.params.maxIndexInterval);
+                                                          metadata.params.getMinIndexInterval(),
+                                                          metadata.params.getMaxIndexInterval());
             DecoratedKey first = metadata.partitioner.decorateKey(ByteBufferUtil.readWithLength(iStream));
             DecoratedKey last = metadata.partitioner.decorateKey(ByteBufferUtil.readWithLength(iStream));
 

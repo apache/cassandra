@@ -757,7 +757,7 @@ public class VerifyTest
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(BF_ALWAYS_PRESENT);
         fillCF(cfs, 100);
-        assertEquals(1.0, cfs.metadata().params.bloomFilterFpChance, 0.0);
+        assertEquals(1.0, cfs.metadata().params.getBloomFilterFpChance(), 0.0);
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
             File f = sstable.descriptor.fileFor(Components.FILTER);

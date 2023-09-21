@@ -108,6 +108,7 @@ public final class SchemaKeyspace
               + "comment text,"
               + "compaction frozen<map<text, text>>,"
               + "compression frozen<map<text, text>>,"
+              + "sstable_format frozen<map<text, text>>,"
               + "memtable text,"
               + "crc_check_chance double,"
               + "dclocal_read_repair_chance double," // no longer used, left for drivers' sake
@@ -192,6 +193,7 @@ public final class SchemaKeyspace
               + "comment text,"
               + "compaction frozen<map<text, text>>,"
               + "compression frozen<map<text, text>>,"
+              + "sstable_format frozen<map<text, text>>,"
               + "memtable text,"
               + "crc_check_chance double,"
               + "dclocal_read_repair_chance double," // no longer used, left for drivers' sake
@@ -602,6 +604,11 @@ public final class SchemaKeyspace
         // incremental_backups is enabled, to avoid RTE in pre-4.2 versioned node during upgrades
         if (!params.incrementalBackups)
             builder.add("incremental_backups", false);
+
+        // As above, only add the sstable_format column if the table uses a non-default sstable_fromat configuration to avoid RTE
+        // in mixed operation with pre-5.1 versioned node during upgrades.
+        if (params.ssTableFormatParams != SSTableFormatParams.DEFAULT_BIG_SSTABLE)
+            builder.add("sstable_format", params.ssTableFormatParams.asMap());
     }
 
     private static void addAlterTableToSchemaMutation(TableMetadata oldTable, TableMetadata newTable, Mutation.SimpleBuilder builder)
@@ -1045,6 +1052,9 @@ public final class SchemaKeyspace
                                                  .comment(row.getString("comment"))
                                                  .compaction(CompactionParams.fromMap(row.getFrozenTextMap("compaction")))
                                                  .compression(CompressionParams.fromMap(row.getFrozenTextMap("compression")))
+                                                 .sstableFormat(SSTableFormatParams.getWithFallback(row.has("sstable_format")
+                                                                                                    ? row.getFrozenTextMap("sstable_format")
+                                                                                                    : null))
                                                  .memtable(MemtableParams.getWithFallback(row.has("memtable")
                                                                                           ? row.getString("memtable")
                                                                                           : null)) // memtable column was introduced in 4.1

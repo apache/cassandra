@@ -17,10 +17,12 @@
  */
 package org.apache.cassandra.io.sstable;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.io.Files;
@@ -317,6 +319,53 @@ public class SSTableLoaderTest
     public void testLoadingLegacySnapshotsTable() throws Exception
     {
         testLoadingTable(CF_SNAPSHOTS, true);
+    }
+
+    @Test
+    public void testLoadingSSTableWithSSTableFomratOption() throws InterruptedException, IOException, ExecutionException
+    {
+        File dataDir = dataDir(CF_STANDARD1);
+        TableMetadata metadata = Schema.instance.getTableMetadata(KEYSPACE1, CF_STANDARD1);
+
+        String schema = "CREATE TABLE %s.%s (key ascii, name ascii, val ascii, val1 ascii, PRIMARY KEY (key, name)) WITH sstable_format = { 'type': 'bti-fast', " +
+                                                                                                                                          "'bloom_filter_fp_chance': 0.001, " +
+                                                                                                                                          "'crc_check_chance': 0.01, " +
+                                                                                                                                          "'max_index_interval': 512, " +
+                                                                                                                                          "'min_index_interval': 64}";
+        String query = "INSERT INTO %s.%s (key, name, val) VALUES (?, ?, ?)";
+
+        try (CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                       .inDirectory(dataDir)
+                                                       .forTable(String.format(schema, KEYSPACE1, CF_STANDARD1))
+                                                       .using(String.format(query, KEYSPACE1, CF_STANDARD1))
+                                                       .build())
+        {
+            writer.addRow("key1", "col1", "100");
+        }
+
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
+        Util.flush(cfs); // wait for sstables to be on disk else we won't be able to stream them
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        SSTableLoader loader = new SSTableLoader(dataDir, new TestClient(), new OutputHandler.SystemOutput(false, false));
+        loader.stream(Collections.emptySet(), completionStreamListener(latch)).get();
+
+        List<FilteredPartition> partitions = Util.getAll(Util.cmd(cfs).build());
+
+        assertEquals(1, partitions.size());
+        assertEquals("key1", AsciiType.instance.getString(partitions.get(0).partitionKey().getKey()));
+        assert metadata != null;
+
+        Row row = partitions.get(0).getRow(Clustering.make(ByteBufferUtil.bytes("col1")));
+        assert row != null;
+
+        assertEquals(ByteBufferUtil.bytes("100"), row.getCell(metadata.getColumn(ByteBufferUtil.bytes("val"))).buffer());
+
+        // The stream future is signalled when the work is complete but before releasing references. Wait for release
+        // before cleanup (CASSANDRA-10118).
+        latch.await();
+
+        checkAllRefsAreClosed(loader);
     }
 
     private void testLoadingTable(String tableName, boolean isLegacyTable) throws Exception

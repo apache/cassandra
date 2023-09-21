@@ -684,6 +684,7 @@ class TestCqlshOutput(BaseTestCase):
                 AND comment = ''
                 AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32', 'min_threshold': '4'}
                 AND compression = {'chunk_length_in_kb': '16', 'class': 'org.apache.cassandra.io.compress.LZ4Compressor'}
+                AND sstable_format = {'bloom_filter_fp_chance': '0.01', 'crc_check_chance': '1.0', 'min_index_interval': '128', 'max_index_interval': '2048', 'type': 'big'}
                 AND memtable = 'default'
                 AND crc_check_chance = 1.0
                 AND default_time_to_live = 0

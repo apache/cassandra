@@ -146,7 +146,7 @@ public abstract class SortedTableScrubber<R extends SSTableReaderWithFilter> imp
         {
             approximateKeyCount = 0;
         }
-        this.expectedBloomFilterSize = Math.max(cfs.metadata().params.minIndexInterval, approximateKeyCount);
+        this.expectedBloomFilterSize = Math.max(cfs.metadata().params.getMinIndexInterval(), approximateKeyCount);
 
         // loop through each partition, deserializing to check for damage.
         // We'll also loop through the index at the same time, using the position from the index to recover if the

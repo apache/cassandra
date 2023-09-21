@@ -391,7 +391,7 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter> ex
             this.metadata = b.getTableMetadataRef();
             this.components = b.getComponents();
 
-            bf = FilterFactory.getFilter(b.getKeyCount(), b.getTableMetadataRef().getLocal().params.bloomFilterFpChance);
+            bf = FilterFactory.getFilter(b.getKeyCount(), b.getTableMetadataRef().getLocal().params.getBloomFilterFpChance());
         }
 
         protected void flushBf()
@@ -442,7 +442,7 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter> ex
         {
             super.addDefaultComponents(indexGroups);
 
-            if (FilterComponent.shouldUseBloomFilter(getTableMetadataRef().getLocal().params.bloomFilterFpChance))
+            if (FilterComponent.shouldUseBloomFilter(getTableMetadataRef().getLocal().params.getBloomFilterFpChance()))
             {
                 addComponents(ImmutableSet.of(SSTableFormat.Components.FILTER));
             }

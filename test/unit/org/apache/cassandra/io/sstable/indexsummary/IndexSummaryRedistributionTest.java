@@ -92,7 +92,7 @@ public class IndexSummaryRedistributionTest<R extends SSTableReader & IndexSumma
 
         for (R sstable : sstables)
         {
-            assertEquals(cfs.metadata().params.minIndexInterval, sstable.getIndexSummary().getEffectiveIndexInterval(), 0.001);
+            assertEquals(cfs.metadata().params.getMinIndexInterval(), sstable.getIndexSummary().getEffectiveIndexInterval(), 0.001);
             oldSize += sstable.bytesOnDisk();
             oldSizeUncompressed += sstable.logicalBytesOnDisk();
         }
@@ -103,7 +103,7 @@ public class IndexSummaryRedistributionTest<R extends SSTableReader & IndexSumma
         uncompressedLoad = StorageMetrics.uncompressedLoad.getCount();
         long othersUncompressed = uncompressedLoad - oldSizeUncompressed;
 
-        int originalMinIndexInterval = cfs.metadata().params.minIndexInterval;
+        int originalMinIndexInterval = cfs.metadata().params.getMinIndexInterval();
         // double the min_index_interval
         SchemaTestUtil.announceTableUpdate(cfs.metadata().unbuild().minIndexInterval(originalMinIndexInterval * 2).build());
         IndexSummaryManager.instance.redistributeSummaries();
@@ -113,8 +113,8 @@ public class IndexSummaryRedistributionTest<R extends SSTableReader & IndexSumma
 
         for (R sstable : ServerTestUtils.<R>getLiveIndexSummarySupportingReaders(cfs))
         {
-            assertEquals(cfs.metadata().params.minIndexInterval, sstable.getIndexSummary().getEffectiveIndexInterval(), 0.001);
-            assertEquals(numRows / cfs.metadata().params.minIndexInterval, sstable.getIndexSummary().size());
+            assertEquals(cfs.metadata().params.getMinIndexInterval(), sstable.getIndexSummary().getEffectiveIndexInterval(), 0.001);
+            assertEquals(numRows / cfs.metadata().params.getMinIndexInterval(), sstable.getIndexSummary().size());
             newSize += sstable.bytesOnDisk();
             newSizeUncompressed += sstable.logicalBytesOnDisk();
         }

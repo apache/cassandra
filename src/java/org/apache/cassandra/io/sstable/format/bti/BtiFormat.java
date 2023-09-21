@@ -113,7 +113,7 @@ public class BtiFormat extends AbstractSSTableFormat<BtiTableReader, BtiTableWri
 
     public BtiFormat(Map<String, String> options)
     {
-        super(NAME, options);
+        super(options, NAME);
     }
 
     public static boolean is(SSTableFormat<?, ?> format)

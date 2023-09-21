@@ -21,15 +21,23 @@ package org.apache.cassandra.io.sstable.format;
 import java.util.Map;
 import java.util.Objects;
 
+import org.apache.cassandra.schema.SSTableFormatParams.Option;
+
 public abstract class AbstractSSTableFormat<R extends SSTableReader, W extends SSTableWriter> implements SSTableFormat<R, W>
 {
     public final String name;
     protected final Map<String, String> options;
 
-    protected AbstractSSTableFormat(String name, Map<String, String> options)
+    protected AbstractSSTableFormat(Map<String, String> options, String name)
     {
-        this.name = Objects.requireNonNull(name);
         this.options = options;
+        this.name = options.getOrDefault(Option.TYPE.getName(), Objects.requireNonNull(name));
+    }
+
+    @Override
+    public final Map<String, String> getOptions()
+    {
+        return options;
     }
 
     @Override

@@ -25,7 +25,9 @@ import java.net.NetworkInterface;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Enumeration;
+import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 
 import com.google.common.base.Throwables;
@@ -36,12 +38,14 @@ import org.junit.Test;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.schema.SSTableFormatParams;
 import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.ALLOW_UNLIMITED_CONCURRENT_VALIDATIONS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CONFIG_LOADER;
 import static org.apache.cassandra.config.CassandraRelevantProperties.PARTITIONER;
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.KIBIBYTES;
+import static org.apache.cassandra.schema.SSTableFormatParams.SSTABLE_FORMAT_TYPES;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
@@ -804,5 +808,25 @@ public class DatabaseDescriptorTest
     public void testInvalidSub1DefaultRFs() throws IllegalArgumentException
     {
         DatabaseDescriptor.setDefaultKeyspaceRF(0);
+    }
+
+    @Test
+    public void testSSTableFormatOptions()
+    {
+        Config config = DatabaseDescriptor.loadConfig();
+        Assert.assertFalse(config.sstable.sstable_format_options.isEmpty());
+        // 2 for cassandra.yaml in test conf
+        Assert.assertEquals(2, config.sstable.sstable_format_options.size());
+        SSTableFormatParams.Option[] options = SSTableFormatParams.Option.values();
+        config.sstable.sstable_format_options.forEach((key, valueMap) -> {
+            // sstable_format_options map do not contains type option
+            Assert.assertEquals(options.length - 1, valueMap.size());
+            Assert.assertTrue(SSTABLE_FORMAT_TYPES.contains(SSTableFormatParams.validateAndParseType(key)));
+            Set<String> optionSet = Arrays.stream(options).filter(option -> !option.getName().equals("type"))
+                                                          .map(option -> option.getName())
+                                                          .collect(Collectors.toSet());
+            Assert.assertTrue(optionSet.equals(valueMap.keySet()));
+        });
+
     }
 }

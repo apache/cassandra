@@ -1078,7 +1078,7 @@ public class SASIIndexTest
 
         loadData(part5, true);
 
-        int minIndexInterval = store.metadata().params.minIndexInterval;
+        int minIndexInterval = store.metadata().params.getMinIndexInterval();
         try
         {
             redistributeSummaries(10, store, firstName, minIndexInterval * 2);

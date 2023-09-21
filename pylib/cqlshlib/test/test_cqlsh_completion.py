@@ -649,7 +649,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'memtable',
                                      'memtable_flush_period_in_ms',
                                      'CLUSTERING',
-                                     'COMPACT', 'caching', 'comment',
+                                     'COMPACT', 'caching', 'comment', 'sstable_format',
                                      'min_index_interval', 'speculative_retry', 'additional_write_policy', 'cdc', 'read_repair'])
         self.trycompletions(prefix + ' new_table (col_a int PRIMARY KEY) WITH ',
                             choices=['allow_auto_snapshot',
@@ -661,7 +661,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'memtable',
                                      'memtable_flush_period_in_ms',
                                      'CLUSTERING',
-                                     'COMPACT', 'caching', 'comment',
+                                     'COMPACT', 'caching', 'comment', 'sstable_format',
                                      'min_index_interval', 'speculative_retry', 'additional_write_policy', 'cdc', 'read_repair'])
         self.trycompletions(prefix + ' new_table (col_a int PRIMARY KEY) WITH bloom_filter_fp_chance ',
                             immediate='= ')
@@ -710,7 +710,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'memtable',
                                      'memtable_flush_period_in_ms',
                                      'CLUSTERING',
-                                     'COMPACT', 'caching', 'comment',
+                                     'COMPACT', 'caching', 'comment', 'sstable_format',
                                      'min_index_interval', 'speculative_retry', 'additional_write_policy', 'cdc', 'read_repair'])
         self.trycompletions(prefix + " new_table (col_a int PRIMARY KEY) WITH compaction = "
                             + "{'class': 'TimeWindowCompactionStrategy', '",

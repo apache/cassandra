@@ -220,6 +220,7 @@ public final class SchemaEvent extends DiagnosticEvent
         ret.put("compaction", repr(params.compaction));
         ret.put("compression", repr(params.compression));
         ret.put("memtable", repr(params.memtable));
+        ret.put("sstableFormat", repr(params.ssTableFormatParams));
         if (params.speculativeRetry != null) ret.put("speculativeRetry", params.speculativeRetry.kind().name());
         return ret;
     }
@@ -245,6 +246,14 @@ public final class SchemaEvent extends DiagnosticEvent
         HashMap<String, Serializable> ret = new HashMap<>();
         if (compr == null) return ret;
         ret.putAll(compr.asMap());
+        return ret;
+    }
+
+    private HashMap<String, Serializable> repr(SSTableFormatParams sstableFormat)
+    {
+        HashMap<String, Serializable> ret = new HashMap<>();
+        if (sstableFormat == null) return ret;
+        ret.putAll(sstableFormat.asMap());
         return ret;
     }
 

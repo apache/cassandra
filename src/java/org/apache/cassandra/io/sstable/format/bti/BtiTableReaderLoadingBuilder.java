@@ -149,7 +149,7 @@ public class BtiTableReaderLoadingBuilder extends SortedTableReaderLoadingBuilde
 
         try (KeyReader keyReader = createKeyReader(statsMetadata))
         {
-            bf = FilterFactory.getFilter(statsMetadata.totalRows, tableMetadataRef.getLocal().params.bloomFilterFpChance);
+            bf = FilterFactory.getFilter(statsMetadata.totalRows, tableMetadataRef.getLocal().params.getBloomFilterFpChance());
 
             while (!keyReader.isExhausted())
             {

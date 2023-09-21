@@ -1016,6 +1016,11 @@ snapshot_links_per_second: 0
 # which offers better performance.
 #sstable:
 #  selected_format: big
+#  sstable_format_options:
+#      bti-fast:
+#        bloom_filter_fp_chance: 0.01
+#      bti-small:
+#        bloom_filter_fp_chance: 0.1
 
 # Granularity of the collation index of rows within a partition.
 # Applies to both BIG and BTI SSTable formats. In both formats,

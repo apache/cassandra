@@ -45,6 +45,7 @@ import org.apache.cassandra.utils.Pair;
 public interface SSTableFormat<R extends SSTableReader, W extends SSTableWriter>
 {
     String name();
+    Map<String, String> getOptions();
 
     Version getLatestVersion();
     Version getVersion(String version);

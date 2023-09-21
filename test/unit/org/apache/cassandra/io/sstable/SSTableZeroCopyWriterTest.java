@@ -96,7 +96,7 @@ public class SSTableZeroCopyWriterTest
 
         DecoratedKey firstKey = null, lastKey = null;
         long timestamp = System.currentTimeMillis();
-        for (int i = 0; i < store.metadata().params.minIndexInterval; i++)
+        for (int i = 0; i < store.metadata().params.getMinIndexInterval(); i++)
         {
             DecoratedKey key = Util.dk(String.valueOf(i));
             if (firstKey == null)
@@ -191,7 +191,7 @@ public class SSTableZeroCopyWriterTest
     private void assertRowCount(int expected)
     {
         int count = 0;
-        for (int i = 0; i < store.metadata().params.minIndexInterval; i++)
+        for (int i = 0; i < store.metadata().params.getMinIndexInterval(); i++)
         {
             DecoratedKey dk = Util.dk(String.valueOf(i));
             UnfilteredRowIterator rowIter = sstable.rowIterator(dk,

@@ -33,6 +33,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -53,6 +54,8 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.MapDifference;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
@@ -99,6 +102,8 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.SeedProvider;
+import org.apache.cassandra.schema.SSTableFormatParams;
+import org.apache.cassandra.schema.SSTableFormatParams.Option;
 import org.apache.cassandra.security.AbstractCryptoProvider;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.JREProvider;
@@ -1441,14 +1446,62 @@ public class DatabaseDescriptor
 
     private static ImmutableMap<String, Supplier<SSTableFormat<?, ?>>> validateAndMatchSSTableFormatOptions(Iterable<SSTableFormat.Factory> factories, Map<String, Map<String, String>> options)
     {
+        ImmutableMap.Builder<String, Supplier<SSTableFormat<?, ?>>> providersBuilderLeft = ImmutableMap.builder();
+        ImmutableMap.Builder<String, Supplier<SSTableFormat<?, ?>>> providersBuilderRight = ImmutableMap.builder();
         ImmutableMap.Builder<String, Supplier<SSTableFormat<?, ?>>> providersBuilder = ImmutableMap.builder();
         if (options == null)
             options = ImmutableMap.of();
+
+        // add default sstable format options for bti and big
         for (SSTableFormat.Factory factory : factories)
         {
-            Map<String, String> formatOptions = options.getOrDefault(factory.name(), ImmutableMap.of());
-            providersBuilder.put(factory.name(), () -> factory.getInstance(ImmutableMap.copyOf(formatOptions)));
+            providersBuilderLeft.put(factory.name(), () -> factory.getInstance(SSTableFormatParams.DEFAULT_FORMAT_MAP.apply(factory.name())));
         }
+
+        for (String key : options.keySet())
+        {
+            Map<String, String> formatOptions = Maps.newLinkedHashMap();
+            Map<String, String> map = options.get(key);
+            Iterator<String> iterator = map.keySet().iterator();
+            // as the map's value parsed by yaml may be numeric type, but sstable format factory need string
+            // but what about change the type of sstable format factory to a map that value is Object?
+            while (iterator.hasNext()){
+                String k = iterator.next();
+                String v = String.valueOf(map.get(k));
+                formatOptions.put(k, v);
+            }
+            // TODO add validation for yaml configuration number that must meet all the sstable param options ?
+
+            String type = SSTableFormatParams.validateAndParseType(key);
+            if (StringUtils.isBlank(type))
+                throw new ConfigurationException("SSTable format type name is empty.");
+
+            boolean illegalFormat = true;
+            // add user defined sstable format type
+            for (SSTableFormat.Factory factory : factories)
+            {
+                if(factory.name().equalsIgnoreCase(type))
+                {
+                     formatOptions.putIfAbsent(Option.TYPE.getName(), key);
+                    // add option map to AbstractSSTableFormat in order to use it in the future
+                    providersBuilderRight.put(key, () -> factory.getInstance(formatOptions));
+                    illegalFormat = false;
+                }
+            }
+            if (illegalFormat)
+                throw new ConfigurationException("Configuration contains options of unknown sstable formats " + key );
+        }
+
+        ImmutableMap<String, Supplier<SSTableFormat<?, ?>>> providersLeft = providersBuilderLeft.build();
+        ImmutableMap<String, Supplier<SSTableFormat<?, ?>>> providersRight = providersBuilderRight.build();
+        MapDifference<String, Supplier<SSTableFormat<?, ?>>> difference = Maps.difference(providersLeft, providersRight);
+        providersBuilder.putAll(difference.entriesInCommon()).putAll(difference.entriesOnlyOnRight()).putAll(difference.entriesOnlyOnLeft());
+        ImmutableMap.Builder<String, Supplier<SSTableFormat<?, ?>>> differentMapProvider = ImmutableMap.builder();
+        difference.entriesDiffering().forEach((key, value) -> {
+            // if user defined the same name with the default factory name ,then we should use the user defined
+            differentMapProvider.put(key, value.rightValue());
+        });
+        providersBuilder.putAll(differentMapProvider.build());
         ImmutableMap<String, Supplier<SSTableFormat<?, ?>>> providers = providersBuilder.build();
         if (options != null)
         {
@@ -1488,7 +1541,7 @@ public class DatabaseDescriptor
             return;
 
         validateSSTableFormatFactories(factories);
-        ImmutableMap<String, Supplier<SSTableFormat<?, ?>>> providers = validateAndMatchSSTableFormatOptions(factories, sstableFormatsConfig.format);
+        ImmutableMap<String, Supplier<SSTableFormat<?, ?>>> providers = validateAndMatchSSTableFormatOptions(factories, sstableFormatsConfig.sstable_format_options);
 
         ImmutableMap.Builder<String, SSTableFormat<?, ?>> sstableFormatsBuilder = ImmutableMap.builder();
         providers.forEach((name, provider) -> {
@@ -4849,6 +4902,13 @@ public class DatabaseDescriptor
         sstableFormats = null;
         selectedSSTableFormat = null;
         applySSTableFormats(factories, config);
+    }
+
+    public static Map<String, Map<String, String>>  getSSTableFormatOptions()
+    {
+        if (conf == null || conf.sstable == null)
+            return null;
+        return conf.sstable.sstable_format_options;
     }
 
     public static ImmutableMap<String, SSTableFormat<?, ?>> getSSTableFormats()

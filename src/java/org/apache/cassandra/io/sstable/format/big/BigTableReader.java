@@ -626,8 +626,8 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
     {
         assert openReason != OpenReason.EARLY;
 
-        int minIndexInterval = metadata().params.minIndexInterval;
-        int maxIndexInterval = metadata().params.maxIndexInterval;
+        int minIndexInterval = metadata().params.getMinIndexInterval();
+        int maxIndexInterval = metadata().params.getMaxIndexInterval();
         double effectiveInterval = indexSummary.getEffectiveIndexInterval();
 
         IndexSummary newSummary;
@@ -666,7 +666,7 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
         try
         {
             long indexSize = primaryIndex.length();
-            try (IndexSummaryBuilder summaryBuilder = new IndexSummaryBuilder(estimatedKeys(), metadata().params.minIndexInterval, newSamplingLevel))
+            try (IndexSummaryBuilder summaryBuilder = new IndexSummaryBuilder(estimatedKeys(), metadata().params.getMinIndexInterval(), newSamplingLevel))
             {
                 long indexPosition;
                 while ((indexPosition = primaryIndex.getFilePointer()) != indexSize)

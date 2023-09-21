@@ -36,6 +36,7 @@ import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.MemtableParams;
+import org.apache.cassandra.schema.SSTableFormatParams;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.SchemaKeyspaceTables;
 import org.apache.cassandra.service.StorageService;
@@ -249,12 +250,12 @@ public class AlterTest extends CQLTester
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(tableName);
 
         alterTable("ALTER TABLE %s WITH min_index_interval=256 AND max_index_interval=512");
-        assertEquals(256, cfs.metadata().params.minIndexInterval);
-        assertEquals(512, cfs.metadata().params.maxIndexInterval);
+        assertEquals(256, cfs.metadata().params.getMinIndexInterval());
+        assertEquals(512, cfs.metadata().params.getMaxIndexInterval());
 
         alterTable("ALTER TABLE %s WITH caching = {}");
-        assertEquals(256, cfs.metadata().params.minIndexInterval);
-        assertEquals(512, cfs.metadata().params.maxIndexInterval);
+        assertEquals(256, cfs.metadata().params.getMinIndexInterval());
+        assertEquals(512, cfs.metadata().params.getMaxIndexInterval());
     }
 
     /**
@@ -953,5 +954,114 @@ public class AlterTest extends CQLTester
                                         row(ks1, true, map("class", "org.apache.cassandra.locator.SimpleStrategy", "replication_factor", "1")));
 
         assertInvalidThrow(InvalidRequestException.class, "ALTER KEYSPACE ks1 WITH replication= { 'class' : 'SimpleStrategy', 'replication_factor' : 1 }");
+    }
+
+    @Test
+    public void testAlterTableWitSSTableFormatParams() throws Throwable
+    {
+        //use test cassandra.yaml
+        createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b)) WITH sstable_format = 'bti-fast'");
+        assertSchemaOption("sstable_format", map("bloom_filter_fp_chance", "0.01", "crc_check_chance", "0.1", "max_index_interval", "2048", "min_index_interval", "128", "type", "bti-fast"));
+        // alter table to exist configuration
+        alterTable("ALTER TABLE %s WITH sstable_format = 'bti-small';");
+        assertSchemaOption("sstable_format", map("bloom_filter_fp_chance", "0.02", "crc_check_chance", "0.2", "max_index_interval", "2048", "min_index_interval", "256", "type", "bti-small"));
+        // alter part of the sstable format configurations and others use the type's configurations
+        alterTable("ALTER TABLE %s WITH sstable_format = {'type' : 'bti-fast', 'bloom_filter_fp_chance': 0.001};");
+        assertSchemaOption("sstable_format", map("bloom_filter_fp_chance", "0.001", "crc_check_chance", "0.1", "max_index_interval", "2048", "min_index_interval", "128", "type", "bti-fast"));
+
+        // alter all of the sstable format configurations and others use the type's configurations
+        alterTable("ALTER TABLE %s WITH sstable_format = {'type' : 'bti-fast', 'bloom_filter_fp_chance': 0.001, 'crc_check_chance': 0.00001, 'max_index_interval': 5120, 'min_index_interval': 640} ");
+        assertSchemaOption("sstable_format", map("bloom_filter_fp_chance", "0.001", "crc_check_chance", "0.00001", "max_index_interval", "5120", "min_index_interval", "640", "type", "bti-fast"));
+
+        //use a sstable format that have not been defined defore
+        try
+        {
+            alterTable("ALTER TABLE %s WITH sstable_format = 'bti-slow'");
+            fail();
+        }
+        catch (Throwable throwable)
+        {
+            assertTrue(throwable.getCause().getMessage().contains("SSTableFormat configuration \"bti-slow\" not found."));
+        }
+    }
+
+    @Test
+    public void testAlterTableWitSSTableFormatParamsConflict() throws Throwable
+    {
+        // set both all legacy properties and sstable_format properties with same values
+        createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b)) WITH sstable_format = 'bti-fast'");
+        assertSchemaOption("sstable_format", map("bloom_filter_fp_chance", "0.01", "crc_check_chance", "0.1", "max_index_interval", "2048", "min_index_interval", "128", "type", "bti-fast"));
+        assertSchemaOption("bloom_filter_fp_chance", 0.01);
+        assertSchemaOption("crc_check_chance", 1.0);
+        assertSchemaOption("max_index_interval", 2048);
+        assertSchemaOption("min_index_interval", 128);
+
+        //set same parts of legacy properties and sstable_format properties with same values
+        alterTable("ALTER TABLE %s WITH bloom_filter_fp_chance = 0.5 \n" +
+                                        "AND min_index_interval = 64 \n" +
+                                        "AND sstable_format = { 'type': 'bti-fast', " +
+                                                               "'bloom_filter_fp_chance': 0.5, " +
+                                                               "'min_index_interval': 64}");
+        assertSchemaOption("bloom_filter_fp_chance", 0.5);
+        assertSchemaOption("crc_check_chance", SSTableFormatParams.DEFAULT_CRC_CHECK_CHANCE);// do not change the default value
+        assertSchemaOption("max_index_interval", SSTableFormatParams.DEFAULT_MAX_INDEX_INTERVAL);// do not change the default value
+        assertSchemaOption("min_index_interval", 64);
+        assertSchemaOption("sstable_format", map("bloom_filter_fp_chance", "0.5", "crc_check_chance", "0.1", "max_index_interval", "2048", "min_index_interval", "64", "type", "bti-fast"));
+
+        try
+        {
+            // cassandra.yaml's sstable format properties is different with legacy properties
+            alterTable("ALTER TABLE %s with sstable_format = 'bti-fast' AND bloom_filter_fp_chance = 0.111;");
+            fail();
+        }
+        catch (Throwable throwable)
+        {
+            assertTrue(throwable.getCause().getMessage().contains("Cannot define bloom_filter_fp_chance AND sstable_format' bloom_filter_fp_chance at the same time with different value."));
+        }
+
+        try
+        {
+            // set same parts of legacy properties and sstable_format properties with different values
+            alterTable("ALTER TABLE %s WITH bloom_filter_fp_chance = 0.5 \n" +
+                                            "AND min_index_interval = 64 \n" +
+                                            "AND sstable_format = { 'type': 'bti-fast', " +
+                                                                   "'bloom_filter_fp_chance': 0.1, " +
+                                                                   "'min_index_interval': 128}");
+            fail();
+        }
+        catch (Throwable throwable)
+        {
+            assertTrue(throwable.getCause().getMessage().contains("Cannot define bloom_filter_fp_chance AND sstable_format' bloom_filter_fp_chance at the same time with different value."));
+        }
+
+        // set different parts of legacy properties and sstable_format properties
+        alterTable("ALTER TABLE %s WITH bloom_filter_fp_chance = 0.01 \n" +
+                                        "AND min_index_interval = 128 \n" +
+                                        "AND sstable_format = { 'type': 'bti-fast', " +
+                                                               "'crc_check_chance': 0.2, " +
+                                                               "'max_index_interval': 512} ");
+        assertSchemaOption("bloom_filter_fp_chance", 0.01);
+        assertSchemaOption("crc_check_chance", 1.0); // default value is not set
+        assertSchemaOption("max_index_interval", 2048); // default value is not set
+        assertSchemaOption("min_index_interval", 128);
+        assertSchemaOption("sstable_format", map("bloom_filter_fp_chance", "0.01", "crc_check_chance", "0.2", "max_index_interval", "512", "min_index_interval", "128", "type", "bti-fast"));
+
+        // create table with no sstable_format
+        createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))");
+        assertSchemaOption("sstable_format", null);
+        assertSchemaOption("bloom_filter_fp_chance", 0.01);
+        assertSchemaOption("crc_check_chance", 1.0);
+        assertSchemaOption("max_index_interval", 2048);
+        assertSchemaOption("min_index_interval", 128);
+
+        try
+        {
+            alterTable("ALTER TABLE %s with sstable_format = 'bti-fast' AND bloom_filter_fp_chance = 0.9 ");
+            fail();
+        }
+        catch (Throwable throwable)
+        {
+            assertTrue(throwable.getCause().getMessage().contains("Cannot define bloom_filter_fp_chance AND sstable_format' bloom_filter_fp_chance at the same time with different value."));
+        }
     }
 }

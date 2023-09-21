@@ -119,8 +119,8 @@ public class IndexSummaryManagerTest<R extends SSTableReader & IndexSummarySuppo
         String cfname = CF_STANDARDLOWiINTERVAL; // index interval of 8, no key caching
         Keyspace keyspace = Keyspace.open(ksname);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfname);
-        originalMinIndexInterval = cfs.metadata().params.minIndexInterval;
-        originalMaxIndexInterval = cfs.metadata().params.maxIndexInterval;
+        originalMinIndexInterval = cfs.metadata().params.getMinIndexInterval();
+        originalMaxIndexInterval = cfs.metadata().params.getMaxIndexInterval();
         originalCapacity = IndexSummaryManager.instance.getMemoryPoolCapacityInMB();
     }
 
@@ -234,15 +234,15 @@ public class IndexSummaryManagerTest<R extends SSTableReader & IndexSummarySuppo
             sstable.overrideReadMeter(new RestorableMeter(100.0, 100.0));
 
         for (R sstable : sstables)
-            assertEquals(cfs.metadata().params.minIndexInterval, sstable.getIndexSummary().getEffectiveIndexInterval(), 0.001);
+            assertEquals(cfs.metadata().params.getMinIndexInterval(), sstable.getIndexSummary().getEffectiveIndexInterval(), 0.001);
 
         // double the min_index_interval
         SchemaTestUtil.announceTableUpdate(cfs.metadata().unbuild().minIndexInterval(originalMinIndexInterval * 2).build());
         IndexSummaryManager.instance.redistributeSummaries();
         for (R sstable : ServerTestUtils.<R>getLiveIndexSummarySupportingReaders(cfs))
         {
-            assertEquals(cfs.metadata().params.minIndexInterval, sstable.getIndexSummary().getEffectiveIndexInterval(), 0.001);
-            assertEquals(numRows / cfs.metadata().params.minIndexInterval, sstable.getIndexSummary().size());
+            assertEquals(cfs.metadata().params.getMinIndexInterval(), sstable.getIndexSummary().getEffectiveIndexInterval(), 0.001);
+            assertEquals(numRows / cfs.metadata().params.getMinIndexInterval(), sstable.getIndexSummary().size());
         }
 
         // return min_index_interval to its original value
@@ -250,8 +250,8 @@ public class IndexSummaryManagerTest<R extends SSTableReader & IndexSummarySuppo
         IndexSummaryManager.instance.redistributeSummaries();
         for (R sstable : ServerTestUtils.<R>getLiveIndexSummarySupportingReaders(cfs))
         {
-            assertEquals(cfs.metadata().params.minIndexInterval, sstable.getIndexSummary().getEffectiveIndexInterval(), 0.001);
-            assertEquals(numRows / cfs.metadata().params.minIndexInterval, sstable.getIndexSummary().size());
+            assertEquals(cfs.metadata().params.getMinIndexInterval(), sstable.getIndexSummary().getEffectiveIndexInterval(), 0.001);
+            assertEquals(numRows / cfs.metadata().params.getMinIndexInterval(), sstable.getIndexSummary().size());
         }
 
         // halve the min_index_interval, but constrain the available space to exactly what we have now; as a result,
@@ -300,7 +300,7 @@ public class IndexSummaryManagerTest<R extends SSTableReader & IndexSummarySuppo
             redistributeSummaries(Collections.emptyList(), of(cfs.metadata.id, txn), 10);
         }
         sstable = ServerTestUtils.<R>getLiveIndexSummarySupportingReaders(cfs).iterator().next();
-        assertEquals(cfs.metadata().params.minIndexInterval, sstable.getIndexSummary().getEffectiveIndexInterval(), 0.001);
+        assertEquals(cfs.metadata().params.getMinIndexInterval(), sstable.getIndexSummary().getEffectiveIndexInterval(), 0.001);
     }
 
     @Test
@@ -324,10 +324,10 @@ public class IndexSummaryManagerTest<R extends SSTableReader & IndexSummarySuppo
         }
         sstables = ServerTestUtils.getLiveIndexSummarySupportingReaders(cfs);
         for (R sstable : sstables)
-            assertEquals(cfs.metadata().params.maxIndexInterval, sstable.getIndexSummary().getEffectiveIndexInterval(), 0.01);
+            assertEquals(cfs.metadata().params.getMaxIndexInterval(), sstable.getIndexSummary().getEffectiveIndexInterval(), 0.01);
 
         // halve the max_index_interval
-        SchemaTestUtil.announceTableUpdate(cfs.metadata().unbuild().maxIndexInterval(cfs.metadata().params.maxIndexInterval / 2).build());
+        SchemaTestUtil.announceTableUpdate(cfs.metadata().unbuild().maxIndexInterval(cfs.metadata().params.getMaxIndexInterval() / 2).build());
         try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN))
         {
             redistributeSummaries(Collections.emptyList(), of(cfs.metadata.id, txn), 1);
@@ -335,20 +335,20 @@ public class IndexSummaryManagerTest<R extends SSTableReader & IndexSummarySuppo
         sstables = ServerTestUtils.getLiveIndexSummarySupportingReaders(cfs);
         for (R sstable : sstables)
         {
-            assertEquals(cfs.metadata().params.maxIndexInterval, sstable.getIndexSummary().getEffectiveIndexInterval(), 0.01);
-            assertEquals(numRows / cfs.metadata().params.maxIndexInterval, sstable.getIndexSummary().size());
+            assertEquals(cfs.metadata().params.getMaxIndexInterval(), sstable.getIndexSummary().getEffectiveIndexInterval(), 0.01);
+            assertEquals(numRows / cfs.metadata().params.getMaxIndexInterval(), sstable.getIndexSummary().size());
         }
 
         // return max_index_interval to its original value
-        SchemaTestUtil.announceTableUpdate(cfs.metadata().unbuild().maxIndexInterval(cfs.metadata().params.maxIndexInterval * 2).build());
+        SchemaTestUtil.announceTableUpdate(cfs.metadata().unbuild().maxIndexInterval(cfs.metadata().params.getMaxIndexInterval() * 2).build());
         try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN))
         {
             redistributeSummaries(Collections.emptyList(), of(cfs.metadata.id, txn), 1);
         }
         for (R sstable : ServerTestUtils.<R>getLiveIndexSummarySupportingReaders(cfs))
         {
-            assertEquals(cfs.metadata().params.maxIndexInterval, sstable.getIndexSummary().getEffectiveIndexInterval(), 0.01);
-            assertEquals(numRows / cfs.metadata().params.maxIndexInterval, sstable.getIndexSummary().size());
+            assertEquals(cfs.metadata().params.getMaxIndexInterval(), sstable.getIndexSummary().getEffectiveIndexInterval(), 0.01);
+            assertEquals(numRows / cfs.metadata().params.getMaxIndexInterval(), sstable.getIndexSummary().size());
         }
     }
 
@@ -363,7 +363,7 @@ public class IndexSummaryManagerTest<R extends SSTableReader & IndexSummarySuppo
         int numRows = 256;
         createSSTables(ksname, cfname, numSSTables, numRows);
 
-        int minSamplingLevel = (BASE_SAMPLING_LEVEL * cfs.metadata().params.minIndexInterval) / cfs.metadata().params.maxIndexInterval;
+        int minSamplingLevel = (BASE_SAMPLING_LEVEL * cfs.metadata().params.getMinIndexInterval()) / cfs.metadata().params.getMaxIndexInterval();
 
         List<R> sstables = ServerTestUtils.getLiveIndexSummarySupportingReaders(cfs);
         for (R sstable : sstables)
@@ -539,7 +539,7 @@ public class IndexSummaryManagerTest<R extends SSTableReader & IndexSummarySuppo
             {
                 sstable = sstable.cloneWithNewSummarySamplingLevel(cfs, samplingLevel);
                 assertEquals(samplingLevel, sstable.getIndexSummary().getSamplingLevel());
-                int expectedSize = (numRows * samplingLevel) / (cfs.metadata().params.minIndexInterval * BASE_SAMPLING_LEVEL);
+                int expectedSize = (numRows * samplingLevel) / (cfs.metadata().params.getMinIndexInterval() * BASE_SAMPLING_LEVEL);
                 assertEquals(expectedSize, sstable.getIndexSummary().size(), 1);
                 txn.update(sstable, true);
                 txn.checkpoint();
@@ -597,20 +597,20 @@ public class IndexSummaryManagerTest<R extends SSTableReader & IndexSummarySuppo
             Util.flush(cfs);
         }
 
-        assertTrue(manager.getAverageIndexInterval() >= cfs.metadata().params.minIndexInterval);
+        assertTrue(manager.getAverageIndexInterval() >= cfs.metadata().params.getMinIndexInterval());
         Map<String, Integer> intervals = manager.getIndexIntervals();
         for (Map.Entry<String, Integer> entry : intervals.entrySet())
             if (entry.getKey().contains(CF_STANDARDLOWiINTERVAL))
-                assertEquals(cfs.metadata().params.minIndexInterval, entry.getValue(), 0.001);
+                assertEquals(cfs.metadata().params.getMinIndexInterval(), entry.getValue(), 0.001);
 
         manager.setMemoryPoolCapacityInMB(0);
         manager.redistributeSummaries();
-        assertTrue(manager.getAverageIndexInterval() > cfs.metadata().params.minIndexInterval);
+        assertTrue(manager.getAverageIndexInterval() > cfs.metadata().params.getMinIndexInterval());
         intervals = manager.getIndexIntervals();
         for (Map.Entry<String, Integer> entry : intervals.entrySet())
         {
             if (entry.getKey().contains(CF_STANDARDLOWiINTERVAL))
-                assertTrue(entry.getValue() >= cfs.metadata().params.minIndexInterval);
+                assertTrue(entry.getValue() >= cfs.metadata().params.getMinIndexInterval());
         }
     }
 

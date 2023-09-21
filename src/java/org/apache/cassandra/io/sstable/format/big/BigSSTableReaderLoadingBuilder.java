@@ -202,10 +202,10 @@ public class BigSSTableReaderLoadingBuilder extends SortedTableReaderLoadingBuil
             long estimatedRowsNumber = rebuildFilter || rebuildSummary ? estimateRowsFromIndex(indexFile) : 0;
 
             if (rebuildFilter)
-                bf = FilterFactory.getFilter(estimatedRowsNumber, tableMetadataRef.getLocal().params.bloomFilterFpChance);
+                bf = FilterFactory.getFilter(estimatedRowsNumber, tableMetadataRef.getLocal().params.getBloomFilterFpChance());
 
             try (IndexSummaryBuilder summaryBuilder = !rebuildSummary ? null : new IndexSummaryBuilder(estimatedRowsNumber,
-                                                                                                       tableMetadataRef.getLocal().params.minIndexInterval,
+                                                                                                       tableMetadataRef.getLocal().params.getMinIndexInterval(),
                                                                                                        Downsampling.BASE_SAMPLING_LEVEL))
             {
                 while (!keyReader.isExhausted())

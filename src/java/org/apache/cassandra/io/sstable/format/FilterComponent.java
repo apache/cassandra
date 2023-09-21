@@ -99,7 +99,7 @@ public class FilterComponent
     public static IFilter maybeLoadBloomFilter(Descriptor descriptor, Set<Component> components, TableMetadata metadata, ValidationMetadata validationMetadata)
     {
         double currentFPChance = validationMetadata != null ? validationMetadata.bloomFilterFPChance : Double.NaN;
-        double desiredFPChance = metadata.params.bloomFilterFpChance;
+        double desiredFPChance = metadata.params.getBloomFilterFpChance();
 
         IFilter filter = null;
         if (!shouldUseBloomFilter(desiredFPChance))

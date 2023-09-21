@@ -275,7 +275,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
     protected Map<MetadataType, MetadataComponent> finalizeMetadata()
     {
         return metadataCollector.finalizeMetadata(getPartitioner().getClass().getCanonicalName(),
-                                                  metadata().params.bloomFilterFpChance,
+                                                  metadata().params.getBloomFilterFpChance(),
                                                   repairedAt,
                                                   pendingRepair,
                                                   isTransient,

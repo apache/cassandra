@@ -57,6 +57,7 @@ public final class TableParams
         MEMTABLE_FLUSH_PERIOD_IN_MS,
         MIN_INDEX_INTERVAL,
         SPECULATIVE_RETRY,
+        SSTABLE_FORMAT,
         ADDITIONAL_WRITE_POLICY,
         CRC_CHECK_CHANCE,
         CDC,
@@ -71,20 +72,22 @@ public final class TableParams
 
     public final String comment;
     public final boolean allowAutoSnapshot;
-    public final double bloomFilterFpChance;
-    public final double crcCheckChance;
+    // should we also add some log to remind that the paramter is deprecated ? like crc_check_chance in CompressionParams
+    @Deprecated public final double bloomFilterFpChance;
+    @Deprecated public final double crcCheckChance;
     public final int gcGraceSeconds;
     public final boolean incrementalBackups;
     public final int defaultTimeToLive;
     public final int memtableFlushPeriodInMs;
-    public final int minIndexInterval;
-    public final int maxIndexInterval;
+    @Deprecated public final int minIndexInterval;
+    @Deprecated public final int maxIndexInterval;
     public final SpeculativeRetryPolicy speculativeRetry;
     public final SpeculativeRetryPolicy additionalWritePolicy;
     public final CachingParams caching;
     public final CompactionParams compaction;
     public final CompressionParams compression;
     public final MemtableParams memtable;
+    public final SSTableFormatParams ssTableFormatParams;
     public final ImmutableMap<String, ByteBuffer> extensions;
     public final boolean cdc;
     public final ReadRepairStrategy readRepair;
@@ -93,7 +96,7 @@ public final class TableParams
     {
         comment = builder.comment;
         allowAutoSnapshot = builder.allowAutoSnapshot;
-        bloomFilterFpChance = builder.bloomFilterFpChance == -1
+        bloomFilterFpChance = builder.bloomFilterFpChance == SSTableFormatParams.INVALID_BLOOM_FILTER_FP_CHANCE
                             ? builder.compaction.defaultBloomFilterFbChance()
                             : builder.bloomFilterFpChance;
         crcCheckChance = builder.crcCheckChance;
@@ -109,6 +112,7 @@ public final class TableParams
         compaction = builder.compaction;
         compression = builder.compression;
         memtable = builder.memtable;
+        ssTableFormatParams = builder.ssTableFormatParams;
         extensions = builder.extensions;
         cdc = builder.cdc;
         readRepair = builder.readRepair;
@@ -135,6 +139,7 @@ public final class TableParams
                             .maxIndexInterval(params.maxIndexInterval)
                             .memtableFlushPeriodInMs(params.memtableFlushPeriodInMs)
                             .minIndexInterval(params.minIndexInterval)
+                            .sstableFormat(params.ssTableFormatParams)
                             .speculativeRetry(params.speculativeRetry)
                             .additionalWritePolicy(params.additionalWritePolicy)
                             .extensions(params.extensions)
@@ -151,6 +156,7 @@ public final class TableParams
     {
         compaction.validate();
         compression.validate();
+        ssTableFormatParams.validate();
 
         double minBloomFilterFpChanceValue = BloomCalculations.minSupportedBloomFilterFpChance();
         if (bloomFilterFpChance <=  minBloomFilterFpChanceValue || bloomFilterFpChance > 1)
@@ -194,11 +200,52 @@ public final class TableParams
 
         if (cdc && memtable.factory().writesShouldSkipCommitLog())
             fail("CDC cannot work if writes skip the commit log. Check your memtable configuration.");
+
+        // conflict validation
+        if (ssTableFormatParams.isIllegalDeprecatedProperty(SSTableFormatParams.Option.BLOOM_FILTER_FP_CHANCE))
+        {
+            fail("Cannot define bloom_filter_fp_chance AND sstable_format' bloom_filter_fp_chance at the same time with different value.");
+        }
+
+        if (ssTableFormatParams.isIllegalDeprecatedProperty(SSTableFormatParams.Option.CRC_CHECK_CHANCE))
+        {
+            fail("Cannot define crc_check_chance AND sstable_format' crc_check_chance at the same time with different value.");
+        }
+
+        if (ssTableFormatParams.isIllegalDeprecatedProperty(SSTableFormatParams.Option.MIN_INDEX_INTERVAL))
+        {
+            fail("Cannot define min_index_interval AND sstable_format' min_index_interval at the same time with different value.");
+        }
+
+        if (ssTableFormatParams.isIllegalDeprecatedProperty(SSTableFormatParams.Option.MAX_INDEX_INTERVAL))
+        {
+            fail("Cannot define max_index_interval AND sstable_format' max_index_interval at the same time with different value.");
+        }
     }
 
-    private static void fail(String format, Object... args)
+    public static void fail(String format, Object... args)
     {
         throw new ConfigurationException(format(format, args));
+    }
+
+    public double getBloomFilterFpChance()
+    {
+        return bloomFilterFpChance == compaction.defaultBloomFilterFbChance() ? ssTableFormatParams.getBloomFilterFpChance(compaction) : bloomFilterFpChance;
+    }
+
+    public double getCrcCheckChance()
+    {
+        return crcCheckChance == SSTableFormatParams.DEFAULT_CRC_CHECK_CHANCE ? ssTableFormatParams.getCrcChance() : crcCheckChance;
+    }
+
+    public int getMinIndexInterval()
+    {
+        return minIndexInterval == SSTableFormatParams.DEFAULT_MIN_INDEX_INTERVAL ? ssTableFormatParams.getMinInterval() : minIndexInterval;
+    }
+
+    public int getMaxIndexInterval()
+    {
+        return maxIndexInterval == SSTableFormatParams.DEFAULT_MAX_INDEX_INTERVAL ? ssTableFormatParams.getMaxInterval() : maxIndexInterval;
     }
 
     @Override
@@ -227,6 +274,7 @@ public final class TableParams
             && caching.equals(p.caching)
             && compaction.equals(p.compaction)
             && compression.equals(p.compression)
+            && ssTableFormatParams.equals(p.ssTableFormatParams)
             && memtable.equals(p.memtable)
             && extensions.equals(p.extensions)
             && cdc == p.cdc
@@ -251,6 +299,7 @@ public final class TableParams
                                 caching,
                                 compaction,
                                 compression,
+                                ssTableFormatParams,
                                 memtable,
                                 extensions,
                                 cdc,
@@ -276,6 +325,7 @@ public final class TableParams
                           .add(CACHING.toString(), caching)
                           .add(COMPACTION.toString(), compaction)
                           .add(COMPRESSION.toString(), compression)
+                          .add(SSTABLE_FORMAT.toString(), ssTableFormatParams)
                           .add(MEMTABLE.toString(), memtable)
                           .add(EXTENSIONS.toString(), extensions)
                           .add(CDC.toString(), cdc)
@@ -301,6 +351,8 @@ public final class TableParams
                .append("AND compaction = ").append(compaction.asMap())
                .newLine()
                .append("AND compression = ").append(compression.asMap())
+               .newLine()
+               .append("AND sstable_format = ").append(ssTableFormatParams.asMap())
                .newLine()
                .append("AND memtable = ").appendWithSingleQuotes(memtable.configurationKey())
                .newLine()
@@ -338,20 +390,21 @@ public final class TableParams
     {
         private String comment = "";
         private boolean allowAutoSnapshot = true;
-        private double bloomFilterFpChance = -1;
-        private double crcCheckChance = 1.0;
+        private double bloomFilterFpChance = SSTableFormatParams.INVALID_BLOOM_FILTER_FP_CHANCE;
+        private double crcCheckChance = SSTableFormatParams.DEFAULT_CRC_CHECK_CHANCE;
         private int gcGraceSeconds = 864000; // 10 days
         private boolean incrementalBackups = true;
         private int defaultTimeToLive = 0;
         private int memtableFlushPeriodInMs = 0;
-        private int minIndexInterval = 128;
-        private int maxIndexInterval = 2048;
+        private int minIndexInterval = SSTableFormatParams.DEFAULT_MIN_INDEX_INTERVAL;
+        private int maxIndexInterval = SSTableFormatParams.DEFAULT_MAX_INDEX_INTERVAL;
         private SpeculativeRetryPolicy speculativeRetry = PercentileSpeculativeRetryPolicy.NINETY_NINE_P;
         private SpeculativeRetryPolicy additionalWritePolicy = PercentileSpeculativeRetryPolicy.NINETY_NINE_P;
         private CachingParams caching = CachingParams.DEFAULT;
         private CompactionParams compaction = CompactionParams.DEFAULT;
         private CompressionParams compression = CompressionParams.DEFAULT;
         private MemtableParams memtable = MemtableParams.DEFAULT;
+        private SSTableFormatParams ssTableFormatParams = SSTableFormatParams.DEFAULT_BIG_SSTABLE;
         private ImmutableMap<String, ByteBuffer> extensions = ImmutableMap.of();
         private boolean cdc;
         private ReadRepairStrategy readRepair = ReadRepairStrategy.BLOCKING;
@@ -458,6 +511,12 @@ public final class TableParams
         public Builder compression(CompressionParams val)
         {
             compression = val;
+            return this;
+        }
+
+        public Builder sstableFormat(SSTableFormatParams val)
+        {
+            ssTableFormatParams = val;
             return this;
         }
 

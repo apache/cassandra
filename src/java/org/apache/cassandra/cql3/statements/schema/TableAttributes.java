@@ -25,10 +25,12 @@ import com.google.common.collect.Sets;
 
 import org.apache.cassandra.cql3.statements.PropertyDefinitions;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.schema.MemtableParams;
+import org.apache.cassandra.schema.SSTableFormatParams;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.schema.TableParams.Option;
@@ -161,6 +163,27 @@ public final class TableAttributes extends PropertyDefinitions
         if (hasOption(READ_REPAIR))
             builder.readRepair(ReadRepairStrategy.fromString(getString(READ_REPAIR)));
 
+        if (hasOption(SSTABLE_FORMAT))
+        {
+            SSTableFormatParams params = null;
+            if(hasStringValue(SSTABLE_FORMAT))
+            {
+                params = SSTableFormatParams.get(getString(SSTABLE_FORMAT));
+            }
+            else if (hasMapValue(SSTABLE_FORMAT))
+            {
+                Map<String, String> map = getMap(SSTABLE_FORMAT);
+                params = SSTableFormatParams.get(map);
+            }
+            else
+            {
+                throw new SyntaxException("sstable_format property only support string value or map value.");
+            }
+            params.setDeprecatedProperties(properties);
+            //TODO if sstable_fromat is defined in cql and the deprecated properties are not , should we also change the deprecated properties' default value too?
+            builder.sstableFormat(params);
+        }
+
         return builder.build();
     }
 
@@ -183,6 +206,26 @@ public final class TableAttributes extends PropertyDefinitions
         if (value == null)
             throw new IllegalStateException(format("Option '%s' is absent", option));
         return value;
+    }
+
+    private boolean hasStringValue(Option option)
+    {
+        Object val = properties.get(option.toString());
+        if (val != null && val instanceof String)
+        {
+            return true;
+        }
+        return false;
+    }
+
+    private boolean hasMapValue(Option option)
+    {
+        Object val = properties.get(option.toString());
+        if (val != null && val instanceof Map)
+        {
+            return true;
+        }
+        return false;
     }
 
     private boolean getBoolean(Option option)

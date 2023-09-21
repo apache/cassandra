@@ -363,10 +363,11 @@ public class Config
     public static class SSTableConfig
     {
         public String selected_format = BigFormat.NAME;
-        public Map<String, Map<String, String>> format = new HashMap<>();
+        public Map<String, Map<String, String>> sstable_format_options = new HashMap<>();
     }
 
     public final SSTableConfig sstable = new SSTableConfig();
+
 
     /**
      * The directory to use for storing the system keyspaces data.
