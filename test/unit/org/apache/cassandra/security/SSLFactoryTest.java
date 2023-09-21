@@ -114,9 +114,9 @@ public class SSLFactoryTest
         {
             ServerEncryptionOptions options = addKeystoreOptions(encryptionOptions)
                                               .withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all);
-            // emulate InboundSockets and share the cert but with different options, no extra hot reloading init
             ServerEncryptionOptions legacyOptions = options.withOptional(false).withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all);
-            SSLFactory.initHotReloading(options, options, true); // deliberately not initializing with legacyOptions to match InboundSockets.addBindings
+            options.sslContextFactoryInstance.initHotReloading();
+            legacyOptions.sslContextFactoryInstance.initHotReloading();
 
             SslContext oldCtx = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT, "test");
             SslContext oldLegacyCtx = SSLFactory.getOrCreateSslContext(legacyOptions, true, ISslContextFactory.SocketType.CLIENT, "test legacy");
@@ -186,8 +186,8 @@ public class SSLFactoryTest
                                               .withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.dc);
             // emulate InboundSockets and share the cert but with different options, no extra hot reloading init
             ServerEncryptionOptions legacyOptions = options.withOptional(false).withInternodeEncryption(ServerEncryptionOptions.InternodeEncryption.all);
-
-            SSLFactory.initHotReloading(options, options, true); // deliberately not initializing with legacyOptions to match InboundSockets.addBindings
+            options.sslContextFactoryInstance.initHotReloading();
+            legacyOptions.sslContextFactoryInstance.initHotReloading();
 
             SslContext oldCtx = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT, "test");
             SslContext oldLegacyCtx = SSLFactory.getOrCreateSslContext(legacyOptions, true, ISslContextFactory.SocketType.CLIENT, "test legacy");

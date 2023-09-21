@@ -195,14 +195,11 @@ public final class SSLFactory
 
     private static void checkCachedContextsForReload(boolean forceReload)
     {
-        List<CacheKey> keys = new ArrayList<>(Collections.list(cachedSslContexts.keys()));
-        Set<EncryptionOptions> checked = new HashSet<>();
-
-        keys.forEach(key -> {
+        List<CacheKey> keysToCheck = new ArrayList<>(Collections.list(cachedSslContexts.keys()));
+        while (!keysToCheck.isEmpty())
+        {
+            CacheKey key = keysToCheck.remove(keysToCheck.size()-1);
             final EncryptionOptions opts = key.encryptionOptions;
-            if (checked.contains(opts)) // only check each encryption option once as shared for different types
-                return;
-            checked.add(key.encryptionOptions);
 
             logger.debug("Checking whether certificates have been updated for {}", key.contextDescription);
             if (forceReload || opts.sslContextFactoryInstance.shouldReload())
@@ -210,12 +207,10 @@ public final class SSLFactory
                 try
                 {
                     validateSslContext(key.contextDescription, opts,
-                                       opts instanceof EncryptionOptions.ServerEncryptionOptions ? true
-                                                                                                 : opts.require_client_auth, false);
+                            opts instanceof EncryptionOptions.ServerEncryptionOptions || opts.require_client_auth, false);
                     logger.info("SSL certificates have been updated for {}. Resetting the ssl contexts for new " +
                                 "connections.", opts.getClass().getName());
-                    clearSslContextCache(key.encryptionOptions);
-
+                    clearSslContextCache(key.encryptionOptions, keysToCheck);
                 }
                 catch (Throwable tr)
                 {
@@ -223,7 +218,7 @@ public final class SSLFactory
                                  key.contextDescription, tr);
                 }
             }
-        });
+        }
     }
 
     /**
@@ -238,22 +233,16 @@ public final class SSLFactory
         cachedSslContexts.clear();
     }
 
-    private static void clearSslContextCache(EncryptionOptions options)
+    /**
+     * Clear all cachedSslContexts with this encryption option and remove them from future keys to check
+     */
+    private static void clearSslContextCache(EncryptionOptions options, List<CacheKey> keysToCheck)
     {
         cachedSslContexts.forEachKey(1, cacheKey -> {
-
-            // This can be replaced by a simple options.equals(cacheKey.entryptionOptions)
-            // once the legacy ssl storage port code is removed.  The encryption option configuration
-            // used for the legacy ssl storage port is not used when SSL Cert hot reloading is initialized,
-            // so will never be return true for shouldReload. Instead, if there is a keystore present
-            // and the paths/password match, use that to invalidate instead.
-            if (cacheKey.encryptionOptions.keystore != null &&
-                Objects.equals(options.keystore, cacheKey.encryptionOptions.keystore) &&
-                Objects.equals(options.keystore_password, cacheKey.encryptionOptions.keystore_password) &&
-                Objects.equals(options.truststore, cacheKey.encryptionOptions.truststore) &&
-                Objects.equals(options.truststore_password, cacheKey.encryptionOptions.truststore_password))
+            if (Objects.equals(options, cacheKey.encryptionOptions))
             {
                 cachedSslContexts.remove(cacheKey);
+                keysToCheck.remove(cacheKey);
             }
         });
     }
