@@ -22,6 +22,8 @@ import io.netty.channel.ChannelPipeline;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Collection;
+import java.util.function.Supplier;
+import java.util.zip.CRC32C;
 import java.util.zip.Checksum;
 
 import static org.apache.cassandra.net.Crc.crc24;
@@ -56,14 +58,27 @@ import static org.apache.cassandra.net.Crc.updateCrc32;
  */
 public final class FrameDecoderCrc extends FrameDecoderWith8bHeader
 {
+    private final Supplier<Checksum> crc32factory;
+
     public FrameDecoderCrc(BufferPoolAllocator allocator)
     {
+        this(allocator, Crc::crc32);
+    }
+
+    public FrameDecoderCrc(BufferPoolAllocator allocator, Supplier<Checksum> crc32factory)
+    {
         super(allocator);
+        this.crc32factory = crc32factory;
     }
 
     public static FrameDecoder create(BufferPoolAllocator allocator)
     {
         return new FrameDecoderCrc(allocator);
+    }
+
+    public static FrameDecoder createWithCRC32C(BufferPoolAllocator allocator)
+    {
+        return new FrameDecoderCrc(allocator, CRC32C::new);
     }
 
     static final int HEADER_LENGTH = 6;
@@ -132,7 +147,7 @@ public final class FrameDecoderCrc extends FrameDecoderWith8bHeader
         ByteBuffer in = bytes.get();
         boolean isSelfContained = isSelfContained(header6b);
 
-        Checksum crc = FrameEncoder.crc32factory.get();
+        Checksum crc = crc32factory.get();
         int readFullCrc = in.getInt(end - TRAILER_LENGTH);
         if (in.order() == ByteOrder.BIG_ENDIAN)
             readFullCrc = Integer.reverseBytes(readFullCrc);

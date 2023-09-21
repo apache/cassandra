@@ -45,6 +45,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.utils.JsonUtils;
 
+import static org.apache.cassandra.net.MessagingService.VERSION_501;
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
 
 public class CommitLogDescriptor
@@ -225,6 +226,8 @@ public class CommitLogDescriptor
                 return MessagingService.VERSION_40;
             case VERSION_50:
                 return MessagingService.VERSION_50;
+            case VERSION_501:
+                return MessagingService.VERSION_501;
             default:
                 throw new IllegalStateException("Unknown commitlog version " + version);
         }

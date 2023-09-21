@@ -54,6 +54,7 @@ import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.Hex;
 import org.apache.cassandra.utils.JsonUtils;
 
+import static org.apache.cassandra.net.MessagingService.VERSION_501;
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
 
 /**
@@ -234,6 +235,8 @@ final class HintsDescriptor
                 return MessagingService.VERSION_40;
             case VERSION_50:
                 return MessagingService.VERSION_50;
+            case VERSION_501:
+                return MessagingService.VERSION_501;
             default:
                 throw new AssertionError();
         }

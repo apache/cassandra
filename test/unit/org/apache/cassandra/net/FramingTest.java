@@ -117,9 +117,15 @@ public class FramingTest
     }
 
     @Test
-    public void testRandomCrc32c()
+    public void testRandomWithCRC32C()
     {
-        testSomeFrames(FrameEncoderCrc32c.instance, FrameDecoderCrc32c.create(GlobalBufferPoolAllocator.instance));
+        testSomeFrames(FrameEncoderCrc.instanceWithCRC32C, FrameDecoderCrc.createWithCRC32C(GlobalBufferPoolAllocator.instance));
+    }
+
+    @Test
+    public void testRandomLZ4WithCRC32C()
+    {
+        testSomeFrames(FrameEncoderLZ4.fastInstanceWithCRC32C, FrameDecoderLZ4.fastWithCRC32C(GlobalBufferPoolAllocator.instance));
     }
 
     private void testSomeFrames(FrameEncoder encoder, FrameDecoder decoder)

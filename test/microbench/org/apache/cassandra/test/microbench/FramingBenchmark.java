@@ -26,12 +26,10 @@ import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.net.BufferPoolAllocator;
 import org.apache.cassandra.net.FrameDecoder;
 import org.apache.cassandra.net.FrameDecoderCrc;
-import org.apache.cassandra.net.FrameDecoderCrc32c;
 import org.apache.cassandra.net.FrameDecoderLZ4;
 import org.apache.cassandra.net.FrameDecoderUnprotected;
 import org.apache.cassandra.net.FrameEncoder;
 import org.apache.cassandra.net.FrameEncoderCrc;
-import org.apache.cassandra.net.FrameEncoderCrc32c;
 import org.apache.cassandra.net.FrameEncoderLZ4;
 import org.apache.cassandra.net.FrameEncoderUnprotected;
 import org.apache.cassandra.net.GlobalBufferPoolAllocator;
@@ -81,7 +79,7 @@ public class FramingBenchmark
     @State(Scope.Thread)
     public static class EncoderState
     {
-        @Param({ "CRC", "CRC32C", "LZ4" })
+        @Param({ "CRC", "CRC32C", "LZ4", "LZ4_CRC32C" })
         public EncoderDecoderType type;
         // We need to reserve some space for the header and trailer of the frame e.g. 16384 - 7 - 4 = 16373
         @Param({"2037", "16373"})
@@ -107,7 +105,7 @@ public class FramingBenchmark
     @State(Scope.Thread)
     public static class DecoderState
     {
-        @Param({ "CRC", "CRC32C", "LZ4" })
+        @Param({ "CRC", "CRC32C", "LZ4", "LZ4_CRC32C" })
         public EncoderDecoderType type;
         // We need to reserve some space for the header and trailer of the frame e.g. 16384 - 7 - 4 = 16373
         @Param({"2037", "16373"})
@@ -144,6 +142,7 @@ public class FramingBenchmark
         CRC,
         CRC32C,
         LZ4,
+        LZ4_CRC32C,
         UNPROTECTED
     }
 
@@ -168,31 +167,6 @@ public class FramingBenchmark
         return out;
     }
 
-    @Benchmark
-    @Fork(value = 1, jvmArgsAppend = { "-Xmx512M",
-            "-Dcassandra.messaging.service.crc32c.enabled=true",
-            "-Djmh.executor=CUSTOM",
-            "-Djmh.executor.class=org.apache.cassandra.test.microbench.FastThreadExecutor" })
-    public ByteBuf encodePayloadCrc32c(EncoderState state)
-    {
-        ByteBuf buf = state.encoder.encode(state.payload.isSelfContained(), state.payload.buffer);
-        if (state.encoder instanceof FrameEncoderLZ4)
-            buf.release();
-        return buf;
-    }
-
-    @Benchmark
-    @Fork(value = 1, jvmArgsAppend = { "-Xmx512M",
-            "-Dcassandra.messaging.service.crc32c.enabled=true",
-            "-Djmh.executor=CUSTOM",
-            "-Djmh.executor.class=org.apache.cassandra.test.microbench.FastThreadExecutor" })
-    public Collection<FrameDecoder.Frame> decodePayloadCrc32c(DecoderState state)
-    {
-        Collection<FrameDecoder.Frame> out = new ArrayList<>();
-        state.decoder.decode(out, state.encodedBytes);
-        return out;
-    }
-
     private static FrameEncoder.Payload createPayload(FrameEncoder encoder, int size)
     {
         byte[] bytes = new byte[size];
@@ -210,9 +184,11 @@ public class FramingBenchmark
             case CRC:
                 return FrameEncoderCrc.instance;
             case CRC32C:
-                return FrameEncoderCrc32c.instance;
+                return FrameEncoderCrc.instanceWithCRC32C;
             case LZ4:
                 return FrameEncoderLZ4.fastInstance;
+            case LZ4_CRC32C:
+                return FrameEncoderLZ4.fastInstanceWithCRC32C;
             case UNPROTECTED:
                 return FrameEncoderUnprotected.instance;
             default:
@@ -227,9 +203,11 @@ public class FramingBenchmark
             case CRC:
                 return FrameDecoderCrc.create(allocator);
             case CRC32C:
-                return FrameDecoderCrc32c.create(allocator);
+                return FrameDecoderCrc.createWithCRC32C(allocator);
             case LZ4:
                 return FrameDecoderLZ4.fast(allocator);
+            case LZ4_CRC32C:
+                return FrameDecoderLZ4.fastWithCRC32C(allocator);
             case UNPROTECTED:
                 return FrameDecoderUnprotected.create(allocator);
             default:

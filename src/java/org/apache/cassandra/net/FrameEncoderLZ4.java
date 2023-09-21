@@ -26,6 +26,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.function.Supplier;
+import java.util.zip.CRC32C;
 import java.util.zip.Checksum;
 
 import static org.apache.cassandra.net.Crc.crc24;
@@ -37,13 +39,16 @@ import static org.apache.cassandra.net.Crc.crc24;
 public
 class FrameEncoderLZ4 extends FrameEncoder
 {
-    public static final FrameEncoderLZ4 fastInstance = new FrameEncoderLZ4(LZ4Factory.fastestInstance().fastCompressor());
+    public static final FrameEncoderLZ4 fastInstance = new FrameEncoderLZ4(LZ4Factory.fastestInstance().fastCompressor(), Crc::crc32);
+    public static final FrameEncoderLZ4 fastInstanceWithCRC32C = new FrameEncoderLZ4(LZ4Factory.fastestInstance().fastCompressor(), CRC32C::new);
 
     private final LZ4Compressor compressor;
+    private final Supplier<Checksum> crc32factory;
 
-    private FrameEncoderLZ4(LZ4Compressor compressor)
+    private FrameEncoderLZ4(LZ4Compressor compressor, Supplier<Checksum> crc32factory)
     {
         this.compressor = compressor;
+        this.crc32factory = crc32factory;
     }
 
     private static final int HEADER_LENGTH = 8;

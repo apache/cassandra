@@ -80,8 +80,8 @@ public class InboundConnectionInitiator
     private static final Logger logger = LoggerFactory.getLogger(InboundConnectionInitiator.class);
 
     private static final Map<Framing, FrameDecoderFactory> DECODER_FACTORIES = Map.of(
-            Framing.CRC, (allocator, version) -> version.greaterOrEquals(VERSION_501) ? FrameDecoderCrc32c.create(allocator) : FrameDecoderCrc.create(allocator),
-            Framing.LZ4, (allocator, version) -> FrameDecoderLZ4.fast(allocator),
+            Framing.CRC, (allocator, version) -> version.greaterOrEquals(VERSION_501) ? FrameDecoderCrc.createWithCRC32C(allocator) : FrameDecoderCrc.create(allocator),
+            Framing.LZ4, (allocator, version) -> version.greaterOrEquals(VERSION_501) ? FrameDecoderLZ4.fastWithCRC32C(allocator) : FrameDecoderLZ4.fast(allocator),
             Framing.UNPROTECTED, (allocator, version) -> FrameDecoderUnprotected.create(allocator));
 
     static {

@@ -92,8 +92,8 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
 {
     private static final Logger logger = LoggerFactory.getLogger(OutboundConnectionInitiator.class);
     private static final Map<OutboundConnectionSettings.Framing, FrameEncoderFactory> ENCODER_FACTORIES =
-            Map.of(OutboundConnectionSettings.Framing.CRC, v -> v.greaterOrEquals(MessagingService.VERSION_501) ? FrameEncoderCrc32c.instance : FrameEncoderCrc.instance,
-                    OutboundConnectionSettings.Framing.LZ4, v -> FrameEncoderLZ4.fastInstance,
+            Map.of(OutboundConnectionSettings.Framing.CRC, v -> v.greaterOrEquals(MessagingService.VERSION_501) ? FrameEncoderCrc.instanceWithCRC32C : FrameEncoderCrc.instance,
+                    OutboundConnectionSettings.Framing.LZ4, v -> v.greaterOrEquals(MessagingService.VERSION_501) ? FrameEncoderLZ4.fastInstanceWithCRC32C : FrameEncoderLZ4.fastInstance,
                     OutboundConnectionSettings.Framing.UNPROTECTED, v -> FrameEncoderUnprotected.instance
             );
 

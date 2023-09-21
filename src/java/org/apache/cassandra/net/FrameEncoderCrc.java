@@ -22,6 +22,8 @@ import io.netty.channel.ChannelHandler;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.function.Supplier;
+import java.util.zip.CRC32C;
 import java.util.zip.Checksum;
 
 import static org.apache.cassandra.net.Crc.crc24;
@@ -35,11 +37,25 @@ public class FrameEncoderCrc extends FrameEncoder
     static final int HEADER_LENGTH = 6;
     private static final int TRAILER_LENGTH = 4;
     public static final int HEADER_AND_TRAILER_LENGTH = 10;
+    private final Supplier<Checksum> crc32factory;
 
     public static final FrameEncoderCrc instance = new FrameEncoderCrc();
+    public static final FrameEncoderCrc instanceWithCRC32C = new FrameEncoderCrc(CRC32C::new);
+
     static final PayloadAllocator allocator = (isSelfContained, capacity) ->
         new Payload(isSelfContained, capacity, HEADER_LENGTH, TRAILER_LENGTH);
 
+    public FrameEncoderCrc()
+    {
+        this(Crc::crc32);
+    }
+
+    public FrameEncoderCrc(Supplier<Checksum> crc32factory)
+    {
+        this.crc32factory = crc32factory;
+    }
+
+    @Override
     public PayloadAllocator allocator()
     {
         return allocator;
