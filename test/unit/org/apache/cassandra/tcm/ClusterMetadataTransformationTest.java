@@ -50,7 +50,6 @@ import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
-import org.apache.cassandra.tcm.serialization.Version;
 import org.mockito.Mockito;
 
 import static org.apache.cassandra.tcm.MetadataKeys.DATA_PLACEMENTS;
@@ -249,9 +248,9 @@ public class ClusterMetadataTransformationTest
         assertModifications(transformed, epochKey, intKey, stringKey);
 
         DataOutputBuffer out = new DataOutputBuffer();
-        ClusterMetadata.serializer.serialize(transformed.metadata, out, Version.V0);
+        ClusterMetadata.serializer.serialize(transformed.metadata, out, NodeVersion.CURRENT_METADATA_VERSION);
         DataInputBuffer in = new DataInputBuffer(out.buffer(), false);
-        ClusterMetadata newMeta = ClusterMetadata.serializer.deserialize(in, Version.V0);
+        ClusterMetadata newMeta = ClusterMetadata.serializer.deserialize(in, NodeVersion.CURRENT_METADATA_VERSION);
 
         assertEquals(e.getValue(), newMeta.extensions.get(epochKey).getValue());
         assertEquals(i.getValue(), newMeta.extensions.get(intKey).getValue());

@@ -73,7 +73,6 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeVersion;
-import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.ForceSnapshot;
 import org.apache.cassandra.utils.*;
 
@@ -511,7 +510,7 @@ public class PaxosRepairTest extends TestBaseImpl
         cluster.get(1).acceptsOnInstance((InetSocketAddress addr) -> {
             ClusterMetadata cm = ClusterMetadata.current();
             Directory directory = cm.directory.withNodeVersion(cm.directory.peerId(InetAddressAndPort.getByAddress(addr)),
-                                                               new NodeVersion(new CassandraVersion(version), Version.V0));
+                                                               new NodeVersion(new CassandraVersion(version), NodeVersion.CURRENT_METADATA_VERSION));
 
             ClusterMetadata nextMetadata = cm.transformer().with(directory).build().metadata;
             ClusterMetadataService.instance().commit(new ForceSnapshot(nextMetadata));

@@ -124,7 +124,7 @@ public class RegisterTest extends TestBaseImpl
 
                     int newModifiers = field.getModifiers() & ~Modifier.FINAL;
                     modifiers.setInt(field, newModifiers);
-                    field.set(null, new NodeVersion(new CassandraVersion(FBUtilities.getReleaseVersionString()), Version.V0));
+                    field.set(null, new NodeVersion(new CassandraVersion(FBUtilities.getReleaseVersionString()), NodeVersion.CURRENT_METADATA_VERSION));
 
                 }
                 catch (NoSuchFieldException | IllegalAccessException e)

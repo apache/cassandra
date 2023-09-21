@@ -502,6 +502,8 @@ public final class TableParams
             out.writeInt(t.maxIndexInterval);
             out.writeUTF(t.speculativeRetry.toString());
             out.writeUTF(t.additionalWritePolicy.toString());
+            if (version.isAtLeast(Version.V2))
+                out.writeUTF(t.memtable.configurationKey());
             serializeMap(t.caching.asMap(), out);
             serializeMap(t.compaction.asMap(), out);
             serializeMap(t.compression.asMap(), out);
@@ -523,6 +525,7 @@ public final class TableParams
                    .maxIndexInterval(in.readInt())
                    .speculativeRetry(SpeculativeRetryPolicy.fromString(in.readUTF()))
                    .additionalWritePolicy(SpeculativeRetryPolicy.fromString(in.readUTF()))
+                   .memtable(version.isAtLeast(Version.V2) ? MemtableParams.get(in.readUTF()) : MemtableParams.DEFAULT)
                    .caching(CachingParams.fromMap(deserializeMap(in)))
                    .compaction(CompactionParams.fromMap(deserializeMap(in)))
                    .compression(CompressionParams.fromMap(deserializeMap(in)))
@@ -544,6 +547,7 @@ public final class TableParams
                    sizeof(t.maxIndexInterval) +
                    sizeof(t.speculativeRetry.toString()) +
                    sizeof(t.additionalWritePolicy.toString()) +
+                   (version.isAtLeast(Version.V2) ? sizeof(t.memtable.configurationKey()) : 0) +
                    serializedSizeMap(t.caching.asMap()) +
                    serializedSizeMap(t.compaction.asMap()) +
                    serializedSizeMap(t.compression.asMap()) +

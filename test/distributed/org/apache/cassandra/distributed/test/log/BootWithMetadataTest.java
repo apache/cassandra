@@ -37,9 +37,9 @@ import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
+import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
-import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.cms.EntireRange;
 
 import static org.apache.cassandra.distributed.shared.ClusterUtils.start;
@@ -116,7 +116,7 @@ public class BootWithMetadataTest extends TestBaseImpl
                     Path p = Files.createTempFile("clustermetadata", "dump");
                     try (FileOutputStreamPlus out = new FileOutputStreamPlus(p))
                     {
-                        VerboseMetadataSerializer.serialize(ClusterMetadata.serializer, toDump, out, Version.V0);
+                        VerboseMetadataSerializer.serialize(ClusterMetadata.serializer, toDump, out, NodeVersion.CURRENT_METADATA_VERSION);
                     }
                     return p.toString();
                 }

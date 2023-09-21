@@ -611,7 +611,7 @@ public class Directory implements MetadataValue<Directory>
 
         public long serializedSize(Directory t, Version version)
         {
-            int size = 0;
+            long size = 0;
             if (version.isAtLeast(Version.V1))
                 size += sizeof(t.nextId);
 

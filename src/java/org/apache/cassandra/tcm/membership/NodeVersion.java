@@ -34,7 +34,8 @@ import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 public class NodeVersion implements Comparable<NodeVersion>
 {
     public static final Serializer serializer = new Serializer();
-    public static final NodeVersion CURRENT = new NodeVersion(new CassandraVersion(FBUtilities.getReleaseVersionString()), Version.V1);
+    public static final Version CURRENT_METADATA_VERSION = Version.V2;
+    public static final NodeVersion CURRENT = new NodeVersion(new CassandraVersion(FBUtilities.getReleaseVersionString()), CURRENT_METADATA_VERSION);
 
     private static final CassandraVersion SINCE_VERSION = CassandraVersion.CASSANDRA_5_0;
 
@@ -89,7 +90,7 @@ public class NodeVersion implements Comparable<NodeVersion>
             return CURRENT;
         Version version = Version.OLD;
         if (cv.compareTo(SINCE_VERSION, true) >= 0)
-            version = Version.V1;
+            version = CURRENT_METADATA_VERSION;
         return new NodeVersion(cv, version);
     }
 

@@ -37,7 +37,7 @@ import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
-import org.apache.cassandra.tcm.serialization.Version;
+import org.apache.cassandra.tcm.membership.NodeVersion;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -122,7 +122,7 @@ public class ForceSnapshotTest extends TestBaseImpl
                     filename = cluster.get(2).callOnInstance(() -> {
                         try
                         {
-                            return ClusterMetadataService.instance().dumpClusterMetadata(Epoch.EMPTY, ClusterMetadata.current().epoch, Version.V0);
+                            return ClusterMetadataService.instance().dumpClusterMetadata(Epoch.EMPTY, ClusterMetadata.current().epoch, NodeVersion.CURRENT_METADATA_VERSION);
                         }
                         catch (IOException e)
                         {

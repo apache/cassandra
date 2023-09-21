@@ -33,7 +33,7 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.serialization.Version;
+import org.apache.cassandra.tcm.membership.NodeVersion;
 
 public class TableMetadataSerDeTest extends TestBaseImpl
 {
@@ -69,7 +69,7 @@ public class TableMetadataSerDeTest extends TestBaseImpl
                 ByteBuffer out = null;
                 try (DataOutputBuffer dob = new DataOutputBuffer())
                 {
-                    TableMetadata.serializer.serialize(tableMetadata, dob, Version.V0);
+                    TableMetadata.serializer.serialize(tableMetadata, dob, NodeVersion.CURRENT_METADATA_VERSION);
                     out = dob.buffer();
                 }
                 catch (IOException e)
@@ -77,11 +77,11 @@ public class TableMetadataSerDeTest extends TestBaseImpl
                     throw new RuntimeException(e);
                 }
 
-                Assert.assertEquals(out.limit(), TableMetadata.serializer.serializedSize(tableMetadata, Version.V0));
+                Assert.assertEquals(out.limit(), TableMetadata.serializer.serializedSize(tableMetadata, NodeVersion.CURRENT_METADATA_VERSION));
                 TableMetadata rt = null;
                 try
                 {
-                    rt = TableMetadata.serializer.deserialize(new DataInputBuffer(out, true), Types.builder().build(), UserFunctions.builder().build(), Version.V0);
+                    rt = TableMetadata.serializer.deserialize(new DataInputBuffer(out, true), Types.builder().build(), UserFunctions.builder().build(), NodeVersion.CURRENT_METADATA_VERSION);
                 }
                 catch (IOException e)
                 {
@@ -158,7 +158,7 @@ public class TableMetadataSerDeTest extends TestBaseImpl
                 ByteBuffer out = null;
                 try (DataOutputBuffer dob = new DataOutputBuffer())
                 {
-                    TableMetadata.serializer.serialize(before, dob, Version.V0);
+                    TableMetadata.serializer.serialize(before, dob, NodeVersion.CURRENT_METADATA_VERSION);
                     out = dob.buffer();
                 }
                 catch (IOException e)
@@ -166,11 +166,11 @@ public class TableMetadataSerDeTest extends TestBaseImpl
                     throw new RuntimeException(e);
                 }
 
-                Assert.assertEquals(out.limit(), TableMetadata.serializer.serializedSize(before, Version.V0));
+                Assert.assertEquals(out.limit(), TableMetadata.serializer.serializedSize(before, NodeVersion.CURRENT_METADATA_VERSION));
                 TableMetadata after = null;
                 try
                 {
-                    after = TableMetadata.serializer.deserialize(new DataInputBuffer(out, true), Types.builder().build(), UserFunctions.builder().build(), Version.V0);
+                    after = TableMetadata.serializer.deserialize(new DataInputBuffer(out, true), Types.builder().build(), UserFunctions.builder().build(), NodeVersion.CURRENT_METADATA_VERSION);
                 }
                 catch (IOException e)
                 {

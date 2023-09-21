@@ -106,7 +106,7 @@ public class DecommissionTest extends TestBaseImpl
                 ClusterMetadataService.instance().commit(new Startup(metadata.myNodeId(),
                                                                      metadata.directory.getNodeAddresses(metadata.myNodeId()),
                                                                      new NodeVersion(new CassandraVersion("6.0.0"),
-                                                                                     Version.V1)));
+                                                                                     NodeVersion.CURRENT_METADATA_VERSION)));
             });
 
             cluster.get(2).runOnInstance(() -> {
@@ -114,7 +114,7 @@ public class DecommissionTest extends TestBaseImpl
                 ClusterMetadataService.instance().commit(new Startup(metadata.myNodeId(),
                                                                      metadata.directory.getNodeAddresses(metadata.myNodeId()),
                                                                      new NodeVersion(new CassandraVersion("5.0.0"),
-                                                                                     Version.V1)));
+                                                                                     NodeVersion.CURRENT_METADATA_VERSION)));
             });
 
             for (int i = 1; i <= 2; i++)
@@ -153,7 +153,7 @@ public class DecommissionTest extends TestBaseImpl
                 ClusterMetadataService.instance().commit(new Startup(metadata.myNodeId(),
                                                                      metadata.directory.getNodeAddresses(metadata.myNodeId()),
                                                                      new NodeVersion(new CassandraVersion("6.0.0"),
-                                                                                     Version.V1)));
+                                                                                     NodeVersion.CURRENT_METADATA_VERSION)));
             });
 
             NodeToolResult res = cluster.get(2).nodetoolResult("decommission", "--force");
@@ -165,7 +165,7 @@ public class DecommissionTest extends TestBaseImpl
                 ClusterMetadataService.instance().commit(new Startup(metadata.myNodeId(),
                                                                      metadata.directory.getNodeAddresses(metadata.myNodeId()),
                                                                      new NodeVersion(new CassandraVersion("6.0.0"),
-                                                                                     Version.V1)));
+                                                                                     NodeVersion.CURRENT_METADATA_VERSION)));
             });
             cluster.get(2).nodetoolResult("decommission", "--force").asserts().success();
         }

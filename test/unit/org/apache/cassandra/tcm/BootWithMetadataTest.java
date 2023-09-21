@@ -44,6 +44,7 @@ import org.apache.cassandra.io.util.FileOutputStreamPlus;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeId;
+import org.apache.cassandra.tcm.membership.NodeVersion;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
 import org.apache.cassandra.tcm.ownership.PlacementDeltas;
 import org.apache.cassandra.tcm.sequences.AddToCMS;
@@ -55,7 +56,6 @@ import org.apache.cassandra.tcm.sequences.Move;
 import org.apache.cassandra.tcm.sequences.UnbootstrapAndLeave;
 import org.apache.cassandra.tcm.sequences.UnbootstrapStreams;
 import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
-import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.transformations.PrepareJoin;
 import org.apache.cassandra.tcm.transformations.PrepareLeave;
 import org.apache.cassandra.tcm.transformations.PrepareMove;
@@ -161,7 +161,7 @@ public class BootWithMetadataTest
         Path path = Files.createTempFile("clustermetadata", "dump");
         try (FileOutputStreamPlus out = new FileOutputStreamPlus(path))
         {
-            VerboseMetadataSerializer.serialize(ClusterMetadata.serializer, toWrite, out, Version.V0);
+            VerboseMetadataSerializer.serialize(ClusterMetadata.serializer, toWrite, out, NodeVersion.CURRENT_METADATA_VERSION);
         }
         String fileName = path.toString();
 

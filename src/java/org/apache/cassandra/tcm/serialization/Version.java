@@ -28,7 +28,15 @@ public enum Version
 {
     OLD(-1),
     V0(0),
+    /**
+     *  - Moved Partitioner in ClusterMetadata serializer to be the first field
+     *  - Added a counter to Directory serializer to keep track of NodeIds
+     */
     V1(1),
+    /**
+     *  - Added version to PlacementForRange serializer
+     *  - Serialize MemtableParams when serializing TableParams
+     */
     V2(2),
 
     UNKNOWN(Integer.MAX_VALUE);
