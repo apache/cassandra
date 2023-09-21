@@ -81,6 +81,8 @@ public class CompactionController extends AbstractCompactionController
 
     public CompactionController(ColumnFamilyStore cfs, Set<SSTableReader> compacting, long gcBefore, RateLimiter limiter, TombstoneOption tombstoneOption)
     {
+        //When making changes to the method, be aware that some of the state of the controller may still be uninitialized
+        //(e.g. TWCS sets up the value of ignoreOverlaps() after this completes)
         super(cfs, gcBefore, tombstoneOption);
         this.compacting = compacting;
         this.limiter = limiter;
@@ -98,12 +100,6 @@ public class CompactionController extends AbstractCompactionController
         if (NEVER_PURGE_TOMBSTONES_PROPERTY_VALUE)
         {
             logger.debug("not refreshing overlaps - running with -D{}=true", NEVER_PURGE_TOMBSTONES.getKey());
-            return;
-        }
-
-        if (ignoreOverlaps())
-        {
-            logger.debug("not refreshing overlaps - running with ignoreOverlaps activated");
             return;
         }
 
@@ -125,7 +121,7 @@ public class CompactionController extends AbstractCompactionController
         if (this.overlappingSSTables != null)
             close();
 
-        if (compacting == null || ignoreOverlaps())
+        if (compacting == null)
             overlappingSSTables = Refs.tryRef(Collections.<SSTableReader>emptyList());
         else
             overlappingSSTables = cfs.getAndReferenceOverlappingLiveSSTables(compacting);
@@ -340,6 +336,8 @@ public class CompactionController extends AbstractCompactionController
      * of this time range is fully expired before considering to drop the sstable.
      * This strategy can retain for a long time a lot of sstables on disk (see CASSANDRA-13418) so this option
      * control whether or not this check should be ignored.
+     *
+     * Do NOT call this method in the CompactionController constructor
      *
      * @return false by default
      */
