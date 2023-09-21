@@ -39,6 +39,7 @@ import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.iterators.KeyRangeUnionIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
+import org.apache.cassandra.index.sai.postings.PeekablePostingList;
 import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -176,7 +177,7 @@ public class V1SSTableIndex extends SSTableIndex
     }
 
     @Override
-    public KeyRangeIterator limitToTopResults(QueryContext context, PostingList iterator, Expression exp) throws IOException
+    public KeyRangeIterator limitToTopResults(QueryContext context, PeekablePostingList iterator, Expression exp) throws IOException
     {
         KeyRangeUnionIterator.Builder unionIteratorBuilder = KeyRangeUnionIterator.builder(segments.size());
         for (Segment segment : segments)

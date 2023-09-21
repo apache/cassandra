@@ -29,7 +29,7 @@ public class ReorderingPostingList implements PostingList
     private final LongHeap segmentRowIds;
     private final int size;
 
-    public ReorderingPostingList(PrimitiveIterator.OfInt source, int estimatedSize) throws IOException
+    public ReorderingPostingList(PrimitiveIterator.OfInt source, int estimatedSize)
     {
         segmentRowIds = new LongHeap(Math.max(estimatedSize, 1));
         int n = 0;

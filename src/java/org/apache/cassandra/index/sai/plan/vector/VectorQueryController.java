@@ -48,6 +48,7 @@ import org.apache.cassandra.index.sai.iterators.KeyRangeUnionIterator;
 import org.apache.cassandra.index.sai.metrics.TableQueryMetrics;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.plan.StorageAttachedIndexQueryController;
+import org.apache.cassandra.index.sai.postings.PeekablePostingList;
 import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.index.sai.postings.PostingListIntersection;
 import org.apache.cassandra.index.sai.postings.PostingListUnion;
@@ -175,7 +176,7 @@ public class VectorQueryController extends StorageAttachedIndexQueryController
 
         try
         {
-            return annIndexExpression.index.limitToTopResults(queryContext, original, annIndexExpression.expression);
+            return annIndexExpression.index.limitToTopResults(queryContext, PeekablePostingList.makePeekable(original), annIndexExpression.expression);
         }
         catch (IOException e)
         {

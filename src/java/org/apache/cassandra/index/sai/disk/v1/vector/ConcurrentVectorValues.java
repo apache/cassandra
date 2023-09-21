@@ -16,14 +16,10 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.index.sai.disk.v1.vector.hnsw;
+package org.apache.cassandra.index.sai.disk.v1.vector;
 
-import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.jctools.maps.NonBlockingHashMapLong;
-
-import java.io.IOException;
-import java.nio.ByteBuffer;
 
 public class ConcurrentVectorValues implements RamAwareVectorValues
 {
@@ -61,28 +57,10 @@ public class ConcurrentVectorValues implements RamAwareVectorValues
     }
 
     @Override
-    public RandomAccessVectorValues<float[]> copy()
+    public ConcurrentVectorValues copy()
     {
+        // no actual copy required because we always return distinct float[] for distinct vector ordinals
         return this;
-    }
-
-    public long write(SequentialWriter writer) throws IOException
-    {
-        writer.writeInt(size());
-        writer.writeInt(dimension());
-
-        // we will re-use this buffer
-        var byteBuffer = ByteBuffer.allocate(dimension() * Float.BYTES);
-        var floatBuffer = byteBuffer.asFloatBuffer();
-
-        for (var i = 0; i < size(); i++) {
-            floatBuffer.put(vectorValue(i));
-            // bytebuffer and floatBuffer track their positions separately, and we never changed BB's, so don't need to rewind it
-            floatBuffer.rewind();
-            writer.write(byteBuffer);
-        }
-
-        return writer.position();
     }
 
     public long ramBytesUsed()

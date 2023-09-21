@@ -16,15 +16,16 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.index.sai.disk.v1.vector.hnsw;
-
-import com.google.common.base.Preconditions;
-import org.agrona.collections.IntArrayList;
-import org.apache.lucene.util.RamUsageEstimator;
+package org.apache.cassandra.index.sai.disk.v1.vector;
 
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
+
+import com.google.common.base.Preconditions;
+
+import org.agrona.collections.IntArrayList;
+import org.apache.lucene.util.RamUsageEstimator;
 
 public class VectorPostings<T>
 {

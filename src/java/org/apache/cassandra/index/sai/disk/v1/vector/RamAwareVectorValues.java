@@ -16,17 +16,13 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.index.sai.disk.v1.vector.hnsw;
+package org.apache.cassandra.index.sai.disk.v1.vector;
 
-import org.apache.cassandra.io.util.SequentialWriter;
-
-import java.io.IOException;
+import io.github.jbellis.jvector.graph.RandomAccessVectorValues;
 
 public interface RamAwareVectorValues extends RandomAccessVectorValues<float[]>
 {
-    public long write(SequentialWriter writer) throws IOException;
-
     float[] vectorValue(int i);
 
-    public long ramBytesUsed();
+    long ramBytesUsed();
 }

@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.annotation.Nullable;
 
+import io.github.jbellis.jvector.util.Bits;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
@@ -39,8 +40,8 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
-import org.apache.cassandra.index.sai.disk.v1.vector.hnsw.CassandraOnHeapHnsw;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
+import org.apache.cassandra.index.sai.disk.v1.vector.CassandraOnHeapGraph;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
@@ -49,13 +50,10 @@ import org.apache.cassandra.index.sai.utils.RangeUtil;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
-import org.apache.lucene.util.Bits;
-
-import static org.apache.cassandra.index.sai.disk.v1.vector.hnsw.CassandraOnHeapHnsw.InvalidVectorBehavior.FAIL;
 
 public class VectorMemtableIndex extends MemoryIndex
 {
-    private final CassandraOnHeapHnsw<PrimaryKey> graph;
+    private final CassandraOnHeapGraph<PrimaryKey> graph;
     private final LongAdder writeCount = new LongAdder();
 
     private PrimaryKey minimumKey;
@@ -66,7 +64,7 @@ public class VectorMemtableIndex extends MemoryIndex
     public VectorMemtableIndex(IndexContext indexContext)
     {
         super(indexContext);
-        this.graph = new CassandraOnHeapHnsw<>(indexContext.getValidator(), indexContext.getIndexWriterConfig());
+        this.graph = new CassandraOnHeapGraph<>(indexContext.getValidator(), indexContext.getIndexWriterConfig());
     }
 
     @Override
@@ -89,7 +87,7 @@ public class VectorMemtableIndex extends MemoryIndex
 
         writeCount.increment();
         primaryKeys.add(primaryKey);
-        return graph.add(value, primaryKey, FAIL);
+        return graph.add(value, primaryKey, CassandraOnHeapGraph.InvalidVectorBehavior.FAIL);
     }
 
     @Override
@@ -121,7 +119,7 @@ public class VectorMemtableIndex extends MemoryIndex
 
             // make the changes in this order, so we don't have a window where the row is not in the index at all
             if (newRemaining > 0)
-                graph.add(newValue, primaryKey, FAIL);
+                graph.add(newValue, primaryKey, CassandraOnHeapGraph.InvalidVectorBehavior.FAIL);
             if (oldRemaining > 0)
                 graph.remove(oldValue, primaryKey);
 

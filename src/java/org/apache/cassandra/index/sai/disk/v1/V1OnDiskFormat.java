@@ -86,6 +86,13 @@ public class V1OnDiskFormat implements OnDiskFormat
                                                                             IndexComponent.BALANCED_TREE,
                                                                             IndexComponent.POSTING_LISTS);
 
+    @VisibleForTesting
+    public static final Set<IndexComponent> VECTOR_COMPONENTS = EnumSet.of(IndexComponent.COLUMN_COMPLETION_MARKER,
+                                                                           IndexComponent.META,
+                                                                           IndexComponent.PQ,
+                                                                           IndexComponent.TERMS_DATA,
+                                                                           IndexComponent.POSTING_LISTS);
+
     /**
      * Global limit on heap consumed by all index segment building that occurs outside the context of Memtable flush.
      * <p>
@@ -244,7 +251,7 @@ public class V1OnDiskFormat implements OnDiskFormat
     @Override
     public Set<IndexComponent> perColumnIndexComponents(IndexContext indexContext)
     {
-        return indexContext.isLiteral() ? LITERAL_COMPONENTS : NUMERIC_COMPONENTS;
+        return indexContext.isVector() ? VECTOR_COMPONENTS : indexContext.isLiteral() ? LITERAL_COMPONENTS : NUMERIC_COMPONENTS;
     }
 
     @Override

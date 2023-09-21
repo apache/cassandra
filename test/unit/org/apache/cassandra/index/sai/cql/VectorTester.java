@@ -18,7 +18,18 @@
 
 package org.apache.cassandra.index.sai.cql;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+
+import io.github.jbellis.jvector.graph.GraphIndexBuilder;
+import io.github.jbellis.jvector.graph.GraphSearcher;
+import io.github.jbellis.jvector.vector.VectorEncoding;
+import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 import org.apache.cassandra.index.sai.SAITester;
+import org.apache.cassandra.index.sai.disk.v1.vector.ConcurrentVectorValues;
 import org.apache.cassandra.inject.ActionBuilder;
 import org.apache.cassandra.inject.Injections;
 import org.apache.cassandra.inject.InvokePointBuilder;
@@ -44,5 +55,60 @@ public class VectorTester extends SAITester
                                                   .add(ab)
                                                   .build();
         Injections.inject(changeBruteForceThreshold);
+    }
+
+    public static double rawIndexedRecall(Collection<float[]> vectors, float[] query, List<float[]> result, int topK) throws IOException
+    {
+        ConcurrentVectorValues vectorValues = new ConcurrentVectorValues(query.length);
+        int ordinal = 0;
+
+        var graphBuilder = new GraphIndexBuilder<>(vectorValues,
+                                                   VectorEncoding.FLOAT32,
+                                                   VectorSimilarityFunction.COSINE,
+                                                   16,
+                                                   100,
+                                                   1.2f,
+                                                   1.4f);
+
+        for (float[] vector : vectors)
+        {
+            vectorValues.add(ordinal, vector);
+            graphBuilder.addGraphNode(ordinal++, vectorValues);
+        }
+
+        var results = GraphSearcher.search(query,
+                                           topK,
+                                           vectorValues,
+                                           VectorEncoding.FLOAT32,
+                                           VectorSimilarityFunction.COSINE,
+                                           graphBuilder.getGraph(),
+                                           null);
+
+        List<float[]> nearestNeighbors = new ArrayList<>();
+        for (var ns : results.getNodes())
+            nearestNeighbors.add(vectorValues.vectorValue(ns.node));
+
+        return recallMatch(nearestNeighbors, result, topK);
+    }
+
+    public static double recallMatch(List<float[]> expected, List<float[]> actual, int topK)
+    {
+        if (expected.isEmpty() && actual.isEmpty())
+            return 1.0;
+
+        int matches = 0;
+        for (float[] in : expected)
+        {
+            for (float[] out : actual)
+            {
+                if (Arrays.compare(in, out) == 0)
+                {
+                    matches++;
+                    break;
+                }
+            }
+        }
+
+        return (double) matches / topK;
     }
 }

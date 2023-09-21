@@ -33,15 +33,13 @@ import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
 import org.apache.cassandra.index.sai.disk.v1.bbtree.BlockBalancedTreeRamBuffer;
 import org.apache.cassandra.index.sai.disk.v1.bbtree.NumericIndexWriter;
 import org.apache.cassandra.index.sai.disk.v1.trie.LiteralIndexWriter;
-import org.apache.cassandra.index.sai.disk.v1.vector.hnsw.CassandraOnHeapHnsw;
+import org.apache.cassandra.index.sai.disk.v1.vector.CassandraOnHeapGraph;
 import org.apache.cassandra.index.sai.memory.RAMStringIndexer;
 import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.lucene.util.BytesRefBuilder;
-
-import static org.apache.cassandra.index.sai.disk.v1.vector.hnsw.CassandraOnHeapHnsw.InvalidVectorBehavior.IGNORE;
 
 /**
  * Creates an on-heap index data structure to be flushed to an SSTable index.
@@ -167,12 +165,12 @@ public abstract class SegmentBuilder
 
     public static class VectorSegmentBuilder extends SegmentBuilder
     {
-        private final CassandraOnHeapHnsw<Integer> graphIndex;
+        private final CassandraOnHeapGraph<Integer> graphIndex;
 
         public VectorSegmentBuilder(AbstractType<?> termComparator, NamedMemoryLimiter limiter, IndexWriterConfig indexWriterConfig)
         {
             super(termComparator, limiter);
-            graphIndex = new CassandraOnHeapHnsw<>(termComparator, indexWriterConfig, false);
+            graphIndex = new CassandraOnHeapGraph<>(termComparator, indexWriterConfig, false);
         }
 
         @Override
@@ -184,7 +182,7 @@ public abstract class SegmentBuilder
         @Override
         protected long addInternal(ByteBuffer term, int segmentRowId)
         {
-            return graphIndex.add(term, segmentRowId, IGNORE);
+            return graphIndex.add(term, segmentRowId, CassandraOnHeapGraph.InvalidVectorBehavior.IGNORE);
         }
 
         @Override
