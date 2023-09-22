@@ -3191,4 +3191,12 @@ public class SelectTest extends CQLTester
         execute("INSERT INTO %s (k1, k2) VALUES (uuid(), 'k2')");
         assertRowCount(execute("SELECT system.token(k1, k2) FROM %s"), 1);
     }
+
+    // ensure that we can create composite types larger than signed short
+    @Test
+    public void compositeValuePk() throws Throwable
+    {
+        createTable(KEYSPACE, "CREATE TABLE %s (a blob, b blob, PRIMARY KEY ((a, b)))");
+        execute("INSERT INTO %s (a, b) VALUES (?, ?)", ByteBuffer.allocate(Short.MAX_VALUE + 1), EMPTY_BYTE_BUFFER);
+    }
 }
