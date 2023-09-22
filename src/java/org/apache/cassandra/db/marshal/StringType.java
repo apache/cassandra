@@ -27,6 +27,12 @@ public abstract class StringType extends AbstractType<String>
         super(comparisonType);
     }
 
+    @Override
+    public boolean allowsEmpty()
+    {
+        return true;
+    }
+
     public ByteBuffer concat(String left, String right)
     {
         return decompose(left + right);

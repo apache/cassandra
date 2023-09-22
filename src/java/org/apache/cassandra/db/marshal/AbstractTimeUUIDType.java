@@ -42,6 +42,13 @@ public abstract class AbstractTimeUUIDType<T> extends TemporalType<T>
         super(ComparisonType.CUSTOM);
     } // singleton
 
+    @Override
+    public boolean allowsEmpty()
+    {
+        return true;
+    }
+
+    @Override
     public boolean isEmptyValueMeaningless()
     {
         return true;
