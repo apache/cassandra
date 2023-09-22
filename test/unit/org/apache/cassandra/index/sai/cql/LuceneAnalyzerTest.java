@@ -21,7 +21,7 @@ package org.apache.cassandra.index.sai.cql;
 import org.junit.Test;
 
 import com.datastax.driver.core.exceptions.InvalidQueryException;
-import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.analyzer.filter.BuiltInAnalyzers;
@@ -36,17 +36,101 @@ public class LuceneAnalyzerTest extends SAITester
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY, val text)");
 
-        assertThatThrownBy(() -> createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = {" +
-                                             "'index_analyzer': '{\n" +
-                                             "\t\"tokenizer\":{\"name\":\"ngram\", \"args\":{\"minGramSize\":\"2\", \"maxGramSize\":\"3\"}}," +
-                                             "\t\"filters\":[{\"name\":\"lowercase\"}]\n" +
-                                             "}'," +
-                                             "'query_analyzer': '{\n" +
-                                             "\t\"tokenizer\":{\"name\":\"whitespace\"},\n" +
-                                             "\t\"filters\":[{\"name\":\"porterstem\"}]\n" +
-                                             "}'};"))
-        .hasCauseInstanceOf(ConfigurationException.class)
-        .hasRootCauseMessage("Properties specified [query_analyzer] are not understood by StorageAttachedIndex");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = {" +
+                    "'index_analyzer': '{\n" +
+                    "\t\"tokenizer\":{\"name\":\"ngram\", \"args\":{\"minGramSize\":\"2\", \"maxGramSize\":\"3\"}}," +
+                    "\t\"filters\":[{\"name\":\"lowercase\"}]\n" +
+                    "}'," +
+                    "'query_analyzer': '{\n" +
+                    "\t\"tokenizer\":{\"name\":\"whitespace\"},\n" +
+                    "\t\"filters\":[{\"name\":\"porterstem\"}]\n" +
+                    "}'};");
+
+        waitForIndexQueryable();
+
+        execute("INSERT INTO %s (id, val) VALUES ('1', 'the query')");
+
+        flush();
+
+        assertEquals(0, execute("SELECT * FROM %s WHERE val : 'query'").size());
+    }
+
+    @Test
+    public void testQueryAnalyzerBuiltIn() throws Throwable
+    {
+        createTable("CREATE TABLE %s (id int PRIMARY KEY, val text)");
+
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = {" +
+                    "'index_analyzer': 'standard', 'query_analyzer': 'lowercase'};");
+
+        waitForIndexQueryable();
+
+        execute("INSERT INTO %s (id, val) VALUES (1, 'the query')");
+        execute("INSERT INTO %s (id, val) VALUES (2, 'my test Query')");
+        execute("INSERT INTO %s (id, val) VALUES (3, 'The Big Dog')");
+
+        // Some in sstable and some in memory
+        flush();
+
+        execute("INSERT INTO %s (id, val) VALUES (4, 'another QUERY')");
+        execute("INSERT INTO %s (id, val) VALUES (5, 'the fifth insert')");
+        execute("INSERT INTO %s (id, val) VALUES (6, 'MY LAST ENTRY')");
+
+        // Shows that the query term is lowercased to match all 'query' terms in the index
+        UntypedResultSet resultSet = execute("SELECT id FROM %s WHERE val : 'QUERY'");
+        assertRows(resultSet, row(1), row(2), row(4));
+
+        // add whitespace in front of query term and since it isn't tokenized by whitespace, we get no results
+        resultSet = execute("SELECT id FROM %s WHERE val : ' query'");
+        assertRows(resultSet);
+
+        // similarly, phrases do not match because index tokenized by whitespace (among other things) but the query
+        // is not
+        resultSet = execute("SELECT id FROM %s WHERE val : 'the query'");
+        assertRows(resultSet);
+    }
+
+    @Test
+    public void testDifferentIndexAndQueryAnalyzersWhenAppliedDuringPostFiltering() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, c1 text)");
+        // This test verifies a bug fix where the query analyzer was incorrectly used in place of the index analyzer.
+        // The analyzers are selected in conjunction with the column values and the query. Specifically,
+        // the index analyzer includes a lowercase filter but the query analyzer does not.
+        createIndex("CREATE CUSTOM INDEX ON %s(c1) USING 'StorageAttachedIndex' WITH OPTIONS =" +
+                    "{'index_analyzer': 'standard', 'query_analyzer': 'whitespace'}");
+        waitForIndexQueryable();
+
+        // The standard analyzer maps this to just one output 'the', but the query analyzer would map this to 'THE'
+        execute("INSERT INTO %s (pk, c1) VALUES (?, ?)", 1, "THE");
+
+        UntypedResultSet resultSet = execute("SELECT pk FROM %s WHERE c1 : 'the'");
+        assertRows(resultSet, row(1));
+    }
+
+    @Test
+    public void testCreateIndexWithQueryAnalyzerAndNoIndexAnalyzerFails() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, c1 text)");
+        assertThatThrownBy(() -> createIndex("CREATE CUSTOM INDEX ON %s(c1) USING 'StorageAttachedIndex' WITH OPTIONS = " +
+                    "{'query_analyzer': 'whitespace'}"))
+        .isInstanceOf(InvalidRequestException.class)
+        .hasRootCauseMessage("Cannot specify query_analyzer without an index_analyzer option or any combination of " +
+                             "case_sensitive, normalize, or ascii options. options={query_analyzer=whitespace, target=c1}");;
+    }
+
+    @Test
+    public void testCreateIndexWithNormalizersWorks() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int PRIMARY KEY, c1 text, c2 text, c3 text)");
+        createIndex("CREATE CUSTOM INDEX ON %s(c1) USING 'StorageAttachedIndex' WITH OPTIONS = " +
+                    "{'query_analyzer': 'whitespace', 'case_sensitive': false}");
+
+        createIndex("CREATE CUSTOM INDEX ON %s(c2) USING 'StorageAttachedIndex' WITH OPTIONS = " +
+                    "{'query_analyzer': 'whitespace', 'normalize': true}");
+
+        createIndex("CREATE CUSTOM INDEX ON %s(c3) USING 'StorageAttachedIndex' WITH OPTIONS = " +
+                    "{'query_analyzer': 'whitespace', 'ascii': true}");
     }
 
     @Test

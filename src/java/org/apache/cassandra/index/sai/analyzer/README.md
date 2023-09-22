@@ -69,6 +69,7 @@ The following built-in analyzers are available:
 | `whitespace`  | Analyzer that uses `WhitespaceTokenizer`.                                                                |
 | `stop`        | Filters `LetterTokenizer` output with `LowerCaseFilter` and removes Lucene's default English stop words. |
 | `lowercase`   | Normalizes input by applying `LowerCaseFilter` (no additional tokenization is performed).                |
+| `keyword`     | Analyzer that uses `KeywordTokenizer`, which is an identity function on input values.                    |
 | `<language>`  | Analyzers for specific languages. For example, `english` and `french`.                                   |
 
 ### Standard Analyzer
