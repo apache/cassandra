@@ -44,8 +44,11 @@ import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
 import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
 import org.apache.cassandra.index.sai.utils.IndexFileUtils;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
+import org.apache.cassandra.index.sai.utils.ScoredPrimaryKey;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.Pair;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.Bits;
@@ -246,14 +249,13 @@ public class CassandraOnHeapHnsw<T>
     }
 
     /**
-     * @return keys (PrimaryKey or segment row id) associated with the topK vectors near the query
+     * @return keys associated with the topK vectors near the query
      */
-    public PriorityQueue<T> search(float[] queryVector, int limit, Bits toAccept, int visitedLimit)
+    public PriorityQueue<PrimaryKey> searchScoredKeys(float[] queryVector, int limit, Bits toAccept, int visitedLimit)
     {
         assert builder.isConcurrent();
         validateIndexable(queryVector, similarityFunction);
-
-        // search() errors out when an empty graph is passed to it
+        // VSTODO remove this block after migrating to jvector
         if (vectorValues.size() == 0)
             return new PriorityQueue<>();
 
@@ -273,10 +275,18 @@ public class CassandraOnHeapHnsw<T>
         {
             throw new RuntimeException(e);
         }
-        PriorityQueue<T> keyQueue = new PriorityQueue<>();
+        PriorityQueue<PrimaryKey> keyQueue = new PriorityQueue<>();
         while (queue.size() > 0)
         {
-            keyQueue.addAll(keysFromOrdinal(queue.pop()));
+            int node = queue.topNode();
+            float score = queue.topScore();
+            queue.pop();
+            Collection<T> keys = keysFromOrdinal(node);
+            for (T key : keys)
+            {
+                assert key instanceof PrimaryKey;
+                keyQueue.add(ScoredPrimaryKey.create((PrimaryKey) key, score));
+            }
         }
         return keyQueue;
     }

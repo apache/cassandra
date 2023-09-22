@@ -117,7 +117,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         {
             long lastShadowedKeysCount = queryContext.getShadowedPrimaryKeys().size();
             ResultRetriever result = queryIndexes.get();
-            UnfilteredPartitionIterator topK = (UnfilteredPartitionIterator) new VectorTopKProcessor(command).filter(result);
+            UnfilteredPartitionIterator topK = (UnfilteredPartitionIterator) new VectorTopKProcessor(command, queryContext::getScoreForKey).filter(result);
 
             long currentShadowedKeysCount = queryContext.getShadowedPrimaryKeys().size();
             if (lastShadowedKeysCount == currentShadowedKeysCount)

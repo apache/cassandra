@@ -48,6 +48,8 @@ import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.utils.InMemoryPartitionIterator;
 import org.apache.cassandra.index.sai.utils.InMemoryUnfilteredPartitionIterator;
 import org.apache.cassandra.index.sai.utils.PartitionInfo;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
+import org.apache.cassandra.index.sai.utils.ToFloatFunction;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.FBUtilities;
@@ -77,9 +79,15 @@ public class VectorTopKProcessor
 
     private int rowCount = 0;
 
-    public VectorTopKProcessor(ReadCommand command)
+    // Nullable because it is an optimization to know there is no chance of cache hits.
+    // Currently, the coordinator doesn't support this optimization, so it is always null there.
+    @Nullable
+    private final ToFloatFunction<PrimaryKey> scoreCache;
+
+    public VectorTopKProcessor(ReadCommand command, ToFloatFunction<PrimaryKey> scoreCache)
     {
         this.command = command;
+        this.scoreCache = scoreCache;
 
         Pair<IndexContext, float[]> annIndexAndExpression = findTopKIndexContext();
         Preconditions.checkNotNull(annIndexAndExpression);
@@ -108,7 +116,7 @@ public class VectorTopKProcessor
                 Row staticRow = partition.staticRow();
                 PartitionInfo partitionInfo = PartitionInfo.create(partition);
                 // compute key and static row score once per partition
-                float keyAndStaticScore = getScoreForRow(key, staticRow);
+                float keyAndStaticScore = getScoreForRow(key, staticRow, true);
 
                 while (partition.hasNext())
                 {
@@ -123,8 +131,8 @@ public class VectorTopKProcessor
                     }
 
                     Row row = (Row) unfiltered;
-                    float rowScore = getScoreForRow(null, row);
-                    topK.add(Triple.of(partitionInfo, row, keyAndStaticScore + rowScore));
+                    float rowScore = getScoreForRow(key, row, false) + keyAndStaticScore;
+                    topK.add(Triple.of(partitionInfo, row, rowScore));
 
                     // when exceeding limit, remove row with low score
                     while (topK.size() > limit)
@@ -157,7 +165,7 @@ public class VectorTopKProcessor
     /**
      * Sum the scores from different vector indexes for the row
      */
-    private float getScoreForRow(DecoratedKey key, Row row)
+    private float getScoreForRow(DecoratedKey key, Row row, boolean partitionLevel)
     {
         ColumnMetadata column = indexContext.getDefinition();
 
@@ -170,7 +178,16 @@ public class VectorTopKProcessor
         if ((column.isClusteringColumn() || column.isRegular()) && row.isStatic())
             return 0;
 
-        ByteBuffer value = indexContext.getValueOf(key, row, FBUtilities.nowInSeconds());
+        // if the query context has score, e.g. at replica side
+        if (scoreCache != null && key != null && row != null)
+        {
+            PrimaryKey primaryKey = indexContext.keyFactory().create(key, row.clustering());
+            float score = scoreCache.applyAsFloat(primaryKey);
+            if (score >= 0)
+                return score;
+        }
+
+        ByteBuffer value = indexContext.getValueOf(partitionLevel ? key : null, row, FBUtilities.nowInSeconds());
         if (value != null)
         {
             float[] vector = TypeUtil.decomposeVector(indexContext, value);

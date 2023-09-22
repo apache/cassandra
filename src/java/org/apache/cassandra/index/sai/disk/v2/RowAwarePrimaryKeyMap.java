@@ -42,6 +42,7 @@ import org.apache.cassandra.index.sai.disk.v1.bitpack.NumericValuesMeta;
 import org.apache.cassandra.index.sai.disk.v2.sortedterms.SortedTermsMeta;
 import org.apache.cassandra.index.sai.disk.v2.sortedterms.SortedTermsReader;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
+import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
@@ -80,6 +81,7 @@ public class RowAwarePrimaryKeyMap implements PrimaryKeyMap
         private final IPartitioner partitioner;
         private final ClusteringComparator clusteringComparator;
         private final PrimaryKey.Factory primaryKeyFactory;
+        private final SSTableId<?> sstableId;
 
         public RowAwarePrimaryKeyMapFactory(IndexDescriptor indexDescriptor, SSTableReader sstable)
         {
@@ -99,6 +101,7 @@ public class RowAwarePrimaryKeyMap implements PrimaryKeyMap
                 this.partitioner = sstable.metadata().partitioner;
                 this.primaryKeyFactory = indexDescriptor.primaryKeyFactory;
                 this.clusteringComparator = indexDescriptor.clusteringComparator;
+                this.sstableId = sstable.getId();
             }
             catch (Throwable t)
             {
@@ -117,7 +120,8 @@ public class RowAwarePrimaryKeyMap implements PrimaryKeyMap
                                                  sortedTermsReader.openCursor(),
                                                  partitioner,
                                                  primaryKeyFactory,
-                                                 clusteringComparator);
+                                                 clusteringComparator,
+                                                 sstableId);
             }
             catch (IOException e)
             {
@@ -130,6 +134,12 @@ public class RowAwarePrimaryKeyMap implements PrimaryKeyMap
         {
             FileUtils.closeQuietly(token, termsData, termsDataBlockOffsets, termsTrie);
         }
+
+        @Override
+        public SSTableId<?> getSSTableId()
+        {
+            return sstableId;
+        }
     }
 
     private final LongArray rowIdToToken;
@@ -139,13 +149,15 @@ public class RowAwarePrimaryKeyMap implements PrimaryKeyMap
     private final PrimaryKey.Factory primaryKeyFactory;
     private final ClusteringComparator clusteringComparator;
     private final ByteBuffer tokenBuffer = ByteBuffer.allocate(Long.BYTES);
+    private final SSTableId<?> sstableId;
 
     private RowAwarePrimaryKeyMap(LongArray rowIdToToken,
                                   SortedTermsReader sortedTermsReader,
                                   SortedTermsReader.Cursor cursor,
                                   IPartitioner partitioner,
                                   PrimaryKey.Factory primaryKeyFactory,
-                                  ClusteringComparator clusteringComparator)
+                                  ClusteringComparator clusteringComparator,
+                                  SSTableId<?> sstableId)
     {
         this.rowIdToToken = rowIdToToken;
         this.sortedTermsReader = sortedTermsReader;
@@ -153,6 +165,7 @@ public class RowAwarePrimaryKeyMap implements PrimaryKeyMap
         this.partitioner = partitioner;
         this.primaryKeyFactory = primaryKeyFactory;
         this.clusteringComparator = clusteringComparator;
+        this.sstableId = sstableId;
     }
 
     @Override
@@ -181,6 +194,11 @@ public class RowAwarePrimaryKeyMap implements PrimaryKeyMap
         return sortedTermsReader.getLastPointId(v -> key.asComparableBytesMaxPrefix(v));
     }
 
+    @Override
+    public SSTableId<?> getSSTableId()
+    {
+        return sstableId;
+    }
 
     @Override
     public void close() throws IOException

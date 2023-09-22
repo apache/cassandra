@@ -147,7 +147,7 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
             return partitions -> partitions;
 
         // in case of top-k query, filter out rows that are not actually global top-K
-        return partitions -> (PartitionIterator) new VectorTopKProcessor(command).filter(partitions);
+        return partitions -> (PartitionIterator) new VectorTopKProcessor(command, null).filter(partitions);
     }
 
     /**
