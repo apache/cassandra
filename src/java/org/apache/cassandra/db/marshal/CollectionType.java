@@ -94,12 +94,6 @@ public abstract class CollectionType<T> extends AbstractType<T>
     protected abstract List<ByteBuffer> serializedValues(Iterator<Cell<?>> cells);
 
     @Override
-    public boolean allowsEmpty()
-    {
-        return false;
-    }
-
-    @Override
     public abstract CollectionSerializer<T> getSerializer();
 
     public ColumnSpecification makeCollectionReceiver(ColumnSpecification collection, boolean isKey)

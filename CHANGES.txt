@@ -1,4 +1,5 @@
 5.0-alpha2
+ * Remove support for empty values on the vector data type (CASSANDRA-18876)
  * Upgrade Dropwizard Metrics to 4.2.19 (CASSANDRA-14667)
  * Upgrade caffeine cache and fix CIDR permissions cache invalidation (CASSANDRA-18805)
  * Remove deprecated properties in CompressionParams (CASSANDRA-18742)

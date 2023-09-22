@@ -46,6 +46,13 @@ public class Int32Type extends NumberType<Integer>
         super(ComparisonType.CUSTOM);
     } // singleton
 
+    @Override
+    public boolean allowsEmpty()
+    {
+        return true;
+    }
+
+    @Override
     public boolean isEmptyValueMeaningless()
     {
         return true;
