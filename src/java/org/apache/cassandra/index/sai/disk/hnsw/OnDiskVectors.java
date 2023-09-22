@@ -74,7 +74,8 @@ public class OnDiskVectors implements RandomAccessVectorValues<float[]>, AutoClo
 
     void readVector(int i, float[] v) throws IOException
     {
-        reader.readFloatsAt(segmentOffset + 8L + i * dimension * 4L, v);
+        long vOffset = (long) i * dimension * 4;
+        reader.readFloatsAt(segmentOffset + 8L + vOffset, v);
     }
 
     @Override
