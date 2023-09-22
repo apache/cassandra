@@ -207,7 +207,7 @@ public final class SSLFactory
                     validateSslContext(key.contextDescription, opts,
                             opts instanceof EncryptionOptions.ServerEncryptionOptions || opts.require_client_auth, false);
                     logger.info("SSL certificates have been updated for {}. Resetting the ssl contexts for new " +
-                                "connections.", opts.getClass().getName());
+                                "connections.", key.contextDescription);
                     clearSslContextCache(key.encryptionOptions, keysToCheck);
                 }
                 catch (Throwable tr)
