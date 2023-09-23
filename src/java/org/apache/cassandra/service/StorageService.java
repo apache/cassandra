@@ -337,7 +337,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private final SamplingManager samplingManager = new SamplingManager();
 
     @VisibleForTesting // this is used for dtests only, see CASSANDRA-18152
-    public volatile boolean skipNotificationListeners = false;
+    private volatile boolean skipNotificationListeners = false;
 
     @Deprecated
     public boolean isInShutdownHook()
@@ -7392,5 +7392,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         if (!skipNotificationListeners)
             super.addNotificationListener(listener, filter, handback);
+    }
+
+    @Override
+    public boolean skipNotificationListeners(boolean skip)
+    {
+        boolean previous = this.skipNotificationListeners;
+        this.skipNotificationListeners = skip;
+        return previous;
     }
 }
