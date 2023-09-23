@@ -46,7 +46,6 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 
 import org.apache.cassandra.db.filter.ColumnFilter;
-import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.schema.DroppedColumn;
 
 import org.apache.cassandra.utils.AbstractIterator;
@@ -428,7 +427,7 @@ public class BTreeRow extends AbstractRow
      * Returns a copy of the row where all timestamps for live data have replaced by {@code newTimestamp} and
      * all deletion timestamp by {@code newTimestamp - 1}.
      *
-     * This exists for the Paxos path, see {@link PartitionUpdate#updateAllTimestamp} for additional details.
+     * This exists for the Paxos path, see {@code PartitionUpdate#updateAllTimestamp} for additional details.
      */
     public Row updateAllTimestamp(long newTimestamp)
     {

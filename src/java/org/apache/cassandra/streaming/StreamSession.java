@@ -82,7 +82,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
 
 /**
  * Handles the streaming a one or more streams to and from a specific remote node.
- *<p/>
+ *<p>
  * Both this node and the remote one will create a similar symmetrical {@link StreamSession}. A streaming
  * session has the following life-cycle:
  *<pre>
@@ -111,7 +111,7 @@ import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddressAndPort;
  *
  * 3. Streaming phase
  *
- *   (a) The streaming phase is started at each node by calling {@link StreamSession#startStreamingFiles(boolean)}.
+ *   (a) The streaming phase is started at each node by calling {@link StreamSession#startStreamingFiles(PrepareDirection)}.
  *       This will send, sequentially on each outbound streaming connection (see {@link StreamingMultiplexedChannel}),
  *       an {@link OutgoingStreamMessage} for each stream in each of the {@link StreamTransferTask}.
  *       Each {@link OutgoingStreamMessage} consists of a {@link StreamMessageHeader} that contains metadata about
@@ -211,7 +211,7 @@ public class StreamSession
 /**
  * State Transition:
  *
- * <pre>
+ * <pre>{@code
  *  +------------------+-----> FAILED | ABORTED <---------------+
  *  |                  |              ^                         |
  *  |                  |              |       initiator         |
@@ -226,7 +226,7 @@ public class StreamSession
  *  +-----------------------------------------------------------------------------+
  *                  nothing to request or to transfer
  *
- *  </pre>
+ *  }</pre>
  */
     public enum State
     {

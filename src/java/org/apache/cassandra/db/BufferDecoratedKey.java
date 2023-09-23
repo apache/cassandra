@@ -56,7 +56,7 @@ public class BufferDecoratedKey extends DecoratedKey
      * @param partitioner The partitioner of the encoded decorated key. Needed in order to correctly decode the token
      *                    bytes of the key.
      * @return A new {@link BufferDecoratedKey} instance, corresponding to the given byte-comparable representation. If
-     * we were to call {@link #asComparableBytes(Version)} on the returned object, we should get a {@link ByteSource}
+     * we were to call {@link #asComparableBytes(Version)} on the returned object, we should get a {@code ByteSource}
      * equal to the one of the input byte comparable.
      */
     public static BufferDecoratedKey fromByteComparable(ByteComparable byteComparable,

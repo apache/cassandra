@@ -111,7 +111,7 @@ import static org.apache.cassandra.repair.consistent.ConsistentSession.State.*;
 
 /**
  * Manages all consistent repair sessions a node is participating in.
- * <p/>
+ * <p>
  * Since sessions need to be loaded, and since we need to handle cases where sessions might not exist, most of the logic
  * around local sessions is implemented in this class, with the LocalSession class being treated more like a simple struct,
  * in contrast with {@link CoordinatorSession}

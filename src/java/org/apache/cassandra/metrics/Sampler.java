@@ -115,7 +115,7 @@ public abstract class Sampler<T>
     protected abstract void insert(T item, long value);
 
     /**
-     * A sampler is enabled between {@link this#beginSampling} and {@link this#finishSampling}
+     * A sampler is enabled between {@link Sampler#beginSampling} and {@link Sampler#finishSampling}
      * @return true if the sampler is enabled.
      */
     public boolean isEnabled()
@@ -159,7 +159,7 @@ public abstract class Sampler<T>
     /**
      * Stop sampling and return the results
      * @param count The number of the samples requested to retrieve from the sampler
-     * @return a list of samples, the size is the minimum of the total samples and {@param count}.
+     * @return a list of samples, the size is the minimum of the total samples and {@code count}.
      */
     public abstract List<Sample<T>> finishSampling(int count);
 

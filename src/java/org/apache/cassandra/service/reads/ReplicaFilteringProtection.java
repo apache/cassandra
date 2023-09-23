@@ -78,7 +78,7 @@ import org.apache.cassandra.utils.btree.BTreeSet;
  * Helper in charge of collecting additional queries to be done on the coordinator to protect against invalid results
  * being included due to replica-side filtering (secondary indexes or {@code ALLOW * FILTERING}).
  * <p>
- * When using replica-side filtering with CL>ONE, a replica can send a stale result satisfying the filter, while updated
+ * When using replica-side filtering with {@code CL>ONE}, a replica can send a stale result satisfying the filter, while updated
  * replicas won't send a corresponding tombstone to discard that result during reconciliation. This helper identifies
  * the rows in a replica response that don't have a corresponding row in other replica responses, and requests them by
  * primary key to the "silent" replicas in a second fetch round.

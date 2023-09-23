@@ -281,7 +281,7 @@ public class TypeUtil
      *
      * This allows types to decide whether they should be compared based on their encoded value or their
      * raw value. At present only {@link InetAddressType} values are compared by their encoded values to
-     * allow for ipv4 -> ipv6 equivalency in searches.
+     * allow for ipv4 {@code ->} ipv6 equivalency in searches.
      */
     public static int comparePostFilter(Expression.Value requestedValue, Expression.Value columnValue, AbstractType<?> type)
     {

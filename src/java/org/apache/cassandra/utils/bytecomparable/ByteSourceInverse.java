@@ -160,7 +160,7 @@ public final class ByteSourceInverse
      *     <li>...it doesn't provide any meaningful guarantees (with regard to throwing) in case there are not enough
      *     bytes to read, in case a special escape value was not interpreted as such, etc.</li>
      * </ol>
-     * </p>
+     * <p>
      *
      * @param byteSource A non-null byte source, containing at least 4 bytes.
      */
@@ -181,7 +181,7 @@ public final class ByteSourceInverse
      *     <li>...it doesn't provide any meaningful guarantees (with regard to throwing) in case there are not enough
      *     bytes to read, in case a special escape value was not interpreted as such, etc.</li>
      * </ol>
-     * </p>
+     * <p>
      *
      * @param byteSource A non-null byte source, containing at least 8 bytes.
      */

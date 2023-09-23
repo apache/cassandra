@@ -361,7 +361,7 @@ public class ReplicaPlans
     public interface Selector
     {
         /**
-         * Select the {@code Endpoints} from {@param liveAndDown} and {@param live} to contact according to the consistency level.
+         * Select the {@code Endpoints} from {@code liveAndDown} and {@code live} to contact according to the consistency level.
          */
         <E extends Endpoints<E>, L extends ReplicaLayout.ForWrite<E>>
         E select(ConsistencyLevel consistencyLevel, L liveAndDown, L live);

@@ -144,7 +144,7 @@ public interface WaitQueue
      */
     public void signalAll();
 
-    /** getWaiting() > 0 */
+    /** {@code getWaiting() > 0} */
     public boolean hasWaiters();
 
     /** Return how many threads are waiting */

@@ -174,7 +174,7 @@ public abstract class AggregateFcts
 
     /**
      * The AVG function for decimal values.
-     * </p>
+     * <p>
      * The average of an empty value set returns zero.
      */
     public static final NativeAggregateFunction avgFunctionForDecimal =
@@ -255,7 +255,7 @@ public abstract class AggregateFcts
 
     /**
      * The AVG function for varint values.
-     * </p>
+     * <p>
      * The average of an empty value set returns zero. The returned value is of the same type as the input values, 
      * so the returned average won't have a decimal part.
      */
@@ -301,7 +301,7 @@ public abstract class AggregateFcts
 
     /**
      * The SUM function for byte values (tinyint).
-     * </p>
+     * <p>
      * The returned value is of the same type as the input values, so there is a risk of overflow if the sum of the
      * values exceeds the maximum value that the type can represent.
      */
@@ -340,7 +340,7 @@ public abstract class AggregateFcts
 
     /**
      * AVG function for byte values (tinyint).
-     * </p>
+     * <p>
      * The average of an empty value set returns zero. The returned value is of the same type as the input values, 
      * so the returned average won't have a decimal part.
      */
@@ -361,7 +361,7 @@ public abstract class AggregateFcts
 
     /**
      * The SUM function for short values (smallint).
-     * </p>
+     * <p>
      * The returned value is of the same type as the input values, so there is a risk of overflow if the sum of the
      * values exceeds the maximum value that the type can represent.
      */
@@ -400,7 +400,7 @@ public abstract class AggregateFcts
 
     /**
      * AVG function for for short values (smallint).
-     * </p>
+     * <p>
      * The average of an empty value set returns zero. The returned value is of the same type as the input values, 
      * so the returned average won't have a decimal part.
      */
@@ -421,7 +421,7 @@ public abstract class AggregateFcts
 
     /**
      * The SUM function for int32 values.
-     * </p>
+     * <p>
      * The returned value is of the same type as the input values, so there is a risk of overflow if the sum of the
      * values exceeds the maximum value that the type can represent.
      */
@@ -460,7 +460,7 @@ public abstract class AggregateFcts
 
     /**
      * AVG function for int32 values.
-     * </p>
+     * <p>
      * The average of an empty value set returns zero. The returned value is of the same type as the input values, 
      * so the returned average won't have a decimal part.
      */
@@ -481,7 +481,7 @@ public abstract class AggregateFcts
 
     /**
      * The SUM function for long values.
-     * </p>
+     * <p>
      * The returned value is of the same type as the input values, so there is a risk of overflow if the sum of the
      * values exceeds the maximum value that the type can represent.
      */
@@ -496,7 +496,7 @@ public abstract class AggregateFcts
 
     /**
      * AVG function for long values.
-     * </p>
+     * <p>
      * The average of an empty value set returns zero. The returned value is of the same type as the input values, 
      * so the returned average won't have a decimal part.
      */
@@ -517,7 +517,7 @@ public abstract class AggregateFcts
 
     /**
      * The SUM function for float values.
-     * </p>
+     * <p>
      * The returned value is of the same type as the input values, so there is a risk of overflow if the sum of the
      * values exceeds the maximum value that the type can represent.
      */
@@ -538,7 +538,7 @@ public abstract class AggregateFcts
 
     /**
      * AVG function for float values.
-     * </p>
+     * <p>
      * The average of an empty value set returns zero.
      */
     public static final NativeAggregateFunction avgFunctionForFloat =
@@ -558,7 +558,7 @@ public abstract class AggregateFcts
 
     /**
      * The SUM function for double values.
-     * </p>
+     * <p>
      * The returned value is of the same type as the input values, so there is a risk of overflow if the sum of the
      * values exceeds the maximum value that the type can represent.
      */
@@ -710,7 +710,7 @@ public abstract class AggregateFcts
 
     /**
      * AVG function for double values.
-     * </p>
+     * <p>
      * The average of an empty value set returns zero.
      */
     public static final NativeAggregateFunction avgFunctionForDouble =

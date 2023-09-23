@@ -124,7 +124,7 @@ public class BlockBalancedTreePostingsWriter implements BlockBalancedTreeWalker.
      * The merged postings list for an internal node contains all postings from the postings lists of leaf nodes
      * in the subtree rooted at that node.
      * <p>
-     * After writing out the postings, it writes a map of node ID -> postings file pointer for all
+     * After writing out the postings, it writes a map of node ID {@code ->} postings file pointer for all
      * nodes with an attached postings list. It then returns the file pointer to this map.
      */
     public long finish(IndexOutputWriter out, List<PackedLongValues> leafPostings, IndexContext indexContext) throws IOException

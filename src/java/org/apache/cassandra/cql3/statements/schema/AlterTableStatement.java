@@ -145,7 +145,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
     abstract KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table);
 
     /**
-     * ALTER TABLE [IF EXISTS] <table> ALTER <column> TYPE <newtype>;
+     * {@code ALTER TABLE [IF EXISTS] <table> ALTER <column> TYPE <newtype>;}
      *
      * No longer supported.
      */
@@ -163,7 +163,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
     }
 
     /**
-     * ALTER TABLE [IF EXISTS] <table> ALTER [IF EXISTS] <column> ( MASKED WITH <newMask> | DROP MASKED )
+     * {@code ALTER TABLE [IF EXISTS] <table> ALTER [IF EXISTS] <column> ( MASKED WITH <newMask> | DROP MASKED )}
      */
     public static class MaskColumn extends AlterTableStatement
     {

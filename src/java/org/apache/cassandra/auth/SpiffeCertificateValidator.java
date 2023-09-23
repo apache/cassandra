@@ -29,10 +29,8 @@ import org.apache.cassandra.exceptions.AuthenticationException;
 
 /**
  * This class assumes that the identity of a certificate is SPIFFE which is a URI that is present as part of the SAN
- * of the client certificate. It has logic to extract identity (Spiffe) out of a certificate & knows how to validate
+ * of the client certificate. It has logic to extract identity (Spiffe) out of a certificate and knows how to validate
  * the client certificates.
- * <p>
- *
  * <p>
  * Example:
  * internode_authenticator:
