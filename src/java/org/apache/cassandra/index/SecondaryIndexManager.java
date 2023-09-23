@@ -56,7 +56,6 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
-import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -64,9 +63,6 @@ import org.apache.cassandra.index.Index.IndexBuildingSupport;
 import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.index.transactions.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.notifications.INotification;
-import org.apache.cassandra.notifications.INotificationConsumer;
-import org.apache.cassandra.notifications.SSTableAddedNotification;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Indexes;
@@ -125,7 +121,7 @@ import static org.apache.cassandra.utils.ExecutorUtils.shutdown;
  * <li>SSTable builds can always be run concurrently with any other builds.</li>
  * </ul>
  */
-public class SecondaryIndexManager implements IndexRegistry, INotificationConsumer
+public class SecondaryIndexManager implements IndexRegistry
 {
     private static final Logger logger = LoggerFactory.getLogger(SecondaryIndexManager.class);
 
@@ -179,7 +175,6 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
     {
         this.baseCfs = baseCfs;
         this.keyspace = baseCfs.keyspace;
-        baseCfs.getTracker().subscribe(this);
     }
 
     /**
@@ -466,9 +461,21 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         return StringUtils.substringAfter(cfName, Directories.SECONDARY_INDEX_NAME_SEPARATOR);
     }
 
+    public void buildIndexesBlocking(Collection<SSTableReader> sstables, boolean isFullRebuild)
+    {
+        if (!indexes.isEmpty())
+        {
+            // TODO: This is called on streaming and import. In both cases, we need to avoid changing index
+            // build status/queryability. If the build fails, the backing data isn't queryable either.
+            buildIndexesBlocking(Lists.newArrayList(sstables),
+                                 indexes.values().stream().filter(Index::shouldBuildBlocking).collect(Collectors.toSet()),
+                                 isFullRebuild);
+        }
+    }
+
     /**
      * Performs a blocking (re)indexing/recovery of the specified SSTables for the specified indexes.
-     *
+     * <p>
      * If the index doesn't support ALL {@link Index.LoadType} it performs a recovery {@link Index#getRecoveryTaskSupport()}
      * instead of a build {@link Index#getBuildTaskSupport()}
      * 
@@ -516,13 +523,14 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             byType.forEach((buildingSupport, groupedIndexes) ->
                            {
                                SecondaryIndexBuilder builder = buildingSupport.getIndexBuildTask(baseCfs, groupedIndexes, sstables);
-                               final SettableFuture build = SettableFuture.create();
-                               Futures.addCallback(CompactionManager.instance.submitIndexBuild(builder), new FutureCallback()
+                               final SettableFuture<Object> build = SettableFuture.create();
+                               Futures.addCallback(CompactionManager.instance.submitIndexBuild(builder), new FutureCallback<Object>()
                                {
                                    @Override
                                    public void onFailure(Throwable t)
                                    {
-                                       logAndMarkIndexesFailed(groupedIndexes, t, false);
+                                       if (isFullRebuild)
+                                           logAndMarkIndexesFailed(groupedIndexes, t, false);
                                        unbuiltIndexes.addAll(groupedIndexes);
                                        build.setException(t);
                                    }
@@ -530,7 +538,8 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                                    @Override
                                    public void onSuccess(Object o)
                                    {
-                                       groupedIndexes.forEach(i -> markIndexBuilt(i, isFullRebuild));
+                                       if (isFullRebuild)
+                                           groupedIndexes.forEach(i -> markIndexBuilt(i, isFullRebuild));
                                        logger.info("Index build of {} completed", getIndexNames(groupedIndexes));
                                        builtIndexes.addAll(groupedIndexes);
                                        build.set(o);
@@ -553,17 +562,15 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             {
                 // Fail any indexes that couldn't be marked
                 Set<Index> failedIndexes = Sets.difference(indexes, Sets.union(builtIndexes, unbuiltIndexes));
-                if (!failedIndexes.isEmpty())
-                {
+                if (!failedIndexes.isEmpty() && isFullRebuild)
                     logAndMarkIndexesFailed(failedIndexes, accumulatedFail, false);
-                }
 
                 // Flush all built indexes with an aynchronous callback to log the success or failure of the flush
-                flushIndexesBlocking(builtIndexes, new FutureCallback()
+                flushIndexesBlocking(builtIndexes, new FutureCallback<Object>()
                 {
-                    String indexNames = StringUtils.join(builtIndexes.stream()
-                                                                     .map(i -> i.getIndexMetadata().name)
-                                                                     .collect(Collectors.toList()), ',');
+                    final String indexNames = StringUtils.join(builtIndexes.stream()
+                                                                           .map(i -> i.getIndexMetadata().name)
+                                                                           .collect(Collectors.toList()), ',');
 
                     @Override
                     public void onFailure(Throwable ignored)
@@ -650,10 +657,12 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                             AtomicInteger counter = inProgressBuilds.computeIfAbsent(indexName, ignored -> new AtomicInteger(0));
 
                             if (isFullRebuild)
+                            {
                                 needsFullRebuild.remove(indexName);
 
-                            if (counter.getAndIncrement() == 0 && DatabaseDescriptor.isDaemonInitialized() && !isNewCF)
-                                SystemKeyspace.setIndexRemoved(keyspaceName, indexName);
+                                if (counter.getAndIncrement() == 0 && DatabaseDescriptor.isDaemonInitialized() && !isNewCF)
+                                    SystemKeyspace.setIndexRemoved(keyspaceName, indexName);
+                            }
                         });
     }
 
@@ -1537,23 +1546,6 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                              }
                          });
         FBUtilities.waitOnFutures(waitFor);
-    }
-
-    public void handleNotification(INotification notification, Object sender)
-    {
-        if (!indexes.isEmpty() && notification instanceof SSTableAddedNotification)
-        {
-            SSTableAddedNotification notice = (SSTableAddedNotification) notification;
-
-            // SSTables asociated to a memtable come from a flush, so their contents have already been indexed
-            if (!notice.memtable().isPresent())
-                buildIndexesBlocking(Lists.newArrayList(notice.added),
-                                     indexes.values()
-                                            .stream()
-                                            .filter(Index::shouldBuildBlocking)
-                                            .collect(Collectors.toSet()),
-                                     false);
-        }
     }
 
     @VisibleForTesting

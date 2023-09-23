@@ -178,7 +178,9 @@ public class SSTableImporter
 
         try (Refs<SSTableReader> refs = Refs.ref(newSSTables))
         {
+            cfs.indexManager.buildIndexesBlocking(newSSTables, false);
             cfs.getTracker().addSSTables(newSSTables);
+
             for (SSTableReader reader : newSSTables)
             {
                 if (options.invalidateCaches && cfs.isRowCacheEnabled())
