@@ -4906,4 +4906,48 @@ public class DatabaseDescriptor
     {
         return conf.sai_options.segment_write_buffer_size;
     }
+
+    public static boolean getCompareGossipAndStorageServiceCache()
+    {
+        return conf.should_compare_gossip_and_storage_service_cache;
+    }
+
+    @VisibleForTesting
+    public static void setCompareGossipAndStorageServiceCache(boolean compareGossipAndStorageServiceCache)
+    {
+        conf.should_compare_gossip_and_storage_service_cache = compareGossipAndStorageServiceCache;
+    }
+
+    public static long getGossipAndStorageServiceCacheComparisonIntervalInSec()
+    {
+        return conf.gossip_and_storage_service_cache_comparison_interval_in_sec;
+    }
+
+    @VisibleForTesting
+    public static void setGossipAndStorageServiceCacheComparisonIntervalInSec(long gossipAndStorageServiceCacheComparisonIntervalInSec)
+    {
+        conf.gossip_and_storage_service_cache_comparison_interval_in_sec = gossipAndStorageServiceCacheComparisonIntervalInSec;
+    }
+
+    public static boolean shouldFixGossipAndStorageServiceCacheMismatch()
+    {
+        return conf.should_fix_gossip_and_storage_service_cache_mismatch;
+    }
+
+    @VisibleForTesting
+    public static void setFixGossipAndStorageServiceCacheMismatch(boolean enableCacheRepair)
+    {
+        conf.should_fix_gossip_and_storage_service_cache_mismatch = enableCacheRepair;
+    }
+
+    public static int gossipAndStorageServiceCacheMismatchConvictionThreshold()
+    {
+        return conf.gossip_and_storage_service_cache_mismatch_conviction_threshold;
+    }
+
+    @VisibleForTesting
+    public static void setGossipAndStorageServiceCacheMismatchConvictionThreshold(int threshold)
+    {
+        conf.gossip_and_storage_service_cache_mismatch_conviction_threshold = threshold;
+    }
 }

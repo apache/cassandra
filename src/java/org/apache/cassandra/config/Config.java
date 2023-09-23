@@ -918,6 +918,23 @@ public class Config
     public volatile DurationSpec.LongMicrosecondsBound minimum_timestamp_warn_threshold = null;
     public volatile DurationSpec.LongMicrosecondsBound minimum_timestamp_fail_threshold = null;
 
+    /** Cassandra maintains the Gossip info (Token, Status, etc.) in two caches 1) Gossip cache 2) Storage Service cache
+     * The source of truth is the Gossip cache, which then updates the Storage service cache - but there exists no guarantee.
+     * As a result, a wide variety of problems could occur, and one of the problems is a node could see different token ownership
+     * than its peers.
+     * If this config is enabled, then it will compare these two caches at a gossip_and_storage_service_cache_comparison_interval_in_sec frequency
+     */
+    public volatile Boolean should_compare_gossip_and_storage_service_cache = false;
+
+    // The frequency at which the Gossip and the Storage Service caches are validated
+    public volatile Long gossip_and_storage_service_cache_comparison_interval_in_sec = 900L;
+
+    // Should we fix the Gossip and Storage service cache in case of a mismatch. By default, do not fix
+    public volatile Boolean should_fix_gossip_and_storage_service_cache_mismatch = false;
+
+    // Number of consecutive mismatch occurrences after which we declare caches are not in sync */
+    public volatile Integer gossip_and_storage_service_cache_mismatch_conviction_threshold = 5;
+
     /**
      * The variants of paxos implementation and semantics supported by Cassandra.
      */
