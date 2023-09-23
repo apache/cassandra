@@ -18,16 +18,18 @@
 
 package org.apache.cassandra.auth;
 
-import java.util.Arrays;
-
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.ConfigFields;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.DurationSpec;
+import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.config.registry.Registry;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.utils.FBUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.ParameterizedClass;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.utils.FBUtilities;
+import java.util.Arrays;
 
 /**
  * Only purpose is to Initialize authentication/authorization via {@link #applyAuth()}.
@@ -48,6 +50,7 @@ public final class AuthConfig
         initialized = true;
 
         Config conf = DatabaseDescriptor.getRawConfig();
+        Registry registry = DatabaseDescriptor.getConfigRegistry();
 
         IAuthenticator authenticator = new AllowAllAuthenticator();
 
@@ -62,9 +65,9 @@ public final class AuthConfig
         // work with PasswordAuthenticator, so log a message if some other authenticator
         // is in use and non-default values are detected
         if (!(authenticator instanceof PasswordAuthenticator || authenticator instanceof MutualTlsAuthenticator)
-            && (conf.credentials_update_interval != null
-                || conf.credentials_validity.toMilliseconds() != 2000
-                || conf.credentials_cache_max_entries != 1000))
+            && (registry.get(DurationSpec.IntMillisecondsBound.class, ConfigFields.CREDENTIALS_UPDATE_INTERVAL) != null
+                || registry.get(DurationSpec.IntMillisecondsBound.class, ConfigFields.CREDENTIALS_VALIDITY).toMilliseconds() != 2000
+                || registry.get(Integer.TYPE, ConfigFields.CREDENTIALS_CACHE_MAX_ENTRIES) != 1000))
         {
             logger.info("Configuration options credentials_update_interval, credentials_validity and " +
                         "credentials_cache_max_entries may not be applicable for the configured authenticator ({})",

@@ -407,7 +407,7 @@ public class DatabaseDescriptorTest
                 DatabaseDescriptor.setRepairSessionSpaceInMiB(0);
                 fail("Should have received a ConfigurationException for depth of 0");
             }
-            catch (ConfigurationException ignored) { }
+            catch (IllegalArgumentException ignored) { }
 
             Assert.assertEquals(10, DatabaseDescriptor.getRepairSessionSpaceInMiB());
         }

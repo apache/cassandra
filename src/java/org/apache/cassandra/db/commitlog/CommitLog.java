@@ -42,6 +42,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.config.registry.ConfigurationListener;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.exceptions.CDCWriteException;
 import org.apache.cassandra.io.FSWriteError;
@@ -61,6 +62,8 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
+import static org.apache.cassandra.config.ConfigFields.CDC_BLOCK_WRITES;
+import static org.apache.cassandra.config.ConfigFields.CDC_ON_REPAIR_ENABLED;
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.Allocation;
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.ENTRY_OVERHEAD_SIZE;
 import static org.apache.cassandra.utils.FBUtilities.updateChecksum;
@@ -144,7 +147,13 @@ public class CommitLog implements CommitLogMBean
             segmentManager.start();
             executor.start();
             started = true;
-        } catch (Throwable t)
+
+            DatabaseDescriptor.getConfigRegistry().addPropertyConstraint(CDC_BLOCK_WRITES, Boolean.TYPE, (newVal) -> ensureCDCEnabled());
+            DatabaseDescriptor.getConfigRegistry().addPropertyConstraint(CDC_ON_REPAIR_ENABLED, Boolean.TYPE, (newVal) -> ensureCDCEnabled());
+            DatabaseDescriptor.getConfigRegistry().addPropertyChangeListener(CDC_BLOCK_WRITES, ConfigurationListener.ChangeType.BEFORE,
+                                                                             this::cdcBlockWritesBeforeChangeListener, Boolean.TYPE);
+        }
+        catch (Throwable t)
         {
             started = false;
             throw t;
@@ -451,18 +460,18 @@ public class CommitLog implements CommitLogMBean
     }
 
     @Override
-    public void setCDCBlockWrites(boolean val)
-    {
-        ensureCDCEnabled("Unable to set block_writes.");
-        boolean oldVal = DatabaseDescriptor.getCDCBlockWrites();
-        CommitLogSegment currentSegment = segmentManager.allocatingFrom();
-        // Update the current segment CDC state to PERMITTED if block_writes is disabled now, and it was in FORBIDDEN state
-        if (!val && currentSegment.getCDCState() == CommitLogSegment.CDCState.FORBIDDEN)
-            currentSegment.setCDCState(CommitLogSegment.CDCState.PERMITTED);
+    public void setCDCBlockWrites(boolean val) {
         DatabaseDescriptor.setCDCBlockWrites(val);
-        logger.info("Updated CDC block_writes from {} to {}", oldVal, val);
     }
 
+    private void cdcBlockWritesBeforeChangeListener(String name, boolean oldValue, boolean newValue)
+    {
+        assert name.equals(CDC_BLOCK_WRITES);
+        CommitLogSegment currentSegment = segmentManager.allocatingFrom();
+        // Update the current segment CDC state to PERMITTED if block_writes is disabled now, and it was in FORBIDDEN state
+        if (!newValue && currentSegment.getCDCState() == CommitLogSegment.CDCState.FORBIDDEN)
+            currentSegment.setCDCState(CommitLogSegment.CDCState.PERMITTED);
+    }
 
     @Override
     public boolean isCDCOnRepairEnabled()
@@ -473,14 +482,12 @@ public class CommitLog implements CommitLogMBean
     @Override
     public void setCDCOnRepairEnabled(boolean value)
     {
-        ensureCDCEnabled("Unable to set cdc_on_repair_enabled.");
-        DatabaseDescriptor.setCDCOnRepairEnabled(value);
-        logger.info("Set cdc_on_repair_enabled to {}", value);
+        DatabaseDescriptor.getConfigRegistry().set(CDC_ON_REPAIR_ENABLED, value);
     }
 
-    private void ensureCDCEnabled(String hint)
+    private void ensureCDCEnabled()
     {
-        Preconditions.checkState(DatabaseDescriptor.isCDCEnabled(), "CDC is not enabled. %s", hint);
+        Preconditions.checkState(DatabaseDescriptor.isCDCEnabled(), "CDC is not enabled.");
         Preconditions.checkState(segmentManager instanceof CommitLogSegmentManagerCDC,
                                  "CDC is enabled but we have the wrong CommitLogSegmentManager type: %s. " +
                                  "Please report this as bug.", segmentManager.getClass().getName());

@@ -17,60 +17,6 @@
  */
 package org.apache.cassandra.service;
 
-import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
-import java.io.IOError;
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.UnknownHostException;
-import java.nio.ByteBuffer;
-import java.time.Instant;
-import java.time.format.DateTimeParseException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.EnumMap;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Optional;
-import java.util.Scanner;
-import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
-import java.util.TreeSet;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
-import java.util.regex.MatchResult;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
-import javax.annotation.Nullable;
-import javax.management.ListenerNotFoundException;
-import javax.management.NotificationBroadcasterSupport;
-import javax.management.NotificationFilter;
-import javax.management.NotificationListener;
-import javax.management.openmbean.CompositeData;
-import javax.management.openmbean.OpenDataException;
-import javax.management.openmbean.TabularData;
-import javax.management.openmbean.TabularDataSupport;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
@@ -88,10 +34,6 @@ import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.RateLimiter;
 import com.google.common.util.concurrent.Uninterruptibles;
-import org.apache.commons.lang3.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.audit.AuditLogManager;
 import org.apache.cassandra.audit.AuditLogOptions;
 import org.apache.cassandra.auth.AuthCacheService;
@@ -128,12 +70,11 @@ import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token.TokenFactory;
-import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.dht.RangeStreamer;
 import org.apache.cassandra.dht.RangeStreamer.FetchReplica;
 import org.apache.cassandra.dht.StreamStateStore;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.dht.Token.TokenFactory;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnavailableException;
@@ -148,6 +89,7 @@ import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
 import org.apache.cassandra.gms.IFailureDetector;
 import org.apache.cassandra.gms.TokenSerializer;
 import org.apache.cassandra.gms.VersionedValue;
+import org.apache.cassandra.hints.HintsService;
 import org.apache.cassandra.index.IndexStatusManager;
 import org.apache.cassandra.io.sstable.IScrubber;
 import org.apache.cassandra.io.sstable.IVerifier;
@@ -230,6 +172,63 @@ import org.apache.cassandra.utils.progress.ProgressEventType;
 import org.apache.cassandra.utils.progress.ProgressListener;
 import org.apache.cassandra.utils.progress.jmx.JMXBroadcastExecutor;
 import org.apache.cassandra.utils.progress.jmx.JMXProgressSupport;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.annotation.Nullable;
+import javax.management.ListenerNotFoundException;
+import javax.management.NotificationBroadcasterSupport;
+import javax.management.NotificationFilter;
+import javax.management.NotificationListener;
+import javax.management.openmbean.CompositeData;
+import javax.management.openmbean.OpenDataException;
+import javax.management.openmbean.TabularData;
+import javax.management.openmbean.TabularDataSupport;
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
+import java.io.IOError;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Optional;
+import java.util.Scanner;
+import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
+import java.util.TreeSet;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
+import java.util.regex.MatchResult;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.Iterables.transform;
@@ -260,6 +259,8 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.REPLACE_AD
 import static org.apache.cassandra.config.CassandraRelevantProperties.RESET_BOOTSTRAP_PROGRESS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.START_GOSSIP;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_WRITE_SURVEY;
+import static org.apache.cassandra.config.ConfigFields.REPAIR_REQUEST_TIMEOUT;
+import static org.apache.cassandra.config.DatabaseDescriptor.getConfigRegistry;
 import static org.apache.cassandra.index.SecondaryIndexManager.getIndexName;
 import static org.apache.cassandra.index.SecondaryIndexManager.isIndexColumnFamily;
 import static org.apache.cassandra.net.NoPayload.noPayload;
@@ -990,6 +991,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             logger.info("Not joining ring as requested. Use JMX (StorageService->joinRing()) to initiate ring joining");
         }
 
+        getConfigRegistry().addPropertyConstraint(REPAIR_REQUEST_TIMEOUT,
+                                                  DurationSpec.LongMillisecondsBound.class, (newVal) -> Preconditions.checkState(newVal.toMilliseconds() > 0));
         completeInitialization();
     }
 
@@ -1569,7 +1572,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setRpcTimeout(long value)
     {
         DatabaseDescriptor.setRpcTimeout(value);
-        logger.info("set rpc timeout to {} ms", value);
     }
 
     public long getRpcTimeout()
@@ -1613,7 +1615,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setInternodeTcpConnectTimeoutInMS(int value)
     {
         DatabaseDescriptor.setInternodeTcpConnectTimeoutInMS(value);
-        logger.info("set internode tcp connect timeout to {} ms", value);
     }
 
     public int getInternodeTcpConnectTimeoutInMS()
@@ -1624,7 +1625,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setInternodeTcpUserTimeoutInMS(int value)
     {
         DatabaseDescriptor.setInternodeTcpUserTimeoutInMS(value);
-        logger.info("set internode tcp user timeout to {} ms", value);
     }
 
     public int getInternodeTcpUserTimeoutInMS()
@@ -1634,9 +1634,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void setInternodeStreamingTcpUserTimeoutInMS(int value)
     {
-        Preconditions.checkArgument(value >= 0, "TCP user timeout cannot be negative for internode streaming connection. Got %s", value);
         DatabaseDescriptor.setInternodeStreamingTcpUserTimeoutInMS(value);
-        logger.info("set internode streaming tcp user timeout to {} ms", value);
     }
 
     public int getInternodeStreamingTcpUserTimeoutInMS()
@@ -6549,7 +6547,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setTombstoneWarnThreshold(int threshold)
     {
         DatabaseDescriptor.setTombstoneWarnThreshold(threshold);
-        logger.info("updated tombstone_warn_threshold to {}", threshold);
     }
 
     public int getTombstoneFailureThreshold()
@@ -6756,7 +6753,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setTransferHintsOnDecommission(boolean enabled)
     {
         DatabaseDescriptor.setTransferHintsOnDecommission(enabled);
-        logger.info("updated transfer_hints_on_decommission to {}", enabled);
     }
 
     @Override
@@ -6997,7 +6993,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (value < 0)
             throw new IllegalStateException("Table count warn threshold should be positive, not "+value);
         logger.info("Changing table count warn threshold from {} to {}", getTableCountWarnThreshold(), value);
-        Guardrails.instance.setTablesThreshold((int) Converters.TABLE_COUNT_THRESHOLD_TO_GUARDRAIL.convert(value), 
+        Guardrails.instance.setTablesThreshold((int) Converters.TABLE_COUNT_THRESHOLD_TO_GUARDRAIL.convert(value),
                                                Guardrails.instance.getTablesFailThreshold());
     }
 
@@ -7128,7 +7124,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void setDefaultKeyspaceReplicationFactor(int value)
     {
         DatabaseDescriptor.setDefaultKeyspaceRF(value);
-        logger.info("set default keyspace rf to {}", value);
     }
 
     private static DataStorageSpec.LongBytesBound parseDataStorageSpec(String threshold)
@@ -7278,9 +7273,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void setRepairRpcTimeout(Long timeoutInMillis)
     {
-        Preconditions.checkState(timeoutInMillis > 0);
         DatabaseDescriptor.setRepairRpcTimeout(timeoutInMillis);
-        logger.info("RepairRpcTimeout set to {}ms via JMX", timeoutInMillis);
     }
     public void evictHungRepairs()
     {

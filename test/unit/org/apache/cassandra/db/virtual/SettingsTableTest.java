@@ -19,7 +19,6 @@
 package org.apache.cassandra.db.virtual;
 
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
@@ -34,16 +33,18 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.InternodeEncryption;
 import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.config.registry.ConfigurationRegistry;
+import org.apache.cassandra.config.registry.Registry;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.security.SSLFactory;
-import org.yaml.snakeyaml.introspector.Property;
+import org.assertj.core.util.Streams;
 
 public class SettingsTableTest extends CQLTester
 {
-    private static final String KS_NAME = "vts";
-
+    public static final String KS_NAME = "vts";
     private Config config;
     private SettingsTable table;
+    private Registry tableRegistry;
 
     @BeforeClass
     public static void setUpClass()
@@ -62,7 +63,8 @@ public class SettingsTableTest extends CQLTester
         config.cache_load_timeout = new DurationSpec.IntSecondsBound(0);
         config.commitlog_sync_group_window = new DurationSpec.IntMillisecondsBound(0);
         config.credentials_update_interval = null;
-        table = new SettingsTable(KS_NAME, config);
+        table = new SettingsTable(KS_NAME, new ConfigurationRegistry(() -> config));
+        tableRegistry = table.registry();
         VirtualKeyspaceRegistry.instance.register(new VirtualKeyspace(KS_NAME, ImmutableList.of(table)));
         disablePreparedReuseForTest();
     }
@@ -77,22 +79,20 @@ public class SettingsTableTest extends CQLTester
         {
             i++;
             String name = r.getString("name");
-            Property prop = SettingsTable.PROPERTIES.get(name);
-            if (prop != null) // skip overrides
-                Assert.assertEquals(getValue(prop), r.getString("value"));
+            String value = r.getString("value");
+            String expected = tableRegistry.getString(name);
+            Assert.assertEquals("Unexpected result for key: " + name, expected, value);
         }
-        Assert.assertTrue(SettingsTable.PROPERTIES.size() <= i);
+        Assert.assertEquals(table.registry().size(), i);
     }
 
     @Test
     public void testSelectPartition() throws Throwable
     {
-        for (Map.Entry<String, Property> e : SettingsTable.PROPERTIES.entrySet())
+        for (String key : table.registry().keys())
         {
-            String name = e.getKey();
-            Property prop = e.getValue();
-            String q = "SELECT * FROM vts.settings WHERE name = '"+name+'\'';
-            assertRowsNet(executeNet(q), new Object[] { name, getValue(prop) });
+            String q = "SELECT * FROM vts.settings WHERE name = '" + key + '\'';
+            assertRowsNet(executeNet(q), new Object[] { key, tableRegistry.getString(key) });
         }
     }
 
@@ -146,14 +146,6 @@ public class SettingsTableTest extends CQLTester
         assertRowsNet(executeNet(q), new Object[] {"credentials_update_interval_in_ms", "-1"});
     }
 
-    private String getValue(Property prop)
-    {
-        Object v = prop.get(config);
-        if (v != null)
-            return v.toString();
-        return null;
-    }
-
     private void check(String setting, String expected) throws Throwable
     {
         String q = "SELECT * FROM vts.settings WHERE name = '"+setting+'\'';
@@ -175,7 +167,7 @@ public class SettingsTableTest extends CQLTester
         String all = "SELECT * FROM vts.settings WHERE " +
                      "name > 'server_encryption' AND name < 'server_encryptionz' ALLOW FILTERING";
 
-        List<String> expectedNames = SettingsTable.PROPERTIES.keySet().stream().filter(n -> n.startsWith("server_encryption")).collect(Collectors.toList());
+        List<String> expectedNames = Streams.stream(tableRegistry.keys()).filter(n -> n.startsWith("server_encryption")).collect(Collectors.toList());
         Assert.assertEquals(expectedNames.size(), executeNet(all).all().size());
 
         check(pre + "algorithm", null);
@@ -236,7 +228,7 @@ public class SettingsTableTest extends CQLTester
                      "name > 'audit_logging' AND name < 'audit_loggingz' ALLOW FILTERING";
 
         config.audit_logging_options.enabled = true;
-        List<String> expectedNames = SettingsTable.PROPERTIES.keySet().stream().filter(n -> n.startsWith("audit_logging")).collect(Collectors.toList());
+        List<String> expectedNames = Streams.stream(tableRegistry.keys()).filter(n -> n.startsWith("audit_logging")).collect(Collectors.toList());
         Assert.assertEquals(expectedNames.size(), executeNet(all).all().size());
         check(pre + "enabled", "true");
 
@@ -283,7 +275,7 @@ public class SettingsTableTest extends CQLTester
                      "name < 'transparent_data_encryption_optionsz' ALLOW FILTERING";
 
         config.transparent_data_encryption_options.enabled = true;
-        List<String> expectedNames = SettingsTable.PROPERTIES.keySet().stream().filter(n -> n.startsWith("transparent_data_encryption_options")).collect(Collectors.toList());
+        List<String> expectedNames = Streams.stream(tableRegistry.keys()).filter(n -> n.startsWith("transparent_data_encryption_options")).collect(Collectors.toList());
         Assert.assertEquals(expectedNames.size(), executeNet(all).all().size());
         check(pre + "enabled", "true");
 

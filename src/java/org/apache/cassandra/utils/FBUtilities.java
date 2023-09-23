@@ -17,53 +17,9 @@
  */
 package org.apache.cassandra.utils;
 
-import java.io.BufferedReader;
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.lang.reflect.Field;
-import java.math.BigInteger;
-import java.net.InetAddress;
-import java.net.NetworkInterface;
-import java.net.SocketException;
-import java.net.URL;
-import java.net.UnknownHostException;
-import java.nio.ByteBuffer;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.NavigableSet;
-import java.util.Optional;
-import java.util.Properties;
-import java.util.TreeSet;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.zip.CRC32;
-import java.util.zip.Checksum;
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
-import org.apache.commons.lang3.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.audit.IAuditLogger;
 import org.apache.cassandra.auth.AllowAllNetworkAuthorizer;
 import org.apache.cassandra.auth.IAuthenticator;
@@ -91,7 +47,54 @@ import org.apache.cassandra.security.AbstractCryptoProvider;
 import org.apache.cassandra.security.ISslContextFactory;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
+import org.apache.commons.lang3.StringUtils;
 import org.objectweb.asm.Opcodes;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.lang.reflect.Field;
+import java.math.BigInteger;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
+import java.net.URL;
+import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.IdentityHashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.NavigableSet;
+import java.util.Optional;
+import java.util.Properties;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.zip.CRC32;
+import java.util.zip.Checksum;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_AVAILABLE_PROCESSORS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.GIT_SHA;
@@ -1303,5 +1306,104 @@ public class FBUtilities
         {
             logger.warn("Closing {} had an unexpected exception", o, e);
         }
+    }
+
+    /**
+     * Wraps the passed in {@link Runnable} that will throw the passed in {@code exceptionFactory}.
+     * @param callable Callable to wrap.
+     * @param exceptionFactory Factory to create the exception to throw.
+     */
+    public static <V> V callExceptionally(Callable<V> callable, Function<Exception, ? extends RuntimeException> exceptionFactory)
+    {
+        try
+        {
+            return callable.call();
+        }
+        catch (Exception e)
+        {
+            throw exceptionFactory.apply(e);
+        }
+    }
+
+    /**
+     * Wraps the passed in {@link Runnable} that will throw the passed in {@code exceptionFactory}.
+     * @param runnable Runnable to wrap.
+     * @param exceptionFactory Factory to create the exception to throw.
+     */
+    public static void runExceptionally(Runnable runnable, Function<Exception, ? extends RuntimeException> exceptionFactory)
+    {
+        try
+        {
+            runnable.run();
+        }
+        catch (Exception e)
+        {
+            throw exceptionFactory.apply(e);
+        }
+    }
+
+    /**
+     * Gets the first cause for the passed in {@code Throwable} that is assignable from the given class
+     * in the {@code cause} hierarchy. Note that this method follows includes {@link Throwable#getSuppressed()}
+     * into check.
+     *
+     * @param t   Throwable to get cause from.
+     * @param cls Cause class type to search for.
+     * @return The first cause of passed in class, {@code null} otherwise.
+     */
+    @Nullable
+    @SuppressWarnings("unchecked")
+    public static <T extends Throwable> T cause(Throwable t, Class<T> cls)
+    {
+        return (T) searchForCause(t, Collections.newSetFromMap(new IdentityHashMap<>()), null, cls);
+    }
+
+    /**
+     * Recursively searches for the first cause of the passed in {@code Throwable} that is assignable from
+     * any of the given classes in the {@code cause} hierarchy. Note that this method follows includes
+     *
+     * @param t     Throwable to get cause from.
+     * @param seen  Set of throwable for tracking tested objects.
+     * @param types Candidate types.
+     * @return The first throwable meets test condition or {@code null} if none has matched.
+     */
+    @Nullable
+    private static Throwable searchForCause(Throwable t, Set<Throwable> seen, Class<?>... types)
+    {
+        if (checkThrowable(t, types))
+            return t;
+        if (!seen.add(t))
+            return null;
+        Throwable cause = t.getCause();
+        if (cause != null)
+        {
+            Throwable found = searchForCause(cause, seen, types);
+            if (found != null)
+                return found;
+        }
+        for (Throwable suppressed : t.getSuppressed())
+        {
+            Throwable found = searchForCause(suppressed, seen, types);
+            if (found != null)
+                return found;
+        }
+        return null;
+    }
+
+    /**
+     * @param t          Throwable to check.
+     * @param candidates Candidate types.
+     * @return {@code true} if such type is found, or {@code false} otherwise.
+     */
+    private static boolean checkThrowable(Throwable t, Class<?>... candidates)
+    {
+        for (Class<?> c : candidates)
+        {
+            if (c == null)
+                continue;
+            if (c.isAssignableFrom(t.getClass()))
+                return true;
+        }
+        return false;
     }
 }

@@ -53,6 +53,7 @@ import org.apache.cassandra.concurrent.DebuggableTask.RunnableDebuggableTask;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.ConfigFields;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -2852,10 +2853,8 @@ public class StorageProxy implements StorageProxyMBean
 
     public String setIdealConsistencyLevel(String cl)
     {
-        ConsistencyLevel original = DatabaseDescriptor.getIdealConsistencyLevel();
-        ConsistencyLevel newCL = ConsistencyLevel.valueOf(cl.trim().toUpperCase());
-        DatabaseDescriptor.setIdealConsistencyLevel(newCL);
-        return String.format("Updating ideal consistency level new value: %s old value %s", newCL, original.toString());
+        DatabaseDescriptor.getConfigRegistry().set(ConfigFields.IDEAL_CONSISTENCY_LEVEL, cl);
+        return String.format("Updating ideal consistency level new value: %s", cl);
     }
 
     @Deprecated
