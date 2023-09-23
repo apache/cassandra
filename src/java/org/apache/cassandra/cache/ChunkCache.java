@@ -63,6 +63,7 @@ public class ChunkCache
         final ChunkReader file;
         final String path;
         final long position;
+        final int hashCode;
 
         public Key(ChunkReader file, long position)
         {
@@ -70,9 +71,15 @@ public class ChunkCache
             this.file = file;
             this.position = position;
             this.path = file.channel().filePath();
+            this.hashCode = hashCodeInternal();
         }
 
         public int hashCode()
+        {
+            return hashCode;
+        }
+
+        public int hashCodeInternal()
         {
             final int prime = 31;
             int result = 1;
