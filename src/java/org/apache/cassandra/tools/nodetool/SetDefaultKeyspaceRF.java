@@ -18,15 +18,17 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
+import com.github.rvesse.airline.annotations.restrictions.Required;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 
 @Command(name = "setdefaultrf", description = "Sets default keyspace replication factor.")
 public class SetDefaultKeyspaceRF extends NodeTool.NodeToolCmd
 {
-    @Arguments(title = "default_rf", usage = "<value>", description = "Default replication factor", required = true)
+    @Arguments(title = "default_rf", description = "Default replication factor")
+    @Required
     private Integer defaultRF = null;
 
     protected void execute(NodeProbe probe)

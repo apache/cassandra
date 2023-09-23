@@ -19,9 +19,9 @@ package org.apache.cassandra.tools.nodetool;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.apache.commons.lang3.StringUtils.EMPTY;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
+import com.github.rvesse.airline.annotations.Option;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -44,7 +44,7 @@ public class Repair extends NodeToolCmd
 {
     public final static Set<String> ONLY_EXPLICITLY_REPAIRED = Sets.newHashSet(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME);
 
-    @Arguments(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
+    @Arguments(title = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
     private List<String> args = new ArrayList<>();
 
     @Option(title = "seqential", name = {"-seq", "--sequential"}, description = "Use -seq to carry out a sequential repair")

@@ -19,7 +19,7 @@ package org.apache.cassandra.tools;
 
 import java.io.IOException;
 
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Command;
 
 @Command(name = "reloadssl", description = "Signals Cassandra to reload SSL certificates")
 public class ReloadSslCertificates extends NodeTool.NodeToolCmd

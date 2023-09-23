@@ -29,6 +29,19 @@ import static org.apache.commons.lang3.StringUtils.isEmpty;
 import static org.apache.commons.lang3.StringUtils.isNotEmpty;
 
 import java.io.Console;
+
+import com.github.rvesse.airline.Cli;
+import com.github.rvesse.airline.annotations.Option;
+import com.github.rvesse.airline.annotations.OptionType;
+import com.github.rvesse.airline.builder.CliBuilder;
+import com.github.rvesse.airline.help.Help;
+import com.github.rvesse.airline.parser.errors.ParseArgumentsMissingException;
+import com.github.rvesse.airline.parser.errors.ParseArgumentsUnexpectedException;
+import com.github.rvesse.airline.parser.errors.ParseCommandMissingException;
+import com.github.rvesse.airline.parser.errors.ParseCommandUnrecognizedException;
+import com.github.rvesse.airline.parser.errors.ParseOptionConversionException;
+import com.github.rvesse.airline.parser.errors.ParseOptionMissingException;
+import com.github.rvesse.airline.parser.errors.ParseOptionMissingValueException;
 import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileWriter;
 import java.io.FileNotFoundException;
@@ -55,18 +68,6 @@ import org.apache.cassandra.tools.nodetool.*;
 import org.apache.cassandra.utils.FBUtilities;
 
 import com.google.common.collect.Maps;
-
-import io.airlift.airline.Cli;
-import io.airlift.airline.Help;
-import io.airlift.airline.Option;
-import io.airlift.airline.OptionType;
-import io.airlift.airline.ParseArgumentsMissingException;
-import io.airlift.airline.ParseArgumentsUnexpectedException;
-import io.airlift.airline.ParseCommandMissingException;
-import io.airlift.airline.ParseCommandUnrecognizedException;
-import io.airlift.airline.ParseOptionConversionException;
-import io.airlift.airline.ParseOptionMissingException;
-import io.airlift.airline.ParseOptionMissingValueException;
 
 public class NodeTool
 {
@@ -238,7 +239,7 @@ public class NodeTool
                 ForceCompact.class
         );
 
-        Cli.CliBuilder<NodeToolCmdRunnable> builder = Cli.builder("nodetool");
+        CliBuilder<NodeToolCmdRunnable> builder = Cli.builder("nodetool");
 
         builder.withDescription("Manage your Cassandra cluster")
                  .withDefaultCommand(CassHelp.class)
@@ -268,14 +269,14 @@ public class NodeTool
             printHistory(args);
             parse.run(nodeProbeFactory, output);
         } catch (IllegalArgumentException |
-                IllegalStateException |
-                ParseArgumentsMissingException |
-                ParseArgumentsUnexpectedException |
-                ParseOptionConversionException |
-                ParseOptionMissingException |
-                ParseOptionMissingValueException |
-                ParseCommandMissingException |
-                ParseCommandUnrecognizedException e)
+                 IllegalStateException |
+                 ParseArgumentsMissingException |
+                 ParseArgumentsUnexpectedException |
+                 ParseOptionConversionException |
+                 ParseOptionMissingException |
+                 ParseOptionMissingValueException |
+                 ParseCommandMissingException |
+                 ParseCommandUnrecognizedException e)
         {
             badUse(e);
             status = 1;
@@ -341,7 +342,7 @@ public class NodeTool
     public static abstract class NodeToolCmd implements NodeToolCmdRunnable
     {
 
-        @Option(type = OptionType.GLOBAL, name = {"-h", "--host"}, description = "Node hostname or ip address")
+        @Option(type = OptionType.GLOBAL, name = { "-h", "--host"}, description = "Node hostname or ip address")
         private String host = "127.0.0.1";
 
         @Option(type = OptionType.GLOBAL, name = {"-p", "--port"}, description = "Remote jmx agent port number")

@@ -17,9 +17,9 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Command;
 
-import io.airlift.airline.Option;
+import com.github.rvesse.airline.annotations.Option;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 import org.apache.cassandra.tools.nodetool.stats.*;

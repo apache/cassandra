@@ -18,16 +18,18 @@
 package org.apache.cassandra.tools.nodetool;
 
 import static org.apache.commons.lang3.StringUtils.EMPTY;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
 
+import com.github.rvesse.airline.annotations.restrictions.Required;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
 @Command(name = "removenode", description = "Show status of current node removal, force completion of pending removal or remove provided ID")
 public class RemoveNode extends NodeToolCmd
 {
-    @Arguments(title = "remove_operation", usage = "<status>|<force>|<ID>", description = "Show status of current node removal, force completion of pending removal, or remove provided ID", required = true)
+    @Arguments(title = "remove_operation", description = "Show status of current node removal, force completion of pending removal, or remove provided ID")
+    @Required
     private String removeOperation = EMPTY;
 
     @Override

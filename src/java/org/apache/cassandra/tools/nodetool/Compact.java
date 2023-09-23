@@ -19,9 +19,9 @@ package org.apache.cassandra.tools.nodetool;
 
 import static org.apache.commons.lang3.StringUtils.EMPTY;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
+import com.github.rvesse.airline.annotations.Option;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,7 +32,7 @@ import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 @Command(name = "compact", description = "Force a (major) compaction on one or more tables or user-defined compaction on given SSTables")
 public class Compact extends NodeToolCmd
 {
-    @Arguments(usage = "[<keyspace> <tables>...] or <SSTable file>...", description = "The keyspace followed by one or many tables or list of SSTable data files when using --user-defined")
+    @Arguments(title = "[<keyspace> <tables>...] or <SSTable file>...", description = "The keyspace followed by one or many tables or list of SSTable data files when using --user-defined")
     private List<String> args = new ArrayList<>();
 
     @Option(title = "split_output", name = {"-s", "--split-output"}, description = "Use -s to not create a single big file")

@@ -20,8 +20,8 @@ package org.apache.cassandra.tools.nodetool;
 import java.util.ArrayList;
 import java.util.List;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
 import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
@@ -34,7 +34,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 @Command(name = "updatecidrgroup", description = "Insert/Update a cidr group")
 public class UpdateCIDRGroup extends NodeToolCmd
 {
-    @Arguments(usage = "[<cidrGroup> <cidr> ...]", description = "Requires a cidr group name, followed by one or more CIDRs separated by space")
+    @Arguments(title = "[<cidrGroup> <cidr> ...]", description = "Requires a cidr group name, followed by one or more CIDRs separated by space")
     private List<String> args = new ArrayList<>();
 
     @Override

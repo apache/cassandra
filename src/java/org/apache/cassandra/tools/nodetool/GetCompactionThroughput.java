@@ -19,9 +19,9 @@ package org.apache.cassandra.tools.nodetool;
 
 import com.google.common.math.DoubleMath;
 
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Command;
 
-import io.airlift.airline.Option;
+import com.github.rvesse.airline.annotations.Option;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 

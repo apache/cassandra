@@ -34,9 +34,10 @@ import org.junit.BeforeClass;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.airlift.airline.Command;
-import io.airlift.airline.Help;
-import io.airlift.airline.Option;
+import com.github.rvesse.airline.annotations.Command;
+import com.github.rvesse.airline.annotations.restrictions.AllowedRawValues;
+import com.github.rvesse.airline.annotations.Option;
+import com.github.rvesse.airline.help.Help;
 import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.simulator.Debug.Info;
@@ -185,7 +186,8 @@ public class SimulationRunner
         @Option(name = { "--nemesis" }, title = "[distribution:]float...float", description = "Proportion of nemesis points that are intercepted (default: 0..0.01)")
         protected String nemesisChance;
 
-        @Option(name = { "--priority" }, title = "uniform|randomwalk|seq", description = "Priority assignment for actions that may overlap their execution", allowedValues = { "uniform", "randomwalk", "seq" })
+        @Option(name = { "--priority" }, title = "uniform|randomwalk|seq", description = "Priority assignment for actions that may overlap their execution")
+        @AllowedRawValues(allowedValues = { "uniform", "randomwalk", "seq" })
         protected String priority;
 
         // TODO (feature): simulate GC pauses
@@ -234,19 +236,24 @@ public class SimulationRunner
         @Option(name = { "--debug-keys" }, title = "level", description = "Print debug info only for these keys (comma delimited)")
         protected String debugKeys;
 
-        @Option(name = { "--debug-rf" }, title = "level", description = "Print RF on <partition> <cluster> events; level 0 to 2", arity = 2, allowedValues = { "0", "1", "2" })
+        @Option(name = { "--debug-rf" }, title = "level", description = "Print RF on <partition> <cluster> events; level 0 to 2", arity = 2)
+        @AllowedRawValues(allowedValues = { "0", "1", "2" })
         protected List<Integer> debugRf;
 
-        @Option(name = { "--debug-ownership" }, title = "level", description = "Print ownership on <partition> <cluster> events; level 0 to 2", arity = 2, allowedValues = { "0", "1", "2" })
+        @Option(name = { "--debug-ownership" }, title = "level", description = "Print ownership on <partition> <cluster> events; level 0 to 2", arity = 2)
+        @AllowedRawValues(allowedValues = { "0", "1", "2" })
         protected List<Integer> debugOwnership;
 
-        @Option(name = { "--debug-ring" }, title = "level", description = "Print ring state on <partition> <cluster> events; level 0 to 2", arity = 2, allowedValues = { "0", "1", "2" })
+        @Option(name = { "--debug-ring" }, title = "level", description = "Print ring state on <partition> <cluster> events; level 0 to 2", arity = 2)
+        @AllowedRawValues(allowedValues = { "0", "1", "2" })
         protected List<Integer> debugRing;
 
-        @Option(name = { "--debug-gossip" }, title = "level", description = "Debug gossip at <partition> <cluster> events; level 0 to 2", arity = 2, allowedValues = { "0", "1", "2" })
+        @Option(name = { "--debug-gossip" }, title = "level", description = "Debug gossip at <partition> <cluster> events; level 0 to 2", arity = 2)
+        @AllowedRawValues(allowedValues = { "0", "1", "2" })
         protected List<Integer> debugGossip;
 
-        @Option(name = { "--debug-paxos" }, title = "level", description = "Print paxos state on <partition> <cluster> events; level 0 to 2", arity = 2, allowedValues = { "0", "1", "2" })
+        @Option(name = { "--debug-paxos" }, title = "level", description = "Print paxos state on <partition> <cluster> events; level 0 to 2", arity = 2)
+        @AllowedRawValues(allowedValues = { "0", "1", "2" })
         protected List<Integer> debugPaxos;
 
         @Option(name = { "--capture" }, title = "wait,wake,now", description = "Capture thread stack traces alongside events, choose from (wait,wake,now)")
@@ -382,13 +389,15 @@ public class SimulationRunner
     @Command(name = "record")
     protected static class Record<B extends ClusterSimulation.Builder<?>> extends BasicCommand<B>
     {
-        @Option(name = {"--to"}, description = "Directory of recordings to reconcile with for the seed", required = true)
+        @Option(name = {"--to"}, description = "Directory of recordings to reconcile with for the seed")
         private String dir;
 
-        @Option(name = {"--with-rng"}, title = "0|1", description = "Record RNG values (with or without call sites)", allowedValues = {"0", "1"})
+        @Option(name = {"--with-rng"}, title = "0|1", description = "Record RNG values (with or without call sites)")
+        @AllowedRawValues(allowedValues = {"0", "1"})
         private int rng = -1;
 
-        @Option(name = {"--with-time"}, title = "0|1", description = "Record time values (with or without call sites)", allowedValues = {"0", "1"})
+        @Option(name = {"--with-time"}, title = "0|1", description = "Record time values (with or without call sites)")
+        @AllowedRawValues(allowedValues = {"0", "1"})
         private int time = -1;
 
         @Override
@@ -404,10 +413,12 @@ public class SimulationRunner
         @Option(name = {"--with"}, description = "Directory of recordings to reconcile with for the seed")
         private String dir;
 
-        @Option(name = {"--with-rng"}, title = "0|1", description = "Reconcile RNG values (if present in source)", allowedValues = {"0", "1"})
+        @Option(name = {"--with-rng"}, title = "0|1", description = "Reconcile RNG values (if present in source)")
+        @AllowedRawValues(allowedValues = {"0", "1"})
         private int rng = -1;
 
-        @Option(name = {"--with-time"}, title = "0|1", description = "Reconcile time values (if present in source)", allowedValues = {"0", "1"})
+        @Option(name = {"--with-time"}, title = "0|1", description = "Reconcile time values (if present in source)")
+        @AllowedRawValues(allowedValues = {"0", "1"})
         private int time = -1;
 
         @Option(name = {"--with-allocations"}, description = "Reconcile memtable allocations (only with --with-self)", arity = 0)

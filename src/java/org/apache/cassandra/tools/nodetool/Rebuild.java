@@ -17,9 +17,9 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
+import com.github.rvesse.airline.annotations.Option;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
@@ -27,7 +27,7 @@ import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 @Command(name = "rebuild", description = "Rebuild data by streaming from other nodes (similarly to bootstrap)")
 public class Rebuild extends NodeToolCmd
 {
-    @Arguments(usage = "<src-dc-name>",
+    @Arguments(title = "<src-dc-name>",
                description = "Name of DC from which to select sources for streaming. By default, pick any DC (except local DC when --exclude-local-dc is set)")
     private String sourceDataCenterName = null;
 

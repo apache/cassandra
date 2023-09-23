@@ -22,9 +22,9 @@ import java.util.List;
 
 import org.apache.commons.lang3.StringUtils;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
+import com.github.rvesse.airline.annotations.Option;
 import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.auth.FunctionResource;
 import org.apache.cassandra.auth.JMXResource;
@@ -38,7 +38,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 @Command(name = "invalidatepermissionscache", description = "Invalidate the permissions cache")
 public class InvalidatePermissionsCache extends NodeToolCmd
 {
-    @Arguments(usage = "[<role>]", description = "A role for which permissions to specified resources need to be invalidated")
+    @Arguments(title = "[<role>]", description = "A role for which permissions to specified resources need to be invalidated")
     private List<String> args = new ArrayList<>();
 
     // Data Resources

@@ -18,8 +18,9 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
+import com.github.rvesse.airline.annotations.Command;
+import com.github.rvesse.airline.annotations.Option;
+import com.github.rvesse.airline.annotations.restrictions.Required;
 import org.apache.cassandra.auth.AuthCacheMBean;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
@@ -30,8 +31,8 @@ public class GetAuthCacheConfig extends NodeTool.NodeToolCmd
     @SuppressWarnings("unused")
     @Option(title = "cache-name",
             name = {"--cache-name"},
-            description = "Name of Auth cache (required)",
-            required = true)
+            description = "Name of Auth cache (required)")
+    @Required
     private String cacheName;
 
     @Override

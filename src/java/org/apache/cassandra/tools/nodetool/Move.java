@@ -18,18 +18,20 @@
 package org.apache.cassandra.tools.nodetool;
 
 import static org.apache.commons.lang3.StringUtils.EMPTY;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
 
 import java.io.IOException;
 
+import com.github.rvesse.airline.annotations.restrictions.Required;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
 @Command(name = "move", description = "Move node on the token ring to a new token")
 public class Move extends NodeToolCmd
 {
-    @Arguments(usage = "<new token>", description = "The new token.", required = true)
+    @Arguments(title = "<new token>", description = "The new token.")
+    @Required
     private String newToken = EMPTY;
 
     @Override

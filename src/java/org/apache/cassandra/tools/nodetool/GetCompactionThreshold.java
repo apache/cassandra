@@ -18,8 +18,8 @@
 package org.apache.cassandra.tools.nodetool;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,7 +31,7 @@ import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 @Command(name = "getcompactionthreshold", description = "Print min and max compaction thresholds for a given table")
 public class GetCompactionThreshold extends NodeToolCmd
 {
-    @Arguments(usage = "<keyspace> <table>", description = "The keyspace with a table")
+    @Arguments(title = "<keyspace> <table>", description = "The keyspace with a table")
     private List<String> args = new ArrayList<>();
 
     @Override

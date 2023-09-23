@@ -18,28 +18,47 @@
 
 package org.apache.cassandra.tools;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
-import java.io.PrintStream;
-import java.io.UnsupportedEncodingException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.TreeSet;
-import java.util.concurrent.Callable;
-import java.util.function.BiConsumer;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.github.rvesse.airline.Channels;
+import com.github.rvesse.airline.Cli;
+import com.github.rvesse.airline.HelpOption;
+import com.github.rvesse.airline.annotations.AirlineModule;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
+import com.github.rvesse.airline.annotations.Option;
+import com.github.rvesse.airline.builder.CliBuilder;
+import com.github.rvesse.airline.help.UsageHelper;
+import com.github.rvesse.airline.help.cli.CliCommandGroupUsageGenerator;
+import com.github.rvesse.airline.help.cli.CliCommandUsageGenerator;
+import com.github.rvesse.airline.help.cli.CliGlobalUsageGenerator;
+import com.github.rvesse.airline.help.cli.CliGlobalUsageSummaryGenerator;
+import com.github.rvesse.airline.io.printers.UsagePrinter;
+import com.github.rvesse.airline.model.ArgumentsMetadata;
+import com.github.rvesse.airline.model.CommandGroupMetadata;
+import com.github.rvesse.airline.model.CommandMetadata;
+import com.github.rvesse.airline.model.GlobalMetadata;
+import com.github.rvesse.airline.model.OptionMetadata;
+import com.github.rvesse.airline.model.ParserMetadata;
+import com.github.rvesse.airline.utils.predicates.parser.AbbreviatedCommandFinder;
+import com.github.rvesse.airline.utils.predicates.parser.AbbreviatedGroupFinder;
+import com.github.rvesse.airline.utils.predicates.parser.CommandFinder;
+import com.github.rvesse.airline.utils.predicates.parser.GroupFinder;
+import com.google.common.base.Preconditions;
+import com.google.common.base.Predicate;
+import com.google.common.collect.Sets;
+import com.google.common.collect.Sets.SetView;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileInputStreamPlus;
+import org.apache.cassandra.utils.JsonUtils;
+import org.apache.commons.collections4.CollectionUtils;
+import org.yaml.snakeyaml.TypeDescription;
+import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.constructor.Constructor;
+import org.yaml.snakeyaml.nodes.MappingNode;
+import org.yaml.snakeyaml.nodes.Node;
+import org.yaml.snakeyaml.nodes.Tag;
+import org.yaml.snakeyaml.representer.Representer;
+
 import javax.inject.Inject;
 import javax.management.InstanceNotFoundException;
 import javax.management.IntrospectionException;
@@ -55,29 +74,29 @@ import javax.management.ReflectionException;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
-
-import com.google.common.base.Preconditions;
-import com.google.common.base.Predicate;
-import com.google.common.collect.Sets;
-import com.google.common.collect.Sets.SetView;
-
-import com.fasterxml.jackson.core.type.TypeReference;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Cli;
-import io.airlift.airline.Command;
-import io.airlift.airline.Help;
-import io.airlift.airline.HelpOption;
-import io.airlift.airline.Option;
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileInputStreamPlus;
-import org.apache.cassandra.utils.JsonUtils;
-import org.yaml.snakeyaml.TypeDescription;
-import org.yaml.snakeyaml.Yaml;
-import org.yaml.snakeyaml.constructor.Constructor;
-import org.yaml.snakeyaml.nodes.MappingNode;
-import org.yaml.snakeyaml.nodes.Node;
-import org.yaml.snakeyaml.nodes.Tag;
-import org.yaml.snakeyaml.representer.Representer;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.PrintStream;
+import java.io.UnsupportedEncodingException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
+import java.util.concurrent.Callable;
+import java.util.function.BiConsumer;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class JMXTool
 {
@@ -108,7 +127,7 @@ public class JMXTool
     };
 
     @Command(name = "dump", description = "Dump the Apache Cassandra JMX objects and metadata.")
-    public static final class Dump implements Callable<Void>
+    public static final class Dump implements Runnable, Callable<Void>
     {
         @Inject
         private HelpOption helpOption;
@@ -124,6 +143,19 @@ public class JMXTool
             Map<String, Info> map = load(new JMXServiceURL(targetUrl));
             format.dump(System.out, map);
             return null;
+        }
+
+        @Override
+        public void run()
+        {
+            try
+            {
+                call();
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
         }
 
         public enum Format
@@ -188,12 +220,12 @@ public class JMXTool
     }
 
     @Command(name = "diff", description = "Diff two jmx dump files and report their differences")
-    public static final class Diff implements Callable<Void>
+    public static final class Diff implements Runnable, Callable<Void>
     {
-        @Inject
+        @AirlineModule
         private HelpOption helpOption;
 
-        @Arguments(title = "files", usage = "<left> <right>", description = "Files to diff")
+        @Arguments(title = "files", description = "Files to diff")
         private List<File> files;
 
         @Option(title = "format", name = { "-f", "--format" }, description = "What format the files are in; only support json and yaml as format")
@@ -237,6 +269,19 @@ public class JMXTool
 
             diff(left, right);
             return null;
+        }
+
+        @Override
+        public void run()
+        {
+            try
+            {
+                call();
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
         }
 
         private void diff(Map<String, Info> left, Map<String, Info> right)
@@ -853,12 +898,246 @@ public class JMXTool
 
     public static void main(String[] args) throws Exception
     {
-        Cli.CliBuilder<Callable<Void>> builder = Cli.builder("jmxtool");
-        builder.withDefaultCommand(Help.class);
-        builder.withCommands(Help.class, Dump.class, Diff.class);
+        CliBuilder<Runnable> builder = Cli.<Runnable>builder("jmxtool")
+                                          .withDefaultCommand(LegacyToolHelp.class)
+                                          .withCommand(LegacyToolHelp.class)
+                                          .withCommands(Dump.class, Diff.class);
 
-        Cli<Callable<Void>> parser = builder.build();
-        Callable<Void> command = parser.parse(args);
-        command.call();
+        Cli<Runnable> parser = builder.build();
+        parser.parse(args).run();
+    }
+
+    public static String toUsage(OptionMetadata option) {
+        Set<String> options = option.getOptions();
+        boolean required = option.isRequired();
+        StringBuilder stringBuilder = new StringBuilder();
+        if (!required) {
+            stringBuilder.append("[");
+        }
+
+        if (options.size() > 1) {
+            stringBuilder.append('{');
+        }
+
+        boolean first = true;
+
+        String name;
+        for(Iterator var6 = options.iterator(); var6.hasNext(); stringBuilder.append(name)) {
+            name = (String)var6.next();
+            if (!first) {
+                stringBuilder.append(" | ");
+            } else {
+                first = false;
+            }
+        }
+
+        if (options.size() > 1) {
+            stringBuilder.append('}');
+        }
+
+        if (option.getArity() > 0) {
+            for(int i = 0; i < option.getArity(); ++i) {
+                stringBuilder.append(" <").append(option.getTitle(i)).append('>');
+            }
+        }
+
+        if (option.isMultiValued()) {
+            stringBuilder.append("...");
+        }
+
+        if (!required) {
+            stringBuilder.append("]");
+        }
+
+        return stringBuilder.toString();
+    }
+
+    @Command(name = "help", description = "Display help information")
+    public static class LegacyToolHelp<T> implements Runnable, Callable<Void>
+    {
+        @AirlineModule
+        public GlobalMetadata<T> global;
+        @Arguments
+        public List<String> command = new ArrayList<>();
+        @Option(
+        name = {"--include-hidden"},
+        description = "When set the help output will include hidden commands and options",
+        hidden = true
+        )
+        public boolean includeHidden = false;
+
+        public LegacyToolHelp() {
+        }
+
+        public void run() {
+            try {
+                help(this.global, this.command, this.includeHidden);
+            } catch (IOException var2) {
+                throw new RuntimeException("Error generating usage documentation", var2);
+            }
+        }
+
+        public Void call() {
+            this.run();
+            return null;
+        }
+
+        public static void help(CommandMetadata command) throws IOException {
+            help((CommandMetadata)command, (OutputStream) Channels.output());
+        }
+
+        public static void help(CommandMetadata command, boolean includeHidden) throws IOException {
+            help(command, includeHidden, Channels.output());
+        }
+
+        public static void help(CommandMetadata command, OutputStream out) throws IOException {
+            help(command, false, out);
+        }
+
+        public static void help(CommandMetadata command, boolean includeHidden, OutputStream out) throws IOException {
+            (new CassandraCliCommandUsageGenerator(includeHidden)).usage((String)null, (String[])null, command.getName(), command, (ParserMetadata)null, out);
+        }
+
+        public static <T> void help(GlobalMetadata<T> global, List<String> commandNames) throws IOException {
+            help(global, commandNames, false, Channels.output());
+        }
+
+        public static <T> void help(GlobalMetadata<T> global, List<String> commandNames, boolean includeHidden) throws IOException {
+            help(global, commandNames, includeHidden, Channels.output());
+        }
+
+        public static <T> void help(GlobalMetadata<T> global, List<String> commandNames, OutputStream out) throws IOException {
+            help(global, commandNames, false, out);
+        }
+
+        public static <T> void help(GlobalMetadata<T> global, List<String> commandNames, boolean includeHidden, OutputStream out) throws IOException {
+            if (commandNames.isEmpty()) {
+                (new CassandraCliGlobalUsageSummaryGenerator(includeHidden)).usage(global, out);
+            } else {
+                String name = (String)commandNames.get(0);
+                if (name.equals(global.getName())) {
+                    (new CliGlobalUsageGenerator(includeHidden)).usage(global, out);
+                } else {
+                    org.apache.commons.collections4.Predicate<CommandGroupMetadata> findGroupPredicate = global.getParserConfiguration().allowsAbbreviatedCommands() ? new AbbreviatedGroupFinder(name, global.getCommandGroups()) : new GroupFinder(name);
+                    CommandGroupMetadata group = (CommandGroupMetadata) CollectionUtils.find(global.getCommandGroups(), (org.apache.commons.collections4.Predicate)findGroupPredicate);
+                    Object findCommandPredicate;
+                    CommandMetadata command;
+                    if (group != null) {
+                        List<CommandGroupMetadata> groupPath = new ArrayList();
+                        groupPath.add(group);
+                        if (commandNames.size() == 1) {
+                            (new CliCommandGroupUsageGenerator(includeHidden)).usage(global, (CommandGroupMetadata[])groupPath.toArray(new CommandGroupMetadata[0]), out);
+                            return;
+                        }
+
+                        int i = 1;
+                        String commandOrSubGroupName = (String)commandNames.get(i);
+
+                        while(group.getSubGroups().size() > 0 && i < commandNames.size()) {
+                            commandOrSubGroupName = (String)commandNames.get(i);
+                            findGroupPredicate = global.getParserConfiguration().allowsAbbreviatedCommands() ? new AbbreviatedGroupFinder(commandOrSubGroupName, group.getSubGroups()) : new GroupFinder(commandOrSubGroupName);
+                            CommandGroupMetadata subGroup = (CommandGroupMetadata)CollectionUtils.find(group.getSubGroups(), (org.apache.commons.collections4.Predicate)findGroupPredicate);
+                            if (subGroup == null) {
+                                break;
+                            }
+
+                            groupPath.add(subGroup);
+                            group = subGroup;
+                            ++i;
+                            if (i == commandNames.size()) {
+                                (new CliCommandGroupUsageGenerator(includeHidden)).usage(global, (CommandGroupMetadata[])groupPath.toArray(new CommandGroupMetadata[0]), out);
+                                return;
+                            }
+                        }
+
+                        commandOrSubGroupName = (String)commandNames.get(i);
+                        findCommandPredicate = global.getParserConfiguration().allowsAbbreviatedCommands() ? new AbbreviatedCommandFinder(commandOrSubGroupName, group.getCommands()) : new CommandFinder(commandOrSubGroupName);
+                        command = (CommandMetadata)CollectionUtils.find(group.getCommands(), (org.apache.commons.collections4.Predicate)findCommandPredicate);
+                        if (command != null) {
+                            (new CassandraCliCommandUsageGenerator()).usage(global.getName(), UsageHelper.toGroupNames(groupPath), command.getName(), command, global.getParserConfiguration(), out);
+                            return;
+                        }
+
+                        if (global.getParserConfiguration().allowsAbbreviatedCommands()) {
+                            Channels.output().println("Unknown command " + name + " " + commandOrSubGroupName + " or an ambiguous abbreviation");
+                        } else {
+                            Channels.output().println("Unknown command " + name + " " + commandOrSubGroupName);
+                        }
+                    }
+
+                    findCommandPredicate = global.getParserConfiguration().allowsAbbreviatedCommands() ? new AbbreviatedCommandFinder(name, global.getDefaultGroupCommands()) : new CommandFinder(name);
+                    command = (CommandMetadata)CollectionUtils.find(global.getDefaultGroupCommands(), (org.apache.commons.collections4.Predicate)findCommandPredicate);
+                    if (command != null) {
+                        (new CassandraCliCommandUsageGenerator(includeHidden)).usage(global.getName(), (String[])null, command.getName(), command, global.getParserConfiguration(), out);
+                    } else {
+                        if (global.getParserConfiguration().allowsAbbreviatedCommands()) {
+                            Channels.output().println("Unknown command " + name + " or an ambiguous abbreviation");
+                        } else {
+                            Channels.output().println("Unknown command " + name);
+                        }
+
+                    }
+                }
+            }
+        }
+
+        private static class CassandraCliGlobalUsageSummaryGenerator<T> extends CliGlobalUsageSummaryGenerator<T>
+        {
+            public CassandraCliGlobalUsageSummaryGenerator(boolean includeHidden)
+            {
+                super(includeHidden);
+            }
+
+            @Override
+            protected void outputSynopsis(UsagePrinter out, GlobalMetadata<T> global) throws IOException {
+                List<String> commandArguments = new ArrayList<>();
+                for (OptionMetadata option : sortOptions(global.getOptions())) {
+                    if (option.isHidden() && !includeHidden())
+                        continue;
+
+                    commandArguments.add(LegacyUsageHelper.toUsage(option));
+                }
+                //@formatter:off
+                out.newPrinterWithHangingIndent(8)
+                   .append("usage:")
+                   .append(global.getName())
+                   .appendWords(commandArguments)
+                   .append("<command> [<args>]")
+                   .newline()
+                   .newline();
+                //@formatter:on
+            }
+        }
+
+        private static class CassandraCliCommandUsageGenerator extends CliCommandUsageGenerator
+        {
+            public CassandraCliCommandUsageGenerator()
+            {
+                super();
+            }
+
+            public CassandraCliCommandUsageGenerator(boolean includeHidden)
+            {
+                super(includeHidden);
+            }
+
+            @Override
+            protected String toUsage(OptionMetadata option)
+            {
+                return JMXTool.toUsage(option);
+            }
+
+            @Override
+            protected String toUsage(ArgumentsMetadata arguments)
+            {
+                return LegacyUsageHelper.toUsage(arguments);
+            }
+
+            @Override
+            protected List<String> toSynopsisUsage(List<OptionMetadata> options)
+            {
+                return LegacyUsageHelper.toSynopsisUsage(options);
+            }
+        }
     }
 }

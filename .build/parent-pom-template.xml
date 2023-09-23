@@ -707,15 +707,9 @@
         <version>0.4</version>
       </dependency>
       <dependency>
-        <groupId>io.airlift</groupId>
+        <groupId>com.github.rvesse</groupId>
         <artifactId>airline</artifactId>
-        <version>0.8</version>
-        <exclusions>
-          <exclusion>
-            <artifactId>jsr305</artifactId>
-            <groupId>com.google.code.findbugs</groupId>
-          </exclusion>
-        </exclusions>
+        <version>2.9.0</version>
       </dependency>
       <dependency>
         <groupId>io.netty</groupId>

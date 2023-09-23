@@ -22,15 +22,16 @@ import java.util.List;
 
 import com.google.common.base.Throwables;
 
-import io.airlift.airline.Cli;
-import io.airlift.airline.Help;
-import io.airlift.airline.ParseArgumentsMissingException;
-import io.airlift.airline.ParseArgumentsUnexpectedException;
-import io.airlift.airline.ParseCommandMissingException;
-import io.airlift.airline.ParseCommandUnrecognizedException;
-import io.airlift.airline.ParseOptionConversionException;
-import io.airlift.airline.ParseOptionMissingException;
-import io.airlift.airline.ParseOptionMissingValueException;
+import com.github.rvesse.airline.Cli;
+import com.github.rvesse.airline.builder.CliBuilder;
+import com.github.rvesse.airline.help.Help;
+import com.github.rvesse.airline.parser.errors.ParseArgumentsMissingException;
+import com.github.rvesse.airline.parser.errors.ParseArgumentsUnexpectedException;
+import com.github.rvesse.airline.parser.errors.ParseCommandMissingException;
+import com.github.rvesse.airline.parser.errors.ParseCommandUnrecognizedException;
+import com.github.rvesse.airline.parser.errors.ParseOptionConversionException;
+import com.github.rvesse.airline.parser.errors.ParseOptionMissingException;
+import com.github.rvesse.airline.parser.errors.ParseOptionMissingValueException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.fqltool.commands.Compare;
 import org.apache.cassandra.fqltool.commands.Dump;
@@ -51,7 +52,7 @@ public class FullQueryLogTool
                 Compare.class
         );
 
-        Cli.CliBuilder<Runnable> builder = Cli.builder("fqltool");
+        CliBuilder<Runnable> builder = Cli.builder("fqltool");
 
         builder.withDescription("Manipulate the contents of full query log files")
                  .withDefaultCommand(Help.class)
@@ -63,19 +64,21 @@ public class FullQueryLogTool
         try
         {
             parser.parse(args).run();
-        } catch (IllegalArgumentException |
-                IllegalStateException |
-                ParseArgumentsMissingException |
-                ParseArgumentsUnexpectedException |
-                ParseOptionConversionException |
-                ParseOptionMissingException |
-                ParseOptionMissingValueException |
-                ParseCommandMissingException |
-                ParseCommandUnrecognizedException e)
+        }
+        catch (IllegalArgumentException |
+               IllegalStateException |
+               ParseArgumentsMissingException |
+               ParseArgumentsUnexpectedException |
+               ParseOptionConversionException |
+               ParseOptionMissingException |
+               ParseOptionMissingValueException |
+               ParseCommandMissingException |
+               ParseCommandUnrecognizedException e)
         {
             badUse(e);
             status = 1;
-        } catch (Throwable throwable)
+        }
+        catch (Throwable throwable)
         {
             err(Throwables.getRootCause(throwable));
             status = 2;

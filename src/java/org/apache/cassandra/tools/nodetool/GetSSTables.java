@@ -18,15 +18,15 @@
 package org.apache.cassandra.tools.nodetool;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import io.airlift.airline.Option;
+import com.github.rvesse.airline.annotations.Option;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
@@ -41,7 +41,7 @@ public class GetSSTables extends NodeToolCmd
     @Option(name={"-l", "--show-levels"}, description="If the table is using leveled compaction the level of each sstable will be included in the output (Default: false)")
     private boolean showLevels = false;
 
-    @Arguments(usage = "<keyspace> <cfname> <key>", description = "The keyspace, the column family, and the key")
+    @Arguments(title = "<keyspace> <cfname> <key>", description = "The keyspace, the column family, and the key")
     private List<String> args = new ArrayList<>();
 
     @Override

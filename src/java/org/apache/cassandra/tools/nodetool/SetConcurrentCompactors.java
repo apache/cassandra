@@ -19,15 +19,17 @@
 package org.apache.cassandra.tools.nodetool;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
+import com.github.rvesse.airline.annotations.restrictions.Required;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 
 @Command(name = "setconcurrentcompactors", description = "Set number of concurrent compactors in the system.")
 public class SetConcurrentCompactors extends NodeTool.NodeToolCmd
 {
-    @Arguments(title = "concurrent_compactors", usage = "<value>", description = "Number of concurrent compactors, greater than 0.", required = true)
+    @Arguments(title = "concurrent_compactors", description = "Number of concurrent compactors, greater than 0.")
+    @Required
     private Integer concurrentCompactors = null;
 
     protected void execute(NodeProbe probe)

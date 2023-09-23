@@ -24,9 +24,9 @@ import java.util.Map;
 import java.util.Set;
 import javax.management.openmbean.TabularData;
 
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Command;
 
-import io.airlift.airline.Option;
+import com.github.rvesse.airline.annotations.Option;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;

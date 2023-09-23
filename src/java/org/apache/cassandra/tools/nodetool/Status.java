@@ -17,9 +17,9 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
+import com.github.rvesse.airline.annotations.Option;
 
 import java.io.PrintStream;
 import java.net.UnknownHostException;
@@ -42,7 +42,7 @@ import com.google.common.collect.ArrayListMultimap;
 @Command(name = "status", description = "Print cluster information (state, load, IDs, ...)")
 public class Status extends NodeToolCmd
 {
-    @Arguments(usage = "[<keyspace>]", description = "The keyspace name")
+    @Arguments(title = "[<keyspace>]", description = "The keyspace name")
     private String keyspace = null;
 
     @Option(title = "resolve_ip", name = {"-r", "--resolve-ip"}, description = "Show node domain names instead of IPs")

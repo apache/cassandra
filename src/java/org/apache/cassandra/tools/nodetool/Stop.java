@@ -17,9 +17,9 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
+import com.github.rvesse.airline.annotations.Option;
 
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.tools.NodeProbe;
@@ -29,15 +29,12 @@ import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 public class Stop extends NodeToolCmd
 {
     @Arguments(title = "compaction_type",
-              usage = "<compaction type>",
-              description = "Supported types are COMPACTION, VALIDATION, CLEANUP, SCRUB, UPGRADE_SSTABLES, INDEX_BUILD, TOMBSTONE_COMPACTION, ANTICOMPACTION, VERIFY, VIEW_BUILD, INDEX_SUMMARY, RELOCATE, GARBAGE_COLLECT",
-              required = false)
+              description = "Supported types are COMPACTION, VALIDATION, CLEANUP, SCRUB, UPGRADE_SSTABLES, INDEX_BUILD, TOMBSTONE_COMPACTION, ANTICOMPACTION, VERIFY, VIEW_BUILD, INDEX_SUMMARY, RELOCATE, GARBAGE_COLLECT")
     private OperationType compactionType = OperationType.UNKNOWN;
 
     @Option(title = "compactionId",
            name = {"-id", "--compaction-id"},
-           description = "Use -id to stop a compaction by the specified id. Ids can be found in the transaction log files whose name starts with compaction_, located in the table transactions folder.",
-           required = false)
+           description = "Use -id to stop a compaction by the specified id. Ids can be found in the transaction log files whose name starts with compaction_, located in the table transactions folder.")
     private String compactionId = "";
 
     @Override

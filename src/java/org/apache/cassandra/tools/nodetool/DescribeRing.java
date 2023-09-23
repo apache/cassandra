@@ -18,19 +18,21 @@
 package org.apache.cassandra.tools.nodetool;
 
 import static org.apache.commons.lang3.StringUtils.EMPTY;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
 
 import java.io.IOException;
 import java.io.PrintStream;
 
+import com.github.rvesse.airline.annotations.restrictions.Required;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
 @Command(name = "describering", description = "Shows the token ranges info of a given keyspace")
 public class DescribeRing extends NodeToolCmd
 {
-    @Arguments(description = "The keyspace name", required = true)
+    @Arguments(description = "The keyspace name")
+    @Required
     String keyspace = EMPTY;
 
     @Override

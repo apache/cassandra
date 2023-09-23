@@ -18,8 +18,9 @@
 
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
+import com.github.rvesse.airline.annotations.restrictions.Required;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 
@@ -28,7 +29,8 @@ import static com.google.common.base.Preconditions.checkArgument;
 @Command(name = "setconcurrentviewbuilders", description = "Set the number of concurrent view builders in the system")
 public class SetConcurrentViewBuilders extends NodeTool.NodeToolCmd
 {
-    @Arguments(title = "concurrent_view_builders", usage = "<value>", description = "Number of concurrent view builders, greater than 0.", required = true)
+    @Arguments(title = "concurrent_view_builders", description = "Number of concurrent view builders, greater than 0.")
+    @Required
     private Integer concurrentViewBuilders = null;
 
     protected void execute(NodeProbe probe)

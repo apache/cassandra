@@ -23,8 +23,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
@@ -36,7 +36,7 @@ public class ViewBuildStatus extends NodeTool.NodeToolCmd
 {
     private final static String SUCCESS = "SUCCESS";
 
-    @Arguments(usage = "<keyspace> <view> | <keyspace.view>", description = "The keyspace and view name")
+    @Arguments(title = "<keyspace> <view> | <keyspace.view>", description = "The keyspace and view name")
     private List<String> args = new ArrayList<>();
 
     protected void execute(NodeProbe probe)

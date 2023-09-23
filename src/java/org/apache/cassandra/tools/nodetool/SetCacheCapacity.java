@@ -18,12 +18,13 @@
 package org.apache.cassandra.tools.nodetool;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import com.github.rvesse.airline.annotations.restrictions.Required;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
@@ -31,9 +32,8 @@ import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 public class SetCacheCapacity extends NodeToolCmd
 {
     @Arguments(title = "<key-cache-capacity> <row-cache-capacity> <counter-cache-capacity>",
-               usage = "<key-cache-capacity> <row-cache-capacity> <counter-cache-capacity>",
-               description = "Key cache, row cache, and counter cache (in MB)",
-               required = true)
+               description = "Key cache, row cache, and counter cache (in MB)")
+    @Required
     private List<Integer> args = new ArrayList<>();
 
     @Override

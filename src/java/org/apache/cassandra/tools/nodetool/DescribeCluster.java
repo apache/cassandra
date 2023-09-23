@@ -25,7 +25,7 @@ import java.util.SortedMap;
 
 import com.google.common.collect.ArrayListMultimap;
 
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Command;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.tools.NodeProbe;

@@ -18,8 +18,8 @@
 package org.apache.cassandra.tools.nodetool;
 
 import static org.apache.commons.lang3.StringUtils.EMPTY;
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
@@ -27,7 +27,7 @@ import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 @Command(name = "truncatehints", description = "Truncate all hints on the local node, or truncate hints for the endpoint(s) specified.")
 public class TruncateHints extends NodeToolCmd
 {
-    @Arguments(usage = "[endpoint ... ]", description = "Endpoint address(es) to delete hints for, either ip address (\"127.0.0.1\") or hostname")
+    @Arguments(title = "[endpoint ... ]", description = "Endpoint address(es) to delete hints for, either ip address (\"127.0.0.1\") or hostname")
     private String endpoint = EMPTY;
 
     @Override

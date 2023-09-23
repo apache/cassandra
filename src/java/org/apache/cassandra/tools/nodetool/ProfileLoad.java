@@ -30,9 +30,9 @@ import javax.management.openmbean.OpenDataException;
 
 import com.google.common.collect.Lists;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
+import com.github.rvesse.airline.annotations.Option;
 import org.apache.cassandra.metrics.Sampler.SamplerType;
 import org.apache.cassandra.metrics.SamplingManager;
 import org.apache.cassandra.tools.NodeProbe;
@@ -46,7 +46,7 @@ import static org.apache.commons.lang3.StringUtils.join;
 @Command(name = "profileload", description = "Low footprint profiling of activity for a period of time")
 public class ProfileLoad extends NodeToolCmd
 {
-    @Arguments(usage = "<keyspace> <cfname> <duration>", description = "The keyspace, column family name, and duration in milliseconds (Default: 10000)")
+    @Arguments(title = "<keyspace> <cfname> <duration>", description = "The keyspace, column family name, and duration in milliseconds (Default: 10000)")
     private List<String> args = new ArrayList<>();
 
     @Option(name = "-s", description = "Capacity of the sampler, higher for more accuracy (Default: 256)")

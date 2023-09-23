@@ -17,9 +17,9 @@
  */
 package org.apache.cassandra.tools.nodetool;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
-import io.airlift.airline.Option;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
+import com.github.rvesse.airline.annotations.Option;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,7 +30,7 @@ import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 @Command(name = "upgradesstables", description = "Rewrite sstables (for the requested tables) that are not on the current version (thus upgrading them to said current version)")
 public class UpgradeSSTable extends NodeToolCmd
 {
-    @Arguments(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
+    @Arguments(title = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
     private List<String> args = new ArrayList<>();
 
     @Option(title = "include_all",

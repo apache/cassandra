@@ -20,8 +20,9 @@ package org.apache.cassandra.tools.nodetool;
 import java.util.ArrayList;
 import java.util.List;
 
-import io.airlift.airline.Arguments;
-import io.airlift.airline.Command;
+import com.github.rvesse.airline.annotations.Arguments;
+import com.github.rvesse.airline.annotations.Command;
+import com.github.rvesse.airline.annotations.restrictions.Required;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
@@ -31,9 +32,8 @@ import static com.google.common.base.Preconditions.checkArgument;
 public class SetConcurrency extends NodeToolCmd
 {
     @Arguments(title = "<pool-name> <maximum-concurrency> | <stage-name> <core-pool> <maximum-concurrency>",
-    usage = "<stage-name> <maximum-concurrency> | <stage-name> <core-pool> <maximum-concurrency>",
-    description = "Set concurrency for processing stage",
-    required = true)
+    description = "Set concurrency for processing stage")
+    @Required
     private List<String> args = new ArrayList<>();
 
     @Override
