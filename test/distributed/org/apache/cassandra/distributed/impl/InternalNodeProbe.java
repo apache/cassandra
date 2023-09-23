@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.distributed.mock.nodetool;
+package org.apache.cassandra.distributed.impl;
 
 import java.lang.management.ManagementFactory;
 import java.util.Iterator;
@@ -64,8 +64,7 @@ public class InternalNodeProbe extends NodeProbe
         mbeanServerConn = null;
         jmxc = null;
 
-        previousSkipNotificationListeners = StorageService.instance.skipNotificationListeners;
-        StorageService.instance.skipNotificationListeners = !withNotifications;
+        previousSkipNotificationListeners = StorageService.instance.skipNotificationListeners(!withNotifications);
 
         ssProxy = StorageService.instance;
         msProxy = MessagingService.instance();
@@ -87,7 +86,7 @@ public class InternalNodeProbe extends NodeProbe
     @Override
     public void close()
     {
-        StorageService.instance.skipNotificationListeners = previousSkipNotificationListeners;
+        StorageService.instance.skipNotificationListeners(previousSkipNotificationListeners);
     }
 
     @Override
