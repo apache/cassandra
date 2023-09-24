@@ -98,7 +98,7 @@
 
                 <!-- TODO https://issues.apache.org/jira/browse/CASSANDRA-18873 -->
                 <arg value="-e" if:blank="${benchmark.name}"/>
-                <arg value="ZeroCopyStreamingBench|MutationBench|FastThreadLocalBench|AtomicBTreePartitionUpdateBench|BTreeUpdateBench|AtomicBTreePartitionUpdateBench|BTreeTransformBench" if:blank="${benchmark.name}"/>
+                <arg value="ZeroCopyStreamingBench|MutationBench|FastThreadLocalBench|AtomicBTreePartitionUpdateBench|BTreeUpdateBench|AtomicBTreePartitionUpdateBench|BTreeTransformBench|ReadSmallPartitionsBench" if:blank="${benchmark.name}"/>
 
                 <arg value=".*microbench.*${benchmark.name}"/>
             </java>
