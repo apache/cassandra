@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.StandardOpenOption;
+import java.util.function.LongConsumer;
 
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
@@ -60,7 +61,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
 
     protected long lastFlushOffset;
 
-    protected Runnable runPostFlush;
+    protected LongConsumer runPostFlush;
 
     private final TransactionalProxy txnProxy = txnProxy();
 
@@ -229,7 +230,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
         resetBuffer();
     }
 
-    public void setPostFlushListener(Runnable runPostFlush)
+    public void setPostFlushListener(LongConsumer runPostFlush)
     {
         assert this.runPostFlush == null;
         this.runPostFlush = runPostFlush;
@@ -252,7 +253,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
             throw new FSWriteError(e, getPath());
         }
         if (runPostFlush != null)
-            runPostFlush.run();
+            runPostFlush.accept(getLastFlushOffset());
     }
 
     @Override

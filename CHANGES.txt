@@ -2,6 +2,8 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Do not create sstable files before registering in txn (CASSANDRA-18737)
+ * Remove wrong assertion in SSTableLoader (CASSANDRA-18840)
  * Do not log stacktrace on mismatched cache and schema version and checksum error in AutoSavingCache (CASSANDRA-18862)
  * Remove wrong assertion in SSTableLoader (CASSANDRA-18840)
  * Fix accessing java.nio.Bits.TOTAL_CAPACITY in Java17 (CASSANDRA-18848)
@@ -17,9 +19,7 @@ Merged from 3.11:
 Merged from 3.0:
  * Add cqlshrc.sample and credentials.sample into Debian package (CASSANDRA-18818)
 
-
 5.0-alpha1
- * Remove wrong assertion in SSTableLoader (CASSANDRA-18840)
  * Fix rpm installations to work with jdk17 (CASSANDRA-18817)
  * Fix Depends and Build-Depends for Java for Debian packages (CASSANDRA-18809)
  * Update command line flags --add-exports and --add-opens for JDK17 (CASSANDRA-18439)

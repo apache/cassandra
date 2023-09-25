@@ -23,7 +23,9 @@ import java.nio.BufferOverflowException;
 import java.util.Collection;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -71,27 +73,48 @@ import static com.google.common.base.Preconditions.checkNotNull;
 /**
  * A generic implementation of a writer which assumes the existence of some partition index and bloom filter.
  */
-public abstract class SortedTableWriter<P extends SortedTablePartitionWriter> extends SSTableWriter
+public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, I extends SortedTableWriter.AbstractIndexWriter> extends SSTableWriter
 {
     private final static Logger logger = LoggerFactory.getLogger(SortedTableWriter.class);
 
     // TODO dataWriter is not needed to be directly accessible - we can access everything we need for the dataWriter
     //   from a partition writer
     protected final SequentialWriter dataWriter;
+    protected final I indexWriter;
     protected final P partitionWriter;
     private final FileHandle.Builder dataFileBuilder = new FileHandle.Builder(descriptor.fileFor(Components.DATA));
     private DecoratedKey lastWrittenKey;
     private DataPosition dataMark;
     private long lastEarlyOpenLength;
 
-    public SortedTableWriter(Builder<P, ?, ?> builder, LifecycleNewTracker lifecycleNewTracker, SSTable.Owner owner)
+    public SortedTableWriter(Builder<P, I, ?, ?> builder, LifecycleNewTracker lifecycleNewTracker, SSTable.Owner owner)
     {
         super(builder, lifecycleNewTracker, owner);
-        checkNotNull(builder.getDataWriter());
-        checkNotNull(builder.getPartitionWriter());
 
-        this.dataWriter = builder.getDataWriter();
-        this.partitionWriter = builder.getPartitionWriter();
+        SequentialWriter dataWriter = null;
+        I indexWriter = null;
+        P partitionWriter = null;
+        try
+        {
+            dataWriter = builder.openDataWriter();
+            checkNotNull(dataWriter);
+
+            indexWriter = builder.openIndexWriter(dataWriter);
+            checkNotNull(indexWriter);
+
+            partitionWriter = builder.openPartitionWriter(dataWriter, indexWriter);
+            checkNotNull(partitionWriter);
+
+            this.dataWriter = dataWriter;
+            this.indexWriter = indexWriter;
+            this.partitionWriter = partitionWriter;
+        }
+        catch (RuntimeException | Error ex)
+        {
+            Throwables.closeNonNullAndAddSuppressed(ex, partitionWriter, indexWriter, dataWriter);
+            handleConstructionFailure(ex);
+            throw ex;
+        }
     }
 
     /**
@@ -264,6 +287,7 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter> ex
     public void mark()
     {
         dataMark = dataWriter.mark();
+        indexWriter.mark();
     }
 
     @Override
@@ -271,6 +295,29 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter> ex
     {
         dataWriter.resetAndTruncate(dataMark);
         partitionWriter.reset();
+        indexWriter.resetAndTruncate();
+    }
+
+    @Override
+    protected SSTableWriter.TransactionalProxy txnProxy()
+    {
+        return new TransactionalProxy(() -> FBUtilities.immutableListWithFilteredNulls(indexWriter, dataWriter));
+    }
+
+    protected class TransactionalProxy extends SSTableWriter.TransactionalProxy
+    {
+        public TransactionalProxy(Supplier<ImmutableList<Transactional>> transactionals)
+        {
+            super(transactionals);
+        }
+
+        @Override
+        protected Throwable doPostCleanup(Throwable accumulate)
+        {
+            accumulate = Throwables.close(accumulate, partitionWriter);
+            accumulate = super.doPostCleanup(accumulate);
+            return accumulate;
+        }
     }
 
     @Override
@@ -385,7 +432,7 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter> ex
 
         protected final IFilter bf;
 
-        protected AbstractIndexWriter(Builder<?, ?, ?> b)
+        protected AbstractIndexWriter(Builder<?, ?, ?, ?> b)
         {
             this.descriptor = b.descriptor;
             this.metadata = b.getTableMetadataRef();
@@ -409,6 +456,10 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter> ex
             }
         }
 
+        public abstract void mark();
+
+        public abstract void resetAndTruncate();
+
         protected void doPrepare()
         {
             flushBf();
@@ -428,8 +479,9 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter> ex
     }
 
     public abstract static class Builder<P extends SortedTablePartitionWriter,
-                                                  W extends SortedTableWriter<P>,
-                                                  B extends Builder<P, W, B>> extends SSTableWriter.Builder<W, B>
+                                        I extends AbstractIndexWriter,
+                                        W extends SortedTableWriter<P, I>,
+                                        B extends Builder<P, I, W, B>> extends SSTableWriter.Builder<W, B>
     {
 
         public Builder(Descriptor descriptor)
@@ -450,8 +502,10 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter> ex
             return (B) this;
         }
 
-        public abstract SequentialWriter getDataWriter();
+        protected abstract SequentialWriter openDataWriter();
 
-        public abstract P getPartitionWriter();
+        protected abstract I openIndexWriter(SequentialWriter dataWriter);
+
+        protected abstract P openPartitionWriter(SequentialWriter dataWriter, I indexWriter);
     }
 }
