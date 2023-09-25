@@ -73,7 +73,7 @@ public class DefaultSslContextFactoryTest
                                                                                                            .withOutboundKeystorePassword("cassandra")
                                                                                                            .withRequireClientAuth(false)
                                                                                                            .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA");
-        SslContext sslContext = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT);
+        SslContext sslContext = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT, "test");
         Assert.assertNotNull(sslContext);
         if (OpenSsl.isAvailable())
             Assert.assertTrue(sslContext instanceof OpenSslContext);
