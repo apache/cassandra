@@ -33,7 +33,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.openjdk.jmh.annotations.*;
 
 @State(Scope.Benchmark)
-public abstract class ReadTest extends SimpleTableWriter
+public abstract class ReadBenchBase extends SimpleTableWriter
 {
     public enum Flush
     {

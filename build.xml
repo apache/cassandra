@@ -64,6 +64,7 @@
     <property name="test.classlistfile" value="testlist.txt"/>
     <property name="test.classlistprefix" value="unit"/>
     <property name="benchmark.name" value=""/>
+    <property name="jmh.args" value=""/>
     <property name="test.methods" value=""/>
     <property name="test.anttasks.src" value="${test.dir}/anttasks"/>
     <property name="test.unit.src" value="${test.dir}/unit"/>
@@ -139,6 +140,18 @@
     <property name="jacoco.partialexecfile" value="${jacoco.partials.dir}/partial.exec" />
     <property name="jacoco.finalexecfile" value="${jacoco.export.dir}/jacoco.exec" />
     <property name="jacoco.version" value="0.8.6"/>
+
+    <condition property="isMac" value="true">
+        <os family="mac"/>
+    </condition>
+    <condition property="isLinux" value="true">
+        <and>
+            <os family="unix"/>
+            <not>
+                <os family="mac"/>
+            </not>
+        </and>
+    </condition>
 
     <property name="byteman.version" value="4.0.6"/>
     <property name="jamm.version" value="0.3.2"/>
@@ -612,8 +625,8 @@
           <dependency groupId="net.bytebuddy" artifactId="byte-buddy" version="${bytebuddy.version}" />
           <dependency groupId="net.bytebuddy" artifactId="byte-buddy-agent" version="${bytebuddy.version}" />
 
-          <dependency groupId="org.openjdk.jmh" artifactId="jmh-core" version="1.21" scope="test"/>
-          <dependency groupId="org.openjdk.jmh" artifactId="jmh-generator-annprocess" version="1.21" scope="test"/>
+          <dependency groupId="org.openjdk.jmh" artifactId="jmh-core" version="1.37" scope="test"/>
+          <dependency groupId="org.openjdk.jmh" artifactId="jmh-generator-annprocess" version="1.37" scope="test"/>
 
           <dependency groupId="org.apache.ant" artifactId="ant-junit" version="1.10.12" scope="test"/>
 
@@ -1391,28 +1404,6 @@
       </checksum>
     </target>
 
-  <target name="build-jmh" depends="build-test, jar" description="Create JMH uber jar">
-      <jar jarfile="${build.test.dir}/deps.jar">
-          <zipgroupfileset dir="${test.lib}/jars">
-              <include name="*jmh*.jar"/>
-              <include name="jopt*.jar"/>
-              <include name="commons*.jar"/>
-              <include name="junit*.jar"/>
-              <include name="hamcrest*.jar"/>
-          </zipgroupfileset>
-          <zipgroupfileset dir="${build.lib}" includes="*.jar"/>
-      </jar>
-      <jar jarfile="${build.test.dir}/benchmarks.jar">
-          <manifest>
-              <attribute name="Main-Class" value="org.openjdk.jmh.Main"/>
-          </manifest>
-          <zipfileset src="${build.test.dir}/deps.jar" excludes="META-INF/*.SF" />
-          <fileset dir="${build.classes.main}"/>
-          <fileset dir="${test.classes}"/>
-          <fileset dir="${test.conf}" />
-      </jar>
-  </target>
-
   <!-- Wrapper of build-test without dependencies, so both that target and its dependencies are skipped if the property
     no-build-test is true. This is meant to be used to run tests without actually building them, provided that they have
     been built before. All test targets depend on this, so one can run them using the no-build-test property.
@@ -1463,7 +1454,7 @@
      <src path="${test.simulator-test.src}"/>
     </javac>
 
-    <checktestnameshelper/>
+    <antcall target="_check-test-names" inheritRefs="true"/>
 
     <!-- Non-java resources needed by the test suite -->
     <copy todir="${test.classes}">
@@ -1471,17 +1462,41 @@
     </copy>
   </target>
 
-  <macrodef name="checktestnameshelper">
-    <sequential>
-      <taskdef name="test-name-check_" classname="org.apache.cassandra.anttasks.TestNameCheckTask" classpath="${test.classes}">
-        <classpath>
-          <path refid="cassandra.classpath.test"/>
-          <path location="${fqltool.build.classes}"/>
-        </classpath>
-      </taskdef>
-      <test-name-check_/>
-    </sequential>
-  </macrodef>
+    <macrodef name="check-test-names">
+        <attribute name="annotationName"/>
+        <attribute name="regex"/>
+        <attribute name="scanClassPath" default="${test.classes}:${fqltool.test.classes}:${stress.test.classes}"/>
+        <attribute name="packageName" default="org.apache.cassandra"/>
+        <attribute name="expand" default="true"/>
+        <attribute name="normalize" default="true"/>
+        <attribute name="verbose" default="false"/>
+
+        <sequential>
+            <java taskname="check-test-names" fork="true" failonerror="yes" classname="org.apache.cassandra.anttasks.TestNameCheckTask">
+                <classpath>
+                    <path refid="cassandra.classpath.test"/>
+                    <pathelement location="${fqltool.build.classes}"/>
+                    <pathelement location="${stress.build.classes}"/>
+                    <pathelement location="${test.classes}"/>
+                    <pathelement location="${fqltool.test.classes}"/>
+                    <pathelement location="${stress.test.classes}"/>
+                </classpath>
+                <jvmarg line="${java11-jvmargs}"/>
+                <jvmarg value="-DscanClassPath=@{scanClassPath}"/>
+                <jvmarg value="-DpackageName=@{packageName}"/>
+                <jvmarg value="-DannotationName=@{annotationName}"/>
+                <jvmarg value="-Dexpand=@{expand}"/>
+                <jvmarg value="-Dnormalize=@{normalize}"/>
+                <jvmarg value="-Dverbose=@{verbose}"/>
+                <jvmarg value="-Dregex=@{regex}"/>
+            </java>
+        </sequential>
+    </macrodef>
+
+  <target name="_check-test-names">
+      <check-test-names annotationName="org.junit.Test" regex=".*Test$"/>
+      <check-test-names annotationName="org.openjdk.jmh.annotations.Benchmark" regex=".*(Bench|_jmhType.*)$"/>
+  </target>
 
   <!-- Run tests separately and report errors after and generate a junit report -->
   <macrodef name="testhelper">
@@ -2110,36 +2125,12 @@
     </testmacro>
   </target>
 
-  <!-- run microbenchmarks suite -->
-  <target name="microbench" depends="build-jmh">
-      <java classname="org.openjdk.jmh.Main"
-            fork="true"
-            failonerror="true">
-          <classpath>
-              <path refid="cassandra.classpath.test" />
-              <pathelement location="${test.classes}"/>
-              <pathelement location="${test.conf}"/>
-              <fileset dir="${test.lib}">
-                  <include name="**/*.jar" />
-              </fileset>
-          </classpath>
-          <arg value="-foe"/>
-          <arg value="true"/>
-          <arg value="-rf"/>
-          <arg value="json"/>
-          <arg value="-rff"/>
-          <arg value="${build.test.dir}/jmh-result.json"/>
-          <arg value="-v"/>
-          <arg value="EXTRA"/>
-          <jvmarg line="${java11-jvmargs}"/>
-          <jvmarg line="${_std-test-jvmargs}"/>
-          <jvmarg line="${test.jvm.args}"/>
+  <target name="microbench" depends="jar">
+    <antcall target="-microbench" inheritrefs="true"/>
+  </target>
 
-          <!-- Broken: ZeroCopyStreamingBench,MutationBench,FastThreadLocalBench  (FIXME) -->
-          <arg value="-e"/><arg value="ZeroCopyStreamingBench|MutationBench|FastThreadLocalBench"/>
-
-          <arg value=".*microbench.*${benchmark.name}"/>
-      </java>
+  <target name="microbench-with-profiler" depends="jar">
+    <antcall target="-microbench-with-profiler" inheritrefs="true"/>
   </target>
 
   <!-- run arbitrary mains in tests, for example to run the long running memory tests with lots of memory pressure
@@ -2413,4 +2404,5 @@
   <import file="${build.helpers.dir}/build-rat.xml"/>
   <import file="${build.helpers.dir}/build-owasp.xml"/>
   <import file="${build.helpers.dir}/build-cqlsh.xml"/>
+  <import file="${build.helpers.dir}/build-bench.xml"/>
 </project>
