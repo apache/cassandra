@@ -126,7 +126,6 @@ public class QueryMessage extends Message.Request
             statement = queryHandler.parse(query, state, options);
             Message.Response response = queryHandler.process(statement, state, options, getCustomPayload(), requestTime);
             QueryEvents.instance.notifyQuerySuccess(statement, query, options, state, queryStartTime, response);
-
             if (options.skipMetadata() && response instanceof ResultMessage.Rows)
                 ((ResultMessage.Rows)response).result.metadata.setSkipMetadata();
 
@@ -134,6 +133,7 @@ public class QueryMessage extends Message.Request
         }
         catch (Exception e)
         {
+            ExceptionMetricsCollection.collectMetrics(e);
             QueryEvents.instance.notifyQueryFailure(statement, query, options, state, e);
             JVMStabilityInspector.inspectThrowable(e);
             if (!((e instanceof RequestValidationException) || (e instanceof RequestExecutionException)))
