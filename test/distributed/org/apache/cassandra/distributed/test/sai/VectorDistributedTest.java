@@ -37,6 +37,7 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
+import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -59,7 +60,6 @@ public class VectorDistributedTest extends TestBaseImpl
 
     private static final String CREATE_KEYSPACE = "CREATE KEYSPACE %%s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': %d}";
     private static final String CREATE_TABLE = "CREATE TABLE %%s (pk int primary key, val vector<float, %d>)";
-    private static final String CREATE_TABLE_TWO_VECTORS = "CREATE TABLE %%s (pk int primary key, val1 vector<float, %d>, val2 vector<float, %d>)";
     private static final String CREATE_INDEX = "CREATE CUSTOM INDEX ON %%s(%s) USING 'StorageAttachedIndex'";
 
     private static final VectorSimilarityFunction function = IndexWriterConfig.DEFAULT_SIMILARITY_FUNCTION;
@@ -111,6 +111,34 @@ public class VectorDistributedTest extends TestBaseImpl
     }
 
     @Test
+    public void topKQueryFailsUnlessAtConsistencyLevelOne()
+    {
+        cluster.schemaChange(formatQuery(String.format(CREATE_TABLE, dimensionCount)));
+        cluster.schemaChange(formatQuery(String.format(CREATE_INDEX, "val")));
+        SAIUtil.waitForIndexQueryable(cluster, KEYSPACE);
+
+        int vectorCount = SAITester.getRandom().nextIntBetween(500, 1000);
+        List<float[]> vectors = generateVectors(vectorCount);
+
+        int pk = 0;
+        for (float[] vector : vectors)
+            execute("INSERT INTO %s (pk, val) VALUES (" + (pk++) + ", " + vectorString(vector) + " )");
+
+        // query memtable index
+        int limit = Math.min(SAITester.getRandom().nextIntBetween(10, 50), vectors.size());
+        float[] queryVector = randomVector();
+        assertThatThrownBy(() -> execute("SELECT val FROM %s ORDER BY val ann of " + Arrays.toString(queryVector) + " LIMIT " + limit, ConsistencyLevel.QUORUM))
+            .hasMessage(SelectStatement.TOPK_CONSISTENCY_LEVEL_ERROR);
+
+        Object[][] result = execute("SELECT val FROM %s ORDER BY val ann of " + Arrays.toString(queryVector) + " LIMIT " + limit, ConsistencyLevel.ONE);
+        assertThat(result).hasNumberOfRows(limit);
+        List<float[]> resultVectors = getVectors(result);
+        assertDescendingScore(queryVector, resultVectors);
+        double memtableRecall = getRecall(vectors, queryVector, resultVectors);
+        assertThat(memtableRecall).isGreaterThanOrEqualTo(MIN_RECALL);
+    }
+
+    @Test
     public void testVectorSearch()
     {
         cluster.schemaChange(formatQuery(String.format(CREATE_TABLE, dimensionCount)));
@@ -146,7 +174,7 @@ public class VectorDistributedTest extends TestBaseImpl
         double memtableRecallWithPaging = getRecall(vectors, queryVector, resultVectors);
         assertThat(memtableRecallWithPaging).isGreaterThanOrEqualTo(MIN_RECALL);
 
-        assertThatThrownBy(() -> searchWithPageWithoutLimit(randomVector(), 10))
+        assertThatThrownBy(() -> searchWithPageWithoutLimit(randomVector()))
         .hasMessageContaining(INVALID_LIMIT_MESSAGE);
 
         // query on-disk index
@@ -218,7 +246,7 @@ public class VectorDistributedTest extends TestBaseImpl
         {
             int key = SAITester.getRandom().nextIntBetween(0, vectorCount - 1);
             float[] queryVector = randomVector();
-            searchByKeyWithLimit(key, queryVector, 1, vectors);
+            searchByKeyWithLimit(key, queryVector, vectors);
         }
 
         cluster.forEach(n -> n.flush(KEYSPACE));
@@ -228,12 +256,12 @@ public class VectorDistributedTest extends TestBaseImpl
         {
             int key = SAITester.getRandom().nextIntBetween(0, vectorCount - 1);
             float[] queryVector = randomVector();
-            searchByKeyWithLimit(key, queryVector, 1, vectors);
+            searchByKeyWithLimit(key, queryVector, vectors);
         }
     }
 
     @Test
-    public void rangeRestrictedTest() throws Throwable
+    public void rangeRestrictedTest()
     {
         cluster.schemaChange(formatQuery(String.format(CREATE_TABLE, dimensionCount)));
         cluster.schemaChange(formatQuery(String.format(CREATE_INDEX, "val")));
@@ -294,6 +322,7 @@ public class VectorDistributedTest extends TestBaseImpl
                                                    .collect(Collectors.toList());
 
             float[] queryVector = randomVector();
+
             List<float[]> resultVectors = searchWithRange(queryVector, minToken, maxToken, expected.size());
             if (expected.isEmpty())
                 assertThat(resultVectors).isEmpty();
@@ -305,7 +334,7 @@ public class VectorDistributedTest extends TestBaseImpl
         }
     }
 
-    private List<float[]> searchWithRange(float[] queryVector, long minToken, long maxToken, int expectedSize) throws Throwable
+    private List<float[]> searchWithRange(float[] queryVector, long minToken, long maxToken, int expectedSize)
     {
         Object[][] result = execute("SELECT val FROM %s WHERE token(pk) <= " + maxToken + " AND token(pk) >= " + minToken + " ORDER BY val ann of " + Arrays.toString(queryVector) + " LIMIT 1000");
         assertThat(result).hasNumberOfRows(expectedSize);
@@ -319,17 +348,16 @@ public class VectorDistributedTest extends TestBaseImpl
         return result;
     }
 
-    private Object[][] searchWithoutLimit(float[] queryVector, int results)
+    private void searchWithoutLimit(float[] queryVector, int results)
     {
         Object[][] result = execute("SELECT val FROM %s ORDER BY val ann of " + Arrays.toString(queryVector));
         assertThat(result).hasNumberOfRows(results);
-        return result;
     }
 
 
-    private Object[][] searchWithPageWithoutLimit(float[] queryVector, int pageSize)
+    private void searchWithPageWithoutLimit(float[] queryVector)
     {
-        return executeWithPaging("SELECT val FROM %s ORDER BY val ann of " + Arrays.toString(queryVector), pageSize);
+        executeWithPaging("SELECT val FROM %s ORDER BY val ann of " + Arrays.toString(queryVector), 10);
     }
 
     private Object[][] searchWithPageAndLimit(float[] queryVector, int pageSize, int limit)
@@ -338,17 +366,9 @@ public class VectorDistributedTest extends TestBaseImpl
         return executeWithPaging("SELECT val FROM %s ORDER BY val ann of " + Arrays.toString(queryVector) + " LIMIT " + limit, pageSize);
     }
 
-    private void searchByKeyWithoutLimit(int key, float[] queryVector, List<float[]> vectors)
+    private void searchByKeyWithLimit(int key, float[] queryVector, List<float[]> vectors)
     {
-        Object[][] result = execute("SELECT val FROM %s WHERE pk = " + key + " AND val ann of " + Arrays.toString(queryVector));
-        assertThat(result).hasNumberOfRows(1);
-        float[] output = getVectors(result).get(0);
-        assertThat(output).isEqualTo(vectors.get(key));
-    }
-
-    private void searchByKeyWithLimit(int key, float[] queryVector, int limit, List<float[]> vectors)
-    {
-        Object[][] result = execute("SELECT val FROM %s WHERE pk = " + key + " ORDER BY val ann of " + Arrays.toString(queryVector) + " LIMIT " + limit);
+        Object[][] result = execute("SELECT val FROM %s WHERE pk = " + key + " ORDER BY val ann of " + Arrays.toString(queryVector) + " LIMIT 1");
         assertThat(result).hasNumberOfRows(1);
         float[] output = getVectors(result).get(0);
         assertThat(output).isEqualTo(vectors.get(key));
@@ -419,11 +439,6 @@ public class VectorDistributedTest extends TestBaseImpl
         return Arrays.toString(vector);
     }
 
-    private String randomVectorString()
-    {
-        return vectorString(randomVector());
-    }
-
     private float[] randomVector()
     {
         float[] rawVector = new float[dimensionCount];
@@ -436,12 +451,7 @@ public class VectorDistributedTest extends TestBaseImpl
 
     private static Object[][] execute(String query)
     {
-        return execute(query, ConsistencyLevel.QUORUM);
-    }
-
-    private static Object[][] executeAll(String query)
-    {
-        return execute(query, ConsistencyLevel.ALL);
+        return execute(query, ConsistencyLevel.ONE);
     }
 
     private static Object[][] execute(String query, ConsistencyLevel consistencyLevel)
@@ -451,7 +461,7 @@ public class VectorDistributedTest extends TestBaseImpl
 
     private static Object[][] executeWithPaging(String query, int pageSize)
     {
-        Iterator<Object[]> iterator = cluster.coordinator(1).executeWithPaging(formatQuery(query), ConsistencyLevel.QUORUM, pageSize);
+        Iterator<Object[]> iterator = cluster.coordinator(1).executeWithPaging(formatQuery(query), ConsistencyLevel.ONE, pageSize);
         List<Object[]> list = new ArrayList<>();
         iterator.forEachRemaining(list::add);
 

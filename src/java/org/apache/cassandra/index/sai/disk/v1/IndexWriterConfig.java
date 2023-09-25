@@ -98,8 +98,8 @@ public class IndexWriterConfig
 
             if (options.containsKey(MAXIMUM_NODE_CONNECTIONS))
             {
-                if (!CassandraRelevantProperties.SAI_HNSW_ALLOW_CUSTOM_PARAMETERS.getBoolean())
-                    throw new InvalidRequestException(String.format("Maximum node connections cannot be set without enabling %s", CassandraRelevantProperties.SAI_HNSW_ALLOW_CUSTOM_PARAMETERS.name()));
+                if (!CassandraRelevantProperties.SAI_VECTOR_ALLOW_CUSTOM_PARAMETERS.getBoolean())
+                    throw new InvalidRequestException(String.format("Maximum node connections cannot be set without enabling %s", CassandraRelevantProperties.SAI_VECTOR_ALLOW_CUSTOM_PARAMETERS.name()));
 
                 try
                 {
@@ -115,8 +115,8 @@ public class IndexWriterConfig
             }
             if (options.containsKey(CONSTRUCTION_BEAM_WIDTH))
             {
-                if (!CassandraRelevantProperties.SAI_HNSW_ALLOW_CUSTOM_PARAMETERS.getBoolean())
-                    throw new InvalidRequestException(String.format("Construction beam width cannot be set without enabling %s", CassandraRelevantProperties.SAI_HNSW_ALLOW_CUSTOM_PARAMETERS.name()));
+                if (!CassandraRelevantProperties.SAI_VECTOR_ALLOW_CUSTOM_PARAMETERS.getBoolean())
+                    throw new InvalidRequestException(String.format("Construction beam width cannot be set without enabling %s", CassandraRelevantProperties.SAI_VECTOR_ALLOW_CUSTOM_PARAMETERS.name()));
 
                 try
                 {

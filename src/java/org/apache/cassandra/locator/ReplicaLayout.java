@@ -19,7 +19,6 @@
 package org.apache.cassandra.locator;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
@@ -343,18 +342,6 @@ public abstract class ReplicaLayout<E extends Endpoints<E>>
     static ReplicaLayout.ForRangeRead forRangeReadLiveSorted(AbstractReplicationStrategy replicationStrategy, AbstractBounds<PartitionPosition> range)
     {
         EndpointsForRange replicas = replicationStrategy.getNaturalReplicas(range.right);
-        replicas = DatabaseDescriptor.getEndpointSnitch().sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), replicas);
-        replicas = replicas.filter(FailureDetector.isReplicaAlive);
-        return new ReplicaLayout.ForRangeRead(replicationStrategy, range, replicas);
-    }
-
-    // note that: range may span multiple vnodes
-    public static ReplicaLayout.ForRangeRead forFullRangeReadLiveSorted(AbstractReplicationStrategy replicationStrategy, AbstractBounds<PartitionPosition> range)
-    {
-        Preconditions.checkState(range.left.equals(DatabaseDescriptor.getPartitioner().getMinimumToken().minKeyBound()));
-        Preconditions.checkState(range.right.equals(DatabaseDescriptor.getPartitioner().getMinimumToken().minKeyBound()));
-
-        EndpointsForRange replicas = replicationStrategy.getEndpointsForFullRange();
         replicas = DatabaseDescriptor.getEndpointSnitch().sortedByProximity(FBUtilities.getBroadcastAddressAndPort(), replicas);
         replicas = replicas.filter(FailureDetector.isReplicaAlive);
         return new ReplicaLayout.ForRangeRead(replicationStrategy, range, replicas);

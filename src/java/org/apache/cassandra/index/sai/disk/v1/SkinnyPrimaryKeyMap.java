@@ -169,7 +169,12 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
     @Override
     public long lastRowIdForRange(AbstractBounds<PartitionPosition> range)
     {
-        return range.right.isMinimum() ? Long.MAX_VALUE : tokenArray.indexOf(range.right.getToken().getLongValue());
+        if (range.right.isMinimum())
+            return Long.MAX_VALUE;
+
+        long rowId = tokenArray.indexOf(range.right.getToken().getLongValue());
+
+        return (rowId == -1) ? tokenArray.length() - 1 : rowId;
     }
 
     @Override

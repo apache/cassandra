@@ -118,19 +118,17 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
             });
         }
 
-        if (!needsReplicaFilteringProtection())
-        {
-            ResolveContext context = new ResolveContext(replicas);
-            return resolveWithReadRepair(context,
-                                         i -> shortReadProtectedResponse(i, context, runOnShortRead),
-                                         UnaryOperator.identity(),
-                                         repairedDataTracker);
-        }
+        if (usesReplicaFilteringProtection())
+            return resolveWithReplicaFilteringProtection(replicas, repairedDataTracker);
 
-        return resolveWithReplicaFilteringProtection(replicas, repairedDataTracker);
+        ResolveContext context = new ResolveContext(replicas);
+        return resolveWithReadRepair(context,
+                                     i -> shortReadProtectedResponse(i, context, runOnShortRead),
+                                     UnaryOperator.identity(),
+                                     repairedDataTracker);
     }
 
-    private boolean needsReplicaFilteringProtection()
+    private boolean usesReplicaFilteringProtection()
     {
         if (command.rowFilter().isEmpty())
             return false;

@@ -121,7 +121,9 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
 
             // it will return the next row id if given key is not found.
             long minSSTableRowId = primaryKeyMap.firstRowIdForRange(keyRange);
+            logger.info("minSSTableRowId = " + minSSTableRowId + ", firstToken = " + keyRange.left.getToken().getLongValue());
             long maxSSTableRowId = primaryKeyMap.lastRowIdForRange(keyRange);
+            logger.info("maxSSTableRowId = " + maxSSTableRowId + ", lastToken = " + keyRange.right.getToken().getLongValue());
 
             if (minSSTableRowId > maxSSTableRowId)
                 return new BitsOrPostingList(PostingList.EMPTY);

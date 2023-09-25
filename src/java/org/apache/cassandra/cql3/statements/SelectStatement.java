@@ -112,6 +112,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(SelectStatement.logger, 1, TimeUnit.MINUTES);
 
     public static final int DEFAULT_PAGE_SIZE = 10000;
+    public static final String TOPK_CONSISTENCY_LEVEL_ERROR = "Top K queries can only be run with consistency level one";
 
     public final VariableSpecifications bindVariables;
     public final TableMetadata table;
@@ -286,6 +287,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         AggregationSpecification aggregationSpec = getAggregationSpec(options);
         ReadQuery query = getQuery(options, state.getClientState(), selectors.getColumnFilter(),
                                    nowInSec, userLimit, userPerPartitionLimit, pageSize, aggregationSpec);
+
+        checkFalse(query.isTopK() && options.getConsistency() != ConsistencyLevel.ONE, TOPK_CONSISTENCY_LEVEL_ERROR);
 
         if (options.isReadThresholdsEnabled())
             query.trackWarnings();

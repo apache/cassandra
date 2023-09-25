@@ -267,10 +267,11 @@ public enum Operator
             return "ANN";
         }
 
+        // The ANN operator is only supported by the vector index so should never be called directly.
         @Override
         public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
         {
-            return true;
+            throw new UnsupportedOperationException();
         }
     };
 
