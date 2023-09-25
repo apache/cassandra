@@ -84,7 +84,7 @@
                 <jvmarg line="${test.jvm.args}"/>
 
                 <arg value="-foe"/>
-                <arg value="false"/>
+                <arg value="true"/>
                 <arg value="-rf"/>
                 <arg value="json"/>
                 <arg value="-rff"/>
@@ -98,7 +98,7 @@
 
                 <!-- TODO https://issues.apache.org/jira/browse/CASSANDRA-18873 -->
                 <arg value="-e" if:blank="${benchmark.name}"/>
-                <arg value="ZeroCopyStreamingBench|MutationBench|FastThreadLocalBench|AtomicBTreePartitionUpdateBench|BTreeUpdateBench|AtomicBTreePartitionUpdateBench|BTreeTransformBench|ReadSmallPartitionsBench|ReadWidePartitionsBench|KeyLookupBench|BLoomFilterSerializerBench" if:blank="${benchmark.name}"/>
+                <arg value="ZeroCopyStreamingBench|MutationBench|FastThreadLocalBench" if:blank="${benchmark.name}"/>
 
                 <arg value=".*microbench.*${benchmark.name}"/>
             </java>
