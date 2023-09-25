@@ -62,9 +62,6 @@ public class CassandraResourceUtilization
     private static double MAX_THROTTLING = 1.0;
 
     public volatile double currentThrottlingPercentage;
-    // Maintain 1 minute, 5 minutes, and 15 minutes history
-    public long nrThrottled1Prev = -1;
-    public long nrThrottled2Prev = -1;
 
     public ResourcesStats resourcesStats;
     public ThrottlingOptions throttlingOptions;
@@ -115,20 +112,6 @@ public class CassandraResourceUtilization
             {
                 resourcesStats.setPendingMutations(mutationSEPTP.getPendingTaskCount());
             }
-            long nrThrottled1Now = resourceUtilzation.getCpuNRThrottled1();
-            if (nrThrottled1Prev != -1)
-            {
-                resourcesStats.setNrThrottled1(nrThrottled1Now - nrThrottled1Prev);
-            }
-            nrThrottled1Prev = nrThrottled1Now;
-
-            long nrThrottled2Now = resourceUtilzation.getCpuNRThrottled2();
-            if (nrThrottled2Prev != -1)
-            {
-                resourcesStats.setNrThrottled2(nrThrottled2Now - nrThrottled2Prev);
-            }
-            nrThrottled2Prev = nrThrottled2Now;
-
             checkSignals();
             adjustThrottling();
 
@@ -149,16 +132,6 @@ public class CassandraResourceUtilization
         {
             cpuUtilSignal2 = true;
         }
-        boolean nrThrottlingSignal1 = false;
-        if (resourcesStats.getNrThrottled1Cur() >= throttlingOptions.getNrThrottlingThresholdCur() && resourcesStats.getNrThrottled1OneMinute() >= throttlingOptions.getNrThrottlingThresholdOneMinute())
-        {
-            nrThrottlingSignal1 = true;
-        }
-        boolean nrThrottlingSignal2 = false;
-        if (resourcesStats.getNrThrottled2Cur() == -1 || (resourcesStats.getNrThrottled2Cur() >= throttlingOptions.getNrThrottlingThresholdCur() && resourcesStats.getNrThrottled2OneMinute() >= throttlingOptions.getNrThrottlingThresholdOneMinute()))
-        {
-            nrThrottlingSignal2 = true;
-        }
         boolean pendingReadsSignal = false;
         if (resourcesStats.getPendingReadsCur() >= throttlingOptions.getPendingReadsThresholdCur() && resourcesStats.getPendingReadsOneMinute() >= throttlingOptions.getPendingReadsThresholdOneMinute())
         {
@@ -169,16 +142,14 @@ public class CassandraResourceUtilization
         {
             pendingMutationsSignal = true;
         }
-        if (cpuUtilSignal1 && cpuUtilSignal2 && nrThrottlingSignal1 && nrThrottlingSignal2 && pendingReadsSignal && pendingMutationsSignal)
+        if (cpuUtilSignal1 && cpuUtilSignal2 && pendingReadsSignal && pendingMutationsSignal)
         {
             shouldThrottle = true;
             lastThrottlingIndicatorTimeInMS = System.currentTimeMillis();
             throttlingMetrics.needsThrottling.inc();
-            logger.info("Enforce throttling CpuUtil1: {}-{}, CpuUtil2: {}-{}, NrThrottled1: {}-{}, NrThrottled2: {}-{}, PendingReads: {}-{}, PendingMutations: {}-{}",
+            logger.info("Enforce throttling CpuUtil1: {}-{}, CpuUtil2: {}-{}, PendingReads: {}-{}, PendingMutations: {}-{}",
                         resourcesStats.getCpuUtil1Cur(), resourcesStats.getCpuUtil1OneMinute(),
                         resourcesStats.getCpuUtil2Cur(), resourcesStats.getCpuUtil2OneMinute(),
-                        resourcesStats.getNrThrottled1Cur(), resourcesStats.getNrThrottled1OneMinute(),
-                        resourcesStats.getNrThrottled2Cur(), resourcesStats.getNrThrottled2OneMinute(),
                         resourcesStats.getPendingReadsCur(), resourcesStats.getPendingReadsOneMinute(),
                         resourcesStats.getPendingMutationsCur(), resourcesStats.getPendingMutationsOneMinute());
         }
@@ -186,11 +157,9 @@ public class CassandraResourceUtilization
         {
             shouldThrottle = false;
             throttlingMetrics.doesNotNeedThrottling.inc();
-            logger.info("DO NOT Enforce throttling CpuUtil1: {}-{}-{}, CpuUtil2: {}-{}-{}, NrThrottled1: {}-{}-{}, NrThrottled2: {}-{}-{}, PendingReads: {}-{}-{}, PendingMutations: {}-{}-{}",
+            logger.info("DO NOT Enforce throttling CpuUtil1: {}-{}-{}, CpuUtil2: {}-{}-{}, PendingReads: {}-{}-{}, PendingMutations: {}-{}-{}",
                         cpuUtilSignal1, resourcesStats.getCpuUtil1Cur(), resourcesStats.getCpuUtil1OneMinute(),
                         cpuUtilSignal2, resourcesStats.getCpuUtil2Cur(), resourcesStats.getCpuUtil2OneMinute(),
-                        nrThrottlingSignal1, resourcesStats.getNrThrottled1Cur(), resourcesStats.getNrThrottled1OneMinute(),
-                        nrThrottlingSignal2, resourcesStats.getNrThrottled2Cur(), resourcesStats.getNrThrottled2OneMinute(),
                         pendingReadsSignal, resourcesStats.getPendingReadsCur(), resourcesStats.getPendingReadsOneMinute(),
                         pendingMutationsSignal, resourcesStats.getPendingMutationsCur(), resourcesStats.getPendingMutationsOneMinute());
         }
@@ -255,16 +224,6 @@ public class CassandraResourceUtilization
           append("-").append(df.format(resourcesStats.getCpuUtil2OneMinute())).
           append("-").append(df.format(resourcesStats.getCpuUtil2FiveMinute())).
           append("-").append(df.format(resourcesStats.getCpuUtil2FifteenMinute())).
-
-          append(", NrThrottled1: ").append(df.format(resourcesStats.getNrThrottled1Cur())).
-          append("-").append(df.format(resourcesStats.getNrThrottled1OneMinute())).
-          append("-").append(df.format(resourcesStats.getNrThrottled1FiveMinute())).
-          append("-").append(df.format(resourcesStats.getNrThrottled1FifteenMinute())).
-
-          append(", NrThrottled2: ").append(df.format(resourcesStats.getNrThrottled2Cur())).
-          append("-").append(df.format(resourcesStats.getNrThrottled2OneMinute())).
-          append("-").append(df.format(resourcesStats.getNrThrottled2FiveMinute())).
-          append("-").append(df.format(resourcesStats.getNrThrottled2FifteenMinute())).
 
           append(", PendingReads: ").append(df.format(resourcesStats.getPendingReadsCur())).
           append("-").append(df.format(resourcesStats.getPendingReadsOneMinute())).

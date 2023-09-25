@@ -47,16 +47,6 @@ public interface RateLimiterServiceMBean
     public void setCpuThresholdOneMinute(long cpuThresholdOneMinute);
 
     /**
-     * Set nr_throttling_threshold_cur
-     */
-    public void setNrThrottlingThresholdCur(long nrThrottlingThresholdCur);
-
-    /**
-     * Set nr_throttling_threshold_one_minute
-     */
-    public void setNrThrottlingThresholdOneMinute(long nrThrottlingThresholdOneMinute);
-
-    /**
      * Set pending_reads_threshold_cur
      */
     public void setPendingReadsThresholdCur(int pendingReadsThresholdCur);

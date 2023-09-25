@@ -18,12 +18,7 @@
 
 package org.apache.cassandra.service.throttler.dynamic;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
 import java.lang.management.ManagementFactory;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Counter;
 import com.sun.management.OperatingSystemMXBean;
@@ -34,13 +29,9 @@ import org.apache.cassandra.metrics.MetricNameFactory;
 
 public class NativeResourceUtilization implements IResourceUtilzation
 {
-    private static final Logger logger = LoggerFactory.getLogger(NativeResourceUtilization.class);
-
     private static final OperatingSystemMXBean osBean = (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
-    private static final String NR_THROTTLED_KEY = "nr_throttled";
     private static final MetricNameFactory factory = new DefaultNameFactory("NativeResourceUtilization");
 
-    public String cpuStatFilePath = "/sys/fs/cgroup/cpu,cpuacct/cpu.stat";
     public final Counter readFailures = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("ReadFailures"));
 
     @Override
@@ -60,49 +51,5 @@ public class NativeResourceUtilization implements IResourceUtilzation
     {
         // Since we don't run anything else within the Cassandra container, so Cassandra JVM = Container, the reason for still keeping two metrics is that more signals are better
         return Double.valueOf(osBean.getSystemCpuLoad() * 100d).longValue();
-    }
-
-    @Override
-    public Long getCpuNRThrottled1()
-    {
-        //BufferedReader reader;
-        long nrThrottled = -1;
-        try (BufferedReader reader = new BufferedReader(new FileReader(cpuStatFilePath)))
-        {
-            /** Usually, it is in the following format:
-             * $> cat /sys/fs/cgroup/cpu,cpuacct/cpu.stat
-             * nr_periods 53857
-             * nr_throttled 1636
-             * throttled_time 1182781210
-             * nr_bursts 0
-             * burst_time 0
-             *
-             */
-            //reader = new BufferedReader(new FileReader(cpuStatFilePath));
-            String line = reader.readLine();
-            while (line != null)
-            {
-                if (line.startsWith(NR_THROTTLED_KEY))
-                {
-                    String[] split = line.split("\\s+");
-                    nrThrottled = Long.parseLong(split[1]);
-                    break;
-                }
-                line = reader.readLine();
-            }
-        }
-        catch (Exception e)
-        {
-            readFailures.inc();
-            // TODO: consider change it to Debug to avoid log flooding in, for exmaple, local laptop testing
-            logger.error("Exception while reading {}, error: {}", cpuStatFilePath, e);
-        }
-        return nrThrottled;
-    }
-
-    @Override
-    public Long getCpuNRThrottled2()
-    {
-        return -1L;
     }
 }

@@ -47,19 +47,4 @@ public interface IResourceUtilzation
      * source, then return -1.
      */
     public Long getCurrentCpuUtil2();
-
-    /**
-     * CPU throttling signal1. It represents the number of runnable periods in which the application used its entire quota and was throttled.
-     * It is one of the CPU metrics (nr_throttled) for a cgroup located in /sys/fs/cgroup/cpu,cpuacct/<container>
-     *
-     * @return the value of nr_throttled
-     **/
-    public Long getCpuNRThrottled1();
-
-    /**
-     * CPU throttling signal2. Same as "getCpuNRThrottled1" but a different source.
-     *
-     * @return the value of nr_throttled. If there is only one source, then return -1
-     **/
-    public Long getCpuNRThrottled2();
 }

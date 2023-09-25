@@ -2369,16 +2369,6 @@ public class NodeProbe implements AutoCloseable
         rateLimiterProxy.setCpuThresholdOneMinute(cpuThresholdOneMinute);
     }
 
-    public void setThrottlingOptionsNrThrottlingThresholdCur(long nrThrottlingThresholdCur)
-    {
-        rateLimiterProxy.setNrThrottlingThresholdCur(nrThrottlingThresholdCur);
-    }
-
-    public void setThrottlingOptionsNrThrottlingThresholdOneMinute(long nrThrottlingThresholdOneMinute)
-    {
-        rateLimiterProxy.setNrThrottlingThresholdOneMinute(nrThrottlingThresholdOneMinute);
-    }
-
     public void setThrottlingOptionsPendingReadsThresholdCur(int pendingReadsThresholdCur)
     {
         rateLimiterProxy.setPendingReadsThresholdCur(pendingReadsThresholdCur);

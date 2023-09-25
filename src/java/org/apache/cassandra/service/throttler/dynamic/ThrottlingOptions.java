@@ -33,8 +33,6 @@ public class ThrottlingOptions implements Serializable
 
     public long cpu_threshold_cur = 35;
     public long cpu_threshold_one_minute = 35;
-    public long nr_throttling_threshold_cur = 1;
-    public long nr_throttling_threshold_one_minute = 1;
     public int pending_reads_threshold_cur = 0;
     public int pending_reads_threshold_one_minute = 0;
     public int pending_mutations_threshold_cur = 0;
@@ -78,26 +76,6 @@ public class ThrottlingOptions implements Serializable
     public void setCpuThresholdOneMinute(long cpu_threshold_one_minute)
     {
         this.cpu_threshold_one_minute = cpu_threshold_one_minute;
-    }
-
-    public long getNrThrottlingThresholdCur()
-    {
-        return nr_throttling_threshold_cur;
-    }
-
-    public void setNrThrottlingThresholdCur(long nr_throttling_threshold_cur)
-    {
-        this.nr_throttling_threshold_cur = nr_throttling_threshold_cur;
-    }
-
-    public long getNrThrottlingThresholdOneMinute()
-    {
-        return nr_throttling_threshold_one_minute;
-    }
-
-    public void setNrThrottlingThresholdOneMinute(long nr_throttling_threshold_one_minute)
-    {
-        this.nr_throttling_threshold_one_minute = nr_throttling_threshold_one_minute;
     }
 
     public int getPendingReadsThresholdCur()
@@ -226,8 +204,6 @@ public class ThrottlingOptions implements Serializable
         return "enabled: " + enabled + "\n" +
                "current CPU threshold: " + cpu_threshold_cur + "\n" +
                "one minute CPU threshold: " + cpu_threshold_one_minute + "\n" +
-               "current nr_throttled threshold: " + nr_throttling_threshold_cur + "\n" +
-               "one minute nr_throttled threshold: " + nr_throttling_threshold_one_minute + "\n" +
                "current pending reads threshold: " + pending_reads_threshold_cur + "\n" +
                "one minute pending reads threshold: " + pending_reads_threshold_one_minute + "\n" +
                "current pending mutations threshold: " + pending_mutations_threshold_cur + "\n" +

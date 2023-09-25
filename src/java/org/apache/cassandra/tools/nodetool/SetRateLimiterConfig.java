@@ -32,8 +32,8 @@ public class SetRateLimiterConfig extends NodeTool.NodeToolCmd
 {
     @Arguments(title = "<ratelimiterparam> <value>", usage = "<ratelimiterparam> <value>",
             description = "ratelimiter param and value.\nPossible ratelimiter parameters are as following: " +
-                    "[enabled|cputhresholdcur|cputhresholdoneminute|nrthrottlingthresholdcur|" +
-                    "nrthrottlingthresholdoneminute|pendingreadsthresholdcur|pendingreadsthresholdoneminute|" +
+                    "[enabled|cputhresholdcur|cputhresholdoneminute|" +
+                    "pendingreadsthresholdcur|pendingreadsthresholdoneminute|" +
                     "pendingmutationsthresholdcur|pendingmutationsthresholdoneminute|" +
                     "percentageoftraffictothrottling|moreaggressivethrottlingafterinsec|" +
                     "resetafternothrottlingseeninsec|aggressivethrottlingqpsratio|aggressivethrottlinglatencyratio|ignorekeyspaces]",
@@ -58,14 +58,6 @@ public class SetRateLimiterConfig extends NodeTool.NodeToolCmd
         else if (paramType.equals("cputhresholdoneminute"))
         {
             probe.setThrottlingOptionsCpuThresholdOneMinute(Long.parseLong(paramVal));
-        }
-        else if (paramType.equals("nrthrottlingthresholdcur"))
-        {
-            probe.setThrottlingOptionsNrThrottlingThresholdCur(Long.parseLong(paramVal));
-        }
-        else if (paramType.equals("nrthrottlingthresholdoneminute"))
-        {
-            probe.setThrottlingOptionsNrThrottlingThresholdOneMinute(Long.parseLong(paramVal));
         }
         else if (paramType.equals("pendingreadsthresholdcur"))
         {

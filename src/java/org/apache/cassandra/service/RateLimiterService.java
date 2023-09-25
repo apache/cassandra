@@ -67,18 +67,6 @@ public class RateLimiterService implements RateLimiterServiceMBean {
     }
 
     @Override
-    public void setNrThrottlingThresholdCur(long nrThrottlingThresholdCur)
-    {
-        this.throttlingOptions.setNrThrottlingThresholdCur(nrThrottlingThresholdCur);
-    }
-
-    @Override
-    public void setNrThrottlingThresholdOneMinute(long nrThrottlingThresholdOneMinute)
-    {
-        this.throttlingOptions.setNrThrottlingThresholdOneMinute(nrThrottlingThresholdOneMinute);
-    }
-
-    @Override
     public void setPendingReadsThresholdCur(int pendingReadsThresholdCur)
     {
         this.throttlingOptions.setPendingReadsThresholdCur(pendingReadsThresholdCur);

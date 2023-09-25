@@ -30,8 +30,6 @@ public class ThrottlingOptionsTest
         Assert.assertFalse(throttlingOptions.isEnabled());
         Assert.assertEquals(35, throttlingOptions.getCpuThresholdCur());
         Assert.assertEquals(35, throttlingOptions.getCpuThresholdOneMinute());
-        Assert.assertEquals(1, throttlingOptions.getNrThrottlingThresholdCur());
-        Assert.assertEquals(1, throttlingOptions.getNrThrottlingThresholdOneMinute());
         Assert.assertEquals(0, throttlingOptions.getPendingReadsThresholdCur());
         Assert.assertEquals(0, throttlingOptions.getPendingReadsThresholdOneMinute());
         Assert.assertEquals(0, throttlingOptions.getPendingMutationsThresholdCur());

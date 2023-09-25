@@ -31,23 +31,17 @@ public class ResourcesStats
     public static final MetricNameFactory factory = new DefaultNameFactory("ResourcesStats");
     Gauge<Long> cpuUtil1Gauge;
     Gauge<Long> cpuUtil2Gauge;
-    Gauge<Long> nrThrottled1Gauge;
-    Gauge<Long> nrThrottled2Gauge;
 
     Gauge<Integer> pendingReadsGauge;
     Gauge<Integer> pendingMutationsGauge;
 
     Meter cpuUtil1Meter;
     Meter cpuUtil2Meter;
-    Meter nrThrottled1Meter;
-    Meter nrThrottled2Meter;
     Meter pendingReadsMeter;
     Meter pendingMutationsMeter;
 
     long cpuUtil1CurVal;
     long cpuUtil2CurVal;
-    long nrThrottled1CurVal;
-    long nrThrottled2CurVal;
     int pendingReadsCurVal;
     int pendingMutationsCurVal;
 
@@ -56,8 +50,6 @@ public class ResourcesStats
     {
         cpuUtil1Meter = CassandraMetricsRegistry.Metrics.meter(factory.createMetricName("CpuUtil1"));
         cpuUtil2Meter = CassandraMetricsRegistry.Metrics.meter(factory.createMetricName("CpuUtil2"));
-        nrThrottled1Meter = CassandraMetricsRegistry.Metrics.meter(factory.createMetricName("NRThrottled1"));
-        nrThrottled2Meter = CassandraMetricsRegistry.Metrics.meter(factory.createMetricName("NRThrottled2"));
         pendingReadsMeter = CassandraMetricsRegistry.Metrics.meter(factory.createMetricName("PendingReads"));
         pendingMutationsMeter = CassandraMetricsRegistry.Metrics.meter(factory.createMetricName("PendingMutations"));
 
@@ -75,21 +67,6 @@ public class ResourcesStats
                 return cpuUtil2CurVal;
             }
         });
-        nrThrottled1Gauge = Metrics.register(factory.createMetricName("NRThrottled1Current"), new Gauge<Long>()
-        {
-            public Long getValue()
-            {
-                return nrThrottled1CurVal;
-            }
-        });
-        nrThrottled2Gauge = Metrics.register(factory.createMetricName("NRThrottled2Current"), new Gauge<Long>()
-        {
-            public Long getValue()
-            {
-                return nrThrottled2CurVal;
-            }
-        });
-
         pendingReadsGauge = Metrics.register(factory.createMetricName("PendingReadsCurrent"), new Gauge<Integer>()
         {
             public Integer getValue()
@@ -156,58 +133,6 @@ public class ResourcesStats
     {
         this.cpuUtil2CurVal = cpuUtil2CurVal;
         cpuUtil2Meter.mark(this.cpuUtil2CurVal);
-    }
-
-    public long getNrThrottled1Cur()
-    {
-        return this.nrThrottled1Gauge.getValue();
-    }
-
-    public long getNrThrottled1OneMinute()
-    {
-        return Double.valueOf(this.nrThrottled1Meter.getOneMinuteRate()).longValue();
-    }
-
-    public long getNrThrottled1FiveMinute()
-    {
-        return Double.valueOf(this.nrThrottled1Meter.getFiveMinuteRate()).longValue();
-    }
-
-    public long getNrThrottled1FifteenMinute()
-    {
-        return Double.valueOf(this.nrThrottled1Meter.getFifteenMinuteRate()).longValue();
-    }
-
-    public void setNrThrottled1(long nrThrottled1)
-    {
-        this.nrThrottled1CurVal = nrThrottled1;
-        nrThrottled1Meter.mark(this.nrThrottled1CurVal);
-    }
-
-    public long getNrThrottled2Cur()
-    {
-        return this.nrThrottled2Gauge.getValue();
-    }
-
-    public long getNrThrottled2OneMinute()
-    {
-        return Double.valueOf(this.nrThrottled2Meter.getOneMinuteRate()).longValue();
-    }
-
-    public long getNrThrottled2FiveMinute()
-    {
-        return Double.valueOf(this.nrThrottled2Meter.getFiveMinuteRate()).longValue();
-    }
-
-    public long getNrThrottled2FifteenMinute()
-    {
-        return Double.valueOf(this.nrThrottled2Meter.getFifteenMinuteRate()).longValue();
-    }
-
-    public void setNrThrottled2(long nrThrottled2)
-    {
-        this.nrThrottled2CurVal = nrThrottled2;
-        nrThrottled2Meter.mark(this.nrThrottled2CurVal);
     }
 
     public int getPendingReadsCur()

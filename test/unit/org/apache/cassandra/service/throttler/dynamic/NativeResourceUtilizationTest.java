@@ -23,9 +23,6 @@ import org.junit.Test;
 
 public class NativeResourceUtilizationTest
 {
-    private static final String TEST_CPU_STAT_INVALID_FILE_PATH = "throttling/invalid_file.stat";
-    public static final String TEST_CPU_STAT_FILE_PATH = "throttling/test_cpu.stat";
-
     @Test
     public void testCurrentCpuUtil1()
     {
@@ -39,34 +36,5 @@ public class NativeResourceUtilizationTest
         NativeResourceUtilization nativeResourceUtilization = new NativeResourceUtilization();
         Long currentCpuUtil2 = nativeResourceUtilization.getCurrentCpuUtil2();
         Assert.assertTrue( "GetCurrentCpuUtil2: " + currentCpuUtil2, currentCpuUtil2 >= 0.0 && currentCpuUtil2 <= 100.0);
-    }
-
-    @Test
-    public void testNRThrottled1ReadFailure()
-    {
-        NativeResourceUtilization nativeResourceUtilization = new NativeResourceUtilization();
-        nativeResourceUtilization.cpuStatFilePath = TEST_CPU_STAT_INVALID_FILE_PATH;
-        long nrThrottled1 = nativeResourceUtilization.getCpuNRThrottled1();
-        Assert.assertEquals(-1, nrThrottled1);
-        Assert.assertEquals(1, nativeResourceUtilization.readFailures.getCount());
-    }
-
-    @Test
-    public void testNRThrottled1ReadSuccess()
-    {
-        NativeResourceUtilization nativeResourceUtilization = new NativeResourceUtilization();
-        nativeResourceUtilization.cpuStatFilePath = getClass().getClassLoader().getResource(TEST_CPU_STAT_FILE_PATH).getFile();
-        long nrThrottled1 = nativeResourceUtilization.getCpuNRThrottled1();
-        Assert.assertEquals(5468, nrThrottled1);
-        Assert.assertEquals(0, nativeResourceUtilization.readFailures.getCount());
-    }
-
-    @Test
-    public void testNRThrottled2ReadSuccess()
-    {
-        NativeResourceUtilization nativeResourceUtilization = new NativeResourceUtilization();
-        long nrThrottled2 = nativeResourceUtilization.getCpuNRThrottled2();
-        Assert.assertEquals(-1, nrThrottled2);
-        Assert.assertEquals(0, nativeResourceUtilization.readFailures.getCount());
     }
 }
