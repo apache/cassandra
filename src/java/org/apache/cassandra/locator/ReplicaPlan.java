@@ -176,6 +176,12 @@ public interface ReplicaPlan<E extends Endpoints<E>, P extends ReplicaPlan<E, P>
         {
             super(keyspace, replicationStrategy, consistencyLevel, range, candidates, contact, vnodeCount);
         }
+
+        @Override
+        public int readQuorum()
+        {
+            return candidates.size();
+        }
     }
 
     public static class ForWrite extends AbstractReplicaPlan<EndpointsForToken, ForWrite>

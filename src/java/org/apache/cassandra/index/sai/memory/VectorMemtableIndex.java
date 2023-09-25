@@ -80,9 +80,6 @@ public class VectorMemtableIndex extends MemoryIndex
 
     private long index(PrimaryKey primaryKey, ByteBuffer value)
     {
-        if (value == null || value.remaining() == 0)
-            return 0;
-
         updateKeyBounds(primaryKey);
 
         writeCount.increment();

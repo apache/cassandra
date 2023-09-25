@@ -85,7 +85,7 @@ public interface PrimaryKeyMap extends Closeable
     }
 
     /**
-     * Returns the last row Id for a given {@link Token}
+     * Returns the last row Id for a given {@link Token} or the previous row Id if there was no match for the {@link Token}
      *
      * @param range the {@link AbstractBounds} to lookup
      * @return the last row Id associated with the {@link AbstractBounds}
