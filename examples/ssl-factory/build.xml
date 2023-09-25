@@ -20,7 +20,7 @@
 
 <project default="jar" name="ssl-factory-example">
 	<property name="cassandra.dir" value="../.." />
-	<property name="cassandra.dir.lib" value="${cassandra.dir}/lib" />
+	<property name="cassandra.dir.lib" value="${cassandra.dir}/build/lib" />
 	<property name="cassandra.classes" value="${cassandra.dir}/build/classes/main" />
 	<property name="cassandra.test.lib" value="${cassandra.dir}/build/test/lib" />
 	<property name="build.src" value="${basedir}/src" />
