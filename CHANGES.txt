@@ -1,4 +1,5 @@
 5.0-alpha2
+ * Upgrade slf4j-api to 1.7.36 (CASSANDRA-18882)
  * Make the output of ON/OFF commands in cqlsh consistent (CASSANDRA-18547)
  * Do not create sstable files before registering in txn (CASSANDRA-18737)
  * Do not log stacktrace on mismatched cache and schema version and checksum error in AutoSavingCache (CASSANDRA-18862)
