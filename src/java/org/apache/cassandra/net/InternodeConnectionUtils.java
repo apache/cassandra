@@ -38,6 +38,7 @@ public class InternodeConnectionUtils
 {
     public static String SSL_HANDLER_NAME = "ssl";
     public static String DISCARD_HANDLER_NAME = "discard";
+    public static String SSL_FACTORY_CONTEXT_DESCRIPTION = "server_encryption_options";
     private static final Logger logger = LoggerFactory.getLogger(InternodeConnectionUtils.class);
 
     public static Certificate[] certificates(Channel channel)

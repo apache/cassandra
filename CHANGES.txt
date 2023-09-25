@@ -7,6 +7,7 @@
  * Fix SAI's SegmentMetadata min and max primary keys (CASSANDRA-18734)
  * Remove commons-codec dependency (CASSANDRA-18772)
 Merged from 4.1:
+ * Internode legacy SSL storage port certificate is not hot reloaded on update (CASSANDRA-18681)
  * Nodetool paxos-only repair is no longer incremental (CASSANDRA-18466)
 Merged from 4.0:
  * JMH improvements - faster build and async profiler (CASSANDRA-18871)

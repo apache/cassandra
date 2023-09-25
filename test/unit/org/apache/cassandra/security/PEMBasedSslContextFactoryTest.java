@@ -218,7 +218,7 @@ public class PEMBasedSslContextFactoryTest
                                                            .withRequireClientAuth(false)
                                                            .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA")
                                                            .withSslContextFactory(sslContextFactory);
-        SslContext sslContext = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.SERVER);
+        SslContext sslContext = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.SERVER, "test");
         Assert.assertNotNull(sslContext);
         if (OpenSsl.isAvailable())
             Assert.assertTrue(sslContext instanceof OpenSslContext);
@@ -239,7 +239,7 @@ public class PEMBasedSslContextFactoryTest
                                                                                                            .withRequireClientAuth(false)
                                                                                                            .withCipherSuites("TLS_RSA_WITH_AES_128_CBC_SHA")
                                                                                                            .withSslContextFactory(sslContextFactory);
-        SslContext sslContext = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT);
+        SslContext sslContext = SSLFactory.getOrCreateSslContext(options, true, ISslContextFactory.SocketType.CLIENT, "test");
         Assert.assertNotNull(sslContext);
         if (OpenSsl.isAvailable())
             Assert.assertTrue(sslContext instanceof OpenSslContext);
