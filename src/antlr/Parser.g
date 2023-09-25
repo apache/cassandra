@@ -1734,6 +1734,7 @@ relation[WhereClause.Builder clauses]
 
 containsOperator returns [Operator o]
     : K_CONTAINS { o = Operator.CONTAINS; } (K_KEY { o = Operator.CONTAINS_KEY; })?
+    | K_NOT K_CONTAINS { o = Operator.NOT_CONTAINS; } (K_KEY { o = Operator.NOT_CONTAINS_KEY; })?
     ;
 
 inMarker returns [AbstractMarker.INRaw marker]

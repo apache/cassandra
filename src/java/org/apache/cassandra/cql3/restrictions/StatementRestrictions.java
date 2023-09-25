@@ -348,67 +348,52 @@ public class StatementRestrictions
             RestrictionSet.Builder nonPrimaryKeyRestrictionSet = RestrictionSet.builder();
             ImmutableSet.Builder<ColumnMetadata> notNullColumnsBuilder = ImmutableSet.builder();
 
-        /*
-         * WHERE clause. For a given entity, rules are:
-         *   - EQ relation conflicts with anything else (including a 2nd EQ)
-         *   - Can't have more than one LT(E) relation (resp. GT(E) relation)
-         *   - IN relation are restricted to row keys (for now) and conflicts with anything else (we could
-         *     allow two IN for the same entity but that doesn't seem very useful)
-         *   - The value_alias cannot be restricted in any way (we don't support wide rows with indexed value
-         *     in CQL so far)
-         *   - CONTAINS and CONTAINS_KEY cannot be used with UPDATE or DELETE
-         */
-        for (Relation relation : element.relations())
-        {
-            if ((relation.isContains() || relation.isContainsKey()) && (type.isUpdate() || type.isDelete()))
-            {
-                throw invalidRequest("Cannot use %s with %s", type, relation.operator());
-            }
+            /*
+             * WHERE clause. For a given entity, rules are:
+             *   - EQ relation conflicts with anything else (including a 2nd EQ)
+             *   - Can't have more than one LT(E) relation (resp. GT(E) relation)
+             *   - IN relation are restricted to row keys (for now) and conflicts with anything else (we could
+             *     allow two IN for the same entity but that doesn't seem very useful)
+             *   - The value_alias cannot be restricted in any way (we don't support wide rows with indexed value
+             *     in CQL so far)
+             *   - CONTAINS and CONTAINS_KEY cannot be used with UPDATE or DELETE
+             */
+            for (Relation relation : element.relations()) {
+                if ((relation.isContains() || relation.isContainsKey() || relation.isNotContains() || relation.isNotContainsKey())
+                        && (type.isUpdate() || type.isDelete())) {
+                    throw invalidRequest("Cannot use %s with %s", type, relation.operator());
+                }
 
-            if (relation.operator() == Operator.IS_NOT)
-            {
-                if (!forView)
-                    throw invalidRequest("Unsupported restriction: %s", relation);
+                if (relation.operator() == Operator.IS_NOT) {
+                    if (!forView)
+                        throw invalidRequest("Unsupported restriction: %s", relation);
 
                     notNullColumnsBuilder.addAll(relation.toRestriction(table, boundNames).getColumnDefs());
-                }
-                else
-                {
+                } else {
                     Restriction restriction = relation.toRestriction(table, boundNames);
 
-                    if (relation.isLIKE() && (!type.allowUseOfSecondaryIndices() || !restriction.hasSupportingIndex(indexRegistry)))
-                    {
-                        if (getColumnsWithUnsupportedIndexRestrictions(table, ImmutableList.of(restriction)).isEmpty())
-                        {
+                    if (relation.isLIKE() && (!type.allowUseOfSecondaryIndices() || !restriction.hasSupportingIndex(indexRegistry))) {
+                        if (getColumnsWithUnsupportedIndexRestrictions(table, ImmutableList.of(restriction)).isEmpty()) {
                             throw invalidRequest("LIKE restriction is only supported on properly indexed columns. %s is not valid.", relation.toString());
-                        }
-                        else
-                        {
+                        } else {
                             throw invalidRequest(StatementRestrictions.INDEX_DOES_NOT_SUPPORT_LIKE_MESSAGE, restriction.getFirstColumn());
                         }
                     }
-                    if (relation.operator() == Operator.ANALYZER_MATCHES)
-                    {
-                        if (!type.allowUseOfSecondaryIndices())
-                        {
+                    if (relation.operator() == Operator.ANALYZER_MATCHES) {
+                        if (!type.allowUseOfSecondaryIndices()) {
                             throw invalidRequest("Invalid query. %s does not support use of secondary indices, but %s restriction requires a secondary index.", type.name(), relation.toString());
                         }
-                        if (!restriction.hasSupportingIndex(indexRegistry))
-                        {
-                            if (getColumnsWithUnsupportedIndexRestrictions(table, ImmutableList.of(restriction)).isEmpty())
-                            {
+                        if (!restriction.hasSupportingIndex(indexRegistry)) {
+                            if (getColumnsWithUnsupportedIndexRestrictions(table, ImmutableList.of(restriction)).isEmpty()) {
                                 throw invalidRequest(": restriction is only supported on properly indexed columns. %s is not valid.", relation.toString());
-                            }
-                            else
-                            {
+                            } else {
                                 throw invalidRequest(StatementRestrictions.INDEX_DOES_NOT_SUPPORT_ANALYZER_MATCHES_MESSAGE, restriction.getFirstColumn());
                             }
                         }
                     }
 
                     ColumnMetadata def = restriction.getFirstColumn();
-                    if (def.isPartitionKey())
-                    {
+                    if (def.isPartitionKey()) {
                         // All partition key restrictions must be a part of the top-level AND operation.
                         // The read path filtering logic is currently unable to filter rows based on
                         // partition key restriction that is a part of a complex expression involving disjunctions.
@@ -423,12 +408,9 @@ public class StatementRestrictions
                     // we can't treat it as a real clustering column,
                     // but instead we treat it as a regular column and use
                     // index (if we have one) or use row filtering on it; hence we require nestingLevel == 0 check here
-                    else if (def.isClusteringColumn() && nestingLevel == 0)
-                    {
+                    else if (def.isClusteringColumn() && nestingLevel == 0) {
                         clusteringColumnsRestrictionSet.addRestriction(restriction);
-                    }
-                    else
-                    {
+                    } else {
                         nonPrimaryKeyRestrictionSet.addRestriction((SingleRestriction) restriction, element.isDisjunction());
                     }
                 }
