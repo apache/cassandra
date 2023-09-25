@@ -56,6 +56,8 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntUnaryOperator;
@@ -70,7 +72,7 @@ public class FramingBenchmark
     static
     {
         Config config = DatabaseDescriptor.loadConfig();
-        config.networking_cache_size = new DataStorageSpec.IntMebibytesBound("256MiB");
+        config.networking_cache_size = new DataStorageSpec.IntMebibytesBound("512MiB");
         DatabaseDescriptor.daemonInitialization(() -> config);
     }
 
@@ -85,21 +87,36 @@ public class FramingBenchmark
         @Param({"2037", "16373"})
         public int payloadSize;
         public FrameEncoder encoder;
-        public FrameEncoder.Payload payload;
+        public ByteBuffer buffer;
+        public final List<Object> refs = new CopyOnWriteArrayList<>();
 
-        @Setup(Level.Iteration)
+        @Setup(Level.Invocation)
         public void setup()
         {
+            refs.clear();
             encoder = createEncoder(type);
-            payload = createPayload(encoder, ThreadLocalRandom.current()
-                    .nextInt(payloadLowerBound.applyAsInt(payloadSize), payloadSize));
+            buffer = createPayload(encoder, ThreadLocalRandom.current()
+                    .nextInt(payloadLowerBound.applyAsInt(payloadSize), payloadSize)).buffer;
         }
 
-        @TearDown(Level.Iteration)
+        @TearDown(Level.Invocation)
         public void teardown()
         {
-            payload.release();
+            if (encoder instanceof FrameEncoderLZ4)
+                return;
+
+            release(buffer);
         }
+    }
+
+    @Benchmark
+    @Fork(value = 1, jvmArgsAppend = { "-Xmx1g", "-Djmh.executor=CUSTOM",
+            "-Djmh.executor.class=org.apache.cassandra.test.microbench.FastThreadExecutor" })
+    public ByteBuf encode(EncoderState state)
+    {
+        ByteBuf buff = state.encoder.encode(true, state.buffer);
+        state.refs.add(buff);
+        return buff;
     }
 
     @State(Scope.Thread)
@@ -114,7 +131,7 @@ public class FramingBenchmark
         public FrameDecoder decoder;
         public ShareableBytes encodedBytes;
 
-        @Setup(Level.Iteration)
+        @Setup(Level.Invocation)
         public void setup()
         {
             decoder = createDecoder(type, allocator);
@@ -126,45 +143,37 @@ public class FramingBenchmark
             ByteBuffer frames = BufferPools.forNetworking().getAtLeast(buf.readableBytes(), BufferType.OFF_HEAP);
             frames.put(buf.internalNioBuffer(buf.readerIndex(), buf.readableBytes()));
             frames.flip();
-            payload.release();
+            release(buf);
             encodedBytes = ShareableBytes.wrap(frames);
         }
 
-        @TearDown(Level.Iteration)
+        @TearDown(Level.Invocation)
         public void teardown()
         {
             encodedBytes.release();
         }
     }
 
-    public enum EncoderDecoderType
-    {
-        CRC,
-        CRC32C,
-        LZ4,
-        LZ4_CRC32C,
-        UNPROTECTED
-    }
-
     @Benchmark
-    @Fork(value = 1, jvmArgsAppend = { "-Xmx512M", "-Djmh.executor=CUSTOM",
-            "-Djmh.executor.class=org.apache.cassandra.test.microbench.FastThreadExecutor" })
-    public ByteBuf encode(EncoderState state)
-    {
-        ByteBuf buf = state.encoder.encode(state.payload.isSelfContained(), state.payload.buffer);
-        if (state.encoder instanceof FrameEncoderLZ4)
-            buf.release();
-        return buf;
-    }
-
-    @Benchmark
-    @Fork(value = 1, jvmArgsAppend = { "-Xmx512M", "-Djmh.executor=CUSTOM",
+    @Fork(value = 1, jvmArgsAppend = { "-Xmx1g", "-Djmh.executor=CUSTOM",
             "-Djmh.executor.class=org.apache.cassandra.test.microbench.FastThreadExecutor" })
     public Collection<FrameDecoder.Frame> decode(DecoderState state)
     {
         Collection<FrameDecoder.Frame> out = new ArrayList<>();
         state.decoder.decode(out, state.encodedBytes);
         return out;
+    }
+
+    private static void release(Object buff)
+    {
+        if (buff instanceof BufferPoolAllocator.Wrapped)
+            ((BufferPoolAllocator.Wrapped) buff).deallocate();
+        else if (buff instanceof ByteBuffer)
+            BufferPools.forNetworking().put((ByteBuffer) buff);
+        else if (buff instanceof ShareableBytes)
+            ((ShareableBytes) buff).release();
+        else
+            throw new IllegalArgumentException("Unknown buffer type: " + buff.getClass());
     }
 
     private static FrameEncoder.Payload createPayload(FrameEncoder encoder, int size)
@@ -221,5 +230,14 @@ public class FramingBenchmark
                 .include(FramingBenchmark.class.getSimpleName())
                 .build();
         new Runner(opt).run();
+    }
+
+    public enum EncoderDecoderType
+    {
+        CRC,
+        CRC32C,
+        LZ4,
+        LZ4_CRC32C,
+        UNPROTECTED
     }
 }

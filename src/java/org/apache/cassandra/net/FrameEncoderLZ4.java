@@ -117,7 +117,7 @@ class FrameEncoderLZ4 extends FrameEncoder
         }
         finally
         {
-//            bufferPool.put(in);
+            bufferPool.put(in);
         }
     }
 }

@@ -18,9 +18,6 @@
 package org.apache.cassandra.net;
 
 import java.nio.ByteBuffer;
-import java.util.function.Supplier;
-import java.util.zip.CRC32C;
-import java.util.zip.Checksum;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
@@ -30,12 +27,9 @@ import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.utils.memory.BufferPool;
 import org.apache.cassandra.utils.memory.BufferPools;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_MESSAGING_SERVICE_CRC32C_ENBLED;
-
 public abstract class FrameEncoder extends ChannelOutboundHandlerAdapter
 {
     protected static final BufferPool bufferPool = BufferPools.forNetworking();
-    public static final Supplier<Checksum> crc32factory = CASSANDRA_MESSAGING_SERVICE_CRC32C_ENBLED.getBoolean() ? Crc::crc32 : CRC32C::new;
 
     /**
      * An abstraction useful for transparently allocating buffers that can be written to upstream

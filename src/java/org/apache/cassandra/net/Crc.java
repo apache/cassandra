@@ -17,15 +17,13 @@
  */
 package org.apache.cassandra.net;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.function.Supplier;
-import java.util.zip.CRC32;
-import java.util.zip.CRC32C;
-import java.util.zip.Checksum;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.util.concurrent.FastThreadLocal;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.zip.CRC32;
+import java.util.zip.Checksum;
 
 public class Crc
 {
@@ -39,8 +37,6 @@ public class Crc
     };
 
     private static final byte[] initialBytes = new byte[] { (byte) 0xFA, (byte) 0x2D, (byte) 0x55, (byte) 0xCA };
-
-    public static final Supplier<Checksum> CRC32C_FACTORY = CRC32C::new;
 
     public static final class InvalidCrc extends IOException
     {

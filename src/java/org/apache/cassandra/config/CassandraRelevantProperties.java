@@ -91,7 +91,6 @@ public enum CassandraRelevantProperties
     /** Cassandra jmx remote and local port */
     CASSANDRA_JMX_REMOTE_PORT("cassandra.jmx.remote.port"),
     CASSANDRA_MAX_HINT_TTL("cassandra.maxHintTTL", convertToString(Integer.MAX_VALUE)),
-    CASSANDRA_MESSAGING_SERVICE_CRC32C_ENBLED("cassandra.messaging.service.crc32c.enabled", "false"),
     CASSANDRA_MINIMUM_REPLICATION_FACTOR("cassandra.minimum_replication_factor"),
     CASSANDRA_NETTY_USE_HEAP_ALLOCATOR("cassandra.netty_use_heap_allocator"),
     CASSANDRA_PID_FILE("cassandra-pidfile"),
