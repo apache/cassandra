@@ -17,69 +17,168 @@
  */
 package org.apache.cassandra.anttasks;
 
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Stream;
-
 import org.junit.Test;
-
-import org.apache.tools.ant.BuildException;
-import org.apache.tools.ant.Task;
 import org.reflections.Reflections;
 import org.reflections.scanners.Scanners;
 import org.reflections.util.ConfigurationBuilder;
 
+import java.io.File;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
+import java.util.stream.Stream;
+
 import static java.util.stream.Collectors.toList;
 
-public class TestNameCheckTask extends Task
+public class TestNameCheckTask
 {
-    private static final Reflections reflections = new Reflections(new ConfigurationBuilder()
-                                                                   .forPackage("org.apache.cassandra")
-                                                                   .setScanners(Scanners.MethodsAnnotated, Scanners.SubTypes)
-                                                                   .setExpandSuperTypes(true)
-                                                                   .setParallel(true));
+    private String scanClassPath = "build/test/classes";
+    private String packageName = "org.apache.cassandra";
+    private String annotationName = Test.class.getName();
+    private boolean expand = true;
+    private boolean normalize = true;
+    private boolean verbose = false;
+    private String regex = ".*Test$";
 
     public TestNameCheckTask()
     {
     }
 
-    @Override
-    public void execute() throws BuildException
+    public void setScanClassPath(String scanClassPath)
     {
-        Set<Method> methodsAnnotatedWith = reflections.getMethodsAnnotatedWith(Test.class);
-        List<String> testFiles = methodsAnnotatedWith.stream().map(Method::getDeclaringClass).distinct()
-                                                     .flatMap(TestNameCheckTask::expand)
-                                                     .map(TestNameCheckTask::normalize)
-                                                     .map(Class::getCanonicalName)
-                                                     .filter(s -> !s.endsWith("Test"))
-                                                     .distinct().sorted()
-                                                     .collect(toList());
-
-        if (!testFiles.isEmpty())
-            throw new BuildException("Detected tests that have a bad naming convention. All tests have to end on 'Test': \n" + String.join("\n", testFiles));
+        this.scanClassPath = scanClassPath;
     }
 
-    private static Class<?> normalize(Class<?> klass)
+    public void setPackageName(String packageName)
     {
-        for (; klass.getEnclosingClass() != null; klass = klass.getEnclosingClass())
+        this.packageName = packageName;
+    }
+
+    public void setAnnotationName(String annotationName)
+    {
+        this.annotationName = annotationName;
+    }
+
+    public void setExpand(boolean expand)
+    {
+        this.expand = expand;
+    }
+
+    public void setNormalize(boolean normalize)
+    {
+        this.normalize = normalize;
+    }
+
+    public void setVerbose(boolean verbose)
+    {
+        this.verbose = verbose;
+    }
+
+    public void setRegex(String regex)
+    {
+        this.regex = regex;
+    }
+
+    public void execute()
+    {
+        List<URL> scanClassPathUrls = Arrays.stream(scanClassPath.split(File.pathSeparator)).map(Paths::get).map(path -> {
+            try
+            {
+                return path.toUri().toURL();
+            }
+            catch (MalformedURLException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }).collect(toList());
+
+        Reflections reflections = new Reflections(new ConfigurationBuilder()
+                                                  .forPackage(packageName)
+                                                  .setScanners(Scanners.MethodsAnnotated, Scanners.SubTypes)
+                                                  .setUrls(scanClassPathUrls)
+                                                  .setExpandSuperTypes(true)
+                                                  .setParallel(true));
+
+        Class<? extends Annotation> annotationClass;
+        try
         {
+            annotationClass = (Class<? extends Annotation>) Class.forName(annotationName);
         }
+        catch (ClassNotFoundException e)
+        {
+            throw new RuntimeException(e);
+        }
+        Set<Method> methodsAnnotatedWith = reflections.getMethodsAnnotatedWith(annotationClass);
+        Stream<? extends Class<?>> stream = methodsAnnotatedWith.stream().map(Method::getDeclaringClass).distinct();
+
+        if (expand)
+            stream = stream.flatMap(c -> expand(c, reflections));
+        if (normalize)
+            stream = stream.map(this::normalize);
+
+        Pattern pattern = Pattern.compile(regex);
+        Predicate<String> patternPredicate = s -> !pattern.matcher(s).matches();
+        List<String> classes = stream.map(Class::getCanonicalName)
+                                     .distinct()
+                                     .sorted()
+                                     .peek(verbose ? System.out::println : ignored -> {})
+                                     .filter(patternPredicate)
+                                     .collect(toList());
+
+        if (!classes.isEmpty())
+            throw new RuntimeException(String.format("Detected classes that have a bad naming convention. All classes from the following locations %s which have methods annotated with %s should have names that match %s: \n%s", scanClassPath, annotationName, regex, String.join("\n", classes)));
+    }
+
+    /**
+     * Get top outer class if it is an inner class
+     */
+    private Class<?> normalize(Class<?> klass)
+    {
+        while (klass.getEnclosingClass() != null)
+            klass = klass.getEnclosingClass();
+
         return klass;
     }
 
-    private static Stream<Class<?>> expand(Class<?> klass)
+    /**
+     * Expand a class to all its subtypes. We need this because it possible that there is a top level class with
+     * annotated test methods and there are subclasses which modifies some configuration but do not introduce
+     * any additional test methods. In such case, those subclasses would not be included in the result of
+     * {@link Reflections#getMethodsAnnotatedWith(Class)}.
+     */
+    private Stream<? extends Class<?>> expand(Class<?> klass, Reflections reflections)
     {
         Set<? extends Class<?>> subTypes = reflections.getSubTypesOf(klass);
         if (subTypes == null || subTypes.isEmpty())
             return Stream.of(klass);
-        Stream<Class<?>> subs = (Stream<Class<?>>) subTypes.stream();
+        Stream<? extends Class<?>> subs = subTypes.stream();
         // assume we include if not abstract
         if (!Modifier.isAbstract(klass.getModifiers()))
             subs = Stream.concat(Stream.of(klass), subs);
         return subs;
     }
 
+    public static void main(String[] args)
+    {
+        TestNameCheckTask check = new TestNameCheckTask();
+        // checkstyle: suppress below 'blockSystemPropertyUsage'
+        Optional.ofNullable(System.getProperty("scanClassPath")).ifPresent(check::setScanClassPath);
+        Optional.ofNullable(System.getProperty("packageName")).ifPresent(check::setPackageName);
+        Optional.ofNullable(System.getProperty("annotationName")).ifPresent(check::setAnnotationName);
+        Optional.ofNullable(System.getProperty("regex")).ifPresent(check::setRegex);
+        Optional.ofNullable(System.getProperty("expand")).map(Boolean::parseBoolean).ifPresent(check::setExpand);
+        Optional.ofNullable(System.getProperty("normalize")).map(Boolean::parseBoolean).ifPresent(check::setNormalize);
+        Optional.ofNullable(System.getProperty("verbose")).map(Boolean::parseBoolean).ifPresent(check::setVerbose);
+        check.execute();
+    }
 
 }
