@@ -31,23 +31,27 @@ import java.util.Map;
 import java.util.UUID;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.gms.HeartBeatState;
 import org.apache.cassandra.gms.TokenSerializer;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.SchemaKeyspace;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.InProgressSequence;
@@ -69,6 +73,7 @@ import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.sequences.Move;
 import org.apache.cassandra.utils.CassandraVersion;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.gms.ApplicationState.DC;
 import static org.apache.cassandra.gms.ApplicationState.HOST_ID;
@@ -77,6 +82,7 @@ import static org.apache.cassandra.gms.ApplicationState.INTERNAL_IP;
 import static org.apache.cassandra.gms.ApplicationState.NATIVE_ADDRESS_AND_PORT;
 import static org.apache.cassandra.gms.ApplicationState.RACK;
 import static org.apache.cassandra.gms.ApplicationState.RPC_ADDRESS;
+import static org.apache.cassandra.gms.ApplicationState.STATUS_WITH_PORT;
 import static org.apache.cassandra.gms.ApplicationState.TOKENS;
 import static org.apache.cassandra.gms.Gossiper.isShutdown;
 import static org.apache.cassandra.locator.InetAddressAndPort.getByName;
@@ -284,6 +290,28 @@ public class GossipHelper
     public static ClusterMetadata fromEndpointStates(DistributedSchema schema, Map<InetAddressAndPort, EndpointState> epStates)
     {
         return fromEndpointStates(epStates, DatabaseDescriptor.getPartitioner(), schema);
+    }
+
+    /**
+     * reads state for the local host from system keyspaces and creates an EndpointState, only to be used
+     * in the single-node upgrade case
+     */
+    public static Map<InetAddressAndPort, EndpointState> storedEpstate()
+    {
+        EndpointState epstate = new EndpointState(new HeartBeatState(SystemKeyspace.incrementAndGetGeneration(), 0));
+        VersionedValue.VersionedValueFactory vf = StorageService.instance.valueFactory;
+        epstate.addApplicationState(DC, vf.datacenter(DatabaseDescriptor.getEndpointSnitch().getLocalRack()));
+        epstate.addApplicationState(RACK, vf.rack(DatabaseDescriptor.getEndpointSnitch().getLocalRack()));
+        UUID hostId = SystemKeyspace.getLocalHostId();
+        if (null != hostId)
+        {
+            epstate.addApplicationState(ApplicationState.HOST_ID,
+                                        StorageService.instance.valueFactory.hostId(hostId));
+        }
+        Collection<Token> tokens = SystemKeyspace.getSavedTokens();
+        epstate.addApplicationState(STATUS_WITH_PORT, vf.normal(tokens));
+        epstate.addApplicationState(TOKENS, vf.tokens(tokens));
+        return ImmutableMap.of(FBUtilities.getBroadcastAddressAndPort(), epstate);
     }
 
     @VisibleForTesting

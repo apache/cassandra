@@ -183,6 +183,26 @@ public class ClusterMetadataUpgradeTest extends UpgradeTestBase
         }).run();
     }
 
+    @Test
+    public void testSingleNodeUpgrade() throws Throwable
+    {
+        new TestCase()
+        .nodes(1)
+        .nodesToUpgrade(1)
+        .withConfig((cfg) -> cfg.with(Feature.NETWORK, Feature.GOSSIP)
+                                .set(Constants.KEY_DTEST_FULL_STARTUP, true))
+        .singleUpgradeToCurrentFrom(v41.toStrict())
+        .setup((cluster) -> {
+            cluster.schemaChange(withKeyspace("ALTER KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor':1}"));
+            cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
+        })
+        .runAfterClusterUpgrade((cluster) -> {
+            cluster.get(1).nodetoolResult("addtocms").asserts().success();
+            // make sure we can execute transformations:
+            cluster.schemaChange(withKeyspace("ALTER TABLE %s.tbl with comment = 'hello123'"));
+        }).run();
+    }
+
     private static Map<InetAddressAndPort, UUID> getHostIds(UpgradeableCluster cluster, int instance)
     {
         String gossipInfo = cluster.get(instance).nodetoolResult("gossipinfo").getStdout();

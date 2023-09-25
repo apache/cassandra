@@ -20,6 +20,7 @@ package org.apache.cassandra.gms;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -35,6 +36,7 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.tcm.compatibility.GossipHelper;
 import org.apache.cassandra.utils.concurrent.Accumulator;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Promise;
@@ -56,6 +58,8 @@ public class NewGossiper
         Set<InetAddressAndPort> peers = new HashSet<>(SystemKeyspace.loadHostIds().keySet());
         if (peers.isEmpty())
             peers.addAll(DatabaseDescriptor.getSeeds());
+        if (peers.equals(Collections.singleton(getBroadcastAddressAndPort())))
+            return GossipHelper.storedEpstate();
 
         ShadowRoundHandler shadowRoundHandler = new ShadowRoundHandler(peers);
         handler = shadowRoundHandler;
