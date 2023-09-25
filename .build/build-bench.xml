@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+  Licensed to the Apache Software Foundation (ASF) under one
+  or more contributor license agreements.  See the NOTICE file
+  distributed with this work for additional information
+  regarding copyright ownership.  The ASF licenses this file
+  to you under the Apache License, Version 2.0 (the
+  "License"); you may not use this file except in compliance
+  with the License.  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+<project basedir="." name="apache-cassandra-bench"
+         xmlns:if="ant:if" xmlns:unless="ant:unless">
+
+    <property name="async-profiler.version" value="2.9"/>
+    <condition property="async-profiler.suffix" value="linux-arm64">
+        <and>
+            <os arch="aarch64"/>
+            <isset property="isLinux"/>
+        </and>
+    </condition>
+    <condition property="async-profiler.suffix" value="linux-x64">
+        <and>
+            <os arch="amd64"/>
+            <isset property="isLinux"/>
+        </and>
+    </condition>
+    <condition property="async-profiler.suffix" value="macos">
+        <isset property="isMac"/>
+    </condition>
+    <property name="async-profiler.name" value="async-profiler-${async-profiler.version}-${async-profiler.suffix}"/>
+    <property name="async-profiler.base" value="${build.dir}/async-profiler"/>
+
+    <property name="test.profiler.opts.default" value="event=cpu;threads=true;output=flamegraph;simple=true;ann=true"/>
+    <property name="test.profiler.output" value="${build.test.dir}/profiler"/>
+
+    <target name="-microbench">
+        <jmh/>
+    </target>
+
+    <target name="-microbench-with-profiler" depends="-fetch-async-profiler">
+        <condition property="test.profiler.opts" value="${test.profiler.opts.default}" else="${profiler.opts}">
+            <or>
+                <not>
+                    <isset property="profiler.opts"/>
+                </not>
+                <equals arg1="${profiler.opts}" arg2=""/>
+            </or>
+        </condition>
+
+        <property name="async-profiler.lib.path" value="${async-profiler.base}/build/libasyncProfiler.so"/>
+
+        <mkdir dir="${test.profiler.output}"/>
+
+        <jmh>
+            <extra-args>
+                <arg value="-prof"/>
+                <arg value="async:libPath=${async-profiler.lib.path};dir=${test.profiler.output};${test.profiler.opts}"/>
+            </extra-args>
+        </jmh>
+    </target>
+
+    <macrodef name="jmh">
+        <element name="extra-args" optional="true"/>
+        <sequential>
+            <java classname="org.openjdk.jmh.Main" fork="true" failonerror="true" >
+                <classpath>
+                    <path refid="cassandra.classpath.test"/>
+                    <pathelement location="${test.classes}"/>
+                    <pathelement location="${test.conf}"/>
+                    <pathelement location="${async-profiler.base}/lib/async-profiler.jar"/>
+                    <pathelement location="${async-profiler.base}/lib/converter.jar"/>
+                </classpath>
+
+                <jvmarg line="${java-jvmargs}"/>
+                <jvmarg line="${_std-test-jvmargs}"/>
+                <jvmarg line="${test.jvm.args}"/>
+
+                <arg value="-foe"/>
+                <arg value="true"/>
+                <arg value="-rf"/>
+                <arg value="json"/>
+                <arg value="-rff"/>
+                <arg value="${build.test.dir}/jmh-result.json"/>
+                <arg value="-v"/>
+                <arg value="EXTRA"/>
+
+                <arg line="${jmh.args}"/>
+
+                <extra-args/>
+
+                <!-- TODO https://issues.apache.org/jira/browse/CASSANDRA-18873 -->
+                <arg value="-e" if:blank="${benchmark.name}"/>
+                <arg value="ZeroCopyStreamingBench|MutationBench|FastThreadLocalBench" if:blank="${benchmark.name}"/>
+
+                <arg value=".*microbench.*${benchmark.name}"/>
+            </java>
+        </sequential>
+    </macrodef>
+
+    <target name="-fetch-async-profiler">
+        <mkdir dir="${tmp.dir}"/>
+        <mkdir dir="${async-profiler.base}"/>
+
+        <antcall target="-fetch-async-profiler-mac" if:true="${isMac}" inheritrefs="true"/>
+        <antcall target="-fetch-async-profiler-linux" if:true="${isLinux}" inheritrefs="true"/>
+
+        <move todir="${async-profiler.base}">
+            <fileset dir="${async-profiler.base}/${async-profiler.name}">
+                <include name="**"/>
+            </fileset>
+        </move>
+        <delete dir="${async-profiler.base}/${async-profiler.name}" includeemptydirs="true"/>
+    </target>
+
+    <target name="-fetch-async-profiler-linux">
+        <get src="https://github.com/async-profiler/async-profiler/releases/download/v${async-profiler.version}/${async-profiler.name}.tar.gz"
+             dest="${tmp.dir}/${async-profiler.name}.tar.gz" retries="3" httpusecaches="true" skipexisting="true"/>
+        <gunzip src="${tmp.dir}/${async-profiler.name}.tar.gz" dest="${tmp.dir}/"/>
+        <untar src="${tmp.dir}/${async-profiler.name}.tar" dest="${async-profiler.base}/"/>
+        <delete file="${tmp.dir}/${async-profiler.name}.tar"/>
+    </target>
+
+    <target name="-fetch-async-profiler-mac">
+        <get src="https://github.com/async-profiler/async-profiler/releases/download/v${async-profiler.version}/${async-profiler.name}.zip"
+             dest="${tmp.dir}/${async-profiler.name}.zip" retries="3" httpusecaches="true" skipexisting="true"/>
+        <unzip src="${tmp.dir}/${async-profiler.name}.zip" dest="${async-profiler.base}/"/>
+    </target>
+
+</project>
