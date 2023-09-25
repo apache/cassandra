@@ -37,6 +37,7 @@ Merged from 4.1:
  * Waiting indefinitely on ReceivedMessage response in StreamSession#receive() can cause deadlock (CASSANDRA-18733)
  * Allow empty keystore_password in encryption_options (CASSANDRA-18778)
 Merged from 4.0:
+ * JMH improvements - faster build and async profiler (CASSANDRA-18871)
 Merged from 3.11:
  * Fix NPE when using udfContext in UDF after a restart of a node (CASSANDRA-18739)
 Merged from 3.0:
