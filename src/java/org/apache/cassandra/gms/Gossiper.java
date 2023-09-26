@@ -40,6 +40,7 @@ import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.cassandra.concurrent.JMXEnabledSingleThreadExecutor;
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.NoPayload;
 import org.apache.cassandra.net.Verb;
@@ -135,6 +136,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     /* live member set */
     @VisibleForTesting
     final Set<InetAddressAndPort> liveEndpoints = new ConcurrentSkipListSet<>();
+
+    /* Inflight echo requests. */
+    private final Set<InetAddressAndPort> inflightEcho = new ConcurrentSkipListSet<>();
 
     /* unreachable member set */
     private final Map<InetAddressAndPort, Long> unreachableEndpoints = new ConcurrentHashMap<>();
@@ -634,6 +638,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
 
         liveEndpoints.remove(endpoint);
+        inflightEcho.remove(endpoint);
         unreachableEndpoints.remove(endpoint);
         MessagingService.instance().versions.reset(endpoint);
         quarantineEndpoint(endpoint);
@@ -1276,13 +1281,54 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     private void markAlive(final InetAddressAndPort addr, final EndpointState localState)
     {
+        if (!inflightEcho.add(addr))
+        {
+            return;
+        }
+
         localState.markDead();
 
         Message<NoPayload> echoMessage = Message.out(ECHO_REQ, noPayload);
         logger.trace("Sending ECHO_REQ to {}", addr);
-        RequestCallback echoHandler = msg ->
+        RequestCallback echoHandler = new RequestCallback()
         {
-            runInGossipStageBlocking(() -> realMarkAlive(addr, localState));
+            @Override
+            public void onResponse(Message msg)
+            {
+                // force processing of the echo response onto the gossip stage, as it comes in on the REQUEST_RESPONSE stage
+                runInGossipStageBlocking(() -> {
+                    try
+                    {
+                        realMarkAlive(addr, localState);
+                    }
+                    finally
+                    {
+                        inflightEcho.remove(addr);
+                    }
+                });
+            }
+
+            @Override
+            public boolean invokeOnFailure()
+            {
+                return true;
+            }
+
+            @Override
+            public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+            {
+                if (isEnabled())
+                {
+                    logger.trace("Resending ECHO_REQ to {}", addr);
+                    Message<NoPayload> echoMessage = Message.out(ECHO_REQ, noPayload);
+                    MessagingService.instance().sendWithCallback(echoMessage, addr, this);
+                }
+                else
+                {
+                    logger.trace("Failed ECHO_REQ to {}, aborting due to disabled gossip", addr);
+                    inflightEcho.remove(addr);
+                }
+            }
         };
 
         MessagingService.instance().sendWithCallback(echoMessage, addr, echoHandler);
@@ -1336,6 +1382,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     {
         localState.markDead();
         liveEndpoints.remove(addr);
+        inflightEcho.remove(addr);
         unreachableEndpoints.put(addr, System.nanoTime());
     }
 
