@@ -133,6 +133,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
     public final SafeExecutor taskExecutor;
     public final boolean optimiseStreams;
     public final SharedContext ctx;
+    private volatile List<RepairJob> jobs = Collections.emptyList();
 
     private volatile boolean terminated = false;
 
@@ -370,8 +371,6 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
             }
         }, taskExecutor);
     }
-
-    private volatile List<RepairJob> jobs = Collections.emptyList();
 
     public synchronized void terminate(@Nullable Throwable reason)
     {
