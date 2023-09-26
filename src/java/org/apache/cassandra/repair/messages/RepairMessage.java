@@ -56,7 +56,7 @@ import static org.apache.cassandra.net.MessageFlag.CALL_BACK_ON_FAILURE;
 public abstract class RepairMessage
 {
     private enum ErrorHandling { NONE, TIMEOUT, RETRY }
-    private static final CassandraVersion SUPPORTS_RETRY = new CassandraVersion("5.1.0-SNAPSHOT");
+    private static final CassandraVersion SUPPORTS_RETRY = new CassandraVersion("5.0.0-alpha2.SNAPSHOT");
     private static final Map<Verb, CassandraVersion> VERB_TIMEOUT_VERSIONS;
 
     static
