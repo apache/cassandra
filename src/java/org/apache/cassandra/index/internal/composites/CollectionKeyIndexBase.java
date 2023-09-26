@@ -48,11 +48,11 @@ public abstract class CollectionKeyIndexBase extends CassandraIndex
         super(baseCfs, indexDef);
     }
 
-    public <T> CBuilder buildIndexClusteringPrefix(ByteBuffer partitionKey,
-                                                   ClusteringPrefix<T> prefix,
-                                                   CellPath path)
+    public <T> ClusteringBuilder buildIndexClusteringPrefix(ByteBuffer partitionKey,
+                                                            ClusteringPrefix<T> prefix,
+                                                            CellPath path)
     {
-        CBuilder builder = CBuilder.create(getIndexComparator());
+        ClusteringBuilder builder = ClusteringBuilder.create(getIndexComparator());
         builder.add(partitionKey);
 
         // When indexing a static column, prefix will be empty but only the
@@ -74,7 +74,7 @@ public abstract class CollectionKeyIndexBase extends CassandraIndex
         else
         {
             int count = 1 + baseCfs.metadata().clusteringColumns().size();
-            CBuilder builder = CBuilder.create(baseCfs.getComparator());
+            ClusteringBuilder builder = ClusteringBuilder.create(baseCfs.getComparator());
             for (int i = 0; i < count - 1; i++)
                 builder.add(clustering, i + 1);
             indexedEntryClustering = builder.build();

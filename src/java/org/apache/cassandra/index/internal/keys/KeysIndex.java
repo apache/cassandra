@@ -49,11 +49,11 @@ public class KeysIndex extends CassandraIndex
         return builder;
     }
 
-    protected <T> CBuilder buildIndexClusteringPrefix(ByteBuffer partitionKey,
-                                                      ClusteringPrefix<T> prefix,
-                                                      CellPath path)
+    protected <T> ClusteringBuilder buildIndexClusteringPrefix(ByteBuffer partitionKey,
+                                                               ClusteringPrefix<T> prefix,
+                                                               CellPath path)
     {
-        CBuilder builder = CBuilder.create(getIndexComparator());
+        ClusteringBuilder builder = ClusteringBuilder.create(getIndexComparator());
         builder.add(partitionKey, ByteBufferAccessor.instance);
         return builder;
     }

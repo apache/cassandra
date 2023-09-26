@@ -80,7 +80,7 @@ public class Slice
 
     public static Slice make(ClusteringComparator comparator, Object... values)
     {
-        CBuilder builder = CBuilder.create(comparator);
+        ClusteringBuilder builder = ClusteringBuilder.create(comparator);
         for (Object val : values)
         {
             if (val instanceof ByteBuffer)

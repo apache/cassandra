@@ -254,11 +254,11 @@ public class CustomCassandraIndex implements Index
         }
     }
 
-    protected CBuilder buildIndexClusteringPrefix(ByteBuffer partitionKey,
-                                               ClusteringPrefix<?> prefix,
-                                               CellPath path)
+    protected ClusteringBuilder buildIndexClusteringPrefix(ByteBuffer partitionKey,
+                                                           ClusteringPrefix<?> prefix,
+                                                           CellPath path)
     {
-        CBuilder builder = CBuilder.create(getIndexComparator());
+        ClusteringBuilder builder = ClusteringBuilder.create(getIndexComparator());
         builder.add(partitionKey);
         return builder;
     }

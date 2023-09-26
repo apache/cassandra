@@ -54,11 +54,11 @@ public class CollectionValueIndex extends CassandraIndex
         return cellValue;
     }
 
-    public <T> CBuilder buildIndexClusteringPrefix(ByteBuffer partitionKey,
-                                                   ClusteringPrefix<T> prefix,
-                                                   CellPath path)
+    public <T> ClusteringBuilder buildIndexClusteringPrefix(ByteBuffer partitionKey,
+                                                            ClusteringPrefix<T> prefix,
+                                                            CellPath path)
     {
-        CBuilder builder = CBuilder.create(getIndexComparator());
+        ClusteringBuilder builder = ClusteringBuilder.create(getIndexComparator());
         builder.add(partitionKey);
         for (int i = 0; i < prefix.size(); i++)
             builder.add(prefix.get(i), prefix.accessor());
@@ -81,7 +81,7 @@ public class CollectionValueIndex extends CassandraIndex
             indexedEntryClustering = Clustering.STATIC_CLUSTERING;
         else
         {
-            CBuilder builder = CBuilder.create(baseCfs.getComparator());
+            ClusteringBuilder builder = ClusteringBuilder.create(baseCfs.getComparator());
             for (int i = 0; i < baseCfs.getComparator().size(); i++)
                 builder.add(clustering, i + 1);
             indexedEntryClustering = builder.build();

@@ -102,6 +102,11 @@ public final class SingleColumnRelation extends Relation
         return new SingleColumnRelation(entity, null, Operator.IN, null, inValues);
     }
 
+    public static SingleColumnRelation createNotInRelation(ColumnIdentifier entity, List<Term.Raw> inValues)
+    {
+        return new SingleColumnRelation(entity, null, Operator.NOT_IN, null, inValues);
+    }
+
     public ColumnIdentifier getEntity()
     {
         return entity;
@@ -216,14 +221,33 @@ public final class SingleColumnRelation extends Relation
         if (terms == null)
         {
             Term term = toTerm(receivers, value, table.keyspace, boundNames);
-            return new SingleColumnRestriction.InRestrictionWithMarker(columnDef, (Lists.Marker) term);
+            return new SingleColumnRestriction.INRestriction(columnDef, new MarkerOrTerms.Marker((Lists.Marker) term));
         }
 
         // An IN restrictions with only one element is the same than an EQ restriction
         if (terms.size() == 1)
             return new SingleColumnRestriction.EQRestriction(columnDef, terms.get(0));
 
-        return new SingleColumnRestriction.InRestrictionWithValues(columnDef, terms);
+        return new SingleColumnRestriction.INRestriction(columnDef, new MarkerOrTerms.Terms(terms));
+    }
+
+    @Override
+    protected Restriction newNotINRestriction(TableMetadata table, VariableSpecifications boundNames)
+    {
+        ColumnMetadata columnDef = table.getExistingColumn(entity);
+        List<? extends ColumnSpecification> receivers = toReceivers(columnDef);
+        List<Term> terms = toTerms(receivers, inValues, table.keyspace, boundNames);
+        MarkerOrTerms values;
+        if (terms == null)
+        {
+            Term term = toTerm(receivers, value, table.keyspace, boundNames);
+            values = new MarkerOrTerms.Marker((Lists.Marker) term);
+        }
+        else
+        {
+            values = new MarkerOrTerms.Terms(terms);
+        }
+        return SingleColumnRestriction.SliceRestriction.fromSkippedValues(columnDef, values);
     }
 
     @Override
@@ -243,7 +267,7 @@ public final class SingleColumnRelation extends Relation
         }
 
         Term term = toTerm(toReceivers(columnDef), value, table.keyspace, boundNames);
-        return new SingleColumnRestriction.SliceRestriction(columnDef, bound, inclusive, term);
+        return SingleColumnRestriction.SliceRestriction.fromBound(columnDef, bound, inclusive, term);
     }
 
     @Override

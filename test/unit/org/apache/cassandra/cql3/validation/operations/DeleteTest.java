@@ -28,7 +28,6 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.utils.btree.BTree;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.EMPTY_BYTE_BUFFER;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
@@ -539,6 +538,29 @@ public class DeleteTest extends CQLTester
                    row(0, 2, 2),
                    row(0, 3, 3));
 
+        // test slices:
+        execute("INSERT INTO %s (partitionKey, clustering, value) VALUES (0, 0, 0)");
+        execute("INSERT INTO %s (partitionKey, clustering, value) VALUES (0, 1, 1)");
+        execute("INSERT INTO %s (partitionKey, clustering, value) VALUES (0, 2, 2)");
+        execute("INSERT INTO %s (partitionKey, clustering, value) VALUES (0, 3, 3)");
+        execute("INSERT INTO %s (partitionKey, clustering, value) VALUES (0, 4, 4)");
+        execute("INSERT INTO %s (partitionKey, clustering, value) VALUES (0, 5, 5)");
+        flush(forceFlush);
+
+        execute("DELETE FROM %s WHERE partitionKey = ? AND clustering > ?", 0, 3);
+        flush(forceFlush);
+        assertRows(execute("SELECT * FROM %s WHERE partitionKey = ?", 0),
+                   row(0, 0, 0),
+                   row(0, 1, 1),
+                   row(0, 2, 2),
+                   row(0, 3, 3));
+
+        execute("DELETE FROM %s WHERE partitionKey = ? AND clustering NOT IN (?, ?)", 0, 1, 2);
+        flush(forceFlush);
+        assertRows(execute("SELECT * FROM %s WHERE partitionKey = ?", 0),
+                   row(0, 1, 1),
+                   row(0, 2, 2));
+
         // test invalid queries
 
         // missing primary key element
@@ -573,6 +595,7 @@ public class DeleteTest extends CQLTester
         // Non primary key in the where clause
         assertInvalidMessage("Non PRIMARY KEY columns found in where clause: value",
                              "DELETE FROM %s WHERE partitionKey = ? AND clustering = ? AND value = ?", 0, 1, 3);
+
     }
 
     @Test

@@ -53,7 +53,7 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
 
     public NavigableSet<Clustering<?>> valuesAsClustering(QueryOptions options, QueryState queryState) throws InvalidRequestException
     {
-        MultiCBuilder builder = MultiCBuilder.create(comparator, hasIN());
+        MultiClusteringBuilder builder = MultiClusteringBuilder.create(comparator);
         List<SingleRestriction> restrictions = restrictions();
         for (int i = 0; i < restrictions.size(); i++)
         {
@@ -63,7 +63,7 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
             if (hasIN() && Guardrails.inSelectCartesianProduct.enabled(queryState))
                 Guardrails.inSelectCartesianProduct.guard(builder.buildSize(), "IN Select", false, queryState);
 
-            if (builder.hasMissingElements())
+            if (builder.buildIsEmpty())
                 break;
         }
         return builder.build();
@@ -73,7 +73,7 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
     {
         List<SingleRestriction> restrictionsList = restrictions();
 
-        MultiCBuilder builder = MultiCBuilder.create(comparator, hasIN() || restrictions.hasMultiColumnSlice());
+        MultiClusteringBuilder builder = MultiClusteringBuilder.create(comparator);
         int keyPosition = 0;
 
         for (int i = 0; i < restrictionsList.size(); i++)
@@ -82,25 +82,20 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
             if (handleInFilter(r, keyPosition))
                 break;
 
-            if (r.isSlice())
-            {
-                r.appendBoundTo(builder, bound, options);
-                return builder.buildBoundForSlice(bound.isStart(),
-                                                  r.isInclusive(bound),
-                                                  r.isInclusive(bound.reverse()),
-                                                  r.getColumnDefs());
-            }
-
             r.appendBoundTo(builder, bound, options);
 
-            if (builder.hasMissingElements())
+            if (builder.buildIsEmpty())
                 return BTreeSet.empty(comparator);
+
+            // We allow slice restriction only on the last clustering column restricted by the query.
+            // Any further column restrictions must be handled by indexes or filtering.
+            if (r.isSlice())
+                break;
 
             keyPosition = r.getLastColumn().position() + 1;
         }
 
-        // Everything was an equal (or there was nothing)
-        return builder.buildBound(bound.isStart(), true);
+        return builder.buildBound(bound.isStart());
     }
 
     /**

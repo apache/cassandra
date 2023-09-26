@@ -148,7 +148,7 @@ public class CounterMutationTest
         assertEquals(-2L, CounterContext.instance().total(row.getCell(c2cfs2)));
 
         // Check the caches, separately
-        CBuilder cb = CBuilder.create(cfsOne.metadata().comparator);
+        ClusteringBuilder cb = ClusteringBuilder.create(cfsOne.metadata().comparator);
         cb.add("cc");
 
         assertEquals(1L, cfsOne.getCachedCounter(Util.dk("key1").getKey(), cb.build(), c1cfs1, null).count);
