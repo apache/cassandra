@@ -724,7 +724,7 @@ memtable_allocation_type: heap_buffers
 # repair_session_space:
 
 # repair:
-#   # Configure the retries for each of the repair messages that support it.
+#   # Configure the retries for each of the repair messages that support it.  As of this moment retries use an exponential algorithm where each attempt sleeps longer based off the base_sleep_time and attempt.
 #   retries:
 #     max_attempts: 10
 #     base_sleep_time: 200ms
