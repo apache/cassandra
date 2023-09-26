@@ -207,7 +207,7 @@ public enum BuiltInAnalyzers
      {
          public Analyzer getNewAnalyzer()
          {
-             return new StandardAnalyzer();
+             return new EnglishAnalyzer();
          }
      },
      ESTONIAN
