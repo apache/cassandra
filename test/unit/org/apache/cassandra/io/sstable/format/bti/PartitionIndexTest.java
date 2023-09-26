@@ -429,7 +429,7 @@ public class PartitionIndexTest
                  PartitionIndexBuilder builder = new PartitionIndexBuilder(writer, fhBuilder)
             )
             {
-                writer.setPostFlushListener(() -> builder.markPartitionIndexSynced(writer.getLastFlushOffset()));
+                writer.setPostFlushListener(builder::markPartitionIndexSynced);
                 for (int i = 0; i < COUNT; i++)
                 {
                     DecoratedKey key = generateRandomLengthKey();
@@ -506,7 +506,7 @@ public class PartitionIndexTest
                     for (i = 0; i < 3; ++i)
                         builder.addEntry(list.get(i), i);
 
-                    writer.setPostFlushListener(() -> builder.markPartitionIndexSynced(writer.getLastFlushOffset()));
+                    writer.setPostFlushListener(builder::markPartitionIndexSynced);
                     AtomicInteger callCount = new AtomicInteger();
 
                     final int addedSize = i;
@@ -669,7 +669,7 @@ public class PartitionIndexTest
                  PartitionIndexBuilder builder = new PartitionIndexBuilder(writer, fhBuilder)
             )
             {
-                writer.setPostFlushListener(() -> builder.markPartitionIndexSynced(writer.getLastFlushOffset()));
+                writer.setPostFlushListener(builder::markPartitionIndexSynced);
                 for (int i = 0; i < COUNT; i++)
                 {
                     DecoratedKey key = generateRandomKey();
@@ -708,7 +708,7 @@ public class PartitionIndexTest
              PartitionIndexBuilder builder = new PartitionIndexBuilder(writer, fhBuilder)
         )
         {
-            writer.setPostFlushListener(() -> builder.markPartitionIndexSynced(writer.getLastFlushOffset()));
+            writer.setPostFlushListener(builder::markPartitionIndexSynced);
             for (int i = 0; i < 1000; i++)
             {
                 DecoratedKey key = generateRandomKey();
