@@ -723,11 +723,8 @@ memtable_allocation_type: heap_buffers
 # Min unit: MiB
 # repair_session_space:
 
-# Configure the retries for each of the repair messages that support it.
-#
-# For more details see https://issues.apache.org/jira/browse/CASSANDRA-18816
-#
 # repair:
+#   # Configure the retries for each of the repair messages that support it.
 #   retries:
 #     max_attempts: 10
 #     base_sleep_time: 200ms
