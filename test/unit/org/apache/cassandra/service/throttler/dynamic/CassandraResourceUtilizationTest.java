@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.throttler.dynamic;
 
+import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.junit.Assert;
 import org.junit.Before;
@@ -27,9 +28,9 @@ import org.junit.Test;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.metrics.KeyspaceMetrics;
+import org.apache.cassandra.service.RateLimiterService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.throttler.dynamic.metrics.KeyspaceThrottlingMetrics;
-import org.apache.cassandra.service.throttler.dynamic.metrics.ThrottlingMetrics;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.marshal.IntegerType;
@@ -41,8 +42,8 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.throttler.dynamic.metrics.KeyspaceThrottlingMetricsManager;
 
-import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
 public class CassandraResourceUtilizationTest extends CQLTester
 {
@@ -70,6 +71,7 @@ public class CassandraResourceUtilizationTest extends CQLTester
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE_THROTTLE, KeyspaceParams.simple(1), cfm);
         cfm = Schema.instance.getTableMetadata(KEYSPACE_THROTTLE, TABLE);
+        CassandraResourceUtilization.instance.throttlingOptions.setEnabled(true);
     }
 
     @Test
@@ -135,7 +137,7 @@ public class CassandraResourceUtilizationTest extends CQLTester
     @Test
     public void testNoThrottling()
     {
-        CassandraResourceUtilization cassandraResourceUtilization = new CassandraResourceUtilization();
+        CassandraResourceUtilization cassandraResourceUtilization = CassandraResourceUtilization.instance;
         Assert.assertFalse(cassandraResourceUtilization.shouldThrottle);
         cassandraResourceUtilization.setup(false);
         cassandraResourceUtilization.fetchCurrentHealth();
@@ -150,7 +152,7 @@ public class CassandraResourceUtilizationTest extends CQLTester
     @Test
     public void testNoThrottlingOnlyWithCpuUtil1()
     {
-        CassandraResourceUtilization cassandraResourceUtilization = new CassandraResourceUtilization();
+        CassandraResourceUtilization cassandraResourceUtilization = CassandraResourceUtilization.instance;
         Assert.assertFalse(cassandraResourceUtilization.shouldThrottle);
         cassandraResourceUtilization.setup(false);
         ResourcesStats resourcesStats = cassandraResourceUtilization.resourcesStats;
@@ -167,7 +169,7 @@ public class CassandraResourceUtilizationTest extends CQLTester
     @Test
     public void testNoThrottlingOnlyWithCpuUtil2()
     {
-        CassandraResourceUtilization cassandraResourceUtilization = new CassandraResourceUtilization();
+        CassandraResourceUtilization cassandraResourceUtilization = CassandraResourceUtilization.instance;
         Assert.assertFalse(cassandraResourceUtilization.shouldThrottle);
         cassandraResourceUtilization.setup(false);
         ResourcesStats resourcesStats = cassandraResourceUtilization.resourcesStats;
@@ -184,7 +186,7 @@ public class CassandraResourceUtilizationTest extends CQLTester
     @Test
     public void testNoThrottlingOnlyWithPendingReads()
     {
-        CassandraResourceUtilization cassandraResourceUtilization = new CassandraResourceUtilization();
+        CassandraResourceUtilization cassandraResourceUtilization = CassandraResourceUtilization.instance;
         Assert.assertFalse(cassandraResourceUtilization.shouldThrottle);
         cassandraResourceUtilization.setup(false);
         ResourcesStats resourcesStats = cassandraResourceUtilization.resourcesStats;
@@ -201,7 +203,7 @@ public class CassandraResourceUtilizationTest extends CQLTester
     @Test
     public void testNoThrottlingOnlyWithPendingMutations()
     {
-        CassandraResourceUtilization cassandraResourceUtilization = new CassandraResourceUtilization();
+        CassandraResourceUtilization cassandraResourceUtilization = CassandraResourceUtilization.instance;
         Assert.assertFalse(cassandraResourceUtilization.shouldThrottle);
         cassandraResourceUtilization.setup(false);
         ResourcesStats resourcesStats = cassandraResourceUtilization.resourcesStats;
@@ -218,7 +220,7 @@ public class CassandraResourceUtilizationTest extends CQLTester
     @Test
     public void testYesThrottling()
     {
-        CassandraResourceUtilization cassandraResourceUtilization = new CassandraResourceUtilization();
+        CassandraResourceUtilization cassandraResourceUtilization = CassandraResourceUtilization.instance;
         cassandraResourceUtilization.setup(false);
         Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.needsThrottling.getCount());
 
@@ -241,7 +243,7 @@ public class CassandraResourceUtilizationTest extends CQLTester
     @Test
     public void testResetThrottlingNoop()
     {
-        CassandraResourceUtilization cassandraResourceUtilization = new CassandraResourceUtilization();
+        CassandraResourceUtilization cassandraResourceUtilization = CassandraResourceUtilization.instance;
         cassandraResourceUtilization.setup(false);
         Assert.assertEquals(0, cassandraResourceUtilization.lastThrottlingCheckPointTimeInMS);
         Assert.assertEquals(0, cassandraResourceUtilization.lastThrottlingIndicatorTimeInMS);
@@ -268,7 +270,7 @@ public class CassandraResourceUtilizationTest extends CQLTester
     @Test
     public void testResetThrottlingTrackOldThrottlingIndicatorTime()
     {
-        CassandraResourceUtilization cassandraResourceUtilization = new CassandraResourceUtilization();
+        CassandraResourceUtilization cassandraResourceUtilization = CassandraResourceUtilization.instance;
         cassandraResourceUtilization.setup(false);
         Assert.assertEquals(0, cassandraResourceUtilization.lastThrottlingCheckPointTimeInMS);
         Assert.assertEquals(0, cassandraResourceUtilization.lastThrottlingIndicatorTimeInMS);
@@ -298,7 +300,7 @@ public class CassandraResourceUtilizationTest extends CQLTester
     @Test
     public void testResetThrottlingDoubleThrottlingAndThenReset()
     {
-        CassandraResourceUtilization cassandraResourceUtilization = new CassandraResourceUtilization();
+        CassandraResourceUtilization cassandraResourceUtilization = CassandraResourceUtilization.instance;
         cassandraResourceUtilization.setup(false);
         Assert.assertEquals(0, cassandraResourceUtilization.lastThrottlingIndicatorTimeInMS);
         Assert.assertEquals(0.1, cassandraResourceUtilization.currentThrottlingPercentage, 0.0);
@@ -346,7 +348,7 @@ public class CassandraResourceUtilizationTest extends CQLTester
     @Test
     public void testValidateCpuThrottlingCalculation()
     {
-        CassandraResourceUtilization cassandraResourceUtilization = new CassandraResourceUtilization();
+        CassandraResourceUtilization cassandraResourceUtilization = CassandraResourceUtilization.instance;
         cassandraResourceUtilization.setup(false);
         Assert.assertEquals(0, cassandraResourceUtilization.lastThrottlingCheckPointTimeInMS);
         Assert.assertEquals(0, cassandraResourceUtilization.lastThrottlingIndicatorTimeInMS);
@@ -354,7 +356,6 @@ public class CassandraResourceUtilizationTest extends CQLTester
         Assert.assertEquals(0, cassandraResourceUtilization.readAggressiveThorttlingKeyspaces.size());
         Assert.assertFalse(cassandraResourceUtilization.shouldThrottle);
 
-        NativeResourceUtilization nativeResourceUtilization = (NativeResourceUtilization) cassandraResourceUtilization.resourceUtilzation;
         cassandraResourceUtilization.fetchCurrentHealth();
 
         Assert.assertEquals(0, cassandraResourceUtilization.lastThrottlingCheckPointTimeInMS);
@@ -374,7 +375,7 @@ public class CassandraResourceUtilizationTest extends CQLTester
     @Test
     public void testSkipSystemKS()
     {
-        CassandraResourceUtilization cassandraResourceUtilization = new CassandraResourceUtilization();
+        CassandraResourceUtilization cassandraResourceUtilization = CassandraResourceUtilization.instance;
         cassandraResourceUtilization.setup(false);
 
         KeyspaceThrottlingMetrics systemAuthMetrics = KeyspaceThrottlingMetricsManager.getMetrics("system_auth");
@@ -396,9 +397,9 @@ public class CassandraResourceUtilizationTest extends CQLTester
     @Test
     public void testSkipUserKeyspace()
     {
-        CassandraResourceUtilization cassandraResourceUtilization = new CassandraResourceUtilization();
+        CassandraResourceUtilization cassandraResourceUtilization = CassandraResourceUtilization.instance;
         cassandraResourceUtilization.setup(false);
-        cassandraResourceUtilization.throttlingOptions.setIgnoreKeyspaces(KEYSPACE_THROTTLE);
+        cassandraResourceUtilization.throttlingOptions.setIgnoreKeyspaces("system.*|pingless|"+KEYSPACE_THROTTLE);
         KeyspaceThrottlingMetrics userKSMetrics = KeyspaceThrottlingMetricsManager.getMetrics(KEYSPACE_THROTTLE);
         Assert.assertEquals(0, userKSMetrics.skipKSThrottling.getCount());
         Assert.assertFalse(cassandraResourceUtilization.throttleUserTraffic(KEYSPACE_THROTTLE, true));
@@ -408,7 +409,7 @@ public class CassandraResourceUtilizationTest extends CQLTester
     @Test
     public void testThrottleUserTraffic()
     {
-        CassandraResourceUtilization cassandraResourceUtilization = new CassandraResourceUtilization();
+        CassandraResourceUtilization cassandraResourceUtilization = CassandraResourceUtilization.instance;
         cassandraResourceUtilization.setup(false);
 
         Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.needsThrottling.getCount());
@@ -514,7 +515,7 @@ public class CassandraResourceUtilizationTest extends CQLTester
     @Test
     public void testNoSpikeInRequestRate()
     {
-        CassandraResourceUtilization cassandraResourceUtilization = new CassandraResourceUtilization();
+        CassandraResourceUtilization cassandraResourceUtilization = CassandraResourceUtilization.instance;
         cassandraResourceUtilization.setup(false);
         KeyspaceMetrics keyspaceMetrics = Keyspace.open(KEYSPACE_THROTTLE).metric;
         KeyspaceThrottlingMetrics ksThrottlingMetrics = KeyspaceThrottlingMetricsManager.getMetrics(KEYSPACE_THROTTLE);
@@ -525,7 +526,7 @@ public class CassandraResourceUtilizationTest extends CQLTester
     @Test
     public void testNoSpikeInLatency()
     {
-        CassandraResourceUtilization cassandraResourceUtilization = new CassandraResourceUtilization();
+        CassandraResourceUtilization cassandraResourceUtilization = CassandraResourceUtilization.instance;
         cassandraResourceUtilization.setup(false);
         KeyspaceMetrics keyspaceMetrics = Keyspace.open(KEYSPACE_THROTTLE).metric;
         KeyspaceThrottlingMetrics ksThrottlingMetrics = KeyspaceThrottlingMetricsManager.getMetrics(KEYSPACE_THROTTLE);
@@ -536,7 +537,7 @@ public class CassandraResourceUtilizationTest extends CQLTester
     @Test
     public void testCassandraIsNotNormal()
     {
-        CassandraResourceUtilization cassandraResourceUtilization = new CassandraResourceUtilization();
+        CassandraResourceUtilization cassandraResourceUtilization = CassandraResourceUtilization.instance;
         Assert.assertFalse(cassandraResourceUtilization.shouldThrottle);
         cassandraResourceUtilization.setup(false);
 
@@ -579,7 +580,7 @@ public class CassandraResourceUtilizationTest extends CQLTester
     public void testHealthThreadpool() throws InterruptedException
     {
         // activate the health check thread pool by setting the init time lower
-        CassandraResourceUtilization lowInitTime = new CassandraResourceUtilization();
+        CassandraResourceUtilization lowInitTime = CassandraResourceUtilization.instance;
         lowInitTime.throttlingOptions.setHealthCheckFreqInSec(1);
         lowInitTime.throttlingOptions.setHealthCheckInitDelayInSec(0);
         lowInitTime.setup(true);
@@ -595,9 +596,11 @@ public class CassandraResourceUtilizationTest extends CQLTester
         Assert.assertEquals(0, lowInitTime.throttlingMetrics.doesNotNeedThrottling.getCount());
 
         // deactivate the health check thread pool by setting the init time pretty high
-        CassandraResourceUtilization highInitTime = new CassandraResourceUtilization();
+        CassandraResourceUtilization highInitTime = CassandraResourceUtilization.instance;
         highInitTime.throttlingOptions.setHealthCheckInitDelayInSec(24 * 3600);
+        highInitTime.reportThread = executorFactory().scheduled(false, "CassandraResourceUtilization", Thread.MAX_PRIORITY);
         highInitTime.setup(true);
+
         Thread.sleep(10000);
         Assert.assertEquals(0, highInitTime.throttlingMetrics.needsThrottling.getCount());
         // this metric is not incremented as the health check thread has not yet commenced
@@ -609,14 +612,14 @@ public class CassandraResourceUtilizationTest extends CQLTester
 
     private ResourcesStats getResourceStats()
     {
-        CassandraResourceUtilization cassandraResourceUtilization = new CassandraResourceUtilization();
+        CassandraResourceUtilization cassandraResourceUtilization = CassandraResourceUtilization.instance;
         cassandraResourceUtilization.setup(false);
         cassandraResourceUtilization.fetchCurrentHealth();
         return cassandraResourceUtilization.resourcesStats;
     }
 
     @Before
-    public void deregisterMetrics()
+    public void resetMetrics()
     {
         // we need to make sure rate limiter is enabled for each unit test method
         ThrottlingOptions options = new ThrottlingOptions();
@@ -624,42 +627,41 @@ public class CassandraResourceUtilizationTest extends CQLTester
         options.setIgnoreKeyspaces("system.*|pingless");
         DatabaseDescriptor.setThrottlingOptions(options);
 
-        Metrics.remove(ThrottlingMetrics.factory.createMetricName("NeedsThrottling"));
-        Metrics.remove(ThrottlingMetrics.factory.createMetricName("DoesNotNeedsThrottling"));
-        Metrics.remove(ThrottlingMetrics.factory.createMetricName("ResetThrottling"));
-        Metrics.remove(ThrottlingMetrics.factory.createMetricName("DoubleThrottling"));
-        Metrics.remove(ThrottlingMetrics.factory.createMetricName("DisableThrottling"));
+        CassandraResourceUtilization cassandraResourceUtilization = CassandraResourceUtilization.instance;
+        cassandraResourceUtilization.throttlingMetrics.needsThrottling.dec(cassandraResourceUtilization.throttlingMetrics.needsThrottling.getCount());
+        cassandraResourceUtilization.throttlingMetrics.doesNotNeedThrottling.dec(cassandraResourceUtilization.throttlingMetrics.doesNotNeedThrottling.getCount());
+        cassandraResourceUtilization.throttlingMetrics.resetThrottling.dec(cassandraResourceUtilization.throttlingMetrics.resetThrottling.getCount());
+        cassandraResourceUtilization.throttlingMetrics.doubleThrottling.dec(cassandraResourceUtilization.throttlingMetrics.doubleThrottling.getCount());
+        cassandraResourceUtilization.throttlingMetrics.disableThrottling.dec(cassandraResourceUtilization.throttlingMetrics.disableThrottling.getCount());
 
-        Metrics.remove(ResourcesStats.factory.createMetricName("CpuUtil1"));
-        Metrics.remove(ResourcesStats.factory.createMetricName("CpuUtil2"));
-        Metrics.remove(ResourcesStats.factory.createMetricName("NRThrottled1"));
-        Metrics.remove(ResourcesStats.factory.createMetricName("NRThrottled2"));
-        Metrics.remove(ResourcesStats.factory.createMetricName("PendingReads"));
-        Metrics.remove(ResourcesStats.factory.createMetricName("PendingMutations"));
-        Metrics.remove(ResourcesStats.factory.createMetricName("CpuUtil1Current"));
-        Metrics.remove(ResourcesStats.factory.createMetricName("CpuUtil2Current"));
-        Metrics.remove(ResourcesStats.factory.createMetricName("NRThrottled1Current"));
-        Metrics.remove(ResourcesStats.factory.createMetricName("NRThrottled2Current"));
-        Metrics.remove(ResourcesStats.factory.createMetricName("PendingReadsCurrent"));
-        Metrics.remove(ResourcesStats.factory.createMetricName("PendingMutationsCurrent"));
+        cassandraResourceUtilization.resetThrottlingParams();
+
+        cassandraResourceUtilization.throttlingMetrics.needsThrottling.dec(cassandraResourceUtilization.throttlingMetrics.needsThrottling.getCount());
+        cassandraResourceUtilization.throttlingMetrics.doesNotNeedThrottling.dec(cassandraResourceUtilization.throttlingMetrics.doesNotNeedThrottling.getCount());
+        cassandraResourceUtilization.throttlingMetrics.resetThrottling.dec(cassandraResourceUtilization.throttlingMetrics.resetThrottling.getCount());
+        cassandraResourceUtilization.throttlingMetrics.doubleThrottling.dec(cassandraResourceUtilization.throttlingMetrics.doubleThrottling.getCount());
+        cassandraResourceUtilization.throttlingMetrics.disableThrottling.dec(cassandraResourceUtilization.throttlingMetrics.disableThrottling.getCount());
+
+        RateLimiterService.instance.setThrottlingOptions(DatabaseDescriptor.getThrottlingOptions());
+        cassandraResourceUtilization.throttlingOptions = RateLimiterService.instance.getThrottlingOptions();
+        cassandraResourceUtilization.currentThrottlingPercentage = cassandraResourceUtilization.throttlingOptions.getPercentageOfTrafficToThrottling();
+
 
         KeyspaceThrottlingMetrics userKSMetrics = KeyspaceThrottlingMetricsManager.getMetrics(KEYSPACE_THROTTLE);
-        Metrics.remove(userKSMetrics.factory.createMetricName("AddKSForReadThrottling"));
-        Metrics.remove(userKSMetrics.factory.createMetricName("AddKSForWriteThrottling"));
-        Metrics.remove(userKSMetrics.factory.createMetricName("SkipKSThrottling"));
-        Metrics.remove(userKSMetrics.factory.createMetricName("ReadRequestsTrendingUpward"));
-        Metrics.remove(userKSMetrics.factory.createMetricName("WriteRequestsTrendingUpward"));
-        Metrics.remove(userKSMetrics.factory.createMetricName("ReadLatencyTrendingUpward"));
-        Metrics.remove(userKSMetrics.factory.createMetricName("WriteLatencyTrendingUpward"));
-        Metrics.remove(userKSMetrics.factory.createMetricName("MinReadThrottling"));
-        Metrics.remove(userKSMetrics.factory.createMetricName("MinWriteThrottling"));
-        Metrics.remove(userKSMetrics.factory.createMetricName("MaxReadThrottling"));
-        Metrics.remove(userKSMetrics.factory.createMetricName("MaxWriteThrottling"));
-        Metrics.remove(userKSMetrics.factory.createMetricName("NoReadThrottling"));
-        Metrics.remove(userKSMetrics.factory.createMetricName("NoWriteThrottling"));
-        Metrics.remove(userKSMetrics.factory.createMetricName("AggressiveThrottling"));
-
-        KeyspaceThrottlingMetricsManager.throttlingMetrics.clear();
+        userKSMetrics.addKSForReadThrottling.dec(userKSMetrics.addKSForReadThrottling.getCount());
+        userKSMetrics.addKSForWriteThrottling.dec(userKSMetrics.addKSForWriteThrottling.getCount());
+        userKSMetrics.skipKSThrottling.dec(userKSMetrics.skipKSThrottling.getCount());
+        userKSMetrics.readRequestsTrendingUpward.dec(userKSMetrics.readRequestsTrendingUpward.getCount());
+        userKSMetrics.writeRequestsTrendingUpward.dec(userKSMetrics.writeRequestsTrendingUpward.getCount());
+        userKSMetrics.readLatencyTrendingUpward.dec(userKSMetrics.readLatencyTrendingUpward.getCount());
+        userKSMetrics.writeLatencyTrendingUpward.dec(userKSMetrics.writeLatencyTrendingUpward.getCount());
+        userKSMetrics.minReadThrottling.dec(userKSMetrics.minReadThrottling.getCount());
+        userKSMetrics.minWriteThrottling.dec(userKSMetrics.minWriteThrottling.getCount());
+        userKSMetrics.maxReadThrottling.dec(userKSMetrics.maxReadThrottling.getCount());
+        userKSMetrics.maxWriteThrottling.dec(userKSMetrics.maxWriteThrottling.getCount());
+        userKSMetrics.noReadThrottling.dec(userKSMetrics.noReadThrottling.getCount());
+        userKSMetrics.noWriteThrottling.dec(userKSMetrics.noWriteThrottling.getCount());
+        userKSMetrics.aggressiveThrottling.dec(userKSMetrics.aggressiveThrottling.getCount());
     }
 
     // we need to make sure rate limiter is disabled for the one-node-cluster test

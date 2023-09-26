@@ -85,7 +85,7 @@ public class ResourcesStats
 
     public long getCpuUtil1Cur()
     {
-        return this.cpuUtil1Gauge.getValue();
+        return cpuUtil1CurVal;
     }
 
     public long getCpuUtil1OneMinute()
@@ -111,7 +111,7 @@ public class ResourcesStats
 
     public long getCpuUtil2Cur()
     {
-        return this.cpuUtil2Gauge.getValue();
+        return cpuUtil2CurVal;
     }
 
     public long getCpuUtil2OneMinute()
@@ -137,7 +137,7 @@ public class ResourcesStats
 
     public int getPendingReadsCur()
     {
-        return this.pendingReadsGauge.getValue();
+        return pendingReadsCurVal;
     }
 
     public long getPendingReadsOneMinute()
@@ -163,7 +163,7 @@ public class ResourcesStats
 
     public int getPendingMutationsCur()
     {
-        return this.pendingMutationsGauge.getValue();
+        return pendingMutationsCurVal;
     }
 
     public long getPendingMutationsOneMinute()

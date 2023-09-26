@@ -52,20 +52,17 @@ public class CassandraResourceUtilization
     private static final Logger logger = LoggerFactory.getLogger(CassandraResourceUtilization.class);
     private static final DecimalFormat df = new DecimalFormat("0");
     private static final String THROW_MESSAGE = "from dynamic throttler";
-    public final ScheduledExecutorPlus reportThread = executorFactory().scheduled(false, "CassandraResourceUtilization", Thread.MAX_PRIORITY);
-
     // TODO: make this configurable
-    public final IResourceUtilzation resourceUtilzation = new NativeResourceUtilization();
-
+    private final IResourceUtilzation resourceUtilzation = new NativeResourceUtilization();
     private static final String READ_THREAD_POOL = "ReadStage";
     private static final String MUTATION_THREAD_POOL = "MutationStage";
     private static double MAX_THROTTLING = 1.0;
 
     public volatile double currentThrottlingPercentage;
-
+    public ScheduledExecutorPlus reportThread = executorFactory().scheduled(false, "CassandraResourceUtilization", Thread.MAX_PRIORITY);
     public ResourcesStats resourcesStats;
-    public ThrottlingOptions throttlingOptions;
     public ThrottlingMetrics throttlingMetrics;
+    public ThrottlingOptions throttlingOptions;
     public long lastThrottlingCheckPointTimeInMS = 0;
     public long lastThrottlingIndicatorTimeInMS = 0;
     public Map<String, Boolean> readAggressiveThorttlingKeyspaces = new ConcurrentHashMap<>();
@@ -74,19 +71,17 @@ public class CassandraResourceUtilization
 
     public static CassandraResourceUtilization instance = new CassandraResourceUtilization();
 
-    // TODO: Eventually this method shall be private to achieve the singleton pattern. For now make it public
-    //  to allow eastier test writting.
-    public CassandraResourceUtilization()
+    private CassandraResourceUtilization()
     {
         RateLimiterService.instance.setThrottlingOptions(DatabaseDescriptor.getThrottlingOptions());
         throttlingOptions = RateLimiterService.instance.getThrottlingOptions();
         throttlingMetrics = new ThrottlingMetrics();
         currentThrottlingPercentage = throttlingOptions.getPercentageOfTrafficToThrottling();
+        resourcesStats = new ResourcesStats();
     }
 
     public void setup(boolean continuousHealthCheck)
     {
-        resourcesStats = new ResourcesStats();
         resourceUtilzation.setup();
         if (continuousHealthCheck)
         {
@@ -165,7 +160,7 @@ public class CassandraResourceUtilization
         }
     }
 
-    private void resetThrottlingParams()
+    public void resetThrottlingParams()
     {
         logger.info("Reset everything....");
         throttlingMetrics.resetThrottling.inc();
