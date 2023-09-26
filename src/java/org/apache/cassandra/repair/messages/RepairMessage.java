@@ -228,8 +228,7 @@ public abstract class RepairMessage
         if (remoteVersion.compareTo(SUPPORTS_RETRY) >= 0)
             return ErrorHandling.RETRY;
         CassandraVersion timeoutVersion = VERB_TIMEOUT_VERSIONS.get(verb);
-        if (timeoutVersion == null ||
-            remoteVersion.compareTo(timeoutVersion) >= 0)
+        if (timeoutVersion == null || remoteVersion.compareTo(timeoutVersion) >= 0)
             return ErrorHandling.TIMEOUT;
         return ErrorHandling.NONE;
     }
