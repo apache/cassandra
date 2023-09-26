@@ -67,7 +67,7 @@ import java.util.function.IntUnaryOperator;
 @Measurement(iterations = 4, time = 5)
 @Threads(4)
 @BenchmarkMode(Mode.AverageTime)
-public class FramingBenchmark
+public class FramingBench
 {
     static
     {
@@ -76,7 +76,7 @@ public class FramingBenchmark
         DatabaseDescriptor.daemonInitialization(() -> config);
     }
 
-    public static IntUnaryOperator payloadLowerBound = size -> (int) (size * 0.9f);
+    public static IntUnaryOperator payloadLowerBound = size -> (int) (size * 0.95f);
 
     @State(Scope.Thread)
     public static class EncoderState
@@ -103,9 +103,9 @@ public class FramingBenchmark
         public void teardown()
         {
             if (encoder instanceof FrameEncoderLZ4)
-                return;
-
-            release(buffer);
+                refs.forEach(FramingBench::release);
+            else
+                release(buffer);
         }
     }
 
@@ -150,7 +150,7 @@ public class FramingBenchmark
         @TearDown(Level.Invocation)
         public void teardown()
         {
-            encodedBytes.release();
+            release(encodedBytes);
         }
     }
 
@@ -227,7 +227,7 @@ public class FramingBenchmark
     public static void main(String[] args) throws Exception
     {
         Options opt = new OptionsBuilder()
-                .include(FramingBenchmark.class.getSimpleName())
+                .include(FramingBench.class.getSimpleName())
                 .build();
         new Runner(opt).run();
     }
