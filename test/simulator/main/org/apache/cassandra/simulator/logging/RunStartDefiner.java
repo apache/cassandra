@@ -18,7 +18,8 @@
 
 package org.apache.cassandra.simulator.logging;
 
-import accord.utils.Invariants;
+import java.util.concurrent.TimeUnit;
+
 import ch.qos.logback.core.PropertyDefinerBase;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 
@@ -26,7 +27,8 @@ public class RunStartDefiner extends PropertyDefinerBase
 {
     static
     {
-        Invariants.checkState(CassandraRelevantProperties.SIMULATOR_STARTED.getString() != null);
+        if (CassandraRelevantProperties.SIMULATOR_STARTED.getString() == null)
+            CassandraRelevantProperties.SIMULATOR_STARTED.setString(Long.toString(TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis())));
     }
 
     @Override

@@ -23,7 +23,6 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 
 public class SeedDefiner extends PropertyDefinerBase
 {
-
     public static void setSeed(long seed)
     {
         CassandraRelevantProperties.SIMULATOR_SEED.setString("0x" + Long.toHexString(seed));
