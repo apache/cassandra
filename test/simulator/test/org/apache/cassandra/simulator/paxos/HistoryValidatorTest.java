@@ -30,6 +30,7 @@ import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.junit.Assume;
 import org.junit.FixMethodOrder;
 import org.junit.Test;
@@ -43,7 +44,6 @@ import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntIntHashMap;
 import com.carrotsearch.hppc.IntIntMap;
 import com.carrotsearch.hppc.IntSet;
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import com.carrotsearch.hppc.cursors.IntCursor;
 import org.apache.cassandra.distributed.api.QueryResults;
 import org.apache.cassandra.utils.Clock;
