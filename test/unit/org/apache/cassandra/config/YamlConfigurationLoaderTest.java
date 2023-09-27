@@ -508,7 +508,7 @@ public class YamlConfigurationLoaderTest
         ImmutableMap.Builder<String, Object> builder = ImmutableMap.builder();
         for (int i = 0; i < values.length; i += 2)
             builder.put((String) values[i], values[i + 1]);
-        ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+        ObjectMapper mapper = new ObjectMapper(new YAMLFactory()); // checkstyle: permit this instantiation
         try
         {
             byte[] bytes = mapper.writeValueAsBytes(builder.build());
