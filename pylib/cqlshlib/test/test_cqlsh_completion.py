@@ -573,7 +573,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
 
     def test_complete_in_drop_type(self):
         self.trycompletions('DROP TYPE ', choices=['IF', 'system_views.',
-                                                    'tags', 'system_traces.', 'system_distributed.',
+                                                    'tags', 'system_traces.', 'system_distributed.', 'cluster_metadata.',
                                                     'phone_number', 'quote_udt', 'band_info_type', 'address', 'system.', 'system_schema.',
                                                     'system_auth.', 'system_virtual_schema.', self.cqlsh.keyspace + '.'
                                                     ])
@@ -858,7 +858,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions('US', immediate='E ')
         self.trycompletions('USE ', choices=[self.cqlsh.keyspace, 'system', 'system_auth',
                                            'system_distributed', 'system_schema', 'system_traces', 'system_views',
-                                           'system_virtual_schema' ])
+                                           'system_virtual_schema', 'cluster_metadata' ])
 
     def test_complete_in_create_index(self):
         self.trycompletions('CREATE I', immediate='NDEX ')
@@ -955,6 +955,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                                      'system_traces.', 'songs', 'system_views.',
                                                      'system_virtual_schema.',
                                                      'system_schema.', 'system_distributed.',
+                                                     'cluster_metadata.',
                                                      self.cqlsh.keyspace + '.'])
         self.trycompletions('ALTER TABLE IF EXISTS new_table ADD ', choices=['<new_column_name>', 'IF'])
         self.trycompletions('ALTER TABLE IF EXISTS new_table ADD IF NOT EXISTS ', choices=['<new_column_name>'])
@@ -982,7 +983,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions('ALTER TYPE ', choices=['IF', 'system_views.',
                                                     'tags', 'system_traces.', 'system_distributed.',
                                                     'phone_number', 'quote_udt', 'band_info_type', 'address', 'system.', 'system_schema.',
-                                                    'system_auth.', 'system_virtual_schema.', self.cqlsh.keyspace + '.'
+                                                    'system_auth.', 'system_virtual_schema.', 'cluster_metadata.', self.cqlsh.keyspace + '.'
                                                     ])
         self.trycompletions('ALTER TYPE IF EXISTS new_type ADD ', choices=['<new_field_name>', 'IF'])
         self.trycompletions('ALTER TYPE IF EXISTS new_type ADD IF NOT EXISTS ', choices=['<new_field_name>'])
