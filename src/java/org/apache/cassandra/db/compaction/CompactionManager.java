@@ -135,7 +135,7 @@ import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
  * a set via Tracker. New scheduling attempts will ignore currently compacting
  * sstables.
  */
-public class CompactionManager implements CompactionManagerMBean
+public class CompactionManager implements CompactionManagerMBean, ICompactionManager
 {
     public static final String MBEAN_OBJECT_NAME = "org.apache.cassandra.db:type=CompactionManager";
     private static final Logger logger = LoggerFactory.getLogger(CompactionManager.class);
@@ -893,7 +893,7 @@ public class CompactionManager implements CompactionManagerMBean
             ActiveRepairService.ParentRepairSession prs;
             try
             {
-                prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
+                prs = ActiveRepairService.instance().getParentRepairSession(sessionID);
             }
             catch (NoSuchRepairSessionException e)
             {
@@ -2193,6 +2193,7 @@ public class CompactionManager implements CompactionManagerMBean
         return metrics.totalCompactionsCompleted.getCount();
     }
 
+    @Override
     public int getPendingTasks()
     {
         return metrics.pendingTasks.getValue();

@@ -21,9 +21,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Objects;
 import java.util.UUID;
-
-import com.google.common.base.Objects;
 
 import org.apache.commons.lang3.ArrayUtils;
 
@@ -96,11 +95,11 @@ public class RepairJobDesc
 
         RepairJobDesc that = (RepairJobDesc) o;
 
-        if (!columnFamily.equals(that.columnFamily)) return false;
-        if (!keyspace.equals(that.keyspace)) return false;
-        if (ranges != null ? that.ranges == null || (ranges.size() != that.ranges.size()) || (ranges.size() == that.ranges.size() && !ranges.containsAll(that.ranges)) : that.ranges != null) return false;
+        if (!Objects.equals(parentSessionId, that.parentSessionId)) return false;
         if (!sessionId.equals(that.sessionId)) return false;
-        if (parentSessionId != null ? !parentSessionId.equals(that.parentSessionId) : that.parentSessionId != null) return false;
+        if (!keyspace.equals(that.keyspace)) return false;
+        if (!columnFamily.equals(that.columnFamily)) return false;
+        if (ranges != null ? that.ranges == null || (ranges.size() != that.ranges.size()) || (ranges.size() == that.ranges.size() && !ranges.containsAll(that.ranges)) : that.ranges != null) return false;
 
         return true;
     }
@@ -108,7 +107,7 @@ public class RepairJobDesc
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(sessionId, keyspace, columnFamily, ranges);
+        return Objects.hash(parentSessionId, sessionId, keyspace, columnFamily, ranges);
     }
 
     private static class RepairJobDescSerializer implements IVersionedSerializer<RepairJobDesc>

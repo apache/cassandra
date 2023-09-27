@@ -1332,14 +1332,14 @@ public class ReadCommandTest
             // check for sessions which have exceeded timeout and been purged
             Range<Token> range = new Range<>(cfs.metadata().partitioner.getMinimumToken(),
                                              cfs.metadata().partitioner.getRandomToken());
-            ActiveRepairService.instance.registerParentRepairSession(pendingSession,
-                                                                     REPAIR_COORDINATOR,
-                                                                     Lists.newArrayList(cfs),
-                                                                     Sets.newHashSet(range),
-                                                                     true,
-                                                                     repairedAt,
-                                                                     true,
-                                                                     PreviewKind.NONE);
+            ActiveRepairService.instance().registerParentRepairSession(pendingSession,
+                                                                       REPAIR_COORDINATOR,
+                                                                       Lists.newArrayList(cfs),
+                                                                       Sets.newHashSet(range),
+                                                                       true,
+                                                                       repairedAt,
+                                                                       true,
+                                                                       PreviewKind.NONE);
 
             LocalSessionAccessor.prepareUnsafe(pendingSession, null, Sets.newHashSet(REPAIR_COORDINATOR));
         }

@@ -76,7 +76,7 @@ public abstract class AbstractPendingAntiCompactionTest
     {
         SchemaLoader.prepareServer();
         local = InetAddressAndPort.getByName("127.0.0.1");
-        ActiveRepairService.instance.consistent.local.start();
+        ActiveRepairService.instance().consistent.local.start();
     }
 
     @Before

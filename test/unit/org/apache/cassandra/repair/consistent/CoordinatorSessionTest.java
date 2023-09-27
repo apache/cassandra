@@ -34,6 +34,7 @@ import com.google.common.collect.Sets;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -63,7 +64,7 @@ public class CoordinatorSessionTest extends AbstractRepairTest
 
     static CoordinatorSession.Builder createBuilder()
     {
-        CoordinatorSession.Builder builder = CoordinatorSession.builder();
+        CoordinatorSession.Builder builder = CoordinatorSession.builder(SharedContext.Global.instance);
         builder.withState(PREPARING);
         builder.withSessionID(nextTimeUUID());
         builder.withCoordinator(COORDINATOR);

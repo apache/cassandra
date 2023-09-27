@@ -179,7 +179,7 @@ import org.apache.cassandra.metrics.StorageMetrics;
 import org.apache.cassandra.net.AsyncOneResponse;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.repair.RepairRunnable;
+import org.apache.cassandra.repair.RepairCoordinator;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.CompactionParams.TombstoneOption;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -361,8 +361,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public RangesAtEndpoint getLocalReplicas(String keyspaceName)
     {
-        return Keyspace.open(keyspaceName).getReplicationStrategy()
-                .getAddressReplicas(FBUtilities.getBroadcastAddressAndPort());
+        return getReplicas(keyspaceName, FBUtilities.getBroadcastAddressAndPort());
+    }
+
+    public RangesAtEndpoint getReplicas(String keyspaceName, InetAddressAndPort endpoint)
+    {
+        return Keyspace.open(keyspaceName).getReplicationStrategy().getAddressReplicas(endpoint);
     }
 
     public List<Range<Token>> getLocalRanges(String ks)
@@ -4593,7 +4597,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * @param cfNames CFs
      * @throws java.lang.IllegalArgumentException when given CF name does not exist
      */
-    public Iterable<ColumnFamilyStore> getValidColumnFamilies(boolean allowIndexes, boolean autoAddIndexes, String keyspaceName, String... cfNames) throws IOException
+    public Iterable<ColumnFamilyStore> getValidColumnFamilies(boolean allowIndexes, boolean autoAddIndexes, String keyspaceName, String... cfNames)
     {
         Keyspace keyspace = getValidKeyspace(keyspaceName);
         return keyspace.getValidColumnFamilies(allowIndexes, autoAddIndexes, cfNames);
@@ -4714,7 +4718,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         if (!options.getDataCenters().isEmpty() && !options.getDataCenters().contains(DatabaseDescriptor.getLocalDataCenter()))
         {
-            throw new IllegalArgumentException("the local data center must be part of the repair");
+            throw new IllegalArgumentException("the local data center must be part of the repair; requested " + options.getDataCenters() + " but DC is " + DatabaseDescriptor.getLocalDataCenter());
         }
         Set<String> existingDatacenters = tokenMetadata.cloneOnlyTokenMap().getTopology().getDatacenterEndpoints().keys().elementSet();
         List<String> datacenters = new ArrayList<>(options.getDataCenters());
@@ -4724,7 +4728,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             throw new IllegalArgumentException("data center(s) " + datacenters.toString() + " not found");
         }
 
-        RepairRunnable task = new RepairRunnable(this, cmd, options, keyspace);
+        RepairCoordinator task = new RepairCoordinator(this, cmd, options, keyspace);
         task.addProgressListener(progressSupport);
         for (ProgressListener listener : listeners)
             task.addProgressListener(listener);
@@ -4807,7 +4811,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 continue;
 
             List<Range<Token>> ranges = getLocalAndPendingRanges(ksName);
-            futures.add(ActiveRepairService.instance.repairPaxosForTopologyChange(ksName, ranges, reason));
+            futures.add(ActiveRepairService.instance().repairPaxosForTopologyChange(ksName, ranges, reason));
         }
 
         return FutureCombiner.allOf(futures);
@@ -4827,13 +4831,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void forceTerminateAllRepairSessions()
     {
-        ActiveRepairService.instance.terminateSessions();
+        ActiveRepairService.instance().terminateSessions();
     }
 
     @Nullable
     public List<String> getParentRepairStatus(int cmd)
     {
-        Pair<ParentRepairStatus, List<String>> pair = ActiveRepairService.instance.getRepairStatus(cmd);
+        Pair<ParentRepairStatus, List<String>> pair = ActiveRepairService.instance().getRepairStatus(cmd);
         return pair == null ? null :
                ImmutableList.<String>builder().add(pair.left.name()).addAll(pair.right).build();
     }
@@ -5729,7 +5733,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 shutdownClientServers();
             ScheduledExecutors.optionalTasks.shutdown();
             Gossiper.instance.stop();
-            ActiveRepairService.instance.stop();
+            ActiveRepairService.instance().stop();
 
             if (!isFinalShutdown)
                 setMode(Mode.DRAINING, "shutting down MessageService", false);

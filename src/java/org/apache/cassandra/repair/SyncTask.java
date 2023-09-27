@@ -37,13 +37,14 @@ import org.apache.cassandra.repair.messages.SyncRequest;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.tracing.Tracing;
 
-import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.net.Verb.SYNC_REQ;
+import static org.apache.cassandra.repair.messages.RepairMessage.notDone;
 
 public abstract class SyncTask extends AsyncFuture<SyncStat> implements Runnable
 {
     private static final Logger logger = LoggerFactory.getLogger(SyncTask.class);
 
+    protected final SharedContext ctx;
     protected final RepairJobDesc desc;
     @VisibleForTesting
     public final List<Range<Token>> rangesToSync;
@@ -53,9 +54,10 @@ public abstract class SyncTask extends AsyncFuture<SyncStat> implements Runnable
     protected volatile long startTime = Long.MIN_VALUE;
     protected final SyncStat stat;
 
-    protected SyncTask(RepairJobDesc desc, InetAddressAndPort primaryEndpoint, InetAddressAndPort peer, List<Range<Token>> rangesToSync, PreviewKind previewKind)
+    protected SyncTask(SharedContext ctx, RepairJobDesc desc, InetAddressAndPort primaryEndpoint, InetAddressAndPort peer, List<Range<Token>> rangesToSync, PreviewKind previewKind)
     {
         Preconditions.checkArgument(!peer.equals(primaryEndpoint), "Sending and receiving node are the same: %s", peer);
+        this.ctx = ctx;
         this.desc = desc;
         this.rangesToSync = rangesToSync;
         this.nodePair = new SyncNodePair(primaryEndpoint, peer);
@@ -75,8 +77,7 @@ public abstract class SyncTask extends AsyncFuture<SyncStat> implements Runnable
      */
     public final void run()
     {
-        startTime = currentTimeMillis();
-
+        startTime = ctx.clock().currentTimeMillis();
 
         // choose a repair method based on the significance of the difference
         String format = String.format("%s Endpoints %s and %s %%s for %s", previewKind.logPrefix(desc.sessionId), nodePair.coordinator, nodePair.peer, desc.columnFamily);
@@ -102,14 +103,17 @@ public abstract class SyncTask extends AsyncFuture<SyncStat> implements Runnable
     protected void finished()
     {
         if (startTime != Long.MIN_VALUE)
-            Keyspace.open(desc.keyspace).getColumnFamilyStore(desc.columnFamily).metric.repairSyncTime.update(currentTimeMillis() - startTime, TimeUnit.MILLISECONDS);
+            Keyspace.open(desc.keyspace).getColumnFamilyStore(desc.columnFamily).metric.repairSyncTime.update(ctx.clock().currentTimeMillis() - startTime, TimeUnit.MILLISECONDS);
     }
 
-    public void abort() {}
+    public void abort(Throwable reason)
+    {
+        tryFailure(reason);
+    }
 
     void sendRequest(SyncRequest request, InetAddressAndPort to)
     {
-        RepairMessage.sendMessageWithFailureCB(request,
+        RepairMessage.sendMessageWithFailureCB(ctx, notDone(this), request,
                                                SYNC_REQ,
                                                to,
                                                this::tryFailure);

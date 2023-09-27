@@ -18,6 +18,7 @@
 
 package org.quicktheories.impl;
 
+import java.util.Objects;
 import java.util.Random;
 
 import org.quicktheories.core.DetatchedRandomnessSource;
@@ -34,6 +35,11 @@ public class JavaRandom implements RandomnessSource, DetatchedRandomnessSource
     public JavaRandom(long seed)
     {
         this.random = new Random(seed);
+    }
+
+    public JavaRandom(Random random)
+    {
+        this.random = Objects.requireNonNull(random);
     }
 
     public void setSeed(long seed)

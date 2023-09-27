@@ -22,9 +22,11 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.stream.Collectors;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.CommonRange;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
@@ -44,9 +46,9 @@ public class SessionState extends AbstractState<SessionState.State, TimeUUID>
 
     public final Phase phase = new Phase();
 
-    public SessionState(TimeUUID parentRepairSession, String keyspace, String[] cfnames, CommonRange commonRange)
+    public SessionState(Clock clock, TimeUUID parentRepairSession, String keyspace, String[] cfnames, CommonRange commonRange)
     {
-        super(nextTimeUUID(), State.class);
+        super(clock, nextTimeUUID(), State.class);
         this.parentRepairSession = parentRepairSession;
         this.keyspace = keyspace;
         this.cfnames = cfnames;
@@ -71,6 +73,21 @@ public class SessionState extends AbstractState<SessionState.State, TimeUUID>
     public Set<InetAddressAndPort> getParticipants()
     {
         return commonRange.endpoints;
+    }
+
+    @Override
+    public String status()
+    {
+        State state = getStatus();
+        Result result = getResult();
+        if (result != null)
+            return result.kind.name();
+        else if (state == null)
+            return "init";
+        else if (state == State.JOBS_START)
+            return state.name() + " " + jobs.entrySet().stream().map(e -> e.getKey() + " -> " + e.getValue().status()).collect(Collectors.toList());
+        else
+            return state.name();
     }
 
     public void register(JobState state)

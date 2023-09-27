@@ -674,7 +674,7 @@ public class Keyspace
 
     public Iterable<ColumnFamilyStore> getValidColumnFamilies(boolean allowIndexes,
                                                               boolean autoAddIndexes,
-                                                              String... cfNames) throws IOException
+                                                              String... cfNames)
     {
         Set<ColumnFamilyStore> valid = new HashSet<>();
 

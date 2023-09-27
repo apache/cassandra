@@ -19,16 +19,20 @@
 package org.apache.cassandra.tools;
 
 import java.util.List;
+import java.util.Map;
 
+import com.google.common.collect.ImmutableMap;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
 import com.datastax.driver.core.SimpleStatement;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.io.sstable.format.bti.BtiFormat;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.service.GCInspector;
 import org.apache.cassandra.tools.ToolRunner.ToolResult;
@@ -58,6 +62,8 @@ import static com.google.common.collect.Lists.newArrayList;
  */
 public class JMXCompatabilityTest extends CQLTester
 {
+    private static final Map<String, String> ENV = ImmutableMap.of("JAVA_HOME", CassandraRelevantProperties.JAVA_HOME.getString());
+
     @ClassRule
     public static TemporaryFolder TMP = new TemporaryFolder();
 
@@ -70,6 +76,8 @@ public class JMXCompatabilityTest extends CQLTester
         DatabaseDescriptor.setColumnIndexSizeInKiB(0); // make sure the column index is created
 
         startJMXServer();
+        // as of CASSANDRA-18816 the instance is lazy loaded only once instance() is called, which isn't true from this code path (but is from CassandraDaemon)
+        ActiveRepairService.instance();
     }
 
     private void setupStandardTables() throws Throwable
@@ -88,7 +96,7 @@ public class JMXCompatabilityTest extends CQLTester
         executeNet(ProtocolVersion.CURRENT, new SimpleStatement("SELECT * FROM " + name + " WHERE pk=?", 42));
 
         String script = "tools/bin/jmxtool dump -f yaml --url service:jmx:rmi:///jndi/rmi://" + jmxHost + ":" + jmxPort + "/jmxrmi > " + TMP.getRoot().getAbsolutePath() + "/out.yaml";
-        ToolRunner.invoke("bash", "-c", script).assertOnCleanExit();
+        ToolRunner.invoke(ENV, "bash", "-c", script).assertOnCleanExit();
         CREATED_TABLE = true;
     }
 
@@ -222,7 +230,7 @@ public class JMXCompatabilityTest extends CQLTester
             args.add("--exclude-operation");
             args.add(a);
         });
-        ToolResult result = ToolRunner.invoke(args);
+        ToolResult result = ToolRunner.invoke(ENV, args);
         result.assertOnCleanExit();
         Assertions.assertThat(result.getStdout()).isEmpty();
     }

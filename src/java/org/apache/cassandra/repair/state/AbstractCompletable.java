@@ -24,17 +24,33 @@ import com.google.common.base.Throwables;
 
 import org.apache.cassandra.utils.Clock;
 
-public class AbstractCompletable<I> implements Completable<I>
+public abstract class AbstractCompletable<I> implements Completable<I>
 {
-    private final long creationTimeMillis = Clock.Global.currentTimeMillis(); // used to convert from nanos to millis
-    private final long creationTimeNanos = Clock.Global.nanoTime();
+    public enum Status { INIT, ACCEPTED, COMPLETED }
+
+    private final long creationTimeMillis; // used to convert from nanos to millis
+    private final long creationTimeNanos;
+    protected final Clock clock;
     private final AtomicReference<Result> result = new AtomicReference<>(null);
     public final I id;
     protected volatile long lastUpdatedAtNs;
 
-    public AbstractCompletable(I id)
+    public AbstractCompletable(Clock clock, I id)
     {
+        this.creationTimeMillis = clock.currentTimeMillis();
+        this.creationTimeNanos = clock.nanoTime();
+        this.clock = clock;
         this.id = id;
+    }
+
+    public abstract boolean isAccepted();
+
+    public Status getCompletionStatus()
+    {
+        Result result = getResult();
+        if (result != null)
+            return Status.COMPLETED;
+        return isAccepted() ? Status.ACCEPTED : Status.INIT;
     }
 
     @Override
@@ -75,7 +91,7 @@ public class AbstractCompletable<I> implements Completable<I>
 
     public void updated()
     {
-        lastUpdatedAtNs = Clock.Global.nanoTime();
+        lastUpdatedAtNs = clock.nanoTime();
     }
 
     protected boolean tryResult(Result result)
@@ -83,7 +99,7 @@ public class AbstractCompletable<I> implements Completable<I>
         if (!this.result.compareAndSet(null, result))
             return false;
         onComplete();
-        lastUpdatedAtNs = Clock.Global.nanoTime();
+        lastUpdatedAtNs = clock.nanoTime();
         return true;
     }
 

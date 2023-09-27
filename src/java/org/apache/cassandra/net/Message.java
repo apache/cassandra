@@ -102,7 +102,7 @@ public class Message<T>
         return header.verb;
     }
 
-    boolean isFailureResponse()
+    public boolean isFailureResponse()
     {
         return verb() == Verb.FAILURE_RSP;
     }
@@ -301,6 +301,11 @@ public class Message<T>
         return new Message<>(header.withParam(ParamType.FORWARD_TO, peers), payload);
     }
 
+    public Message<T> withFrom(InetAddressAndPort from)
+    {
+        return new Message<>(header.withFrom(from), payload);
+    }
+
     public Message<T> withFlag(MessageFlag flag)
     {
         return new Message<>(header.withFlag(flag), payload);
@@ -432,6 +437,11 @@ public class Message<T>
             this.createdAtNanos = createdAtNanos;
             this.flags = flags;
             this.params = params;
+        }
+
+        Header withFrom(InetAddressAndPort from)
+        {
+            return new Header(id, verb, from, createdAtNanos, expiresAtNanos, flags, params);
         }
 
         Header withFlag(MessageFlag flag)
