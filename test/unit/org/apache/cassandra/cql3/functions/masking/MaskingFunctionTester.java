@@ -35,6 +35,7 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.ListType;
 import org.apache.cassandra.db.marshal.MapType;
@@ -42,6 +43,7 @@ import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.serializers.SimpleDateSerializer;
@@ -157,6 +159,20 @@ public abstract class MaskingFunctionTester extends CQLTester
         values = new Object[]{ map(), map(1, 10, 2, 20, 3, 30) };
         testMaskingOnAllColumns(MapType.getInstance(Int32Type.instance, Int32Type.instance, false).asCQL3Type(), values);
         testMaskingOnNotKeyColumns(MapType.getInstance(Int32Type.instance, Int32Type.instance, true).asCQL3Type(), values);
+    }
+
+    /**
+     * Tests the native masking function for vectors.
+     */
+    @Test
+    public void testMaskingOnVector() throws Throwable
+    {
+        testMaskingOnAllColumns(VectorType.getInstance(Int32Type.instance, 2).asCQL3Type(),
+                                vector(1, 10), vector(2, 20));
+        testMaskingOnAllColumns(VectorType.getInstance(FloatType.instance, 2).asCQL3Type(),
+                                vector(1.1f, 10.1f), vector(2.2f, 20.2f));
+        testMaskingOnAllColumns(VectorType.getInstance(UTF8Type.instance, 2).asCQL3Type(),
+                                vector("a1", "a2"), vector("b1", "b2"));
     }
 
     /**

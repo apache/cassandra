@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -564,6 +565,21 @@ public interface CQL3Type
             }
             sb.append(']');
             return sb.toString();
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Vector vector = (Vector) o;
+            return Objects.equals(type, vector.type);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(type);
         }
 
         @Override

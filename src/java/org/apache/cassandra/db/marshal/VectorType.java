@@ -20,6 +20,7 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -165,6 +166,11 @@ public final class VectorType<T> extends AbstractType<List<T>>
             offset += Float.BYTES;
         }
         return array;
+    }
+
+    public ByteBuffer decompose(T... values)
+    {
+        return decompose(Arrays.asList(values));
     }
 
     public ByteBuffer decomposeAsFloat(float[] value)
@@ -365,6 +371,13 @@ public final class VectorType<T> extends AbstractType<List<T>>
     private static void rejectNullOrEmptyValue()
     {
         throw new MarshalException("Invalid empty vector value");
+    }
+
+    @Override
+    public ByteBuffer getMaskedValue()
+    {
+        List<ByteBuffer> values = Collections.nCopies(dimension, elementType.getMaskedValue());
+        return serializer.serializeRaw(values, ByteBufferAccessor.instance);
     }
 
     public abstract class VectorSerializer extends TypeSerializer<List<T>>
