@@ -22,19 +22,19 @@ import java.util.concurrent.TimeUnit;
 
 import ch.qos.logback.core.PropertyDefinerBase;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
+
 public class RunStartDefiner extends PropertyDefinerBase
 {
-    private static final String PROPERTY = "cassandra.simulator.started";
-
     static
     {
-        if (System.getProperty(PROPERTY) == null)
-            System.setProperty(PROPERTY, Long.toString(TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis())));
+        if (CassandraRelevantProperties.SIMULATOR_STARTED.getString() == null)
+            CassandraRelevantProperties.SIMULATOR_STARTED.setString(Long.toString(TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis())));
     }
 
     @Override
     public String getPropertyValue()
     {
-        return System.getProperty(PROPERTY);
+        return CassandraRelevantProperties.SIMULATOR_STARTED.getString();
     }
 }
