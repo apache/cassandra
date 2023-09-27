@@ -21,6 +21,7 @@ Merged from 4.0:
 Merged from 3.11:
  * Revert CASSANDRA-18543 (CASSANDRA-18854)
 Merged from 3.0:
+ * Upgrade snappy-java to 1.1.10.4 (CASSANDRA-18878)
  * Add cqlshrc.sample and credentials.sample into Debian package (CASSANDRA-18818)
 
 5.0-alpha1
