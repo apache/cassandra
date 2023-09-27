@@ -15,6 +15,7 @@ Merged from 3.11:
  * Revert CASSANDRA-18543 (CASSANDRA-18854)
  * Fix NPE when using udfContext in UDF after a restart of a node (CASSANDRA-18739)
 Merged from 3.0:
+ * Upgrade snappy-java to 1.1.10.4 (CASSANDRA-18878)
  * Add cqlshrc.sample and credentials.sample into Debian package (CASSANDRA-18818)
  * Refactor validation logic in StorageService.rebuild (CASSANDRA-18803)
  * Make alternation of a user type validate the same way as creation of a user type does (CASSANDRA-18585)
