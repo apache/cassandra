@@ -39,7 +39,6 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.datastax.driver.core.exceptions.InvalidQueryException;
-import org.apache.cassandra.ServerTestUtils;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.marshal.Int32Type;
