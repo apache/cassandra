@@ -74,7 +74,8 @@ public class PostingListRangeIterator extends RangeIterator<PrimaryKey>
      */
     public PostingListRangeIterator(IndexContext indexContext,
                                     PrimaryKeyMap primaryKeyMap,
-                                    IndexSearcherContext searcherContext)
+                                    IndexSearcherContext searcherContext,
+                                    boolean isBruteForce)
     {
         super(searcherContext.minimumKey, searcherContext.maximumKey, searcherContext.count());
 
@@ -83,7 +84,8 @@ public class PostingListRangeIterator extends RangeIterator<PrimaryKey>
         this.postingList = searcherContext.postingList;
         this.searcherContext = searcherContext;
         this.queryContext = this.searcherContext.context;
-        this.scoreStoreProxy = this.queryContext.getScoreStoreProxyForSSTable(primaryKeyMap.getSSTableId());
+        // When brute force is enabled, we don't yet have scores to store
+        this.scoreStoreProxy = isBruteForce ? ScoreStoreProxy.EMPTY : this.queryContext.getScoreStoreProxyForSSTable(primaryKeyMap.getSSTableId());
     }
 
     @Override
