@@ -123,8 +123,12 @@ elif [ "${DTEST_TARGET}" = "dtest-large-novnode" ]; then
     DTEST_ARGS="--only-resource-intensive-tests --force-resource-intensive-tests"
 elif [ "${DTEST_TARGET}" = "dtest-upgrade" ]; then
     DTEST_ARGS="--use-vnodes --num-tokens=${NUM_TOKENS} --execute-upgrade-tests --execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all"
+elif [ "${DTEST_TARGET}" = "dtest-upgrade-novnode" ]; then
+    DTEST_ARGS="--execute-upgrade-tests --execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all"
 elif [ "${DTEST_TARGET}" = "dtest-upgrade-large" ]; then
     DTEST_ARGS="--use-vnodes --num-tokens=${NUM_TOKENS} --execute-upgrade-tests --execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all --only-resource-intensive-tests --force-resource-intensive-tests"
+elif [ "${DTEST_TARGET}" = "dtest-upgrade-novnode-large" ]; then
+    DTEST_ARGS="--execute-upgrade-tests --execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all --only-resource-intensive-tests --force-resource-intensive-tests"
 else
     echo "Unknown dtest target: ${DTEST_TARGET}"
     exit 1
