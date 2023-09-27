@@ -39,6 +39,8 @@ import com.google.common.util.concurrent.ListenableFutureTask;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import io.netty.util.concurrent.FastThreadLocal;
+import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.net.IAsyncCallbackWithFailure;
 import org.apache.cassandra.utils.ExecutorUtils;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.NoSpamLogger;
@@ -134,6 +136,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     /* live member set */
     private final Set<InetAddress> liveEndpoints = new ConcurrentSkipListSet<InetAddress>(inetcomparator);
+
+    /* Inflight echo requests. */
+    private final Set<InetAddress> inflightEcho = new ConcurrentSkipListSet<>(inetcomparator);
 
     /* unreachable member set */
     private final Map<InetAddress, Long> unreachableEndpoints = new ConcurrentHashMap<InetAddress, Long>();
@@ -529,6 +534,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
 
         liveEndpoints.remove(endpoint);
+        inflightEcho.remove(endpoint);
         unreachableEndpoints.remove(endpoint);
         MessagingService.instance().resetVersion(endpoint);
         quarantineEndpoint(endpoint);
@@ -1126,11 +1132,16 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             return;
         }
 
+        if (!inflightEcho.add(addr))
+        {
+            return;
+        }
+
         localState.markDead();
 
         MessageOut<EchoMessage> echoMessage = new MessageOut<EchoMessage>(MessagingService.Verb.ECHO, EchoMessage.instance, EchoMessage.serializer);
         logger.trace("Sending a EchoMessage to {}", addr);
-        IAsyncCallback echoHandler = new IAsyncCallback()
+        IAsyncCallbackWithFailure echoHandler = new IAsyncCallbackWithFailure()
         {
             public boolean isLatencyForSnitch()
             {
@@ -1139,11 +1150,35 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
             public void response(MessageIn msg)
             {
-                runInGossipStageBlocking(() -> realMarkAlive(addr, localState));
+                runInGossipStageBlocking(() -> {
+                    try
+                    {
+                        realMarkAlive(addr, localState);
+                    }
+                    finally
+                    {
+                        inflightEcho.remove(addr);
+                    }
+                });
+            }
+
+            public void onFailure(InetAddress from, RequestFailureReason failureReason)
+            {
+                if (isEnabled())
+                {
+                    logger.trace("Resending EchoMessage to {}", addr);
+                    MessageOut<EchoMessage> echoMessage = new MessageOut<EchoMessage>(MessagingService.Verb.ECHO, EchoMessage.instance, EchoMessage.serializer);
+                    MessagingService.instance().sendRRWithFailure(echoMessage, addr, this);
+                }
+                else
+                {
+                    logger.trace("Failed EchoMessage to {}, aborting due to disabled gossip", addr);
+                    inflightEcho.remove(addr);
+                 }
             }
         };
 
-        MessagingService.instance().sendRR(echoMessage, addr, echoHandler);
+        MessagingService.instance().sendRRWithFailure(echoMessage, addr, echoHandler);
     }
 
     @VisibleForTesting
@@ -1173,6 +1208,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             logger.trace("marking as down {}", addr);
         localState.markDead();
         liveEndpoints.remove(addr);
+        inflightEcho.remove(addr);
         unreachableEndpoints.put(addr, System.nanoTime());
         logger.info("InetAddress {} is now DOWN", addr);
         for (IEndpointStateChangeSubscriber subscriber : subscribers)
