@@ -1,0 +1,1 @@
+SELECT * FROM comments_vs WHERE commenter ='alex';

@@ -1,0 +1,34 @@
+= Multiple indexes matched with OR
+
+This example uses the following table and indexes:
+
+[source,sql]
+----
+include::cassandra:example$CQL/sai/create-vector-table-cycling.cql[tag=createvstable]
+include::cassandra:example$CQL/sai/index-sai-multiple-index-match-with-and.cql[]
+----
+
+Several indexes are created for the table to demonstrate how to query for matches on more than one column.
+
+Query for a match on either one column or the other:
+
+[tabs]
+====
+Query::
++
+--
+[source, console]
+----
+include::cassandra:example$CQL/sai/index-sai-select-multiple-index-match-with-or.cql[]
+----
+--
+
+Result::
++
+--
+[source,results]
+----
+include::cassandra:example$RESULTS/sai/index-sai-select-multiple-index-match-with-or.result[]
+----
+--
+====

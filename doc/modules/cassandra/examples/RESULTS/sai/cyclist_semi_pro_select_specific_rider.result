@@ -1,0 +1,11 @@
+SOURCE '0_create_keyspace.cql';
+
+// SELECT * FROM cycling.cyclist_semi_pro WHERE lastname = 'Eppinger';
+
+// tag::cyclistSelectSpecificRiderResults[]
+ id | affiliation       | age | country | firstname | lastname | registration
+----+-------------------+-----+---------+-----------+----------+--------------
+ 12 | Chamonix Hauteurs |  24 |     FRA |   Charles | Eppinger |   2018-07-29
+
+(1 rows)
+// end::cyclistSelectSpecificRiderResults[]

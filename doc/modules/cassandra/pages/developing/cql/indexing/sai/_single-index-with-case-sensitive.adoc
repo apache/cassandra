@@ -1,0 +1,60 @@
+= Single index match on a column with options
+
+This example uses the following table and indexes:
+
+[source, sql]
+----
+include::cassandra:example$CQL/sai/create-vector-table-cycling.cql[tag=createvstable]
+include::cassandra:example$CQL/sai/index-sai-case-sensitive.cql[]
+----
+
+== Case-sensitivty
+
+The column `commenter` is not the partition key in this table, so an index is required to query on it.
+If we want to check `commenter` as a case-sensitive value, we can use the `case_sensitive` option set to `true`.
+
+Note that no results are returned if you use an inappropriately case-sensitive value in the query:
+
+[tabs]
+====
+Query::
++
+--
+[source, console]
+----
+include::cassandra:example$CQL/sai/index-sai-select-case-sensitive-bad.cql[]
+----
+--
+
+Result::
++
+--
+[source,results]
+----
+include::cassandra:example$RESULTS/sai/index-sai-select-case-sensitive-bad.result[]
+----
+--
+====
+
+When we switch the case of the cyclist's name to match the case in the index, the query succeeds:
+
+[tabs]
+====
+Query::
++
+--
+[source, console]
+----
+include::cassandra:example$CQL/sai/index-sai-select-case-sensitive-good.cql[]
+----
+--
+
+Result::
++
+--
+[source,results]
+----
+include::cassandra:example$RESULTS/sai/index-sai-select-case-sensitive-good.result[]
+----
+--
+====

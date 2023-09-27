@@ -1,0 +1,70 @@
+= Configure SAI indexes
+:description: Learn which configuration settings may affect SAI indexing performance.
+
+// LLP: *NOT DONE*
+
+Configuring your {product} environment for Storage-Attached Indexing (SAI) requires some important customization of the `cassandra.yaml` file. 
+
+== Increase file cache above the default value
+
+By default, the file cache's xref:cassandra:managing/configuration/cass_yaml_file.adoc#file_cache_size[file_cache_size] value is calculated as 50% of the `MaxDirectMemorySize` setting.
+This default for `file_cache_size` may result in suboptimal performance because Cassandra is not able to take full advantage of available memory.
+
+[TIP]
+====
+File cache is also known as chunk cache.
+====
+
+The `file_cache_size` value can be defined explicitly in `cassandra.yaml`.
+The recommendation is to:
+
+. Increase `--XX:MaxDirectMemorySize`, leaving approximately 15-20% of memory for the OS and other in-memory structures.
+. In `cassandra.yaml`, explicitly set `file_cache_size` to 75% of that value.
+
+In testing, this configuration improves indexing performance across read, write, and mixed read/write scenarios.
+
+== Compaction strategies
+
+Read queries perform better with compaction strategies that produce fewer SSTables.
+
+For most environments that include SAI indexes, using the default `SizeTieredCompactionStrategy` (STCS) is recommended.
+This strategy triggers a minor compaction when there are a number of similar sized SSTables on disk as configured by the table subproperty, `min_threshold`.
+A minor compaction does not involve all the tables in a keyspace.
+For details, see xref:cassandra:managing/operating/compaction/index.adoc[Configuring compaction].
+
+For time series data, an alternative is the `TimeWindowCompactionStrategy` (TWCS).
+TWCS compacts SSTables using a series of time windows.
+While in a time window, TWCS compacts all SSTables flushed from memory into larger SSTables using STCS.
+At the end of the time window, all of these SSTables are compacted into a single SSTable.
+Then the next time window starts and the process repeats.
+The duration of the time window is the only setting required.
+See xref:reference:cql-commands/create-table.adoc#compactSubprop__TWCS[TimeWindowCompactionStrategy].
+For more information about TWCS, see xref:cassandra:managing/operating/compaction/twcs.adoc[Time Window Compaction Strategy].
+
+In general, do not use `LeveledCompactionStrategy` (LCS) unless your index queries restrict the token range, either directly or by providing a restriction on the partition key.
+However, if you decide to use LCS, use the following guidelines:
+
+* The `160` MB default for the `CREATE TABLE` command's `sstable_size_in_mb` option, described in this xref:reference:cql-commands/create-table.adoc#compactSubprop__LCS[topic], may result in suboptimal performance for index queries that do not restrict on token range or partition key.
+* While even higher values may be appropriate, depending on your hardware, DataStax recommends at least doubling the default value of `sstable_size_in_mb`.
+
+Example:
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/create-table-compaction-options.cql[]
+----
+
+After increasing the MB value, observe whether the query performance improves on tables with SAI indexes.
+To observe any performance deltas, per query, look at the `QueryLatency` and `SSTableIndexesHit` data in the Cassandra query metrics.
+
+Using a larger value reserves more disk space, because the SSTables are larger, and the ones destined for replacement will use more space while being compacted.
+However, the larger value results in having fewer SSTables, which lowers query latencies.
+Each SAI index should ultimately consume less space on disk because of better long-term compression with the larger indexes.
+
+If query performance degrades on large (`sstable_max_size` ~2GB) SAI indexed SSTables when the workload is not dominated by reads but is experiencing increased write amplification, consider using Unified Compaction Strategy (UCS).
+
+== About SAI encryption
+
+With SAI indexes, its on-disk components are simply additional SSTable data.
+To protect sensitive user data, including any present in the table's partition key values, SAI will need to encrypt all parts of the index that contain user data,the trie index data for strings and the kd-tree data for numerics.
+By design, SAI does not encrypt non-user data such as postings metadata or SSTable-level offsets and tokens.

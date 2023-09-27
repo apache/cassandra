@@ -1,4 +1,4 @@
-= RDBMS Design
+= RDBMS design
 
 When you set out to build a new data-driven application that will use a
 relational database, you might start by modeling the domain as a set of

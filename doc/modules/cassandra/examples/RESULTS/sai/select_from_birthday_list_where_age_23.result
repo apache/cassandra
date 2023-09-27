@@ -1,0 +1,6 @@
+ cyclist_name     | blist
+------------------+----------------------------------------------------------
+   Claudio HEINEN | {'age': '23', 'bday': '27/07/1992', 'nation': 'GERMANY'}
+ Laurence BOURQUE |  {'age': '23', 'bday': '27/07/1992', 'nation': 'CANADA'}
+
+(2 rows)

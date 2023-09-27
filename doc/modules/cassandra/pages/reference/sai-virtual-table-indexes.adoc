@@ -1,0 +1,329 @@
+= Virtual tables for SAI indexes and SSTables
+:description: Provides details about virtual tables for Storage Attached Indexing (SAI) indexes and SSTables.
+
+Storage Attached Indexing (SAI) provides CQL-based virtual tables that enable you to discover the current state of system metadata for SAI indices and associated SSTables.
+These virtual tables reside in the `system_views` keyspace.
+
+For related information, see the xref:cassandra:developing/indexing/sai/sai-overview.adoc[SAI information].
+
+== system_views.indexes
+
+The `system_views.indexes` virtual table contains stateful information about SAI indexes.
+This view provides information at the column index level, including the index name, number of indexed SSTables, disk usage, and index state.
+From the index state, the data reveals if the index is currently building, and whether the index can be queried.
+
+Use CQL to view the table's description.
+Example:
+
+[source,language-cql]
+----
+DESCRIBE TABLE system_views.indexes;
+----
+
+[source,results]
+----
+/*
+Warning: Table system_views.indexes is a virtual table and cannot be recreated with CQL.
+Structure, for reference:
+VIRTUAL TABLE system_views.indexes (
+    keyspace_name text,
+    index_name text,
+    analyzer text,
+    cell_count bigint,
+    column_name text,
+    indexed_sstable_count int,
+    is_building boolean,
+    is_queryable boolean,
+    is_string boolean,
+    per_column_disk_size bigint,
+    per_table_disk_size bigint,
+    table_name text,
+    PRIMARY KEY (keyspace_name, index_name)
+) WITH CLUSTERING ORDER BY (index_name ASC)
+    AND comment = 'Storage-attached column index metadata';
+*/
+----
+
+To view the current data, submit a query such as:
+
+[source,language-cql]
+----
+SELECT * FROM system_views.indexes;
+----
+
+[source,results]
+----
+ keyspace_name | index_name           | analyzer                                                    | cell_count | column_name  | indexed_sstable_count | is_building | is_queryable | is_string | per_column_disk_size | per_table_disk_size | table_name
+---------------+----------------------+-------------------------------------------------------------+------------+--------------+-----------------------+-------------+--------------+-----------+----------------------+---------------------+------------------
+       cycling |          age_sai_idx |                                              NoOpAnalyzer{} |          0 |          age |                     0 |       False |         True |     False |                    0 |                   0 | cyclist_semi_pro
+       cycling |      country_sai_idx | NonTokenizingAnalyzer{caseSensitive=false, normalized=true} |          0 |      country |                     0 |       False |         True |      True |                    0 |                   0 | cyclist_semi_pro
+       cycling |     lastname_sai_idx | NonTokenizingAnalyzer{caseSensitive=false, normalized=true} |          0 |     lastname |                     0 |       False |         True |      True |                    0 |                   0 | cyclist_semi_pro
+       cycling | registration_sai_idx |                                              NoOpAnalyzer{} |          0 | registration |                     0 |       False |         True |     False |                    0 |                   0 | cyclist_semi_pro
+
+(4 rows)
+----
+
+.system_views.indexes metadata
+[%header, cols="14,10,30"]
+|===
+h| Column name | CQL type | Meaning
+
+| `keyspace_name`
+| `text`
+| The name of the keyspace to which the index belongs.
+
+| `index_name`
+| `text`
+| The name of the index.
+
+| `analyzer`
+| `text`
+| The `toString` representation of the analyzer used by the index.
+
+| `cell_count`
+| `bigint`
+| The number of indexed table cells, or the number of index value-key entries.
+This is the sum of the number of index entries in each SSTable.
+
+| `column_name`
+| `text`
+| The name of the indexed column.
+
+| `indexed_sstable_count`
+| `int`
+| The number of indexed SSTables.
+Note that SSTables without relevant data won't be indexed or counted here.
+
+| `is_building`
+| `boolean`
+| Whether there is a on going build for the index.
+
+| `is_queryable`
+| `boolean`
+| Whether it is possible to query the index.
+It won't be possible if the initial task build hasn't finished yet.
+
+| `is_string`
+| `boolean`
+| Whether the index is for a text field (`ascii`, `text`, or `varchar`).
+
+| `per_column_disk_size`
+| `bigint`
+| The on-disk size of the index components that are exclusive to the column, in bytes.
+
+| `per_table_disk_size`
+| `bigint`
+| The on-disk size of the index components that are shared with other SAI indexes for the same table, in bytes.
+
+| `table_name`
+| `text`
+| The name of the table to which the indexed column belongs.
+|===
+
+== system_views.sstable_indexes
+
+The `system_views.sstable_indexes` virtual table has a row per SAI index and SSTable.
+This view describes individual SSTable indexes, and includes information around disk size, min/max row ID, the min/max ring token, and the write-time version of the index.
+
+Use CQL to view the table's description.
+Example:
+
+[source,language-cql]
+----
+DESCRIBE TABLE system_views.sstable_indexes;
+----
+
+[source,results]
+----
+/*
+Warning: Table system_views.sstable_indexes is a virtual table and cannot be recreated with CQL.
+Structure, for reference:
+VIRTUAL TABLE system_views.sstable_indexes (
+    keyspace_name text,
+    index_name text,
+    sstable_name text,
+    cell_count bigint,
+    column_name text,
+    end_token text,
+    format_version text,
+    max_row_id bigint,
+    min_row_id bigint,
+    per_column_disk_size bigint,
+    per_table_disk_size bigint,
+    start_token text,
+    table_name text,
+    PRIMARY KEY (keyspace_name, index_name, sstable_name)
+) WITH CLUSTERING ORDER BY (index_name ASC, sstable_name ASC)
+    AND comment = 'SSTable index metadata';
+*/
+----
+
+To view the current data, submit a query such as:
+
+[source,language-cql]
+----
+SELECT * FROM system_views.sstable_indexes;
+----
+
+.system_views.sstable_indexes metadata<
+[%header, cols="14,10,30"]
+|===
+h| Column name | CQL type | Meaning
+
+| `keyspace_name`
+| `text`
+| The name of the keyspace to which the index belongs.
+
+| `index_name`
+| `text`
+| The name of the index.
+
+| `sstable_name`
+| `text`
+| The name of the SSTable.
+
+| `cell_count`
+| `bigint`
+| The number of indexed table cells, or the number of index value-key entries.
+
+| `column_name`
+| `text`
+| The name of the indexed column.
+
+| `start_token`
+| `text`
+| The start of the token range covered by the indexed SSTable.
+
+| `end_token`
+| `text`
+| The end of the token range covered by the indexed SSTable.
+
+| `min_row_id`
+| `bigint`
+| The minimum row id in the SSTable index.
+
+| `max_row_id`
+| `bigint`
+| The maximum row id in the SSTable index.
+
+| `per_column_disk_size`
+| `bigint`
+| The on-disk size of the SSTable index components that are exclusive to the column, in bytes.
+
+| `per_table_disk_size`
+| `bigint`
+| The on-disk size of the SSTable index components that are shared with other SAI indexes for the same table, in bytes.
+
+| `table_name`
+| `text`
+| The name of the table to which the indexed column belongs.
+|===
+
+== system_views.sstable_index_segments
+
+The `system_views.sstable_index_segments` virtual table has a row per SAI index and SSTable segment.
+This view describes the segments of the SSTable indexes.
+It exposes the segment row ID offset and most of the information in the SSTable-level virtual table, specifically at a segment granularity.
+
+Use CQL to view the table's description.
+Example:
+
+[source,language-cql]
+----
+DESCRIBE TABLE system_views.sstable_index_segments;
+----
+
+[source,results]
+----
+/*
+Warning: Table system_views.sstable_index_segments is a virtual table and cannot be recreated with CQL.
+Structure, for reference:
+VIRTUAL TABLE system_views.sstable_index_segments (
+    keyspace_name text,
+    index_name text,
+    sstable_name text,
+    segment_row_id_offset bigint,
+    cell_count bigint,
+    column_name text,
+    component_metadata frozen<map<text, map<text, text>>>,
+    end_token text,
+    max_sstable_row_id bigint,
+    max_term text,
+    min_sstable_row_id bigint,
+    min_term text,
+    start_token text,
+    table_name text,
+    PRIMARY KEY (keyspace_name, index_name, sstable_name, segment_row_id_offset)
+) WITH CLUSTERING ORDER BY (index_name ASC, sstable_name ASC, segment_row_id_offset ASC)
+    AND comment = 'SSTable index segment metadata';
+*/
+----
+
+To view the current data, submit a query such as:
+
+[source,language-cql]
+----
+SELECT * FROM system_views.sstable_index_segments;
+----
+
+.system_views.sstable_index_segments metadata
+[%header, cols="10,11,17"]
+|===
+h| Column name | CQL type | Meaning
+
+| `keyspace_name`
+| `text`
+| The name of the keyspace to which the index belongs.
+
+| `index_name`
+| `text`
+| The name of the index.
+
+| `sstable_name`
+| `text`
+| The name of the SSTable.
+
+| `segment_row_id_offset`
+| `bigint`
+| The row id offset for the SSTable segment.
+
+| `cell_count`
+| `bigint`
+| The number of indexed segments, or the number of index segments value-key entries.
+
+| `column_name`
+| `text`
+| The name of the indexed column.
+
+| `component_metadata`
+| `frozen<map<text, map<text, text>>>`
+| The component metadata in the SSTable segment.
+
+| `end_token`
+| `text`
+| The end of the token range covered by the SSTable segment.
+
+| `max_sstable_row_id`
+| `bigint`
+| The maximum row id in the SSTable segment.
+
+| `max_term`
+| `text`
+| The maximum term in the SSTable segment.
+
+| `min_sstable_row_id`
+| `bigint`
+| The minimum row id in the SSTable segment.
+
+| `min_term`
+| `text`
+| The minimum term in the SSTable segment.
+
+| `start_token`
+| `text`
+| The start of the token range covered by the SSTable segment.
+
+| `table_name`
+| `text`
+| The name of the table to which the SSTable segment belongs.
+|===

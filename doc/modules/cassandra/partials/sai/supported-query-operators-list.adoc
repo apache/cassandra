@@ -1,0 +1,9 @@
+// LLP CHECK FOR C* 5.0
+ifeval::["{evalproduct}" == "dse"]
+* Numerics: `=`, `<`, `>`, `<=`, `>=`, `AND`
+* Strings: `=`, `CONTAINS`, `CONTAINS KEY`, `AND`
+endif::[]
+ifeval::["{evalproduct}" != "dse"]
+* Numerics: `=`, `<`, `>`, `<=`, `>=`, `AND`, `OR`, `IN`
+* Strings: `=`, `CONTAINS`, `CONTAINS KEY`, `AND`, `OR`, `IN`
+endif::[]

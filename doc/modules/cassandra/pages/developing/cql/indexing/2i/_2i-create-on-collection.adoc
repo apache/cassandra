@@ -1,0 +1,132 @@
+= Create a 2i on a collection column
+:description: How to index collections and query the database to find a collection containing a particular value.
+
+Collections can be indexed and queried to find a collection containing a particular value.
+Sets and lists are indexed a bit differently from maps, given the key-value nature of maps.
+
+Sets and lists can index all values found by indexing the collection column.
+Maps can index a map key, map value, or map entry using the methods shown below.
+Multiple indexes can be created on the same map column in a table so that map keys, values, or entries can be queried.
+In addition, frozen collections can be indexed using `FULL` to index the full content of a frozen collection.
+
+[NOTE]
+====
+All the xref:developing/cql/indexing/2i/2i-when-to-use.adoc#when-no-index[cautions] about using secondary indexes apply to indexing collections.
+====
+
+* For set and list collections, create an index on the column name.
+Create an index on a set to find all the cyclists that have been on a particular team.
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/cyclist_career_teams-table.cql[tag=createidxset]
+----
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/cyclist_career_teams-table.cql[tag=select_with_contains_value]
+----
+
+[source,results]
+----
+include::cassandra:example$RESULTS/sai/select_all_from_cyclist_career_teams_contains_value.result[]
+----
+
+* For map collections, create an index on the map key, map value, or map entry.
+Create an index on a map key to find all cyclist/team combinations for a particular year.
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/cyclist_teams-table.cql[tag=keysidx]
+----
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/cyclist_teams-table.cql[tag=queryindexkey]
+----
+
+[source,results]
+----
+include::cassandra:example$RESULTS/sai/cyclist_team-queries.result[]
+----
+
+* Create an index on the map entries and find cyclists who are the same age.
+An index using `ENTRIES` is only valid for maps.
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/birthday_list_map_entries-table.cql[tag=blisttable]
+----
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/birthday_list_map_entries-table.cql[tag=entriesidx]
+----
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/birthday_list_map_entries-table.cql[tag=ageentryquery]
+----
+
+[source,results]
+----
+include::cassandra:example$RESULTS/sai/select_from_birthday_list_where_age_23.result[]
+----
+
+* Using the same index, find cyclists from the same country.
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/birthday_list_map_entries-table.cql[tag=nationentryquery]
+----
+
+[source,results]
+----
+include::cassandra:example$RESULTS/sai/select_from_birthday_list_where_nation_netherlands.result[]
+----
+
+* Create an index on the map values and find cyclists who have a particular value found in the specified map.
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/birthday_list_map_entries-table.cql[tag=blisttable]
+----
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/birthday_list_map_entries-table.cql[tag=mapvaluesidx]
+----
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/birthday_list_map_entries-table.cql[tag=nationvaluesquery]
+----
++
+[source,results]
+----
+include::cassandra:example$RESULTS/sai/select_from_birthday_list_where_nation_netherlands_2.result[]
+----
+
+* Create an index on the full content of a `FROZEN` map.
+The table in this example stores the number of Pro wins, Grand Tour races, and Classic races that a cyclist has competed in.
+The SELECT statement finds any cyclist who has 39 Pro race wins, 7 Grand Tour starts, and 14 Classic starts.
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/race_starts-table.cql[tag=frozenlist]
+----
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/race_starts-table.cql[tag=fullindex]
+----
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/race_starts-table.cql[tag=selectrnumbers]
+----
+
+[source,results]
+----
+include::cassandra:example$RESULTS/sai/race_starts-queries.result[]
+----

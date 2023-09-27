@@ -1,0 +1,7 @@
+// LLP NEED TO CHECK FOR C* 5.0
+ifeval::["{evalproduct}" == "dse"]
+* Strings or Numerics: `LIKE`, `OR`, `IN`
+endif::[]
+ifeval::["{evalproduct}" != "dse"]
+* Strings or Numerics: `LIKE`
+endif::[]

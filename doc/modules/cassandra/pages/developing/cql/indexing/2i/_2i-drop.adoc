@@ -1,0 +1,8 @@
+= Drop a secondary index (2i)
+
+Drop a 2i:
+
+[source,language-bash]
+----
+include::cassandra:example$CQL/2i/2i-drop.cql[]
+----

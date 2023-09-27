@@ -1,4 +1,4 @@
-= Time Window CompactionStrategy
+= Time Window Compaction Strategy
 
 [[twcs]]
 `TimeWindowCompactionStrategy` (TWCS) is designed specifically for

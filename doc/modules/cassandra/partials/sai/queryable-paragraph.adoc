@@ -1,0 +1,10 @@
+When you `DROP` / recreate an SAI index, you are not blocked from entering queries that do not use the index.
+However, you cannot use that SAI index (based on the same column) until it has finished building and is queryable.
+To determine the current state of a given index, query the `system_views.indexes` virtual table.
+Example:
+
+[source,language-cql]
+----
+SELECT is_queryable,is_building FROM system_views.indexes WHERE keyspace_name='keyspace'
+       AND table_name='table' AND index_name='index';
+----

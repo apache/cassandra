@@ -1,0 +1,126 @@
+= CQL Commands
+:description: Describes Cassandra Query Language (CQL) statements supported by the DataStax Enterprise database.
+
+This section describes the Cassandra Query Language (CQL) commands supported by the {product} database.
+
+'''
+xref:cql-commands/alter-keyspace.adoc[ALTER KEYSPACE] ::
+Changes keyspace replication strategy and enables or disables commit log.
+
+xref:cql-commands/alter-materialized-view.adoc[ALTER MATERIALIZED VIEW] ::	
+Changes the table properties of a materialized view.
+
+xref:cql-commands/alter-role.adoc[ALTER ROLE] ::	
+Changes password and sets superuser or login options.
+
+xref:cql-commands/alter-table.adoc[ALTER TABLE] ::	
+Modifies the columns and properties of a table, or modify
+
+xref:cql-commands/alter-type.adoc[ALTER TYPE] ::	
+Modifies an existing user-defined type (UDT).
+
+xref:reference:cql-commands/alter-user.adoc[ALTER USER (Deprecated)] ::	
+Deprecated. Alter existing user options.
+
+xref:reference:cql-commands/batch.adoc[BATCH] ::	
+Applies multiple data modification language (DML) statements with atomicity and/or in isolation.
+
+xref:reference:cql-commands/create-aggregate.adoc[CREATE AGGREGATE] ::	
+Defines a user-defined aggregate.
+xref:reference:cql-commands/create-custom-index.adoc[CREATE CUSTOM INDEX] ::	
+Creates a storage-attached index.
+
+xref:reference:cql-commands/create-function.adoc[CREATE FUNCTION] ::	
+Creates custom function to execute user provided code.
+
+xref:reference:cql-commands/create-index.adoc[CREATE INDEX] ::	
+Defines a new index for a single column of a table.
+
+xref:reference:cql-commands/create-keyspace.adoc[CREATE KEYSPACE] ::	
+
+xref:reference:cql-commands/create-materialized-view.adoc[CREATE MATERIALIZED VIEW] ::	
+Optimizes read requests and eliminates the need for multiple write requests by duplicating data from a base table.
+
+xref:reference:cql-commands/create-role.adoc[CREATE ROLE] ::	
+Creates a cluster wide database object used for access control.
+
+xref:reference:cql-commands/create-table.adoc[CREATE TABLE] ::	
+Creates a new table.
+
+xref:reference:cql-commands/create-type.adoc[CREATE TYPE] ::	
+Creates a custom data type in the keyspace that contains one or more fields of related information.
+
+xref:reference:cql-commands/create-user.adoc[CREATE USER (Deprecated)] ::	
+Deprecated. Creates a new user.
+
+xref:reference:cql-commands/delete.adoc[DELETE] ::	
+Removes data from one or more columns or removes the entire row
+
+xref:reference:cql-commands/drop-aggregate.adoc[DROP AGGREGATE] ::	
+Deletes a user-defined aggregate from a keyspace.
+
+xref:reference:cql-commands/drop-function.adoc[DROP FUNCTION] ::	
+Deletes a user-defined function (UDF) from a keyspace.
+
+xref:reference:cql-commands/drop-index.adoc[DROP INDEX] ::	
+Removes an index from a table.
+
+xref:reference:cql-commands/drop-keyspace.adoc[DROP KEYSPACE] ::	
+Removes the keyspace.
+
+xref:reference:cql-commands/drop-materialized-view.adoc[DROP MATERIALIZED VIEW] ::	
+Removes the named materialized view.
+
+xref:reference:cql-commands/drop-role.adoc[DROP ROLE] ::	
+Removes a role.
+
+xref:reference:cql-commands/drop-table.adoc[DROP TABLE] ::	
+Removes the table.
+
+xref:reference:cql-commands/drop-type.adoc[DROP TYPE] ::	
+Drop a user-defined type.
+
+xref:reference:cql-commands/drop-user.adoc[DROP USER (Deprecated)] ::	
+Removes a user.
+
+xref:reference:cql-commands/grant.adoc[GRANT] ::	
+Allow access to database resources.
+
+xref:reference:cql-commands/insert.adoc[INSERT] ::	
+Inserts an entire row or upserts data into existing rows.
+
+xref:reference:cql-commands/list-permissions.adoc[LIST PERMISSIONS] ::	
+Lists permissions on resources.
+
+xref:reference:cql-commands/list-roles.adoc[LIST ROLES] ::	
+Lists roles and shows superuser and login status.
+
+xref:reference:cql-commands/list-users.adoc[LIST USERS (Deprecated)] ::	
+Lists existing internal authentication users and their superuser status.
+
+xref:reference:cql-commands/restrict.adoc[RESTRICT] ::	
+Denies the permission on a resource, even if the role is directly granted or inherits permissions.
+
+xref:reference:cql-commands/restrict-rows.adoc[RESTRICT ROWS] ::	
+Configures the column used for row-level access control.
+
+xref:reference:cql-commands/revoke.adoc[REVOKE] ::	
+Removes privileges on database objects from roles.
+
+xref:reference:cql-commands/select.adoc[SELECT] ::	
+Returns data from a table.
+
+xref:reference:cql-commands/truncate.adoc[TRUNCATE] ::	
+Removes all data from a table.
+
+xref:reference:cql-commands/unrestrict.adoc[UNRESTRICT] ::	
+Removes a restriction from a role. 
+
+xref:reference:cql-commands/unrestrict-rows.adoc[UNRESTRICT ROWS] ::	
+Removes the column definition for row-level access control. 
+
+xref:reference:cql-commands/update.adoc[UPDATE] ::	
+Modifies one or more column values to a row in a table.
+
+xref:reference:cql-commands/use.adoc[USE] ::	
+Selects the keyspace for the current client session.

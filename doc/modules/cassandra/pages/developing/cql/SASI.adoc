@@ -1,15 +1,15 @@
-== SASIIndex
+== SASI Index
 
 https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/SASIIndex.java[`SASIIndex`],
 or ``SASI`` for short, is an implementation of Cassandra's `Index`
 interface that can be used as an alternative to the existing
 implementations. SASI's indexing and querying improves on existing
-implementations by tailoring it specifically to Cassandra’s needs. SASI
+implementations by tailoring it specifically to Cassandra's needs. SASI
 has superior performance in cases where queries would previously require
 filtering. In achieving this performance, SASI aims to be significantly
 less resource intensive than existing implementations, in memory, disk,
 and CPU usage. In addition, SASI supports prefix and contains queries on
-strings (similar to SQL’s `LIKE = "foo*"` or `LIKE = "*foo*"'`).
+strings (similar to SQL's `LIKE = "foo*"` or `LIKE = "*foo*"'`).
 
 The following goes on describe how to get up and running with SASI,
 demonstrates usage with examples, and provides some details on its
@@ -77,7 +77,7 @@ the default `PREFIX` mode and no case-sensitivity or text analysis
 options are specified since the field is numeric.
 
 After inserting the following data and performing a `nodetool flush`,
-SASI performing index flushes to disk can be seen in Cassandra’s logs –
+SASI performing index flushes to disk can be seen in Cassandra's logs –
 although the direct call to flush is not required (see
 link:#indexmemtable[IndexMemtable] for more details).
 
@@ -350,12 +350,12 @@ cqlsh:demo> SELECT * FROM sasi WHERE bio LIKE 'soft eng';
 While SASI, at the surface, is simply an implementation of the `Index`
 interface, at its core there are several data structures and algorithms
 used to satisfy it. These are described here. Additionally, the changes
-internal to Cassandra to support SASI’s integration are described.
+internal to Cassandra to support SASI's integration are described.
 
 The `Index` interface divides responsibility of the implementer into two
 parts: Indexing and Querying. Further, Cassandra makes it possible to
 divide those responsibilities into the memory and disk components. SASI
-takes advantage of Cassandra’s write-once, immutable, ordered data model
+takes advantage of Cassandra's write-once, immutable, ordered data model
 to build indexes along with the flushing of the memtable to disk – this
 is the origin of the name ``SSTable Attached Secondary Index''.
 
@@ -366,7 +366,7 @@ sequential writes to disk. In some cases, partial flushes are performed,
 and later stitched back together, to reduce memory usage. These data
 structures are optimized for this use case.
 
-Taking advantage of Cassandra’s ordered data model, at query time,
+Taking advantage of Cassandra's ordered data model, at query time,
 candidate indexes are narrowed down for searching, minimizing the amount
 of work done. Searching is then performed using an efficient method that
 streams data off disk as needed.
@@ -400,7 +400,7 @@ https://en.wikipedia.org/wiki/Suffix_array[Suffix Array] data structure.
 The
 https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/disk/OnDiskIndex.java[`OnDiskIndex`]
 is comprised of page-size blocks of sorted terms and pointers to the
-terms’ associated data, as well as the data itself, stored also in one
+terms' associated data, as well as the data itself, stored also in one
 or more page-sized blocks. The
 https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/disk/OnDiskIndex.java[`OnDiskIndex`]
 is structured as a tree of arrays, where each level describes the terms
@@ -414,7 +414,7 @@ https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/ind
 The terms written to the
 https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/disk/OnDiskIndex.java[`OnDiskIndex`]
 vary depending on its ``mode'': either `PREFIX`, `CONTAINS`, or
-`SPARSE`. In the `PREFIX` and `SPARSE` cases, terms’ exact values are
+`SPARSE`. In the `PREFIX` and `SPARSE` cases, terms' exact values are
 written exactly once per `OnDiskIndex`. For example, when using a
 `PREFIX` index with terms `Jason`, `Jordan`, `Pavel`, all three will be
 included in the index. A `CONTAINS` index writes additional terms for
@@ -491,17 +491,17 @@ is built on top of `java.util.concurrent.ConcurrentSkipListSet`.
 ==== Querying
 
 Responsible for converting the internal `IndexExpression` representation
-into SASI’s
+into SASI's
 https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/plan/Operation.java[`Operation`]
 and
 https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/plan/Expression.java[`Expression`]
 trees, optimizing the trees to reduce the amount of work done, and
 driving the query itself, the
 https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/plan/QueryPlan.java[`QueryPlan`]
-is the work horse of SASI’s querying implementation. To efficiently
+is the work horse of SASI's querying implementation. To efficiently
 perform union and intersection operations, SASI provides several
-iterators similar to Cassandra’s `MergeIterator`, but tailored
-specifically for SASI’s use while including more features. The
+iterators similar to Cassandra's `MergeIterator`, but tailored
+specifically for SASI's use while including more features. The
 https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/utils/RangeUnionIterator.java[`RangeUnionIterator`],
 like its name suggests, performs set unions over sets of tokens/keys
 matching the query, only reading as much data as it needs from each set
@@ -513,13 +513,13 @@ similar to its counterpart, performs set intersections over its data.
 
 The
 https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/plan/QueryPlan.java[`QueryPlan`]
-instantiated per search query is at the core of SASI’s querying
+instantiated per search query is at the core of SASI's querying
 implementation. Its work can be divided in two stages: analysis and
 execution.
 
 During the analysis phase,
 https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/plan/QueryPlan.java[`QueryPlan`]
-converts from Cassandra’s internal representation of `IndexExpression`s,
+converts from Cassandra's internal representation of `IndexExpression`s,
 which has also been modified to support encoding queries that contain
 ORs and groupings of expressions using parentheses (see the
 link:#cassandra-internal-changes[Cassandra Internal Changes] section
@@ -563,7 +563,7 @@ specified by the user via the range slice timeout. All indexes are
 accessed via the
 https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/plan/QueryController.java[`QueryController`]
 so that they can be safely released by it later. The
-https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/plan/QueryController.java[`QueryController`]’s
+https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/plan/QueryController.java[`QueryController`]'s
 `checkpoint` function is called in specific places in the execution path
 to ensure the time-bound is enforced.
 
@@ -766,9 +766,9 @@ https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/ind
 components, controls writing of all indexes for an SSTable via its
 https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/disk/PerSSTableIndexWriter.java[`PerSSTableIndexWriter`],
 and initiates searches with `Searcher`. These classes glue the
-previously mentioned indexing components together with Cassandra’s
-SSTable life-cycle ensuring indexes are not only written when Memtable’s
-flush, but also as SSTable’s are compacted. For querying, the `Searcher`
+previously mentioned indexing components together with Cassandra's
+SSTable life-cycle ensuring indexes are not only written when Memtable's
+flush, but also as SSTable's are compacted. For querying, the `Searcher`
 does little but defer to
 https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/plan/QueryPlan.java[`QueryPlan`]
 and update e.g. latency metrics exposed by SASI.
@@ -785,7 +785,7 @@ The `SSTableFlushObserver` is an observer pattern-like interface, whose
 sub-classes can register to be notified about events in the life-cycle
 of writing out a SSTable. Sub-classes can be notified when a flush
 begins and ends, as well as when each next row is about to be written,
-and each next column. SASI’s `PerSSTableIndexWriter`, discussed above,
+and each next column. SASI's `PerSSTableIndexWriter`, discussed above,
 is the only current subclass.
 
 ==== Limitations and Caveats
@@ -795,7 +795,7 @@ not available in this repository or are not currently implemented.
 
 * The cluster must be configured to use a partitioner that produces
 `LongToken`s, e.g. `Murmur3Partitioner`. Other existing partitioners
-which don’t produce LongToken e.g. `ByteOrderedPartitioner` and
+which don't produce LongToken e.g. `ByteOrderedPartitioner` and
 `RandomPartitioner` will not work with SASI.
 * Not Equals and OR support have been removed in this release while
 changes are made to Cassandra itself to support them.

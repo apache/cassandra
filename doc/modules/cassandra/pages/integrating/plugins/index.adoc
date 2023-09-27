@@ -1,4 +1,5 @@
 = Third-Party Plugins
+:navtitle: Plug-ins
 
 Available third-party plugins for Apache Cassandra
 
@@ -6,9 +7,9 @@ Available third-party plugins for Apache Cassandra
 
 The Coherent Accelerator Process Interface (CAPI) is a general term for
 the infrastructure of attaching a Coherent accelerator to an IBM POWER
-system. A key innovation in IBM POWER8’s open architecture is the CAPI.
+system. A key innovation in IBM POWER8's open architecture is the CAPI.
 It provides a high bandwidth, low latency path between external devices,
-the POWER8 core, and the system’s open memory architecture. IBM Data
+the POWER8 core, and the system's open memory architecture. IBM Data
 Engine for NoSQL is an integrated platform for large and fast growing
 NoSQL data stores. It builds on the CAPI capability of POWER8 systems
 and provides super-fast access to large flash storage capacity and
@@ -19,11 +20,11 @@ The official page for the
 https://github.com/ppc64le/capi-rowcache[CAPI-Rowcache plugin] contains
 further details how to build/run/download the plugin.
 
-== Stratio’s Cassandra Lucene Index
+== Stratio's Cassandra Lucene Index
 
-Stratio’s Lucene index is a Cassandra secondary index implementation
+Stratio's Lucene index is a Cassandra secondary index implementation
 based on http://lucene.apache.org/[Apache Lucene]. It extends
-Cassandra’s functionality to provide near real-time distributed search
+Cassandra's functionality to provide near real-time distributed search
 engine capabilities such as with ElasticSearch or
 http://lucene.apache.org/solr/[Apache Solr], including full text search
 capabilities, free multivariable, geospatial and bitemporal search,

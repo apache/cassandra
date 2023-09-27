@@ -1,0 +1,8 @@
+ race_year | race_name                                  | rank | cyclist_name
+-----------+--------------------------------------------+------+-------------------
+      2014 |                        4th Tour of Beijing |    1 | Phillippe GILBERT
+      2014 | Tour of Japan - Stage 4 - Minami > Shinshu |    1 |     Daniel MARTIN
+      2015 |   Giro d'Italia - Stage 11 - Forli > Imola |    1 |     Ilnur ZAKARIN
+      2015 | Tour of Japan - Stage 4 - Minami > Shinshu |    1 |   Benjamin PRADES
+
+(4 rows)
