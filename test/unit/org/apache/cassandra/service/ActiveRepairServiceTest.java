@@ -73,7 +73,6 @@ import static org.apache.cassandra.repair.messages.RepairOption.HOSTS_KEY;
 import static org.apache.cassandra.repair.messages.RepairOption.INCREMENTAL_KEY;
 import static org.apache.cassandra.repair.messages.RepairOption.RANGES_KEY;
 import static org.apache.cassandra.service.ActiveRepairService.UNREPAIRED_SSTABLE;
-import static org.apache.cassandra.service.ActiveRepairService.getRepairedAt;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeCondition;
 import static org.junit.Assert.assertEquals;
@@ -134,7 +133,7 @@ public class ActiveRepairServiceTest
         Set<InetAddressAndPort> neighbors = new HashSet<>();
         for (Range<Token> range : ranges)
         {
-            neighbors.addAll(ActiveRepairService.getNeighbors(KEYSPACE5, ranges, range, null, null).endpoints());
+            neighbors.addAll(ActiveRepairService.instance().getNeighbors(KEYSPACE5, ranges, range, null, null).endpoints());
         }
         assertEquals(expected, neighbors);
     }
@@ -157,7 +156,7 @@ public class ActiveRepairServiceTest
         Set<InetAddressAndPort> neighbors = new HashSet<>();
         for (Range<Token> range : ranges)
         {
-            neighbors.addAll(ActiveRepairService.getNeighbors(KEYSPACE5, ranges, range, null, null).endpoints());
+            neighbors.addAll(ActiveRepairService.instance().getNeighbors(KEYSPACE5, ranges, range, null, null).endpoints());
         }
         assertEquals(expected, neighbors);
     }
@@ -179,7 +178,7 @@ public class ActiveRepairServiceTest
         Set<InetAddressAndPort> neighbors = new HashSet<>();
         for (Range<Token> range : ranges)
         {
-            neighbors.addAll(ActiveRepairService.getNeighbors(KEYSPACE5, ranges, range, Arrays.asList(DatabaseDescriptor.getLocalDataCenter()), null).endpoints());
+            neighbors.addAll(ActiveRepairService.instance().getNeighbors(KEYSPACE5, ranges, range, Arrays.asList(DatabaseDescriptor.getLocalDataCenter()), null).endpoints());
         }
         assertEquals(expected, neighbors);
     }
@@ -207,7 +206,7 @@ public class ActiveRepairServiceTest
         Set<InetAddressAndPort> neighbors = new HashSet<>();
         for (Range<Token> range : ranges)
         {
-            neighbors.addAll(ActiveRepairService.getNeighbors(KEYSPACE5, ranges, range, Arrays.asList(DatabaseDescriptor.getLocalDataCenter()), null).endpoints());
+            neighbors.addAll(ActiveRepairService.instance().getNeighbors(KEYSPACE5, ranges, range, Arrays.asList(DatabaseDescriptor.getLocalDataCenter()), null).endpoints());
         }
         assertEquals(expected, neighbors);
     }
@@ -230,7 +229,7 @@ public class ActiveRepairServiceTest
         Collection<String> hosts = Arrays.asList(FBUtilities.getBroadcastAddressAndPort().getHostAddressAndPort(),expected.get(0).getHostAddressAndPort());
         Iterable<Range<Token>> ranges = StorageService.instance.getLocalReplicas(KEYSPACE5).ranges();
 
-        assertEquals(expected.get(0), ActiveRepairService.getNeighbors(KEYSPACE5, ranges,
+        assertEquals(expected.get(0), ActiveRepairService.instance().getNeighbors(KEYSPACE5, ranges,
                                                                        ranges.iterator().next(),
                                                                        null, hosts).endpoints().iterator().next());
     }
@@ -242,14 +241,14 @@ public class ActiveRepairServiceTest
         //Dont give local endpoint
         Collection<String> hosts = Arrays.asList("127.0.0.3");
         Iterable<Range<Token>> ranges = StorageService.instance.getLocalReplicas(KEYSPACE5).ranges();
-        ActiveRepairService.getNeighbors(KEYSPACE5, ranges, ranges.iterator().next(), null, hosts);
+        ActiveRepairService.instance().getNeighbors(KEYSPACE5, ranges, ranges.iterator().next(), null, hosts);
     }
 
 
     @Test
     public void testParentRepairStatus() throws Throwable
     {
-        ActiveRepairService.instance.recordRepairStatus(1, ActiveRepairService.ParentRepairStatus.COMPLETED, ImmutableList.of("foo", "bar"));
+        ActiveRepairService.instance().recordRepairStatus(1, ActiveRepairService.ParentRepairStatus.COMPLETED, ImmutableList.of("foo", "bar"));
         List<String> res = StorageService.instance.getParentRepairStatus(1);
         assertNotNull(res);
         assertEquals(ActiveRepairService.ParentRepairStatus.COMPLETED, ActiveRepairService.ParentRepairStatus.valueOf(res.get(0)));
@@ -259,7 +258,7 @@ public class ActiveRepairServiceTest
         List<String> emptyRes = StorageService.instance.getParentRepairStatus(44);
         assertNull(emptyRes);
 
-        ActiveRepairService.instance.recordRepairStatus(3, ActiveRepairService.ParentRepairStatus.FAILED, ImmutableList.of("some failure message", "bar"));
+        ActiveRepairService.instance().recordRepairStatus(3, ActiveRepairService.ParentRepairStatus.FAILED, ImmutableList.of("some failure message", "bar"));
         List<String> failed = StorageService.instance.getParentRepairStatus(3);
         assertNotNull(failed);
         assertEquals(ActiveRepairService.ParentRepairStatus.FAILED, ActiveRepairService.ParentRepairStatus.valueOf(failed.get(0)));
@@ -286,16 +285,16 @@ public class ActiveRepairServiceTest
         TimeUUID prsId = nextTimeUUID();
         Set<SSTableReader> original = Sets.newHashSet(store.select(View.select(SSTableSet.CANONICAL, (s) -> !s.isRepaired())).sstables);
         Collection<Range<Token>> ranges = Collections.singleton(new Range<>(store.getPartitioner().getMinimumToken(), store.getPartitioner().getMinimumToken()));
-        ActiveRepairService.instance.registerParentRepairSession(prsId, FBUtilities.getBroadcastAddressAndPort(), Collections.singletonList(store),
-                                                                 ranges, true, System.currentTimeMillis(), true, PreviewKind.NONE);
+        ActiveRepairService.instance().registerParentRepairSession(prsId, FBUtilities.getBroadcastAddressAndPort(), Collections.singletonList(store),
+                                                                   ranges, true, System.currentTimeMillis(), true, PreviewKind.NONE);
         store.getRepairManager().snapshot(prsId.toString(), ranges, false);
 
         TimeUUID prsId2 = nextTimeUUID();
-        ActiveRepairService.instance.registerParentRepairSession(prsId2, FBUtilities.getBroadcastAddressAndPort(),
-                                                                 Collections.singletonList(store),
-                                                                 ranges,
-                                                                 true, System.currentTimeMillis(),
-                                                                 true, PreviewKind.NONE);
+        ActiveRepairService.instance().registerParentRepairSession(prsId2, FBUtilities.getBroadcastAddressAndPort(),
+                                                                   Collections.singletonList(store),
+                                                                   ranges,
+                                                                   true, System.currentTimeMillis(),
+                                                                   true, PreviewKind.NONE);
         createSSTables(store, 2);
         store.getRepairManager().snapshot(prsId.toString(), ranges, false);
         try (Refs<SSTableReader> refs = store.getSnapshotSSTableReaders(prsId.toString()))
@@ -355,25 +354,25 @@ public class ActiveRepairServiceTest
     public void repairedAt() throws Exception
     {
         // regular incremental repair
-        Assert.assertNotEquals(UNREPAIRED_SSTABLE, getRepairedAt(opts(INCREMENTAL_KEY, b2s(true)), false));
+        Assert.assertNotEquals(UNREPAIRED_SSTABLE, ActiveRepairService.instance().getRepairedAt(opts(INCREMENTAL_KEY, b2s(true)), false));
         // subrange incremental repair
-        Assert.assertNotEquals(UNREPAIRED_SSTABLE, getRepairedAt(opts(INCREMENTAL_KEY, b2s(true),
+        Assert.assertNotEquals(UNREPAIRED_SSTABLE, ActiveRepairService.instance().getRepairedAt(opts(INCREMENTAL_KEY, b2s(true),
                                                                       RANGES_KEY, "1:2"), false));
 
         // hosts incremental repair
-        Assert.assertEquals(UNREPAIRED_SSTABLE, getRepairedAt(opts(INCREMENTAL_KEY, b2s(true),
+        Assert.assertEquals(UNREPAIRED_SSTABLE, ActiveRepairService.instance().getRepairedAt(opts(INCREMENTAL_KEY, b2s(true),
                                                                    HOSTS_KEY, "127.0.0.1"), false));
         // dc incremental repair
-        Assert.assertEquals(UNREPAIRED_SSTABLE, getRepairedAt(opts(INCREMENTAL_KEY, b2s(true),
+        Assert.assertEquals(UNREPAIRED_SSTABLE, ActiveRepairService.instance().getRepairedAt(opts(INCREMENTAL_KEY, b2s(true),
                                                                    DATACENTERS_KEY, "DC2"), false));
         // forced incremental repair
-        Assert.assertNotEquals(UNREPAIRED_SSTABLE, getRepairedAt(opts(INCREMENTAL_KEY, b2s(true),
+        Assert.assertNotEquals(UNREPAIRED_SSTABLE, ActiveRepairService.instance().getRepairedAt(opts(INCREMENTAL_KEY, b2s(true),
                                                                       FORCE_REPAIR_KEY, b2s(true)), false));
-        Assert.assertEquals(UNREPAIRED_SSTABLE, getRepairedAt(opts(INCREMENTAL_KEY, b2s(true),
+        Assert.assertEquals(UNREPAIRED_SSTABLE, ActiveRepairService.instance().getRepairedAt(opts(INCREMENTAL_KEY, b2s(true),
                                                                       FORCE_REPAIR_KEY, b2s(true)), true));
 
         // full repair
-        Assert.assertEquals(UNREPAIRED_SSTABLE, getRepairedAt(opts(INCREMENTAL_KEY, b2s(false)), false));
+        Assert.assertEquals(UNREPAIRED_SSTABLE, ActiveRepairService.instance().getRepairedAt(opts(INCREMENTAL_KEY, b2s(false)), false));
     }
 
     @Test
@@ -473,7 +472,7 @@ public class ActiveRepairServiceTest
     @Test
     public void testRepairSessionSpaceInMiB()
     {
-        ActiveRepairService activeRepairService = ActiveRepairService.instance;
+        ActiveRepairService activeRepairService = ActiveRepairService.instance();
         int previousSize = activeRepairService.getRepairSessionSpaceInMiB();
         try
         {

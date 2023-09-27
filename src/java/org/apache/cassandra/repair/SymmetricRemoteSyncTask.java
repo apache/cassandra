@@ -31,7 +31,6 @@ import org.apache.cassandra.repair.messages.SyncRequest;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.SessionSummary;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * SymmetricRemoteSyncTask sends {@link SyncRequest} to remote(non-coordinator) node
@@ -43,15 +42,15 @@ public class SymmetricRemoteSyncTask extends SyncTask implements CompletableRemo
 {
     private static final Logger logger = LoggerFactory.getLogger(SymmetricRemoteSyncTask.class);
 
-    public SymmetricRemoteSyncTask(RepairJobDesc desc, InetAddressAndPort r1, InetAddressAndPort r2, List<Range<Token>> differences, PreviewKind previewKind)
+    public SymmetricRemoteSyncTask(SharedContext ctx, RepairJobDesc desc, InetAddressAndPort r1, InetAddressAndPort r2, List<Range<Token>> differences, PreviewKind previewKind)
     {
-        super(desc, r1, r2, differences, previewKind);
+        super(ctx, desc, r1, r2, differences, previewKind);
     }
 
     @Override
     protected void startSync()
     {
-        InetAddressAndPort local = FBUtilities.getBroadcastAddressAndPort();
+        InetAddressAndPort local = ctx.broadcastAddressAndPort();
         SyncRequest request = new SyncRequest(desc, local, nodePair.coordinator, nodePair.peer, rangesToSync, previewKind, false);
         Preconditions.checkArgument(nodePair.coordinator.equals(request.src));
         String message = String.format("Forwarding streaming repair of %d ranges to %s (to be streamed with %s)", request.ranges.size(), request.src, request.dst);

@@ -123,7 +123,7 @@ public final class Tables implements Iterable<TableMetadata>
     }
 
     @Nullable
-    TableMetadata getNullable(TableId id)
+    public TableMetadata getNullable(TableId id)
     {
         return tablesById.get(id);
     }

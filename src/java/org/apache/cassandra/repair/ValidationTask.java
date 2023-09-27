@@ -28,6 +28,7 @@ import org.apache.cassandra.utils.MerkleTrees;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 
 import static org.apache.cassandra.net.Verb.VALIDATION_REQ;
+import static org.apache.cassandra.repair.messages.RepairMessage.notDone;
 
 /**
  * ValidationTask sends {@link ValidationRequest} to a replica.
@@ -39,11 +40,11 @@ public class ValidationTask extends AsyncFuture<TreeResponse> implements Runnabl
     private final InetAddressAndPort endpoint;
     private final long nowInSec;
     private final PreviewKind previewKind;
-    
-    private boolean active = true;
+    private final SharedContext ctx;
 
-    public ValidationTask(RepairJobDesc desc, InetAddressAndPort endpoint, long nowInSec, PreviewKind previewKind)
+    public ValidationTask(SharedContext ctx, RepairJobDesc desc, InetAddressAndPort endpoint, long nowInSec, PreviewKind previewKind)
     {
+        this.ctx = ctx;
         this.desc = desc;
         this.endpoint = endpoint;
         this.nowInSec = nowInSec;
@@ -55,7 +56,8 @@ public class ValidationTask extends AsyncFuture<TreeResponse> implements Runnabl
      */
     public void run()
     {
-        RepairMessage.sendMessageWithFailureCB(new ValidationRequest(desc, nowInSec),
+        RepairMessage.sendMessageWithFailureCB(ctx, notDone(this),
+                                               new ValidationRequest(desc, nowInSec),
                                                VALIDATION_REQ,
                                                endpoint,
                                                this::tryFailure);
@@ -70,18 +72,12 @@ public class ValidationTask extends AsyncFuture<TreeResponse> implements Runnabl
     {
         if (trees == null)
         {
-            active = false;
             tryFailure(RepairException.warn(desc, previewKind, "Validation failed in " + endpoint));
         }
-        else if (active)
+        else if (!trySuccess(new TreeResponse(endpoint, trees)))
         {
-            trySuccess(new TreeResponse(endpoint, trees));
-        }
-        else
-        {
-            // If the task has already been aborted, just release the possibly off-heap trees and move along.
+            // If the task is done, just release the possibly off-heap trees and move along.
             trees.release();
-            trySuccess(null);
         }
     }
 
@@ -89,37 +85,32 @@ public class ValidationTask extends AsyncFuture<TreeResponse> implements Runnabl
      * Release any trees already received by this task, and place it a state where any trees 
      * received subsequently will be properly discarded.
      */
-    public synchronized void abort()
+    public synchronized void abort(Throwable reason)
     {
-        if (active) 
+        if (!tryFailure(reason) && isSuccess())
         {
-            if (isDone())
+            try
             {
-                try 
-                {
-                    // If we're done, this should return immediately.
-                    TreeResponse response = get();
-                    
-                    if (response.trees != null)
-                        response.trees.release();
-                } 
-                catch (InterruptedException e) 
-                {
-                    // Restore the interrupt.
-                    Thread.currentThread().interrupt();
-                } 
-                catch (ExecutionException e) 
-                {
-                    // Do nothing here. If an exception was set, there were no trees to release.
-                }
+                // If we're done, this should return immediately.
+                TreeResponse response = get();
+
+                if (response.trees != null)
+                    response.trees.release();
             }
-            
-            active = false;
+            catch (InterruptedException e)
+            {
+                // Restore the interrupt.
+                Thread.currentThread().interrupt();
+            }
+            catch (ExecutionException e)
+            {
+                // Do nothing here. If an exception was set, there were no trees to release.
+            }
         }
     }
     
     public synchronized boolean isActive()
     {
-        return active;
+        return !isDone();
     }
 }

@@ -79,7 +79,7 @@ public class InternalNodeProbe extends NodeProbe
         gcProxy = new GCInspector();
         gossProxy = Gossiper.instance;
         bmProxy = BatchlogManager.instance;
-        arsProxy = ActiveRepairService.instance;
+        arsProxy = ActiveRepairService.instance();
         memProxy = ManagementFactory.getMemoryMXBean();
         runtimeProxy = ManagementFactory.getRuntimeMXBean();
     }

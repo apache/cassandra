@@ -17,18 +17,21 @@
  */
 package org.apache.cassandra.repair.state;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.stream.Collectors;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.CommonRange;
-import org.apache.cassandra.repair.RepairRunnable;
+import org.apache.cassandra.repair.RepairCoordinator;
 import org.apache.cassandra.repair.messages.RepairOption;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
@@ -48,14 +51,14 @@ public class CoordinatorState extends AbstractState<CoordinatorState.State, Time
     private final ConcurrentMap<TimeUUID, SessionState> sessions = new ConcurrentHashMap<>();
 
     private List<ColumnFamilyStore> columnFamilies = null;
-    private RepairRunnable.NeighborsAndRanges neighborsAndRanges = null;
+    private RepairCoordinator.NeighborsAndRanges neighborsAndRanges = null;
 
     // API to split function calls for phase changes from getting the state
     public final Phase phase = new Phase();
 
-    public CoordinatorState(int cmd, String keyspace, RepairOption options)
+    public CoordinatorState(Clock clock, int cmd, String keyspace, RepairOption options)
     {
-        super(nextTimeUUID(), State.class);
+        super(clock, nextTimeUUID(), State.class);
         this.cmd = cmd;
         this.keyspace = Objects.requireNonNull(keyspace);
         this.options = Objects.requireNonNull(options);
@@ -88,7 +91,7 @@ public class CoordinatorState extends AbstractState<CoordinatorState.State, Time
         return columnFamilies.stream().map(ColumnFamilyStore::getTableName).toArray(String[]::new);
     }
 
-    public RepairRunnable.NeighborsAndRanges getNeighborsAndRanges()
+    public RepairCoordinator.NeighborsAndRanges getNeighborsAndRanges()
     {
         return neighborsAndRanges;
     }
@@ -114,6 +117,32 @@ public class CoordinatorState extends AbstractState<CoordinatorState.State, Time
         return neighborsAndRanges.filterCommonRanges(keyspace, getColumnFamilyNames());
     }
 
+    @Override
+    public String status()
+    {
+        State currentState = getStatus();
+        Result result = getResult();
+        if (result != null)
+            return result.kind.name();
+        else if (currentState == null)
+            return "init";
+        else if (currentState == State.REPAIR_START)
+            return currentState.name() + " " + sessions.entrySet().stream().map(e -> e.getKey() + " -> " + e.getValue().status()).collect(Collectors.toList());
+        else
+            return currentState.name();
+    }
+
+    @Override
+    public String toString()
+    {
+        return "CoordinatorState{" +
+               "id=" + id +
+               ", stateTimesNanos=" + Arrays.toString(stateTimesNanos) +
+               ", status=" + status() +
+               ", lastUpdatedAtNs=" + lastUpdatedAtNs +
+               '}';
+    }
+
     public final class Phase extends BaseSkipPhase
     {
         public void setup()
@@ -121,7 +150,7 @@ public class CoordinatorState extends AbstractState<CoordinatorState.State, Time
             updateState(State.SETUP);
         }
 
-        public void start(List<ColumnFamilyStore> columnFamilies, RepairRunnable.NeighborsAndRanges neighborsAndRanges)
+        public void start(List<ColumnFamilyStore> columnFamilies, RepairCoordinator.NeighborsAndRanges neighborsAndRanges)
         {
             CoordinatorState.this.columnFamilies = Objects.requireNonNull(columnFamilies);
             CoordinatorState.this.neighborsAndRanges = Objects.requireNonNull(neighborsAndRanges);
