@@ -86,7 +86,7 @@ public enum PreviewKind
             StatsMetadata sstableMetadata = sstable.getSSTableMetadata();
             if (sstableMetadata.pendingRepair != null)
             {
-                LocalSession session = ActiveRepairService.instance.consistent.local.getSession(sstableMetadata.pendingRepair);
+                LocalSession session = ActiveRepairService.instance().consistent.local.getSession(sstableMetadata.pendingRepair);
                 if (session == null)
                     return false;
                 else if (session.getState() == ConsistentSession.State.FINALIZED)

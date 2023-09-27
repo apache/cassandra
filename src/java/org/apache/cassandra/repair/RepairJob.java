@@ -19,16 +19,19 @@ package org.apache.cassandra.repair;
 
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
 import java.util.function.Predicate;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.*;
-import org.apache.cassandra.concurrent.ExecutorPlus;
+
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.repair.state.JobState;
@@ -45,7 +48,6 @@ import org.apache.cassandra.repair.asymmetric.PreferedNodeFilter;
 import org.apache.cassandra.repair.asymmetric.ReduceHelper;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
-import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -60,7 +62,6 @@ import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.paxosRepairEnabled;
 import static org.apache.cassandra.service.paxos.Paxos.useV2;
-import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 
 /**
  * RepairJob runs repair on given ColumnFamily.
@@ -69,11 +70,12 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
 {
     private static final Logger logger = LoggerFactory.getLogger(RepairJob.class);
 
+    private final SharedContext ctx;
     public final JobState state;
     private final RepairJobDesc desc;
     private final RepairSession session;
     private final RepairParallelism parallelismDegree;
-    private final ExecutorPlus taskExecutor;
+    private final Executor taskExecutor;
 
     @VisibleForTesting
     final List<ValidationTask> validationTasks = new CopyOnWriteArrayList<>();
@@ -88,16 +90,17 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
      */
     public RepairJob(RepairSession session, String columnFamily)
     {
+        this.ctx = session.ctx;
         this.session = session;
         this.taskExecutor = session.taskExecutor;
         this.parallelismDegree = session.parallelismDegree;
         this.desc = new RepairJobDesc(session.state.parentRepairSession, session.getId(), session.state.keyspace, columnFamily, session.state.commonRange.ranges);
-        this.state = new JobState(desc, session.state.commonRange.endpoints);
+        this.state = new JobState(ctx.clock(), desc, session.state.commonRange.endpoints);
     }
 
     public long getNowInSeconds()
     {
-        long nowInSeconds = FBUtilities.nowInSeconds();
+        long nowInSeconds = ctx.clock().nowInSeconds();
         if (session.previewKind == PreviewKind.REPAIRED)
         {
             return nowInSeconds + DatabaseDescriptor.getValidationPreviewPurgeHeadStartInSec();
@@ -121,7 +124,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
         ColumnFamilyStore cfs = ks.getColumnFamilyStore(desc.columnFamily);
         cfs.metric.repairsStarted.inc();
         List<InetAddressAndPort> allEndpoints = new ArrayList<>(session.state.commonRange.endpoints);
-        allEndpoints.add(FBUtilities.getBroadcastAddressAndPort());
+        allEndpoints.add(ctx.broadcastAddressAndPort());
 
         Future<List<TreeResponse>> treeResponses;
         Future<Void> paxosRepair;
@@ -176,7 +179,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                     state.phase.snapshotsSubmitted();
                     for (InetAddressAndPort endpoint : allEndpoints)
                     {
-                        SnapshotTask snapshotTask = new SnapshotTask(desc, endpoint);
+                        SnapshotTask snapshotTask = new SnapshotTask(ctx, desc, endpoint);
                         snapshotTasks.add(snapshotTask);
                         taskExecutor.execute(snapshotTask);
                     }
@@ -231,9 +234,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
             public void onFailure(Throwable t)
             {
                 state.phase.fail(t);
-                // Make sure all validation tasks have cleaned up the off-heap Merkle trees they might contain.
-                validationTasks.forEach(ValidationTask::abort);
-                syncTasks.forEach(SyncTask::abort);
+                abort(t);
 
                 if (!session.previewKind.isPreview())
                 {
@@ -248,6 +249,17 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
         }, taskExecutor);
     }
 
+    public synchronized void abort(@Nullable Throwable reason)
+    {
+        if (reason == null)
+            reason = new RuntimeException("Abort");
+        // Make sure all validation tasks have cleaned up the off-heap Merkle trees they might contain.
+        for (ValidationTask v : validationTasks)
+            v.abort(reason);
+        for (SyncTask s : syncTasks)
+            s.abort(reason);
+    }
+
     private boolean isTransient(InetAddressAndPort ep)
     {
         return session.state.commonRange.transEndpoints.contains(ep);
@@ -255,10 +267,9 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
 
     private Future<List<SyncStat>> standardSyncing(List<TreeResponse> trees)
     {
-        state.phase.streamSubmitted();
-        List<SyncTask> syncTasks = createStandardSyncTasks(desc,
+        List<SyncTask> syncTasks = createStandardSyncTasks(ctx, desc,
                                                            trees,
-                                                           FBUtilities.getLocalAddressAndPort(),
+                                                           ctx.broadcastAddressAndPort(),
                                                            this::isTransient,
                                                            session.isIncremental,
                                                            session.pullRepair,
@@ -266,7 +277,8 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
         return executeTasks(syncTasks);
     }
 
-    static List<SyncTask> createStandardSyncTasks(RepairJobDesc desc,
+    static List<SyncTask> createStandardSyncTasks(SharedContext ctx,
+                                                  RepairJobDesc desc,
                                                   List<TreeResponse> trees,
                                                   InetAddressAndPort local,
                                                   Predicate<InetAddressAndPort> isTransient,
@@ -274,7 +286,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                                                   boolean pullRepair,
                                                   PreviewKind previewKind)
     {
-        long startedAt = currentTimeMillis();
+        long startedAt = ctx.clock().currentTimeMillis();
         List<SyncTask> syncTasks = new ArrayList<>();
         // We need to difference all trees one against another
         for (int i = 0; i < trees.size() - 1; ++i)
@@ -309,7 +321,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                     if (!requestRanges && !transferRanges)
                         continue;
 
-                    task = new LocalSyncTask(desc, self.endpoint, remote.endpoint, differences, isIncremental ? desc.parentSessionId : null,
+                    task = new LocalSyncTask(ctx, desc, self.endpoint, remote.endpoint, differences, isIncremental ? desc.parentSessionId : null,
                                              requestRanges, transferRanges, previewKind);
                 }
                 else if (isTransient.test(r1.endpoint) || isTransient.test(r2.endpoint))
@@ -317,11 +329,11 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                     // Stream only from transient replica
                     TreeResponse streamFrom = isTransient.test(r1.endpoint) ? r1 : r2;
                     TreeResponse streamTo = isTransient.test(r1.endpoint) ? r2 : r1;
-                    task = new AsymmetricRemoteSyncTask(desc, streamTo.endpoint, streamFrom.endpoint, differences, previewKind);
+                    task = new AsymmetricRemoteSyncTask(ctx, desc, streamTo.endpoint, streamFrom.endpoint, differences, previewKind);
                 }
                 else
                 {
-                    task = new SymmetricRemoteSyncTask(desc, r1.endpoint, r2.endpoint, differences, previewKind);
+                    task = new SymmetricRemoteSyncTask(ctx, desc, r1.endpoint, r2.endpoint, differences, previewKind);
                 }
                 syncTasks.add(task);
             }
@@ -329,14 +341,14 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
         }
         trees.get(trees.size() - 1).trees.release();
         logger.info("Created {} sync tasks based on {} merkle tree responses for {} (took: {}ms)",
-                    syncTasks.size(), trees.size(), desc.parentSessionId, currentTimeMillis() - startedAt);
+                    syncTasks.size(), trees.size(), desc.parentSessionId, ctx.clock().currentTimeMillis() - startedAt);
         return syncTasks;
     }
 
     private Future<List<SyncStat>> optimisedSyncing(List<TreeResponse> trees)
     {
-        state.phase.streamSubmitted();
-        List<SyncTask> syncTasks = createOptimisedSyncingSyncTasks(desc,
+        List<SyncTask> syncTasks = createOptimisedSyncingSyncTasks(ctx,
+                                                                   desc,
                                                                    trees,
                                                                    FBUtilities.getLocalAddressAndPort(),
                                                                    this::isTransient,
@@ -352,8 +364,11 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
     {
         try
         {
-            ActiveRepairService.instance.getParentRepairSession(desc.parentSessionId);
+            ctx.repair().getParentRepairSession(desc.parentSessionId);
             syncTasks.addAll(tasks);
+
+            if (!tasks.isEmpty())
+                state.phase.streamSubmitted();
 
             for (SyncTask task : tasks)
             {
@@ -385,7 +400,8 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
         }
     }
 
-    static List<SyncTask> createOptimisedSyncingSyncTasks(RepairJobDesc desc,
+    static List<SyncTask> createOptimisedSyncingSyncTasks(SharedContext ctx,
+                                                          RepairJobDesc desc,
                                                           List<TreeResponse> trees,
                                                           InetAddressAndPort local,
                                                           Predicate<InetAddressAndPort> isTransient,
@@ -393,7 +409,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                                                           boolean isIncremental,
                                                           PreviewKind previewKind)
     {
-        long startedAt = currentTimeMillis();
+        long startedAt = ctx.clock().currentTimeMillis();
         List<SyncTask> syncTasks = new ArrayList<>();
         // We need to difference all trees one against another
         DifferenceHolder diffHolder = new DifferenceHolder(trees);
@@ -427,12 +443,12 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
                     SyncTask task;
                     if (address.equals(local))
                     {
-                        task = new LocalSyncTask(desc, address, fetchFrom, toFetch, isIncremental ? desc.parentSessionId : null,
+                        task = new LocalSyncTask(ctx, desc, address, fetchFrom, toFetch, isIncremental ? desc.parentSessionId : null,
                                                  true, false, previewKind);
                     }
                     else
                     {
-                        task = new AsymmetricRemoteSyncTask(desc, address, fetchFrom, toFetch, previewKind);
+                        task = new AsymmetricRemoteSyncTask(ctx, desc, address, fetchFrom, toFetch, previewKind);
                     }
                     syncTasks.add(task);
 
@@ -444,14 +460,14 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
             }
         }
         logger.info("Created {} optimised sync tasks based on {} merkle tree responses for {} (took: {}ms)",
-                    syncTasks.size(), trees.size(), desc.parentSessionId, currentTimeMillis() - startedAt);
+                    syncTasks.size(), trees.size(), desc.parentSessionId, ctx.clock().currentTimeMillis() - startedAt);
         logger.trace("Optimised sync tasks for {}: {}", desc.parentSessionId, syncTasks);
         return syncTasks;
     }
 
     private String getDC(InetAddressAndPort address)
     {
-        return DatabaseDescriptor.getEndpointSnitch().getDatacenter(address);
+        return ctx.snitch().getDatacenter(address);
     }
 
     /**
@@ -582,7 +598,7 @@ public class RepairJob extends AsyncFuture<RepairResult> implements Runnable
 
     private ValidationTask newValidationTask(InetAddressAndPort endpoint, long nowInSec)
     {
-        ValidationTask task = new ValidationTask(desc, endpoint, nowInSec, session.previewKind);
+        ValidationTask task = new ValidationTask(session.ctx, desc, endpoint, nowInSec, session.previewKind);
         validationTasks.add(task);
         return task;
     }

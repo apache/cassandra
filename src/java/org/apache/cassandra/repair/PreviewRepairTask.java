@@ -32,7 +32,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.RepairMetrics;
 import org.apache.cassandra.repair.consistent.SyncStatSummary;
-import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.DiagnosticSnapshotService;
 import org.apache.cassandra.utils.TimeUUID;
@@ -45,9 +44,9 @@ public class PreviewRepairTask extends AbstractRepairTask
     private final String[] cfnames;
     private volatile String successMessage = name() + " completed successfully";
 
-    protected PreviewRepairTask(RepairOption options, String keyspace, RepairNotifier notifier, TimeUUID parentSession, List<CommonRange> commonRanges, String[] cfnames)
+    protected PreviewRepairTask(RepairCoordinator coordinator, TimeUUID parentSession, List<CommonRange> commonRanges, String[] cfnames)
     {
-        super(options, keyspace, notifier);
+        super(coordinator);
         this.parentSession = parentSession;
         this.commonRanges = commonRanges;
         this.cfnames = cfnames;
@@ -91,7 +90,7 @@ public class PreviewRepairTask extends AbstractRepairTask
                     maybeSnapshotReplicas(parentSession, keyspace, result.results.get()); // we know its present as summary used it
             }
             successMessage += "; " + message;
-            notifier.notification(message);
+            coordinator.notification(message);
 
             return result;
         });

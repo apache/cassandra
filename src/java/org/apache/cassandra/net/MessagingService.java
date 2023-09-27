@@ -205,11 +205,43 @@ import static org.apache.cassandra.utils.Throwables.maybeFail;
  * implemented in {@link org.apache.cassandra.db.virtual.InternodeInboundTable} and
  * {@link org.apache.cassandra.db.virtual.InternodeOutboundTable} respectively.
  */
-public class MessagingService extends MessagingServiceMBeanImpl
+public class MessagingService extends MessagingServiceMBeanImpl implements MessageDelivery
 {
     private static final Logger logger = LoggerFactory.getLogger(MessagingService.class);
 
     // 8 bits version, so don't waste versions
+    public enum Version
+    {
+        @Deprecated
+        VERSION_30(10),
+        @Deprecated
+        VERSION_3014(11),
+        VERSION_40(12),
+        // c14227 TTL overflow, 'uint' timestamps
+        VERSION_50(13);
+
+        public static final Version CURRENT = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? VERSION_40 : VERSION_50;
+
+        public final int value;
+
+        Version(int value)
+        {
+            this.value = value;
+        }
+
+        public static List<Version> supportedVersions()
+        {
+            List<Version> versions = Lists.newArrayList();
+            for (Version version : values())
+                if (minimum_version <= version.value)
+                    versions.add(version);
+
+            return Collections.unmodifiableList(versions);
+        }
+    }
+    // Maintance Note:
+    // Try to keep Version enum in-sync for testing.  By having the versions in the enum tests can get access without forcing this class
+    // to load, which adds a lot of costs to each test
     @Deprecated
     public static final int VERSION_30 = 10;
     @Deprecated
@@ -217,7 +249,7 @@ public class MessagingService extends MessagingServiceMBeanImpl
     public static final int VERSION_40 = 12;
     public static final int VERSION_50 = 13; // c14227 TTL overflow, 'uint' timestamps
     public static final int minimum_version = VERSION_40;
-    public static final int current_version = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? VERSION_40 : VERSION_50;
+    public static final int current_version = Version.CURRENT.value;
     static AcceptVersions accept_messaging = new AcceptVersions(minimum_version, current_version);
     static AcceptVersions accept_streaming = new AcceptVersions(current_version, current_version);
     static Map<Integer, Integer> versionOrdinalMap = Arrays.stream(Version.values()).collect(Collectors.toMap(v -> v.value, v -> v.ordinal()));
@@ -236,33 +268,6 @@ public class MessagingService extends MessagingServiceMBeanImpl
             throw new IllegalStateException("Unkown serialization version: " + version);
 
         return ordinal;
-    }
-
-    public enum Version
-    {
-        @Deprecated
-        VERSION_30(10),
-        @Deprecated
-        VERSION_3014(11),
-        VERSION_40(12),
-        VERSION_50(13);
-
-        public final int value;
-
-        Version(int value)
-        {
-            this.value = value;
-        }
-
-        public static List<Version> supportedVersions()
-        {
-            List<Version> versions = Lists.newArrayList();
-            for (Version version : values())
-                if (minimum_version <= version.value)
-                    versions.add(version);
-
-            return Collections.unmodifiableList(versions);
-        }
     }
 
     private static class MSHandle
@@ -312,13 +317,14 @@ public class MessagingService extends MessagingServiceMBeanImpl
         OutboundConnections.scheduleUnusedConnectionMonitoring(this, ScheduledExecutors.scheduledTasks, 1L, TimeUnit.HOURS);
     }
 
-    public <T> org.apache.cassandra.utils.concurrent.Future<Message<T>> sendWithResult(Message message, InetAddressAndPort to)
+    @Override
+    public <REQ, RSP> org.apache.cassandra.utils.concurrent.Future<Message<RSP>> sendWithResult(Message<REQ> message, InetAddressAndPort to)
     {
-        AsyncPromise<Message<T>> promise = new AsyncPromise<>();
-        MessagingService.instance().sendWithCallback(message, to, new RequestCallback<T>()
+        AsyncPromise<Message<RSP>> promise = new AsyncPromise<>();
+        sendWithCallback(message, to, new RequestCallback<RSP>()
         {
             @Override
-            public void onResponse(Message<T> msg)
+            public void onResponse(Message<RSP> msg)
             {
                 promise.trySuccess(msg);
             }

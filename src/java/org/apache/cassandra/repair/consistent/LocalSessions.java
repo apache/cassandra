@@ -74,11 +74,9 @@ import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.FailSession;
 import org.apache.cassandra.repair.messages.FinalizeCommit;
 import org.apache.cassandra.repair.messages.FinalizePromise;
@@ -88,16 +86,15 @@ import org.apache.cassandra.repair.messages.PrepareConsistentResponse;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.StatusRequest;
 import org.apache.cassandra.repair.messages.StatusResponse;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.repair.NoSuchRepairSessionException;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Future;
 
-import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPAIR_CLEANUP_INTERVAL_SECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPAIR_DELETE_TIMEOUT_SECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.REPAIR_FAIL_TIMEOUT_SECONDS;
@@ -154,9 +151,15 @@ public class LocalSessions
 
     private final String keyspace = SchemaConstants.SYSTEM_KEYSPACE_NAME;
     private final String table = SystemKeyspace.REPAIRS;
+    private final SharedContext ctx;
     private boolean started = false;
     private volatile ImmutableMap<TimeUUID, LocalSession> sessions = ImmutableMap.of();
     private volatile ImmutableMap<TableId, RepairedState> repairedStates = ImmutableMap.of();
+
+    public LocalSessions(SharedContext ctx)
+    {
+        this.ctx = ctx;
+    }
 
     @VisibleForTesting
     int getNumSessions()
@@ -167,13 +170,13 @@ public class LocalSessions
     @VisibleForTesting
     protected InetAddressAndPort getBroadcastAddressAndPort()
     {
-        return FBUtilities.getBroadcastAddressAndPort();
+        return ctx.broadcastAddressAndPort();
     }
 
     @VisibleForTesting
     protected boolean isAlive(InetAddressAndPort address)
     {
-        return FailureDetector.instance.isAlive(address);
+        return ctx.failureDetector().isAlive(address);
     }
 
     @VisibleForTesting
@@ -443,7 +446,7 @@ public class LocalSessions
         {
             synchronized (session)
             {
-                long now = FBUtilities.nowInSeconds();
+                long now = ctx.clock().nowInSeconds();
                 if (shouldFail(session, now))
                 {
                     logger.warn("Auto failing timed out repair session {}", session);
@@ -564,7 +567,7 @@ public class LocalSessions
 
     private LocalSession load(UntypedResultSet.Row row)
     {
-        LocalSession.Builder builder = LocalSession.builder();
+        LocalSession.Builder builder = LocalSession.builder(ctx);
         builder.withState(ConsistentSession.State.valueOf(row.getInt("state")));
         builder.withSessionID(row.getTimeUUID("parent_id"));
         InetAddressAndPort coordinator = InetAddressAndPort.getByAddressOverrideDefaults(
@@ -662,7 +665,7 @@ public class LocalSessions
     @VisibleForTesting
     LocalSession createSessionUnsafe(TimeUUID sessionId, ActiveRepairService.ParentRepairSession prs, Set<InetAddressAndPort> peers)
     {
-        LocalSession.Builder builder = LocalSession.builder();
+        LocalSession.Builder builder = LocalSession.builder(ctx);
         builder.withState(ConsistentSession.State.PREPARING);
         builder.withSessionID(sessionId);
         builder.withCoordinator(prs.coordinator);
@@ -672,7 +675,7 @@ public class LocalSessions
         builder.withRanges(prs.getRanges());
         builder.withParticipants(peers);
 
-        long now = FBUtilities.nowInSeconds();
+        long now = ctx.clock().nowInSeconds();
         builder.withStartedAt(now);
         builder.withLastUpdate(now);
 
@@ -681,13 +684,14 @@ public class LocalSessions
 
     protected ActiveRepairService.ParentRepairSession getParentRepairSession(TimeUUID sessionID) throws NoSuchRepairSessionException
     {
-        return ActiveRepairService.instance.getParentRepairSession(sessionID);
+
+        return ctx.repair().getParentRepairSession(sessionID);
     }
 
     protected void sendMessage(InetAddressAndPort destination, Message<? extends RepairMessage> message)
     {
         logger.trace("sending {} to {}", message.payload, destination);
-        MessagingService.instance().send(message, destination);
+        ctx.messaging().send(message, destination);
     }
 
     @VisibleForTesting
@@ -821,7 +825,7 @@ public class LocalSessions
         putSessionUnsafe(session);
         logger.info("Beginning local incremental repair session {}", session);
 
-        ExecutorService executor = executorFactory().pooled("Repair-" + sessionID, parentSession.getColumnFamilyStores().size());
+        ExecutorService executor = ctx.executorFactory().pooled("Repair-" + sessionID, parentSession.getColumnFamilyStores().size());
 
         KeyspaceRepairManager repairManager = parentSession.getKeyspace().getRepairManager();
         RangesAtEndpoint tokenRanges = filterLocalRanges(parentSession.getKeyspace().getName(), parentSession.getRanges());
@@ -1097,6 +1101,12 @@ public class LocalSessions
     public static void unregisterListener(Listener listener)
     {
         listeners.remove(listener);
+    }
+
+    @VisibleForTesting
+    public static void unsafeClearListeners()
+    {
+        listeners.clear();
     }
 
     public interface Listener

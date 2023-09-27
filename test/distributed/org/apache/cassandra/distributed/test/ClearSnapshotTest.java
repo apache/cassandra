@@ -100,7 +100,7 @@ public class ClearSnapshotTest extends TestBaseImpl
             long activeRepairs;
             do
             {
-                activeRepairs = cluster.get(1).callOnInstance(() -> ActiveRepairService.instance.parentRepairSessionCount());
+                activeRepairs = cluster.get(1).callOnInstance(() -> ActiveRepairService.instance().parentRepairSessionCount());
                 Thread.sleep(50);
             }
             while (activeRepairs < 35);

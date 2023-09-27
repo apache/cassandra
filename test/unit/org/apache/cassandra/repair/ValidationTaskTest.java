@@ -33,7 +33,6 @@ import java.util.UUID;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class ValidationTaskTest 
@@ -52,10 +51,12 @@ public class ValidationTaskTest
     {
         ValidationTask task = createTask();
         assertTrue(task.isActive());
-        task.abort();
+        task.abort(new RuntimeException());
         assertFalse(task.isActive());
         task.treesReceived(new MerkleTrees(null));
-        assertNull(task.get());
+        // REVIEW: setting null would cause NPEs in sync task, so it was never correct to set null
+        assertTrue(task.isDone());
+        assertFalse(task.isSuccess());
     }
 
     @Test
@@ -71,13 +72,13 @@ public class ValidationTaskTest
         assertEquals(1, trees.size());
         
         // This relies on the fact that MerkleTrees clears its range -> tree map on release.
-        task.abort();
+        task.abort(new RuntimeException());
         assertEquals(0, trees.size());
     }
     
     private ValidationTask createTask() throws UnknownHostException {
         InetAddressAndPort addressAndPort = InetAddressAndPort.getByName("127.0.0.1");
         RepairJobDesc desc = new RepairJobDesc(nextTimeUUID(), nextTimeUUID(), UUID.randomUUID().toString(), UUID.randomUUID().toString(), null);
-        return new ValidationTask(desc, addressAndPort, 0, PreviewKind.NONE);
+        return new ValidationTask(SharedContext.Global.instance, desc, addressAndPort, 0, PreviewKind.NONE);
     }
 }

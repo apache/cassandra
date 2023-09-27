@@ -201,7 +201,7 @@ public class RepairErrorsTest extends TestBaseImpl
     private void assertNoActiveRepairSessions(IInvokableInstance instance)
     {
         // Make sure we've cleaned up local sessions:
-        Integer sessions = instance.callOnInstance(() -> ActiveRepairService.instance.sessionCount());
+        Integer sessions = instance.callOnInstance(() -> ActiveRepairService.instance().sessionCount());
         assertEquals(0, sessions.intValue());
     }
 

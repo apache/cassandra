@@ -87,6 +87,11 @@ public interface Clock
             INITIALIZE_MESSAGE = null;
         }
 
+        public static Clock clock()
+        {
+            return instance;
+        }
+
         /**
          * Semantically equivalent to {@link System#nanoTime()}
          */
@@ -132,6 +137,11 @@ public interface Clock
      * Semantically equivalent to {@link System#currentTimeMillis()}
      */
     public long currentTimeMillis();
+
+    public default long nowInSeconds()
+    {
+        return currentTimeMillis() / 1000L;
+    }
 
     @Intercept
     public static void waitUntil(long deadlineNanos) throws InterruptedException

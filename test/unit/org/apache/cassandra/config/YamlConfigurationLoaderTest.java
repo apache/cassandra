@@ -50,6 +50,51 @@ import static org.junit.Assert.assertTrue;
 public class YamlConfigurationLoaderTest
 {
     @Test
+    public void repairRetryEmpty()
+    {
+        RepairRetrySpec repair_retries = loadRepairRetry(ImmutableMap.of());
+        // repair is empty
+        assertThat(repair_retries.isEnabled()).isFalse();
+        assertThat(repair_retries.isMerkleTreeRetriesEnabled()).isFalse();
+    }
+
+    @Test
+    public void repairRetryInheritance()
+    {
+        RepairRetrySpec repair_retries = loadRepairRetry(ImmutableMap.of("max_attempts", "3"));
+        assertThat(repair_retries.isEnabled()).isTrue();
+        assertThat(repair_retries.getMaxAttempts()).isEqualTo(3);
+        RetrySpec spec = repair_retries.getMerkleTreeResponseSpec();
+        assertThat(spec.isEnabled()).isTrue();
+        assertThat(spec.getMaxAttempts()).isEqualTo(3);
+    }
+
+    @Test
+    public void repairRetryOverride()
+    {
+        RepairRetrySpec repair_retries = loadRepairRetry(ImmutableMap.of(
+        "merkle_tree_response", ImmutableMap.of("max_attempts", 10,
+                                                "base_sleep_time", "1s",
+                                                "max_sleep_time", "10s")
+        ));
+        assertThat(repair_retries.isEnabled()).isFalse();
+        assertThat(repair_retries.getMaxAttempts()).isNull();
+        assertThat(repair_retries.baseSleepTime).isEqualTo(RetrySpec.DEFAULT_BASE_SLEEP);
+        assertThat(repair_retries.maxSleepTime).isEqualTo(RetrySpec.DEFAULT_MAX_SLEEP);
+
+        RetrySpec spec = repair_retries.getMerkleTreeResponseSpec();
+        assertThat(spec.isEnabled()).isTrue();
+        assertThat(spec.maxAttempts).isEqualTo(10);
+        assertThat(spec.baseSleepTime).isEqualTo(RetrySpec.DEFAULT_MAX_SLEEP);
+        assertThat(spec.maxSleepTime).isEqualTo(new DurationSpec.LongMillisecondsBound("10s"));
+    }
+
+    private static RepairRetrySpec loadRepairRetry(Map<String, Object> map)
+    {
+        return YamlConfigurationLoader.fromMap(ImmutableMap.of("repair", ImmutableMap.of("retries", map)), true, Config.class).repair.retries;
+    }
+
+    @Test
     public void validateTypes()
     {
         Predicate<Field> isDurationSpec = f -> f.getType().getTypeName().equals("org.apache.cassandra.config.DurationSpec");

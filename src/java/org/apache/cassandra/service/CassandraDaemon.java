@@ -367,7 +367,7 @@ public class CassandraDaemon
         if (sizeRecorderInterval > 0)
             ScheduledExecutors.optionalTasks.scheduleWithFixedDelay(SizeEstimatesRecorder.instance, 30, sizeRecorderInterval, TimeUnit.SECONDS);
 
-        ActiveRepairService.instance.start();
+        ActiveRepairService.instance().start();
         StreamManager.instance.start();
 
         // Prepared statements

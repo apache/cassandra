@@ -29,7 +29,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 
-import static org.apache.cassandra.repair.RepairRunnable.NeighborsAndRanges;
+import static org.apache.cassandra.repair.RepairCoordinator.NeighborsAndRanges;
 
 public class NeighborsAndRangesTest extends AbstractRepairTest
 {

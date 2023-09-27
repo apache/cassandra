@@ -22,7 +22,7 @@ import java.util.Objects;
 
 import com.google.common.base.Preconditions;
 
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.repair.SharedContext;
 
 /**
  * Basically just a record of a local session. All of the local session logic is implemented in {@link LocalSessions}
@@ -57,7 +57,7 @@ public class LocalSession extends ConsistentSession
 
     public void setLastUpdate()
     {
-        lastUpdate = FBUtilities.nowInSeconds();
+        lastUpdate = ctx.clock().nowInSeconds();
     }
 
     public boolean equals(Object o)
@@ -97,6 +97,11 @@ public class LocalSession extends ConsistentSession
         private long startedAt;
         private long lastUpdate;
 
+        public Builder(SharedContext ctx)
+        {
+            super(ctx);
+        }
+
         public Builder withStartedAt(long startedAt)
         {
             this.startedAt = startedAt;
@@ -123,8 +128,8 @@ public class LocalSession extends ConsistentSession
         }
     }
 
-    public static Builder builder()
+    public static Builder builder(SharedContext ctx)
     {
-        return new Builder();
+        return new Builder(ctx);
     }
 }

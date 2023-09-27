@@ -88,14 +88,14 @@ public abstract class AbstractRepairTest
         TimeUUID sessionId = nextTimeUUID();
 
         long repairedAt = isIncremental ? System.currentTimeMillis() : ActiveRepairService.UNREPAIRED_SSTABLE;
-        ActiveRepairService.instance.registerParentRepairSession(sessionId,
-                                                                 COORDINATOR,
-                                                                 Lists.newArrayList(cfs),
-                                                                 Sets.newHashSet(RANGE1, RANGE2, RANGE3),
-                                                                 isIncremental,
-                                                                 repairedAt,
-                                                                 isGlobal,
-                                                                 PreviewKind.NONE);
+        ActiveRepairService.instance().registerParentRepairSession(sessionId,
+                                                                   COORDINATOR,
+                                                                   Lists.newArrayList(cfs),
+                                                                   Sets.newHashSet(RANGE1, RANGE2, RANGE3),
+                                                                   isIncremental,
+                                                                   repairedAt,
+                                                                   isGlobal,
+                                                                   PreviewKind.NONE);
         return sessionId;
     }
 }

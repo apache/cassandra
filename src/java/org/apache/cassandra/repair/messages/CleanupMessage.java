@@ -41,6 +41,12 @@ public class CleanupMessage extends RepairMessage
     }
 
     @Override
+    public TimeUUID parentRepairSession()
+    {
+        return parentRepairSession;
+    }
+
+    @Override
     public boolean equals(Object o)
     {
         if (!(o instanceof CleanupMessage))

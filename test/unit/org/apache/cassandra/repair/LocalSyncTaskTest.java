@@ -94,7 +94,7 @@ public class LocalSyncTaskTest extends AbstractRepairTest
         // note: we reuse the same endpoint which is bogus in theory but fine here
         TreeResponse r1 = new TreeResponse(local, tree1);
         TreeResponse r2 = new TreeResponse(ep2, tree2);
-        LocalSyncTask task = new LocalSyncTask(desc, r1.endpoint, r2.endpoint, MerkleTrees.difference(r1.trees, r2.trees),
+        LocalSyncTask task = new LocalSyncTask(SharedContext.Global.instance, desc, r1.endpoint, r2.endpoint, MerkleTrees.difference(r1.trees, r2.trees),
                                                NO_PENDING_REPAIR, true, true, PreviewKind.NONE);
         task.run();
 
@@ -109,10 +109,10 @@ public class LocalSyncTaskTest extends AbstractRepairTest
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Standard1");
 
-        ActiveRepairService.instance.registerParentRepairSession(parentRepairSession, FBUtilities.getBroadcastAddressAndPort(),
-                                                                 Arrays.asList(cfs), Arrays.asList(range), false,
-                                                                 ActiveRepairService.UNREPAIRED_SSTABLE, false,
-                                                                 PreviewKind.NONE);
+        ActiveRepairService.instance().registerParentRepairSession(parentRepairSession, FBUtilities.getBroadcastAddressAndPort(),
+                                                                   Arrays.asList(cfs), Arrays.asList(range), false,
+                                                                   ActiveRepairService.UNREPAIRED_SSTABLE, false,
+                                                                   PreviewKind.NONE);
 
         RepairJobDesc desc = new RepairJobDesc(parentRepairSession, nextTimeUUID(), KEYSPACE1, "Standard1", Arrays.asList(range));
 
@@ -132,7 +132,7 @@ public class LocalSyncTaskTest extends AbstractRepairTest
         // note: we reuse the same endpoint which is bogus in theory but fine here
         TreeResponse r1 = new TreeResponse(local, tree1);
         TreeResponse r2 = new TreeResponse(InetAddressAndPort.getByName("127.0.0.2"), tree2);
-        LocalSyncTask task = new LocalSyncTask(desc, r1.endpoint, r2.endpoint, MerkleTrees.difference(r1.trees, r2.trees),
+        LocalSyncTask task = new LocalSyncTask(SharedContext.Global.instance, desc, r1.endpoint, r2.endpoint, MerkleTrees.difference(r1.trees, r2.trees),
                                                NO_PENDING_REPAIR, true, true, PreviewKind.NONE);
         NettyStreamingConnectionFactory.MAX_CONNECT_ATTEMPTS = 1;
         try
@@ -152,13 +152,13 @@ public class LocalSyncTaskTest extends AbstractRepairTest
     public void fullRepairStreamPlan() throws Exception
     {
         TimeUUID sessionID = registerSession(cfs, true, true);
-        ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
+        ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance().getParentRepairSession(sessionID);
         RepairJobDesc desc = new RepairJobDesc(sessionID, nextTimeUUID(), KEYSPACE1, CF_STANDARD, prs.getRanges());
 
         TreeResponse r1 = new TreeResponse(local, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
         TreeResponse r2 = new TreeResponse(PARTICIPANT2, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
 
-        LocalSyncTask task = new LocalSyncTask(desc, r1.endpoint, r2.endpoint, MerkleTrees.difference(r1.trees, r2.trees),
+        LocalSyncTask task = new LocalSyncTask(SharedContext.Global.instance, desc, r1.endpoint, r2.endpoint, MerkleTrees.difference(r1.trees, r2.trees),
                                                NO_PENDING_REPAIR, true, true, PreviewKind.NONE);
         StreamPlan plan = task.createStreamPlan();
 
@@ -178,13 +178,13 @@ public class LocalSyncTaskTest extends AbstractRepairTest
     public void incrementalRepairStreamPlan() throws Exception
     {
         TimeUUID sessionID = registerSession(cfs, true, true);
-        ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
+        ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance().getParentRepairSession(sessionID);
         RepairJobDesc desc = new RepairJobDesc(sessionID, nextTimeUUID(), KEYSPACE1, CF_STANDARD, prs.getRanges());
 
         TreeResponse r1 = new TreeResponse(local, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
         TreeResponse r2 = new TreeResponse(PARTICIPANT2, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
 
-        LocalSyncTask task = new LocalSyncTask(desc, r1.endpoint, r2.endpoint, MerkleTrees.difference(r1.trees, r2.trees),
+        LocalSyncTask task = new LocalSyncTask(SharedContext.Global.instance, desc, r1.endpoint, r2.endpoint, MerkleTrees.difference(r1.trees, r2.trees),
                                                desc.parentSessionId, true, true, PreviewKind.NONE);
         StreamPlan plan = task.createStreamPlan();
 
@@ -200,13 +200,13 @@ public class LocalSyncTaskTest extends AbstractRepairTest
     public void transientRemoteStreamPlan() throws NoSuchRepairSessionException
     {
         TimeUUID sessionID = registerSession(cfs, true, true);
-        ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
+        ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance().getParentRepairSession(sessionID);
         RepairJobDesc desc = new RepairJobDesc(sessionID, nextTimeUUID(), KEYSPACE1, CF_STANDARD, prs.getRanges());
 
         TreeResponse r1 = new TreeResponse(local, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
         TreeResponse r2 = new TreeResponse(PARTICIPANT2, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
 
-        LocalSyncTask task = new LocalSyncTask(desc, r1.endpoint, r2.endpoint, MerkleTrees.difference(r1.trees, r2.trees),
+        LocalSyncTask task = new LocalSyncTask(SharedContext.Global.instance, desc, r1.endpoint, r2.endpoint, MerkleTrees.difference(r1.trees, r2.trees),
                                                desc.parentSessionId, true, false, PreviewKind.NONE);
         StreamPlan plan = task.createStreamPlan();
         assertNumInOut(plan, 1, 0);
@@ -219,13 +219,13 @@ public class LocalSyncTaskTest extends AbstractRepairTest
     public void transientLocalStreamPlan() throws NoSuchRepairSessionException
     {
         TimeUUID sessionID = registerSession(cfs, true, true);
-        ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
+        ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance().getParentRepairSession(sessionID);
         RepairJobDesc desc = new RepairJobDesc(sessionID, nextTimeUUID(), KEYSPACE1, CF_STANDARD, prs.getRanges());
 
         TreeResponse r1 = new TreeResponse(local, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
         TreeResponse r2 = new TreeResponse(PARTICIPANT2, createInitialTree(desc, DatabaseDescriptor.getPartitioner()));
 
-        LocalSyncTask task = new LocalSyncTask(desc, r1.endpoint, r2.endpoint, MerkleTrees.difference(r1.trees, r2.trees),
+        LocalSyncTask task = new LocalSyncTask(SharedContext.Global.instance, desc, r1.endpoint, r2.endpoint, MerkleTrees.difference(r1.trees, r2.trees),
                                                desc.parentSessionId, false, true, PreviewKind.NONE);
         StreamPlan plan = task.createStreamPlan();
         assertNumInOut(plan, 0, 1);

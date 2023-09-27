@@ -149,14 +149,14 @@ public class IncRepairAdminTest extends TestBaseImpl
                 ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore("tbl");
                 Range<Token> range = new Range<>(cfs.metadata().partitioner.getMinimumToken(),
                                                  cfs.metadata().partitioner.getRandomToken());
-                ActiveRepairService.instance.registerParentRepairSession(sessionId,
-                                                                         InetAddressAndPort.getByAddress(coordinator.getAddress()),
-                                                                         Lists.newArrayList(cfs),
-                                                                         Sets.newHashSet(range),
-                                                                         true,
-                                                                         currentTimeMillis(),
-                                                                         true,
-                                                                         PreviewKind.NONE);
+                ActiveRepairService.instance().registerParentRepairSession(sessionId,
+                                                                           InetAddressAndPort.getByAddress(coordinator.getAddress()),
+                                                                           Lists.newArrayList(cfs),
+                                                                           Sets.newHashSet(range),
+                                                                           true,
+                                                                           currentTimeMillis(),
+                                                                           true,
+                                                                           PreviewKind.NONE);
                 LocalSessionAccessor.prepareUnsafe(sessionId,
                                                    InetAddressAndPort.getByAddress(coordinator.getAddress()),
                                                    participants.stream().map(participant -> InetAddressAndPort.getByAddress(participant.getAddress())).collect(Collectors.toSet()));
