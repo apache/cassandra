@@ -20,23 +20,23 @@ package org.apache.cassandra.simulator.logging;
 
 import ch.qos.logback.core.PropertyDefinerBase;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
+
 public class SeedDefiner extends PropertyDefinerBase
 {
-    private static final String PROPERTY = "cassandra.simulator.seed";
-
     public static void setSeed(long seed)
     {
-        System.setProperty(PROPERTY, "0x" + Long.toHexString(seed));
+        CassandraRelevantProperties.SIMULATOR_SEED.setString("0x" + Long.toHexString(seed));
     }
 
     @Override
     public String getPropertyValue()
     {
-        if (System.getProperty(PROPERTY) == null)
+        if (CassandraRelevantProperties.SIMULATOR_SEED.getString() == null)
         {
             System.err.println("SeedDefiner is being called before the seed has been set, check static init order");
-            System.setProperty(PROPERTY, "<undefined>");
+            CassandraRelevantProperties.SIMULATOR_SEED.setString("<undefined>");
         }
-        return System.getProperty(PROPERTY);
+        return CassandraRelevantProperties.SIMULATOR_SEED.getString();
     }
 }

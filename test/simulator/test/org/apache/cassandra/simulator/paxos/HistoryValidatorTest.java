@@ -30,6 +30,7 @@ import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.junit.Assume;
 import org.junit.FixMethodOrder;
 import org.junit.Test;
@@ -363,7 +364,7 @@ public class HistoryValidatorTest
 
     private static Random random()
     {
-        long seed = Long.parseLong(System.getProperty("cassandra.test.seed", Long.toString(Clock.Global.nanoTime())));
+        long seed = Long.parseLong(CassandraRelevantProperties.TEST_SEED.getString(Long.toString(Clock.Global.nanoTime())));
         logger.info("Random seed={}; set -Dcassandra.test.seed={} while reruning the tests to get the same order", seed, seed);
         return new Random(seed);
     }
