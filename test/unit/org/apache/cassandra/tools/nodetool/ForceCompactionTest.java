@@ -22,12 +22,14 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.*;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -237,6 +239,7 @@ public class ForceCompactionTest extends CQLTester
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         if (cfs != null)
         {
+            cfs.forceMajorCompaction();
             cfs.forceCompactionKeysIgnoringGcGrace(partitionKeysIgnoreGcGrace);
         }
     }
@@ -245,11 +248,15 @@ public class ForceCompactionTest extends CQLTester
     {
         // Get sstables
         ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(currentTable());
-        Collection<SSTableReader> sstables = cfs.getLiveSSTables();
 
         // always run a major compaction before calling this
-        assertTrue(sstables.size() == 1);
+        Util.spinAssertEquals("Too many sstables: " + cfs.getLiveSSTables().toString(),
+                              Boolean.TRUE,
+                              () -> cfs.getLiveSSTables().size() == 1,
+                              60,
+                              TimeUnit.SECONDS);
 
+        Collection<SSTableReader> sstables = cfs.getLiveSSTables();
         SSTableReader sstable = sstables.iterator().next();
         int actualPurgedTombstoneCount = 0;
         try (ISSTableScanner scanner = sstable.getScanner())
