@@ -25,6 +25,9 @@ import java.util.List;
 
 import org.junit.runners.Parameterized;
 
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.VectorType;
+
 /**
  * {@link ColumnMaskQueryTester} for {@link DefaultMaskingFunction}.
  */
@@ -39,7 +42,11 @@ public class ColumnMaskQueryWithDefaultTest extends ColumnMaskQueryTester
             options.add(new Object[]{ order, "DEFAULT", "text", "abc", "****" });
             options.add(new Object[]{ order, "DEFAULT", "int", 123, 0 });
             options.add(new Object[]{ order, "mask_default()", "text", "abc", "****" });
-            options.add(new Object[]{ order, "mask_default()", "int", 123, 0, });
+            options.add(new Object[]{ order, "mask_default()", "int", 123, 0 });
+            // TODO: the driver version that we use doesn't support vectors, so we have to use raw values by now
+            options.add(new Object[]{ order, "mask_default()", "vector<int, 2>",
+                                      VectorType.getInstance(Int32Type.instance, 2).decompose(1, 2),
+                                      VectorType.getInstance(Int32Type.instance, 2).decompose(0, 0) });
         }
         return options;
     }

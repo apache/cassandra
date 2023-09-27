@@ -10,13 +10,22 @@ Examples:
 
 `mask_null(123)` -> `null`
 
-| `mask_default(value)` | Replaces its argument by an arbitrary, fixed default value of the same type. This will be `\***\***` for text values, zero for numeric values, `false` for booleans, etc.
+| `mask_default(value)` | Replaces its argument by an arbitrary, fixed default value of the same type.
+This will be `\***\***` for text values, zero for numeric values, `false` for booleans, etc.
+
+Variable-length multivalued types such as lists, sets and maps are masked as empty collections.
+
+Fixed-length multivalued types such as tuples, UDTs and vectors are masked by replacing each of their values by the default masking value of the value type.
 
 Examples:
 
 `mask_default('Alice')` -> `'\****'`
 
 `mask_default(123)` -> `0`
+
+`mask_default((list<int>) [1, 2, 3])` -> `[]`
+
+`mask_default((vector<int, 3>) [1, 2, 3])` -> `[0, 0, 0]`
 
 | `mask_replace(value, replacement])` | Replaces the first argument by the replacement value on the second argument. The replacement value needs to have the same type as the replaced value.
 
