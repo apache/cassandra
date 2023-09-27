@@ -26,6 +26,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.repair.AbstractRepairTest;
 import org.apache.cassandra.repair.NoSuchRepairSessionException;
@@ -85,6 +86,11 @@ public class CoordinatorSessionsTest extends AbstractRepairTest
 
     private static class InstrumentedCoordinatorSessions extends CoordinatorSessions
     {
+        private InstrumentedCoordinatorSessions()
+        {
+            super(SharedContext.Global.instance);
+        }
+
         protected CoordinatorSession buildSession(CoordinatorSession.Builder builder)
         {
             return new InstrumentedCoordinatorSession(builder);
@@ -118,7 +124,7 @@ public class CoordinatorSessionsTest extends AbstractRepairTest
     @Test
     public void registerSessionTest() throws NoSuchRepairSessionException
     {
-        CoordinatorSessions sessions = new CoordinatorSessions();
+        CoordinatorSessions sessions = new CoordinatorSessions(SharedContext.Global.instance);
         TimeUUID sessionID = registerSession();
         CoordinatorSession session = sessions.registerSession(sessionID, PARTICIPANTS, false);
 
@@ -127,7 +133,7 @@ public class CoordinatorSessionsTest extends AbstractRepairTest
         Assert.assertEquals(COORDINATOR, session.coordinator);
         Assert.assertEquals(Sets.newHashSet(cfm.id), session.tableIds);
 
-        ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
+        ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance().getParentRepairSession(sessionID);
         Assert.assertEquals(prs.repairedAt, session.repairedAt);
         Assert.assertEquals(prs.getRanges(), session.ranges);
         Assert.assertEquals(PARTICIPANTS, session.participants);

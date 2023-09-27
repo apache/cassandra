@@ -23,11 +23,12 @@ import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.SnapshotMessage;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 
 import static org.apache.cassandra.net.Verb.SNAPSHOT_MSG;
+import static org.apache.cassandra.repair.messages.RepairMessage.notDone;
 
 /**
  * SnapshotTask is a task that sends snapshot request.
@@ -36,18 +37,18 @@ public class SnapshotTask extends AsyncFuture<InetAddressAndPort> implements Run
 {
     private final RepairJobDesc desc;
     private final InetAddressAndPort endpoint;
+    private final SharedContext ctx;
 
-    SnapshotTask(RepairJobDesc desc, InetAddressAndPort endpoint)
+    SnapshotTask(SharedContext ctx, RepairJobDesc desc, InetAddressAndPort endpoint)
     {
+        this.ctx = ctx;
         this.desc = desc;
         this.endpoint = endpoint;
     }
 
     public void run()
     {
-        MessagingService.instance().sendWithCallback(Message.out(SNAPSHOT_MSG, new SnapshotMessage(desc)),
-                                                     endpoint,
-                                                     new SnapshotCallback(this));
+        RepairMessage.sendMessageWithRetries(ctx, notDone(this), new SnapshotMessage(desc), SNAPSHOT_MSG, endpoint, new SnapshotCallback(this));
     }
 
     /**

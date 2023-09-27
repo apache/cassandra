@@ -62,6 +62,7 @@ import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.OrderPreservingPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
@@ -101,6 +102,11 @@ public final class CassandraGenerators
     private static final Gen<Integer> NETWORK_PORT_GEN = SourceDSL.integers().between(0, 0xFFFF);
     private static final Gen<Boolean> BOOLEAN_GEN = SourceDSL.booleans().all();
 
+    /**
+     * Similar to {@link Generators#IDENTIFIER_GEN} but uses a bound of 48 as keyspace has a smaller restriction than other identifiers
+     */
+    public static final Gen<String> KEYSPACE_NAME_GEN = Generators.regexWord(SourceDSL.integers().between(1, 48));
+
     public static final Gen<InetAddressAndPort> INET_ADDRESS_AND_PORT_GEN = rnd -> {
         InetAddress address = Generators.INET_ADDRESS_GEN.generate(rnd);
         return InetAddressAndPort.getByAddressOverrideDefaults(address, NETWORK_PORT_GEN.generate(rnd));
@@ -113,6 +119,7 @@ public final class CassandraGenerators
                                                                                         RandomPartitioner.instance);
 
 
+    public static final Gen<TableId> TABLE_ID_GEN = Generators.UUID_RANDOM_GEN.map(TableId::fromUUID);
     private static final Gen<TableMetadata.Kind> TABLE_KIND_GEN = SourceDSL.arbitrary().pick(TableMetadata.Kind.REGULAR, TableMetadata.Kind.INDEX, TableMetadata.Kind.VIRTUAL);
     public static final Gen<TableMetadata> TABLE_METADATA_GEN = gen(rnd -> createTableMetadata(IDENTIFIER_GEN.generate(rnd), rnd)).describedAs(CassandraGenerators::toStringRecursive);
 
@@ -180,12 +187,14 @@ public final class CassandraGenerators
 
     public static class TableMetadataBuilder
     {
-        private Gen<String> ksNameGen = IDENTIFIER_GEN;
+        private Gen<String> ksNameGen = CassandraGenerators.KEYSPACE_NAME_GEN;
+        private Gen<String> tableNameGen = IDENTIFIER_GEN;
         private Gen<AbstractType<?>> defaultTypeGen = AbstractTypeGenerators.builder()
                                                                             .withDefaultSetKey(AbstractTypeGenerators.withoutUnsafeEquality())
                                                                             .withMaxDepth(1)
                                                                             .build();
         private Gen<AbstractType<?>> partitionColTypeGen, clusteringColTypeGen, staticColTypeGen, regularColTypeGen;
+        private Gen<TableId> tableIdGen = TABLE_ID_GEN;
         private Gen<TableMetadata.Kind> tableKindGen = SourceDSL.arbitrary().constant(TableMetadata.Kind.REGULAR);
         private Gen<Integer> numPartitionColumnsGen = SourceDSL.integers().between(1, 2);
         private Gen<Integer> numClusteringColumnsGen = SourceDSL.integers().between(1, 2);
@@ -211,6 +220,30 @@ public final class CassandraGenerators
         public TableMetadataBuilder withKeyspaceName(String name)
         {
             this.ksNameGen = SourceDSL.arbitrary().constant(name);
+            return this;
+        }
+
+        public TableMetadataBuilder withTableName(Gen<String> tableNameGen)
+        {
+            this.tableNameGen = tableNameGen;
+            return this;
+        }
+
+        public TableMetadataBuilder withTableName(String name)
+        {
+            this.tableNameGen = SourceDSL.arbitrary().constant(name);
+            return this;
+        }
+
+        public TableMetadataBuilder withTableId(Gen<TableId> gen)
+        {
+            this.tableIdGen = gen;
+            return this;
+        }
+
+        public TableMetadataBuilder withTableId(TableId id)
+        {
+            this.tableIdGen = SourceDSL.arbitrary().constant(id);
             return this;
         }
 
@@ -316,11 +349,11 @@ public final class CassandraGenerators
                 withPrimaryColumnTypeGen(Generators.filter(defaultTypeGen, t -> !AbstractTypeGenerators.UNSAFE_EQUALITY.contains(t.getClass())));
 
             String ks = ksNameGen.generate(rnd);
-            String tableName = IDENTIFIER_GEN.generate(rnd);
+            String tableName = tableNameGen.generate(rnd);
             TableParams.Builder params = TableParams.builder();
             if (memtableKeyGen != null)
                 params.memtable(MemtableParams.get(memtableKeyGen.generate(rnd)));
-            TableMetadata.Builder builder = TableMetadata.builder(ks, tableName, TableId.fromUUID(Generators.UUID_RANDOM_GEN.generate(rnd)))
+            TableMetadata.Builder builder = TableMetadata.builder(ks, tableName, tableIdGen.generate(rnd))
                                                          .partitioner(PARTITIONER_GEN.generate(rnd))
                                                          .kind(tableKindGen.generate(rnd))
                                                          .isCounter(BOOLEAN_GEN.generate(rnd))
@@ -518,6 +551,28 @@ public final class CassandraGenerators
         return rs -> new Murmur3Partitioner.LongToken(rs.next(token));
     }
 
+    public static Gen<Token> murmurTokenIn(Range<Token> range)
+    {
+        // left exclusive, right inclusive
+        if (range.isWrapAround())
+        {
+            List<Range<Token>> unwrap = range.unwrap();
+            return rs -> {
+                Range<Token> subRange = unwrap.get(Math.toIntExact(rs.next(Constraint.between(0, unwrap.size() - 1))));
+                long end = ((Murmur3Partitioner.LongToken) subRange.right).token;
+                if (end == Long.MIN_VALUE)
+                    end = Long.MAX_VALUE;
+                Constraint token = Constraint.between(((Murmur3Partitioner.LongToken) subRange.left).token + 1, end);
+                return new Murmur3Partitioner.LongToken(rs.next(token));
+            };
+        }
+        else
+        {
+            Constraint token = Constraint.between(((Murmur3Partitioner.LongToken) range.left).token + 1, ((Murmur3Partitioner.LongToken) range.right).token);
+            return rs -> new Murmur3Partitioner.LongToken(rs.next(token));
+        }
+    }
+
     public static Gen<Token> byteOrderToken()
     {
         Constraint size = Constraint.between(0, 10);
@@ -546,6 +601,13 @@ public final class CassandraGenerators
     {
         Gen<String> string = Generators.utf8(0, 10);
         return rs -> new OrderPreservingPartitioner.StringToken(string.generate(rs));
+    }
+
+    public static Gen<Token> tokensInRange(Range<Token> range)
+    {
+        IPartitioner partitioner = range.left.getPartitioner();
+        if (partitioner instanceof Murmur3Partitioner) return murmurTokenIn(range);
+        throw new UnsupportedOperationException("Unsupported partitioner: " + partitioner.getClass());
     }
 
     public static Gen<Token> token(IPartitioner partitioner)

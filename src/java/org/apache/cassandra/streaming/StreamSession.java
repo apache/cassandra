@@ -542,7 +542,9 @@ public class StreamSession
                     this.failureReason = failureReason;
 
                     sink.onClose(peer);
-                    streamResult.handleSessionComplete(this);
+                    // closed before init?
+                    if (streamResult != null)
+                        streamResult.handleSessionComplete(this);
                 }}).flatMap(ignore -> {
                     List<Future<?>> futures = new ArrayList<>();
                     // ensure aborting the tasks do not happen on the network IO thread (read: netty event loop)
@@ -959,7 +961,7 @@ public class StreamSession
             }
         }
         Collections.sort(tables);
-        int pendingThreshold = ActiveRepairService.instance.getRepairPendingCompactionRejectThreshold();
+        int pendingThreshold = ActiveRepairService.instance().getRepairPendingCompactionRejectThreshold();
         if (pendingCompactionsAfterStreaming > pendingThreshold)
         {
             logger.error("[Stream #{}] Rejecting incoming files based on pending compactions calculation " +

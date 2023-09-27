@@ -32,6 +32,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.TopPartitionTracker;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.repair.TableRepairManager;
 import org.apache.cassandra.repair.ValidationPartitionIterator;
 import org.apache.cassandra.repair.NoSuchRepairSessionException;
@@ -41,16 +42,23 @@ import org.apache.cassandra.service.ActiveRepairService;
 public class CassandraTableRepairManager implements TableRepairManager
 {
     private final ColumnFamilyStore cfs;
+    private final SharedContext ctx;
 
     public CassandraTableRepairManager(ColumnFamilyStore cfs)
     {
+        this(cfs, SharedContext.Global.instance);
+    }
+
+    public CassandraTableRepairManager(ColumnFamilyStore cfs, SharedContext ctx)
+    {
         this.cfs = cfs;
+        this.ctx = ctx;
     }
 
     @Override
     public ValidationPartitionIterator getValidationIterator(Collection<Range<Token>> ranges, TimeUUID parentId, TimeUUID sessionID, boolean isIncremental, long nowInSec, TopPartitionTracker.Collector topPartitionCollector) throws IOException, NoSuchRepairSessionException
     {
-        return new CassandraValidationIterator(cfs, ranges, parentId, sessionID, isIncremental, nowInSec, topPartitionCollector);
+        return new CassandraValidationIterator(cfs, ctx, ranges, parentId, sessionID, isIncremental, nowInSec, topPartitionCollector);
     }
 
     @Override
@@ -70,7 +78,7 @@ public class CassandraTableRepairManager implements TableRepairManager
     {
         try
         {
-            ActiveRepairService.instance.snapshotExecutor.submit(() -> {
+            ActiveRepairService.instance().snapshotExecutor.submit(() -> {
                 if (force || !cfs.snapshotExists(name))
                 {
                     cfs.snapshot(name, new Predicate<SSTableReader>()

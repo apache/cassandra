@@ -39,7 +39,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.CommonRange;
 import org.apache.cassandra.repair.RepairJobDesc;
-import org.apache.cassandra.repair.RepairRunnable;
+import org.apache.cassandra.repair.RepairCoordinator;
 import org.apache.cassandra.repair.messages.PrepareMessage;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.repair.state.Completable;
@@ -52,6 +52,7 @@ import org.apache.cassandra.repair.state.ValidationState;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 
@@ -75,7 +76,7 @@ public class LocalRepairTablesTest extends CQLTester
     @Before
     public void cleanupRepairs()
     {
-        ActiveRepairService.instance.clearLocalRepairState();
+        ActiveRepairService.instance().clearLocalRepairState();
     }
 
     @Test
@@ -90,7 +91,7 @@ public class LocalRepairTablesTest extends CQLTester
         assertState("repairs", state, CoordinatorState.State.SETUP);
 
         List<ColumnFamilyStore> tables = Collections.singletonList(table());
-        RepairRunnable.NeighborsAndRanges neighbors = neighbors();
+        RepairCoordinator.NeighborsAndRanges neighbors = neighbors();
         state.phase.start(tables, neighbors);
         assertState("repairs", state, CoordinatorState.State.START);
         List<List<String>> expectedRanges = neighbors.commonRanges.stream().map(a -> a.ranges.stream().map(Object::toString).collect(Collectors.toList())).collect(Collectors.toList());
@@ -265,9 +266,9 @@ public class LocalRepairTablesTest extends CQLTester
         return Schema.instance.getColumnFamilyStoreInstance(Schema.instance.getTableMetadata(ks, name).id);
     }
 
-    private static RepairRunnable.NeighborsAndRanges neighbors()
+    private static RepairCoordinator.NeighborsAndRanges neighbors()
     {
-        return new RepairRunnable.NeighborsAndRanges(false, ADDRESSES, ImmutableList.of(COMMON_RANGE));
+        return new RepairCoordinator.NeighborsAndRanges(false, ADDRESSES, ImmutableList.of(COMMON_RANGE));
     }
 
     private static Range<Token> range(long a, long b)
@@ -290,15 +291,15 @@ public class LocalRepairTablesTest extends CQLTester
     private static CoordinatorState coordinator()
     {
         RepairOption options = RepairOption.parse(Collections.emptyMap(), DatabaseDescriptor.getPartitioner());
-        CoordinatorState state = new CoordinatorState(0, "test", options);
-        ActiveRepairService.instance.register(state);
+        CoordinatorState state = new CoordinatorState(Clock.Global.clock(), 0, "test", options);
+        ActiveRepairService.instance().register(state);
         return state;
     }
 
     private static SessionState session()
     {
         CoordinatorState parent = coordinator();
-        SessionState state = new SessionState(parent.id, REPAIR_KS, new String[]{ REPAIR_TABLE }, COMMON_RANGE);
+        SessionState state = new SessionState(Clock.Global.clock(), parent.id, REPAIR_KS, new String[]{ REPAIR_TABLE }, COMMON_RANGE);
         parent.register(state);
         return state;
     }
@@ -306,7 +307,7 @@ public class LocalRepairTablesTest extends CQLTester
     private static JobState job()
     {
         SessionState session = session();
-        JobState state = new JobState(new RepairJobDesc(session.parentRepairSession, session.id, session.keyspace, session.cfnames[0], session.commonRange.ranges), session.commonRange.endpoints);
+        JobState state = new JobState(Clock.Global.clock(), new RepairJobDesc(session.parentRepairSession, session.id, session.keyspace, session.cfnames[0], session.commonRange.ranges), session.commonRange.endpoints);
         session.register(state);
         return state;
     }
@@ -315,7 +316,7 @@ public class LocalRepairTablesTest extends CQLTester
     {
         JobState job = job(); // job isn't needed but makes getting the descriptor easier
         ParticipateState participate = participate();
-        ValidationState state = new ValidationState(job.desc, ADDRESSES.stream().findFirst().get());
+        ValidationState state = new ValidationState(Clock.Global.clock(), job.desc, ADDRESSES.stream().findFirst().get());
         participate.register(state);
         return state;
     }
@@ -323,8 +324,8 @@ public class LocalRepairTablesTest extends CQLTester
     private ParticipateState participate()
     {
         List<Range<Token>> ranges = Arrays.asList(new Range<>(new Murmur3Partitioner.LongToken(0), new Murmur3Partitioner.LongToken(42)));
-        ParticipateState state = new ParticipateState(FBUtilities.getBroadcastAddressAndPort(), new PrepareMessage(TimeUUID.Generator.nextTimeUUID(), Collections.emptyList(), ranges, true, 42, true, PreviewKind.ALL));
-        ActiveRepairService.instance.register(state);
+        ParticipateState state = new ParticipateState(Clock.Global.clock(), FBUtilities.getBroadcastAddressAndPort(), new PrepareMessage(TimeUUID.Generator.nextTimeUUID(), Collections.emptyList(), ranges, true, 42, true, PreviewKind.ALL));
+        ActiveRepairService.instance().register(state);
         return state;
     }
 

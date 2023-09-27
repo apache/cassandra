@@ -29,6 +29,7 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.concurrent.ImmediateExecutor;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.repair.CoordinatedRepairResult;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -40,7 +41,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.exceptions.RepairException;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.repair.SomeRepairFailedException;
 import org.apache.cassandra.repair.messages.FailSession;
@@ -51,8 +51,6 @@ import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 
-import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
-
 /**
  * Coordinator side logic and state of a consistent repair session. Like {@link ActiveRepairService.ParentRepairSession},
  * there is only one {@code CoordinatorSession} per user repair command, regardless of the number of tables and token
@@ -62,6 +60,7 @@ public class CoordinatorSession extends ConsistentSession
 {
     private static final Logger logger = LoggerFactory.getLogger(CoordinatorSession.class);
 
+    private final SharedContext ctx;
     private final Map<InetAddressAndPort, State> participantStates = new HashMap<>();
     private final AsyncPromise<Void> prepareFuture = AsyncPromise.uncancellable();
     private final AsyncPromise<Void> finalizeProposeFuture = AsyncPromise.uncancellable();
@@ -73,6 +72,7 @@ public class CoordinatorSession extends ConsistentSession
     public CoordinatorSession(Builder builder)
     {
         super(builder);
+        ctx = builder.ctx == null ? SharedContext.Global.instance : builder.ctx;
         for (InetAddressAndPort participant : participants)
         {
             participantStates.put(participant, State.PREPARING);
@@ -81,6 +81,19 @@ public class CoordinatorSession extends ConsistentSession
 
     public static class Builder extends AbstractBuilder
     {
+        private SharedContext ctx;
+
+        public Builder(SharedContext ctx)
+        {
+            super(ctx);
+        }
+
+        public Builder withContext(SharedContext ctx)
+        {
+            this.ctx = ctx;
+            return this;
+        }
+
         public CoordinatorSession build()
         {
             validate();
@@ -88,9 +101,9 @@ public class CoordinatorSession extends ConsistentSession
         }
     }
 
-    public static Builder builder()
+    public static Builder builder(SharedContext ctx)
     {
-        return new Builder();
+        return new Builder(ctx);
     }
 
     public void setState(State state)
@@ -144,7 +157,8 @@ public class CoordinatorSession extends ConsistentSession
     protected void sendMessage(InetAddressAndPort destination, Message<RepairMessage> message)
     {
         logger.trace("Sending {} to {}", message.payload, destination);
-        MessagingService.instance().send(message, destination);
+
+        ctx.messaging().send(message, destination);
     }
 
     public Future<Void> prepare()
@@ -297,12 +311,12 @@ public class CoordinatorSession extends ConsistentSession
     {
         logger.info("Beginning coordination of incremental repair session {}", sessionID);
 
-        sessionStart = currentTimeMillis();
+        sessionStart = ctx.clock().currentTimeMillis();
         Future<Void> prepareResult = prepare();
 
         // run repair sessions normally
         Future<CoordinatedRepairResult> repairSessionResults = prepareResult.flatMap(ignore -> {
-            repairStart = currentTimeMillis();
+            repairStart = ctx.clock().currentTimeMillis();
             if (logger.isDebugEnabled())
                 logger.debug("Incremental repair {} prepare phase completed in {}", sessionID, formatDuration(sessionStart, repairStart));
             setRepairing();
@@ -311,7 +325,7 @@ public class CoordinatorSession extends ConsistentSession
 
         // if any session failed, then fail the future
         Future<CoordinatedRepairResult> onlySuccessSessionResults = repairSessionResults.flatMap(result -> {
-            finalizeStart = currentTimeMillis();
+            finalizeStart = ctx.clock().currentTimeMillis();
             if (result.hasFailed())
             {
                 if (logger.isDebugEnabled())
@@ -324,10 +338,10 @@ public class CoordinatorSession extends ConsistentSession
         // mark propose finalization and commit
         Future<CoordinatedRepairResult> proposeFuture = onlySuccessSessionResults.flatMap(results -> finalizePropose().map(ignore -> {
             if (logger.isDebugEnabled())
-                logger.debug("Incremental repair {} finalization phase completed in {}", sessionID, formatDuration(finalizeStart, currentTimeMillis()));
+                logger.debug("Incremental repair {} finalization phase completed in {}", sessionID, formatDuration(finalizeStart, ctx.clock().currentTimeMillis()));
             finalizeCommit();
             if (logger.isDebugEnabled())
-                logger.debug("Incremental repair {} phase completed in {}", sessionID, formatDuration(sessionStart, currentTimeMillis()));
+                logger.debug("Incremental repair {} phase completed in {}", sessionID, formatDuration(sessionStart, ctx.clock().currentTimeMillis()));
             return results;
         }));
 
@@ -335,7 +349,7 @@ public class CoordinatorSession extends ConsistentSession
             if (failure != null)
             {
                 if (logger.isDebugEnabled())
-                    logger.debug("Incremental repair {} phase failed in {}", sessionID, formatDuration(sessionStart, currentTimeMillis()));
+                    logger.debug("Incremental repair {} phase failed in {}", sessionID, formatDuration(sessionStart, ctx.clock().currentTimeMillis()));
                 fail();
             }
         }, ImmediateExecutor.INSTANCE);

@@ -39,6 +39,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
@@ -81,7 +82,7 @@ public class LocalSessionTest extends AbstractRepairTest
 
     static LocalSession.Builder createBuilder()
     {
-        LocalSession.Builder builder = LocalSession.builder();
+        LocalSession.Builder builder = LocalSession.builder(SharedContext.Global.instance);
         builder.withState(PREPARING);
         builder.withSessionID(nextTimeUUID());
         builder.withCoordinator(COORDINATOR);
@@ -130,6 +131,11 @@ public class LocalSessionTest extends AbstractRepairTest
     static class InstrumentedLocalSessions extends LocalSessions
     {
         Map<InetAddressAndPort, List<RepairMessage>> sentMessages = new HashMap<>();
+
+        public InstrumentedLocalSessions()
+        {
+            super(SharedContext.Global.instance);
+        }
 
         protected void sendMessage(InetAddressAndPort destination, Message<? extends RepairMessage> message)
         {
@@ -258,7 +264,7 @@ public class LocalSessionTest extends AbstractRepairTest
     @Test
     public void persistence()
     {
-        LocalSessions sessions = new LocalSessions();
+        LocalSessions sessions = new LocalSessions(SharedContext.Global.instance);
         LocalSession expected = createSession();
         sessions.save(expected);
         LocalSession actual = sessions.loadUnsafe(expected.sessionID);
@@ -930,17 +936,17 @@ public class LocalSessionTest extends AbstractRepairTest
     @Test
     public void loadCorruptRow() throws Exception
     {
-        LocalSessions sessions = new LocalSessions();
+        LocalSessions sessions = new LocalSessions(SharedContext.Global.instance);
         LocalSession session = createSession();
         sessions.save(session);
 
-        sessions = new LocalSessions();
+        sessions = new LocalSessions(SharedContext.Global.instance);
         sessions.start();
         Assert.assertNotNull(sessions.getSession(session.sessionID));
 
         QueryProcessor.instance.executeInternal("DELETE participants, participants_wp FROM system.repairs WHERE parent_id=?", session.sessionID);
 
-        sessions = new LocalSessions();
+        sessions = new LocalSessions(SharedContext.Global.instance);
         sessions.start();
         Assert.assertNull(sessions.getSession(session.sessionID));
         UntypedResultSet res = QueryProcessor.executeInternal("SELECT * FROM system.repairs WHERE parent_id=?", session.sessionID);
@@ -962,7 +968,7 @@ public class LocalSessionTest extends AbstractRepairTest
     @Test
     public void cleanupNoOp() throws Exception
     {
-        LocalSessions sessions = new LocalSessions();
+        LocalSessions sessions = new LocalSessions(SharedContext.Global.instance);
         sessions.start();
 
         long time = FBUtilities.nowInSeconds() - LocalSessions.AUTO_FAIL_TIMEOUT + 60;

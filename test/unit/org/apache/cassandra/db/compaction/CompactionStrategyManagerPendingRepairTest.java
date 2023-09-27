@@ -262,7 +262,7 @@ public class CompactionStrategyManagerPendingRepairTest extends AbstractPendingR
         Assert.assertFalse(hasTransientStrategiesFor(repairID));
 
         // sstable should have pendingRepair cleared, and repairedAt set correctly
-        long expectedRepairedAt = ActiveRepairService.instance.getParentRepairSession(repairID).repairedAt;
+        long expectedRepairedAt = ActiveRepairService.instance().getParentRepairSession(repairID).repairedAt;
         Assert.assertFalse(sstable.isPendingRepair());
         Assert.assertTrue(sstable.isRepaired());
         Assert.assertEquals(expectedRepairedAt, sstable.getSSTableMetadata().repairedAt);

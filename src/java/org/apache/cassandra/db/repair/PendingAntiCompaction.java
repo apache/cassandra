@@ -137,7 +137,7 @@ public class PendingAntiCompaction
             // non-finalized sessions for a later error message
             if (metadata.pendingRepair != NO_PENDING_REPAIR)
             {
-                if (!ActiveRepairService.instance.consistent.local.isSessionFinalized(metadata.pendingRepair))
+                if (!ActiveRepairService.instance().consistent.local.isSessionFinalized(metadata.pendingRepair))
                 {
                     String message = String.format("Prepare phase for incremental repair session %s has failed because it encountered " +
                                                    "intersecting sstables belonging to another incremental repair session (%s). This is " +

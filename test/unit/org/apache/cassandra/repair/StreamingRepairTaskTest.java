@@ -27,12 +27,14 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.repair.messages.SyncRequest;
+import org.apache.cassandra.repair.state.SyncState;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.streaming.StreamPlan;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
@@ -63,11 +65,11 @@ public class StreamingRepairTaskTest extends AbstractRepairTest
     public void incrementalStreamPlan() throws NoSuchRepairSessionException
     {
         TimeUUID sessionID = registerSession(cfs, true, true);
-        ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
+        ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance().getParentRepairSession(sessionID);
         RepairJobDesc desc = new RepairJobDesc(sessionID, nextTimeUUID(), ks, tbl, prs.getRanges());
 
         SyncRequest request = new SyncRequest(desc, PARTICIPANT1, PARTICIPANT2, PARTICIPANT3, prs.getRanges(), PreviewKind.NONE, false);
-        StreamingRepairTask task = new StreamingRepairTask(desc, request.initiator, request.src, request.dst, request.ranges, desc.sessionId, PreviewKind.NONE, false);
+        StreamingRepairTask task = new StreamingRepairTask(SharedContext.Global.instance, new SyncState(Clock.Global.clock(), desc, PARTICIPANT1, PARTICIPANT2, PARTICIPANT3), desc, request.initiator, request.src, request.dst, request.ranges, desc.sessionId, PreviewKind.NONE, false);
 
         StreamPlan plan = task.createStreamPlan(request.dst);
         Assert.assertFalse(plan.getFlushBeforeTransfer());
@@ -77,10 +79,10 @@ public class StreamingRepairTaskTest extends AbstractRepairTest
     public void fullStreamPlan() throws Exception
     {
         TimeUUID sessionID = registerSession(cfs, false, true);
-        ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
+        ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance().getParentRepairSession(sessionID);
         RepairJobDesc desc = new RepairJobDesc(sessionID, nextTimeUUID(), ks, tbl, prs.getRanges());
         SyncRequest request = new SyncRequest(desc, PARTICIPANT1, PARTICIPANT2, PARTICIPANT3, prs.getRanges(), PreviewKind.NONE, false);
-        StreamingRepairTask task = new StreamingRepairTask(desc, request.initiator, request.src, request.dst, request.ranges, null, PreviewKind.NONE, false);
+        StreamingRepairTask task = new StreamingRepairTask(SharedContext.Global.instance, new SyncState(Clock.Global.clock(), desc, PARTICIPANT1, PARTICIPANT2, PARTICIPANT3), desc, request.initiator, request.src, request.dst, request.ranges, null, PreviewKind.NONE, false);
 
         StreamPlan plan = task.createStreamPlan(request.dst);
         Assert.assertTrue(plan.getFlushBeforeTransfer());

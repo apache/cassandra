@@ -30,7 +30,7 @@ import org.apache.cassandra.utils.TimeUUID;
  */
 public class LocalSessionAccessor
 {
-    private static final ActiveRepairService ARS = ActiveRepairService.instance;
+    private static final ActiveRepairService ARS = ActiveRepairService.instance();
 
     public static void startup()
     {
