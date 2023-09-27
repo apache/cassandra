@@ -121,8 +121,6 @@ enabled, ssl protocol and user name:
 
 [source, console]
 ----
-cqlsh> EXPAND ON ;
-Now Expanded output is enabled
 cqlsh> SELECT * FROM system_views.clients;
 
 @ Row 1
