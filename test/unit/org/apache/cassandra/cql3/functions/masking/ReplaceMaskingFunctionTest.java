@@ -19,6 +19,7 @@
 package org.apache.cassandra.cql3.functions.masking;
 
 import java.math.BigInteger;
+import java.nio.ByteBuffer;
 
 import org.junit.Test;
 
@@ -34,7 +35,7 @@ import static java.lang.String.format;
 public class ReplaceMaskingFunctionTest extends MaskingFunctionTester
 {
     @Override
-    protected void testMaskingOnColumn(String name, CQL3Type type, Object value) throws Throwable
+    protected void testMaskingOnColumn(String name, CQL3Type type, Object value)
     {
         // null replacement argument
         assertRows(execute(format("SELECT mask_replace(%s, ?) FROM %%s", name), (Object) null),
@@ -42,7 +43,7 @@ public class ReplaceMaskingFunctionTest extends MaskingFunctionTester
 
         // not-null replacement argument
         AbstractType<?> t = type.getType();
-        Object replacementValue = t.compose(t.getMaskedValue());
+        ByteBuffer replacementValue = t.getMaskedValue();
         String query = format("SELECT mask_replace(%s, ?) FROM %%s", name);
         assertRows(execute(query, replacementValue), row(replacementValue));
     }
