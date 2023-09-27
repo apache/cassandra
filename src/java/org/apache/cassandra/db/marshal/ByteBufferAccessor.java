@@ -102,6 +102,9 @@ public class ByteBufferAccessor implements ValueAccessor<ByteBuffer>
     @Override
     public ByteBuffer slice(ByteBuffer input, int offset, int length)
     {
+        int size = sizeFromOffset(input, offset);
+        if (size < length)
+            throw new IndexOutOfBoundsException(String.format("Attempted to read %d, but the size is %d", length, size));
         ByteBuffer copy = input.duplicate();
         copy.position(copy.position() + offset);
         copy.limit(copy.position() + length);

@@ -29,8 +29,10 @@ import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
 /**
@@ -219,6 +221,21 @@ public abstract class MultiCBuilder
         return remainingCount() > 0;
     }
 
+    protected static ByteBuffer toComposite(ByteBuffer[] components)
+    {
+        int sum = 0;
+        for (ByteBuffer v : components)
+        {
+            sum += v == null ? 0 : v.remaining();
+        }
+        if (sum > FBUtilities.MAX_UNSIGNED_SHORT)
+            throw new InvalidRequestException(String.format("Key length of %d is longer than maximum of %d",
+                                                            sum,
+                                                            FBUtilities.MAX_UNSIGNED_SHORT));
+
+        return CompositeType.build(ByteBufferAccessor.instance, components);
+    }
+
     /**
      * Specialization of MultiCBuilder when we know only one clustering/bound is created.
      */
@@ -303,7 +320,7 @@ public abstract class MultiCBuilder
             if (size == 1)
                 return ImmutableList.of(elements[0]);
 
-            return ImmutableList.of(CompositeType.build(ByteBufferAccessor.instance, elements));
+            return ImmutableList.of(toComposite(elements));
         }
 
         @Override
@@ -494,7 +511,7 @@ public abstract class MultiCBuilder
             {
                 tmp[i] = elements.get(i);
             }
-            return CompositeType.build(ByteBufferAccessor.instance, tmp);
+            return toComposite(tmp);
         }
 
         public NavigableSet<ClusteringBound<?>> buildBoundForSlice(boolean isStart,

@@ -25,13 +25,16 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -39,6 +42,7 @@ import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.serializers.BytesSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.transport.ProtocolVersion;
@@ -70,13 +74,42 @@ import static com.google.common.collect.Iterables.any;
  */
 public class DynamicCompositeType extends AbstractCompositeType
 {
+    public static class Serializer extends BytesSerializer
+    {
+        // aliases are held to make sure the serializer is unique for each collection of types, this is to make sure it's
+        // safe to cache in all cases
+        private final Map<Byte, AbstractType<?>> aliases;
+
+        public Serializer(Map<Byte, AbstractType<?>> aliases)
+        {
+            this.aliases = aliases;
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Serializer that = (Serializer) o;
+            return aliases.equals(that.aliases);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(aliases);
+        }
+    }
+
     private static final Logger logger = LoggerFactory.getLogger(DynamicCompositeType.class);
 
     private static final ByteSource[] EMPTY_BYTE_SOURCE_ARRAY = new ByteSource[0];
     private static final String REVERSED_TYPE = ReversedType.class.getSimpleName();
 
-    private final Map<Byte, AbstractType<?>> aliases;
+    @VisibleForTesting
+    public final Map<Byte, AbstractType<?>> aliases;
     private final Map<AbstractType<?>, Byte> inverseMapping;
+    private final Serializer serializer;
 
     // interning instances
     private static final ConcurrentHashMap<Map<Byte, AbstractType<?>>, DynamicCompositeType> instances = new ConcurrentHashMap<>();
@@ -102,10 +135,28 @@ public class DynamicCompositeType extends AbstractCompositeType
 
     private DynamicCompositeType(Map<Byte, AbstractType<?>> aliases)
     {
-        this.aliases = aliases;
+        this.aliases = ImmutableMap.copyOf(aliases);
+        this.serializer = new Serializer(this.aliases);
         this.inverseMapping = new HashMap<>();
         for (Map.Entry<Byte, AbstractType<?>> en : aliases.entrySet())
             this.inverseMapping.put(en.getValue(), en.getKey());
+    }
+
+    public int size()
+    {
+        return aliases.size();
+    }
+
+    @Override
+    public List<AbstractType<?>> subTypes()
+    {
+        return new ArrayList<>(aliases.values());
+    }
+
+    @Override
+    public TypeSerializer<ByteBuffer> getSerializer()
+    {
+        return serializer;
     }
 
     protected <V> boolean readIsStatic(V value, ValueAccessor<V> accessor)
@@ -334,6 +385,23 @@ public class DynamicCompositeType extends AbstractCompositeType
         return build(accessor, types, inverseMapping, values, lastEoc);
     }
 
+    public ByteBuffer build(Map<Byte, Object> valuesMap)
+    {
+        Sets.SetView<Byte> unknownAliases = Sets.difference(valuesMap.keySet(), aliases.keySet());
+        if (!unknownAliases.isEmpty())
+            throw new IllegalArgumentException(String.format("Aliases %s used; only valid values are %s", unknownAliases, aliases.keySet()));
+        List<AbstractType<?>> types = new ArrayList<>(valuesMap.size());
+        List<ByteBuffer> values = new ArrayList<>(valuesMap.size());
+        for (Map.Entry<Byte, Object> e : valuesMap.entrySet())
+        {
+            @SuppressWarnings("rawtype")
+            AbstractType type = aliases.get(e.getKey());
+            types.add(type);
+            values.add(type.decompose(e.getValue()));
+        }
+        return build(ByteBufferAccessor.instance, types, inverseMapping, values, (byte) 0);
+    }
+
     public static ByteBuffer build(List<String> types, List<ByteBuffer> values)
     {
         return build(ByteBufferAccessor.instance,
@@ -397,6 +465,8 @@ public class DynamicCompositeType extends AbstractCompositeType
             // Write the type payload data (2-byte length header + the payload).
             V value = values.get(i);
             int bytesToCopy = accessor.size(value);
+            if ((short) bytesToCopy != bytesToCopy)
+                throw new IllegalArgumentException(String.format("Value of type %s is of length %d; does not fit in a short", type.asCQL3Type(), bytesToCopy));
             accessor.putShort(result, offset, (short) bytesToCopy);
             offset += 2;
             accessor.copyTo(value, 0, result, accessor, offset, bytesToCopy);
@@ -522,11 +592,24 @@ public class DynamicCompositeType extends AbstractCompositeType
         DynamicParsedComparator(String part)
         {
             String[] splits = part.split("@");
-            if (splits.length != 2)
-                throw new IllegalArgumentException("Invalid component representation: " + part);
-
-            comparatorName = splits[0];
-            remainingPart = splits[1];
+            switch (splits.length)
+            {
+                default:
+                    throw new IllegalArgumentException("Invalid component representation: " + part);
+                case 1:
+                {
+                    // empty is allowed for some types, so leave this to the higher level to validate empty makes sense for the type
+                    comparatorName = splits[0];
+                    remainingPart = "";
+                }
+                break;
+                case 2:
+                {
+                    comparatorName = splits[0];
+                    remainingPart = splits[1];
+                }
+                break;
+            }
 
             try
             {
@@ -581,6 +664,21 @@ public class DynamicCompositeType extends AbstractCompositeType
     }
 
     @Override
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        DynamicCompositeType that = (DynamicCompositeType) o;
+        return aliases.equals(that.aliases);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(aliases);
+    }
+
+    @Override
     public String toString()
     {
         return getClass().getName() + TypeParser.stringifyAliasesParameters(aliases);
@@ -590,7 +688,8 @@ public class DynamicCompositeType extends AbstractCompositeType
      * A comparator that always sorts it's first argument before the second
      * one.
      */
-    private static class FixedValueComparator extends AbstractType<Void>
+    @VisibleForTesting
+    public static class FixedValueComparator extends AbstractType<Void>
     {
         public static final FixedValueComparator alwaysLesserThan = new FixedValueComparator(-1);
         public static final FixedValueComparator alwaysGreaterThan = new FixedValueComparator(1);

@@ -125,7 +125,7 @@ public class ShardedMultiWriterTest extends CQLTester
     }
 
     @Override
-    public UntypedResultSet execute(String query, Object... values) throws Throwable
+    public UntypedResultSet execute(String query, Object... values)
     {
         return super.executeFormattedQuery(formatQuery(KEYSPACE_PER_TEST, query), values);
     }

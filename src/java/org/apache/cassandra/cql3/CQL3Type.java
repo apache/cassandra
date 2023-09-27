@@ -33,6 +33,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MarshalException;
@@ -70,6 +71,22 @@ public interface CQL3Type
      * @param version the native protocol version in which {@code buffer} is encoded.
      */
     String toCQLLiteral(ByteBuffer bytes, ProtocolVersion version);
+
+    /**
+     * Generates a binary value for the CQL literal of this type
+     */
+    default ByteBuffer fromCQLLiteral(String literal)
+    {
+        return fromCQLLiteral(SchemaConstants.DUMMY_KEYSPACE_OR_TABLE_NAME, literal);
+    }
+
+    /**
+     * Generates a binary value for the CQL literal of this type
+     */
+    default ByteBuffer fromCQLLiteral(String keyspaceName, String literal)
+    {
+        return Terms.asBytes(keyspaceName, literal, getType());
+    }
 
     public enum Native implements CQL3Type
     {
