@@ -161,8 +161,7 @@ class DEFAULTVAL:
     pass
 
 
-__TEST__ = False
-def testrun_cqlsh(keyspace=DEFAULTVAL, **kwargs):
+def cqlsh_testrun(keyspace=DEFAULTVAL, **kwargs):
     # use a positive default sentinel so that keyspace=None can be used
     # to override the default behavior
     if keyspace is DEFAULTVAL:
@@ -170,8 +169,7 @@ def testrun_cqlsh(keyspace=DEFAULTVAL, **kwargs):
     return run_cqlsh(keyspace=keyspace, **kwargs)
 
 
-__TEST__ = False
-def testcall_cqlsh(keyspace=None, **kwargs):
+def cqlsh_testcall(keyspace=None, **kwargs):
     if keyspace is None:
         keyspace = get_keyspace()
     if 'input' in kwargs.keys() and isinstance(kwargs['input'], str):
