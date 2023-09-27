@@ -22,7 +22,7 @@ import locale
 import os
 import re
 from .basecase import BaseTestCase
-from .cassconnect import create_db, remove_db, testrun_cqlsh
+from .cassconnect import create_db, remove_db, cqlsh_testrun
 from .run_cqlsh import TimeoutError
 from cqlshlib.cql3handling import CqlRuleSet
 
@@ -54,7 +54,7 @@ class CqlshCompletionCase(BaseTestCase):
         env['COLUMNS'] = '100000'
         if (locale.getpreferredencoding() != 'UTF-8'):
             env['LC_CTYPE'] = 'en_US.utf8'
-        self.cqlsh_runner = testrun_cqlsh(cqlver=None, env=env)
+        self.cqlsh_runner = cqlsh_testrun(cqlver=None, env=env)
         self.cqlsh = self.cqlsh_runner.__enter__()
 
     def tearDown(self):

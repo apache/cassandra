@@ -144,7 +144,7 @@ class SendingChannel(object):
                     printmsg('%s: %s' % (e.__class__.__name__, e.message if hasattr(e, 'message') else str(e)))
 
         feeding_thread = threading.Thread(target=feed)
-        feeding_thread.setDaemon(True)
+        feeding_thread.daemon = True
         feeding_thread.start()
 
     def send(self, obj):

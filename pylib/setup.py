@@ -16,7 +16,7 @@
 # limitations under the License.
 
 import sys
-from distutils.core import setup
+from setuptools import setup
 
 
 def get_extensions():
