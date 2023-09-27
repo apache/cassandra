@@ -111,6 +111,7 @@ public class Operation
                     case CONTAINS_KEY:
                     case LIKE_PREFIX:
                     case LIKE_MATCHES:
+                    case ANALYZER_MATCHES:
                         isMultiExpression = true;
                         break;
 
@@ -121,10 +122,19 @@ public class Operation
                 }
                 if (isMultiExpression)
                 {
-                    while (analyzer.hasNext())
+                    if (!analyzer.hasNext())
                     {
-                        final ByteBuffer token = analyzer.next();
-                        perColumn.add(new Expression(indexContext).add(e.operator(), token.duplicate()));
+                        perColumn.add(new Expression(indexContext).add(e.operator(), ByteBuffer.allocate(0)));
+                    }
+                    else
+                    {
+                        // The hasNext implementation has a side effect, so we need to call next before calling hasNext
+                        do
+                        {
+                            final ByteBuffer token = analyzer.next();
+                            perColumn.add(new Expression(indexContext).add(e.operator(), token.duplicate()));
+                        }
+                        while (analyzer.hasNext());
                     }
                 }
                 else

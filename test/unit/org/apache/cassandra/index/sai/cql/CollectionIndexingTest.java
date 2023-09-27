@@ -49,6 +49,16 @@ public class CollectionIndexingTest extends SAITester
     }
 
     @Test
+    public void indexQueryEmpty() throws Throwable
+    {
+        createPopulatedMap();
+        createIndex("CREATE CUSTOM INDEX ON %s(value) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+        assertEquals(0, execute("SELECT * FROM %s WHERE value CONTAINS ''").size());
+        assertEquals(0, execute("SELECT * FROM %s WHERE value CONTAINS '' AND value CONTAINS 'v1'").size());
+    }
+
+    @Test
     public void indexMapKeys() throws Throwable
     {
         createPopulatedMap();
