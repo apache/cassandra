@@ -17,14 +17,16 @@
  */
 package org.apache.cassandra.net;
 
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.util.zip.CRC32;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandler;
 
-import static org.apache.cassandra.net.Crc.*;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.function.Supplier;
+import java.util.zip.CRC32C;
+import java.util.zip.Checksum;
+
+import static org.apache.cassandra.net.Crc.crc24;
 
 /**
  * Please see {@link FrameDecoderCrc} for description of the framing produced by this encoder.
@@ -35,11 +37,25 @@ public class FrameEncoderCrc extends FrameEncoder
     static final int HEADER_LENGTH = 6;
     private static final int TRAILER_LENGTH = 4;
     public static final int HEADER_AND_TRAILER_LENGTH = 10;
+    private final Supplier<Checksum> crc32factory;
 
     public static final FrameEncoderCrc instance = new FrameEncoderCrc();
+    public static final FrameEncoderCrc instanceWithCRC32C = new FrameEncoderCrc(CRC32C::new);
+
     static final PayloadAllocator allocator = (isSelfContained, capacity) ->
         new Payload(isSelfContained, capacity, HEADER_LENGTH, TRAILER_LENGTH);
 
+    public FrameEncoderCrc()
+    {
+        this(Crc::crc32);
+    }
+
+    public FrameEncoderCrc(Supplier<Checksum> crc32factory)
+    {
+        this.crc32factory = crc32factory;
+    }
+
+    @Override
     public PayloadAllocator allocator()
     {
         return allocator;
@@ -62,7 +78,7 @@ public class FrameEncoderCrc extends FrameEncoder
         frame.put(index + 2, (byte)(put3b >>> 16));
     }
 
-    ByteBuf encode(boolean isSelfContained, ByteBuffer frame)
+    public ByteBuf encode(boolean isSelfContained, ByteBuffer frame)
     {
         try
         {
@@ -73,7 +89,7 @@ public class FrameEncoderCrc extends FrameEncoder
 
             writeHeader(frame, isSelfContained, dataLength);
 
-            CRC32 crc = crc32();
+            Checksum crc = crc32factory.get();
             frame.position(HEADER_LENGTH);
             frame.limit(dataLength + HEADER_LENGTH);
             crc.update(frame);

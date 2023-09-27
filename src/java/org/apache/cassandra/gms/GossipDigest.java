@@ -39,7 +39,7 @@ public class GossipDigest implements Comparable<GossipDigest>
     final int generation;
     final int maxVersion;
 
-    GossipDigest(InetAddressAndPort ep, int gen, int version)
+    public GossipDigest(InetAddressAndPort ep, int gen, int version)
     {
         endpoint = ep;
         generation = gen;

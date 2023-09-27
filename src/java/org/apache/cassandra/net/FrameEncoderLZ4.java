@@ -17,10 +17,6 @@
  */
 package org.apache.cassandra.net;
 
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.util.zip.CRC32;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandler;
 import net.jpountz.lz4.LZ4Compressor;
@@ -28,7 +24,13 @@ import net.jpountz.lz4.LZ4Factory;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static org.apache.cassandra.net.Crc.*;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.util.function.Supplier;
+import java.util.zip.CRC32C;
+import java.util.zip.Checksum;
+
+import static org.apache.cassandra.net.Crc.crc24;
 
 /**
  * Please see {@link FrameDecoderLZ4} for description of the framing produced by this encoder.
@@ -37,13 +39,16 @@ import static org.apache.cassandra.net.Crc.*;
 public
 class FrameEncoderLZ4 extends FrameEncoder
 {
-    public static final FrameEncoderLZ4 fastInstance = new FrameEncoderLZ4(LZ4Factory.fastestInstance().fastCompressor());
+    public static final FrameEncoderLZ4 fastInstance = new FrameEncoderLZ4(LZ4Factory.fastestInstance().fastCompressor(), Crc::crc32);
+    public static final FrameEncoderLZ4 fastInstanceWithCRC32C = new FrameEncoderLZ4(LZ4Factory.fastestInstance().fastCompressor(), CRC32C::new);
 
     private final LZ4Compressor compressor;
+    private final Supplier<Checksum> crc32factory;
 
-    private FrameEncoderLZ4(LZ4Compressor compressor)
+    private FrameEncoderLZ4(LZ4Compressor compressor, Supplier<Checksum> crc32factory)
     {
         this.compressor = compressor;
+        this.crc32factory = crc32factory;
     }
 
     private static final int HEADER_LENGTH = 8;
@@ -87,7 +92,7 @@ class FrameEncoderLZ4 extends FrameEncoder
 
             writeHeader(frame, isSelfContained, compressedLength, uncompressedLength);
 
-            CRC32 crc = crc32();
+            Checksum crc = crc32factory.get();
             frame.position(HEADER_LENGTH);
             frame.limit(compressedLength + HEADER_LENGTH);
             crc.update(frame);

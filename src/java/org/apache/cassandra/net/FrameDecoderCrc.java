@@ -17,14 +17,17 @@
  */
 package org.apache.cassandra.net;
 
+import io.netty.channel.ChannelPipeline;
+
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Collection;
-import java.util.zip.CRC32;
+import java.util.function.Supplier;
+import java.util.zip.CRC32C;
+import java.util.zip.Checksum;
 
-import io.netty.channel.ChannelPipeline;
-
-import static org.apache.cassandra.net.Crc.*;
+import static org.apache.cassandra.net.Crc.crc24;
+import static org.apache.cassandra.net.Crc.updateCrc32;
 
 /**
  * Framing format that protects integrity of data in movement with CRCs (of both header and payload).
@@ -55,14 +58,27 @@ import static org.apache.cassandra.net.Crc.*;
  */
 public final class FrameDecoderCrc extends FrameDecoderWith8bHeader
 {
+    private final Supplier<Checksum> crc32factory;
+
     public FrameDecoderCrc(BufferPoolAllocator allocator)
     {
-        super(allocator);
+        this(allocator, Crc::crc32);
     }
 
-    public static FrameDecoderCrc create(BufferPoolAllocator allocator)
+    public FrameDecoderCrc(BufferPoolAllocator allocator, Supplier<Checksum> crc32factory)
+    {
+        super(allocator);
+        this.crc32factory = crc32factory;
+    }
+
+    public static FrameDecoder create(BufferPoolAllocator allocator)
     {
         return new FrameDecoderCrc(allocator);
+    }
+
+    public static FrameDecoder createWithCRC32C(BufferPoolAllocator allocator)
+    {
+        return new FrameDecoderCrc(allocator, CRC32C::new);
     }
 
     static final int HEADER_LENGTH = 6;
@@ -131,7 +147,7 @@ public final class FrameDecoderCrc extends FrameDecoderWith8bHeader
         ByteBuffer in = bytes.get();
         boolean isSelfContained = isSelfContained(header6b);
 
-        CRC32 crc = crc32();
+        Checksum crc = crc32factory.get();
         int readFullCrc = in.getInt(end - TRAILER_LENGTH);
         if (in.order() == ByteOrder.BIG_ENDIAN)
             readFullCrc = Integer.reverseBytes(readFullCrc);
@@ -145,7 +161,7 @@ public final class FrameDecoderCrc extends FrameDecoderWith8bHeader
         return new IntactFrame(isSelfContained, bytes.slice(begin + HEADER_LENGTH, end - TRAILER_LENGTH));
     }
 
-    void decode(Collection<Frame> into, ShareableBytes bytes)
+    public void decode(Collection<Frame> into, ShareableBytes bytes)
     {
         decode(into, bytes, HEADER_LENGTH);
     }

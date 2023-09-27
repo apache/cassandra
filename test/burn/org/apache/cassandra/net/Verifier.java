@@ -461,6 +461,11 @@ public class Verifier
         logger.error("Connection: {}", currentConnection);
     }
 
+    public void doCancel()
+    {
+        events.cancelled = true;
+    }
+
     private void failinfo(String message, Object ... params)
     {
         logger.error("{}", String.format(message, params));
@@ -622,7 +627,7 @@ public class Verifier
     private long outboundExpiredCount, outboundExpiredBytes;
     private long outboundErrorCount, outboundErrorBytes;
 
-    public void run(Runnable onFailure, long deadlineNanos)
+    public void run(Consumer<Throwable> onFailure, long deadlineNanos)
     {
         try
         {
@@ -1177,7 +1182,7 @@ public class Verifier
         catch (Throwable t)
         {
             logger.error("Unexpected error:", t);
-            onFailure.run();
+            onFailure.accept(t);
         }
     }
 
@@ -1288,6 +1293,7 @@ public class Verifier
 
         long readerWaitingFor;
         volatile Thread readerWaiting;
+        volatile boolean cancelled;
 
         EventSequence()
         {
@@ -1296,6 +1302,8 @@ public class Verifier
 
         public void put(long sequenceId, Event event)
         {
+            if (cancelled)
+                return;
             long chunkSequenceId = sequenceId & -CHUNK_SIZE;
             Chunk chunk = writerChunk;
             if (chunk.sequenceId != chunkSequenceId)
@@ -1306,7 +1314,12 @@ public class Verifier
                 }
                 catch (InterruptedException e)
                 {
-                    throw new RuntimeException(e);
+                    logger.error("Interrupted while waiting for chunk '{}' for thread '{}'",
+                            chunkSequenceId,
+                            Thread.currentThread().getName());
+                    if (cancelled)
+                        return;
+                    throw new UnsupportedOperationException(e);
                 }
             }
 
@@ -1326,9 +1339,11 @@ public class Verifier
                 Map.Entry<Long, Chunk> e;
                 while ( null != (e = chunkList.firstEntry()) && chunkSequenceId - e.getKey() > 1 << 12)
                 {
+                    if (cancelled)
+                        throw new InterruptedException();
                     WaitQueue.Signal signal = writerWaiting.register();
                     if (null != (e = chunkList.firstEntry()) && chunkSequenceId - e.getKey() > 1 << 12)
-                        signal.await();
+                        signal.await(5L, TimeUnit.SECONDS);
                     else
                         signal.cancel();
                 }

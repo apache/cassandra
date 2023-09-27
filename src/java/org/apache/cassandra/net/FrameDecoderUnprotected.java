@@ -55,7 +55,7 @@ import static org.apache.cassandra.net.FrameDecoderCrc.verifyHeader6b;
  * |                                                               |
  * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
  */
-final class FrameDecoderUnprotected extends FrameDecoderWith8bHeader
+public final class FrameDecoderUnprotected extends FrameDecoderWith8bHeader
 {
     FrameDecoderUnprotected(BufferPoolAllocator allocator)
     {
@@ -88,7 +88,7 @@ final class FrameDecoderUnprotected extends FrameDecoderWith8bHeader
         return new IntactFrame(isSelfContained, bytes.slice(begin + HEADER_LENGTH, end));
     }
 
-    void decode(Collection<Frame> into, ShareableBytes bytes)
+    public void decode(Collection<Frame> into, ShareableBytes bytes)
     {
         decode(into, bytes, HEADER_LENGTH);
     }

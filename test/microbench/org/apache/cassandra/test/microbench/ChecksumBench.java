@@ -34,6 +34,9 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.runner.Runner;
+import org.openjdk.jmh.runner.options.Options;
+import org.openjdk.jmh.runner.options.OptionsBuilder;
 import org.xerial.snappy.PureJavaCrc32C;
 
 import java.security.NoSuchAlgorithmException;
@@ -105,26 +108,34 @@ public class ChecksumBench
     }
 
     // Below benchmarks are commented because CRC32C is unavailable in Java 8.
-//    @Benchmark
-//    @Fork(value = 1, jvmArgsAppend = { "-Xmx512M", "-Djmh.executor=CUSTOM",
-//            "-Djmh.executor.class=org.apache.cassandra.test.microbench.FastThreadExecutor",
-//    })
-//    public byte[] benchCrc32c()
-//    {
-//        CRC32C crc32C = new CRC32C();
-//        crc32C.update(array);
-//        return Longs.toByteArray(crc32C.getValue());
-//    }
-//
-//    @Benchmark
-//    @Fork(value = 1, jvmArgsAppend = { "-Xmx512M", "-Djmh.executor=CUSTOM",
-//            "-Djmh.executor.class=org.apache.cassandra.test.microbench.FastThreadExecutor",
-//            "-XX:+UnlockDiagnosticVMOptions", "-XX:-UseCRC32CIntrinsics",
-//    })
-//    public byte[] benchCrc32cNoIntrinsic()
-//    {
-//        CRC32C crc32C = new CRC32C();
-//        crc32C.update(array);
-//        return Longs.toByteArray(crc32C.getValue());
-//    }
+    @Benchmark
+    @Fork(value = 1, jvmArgsAppend = { "-Xmx512M", "-Djmh.executor=CUSTOM",
+            "-Djmh.executor.class=org.apache.cassandra.test.microbench.FastThreadExecutor",
+    })
+    public byte[] benchCrc32c()
+    {
+        java.util.zip.CRC32C crc32C = new java.util.zip.CRC32C();
+        crc32C.update(array);
+        return Longs.toByteArray(crc32C.getValue());
+    }
+
+    @Benchmark
+    @Fork(value = 1, jvmArgsAppend = { "-Xmx512M", "-Djmh.executor=CUSTOM",
+            "-Djmh.executor.class=org.apache.cassandra.test.microbench.FastThreadExecutor",
+            "-XX:+UnlockDiagnosticVMOptions", "-XX:-UseCRC32CIntrinsics",
+    })
+    public byte[] benchCrc32cNoIntrinsic()
+    {
+        java.util.zip.CRC32C crc32C = new java.util.zip.CRC32C();
+        crc32C.update(array);
+        return Longs.toByteArray(crc32C.getValue());
+    }
+
+    public static void main(String[] args) throws Exception
+    {
+        Options opt = new OptionsBuilder()
+                .include(ChecksumBench.class.getSimpleName())
+                .build();
+        new Runner(opt).run();
+    }
 }

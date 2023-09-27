@@ -17,12 +17,13 @@
  */
 package org.apache.cassandra.net;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.util.concurrent.FastThreadLocal;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.zip.CRC32;
-
-import io.netty.buffer.ByteBuf;
-import io.netty.util.concurrent.FastThreadLocal;
+import java.util.zip.Checksum;
 
 public class Crc
 {
@@ -44,6 +45,8 @@ public class Crc
             super(String.format("Read %d, Computed %d", read, computed));
         }
     }
+
+    private Crc() {}
 
     public static CRC32 crc32()
     {
@@ -67,7 +70,7 @@ public class Crc
         return (int) crc.getValue();
     }
 
-    static void updateCrc32(CRC32 crc, ByteBuffer buffer, int start, int end)
+    static void updateCrc32(Checksum crc, ByteBuffer buffer, int start, int end)
     {
         int savePosition = buffer.position();
         int saveLimit = buffer.limit();

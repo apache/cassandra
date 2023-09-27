@@ -18,8 +18,37 @@
 
 package org.apache.cassandra.net;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Sets;
+import com.google.common.util.concurrent.Uninterruptibles;
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelOutboundHandlerAdapter;
+import io.netty.channel.ChannelPromise;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.UnknownColumnException;
+import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
+import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.utils.FBUtilities;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -39,52 +68,33 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Sets;
-import com.google.common.util.concurrent.Uninterruptibles;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelOutboundHandlerAdapter;
-import io.netty.channel.ChannelPromise;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.EncryptionOptions;
-import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.exceptions.RequestFailureReason;
-import org.apache.cassandra.exceptions.UnknownColumnException;
-import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
-import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.utils.FBUtilities;
-
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.apache.cassandra.net.MessagingService.VERSION_40;
-import static org.apache.cassandra.net.NoPayload.noPayload;
-import static org.apache.cassandra.net.MessagingService.current_version;
 import static org.apache.cassandra.net.ConnectionType.LARGE_MESSAGES;
 import static org.apache.cassandra.net.ConnectionType.SMALL_MESSAGES;
-import static org.apache.cassandra.net.ConnectionUtils.*;
+import static org.apache.cassandra.net.ConnectionUtils.check;
+import static org.apache.cassandra.net.MessagingService.VERSION_40;
+import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.net.OutboundConnectionSettings.Framing.LZ4;
 import static org.apache.cassandra.net.OutboundConnections.LARGE_MESSAGE_THRESHOLD;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
 
+@RunWith(Parameterized.class)
 public class ConnectionTest
 {
     private static final Logger logger = LoggerFactory.getLogger(ConnectionTest.class);
     private static final SocketFactory factory = new SocketFactory();
+
+    @Parameterized.Parameter
+    public MessagingService.Version local_version;
+
+    @Parameterized.Parameters(name="{0}")
+    public static Collection<MessagingService.Version> versions()
+    {
+        return MessagingService.Version.supportedVersions();
+    }
 
     private final Map<Verb, Supplier<? extends IVersionedAsymmetricSerializer<?, ?>>> serializers = new HashMap<>();
     private final Map<Verb, Supplier<? extends IVerbHandler<?>>> handlers = new HashMap<>();
@@ -238,13 +248,15 @@ public class ConnectionTest
     {
         InetAddressAndPort endpoint = FBUtilities.getBroadcastAddressAndPort();
         InboundConnectionSettings inboundSettings = settings.inbound.apply(new InboundConnectionSettings())
-                                                                    .withBindAddress(endpoint)
-                                                                    .withSocketFactory(factory);
+                .withBindAddress(endpoint)
+                .withAcceptMessaging(new AcceptVersions(MessagingService.minimum_version, local_version.value))
+                .withSocketFactory(factory);
         InboundSockets inbound = new InboundSockets(Collections.singletonList(inboundSettings));
         OutboundConnectionSettings outboundTemplate = settings.outbound.apply(new OutboundConnectionSettings(endpoint))
-                                                                       .withDefaultReserveLimits()
-                                                                       .withSocketFactory(factory)
-                                                                       .withDefaults(ConnectionCategory.MESSAGING);
+                .withDefaultReserveLimits()
+                .withAcceptVersions(new AcceptVersions(MessagingService.minimum_version, local_version.value))
+                .withSocketFactory(factory)
+                .withDefaults(ConnectionCategory.MESSAGING);
         ResourceLimits.EndpointAndGlobal reserveCapacityInBytes = new ResourceLimits.EndpointAndGlobal(new ResourceLimits.Concurrent(outboundTemplate.applicationSendQueueReserveEndpointCapacityInBytes), outboundTemplate.applicationSendQueueReserveGlobalCapacityInBytes);
         OutboundConnection outbound = new OutboundConnection(settings.type, outboundTemplate, reserveCapacityInBytes);
         try
@@ -409,7 +421,7 @@ public class ConnectionTest
                  check(outbound).submitted( 1)
                                 .sent     ( 0,  0)
                                 .pending  ( 0,  0)
-                                .overload ( 1,  message.serializedSize(current_version))
+                                .overload ( 1,  message.serializedSize(local_version.value))
                                 .expired  ( 0,  0)
                                 .error    ( 0,  0)
                                 .check();
@@ -520,7 +532,7 @@ public class ConnectionTest
                            .sent     (  1,  sentSize)
                            .pending  (  0,  0)
                            .overload (  0,  0)
-                           .expired  ( 10, 10 * message.serializedSize(current_version))
+                           .expired  ( 10, 10 * message.serializedSize(local_version.value))
                            .error    (  0,  0)
                            .check();
             check(inbound) .received (  1, sentSize)

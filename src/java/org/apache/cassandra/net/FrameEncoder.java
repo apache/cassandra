@@ -103,6 +103,11 @@ public abstract class FrameEncoder extends ChannelOutboundHandlerAdapter
             bufferPool.putUnusedPortion(buffer);
         }
 
+        public boolean isSelfContained()
+        {
+            return isSelfContained;
+        }
+
         public void release()
         {
             bufferPool.put(buffer);
@@ -123,8 +128,9 @@ public abstract class FrameEncoder extends ChannelOutboundHandlerAdapter
     /**
      * Takes ownership of the lifetime of the provided buffer, which can be assumed to be managed by BufferPool
      */
-    abstract ByteBuf encode(boolean isSelfContained, ByteBuffer buffer);
+    public abstract ByteBuf encode(boolean isSelfContained, ByteBuffer buffer);
 
+    @Override
     public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception
     {
         if (!(msg instanceof Payload))

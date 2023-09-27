@@ -23,6 +23,7 @@ import java.net.InetSocketAddress;
 import java.nio.channels.ClosedChannelException;
 import java.security.cert.Certificate;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -91,6 +92,15 @@ import static org.apache.cassandra.net.SocketFactory.*;
 public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionInitiator.Result.Success>
 {
     private static final Logger logger = LoggerFactory.getLogger(OutboundConnectionInitiator.class);
+    private static final Map<OutboundConnectionSettings.Framing, FrameEncoderFactory> ENCODER_FACTORIES =
+            Map.of(OutboundConnectionSettings.Framing.CRC, v -> v.greaterOrEquals(MessagingService.VERSION_501) ? FrameEncoderCrc.instanceWithCRC32C : FrameEncoderCrc.instance,
+                    OutboundConnectionSettings.Framing.LZ4, v -> v.greaterOrEquals(MessagingService.VERSION_501) ? FrameEncoderLZ4.fastInstanceWithCRC32C : FrameEncoderLZ4.fastInstance,
+                    OutboundConnectionSettings.Framing.UNPROTECTED, v -> FrameEncoderUnprotected.instance
+            );
+
+    static {
+        assert ENCODER_FACTORIES.size() == OutboundConnectionSettings.Framing.values().length : "Missing encoder factory for framing type";
+    }
 
     private final ConnectionType type;
     private final SslFallbackConnectionType sslConnectionType;
@@ -106,6 +116,11 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
 
         this.settings = settings;
         this.resultPromise = resultPromise;
+    }
+
+    interface FrameEncoderFactory
+    {
+        FrameEncoder create(MessagingService.Version version);
     }
 
     /**
@@ -358,19 +373,7 @@ public class OutboundConnectionInitiator<SuccessType extends OutboundConnectionI
                     // This is a bit ugly
                     if (type.isMessaging())
                     {
-                        switch (settings.framing)
-                        {
-                            case LZ4:
-                                frameEncoder = FrameEncoderLZ4.fastInstance;
-                                break;
-                            case CRC:
-                                frameEncoder = FrameEncoderCrc.instance;
-                                break;
-                            case UNPROTECTED:
-                                frameEncoder = FrameEncoderUnprotected.instance;
-                                break;
-                        }
-
+                        frameEncoder = ENCODER_FACTORIES.get(settings.framing).create(MessagingService.Version.from(useMessagingVersion));
                         result = (Result<SuccessType>) messagingSuccess(ctx.channel(), useMessagingVersion, frameEncoder.allocator());
                     }
                     else

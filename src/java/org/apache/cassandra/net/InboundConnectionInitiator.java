@@ -17,19 +17,7 @@
  */
 package org.apache.cassandra.net;
 
-import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.net.SocketAddress;
-import java.security.cert.Certificate;
-import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.concurrent.Future;
-import java.util.function.Consumer;
-
 import com.google.common.annotations.VisibleForTesting;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
@@ -59,8 +47,21 @@ import org.apache.cassandra.streaming.StreamDeserializingTask;
 import org.apache.cassandra.streaming.StreamingChannel;
 import org.apache.cassandra.streaming.async.NettyStreamingChannel;
 import org.apache.cassandra.utils.memory.BufferPools;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import static java.lang.Math.*;
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
+import java.security.cert.Certificate;
+import java.util.List;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.concurrent.Future;
+import java.util.function.Consumer;
+
+import static java.lang.Math.max;
+import static java.lang.Math.min;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.auth.IInternodeAuthenticator.InternodeConnectionDirection.INBOUND;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
@@ -68,13 +69,30 @@ import static org.apache.cassandra.net.InternodeConnectionUtils.DISCARD_HANDLER_
 import static org.apache.cassandra.net.InternodeConnectionUtils.SSL_FACTORY_CONTEXT_DESCRIPTION;
 import static org.apache.cassandra.net.InternodeConnectionUtils.SSL_HANDLER_NAME;
 import static org.apache.cassandra.net.InternodeConnectionUtils.certificates;
-import static org.apache.cassandra.net.MessagingService.*;
+import static org.apache.cassandra.net.MessagingService.VERSION_501;
+import static org.apache.cassandra.net.MessagingService.current_version;
+import static org.apache.cassandra.net.MessagingService.instance;
+import static org.apache.cassandra.net.MessagingService.minimum_version;
 import static org.apache.cassandra.net.SocketFactory.WIRETRACE;
 import static org.apache.cassandra.net.SocketFactory.newSslHandler;
 
 public class InboundConnectionInitiator
 {
     private static final Logger logger = LoggerFactory.getLogger(InboundConnectionInitiator.class);
+
+    private static final Map<Framing, FrameDecoderFactory> DECODER_FACTORIES = Map.of(
+            Framing.CRC, (allocator, version) -> version.greaterOrEquals(VERSION_501) ? FrameDecoderCrc.createWithCRC32C(allocator) : FrameDecoderCrc.create(allocator),
+            Framing.LZ4, (allocator, version) -> version.greaterOrEquals(VERSION_501) ? FrameDecoderLZ4.fastWithCRC32C(allocator) : FrameDecoderLZ4.fast(allocator),
+            Framing.UNPROTECTED, (allocator, version) -> FrameDecoderUnprotected.create(allocator));
+
+    static {
+        assert DECODER_FACTORIES.size() == Framing.values().length : "Missing decoder factory for framing type";
+    }
+
+    interface FrameDecoderFactory
+    {
+        FrameDecoder create(BufferPoolAllocator allocator, MessagingService.Version version);
+    }
 
     private static class Initializer extends ChannelInitializer<SocketChannel>
     {
@@ -473,28 +491,8 @@ public class InboundConnectionInitiator
                 pipeline.channel().config().setAllocator(allocator);
             }
 
-            FrameDecoder frameDecoder;
-            switch (initiate.framing)
-            {
-                case LZ4:
-                {
-                    frameDecoder = FrameDecoderLZ4.fast(allocator);
-                    break;
-                }
-                case CRC:
-                {
-                    frameDecoder = FrameDecoderCrc.create(allocator);
-                    break;
-                }
-                case UNPROTECTED:
-                {
-                    frameDecoder = new FrameDecoderUnprotected(allocator);
-                    break;
-                }
-                default:
-                    throw new AssertionError();
-            }
-
+            FrameDecoder frameDecoder = DECODER_FACTORIES.get(initiate.framing)
+                    .create(allocator, MessagingService.Version.from(useMessagingVersion));
             frameDecoder.addLastTo(pipeline);
 
             InboundMessageHandler handler =
