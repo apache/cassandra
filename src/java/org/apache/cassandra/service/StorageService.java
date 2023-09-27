@@ -848,7 +848,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             throw new RuntimeException("Could not perform startup sequence and join cluster", e);
         }
 
-        doAuthSetup();
         maybeInitializeServices();
         completeInitialization();
     }
