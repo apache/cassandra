@@ -1,0 +1,35 @@
+= DROP INDEX
+:description: Removes an index from a table.
+
+Removes an existing index.
+The default index name is `table_name_column_name_idx`.
+
+== Syntax
+
+BNF definition:
+
+[source,bnf]
+----
+include::example$BNF/drop_index_statement.bnf[]
+----
+
+// tag::syntax[]
+----
+DROP INDEX [ IF EXISTS ] [<keyspace_name>.]<index_name> ;
+----
+// end::syntax[]
+
+.Syntax legend
+[%collapsible]
+====
+include::cassandra:partial$cql-syntax-legend.adoc[]
+====
+
+== Example
+
+Drop the index `rank_idx` from the `cycling.rank_by_year_and_name` table.
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/rank_by_year_and_name-table.cql[tag=dropindex]
+----

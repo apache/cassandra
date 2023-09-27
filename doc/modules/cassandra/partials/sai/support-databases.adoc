@@ -1,0 +1,4 @@
+Supported databases:
+
+* {cassandra} 5.0
+

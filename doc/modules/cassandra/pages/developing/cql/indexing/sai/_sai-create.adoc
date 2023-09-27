@@ -1,0 +1,77 @@
+= Create SAI index
+:description: Create SAI index for CQL table schema using `cqlsh`.
+
+To create an SAI index, you must define the index name, table name, and column name for the column to be indexed. 
+ 
+To create a simple SAI index:
+
+[source, language-cql]
+----
+include::cassandra:example$CQL/sai/cyclist_semi_pro_sai_indices.cql[tag=createQuickStartIndices]
+----
+
+For most SAI indexes, the column name is defined in the `CREATE CUSTOM INDEX` statement that also uses `USING 'StorageAttachedIndex'`.
+The SAI index options are defined in the `WITH OPTIONS` clause.
+The `case_sensitive` option is set to `false` to allow case-insensitive searches.
+The `normalize` option is set to `true` to allow searches to be normalized for Unicode characters.
+The `ascii_only` option is set to `true` to allow searches to be limited to ASCII characters.
+
+The `map` collection data type is the one exception, as shown in the xref:#map-collection-in-sai-index[example below].
+
+== Partition key SAI error
+
+SAI indexes cannot be created on the partition key, as a primary index already exists and is used for queries.
+If you attempt to create an SAI on the partition key column, an error will be returned:
+
+[tabs]
+====
+CQL::
++
+--
+[source,language-cql]
+----
+include::cassandra:example$CQL/sai/sai-error.cql[]
+----
+--
+
+Result::
++
+--
+[source,console]
+----
+include::cassandra:example$RESULTS/sai/sai-error.result[]
+----
+--
+====
+
+== `map` collection in SAI index
+
+Map collections do have a different format than other SAI indexes:
+
+[source, sql]
+----
+include::cassandra:example$CQL/sai/index-sai-from-map-match.cql[]
+----
+
+== similarity-function for vector search
+
+This example uses the following table:
+
+[source, sql]
+----
+include::cassandra:example$CQL/sai/create-vector-table-cycling.cql[tag=createvstable]
+----
+
+To check if `comment_vector` has a particular similarity function set, use the `similarity-function` option set to one of the supported similarity functions: DOT_PRODUCT, COSINE, or EUCLIDEAN. The default similarity function is COSINE.
+
+This index creates an index on the `comment_vector` column with the similarity function set to DOT_PRODUCT:
+
+[source, console]
+----
+include::cassandra:example$CQL/sai/index-sai-similarity-function.cql[]
+----
+
+'''
+Other resources
+
+See xref:developing/cql/indexing/create-custom-index.adoc[CREATE CUSTOM INDEX] for more information about creating SAI indexes.

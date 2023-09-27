@@ -1,7 +1,7 @@
 = JSON Support
 
-Cassandra 2.2 introduces JSON support to `SELECT <select-statement>` and
-`INSERT <insert-statement>` statements.
+Cassandra 2.2 introduced JSON support to `SELECT <select-statement>` and
+`INSERT <insert-statement>` statements. 
 This support does not fundamentally alter the CQL API (for example, the schema is still
 enforced).
 It simply provides a convenient way to work with JSON documents.

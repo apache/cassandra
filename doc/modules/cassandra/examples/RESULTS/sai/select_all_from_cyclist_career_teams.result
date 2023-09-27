@@ -1,0 +1,13 @@
+ id                                   | lastname        | teams
+--------------------------------------+-----------------+--------------------------------------------------------------------------------
+----------------------
+ cb07baad-eac8-4f65-b28a-bddc06a0de23 |      ARMITSTEAD |                    {'AA Drink - Leontien.nl', 'Boels-Dolmans Cycling Team', 'Te
+am Garmin - Cervelo'}
+ 5b6962dd-3f90-4c93-8f61-eabfa4a803e2 |             VOS | {'Nederland bloeit', 'Rabobank Women Team', 'Rabobank-Liv Giant', 'Rabobank-Liv
+ Woman Cycling Team'}
+ 1c9ebc13-1eab-4ad5-be87-dce433216d40 |           BRAND |   {'AA Drink - Leontien.nl', 'Leontien.nl', 'Rabobank-Liv Giant', 'Rabobank-Liv
+ Woman Cycling Team'}
+ e7cd5752-bc0d-4157-a80f-7523add8dbcd | VAN DER BREGGEN |                 {'Rabobank-Liv Woman Cycling Team', 'Sengers Ladies Cycling Tea
+m', 'Team Flexpoint'}
+
+(4 rows)

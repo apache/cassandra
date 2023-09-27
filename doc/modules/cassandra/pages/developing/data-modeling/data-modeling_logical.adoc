@@ -1,4 +1,4 @@
-= Logical Data Modeling
+= Logical data modeling
 
 Now that you have defined your queries, you're ready to begin designing
 Cassandra tables. First, create a logical model containing a table for
