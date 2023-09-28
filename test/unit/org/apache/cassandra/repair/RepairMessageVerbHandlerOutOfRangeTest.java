@@ -191,21 +191,31 @@ public class RepairMessageVerbHandlerOutOfRangeTest
         MessagingService.instance().outboundSink.clear();
         MessagingService.instance().inboundSink.clear();
         ListenableFuture<MessageDelivery> messageSink = registerOutgoingMessageSink(Verb.REPAIR_RSP);
-        RepairMessageVerbHandler handler = new RepairMessageVerbHandler();
+        RepairMessageVerbHandler handler = new RepairMessageVerbHandler(SharedContext.Global.instance);
         int messageId = randomInt();
         // message must be prepared first as validate checks it is registered.
         PrepareMessage prepare = prepareMsg(request.desc.parentSessionId, request.desc.ranges);
-        ActiveRepairService.instance.register(new ParticipateState(node1, prepare));
+        ActiveRepairService.instance().register(new ParticipateState(SharedContext.Global.instance.clock(), node1, prepare));
         Message<RepairMessage> message = Message.builder(Verb.VALIDATION_REQ, (RepairMessage)request).from(node1).withId(messageId).build();
         handler.doVerb(message);
         ClusterMetadataTestHelper.MessageDelivery response = messageSink.get(500, TimeUnit.MILLISECONDS);
-        assertEquals(Verb.VALIDATION_RSP, response.message.verb());
-        assertEquals(broadcastAddress, response.message.from());
-        assertEquals(node1, response.to);
-        assertTrue(response.message.payload instanceof ValidationResponse);
-        ValidationResponse completion = (ValidationResponse) response.message.payload;
-        assertEquals(expectSuccess, completion.success());
-        assertEquals(startMetricCount + (isOutOfRange ? 1 : 0), StorageMetrics.totalOpsForInvalidToken.getCount());
+        if (expectSuccess)
+        {
+            assertEquals(Verb.VALIDATION_RSP, response.message.verb());
+            assertEquals(broadcastAddress, response.message.from());
+            assertEquals(node1, response.to);
+            assertTrue(response.message.payload instanceof ValidationResponse);
+            ValidationResponse completion = (ValidationResponse) response.message.payload;
+            assertTrue(completion.success());
+            assertEquals(startMetricCount, StorageMetrics.totalOpsForInvalidToken.getCount());
+        }
+        else
+        {
+            assertEquals(Verb.FAILURE_RSP, response.message.verb());
+            assertEquals(broadcastAddress, response.message.from());
+            assertEquals(node1, response.to);
+            assertEquals(startMetricCount + (isOutOfRange ? 1 : 0), StorageMetrics.totalOpsForInvalidToken.getCount());
+        }
     }
 
     private static void tryPrepareExpectingSuccess(PrepareMessage prepare) throws Exception
@@ -214,7 +224,7 @@ public class RepairMessageVerbHandlerOutOfRangeTest
         MessagingService.instance().outboundSink.clear();
         MessagingService.instance().inboundSink.clear();
         ListenableFuture<MessageDelivery> messageSink = registerOutgoingMessageSink();
-        RepairMessageVerbHandler handler = new RepairMessageVerbHandler();
+        RepairMessageVerbHandler handler = new RepairMessageVerbHandler(SharedContext.Global.instance);
         int messageId = randomInt();
         Message<RepairMessage> message = Message.builder(Verb.PREPARE_MSG, (RepairMessage)prepare).from(node1).withId(messageId).build();
         handler.doVerb(message);
@@ -243,7 +253,7 @@ public class RepairMessageVerbHandlerOutOfRangeTest
         List<ColumnFamilyStore> stores = tableIds.stream()
                                                  .map(Schema.instance::getColumnFamilyStoreInstance)
                                                  .collect(Collectors.toList());
-        ActiveRepairService.instance.registerParentRepairSession(parentId,
+        ActiveRepairService.instance().registerParentRepairSession(parentId,
                                                                  node1,
                                                                  stores,
                                                                  Collections.singleton(range),

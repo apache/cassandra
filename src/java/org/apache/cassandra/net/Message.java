@@ -472,7 +472,7 @@ public class Message<T>
 
         Header withFrom(InetAddressAndPort from)
         {
-            return new Header(id, verb, from, createdAtNanos, expiresAtNanos, flags, params);
+            return new Header(id, epoch, verb, from, createdAtNanos, expiresAtNanos, flags, params);
         }
 
         Header withFlag(MessageFlag flag)

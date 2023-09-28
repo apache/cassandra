@@ -381,7 +381,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public RangesAtEndpoint getReplicas(String keyspaceName, InetAddressAndPort endpoint)
     {
         return Keyspace.open(keyspaceName).getReplicationStrategy()
-                       .getAddressReplicas(ClusterMetadata.current(), getBroadcastAddressAndPort());
+                       .getAddressReplicas(ClusterMetadata.current(), endpoint);
     }
 
     public List<Range<Token>> getLocalRanges(String ks)
@@ -400,9 +400,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return ClusterMetadata.current().localWriteRanges(Keyspace.open(ks).getMetadata());
     }
 
-    public OwnedRanges getNormalizedLocalRanges(String keyspaceName)
+    public OwnedRanges getNormalizedLocalRanges(String keyspaceName, InetAddressAndPort broadcastAddress)
     {
-        return new OwnedRanges(getLocalReplicas(keyspaceName).ranges());
+        return new OwnedRanges(getReplicas(keyspaceName, broadcastAddress).ranges());
     }
 
     @Deprecated

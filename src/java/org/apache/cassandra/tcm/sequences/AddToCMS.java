@@ -158,9 +158,9 @@ public class AddToCMS extends InProgressSequence<AddToCMS>
     private static void repairPaxosTopology()
     {
         Retry.Backoff retry = new Retry.Backoff(TCMMetrics.instance.repairPaxosTopologyRetries);
-        List<Supplier<Future<?>>> remaining = ActiveRepairService.instance.repairPaxosForTopologyChangeAsync(SchemaConstants.METADATA_KEYSPACE_NAME,
-                                                                                                             Collections.singletonList(entireRange),
-                                                                                                             "bootstrap");
+        List<Supplier<Future<?>>> remaining = ActiveRepairService.instance().repairPaxosForTopologyChangeAsync(SchemaConstants.METADATA_KEYSPACE_NAME,
+                                                                                                               Collections.singletonList(entireRange),
+                                                                                                               "bootstrap");
 
         while (!retry.reachedMax())
         {

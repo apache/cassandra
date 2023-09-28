@@ -319,7 +319,7 @@ public class ClusterMetadataTestHelper
         join(addr, Collections.singleton(token));
     }
 
-    public static void join(InetAddressAndPort addr, Set<Token> tokens)
+    public static void join(InetAddressAndPort addr, Collection<Token> tokens)
     {
         try
         {
@@ -412,7 +412,7 @@ public class ClusterMetadataTestHelper
         return lazyJoin(endpoint, Collections.singleton(token));
     }
 
-    public static JoinProcess lazyJoin(InetAddressAndPort endpoint, Set<Token> tokens)
+    public static JoinProcess lazyJoin(InetAddressAndPort endpoint, Collection<Token> tokens)
     {
         return new JoinProcess()
         {
@@ -425,7 +425,7 @@ public class ClusterMetadataTestHelper
                 {
                     NodeId nodeId = ClusterMetadata.current().directory.peerId(endpoint);
                     commit(new PrepareJoin(nodeId,
-                                           tokens,
+                                           Sets.newHashSet(tokens),
                                            ClusterMetadataService.instance().placementProvider(),
                                            true,
                                            false));

@@ -847,7 +847,7 @@ public class StreamSession
 
         requestsByKeyspace.asMap().forEach((ks, reqs) ->
                                            {
-                                               OwnedRanges ownedRanges = StorageService.instance.getNormalizedLocalRanges(ks);
+                                               OwnedRanges ownedRanges = StorageService.instance.getNormalizedLocalRanges(ks, getBroadcastAddressAndPort());
 
                                                reqs.forEach(req ->
                                                             {

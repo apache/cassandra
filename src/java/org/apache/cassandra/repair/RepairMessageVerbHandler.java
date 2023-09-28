@@ -230,7 +230,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                             return;
                         }
 
-                        if (!acceptMessage(validationRequest, message.from()))
+                        if (!acceptMessage(validationRequest, ctx.broadcastAddressAndPort(), message.from()))
                         {
                             RepairOutOfTokenRangeException e = new RepairOutOfTokenRangeException(validationRequest.desc.ranges);
 
@@ -432,10 +432,10 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
         ctx.messaging().send(message.emptyResponse(), message.from());
     }
 
-    private static boolean acceptMessage(final ValidationRequest validationRequest, final InetAddressAndPort from)
+    private static boolean acceptMessage(final ValidationRequest validationRequest, InetAddressAndPort broadcastAddressAndPort, final InetAddressAndPort from)
     {
         return StorageService.instance
-               .getNormalizedLocalRanges(validationRequest.desc.keyspace)
+               .getNormalizedLocalRanges(validationRequest.desc.keyspace, broadcastAddressAndPort)
                .validateRangeRequest(validationRequest.desc.ranges,
                                      "RepairSession #" + validationRequest.desc.parentSessionId,
                                      "validation request",
