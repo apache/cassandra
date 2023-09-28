@@ -697,4 +697,25 @@ public class VectorTypeTest extends VectorTester
         assertInvalidMessage("Required 2 elements, but saw 3",
                              "SELECT similarity_cosine([1, 2], [3, 4, 5]) FROM %s WHERE pk=0");
     }
+
+    @Test
+    public void testSamePKWithBruteForceAndGraphBasedScoring()
+    {
+        createTable(KEYSPACE, "CREATE TABLE %s (pk int, vec vector<float, 2>, PRIMARY KEY(pk))");
+        // Use euclidean distance to more easily verify correctness of caching
+        createIndex("CREATE CUSTOM INDEX ON %s(vec) USING 'StorageAttachedIndex' WITH OPTIONS = { 'similarity_function' : 'euclidean' }");
+
+        // Put one row in the first ss table to guarantee brute force method. This vector is also the most similar.
+        execute("INSERT INTO %s (pk, vec) VALUES (10, [1,1])");
+        flush();
+
+        // Must be enough rows to go to graph
+        for (int j = 1; j <= 10; j++)
+        {
+            execute("INSERT INTO %s (pk, vec) VALUES (?, [?,?])", j, j, j);
+        }
+        flush();
+
+        assertRows(execute("SELECT pk FROM %s ORDER BY vec ANN OF [1,1] LIMIT 2"), row(1), row(2));
+    }
 }

@@ -28,7 +28,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
-import org.apache.cassandra.index.sai.ScoreStoreProxy;
 import org.apache.cassandra.index.sai.utils.AbortedOperationException;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
@@ -58,7 +57,7 @@ public class PostingListRangeIterator extends RangeIterator<PrimaryKey>
 
     private final Stopwatch timeToExhaust = Stopwatch.createStarted();
     private final QueryContext queryContext;
-    private final ScoreStoreProxy scoreStoreProxy;
+
     private final PostingList postingList;
     private final IndexContext indexContext;
     private final PrimaryKeyMap primaryKeyMap;
@@ -74,8 +73,7 @@ public class PostingListRangeIterator extends RangeIterator<PrimaryKey>
      */
     public PostingListRangeIterator(IndexContext indexContext,
                                     PrimaryKeyMap primaryKeyMap,
-                                    IndexSearcherContext searcherContext,
-                                    boolean isBruteForce)
+                                    IndexSearcherContext searcherContext)
     {
         super(searcherContext.minimumKey, searcherContext.maximumKey, searcherContext.count());
 
@@ -84,8 +82,6 @@ public class PostingListRangeIterator extends RangeIterator<PrimaryKey>
         this.postingList = searcherContext.postingList;
         this.searcherContext = searcherContext;
         this.queryContext = this.searcherContext.context;
-        // When brute force is enabled, we don't yet have scores to store
-        this.scoreStoreProxy = isBruteForce ? ScoreStoreProxy.EMPTY : this.queryContext.getScoreStoreProxyForSSTable(primaryKeyMap.getSSTableId());
     }
 
     @Override
@@ -113,9 +109,7 @@ public class PostingListRangeIterator extends RangeIterator<PrimaryKey>
             if (rowId == PostingList.END_OF_STREAM)
                 return endOfData();
 
-            PrimaryKey pk = primaryKeyMap.primaryKeyFromRowId(rowId);
-            scoreStoreProxy.mapStoredScoreForRowIdToPrimaryKey(rowId, pk);
-            return pk;
+            return primaryKeyMap.primaryKeyFromRowId(rowId);
         }
         catch (Throwable t)
         {

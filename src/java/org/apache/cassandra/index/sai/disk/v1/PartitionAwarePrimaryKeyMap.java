@@ -32,7 +32,6 @@ import org.apache.cassandra.index.sai.disk.v1.bitpack.BlockPackedReader;
 import org.apache.cassandra.index.sai.disk.v1.bitpack.MonotonicBlockPackedReader;
 import org.apache.cassandra.index.sai.disk.v1.bitpack.NumericValuesMeta;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
-import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
@@ -65,7 +64,6 @@ public class PartitionAwarePrimaryKeyMap implements PrimaryKeyMap
         private final KeyFetcher keyFetcher;
         private final IPartitioner partitioner;
         private final PrimaryKey.Factory primaryKeyFactory;
-        private final SSTableId<?> sstableId;
 
         private FileHandle token = null;
         private FileHandle offset = null;
@@ -86,7 +84,6 @@ public class PartitionAwarePrimaryKeyMap implements PrimaryKeyMap
                 this.partitioner = indexDescriptor.partitioner;
                 this.keyFetcher = new KeyFetcher(sstable);
                 this.primaryKeyFactory = indexDescriptor.primaryKeyFactory;
-                this.sstableId = sstable.getId();
             }
             catch (Throwable t)
             {
@@ -100,19 +97,13 @@ public class PartitionAwarePrimaryKeyMap implements PrimaryKeyMap
             final LongArray rowIdToToken = new LongArray.DeferredLongArray(() -> tokenReaderFactory.open());
             final LongArray rowIdToOffset = new LongArray.DeferredLongArray(() -> offsetReaderFactory.open());
 
-            return new PartitionAwarePrimaryKeyMap(rowIdToToken, rowIdToOffset, partitioner, keyFetcher, primaryKeyFactory, sstableId);
+            return new PartitionAwarePrimaryKeyMap(rowIdToToken, rowIdToOffset, partitioner, keyFetcher, primaryKeyFactory);
         }
 
         @Override
         public void close() throws IOException
         {
             FileUtils.closeQuietly(token, offset);
-        }
-
-        @Override
-        public SSTableId<?> getSSTableId()
-        {
-            return sstableId;
         }
     }
 
@@ -123,14 +114,12 @@ public class PartitionAwarePrimaryKeyMap implements PrimaryKeyMap
     private final RandomAccessReader reader;
     private final PrimaryKey.Factory primaryKeyFactory;
     private final ByteBuffer tokenBuffer = ByteBuffer.allocate(Long.BYTES);
-    private final SSTableId<?> sstableId;
 
     private PartitionAwarePrimaryKeyMap(LongArray rowIdToToken,
                                         LongArray rowIdToOffset,
                                         IPartitioner partitioner,
                                         KeyFetcher keyFetcher,
-                                        PrimaryKey.Factory primaryKeyFactory,
-                                        SSTableId<?> sstableId)
+                                        PrimaryKey.Factory primaryKeyFactory)
     {
         this.rowIdToToken = rowIdToToken;
         this.rowIdToOffset = rowIdToOffset;
@@ -138,7 +127,6 @@ public class PartitionAwarePrimaryKeyMap implements PrimaryKeyMap
         this.keyFetcher = keyFetcher;
         this.reader = keyFetcher.createReader();
         this.primaryKeyFactory = primaryKeyFactory;
-        this.sstableId = sstableId;
     }
 
     @Override
@@ -165,12 +153,6 @@ public class PartitionAwarePrimaryKeyMap implements PrimaryKeyMap
     public long lastRowIdFromPrimaryKey(PrimaryKey key)
     {
         throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public SSTableId<?> getSSTableId()
-    {
-        return sstableId;
     }
 
     @Override

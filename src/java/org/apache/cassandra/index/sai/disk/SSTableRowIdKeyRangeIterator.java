@@ -27,7 +27,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.index.sai.QueryContext;
-import org.apache.cassandra.index.sai.ScoreStoreProxy;
 import org.apache.cassandra.index.sai.utils.AbortedOperationException;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
@@ -46,7 +45,6 @@ public class SSTableRowIdKeyRangeIterator extends RangeIterator<PrimaryKey>
     private final Stopwatch timeToExhaust = Stopwatch.createStarted();
     private final QueryContext queryContext;
     private final PrimaryKeyMap primaryKeyMap;
-    private final ScoreStoreProxy scoreStoreProxy;
     private final RangeIterator<Long> sstableRowIdIterator;
 
     private boolean needsSkipping = false;
@@ -67,7 +65,6 @@ public class SSTableRowIdKeyRangeIterator extends RangeIterator<PrimaryKey>
 
         this.primaryKeyMap = primaryKeyMap;
         this.queryContext = queryContext;
-        this.scoreStoreProxy = queryContext.getScoreStoreProxyForSSTable(primaryKeyMap.getSSTableId());
         this.sstableRowIdIterator = sstableRowIdIterator;
     }
 
@@ -109,9 +106,7 @@ public class SSTableRowIdKeyRangeIterator extends RangeIterator<PrimaryKey>
             if (rowId == PostingList.END_OF_STREAM)
                 return endOfData();
 
-            PrimaryKey pk = primaryKeyMap.primaryKeyFromRowId(rowId);
-            scoreStoreProxy.mapStoredScoreForRowIdToPrimaryKey(rowId, pk);
-            return pk;
+            return primaryKeyMap.primaryKeyFromRowId(rowId);
         }
         catch (Throwable t)
         {

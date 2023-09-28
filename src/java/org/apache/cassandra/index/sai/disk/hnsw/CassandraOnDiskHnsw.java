@@ -37,7 +37,6 @@ import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.v1.PerIndexFiles;
 import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.v1.postings.ReorderingPostingList;
-import org.apache.cassandra.index.sai.utils.RowIdScoreRecorder;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -91,8 +90,7 @@ public class CassandraOnDiskHnsw implements AutoCloseable
      * @return Row IDs associated with the topK vectors near the query
      */
     // VSTODO make this return something with a size
-    public ReorderingPostingList search(float[] queryVector, int topK, Bits acceptBits, int vistLimit, QueryContext context,
-                                        RowIdScoreRecorder sstableRowIdScoreRecorder)
+    public ReorderingPostingList search(float[] queryVector, int topK, Bits acceptBits, int vistLimit, QueryContext context)
     {
         CassandraOnHeapHnsw.validateIndexable(queryVector, similarityFunction);
 
@@ -109,7 +107,7 @@ public class CassandraOnDiskHnsw implements AutoCloseable
                                              vistLimit);
             logger.trace("Visited {} nodes in graph", queue.visitedCount());
             Tracing.trace("Visited {} nodes in graph", queue.visitedCount());
-            return annRowIdsToPostings(queue, sstableRowIdScoreRecorder);
+            return annRowIdsToPostings(queue);
         }
         catch (IOException e)
         {
@@ -120,15 +118,13 @@ public class CassandraOnDiskHnsw implements AutoCloseable
     private class RowIdIterator implements PrimitiveIterator.OfInt, AutoCloseable
     {
         private final NeighborQueue queue;
-        private final RowIdScoreRecorder rowIdScoreRecorder;
         private final OnDiskOrdinalsMap.RowIdsView rowIdsView = ordinalsMap.getRowIdsView();
 
         private PrimitiveIterator.OfInt segmentRowIdIterator = IntStream.empty().iterator();
 
-        public RowIdIterator(NeighborQueue queue, RowIdScoreRecorder rowIdScoreRecorder)
+        public RowIdIterator(NeighborQueue queue)
         {
             this.queue = queue;
-            this.rowIdScoreRecorder = rowIdScoreRecorder;
         }
 
         @Override
@@ -136,14 +132,8 @@ public class CassandraOnDiskHnsw implements AutoCloseable
             while (!segmentRowIdIterator.hasNext() && queue.size() > 0) {
                 try
                 {
-                    var score = queue.topScore();
                     var ordinal = queue.pop();
-                    int[] rowIds = rowIdsView.getSegmentRowIdsMatching(ordinal);
-                    for (int rowId : rowIds)
-                    {
-                        rowIdScoreRecorder.record(rowId, score);
-                    }
-                    segmentRowIdIterator = Arrays.stream(rowIds).iterator();
+                    segmentRowIdIterator = Arrays.stream(rowIdsView.getSegmentRowIdsMatching(ordinal)).iterator();
                 }
                 catch (IOException e)
                 {
@@ -167,11 +157,10 @@ public class CassandraOnDiskHnsw implements AutoCloseable
         }
     }
 
-    private ReorderingPostingList annRowIdsToPostings(NeighborQueue queue,
-                                                      RowIdScoreRecorder sstableRowIdScoreRecorder) throws IOException
+    private ReorderingPostingList annRowIdsToPostings(NeighborQueue queue) throws IOException
     {
         int originalSize = queue.size();
-        try (var iterator = new RowIdIterator(queue, sstableRowIdScoreRecorder))
+        try (var iterator = new RowIdIterator(queue))
         {
             return new ReorderingPostingList(iterator, originalSize);
         }

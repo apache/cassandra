@@ -20,21 +20,15 @@ package org.apache.cassandra.index.sai;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Set;
-import java.util.PriorityQueue;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import com.carrotsearch.hppc.LongFloatHashMap;
-import com.carrotsearch.hppc.ObjectFloatHashMap;
-import com.carrotsearch.hppc.ObjectFloatMap;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.hnsw.CassandraOnDiskHnsw;
@@ -42,10 +36,7 @@ import org.apache.cassandra.index.sai.disk.hnsw.CassandraOnHeapHnsw;
 import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
 import org.apache.cassandra.index.sai.utils.AbortedOperationException;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
-import org.apache.cassandra.index.sai.utils.RowIdScoreRecorder;
-import org.apache.cassandra.io.sstable.SSTableId;
 import org.apache.lucene.util.Bits;
-import org.apache.cassandra.index.sai.utils.ScoredPrimaryKey;
 
 /**
  * Tracks state relevant to the execution of a single query, including metrics and timeout monitoring.
@@ -80,21 +71,12 @@ public class QueryContext
     public long tokenSkippingCacheHits = 0;
     public long tokenSkippingLookups = 0;
 
-    public long similarityScoreCacheHits = 0;
-    public long similarityScoreCacheLookups = 0;
-
     public long queryTimeouts = 0;
 
     public int hnswVectorsAccessed;
     public int hnswVectorCacheHits;
 
     private TreeSet<PrimaryKey> shadowedPrimaryKeys; // allocate when needed
-
-    /**
-     * if the same key has different scored from different sstables, we don't know which is latest, reset it to -1 and compute in-flight
-     */
-    private final ObjectFloatMap<PrimaryKey> scorePerKey = new ObjectFloatHashMap<>();
-    private final Map<SSTableId<?>, LongFloatHashMap> sstableScoreMapMap = new HashMap<>();
 
     @VisibleForTesting
     public QueryContext()
@@ -249,53 +231,5 @@ public class QueryContext
         {
             return graph.size();
         }
-    }
-
-    public RowIdScoreRecorder getScoreRecorder(SSTableId<?> sstableId, long segmentRowIdOffset)
-    {
-        LongFloatHashMap sstableScoreMap = sstableScoreMapMap.computeIfAbsent(sstableId, __ -> new LongFloatHashMap());
-        return new RowIdScoreRecorder(segmentRowIdOffset, sstableScoreMap);
-    }
-
-    public ScoreStoreProxy getScoreStoreProxyForSSTable(SSTableId<?> sstableId)
-    {
-        return ScoreStoreProxy.create(this, sstableScoreMapMap.get(sstableId));
-    }
-
-    public void recordScore(PrimaryKey primaryKey, float score)
-    {
-        // The stored score should never be less than 0. If it is, we have to recompute similarity later, which is why
-        // this is only an assert and not an illegal argument.
-        assert score >= 0;
-        boolean exists = scorePerKey.containsKey(primaryKey);
-        // Since we know the numbers are between 0 and 1, we use 0.0001f as the epsilon for floating point comparison
-        // See https://embeddeduse.com/2019/08/26/qt-compare-two-floats/
-        if (exists && Math.abs(scorePerKey.get(primaryKey) - score) > 0.0001f)
-        {
-            // found primary key with different score from different sstable. we don't know which vector is the latest. compute it later
-            scorePerKey.put(primaryKey, -1);
-        }
-        else if (!exists)
-        {
-            scorePerKey.put(primaryKey, score);
-        }
-    }
-
-    public void recordScores(PriorityQueue<PrimaryKey> keyQueue)
-    {
-        for (PrimaryKey primaryKey : keyQueue)
-        {
-            if (primaryKey instanceof ScoredPrimaryKey)
-                recordScore(((ScoredPrimaryKey) primaryKey).primaryKey, ((ScoredPrimaryKey) primaryKey).score);
-        }
-    }
-
-    public float getScoreForKey(PrimaryKey primaryKey)
-    {
-        similarityScoreCacheLookups++;
-        var score = scorePerKey.getOrDefault(primaryKey, -1);
-        if (score >= 0.0f)
-            similarityScoreCacheHits++;
-        return score;
     }
 }

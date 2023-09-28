@@ -45,9 +45,6 @@ public class TableQueryMetrics extends AbstractMetrics
     private final Meter tokenSkippingLookups;
     private final Meter tokenSkippingCacheHits;
 
-    private final Meter similarityScoreCacheLookups;
-    private final Meter similarityScoreCacheHits;
-
     public TableQueryMetrics(TableMetadata table)
     {
         super(table.keyspace, table.name, TABLE_QUERY_METRIC_TYPE);
@@ -61,9 +58,6 @@ public class TableQueryMetrics extends AbstractMetrics
 
         tokenSkippingLookups = Metrics.meter(createMetricName("Lookups", "TokenSkipping"));
         tokenSkippingCacheHits = Metrics.meter(createMetricName("CacheHits", "TokenSkipping"));
-
-        similarityScoreCacheLookups = Metrics.meter(createMetricName("Lookups", "SimilarityScoreCache"));
-        similarityScoreCacheHits = Metrics.meter(createMetricName("Hits", "SimilarityScoreCache"));
     }
 
     public void record(QueryContext queryContext)
@@ -80,9 +74,6 @@ public class TableQueryMetrics extends AbstractMetrics
 
         tokenSkippingLookups.mark(skippingLookups);
         tokenSkippingCacheHits.mark(skippingCacheHits);
-
-        similarityScoreCacheLookups.mark(queryContext.similarityScoreCacheLookups);
-        similarityScoreCacheHits.mark(queryContext.similarityScoreCacheHits);
 
         perQueryMetrics.record(queryContext);
     }
