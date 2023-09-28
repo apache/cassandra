@@ -21,6 +21,7 @@ package org.apache.cassandra.service.accord.serializers;
 import java.io.IOException;
 
 import accord.api.Data;
+import accord.api.Result;
 import accord.api.RoutingKey;
 import accord.impl.AbstractFetchCoordinator.FetchRequest;
 import accord.impl.AbstractFetchCoordinator.FetchResponse;
@@ -44,7 +45,6 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.accord.AccordFetchCoordinator.StreamData;
 import org.apache.cassandra.service.accord.AccordFetchCoordinator.StreamingTxn;
-import org.apache.cassandra.service.accord.txn.TxnData;
 import org.apache.cassandra.utils.CastingSerializer;
 
 import static org.apache.cassandra.utils.NullableSerializer.deserializeNullable;
@@ -156,7 +156,6 @@ public class FetchSerializers
             out.writeLong(p.toEpoch);
             CommandSerializers.nullableTimestamp.serialize(p.executeAt, out, version);
             CommandSerializers.nullableWrites.serialize(p.writes, out, version);
-            TxnData.nullableSerializer.serialize((TxnData) p.result, out, version);
         }
 
         @Override
@@ -175,7 +174,23 @@ public class FetchSerializers
             long toEpoch = in.readLong();
             Timestamp executeAt = CommandSerializers.nullableTimestamp.deserialize(in, version);
             Writes writes = CommandSerializers.nullableWrites.deserialize(in, version);
-            TxnData result = TxnData.nullableSerializer.deserialize(in, version);
+
+            Result result = null;
+            switch (saveStatus)
+            {
+                case PreApplied:
+                case Applying:
+                case Applied:
+                case TruncatedApply:
+                case TruncatedApplyWithOutcome:
+                case TruncatedApplyWithDeps:
+                    result = Result.APPLIED;
+                    break;
+                case Invalidated:
+                    result = Result.INVALIDATED;
+                    break;
+            }
+
             return Propagate.SerializerSupport.create(txnId, route, saveStatus, maxSaveStatus, durability, homeKey, progressKey, achieved, partialTxn, partialDeps, toEpoch, executeAt, writes, result);
         }
 
@@ -195,7 +210,6 @@ public class FetchSerializers
                  + TypeSizes.sizeof(p.toEpoch)
                  + CommandSerializers.nullableTimestamp.serializedSize(p.executeAt, version)
                  + CommandSerializers.nullableWrites.serializedSize(p.writes, version)
-                 + TxnData.nullableSerializer.serializedSize((TxnData) p.result, version)
             ;
         }
     };
