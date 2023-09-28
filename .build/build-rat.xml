@@ -93,6 +93,9 @@
                  <exclude NAME="debian/control"/>
                  <exclude NAME="debian/dirs"/>
                  <exclude NAME="debian/patches/series"/>
+                 <!-- Uber specific -->
+                 <exclude NAME=".arcconfig"/>
+                 <exclude NAME="METADATA"/>
             </fileset>
         </rat:report>
         <exec executable="grep" outputproperty="rat.failed.files" failifexecutionfails="false">

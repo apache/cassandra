@@ -89,11 +89,11 @@ public class CollatedViewIndexBuilder extends SecondaryIndexBuilder implements C
     private RegularAndStaticColumns extractIndexedColumns()
     {
         RegularAndStaticColumns.Builder builder = RegularAndStaticColumns.builder();
-        
+
         for (Index index : indexers)
         {
             boolean isPartitionIndex = true;
-            
+
             for (ColumnMetadata column : cfs.metadata().regularAndStaticColumns())
             {
                 if (index.dependsOn(column))
@@ -108,7 +108,7 @@ public class CollatedViewIndexBuilder extends SecondaryIndexBuilder implements C
             if (isPartitionIndex)
                 return cfs.metadata().regularAndStaticColumns();
         }
-        
+
         return builder.build();
     }
 }
