@@ -23,19 +23,18 @@ package org.apache.cassandra.index.internal;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.Callable;
-import java.util.concurrent.Future;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import com.google.common.collect.ImmutableSet;
-
+import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.schema.TableMetadataRef;
-import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.*;
@@ -57,7 +56,10 @@ import org.apache.cassandra.index.transactions.IndexTransaction;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Refs;
@@ -703,11 +705,25 @@ public abstract class CassandraIndex implements Index
                         metadata.name,
                         getSSTableNames(sstables));
 
-            SecondaryIndexBuilder builder = new CollatedViewIndexBuilder(baseCfs,
-                                                                         Collections.singleton(this),
-                                                                         new ReducingKeyIterator(sstables),
-                                                                         ImmutableSet.copyOf(sstables));
-            Future<?> future = CompactionManager.instance.submitIndexBuild(builder);
+            CollatedViewIndexBuilder builder = new CollatedViewIndexBuilder(baseCfs,
+                                                                            Collections.singleton(this),
+                                                                            new ReducingKeyIterator(sstables),
+                                                                            ImmutableSet.copyOf(sstables));
+            ListenableFuture<?> future = CompactionManager.instance.submitIndexBuild(builder);
+            Futures.addCallback(future, new FutureCallback<Object>()
+            {
+                @Override
+                public void onSuccess(Object o)
+                {
+                    builder.close();
+                }
+
+                @Override
+                public void onFailure(Throwable throwable)
+                {
+                    builder.close();
+                }
+            }, MoreExecutors.directExecutor());
             FBUtilities.waitOnFuture(future);
             indexCfs.forceBlockingFlush();
         }

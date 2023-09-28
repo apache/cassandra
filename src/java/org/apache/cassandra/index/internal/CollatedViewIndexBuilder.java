@@ -35,7 +35,7 @@ import org.apache.cassandra.utils.UUIDGen;
 /**
  * Manages building an entire index from column family data. Runs on to compaction manager.
  */
-public class CollatedViewIndexBuilder extends SecondaryIndexBuilder
+public class CollatedViewIndexBuilder extends SecondaryIndexBuilder implements AutoCloseable
 {
     private final ColumnFamilyStore cfs;
     private final Set<Index> indexers;
@@ -64,8 +64,7 @@ public class CollatedViewIndexBuilder extends SecondaryIndexBuilder
 
     public void build()
     {
-        try
-        {
+
             int pageSize = cfs.indexManager.calculateIndexingPageSize();
             while (iter.hasNext())
             {
@@ -73,11 +72,12 @@ public class CollatedViewIndexBuilder extends SecondaryIndexBuilder
                     throw new CompactionInterruptedException(getCompactionInfo());
                 DecoratedKey key = iter.next();
                 cfs.indexManager.indexPartition(key, indexers, pageSize);
-            }
         }
-        finally
-        {
-            iter.close();
-        }
+    }
+
+    @Override
+    public void close()
+    {
+        iter.close();
     }
 }

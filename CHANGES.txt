@@ -1,4 +1,5 @@
 4.0.12
+ * Fix closing iterator in SecondaryIndexBuilder (CASSANDRA-18361)
  * Update hdrhistogram to 2.1.12 (CASSANDRA-18893)
  * Improve performance of compactions when table does not have an index (CASSANDRA-18773)
  * JMH improvements - faster build and async profiler (CASSANDRA-18871)
