@@ -41,6 +41,7 @@ import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 
+import org.apache.cassandra.utils.Throwables;
 import org.apache.commons.lang3.StringUtils;
 
 import org.slf4j.Logger;
@@ -519,8 +520,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                                final SettableFuture build = SettableFuture.create();
                                Futures.addCallback(CompactionManager.instance.submitIndexBuild(builder), new FutureCallback()
                                {
-                                   @Override
-                                   public void onFailure(Throwable t)
+                                   private void doOnFailure(Throwable t)
                                    {
                                        logAndMarkIndexesFailed(groupedIndexes, t, false);
                                        unbuiltIndexes.addAll(groupedIndexes);
@@ -528,8 +528,26 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                                    }
 
                                    @Override
+                                   public void onFailure(Throwable t)
+                                   {
+                                       if (builder instanceof AutoCloseable)
+                                           t = Throwables.close(t, Arrays.asList((AutoCloseable) builder));
+
+                                       doOnFailure(t);
+                                   }
+
+                                   @Override
                                    public void onSuccess(Object o)
                                    {
+                                       if (builder instanceof AutoCloseable)
+                                       {
+                                           Throwable t = Throwables.close(null, Arrays.asList((AutoCloseable) builder));
+                                           if (t != null)
+                                           {
+                                               doOnFailure(t);
+                                               return;
+                                           }
+                                       }
                                        groupedIndexes.forEach(i -> markIndexBuilt(i, isFullRebuild));
                                        logger.info("Index build of {} completed", getIndexNames(groupedIndexes));
                                        builtIndexes.addAll(groupedIndexes);
