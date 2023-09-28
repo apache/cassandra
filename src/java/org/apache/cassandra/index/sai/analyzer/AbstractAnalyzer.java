@@ -27,11 +27,15 @@ package org.apache.cassandra.index.sai.analyzer;
 import java.io.Closeable;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Maps;
+
+import org.slf4j.Logger;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
@@ -42,6 +46,8 @@ import org.apache.lucene.analysis.Analyzer;
 
 public abstract class AbstractAnalyzer implements Iterator<ByteBuffer>
 {
+    private static final Logger logger = org.slf4j.LoggerFactory.getLogger(AbstractAnalyzer.class);
+
     public static final Set<AbstractType<?>> ANALYZABLE_TYPES = ImmutableSet.of(UTF8Type.instance, AsciiType.instance);
 
     protected ByteBuffer next = null;
@@ -147,8 +153,10 @@ public abstract class AbstractAnalyzer implements Iterator<ByteBuffer>
         boolean containsNonTokenizingOptions = NonTokenizingOptions.hasNonDefaultOptions(options);
         if (containsIndexAnalyzer && containsNonTokenizingOptions)
         {
-            throw new InvalidRequestException("Cannot specify case_insensitive, normalize, or ascii options with" +
-                                              " index_analyzer option. options=" + options);
+            logger.warn("Invalid combination of options for index_analyzer: {}", options);
+            var optionsToStrip = List.of(NonTokenizingOptions.CASE_SENSITIVE, NonTokenizingOptions.NORMALIZE, NonTokenizingOptions.ASCII);
+            options = Maps.filterKeys(options, k -> !optionsToStrip.contains(k));
+            logger.warn("Rewrote options to {}", options);
         }
         boolean containsQueryAnalyzer = options.containsKey(LuceneAnalyzer.QUERY_ANALYZER);
         if (containsQueryAnalyzer && !containsIndexAnalyzer && !containsNonTokenizingOptions)
@@ -170,7 +178,8 @@ public abstract class AbstractAnalyzer implements Iterator<ByteBuffer>
                 // load NonTokenizingAnalyzer so it'll validate options
                 NonTokenizingAnalyzer a = new NonTokenizingAnalyzer(type, options);
                 a.end();
-                return () -> new NonTokenizingAnalyzer(type, options);
+                Map<String, String> finalOptions = options;
+                return () -> new NonTokenizingAnalyzer(type, finalOptions);
             }
             else
             {
