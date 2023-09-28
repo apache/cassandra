@@ -1,0 +1,24 @@
+= Check secondary index (2i) existence
+
+Verify that an index exists:
+
+[tabs]
+====
+CQL::
++
+--
+[source,language-bash]
+----
+include::cassandra:example$CQL/2i/2i-check.cql[]
+----
+--
+
+Result::
++
+--
+[source,console]
+----
+include::cassandra:example$RESULTS/2i/2i-check.result[]
+----
+--
+====

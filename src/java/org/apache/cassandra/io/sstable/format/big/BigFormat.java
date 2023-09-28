@@ -38,13 +38,14 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.memtable.Flushing;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.Component;
-import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.GaugeProvider;
 import org.apache.cassandra.io.sstable.IScrubber;
 import org.apache.cassandra.io.sstable.MetricsProviders;
+import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.filter.BloomFilterMetrics;
 import org.apache.cassandra.io.sstable.format.AbstractSSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
@@ -66,7 +67,99 @@ import org.apache.cassandra.utils.Pair;
 import static org.apache.cassandra.io.sstable.format.SSTableFormat.Components.DATA;
 
 /**
- * Legacy bigtable format
+ * Legacy bigtable format. Components and approximate lifecycle:
+ * <br>
+ * {@link SSTableFormat.Components}
+ * <br>
+ * {@link Components#ALL_COMPONENTS}
+ *  <ul>
+ *     <li>
+ *       {@link Components#SUMMARY}: When searching for a PK we go here for a first approximation on where to look in the index file. It is
+ *       a small sampling of the Index entries intended for a first fast search in-memory.
+ *       <p></p>
+ *       {@link org.apache.cassandra.io.sstable.indexsummary.IndexSummary}
+ *       <br>
+ *       {@link IndexSummaryComponent}
+ *       <p></p>
+ *     </li>
+ *     <li>
+ *       {@link Components#PRIMARY_INDEX}: We'll land here in the approximate area where to look for the PK thanks to the Summary. Now we'll search for
+ *       the exact PK to get it's exact position in the data file.
+ *       <p></p>
+ *       {@link BigTableWriter#indexWriter}
+ *       <br>
+ *       {@link RowIndexEntry}
+ *       <br>
+ *       {@link org.apache.cassandra.io.sstable.IndexInfo}
+ *       <br>
+ *       {@link org.apache.cassandra.io.sstable.format.IndexComponent}
+ *       <p></p>
+ *     </li>
+ *     <li>
+ *       {@link Components#DATA}: The actual data/partitions file as an array or partitions. Each partition has the form:
+ *       <ul>
+ *       <li>A partition header</li>
+ *       <li>Maybe a static row</li>
+ *       <li>Rows or range tombstone</li>
+ *       </ul>
+ *       I.e. upon flush {@link Flushing.FlushRunnable#writeSortedContents}
+ *       <br>
+ *       Down to {@link org.apache.cassandra.io.sstable.format.SortedTableWriter#startPartition}
+ *       <br>
+ *       Down to {@link org.apache.cassandra.io.sstable.format.SortedTablePartitionWriter#start}
+ *       <br>
+ *       {@link org.apache.cassandra.io.sstable.format.DataComponent}
+ *       <p></p>
+ *     </li>
+ *     <li>
+ *       {@link Components#STATS}: Stats on the data such as min timestamps to later vint encode TTL, markForDeleteAt, etc
+ *       <p></p>
+ *       {@link org.apache.cassandra.db.rows.EncodingStats}
+ *       <br>
+ *       {@link org.apache.cassandra.io.sstable.format.StatsComponent}
+ *       <p></p>
+ *     </li>
+ *     <li>
+ *       {@link Components#COMPRESSION_INFO}: Contains compresion metadata
+ *       <p></p>
+ *       {@link org.apache.cassandra.io.compress.CompressedSequentialWriter}
+ *       <br>
+ *       {@link org.apache.cassandra.io.compress.CompressionMetadata}
+ *       <br>
+ *       {@link org.apache.cassandra.io.sstable.format.CompressionInfoComponent}
+ *       <p></p>
+ *     </li>
+ *     <li>
+ *       {@link Components#DIGEST}: The digest supporting the compression
+ *       <p></p>
+ *       {@link org.apache.cassandra.io.compress.CompressedSequentialWriter}
+ *       <br>
+ *       {@link org.apache.cassandra.io.util.ChecksumWriter}
+ *       <p></p>
+ *     </li>
+ *     <li>
+ *       {@link Components#FILTER}: Bloom filter for data files
+ *       <p></p>
+ *       {@link org.apache.cassandra.io.sstable.format.FilterComponent}
+ *       <br>
+ *       {@link org.apache.cassandra.utils.BloomFilterSerializer}
+ *       <p></p>
+ *     </li>
+ *     <li>
+ *       {@link Components#CRC}: CRC for the data
+ *       <p></p>
+ *       {@link org.apache.cassandra.io.util.ChecksummedSequentialWriter}
+ *       <br>
+ *       {@link org.apache.cassandra.io.util.ChecksumWriter}
+ *       <p></p>
+ *     </li>
+ *     <li>
+ *       {@link Components#TOC}: List of all the components for the SSTable
+ *       <p></p>
+ *       {@link org.apache.cassandra.io.sstable.format.TOCComponent}
+ *     </li>
+ *   </ul>
+ *
  */
 public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWriter>
 {

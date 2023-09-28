@@ -1,0 +1,193 @@
+= Support for Java
+
+The support matrix for the Java versions for compiling and running
+{product} is detailed in Table 1. The build version is along
+the vertical axis and the run version is along the horizontal axis.
+
+.Support Matrix for Java
+[width="68%",cols="34%,30%,36%",]
+|===
+| | Java 11 (Run) | Java 17 (Run)
+| Java 11 (Build) | Supported | Supported
+| Java 17(Build) | Not Supported | Experimental
+|===
+
+Apache 4.0 source code built with Java 17 cannot be run with Java 11.
+All binary releases are built with Java 11.
+
+== Using Java 17 to Build
+
+To start with, install Java 17. 
+As an example, for installing Java 17 on RedHat Linux the command is as follows:
+
+[source, console]
+----
+$ sudo yum install java-17-openjdk
+----
+
+Set the environment variables `JAVA_HOME` and `PATH`.
+
+[source, console]
+----
+$ export JAVA_HOME=/usr/lib/jvm/java-17-openjdk
+$ export PATH=$PATH:$JAVA_HOME/bin:$JRE_HOME/bin
+----
+
+Download and install Apache Cassandra 5.0 source code from the Git along
+with the dependencies.
+
+[source, console]
+----
+$ git clone https://github.com/apache/cassandra.git
+----
+
+If Cassandra is already running stop Cassandra with the following
+command.
+
+[source, console]
+----
+$ ./nodetool stopdaemon
+----
+
+Build the source code from the `cassandra` directory, which has the
+`build.xml` build script. The Apache Ant uses the Java version set in
+the `JAVA_HOME` environment variable.
+
+[source, console]
+----
+$ cd ~/cassandra
+$ ant
+----
+
+Apache Cassandra 5.0 gets built with Java 11. Set the environment
+variable for `CASSANDRA_HOME` in the bash script. Also add the
+`CASSANDRA_HOME/bin` to the `PATH` variable.
+
+[source, console]
+----
+$ export CASSANDRA_HOME=~/cassandra
+$ export PATH=$PATH:$JAVA_HOME/bin:$JRE_HOME/bin:$CASSANDRA_HOME/bin
+----
+
+To run Apache Cassandra 5.0 with either of Java 11 or Java 17 run the
+Cassandra application in the `CASSANDRA_HOME/bin` directory, which is in
+the `PATH` env variable.
+
+[source, console]
+----
+$ cassandra
+----
+
+The Java version used to run Cassandra gets output as Cassandra is
+getting started. As an example if Java 11 is used, the run output should
+include similar to the following output snippet:
+
+[source, console]
+----
+INFO  [main] 2019-07-31 21:18:16,862 CassandraDaemon.java:480 - Hostname: ip-172-30-3-
+146.ec2.internal:7000:7001
+INFO  [main] 2019-07-31 21:18:16,862 CassandraDaemon.java:487 - JVM vendor/version: OpenJDK
+64-Bit Server VM/11.0.3
+INFO  [main] 2019-07-31 21:18:16,863 CassandraDaemon.java:488 - Heap size:
+1004.000MiB/1004.000MiB
+----
+
+The following output indicates a single node Cassandra 5.0 cluster has started.
+
+[source, console]
+----
+INFO  [main] 2019-07-31 21:18:19,687 InboundConnectionInitiator.java:130 - Listening on
+address: (127.0.0.1:7000), nic: lo, encryption: enabled (openssl)
+...
+...
+INFO  [main] 2019-07-31 21:18:19,850 StorageService.java:512 - Unable to gossip with any
+peers but continuing anyway since node is in its own seed list
+INFO  [main] 2019-07-31 21:18:19,864 StorageService.java:695 - Loading persisted ring state
+INFO  [main] 2019-07-31 21:18:19,865 StorageService.java:814 - Starting up server gossip
+INFO  [main] 2019-07-31 21:18:20,088 BufferPool.java:216 - Global buffer pool is enabled,
+when pool is exhausted (max is 251.000MiB) it will allocate on heap
+INFO  [main] 2019-07-31 21:18:20,110 StorageService.java:875 - This node will not auto
+bootstrap because it is configured to be a seed node.
+...
+...
+INFO  [main] 2019-07-31 21:18:20,809 StorageService.java:1507 - JOINING: Finish joining ring
+INFO  [main] 2019-07-31 21:18:20,921 StorageService.java:2508 - Node 127.0.0.1:7000 state
+jump to NORMAL
+----
+
+== Using Java 11 to Build
+
+If Java 17 is used to build Apache Cassandra 5.0, first Java 11 must be installed and the environment variables set. 
+As an example, to download and install Java 11 on RedHat Linux run the following command.
+
+[source, console]
+----
+$ yum install java-11-openjdk
+----
+
+Set the environment variables `JAVA_HOME` and `PATH`.
+
+[source, console]
+----
+$ export JAVA_HOME=/usr/lib/jvm/java-11-openjdk
+$ export PATH=$PATH:$JAVA_HOME/bin:$JRE_HOME/bin
+----
+
+The build output should now include the following.
+
+[source, console]
+----
+[echo] Non default JDK version used: 11
+...
+...
+_build_java:
+    [echo] Compiling for Java 11
+...
+...
+build:
+
+_main-jar:
+         [copy] Copying 1 file to /home/ec2-user/cassandra/build/classes/main/META-INF
+     [jar] Building jar: /home/ec2-user/cassandra/build/apache-cassandra-4.0-SNAPSHOT.jar
+...
+...
+_build-test:
+   [javac] Compiling 739 source files to /home/ec2-user/cassandra/build/test/classes
+    [copy] Copying 25 files to /home/ec2-user/cassandra/build/test/classes
+...
+...
+jar:
+   [mkdir] Created dir: /home/ec2-user/cassandra/build/classes/stress/META-INF
+   [mkdir] Created dir: /home/ec2-user/cassandra/build/tools/lib
+     [jar] Building jar: /home/ec2-user/cassandra/build/tools/lib/stress.jar
+   [mkdir] Created dir: /home/ec2-user/cassandra/build/classes/fqltool/META-INF
+     [jar] Building jar: /home/ec2-user/cassandra/build/tools/lib/fqltool.jar
+
+BUILD SUCCESSFUL
+Total time: 1 minute 3 seconds
+----
+
+== Common Issues
+
+The Java 17 built Apache Cassandra 5.0 source code may be run with Java 17 only. 
+If a Java 17 built code is run with Java 11 the following error message gets output.
+
+[source, console]
+----
+# ssh -i cassandra.pem ec2-user@ec2-3-85-85-75.compute-1.amazonaws.com
+Last login: Wed Jul 31 20:47:26 2019 from 75.155.255.51
+$ echo $JAVA_HOME
+/usr/lib/jvm/java-11-openjdk
+$ cassandra
+...
+...
+Error: A JNI error has occurred, please check your installation and try again
+Exception in thread "main" java.lang.UnsupportedClassVersionError:
+org/apache/cassandra/service/CassandraDaemon has been compiled by a more recent version of
+the Java Runtime (class file version 55.0), this version of the Java Runtime only recognizes
+class file versions up to 52.0
+  at java.lang.ClassLoader.defineClass1(Native Method)
+  at java.lang.ClassLoader.defineClass(ClassLoader.java:763)
+  at ...
+...
+----

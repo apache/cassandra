@@ -1,4 +1,5 @@
 = New Features
+:navtitle: What's new
 
 == New Features in Apache Cassandra 5.0
 

@@ -96,14 +96,14 @@ public class CompactionTest extends SAITester
         {
             InetAddressAndPort endpoint = InetAddressAndPort.getByName("10.0.0.1");
             TimeUUID parentRepairSession = TimeUUID.Generator.nextTimeUUID();
-            ActiveRepairService.instance.registerParentRepairSession(parentRepairSession,
-                                                                     endpoint,
-                                                                     Lists.newArrayList(cfs),
-                                                                     Collections.singleton(range),
-                                                                     true,
-                                                                     1000,
-                                                                     false,
-                                                                     PreviewKind.NONE);
+            ActiveRepairService.instance().registerParentRepairSession(parentRepairSession,
+                                                                       endpoint,
+                                                                       Lists.newArrayList(cfs),
+                                                                       Collections.singleton(range),
+                                                                       true,
+                                                                       1000,
+                                                                       false,
+                                                                       PreviewKind.NONE);
             RangesAtEndpoint replicas = RangesAtEndpoint.builder(endpoint).add(Replica.fullReplica(endpoint, range)).build();
             CompactionManager.instance.performAnticompaction(cfs, replicas, refs, txn, parentRepairSession, () -> false);
         }

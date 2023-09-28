@@ -32,6 +32,7 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -90,7 +91,7 @@ public class PendingRepairStatTest extends AbstractRepairTest
 
     static LocalSession createSession()
     {
-        LocalSession.Builder builder = LocalSession.builder();
+        LocalSession.Builder builder = LocalSession.builder(SharedContext.Global.instance);
         builder.withState(PREPARING);
         builder.withSessionID(nextTimeUUID());
         builder.withCoordinator(COORDINATOR);

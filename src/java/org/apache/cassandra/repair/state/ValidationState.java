@@ -21,11 +21,12 @@ import java.util.UUID;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.RepairJobDesc;
+import org.apache.cassandra.utils.Clock;
 
 public class ValidationState extends AbstractState<ValidationState.State, UUID>
 {
     public enum State
-    { START, SENDING_TREES }
+    { ACCEPT, START, SENDING_TREES }
 
     public final Phase phase = new Phase();
     public final RepairJobDesc desc;
@@ -35,9 +36,10 @@ public class ValidationState extends AbstractState<ValidationState.State, UUID>
     public long partitionsProcessed;
     public long bytesRead;
 
-    public ValidationState(RepairJobDesc desc, InetAddressAndPort initiator)
+    public ValidationState(Clock clock, RepairJobDesc desc, InetAddressAndPort initiator)
     {
-        super(desc.determanisticId(), State.class);
+        // UUID is used to make the validations table easier for users to lookup by a single key rather than a composite key
+        super(clock, desc.determanisticId(), State.class);
         this.desc = desc;
         this.initiator = initiator;
     }
@@ -56,6 +58,11 @@ public class ValidationState extends AbstractState<ValidationState.State, UUID>
 
     public final class Phase extends BaseSkipPhase
     {
+        public void accept()
+        {
+            updateState(State.ACCEPT);
+        }
+
         public void start(long estimatedPartitions, long estimatedTotalBytes)
         {
             updateState(State.START);

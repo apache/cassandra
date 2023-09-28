@@ -175,7 +175,7 @@ public class PaxosRepairTest extends TestBaseImpl
                 {
                     throw new AssertionError(e);
                 }
-                Pair<ActiveRepairService.ParentRepairStatus, List<String>> status = ActiveRepairService.instance.getRepairStatus(cmd);
+                Pair<ActiveRepairService.ParentRepairStatus, List<String>> status = ActiveRepairService.instance().getRepairStatus(cmd);
                 if (status == null)
                     continue;
 

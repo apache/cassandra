@@ -723,6 +723,17 @@ memtable_allocation_type: heap_buffers
 # Min unit: MiB
 # repair_session_space:
 
+# repair:
+#   # Configure the retries for each of the repair messages that support it.  As of this moment retries use an exponential algorithm where each attempt sleeps longer based off the base_sleep_time and attempt.
+#   retries:
+#     max_attempts: 10
+#     base_sleep_time: 200ms
+#     max_sleep_time: 1s
+#     # Increase the timeout of validation responses due to them containing the merkle tree
+#     merkle_tree_response:
+#       base_sleep_time: 30s
+#       max_sleep_time: 1m
+
 # Total space to use for commit logs on disk.
 #
 # If space gets above this value, Cassandra will flush every dirty CF
@@ -1888,6 +1899,9 @@ drop_compact_storage_enabled: false
 #
 # Guardrail to allow/disallow DROP KEYSPACE statements
 # drop_keyspace_enabled: true
+#
+# Guardrail to allow/disallow bulk load of SSTables
+# bulk_load_enabled: true
 #
 # Guardrail to warn or fail when using a page size greater than threshold.
 # The two thresholds default to -1 to disable.

@@ -1,0 +1,34 @@
+= Multiple indexes matched with IN
+
+This example uses the following table and indexes:
+
+[source,sql]
+----
+include::cassandra:example$CQL/sai/create-vector-table-cycling.cql[tag=createvstable]
+include::cassandra:example$CQL/sai/index-sai-multiple-index-match-with-and.cql[]
+----
+
+Several indexes are created for the table to demonstrate how to query for matches on more than one column.
+
+Query for match with column values in a list of values:
+
+[tabs]
+====
+Query::
++
+--
+[source, console]
+----
+include::cassandra:example$CQL/sai/index-sai-select-multiple-index-match-with-in.cql[]
+----
+--
+
+Result::
++
+--
+[source,results]
+----
+include::cassandra:example$RESULTS/sai/index-sai-select-multiple-index-match-with-in.result[]
+----
+--
+====

@@ -65,6 +65,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.auth.IInternodeAuthenticator.InternodeConnectionDirection.INBOUND;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 import static org.apache.cassandra.net.InternodeConnectionUtils.DISCARD_HANDLER_NAME;
+import static org.apache.cassandra.net.InternodeConnectionUtils.SSL_FACTORY_CONTEXT_DESCRIPTION;
 import static org.apache.cassandra.net.InternodeConnectionUtils.SSL_HANDLER_NAME;
 import static org.apache.cassandra.net.InternodeConnectionUtils.certificates;
 import static org.apache.cassandra.net.MessagingService.*;
@@ -522,7 +523,8 @@ public class InboundConnectionInitiator
     {
         final boolean verifyPeerCertificate = true;
         SslContext sslContext = SSLFactory.getOrCreateSslContext(encryptionOptions, verifyPeerCertificate,
-                                                                 ISslContextFactory.SocketType.SERVER);
+                                                                 ISslContextFactory.SocketType.SERVER,
+                                                                 SSL_FACTORY_CONTEXT_DESCRIPTION);
         InetSocketAddress peer = encryptionOptions.require_endpoint_verification ? (InetSocketAddress) channel.remoteAddress() : null;
         SslHandler sslHandler = newSslHandler(channel, sslContext, peer);
         logger.trace("{} inbound netty SslContext: context={}, engine={}", description, sslContext.getClass().getName(), sslHandler.engine().getClass().getName());

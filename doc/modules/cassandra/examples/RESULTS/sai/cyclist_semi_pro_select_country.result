@@ -1,0 +1,14 @@
+SOURCE '0_create_keyspace.cql';
+
+// SELECT * FROM cycling.cyclist_semi_pro WHERE country = 'GBR';
+
+// tag::cyclistSelectCountryResults[]
+ id | affiliation          | age | country | firstname | lastname  | registration
+----+----------------------+-----+---------+-----------+-----------+--------------
+ 19 |     Highclere Agents |  24 |     GBR |     Tyler |   Higgins |   2019-07-31
+ 18 | Aberdeen Association |  26 |     GBR |  Nicholas |    Burrow |   2016-02-12
+ 20 |      London Cyclists |  18 |     GBR |    Leslie |      Boyd |   2012-12-15
+ 17 |         Pennan Power |  26 |     GBR |     Alice | McCaffrey |   2020-02-12
+
+(4 rows)
+// end::cyclistSelectCountryResults[]

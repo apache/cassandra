@@ -860,6 +860,7 @@ public class Config
     public volatile boolean user_timestamps_enabled = true;
     public volatile boolean alter_table_enabled = true;
     public volatile boolean group_by_enabled = true;
+    public volatile boolean bulk_load_enabled = true;
     public volatile boolean drop_truncate_table_enabled = true;
     public volatile boolean drop_keyspace_enabled = true;
     public volatile boolean secondary_indexes_enabled = true;
@@ -1104,6 +1105,8 @@ public class Config
     public volatile DataStorageSpec.LongBytesBound min_tracked_partition_size = new DataStorageSpec.LongBytesBound("1MiB");
     public volatile long min_tracked_partition_tombstone_count = 5000;
     public volatile boolean top_partitions_enabled = true;
+
+    public final RepairConfig repair = new RepairConfig();
 
     /**
      * Default compaction configuration, used if a table does not specify any.

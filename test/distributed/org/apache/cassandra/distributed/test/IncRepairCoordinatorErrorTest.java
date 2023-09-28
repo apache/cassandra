@@ -48,7 +48,7 @@ public class IncRepairCoordinatorErrorTest extends TestBaseImpl
             cluster.get(1).nodetoolResult("repair", KEYSPACE).asserts().success();
             TimeUUID result = (TimeUUID) cluster.get(1).executeInternal("select parent_id from system_distributed.repair_history")[0][0];
             cluster.get(3).runOnInstance(() -> {
-                ActiveRepairService.instance.failSession(result.toString(), true);
+                ActiveRepairService.instance().failSession(result.toString(), true);
             });
             assertThat(cluster.get(1).logs().watchFor("Can't transition endpoints .* to FAILED").getResult()).isNotEmpty();
         }

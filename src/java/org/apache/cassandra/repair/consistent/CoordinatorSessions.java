@@ -24,6 +24,7 @@ import java.util.Set;
 
 import com.google.common.base.Preconditions;
 
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.messages.FailSession;
 import org.apache.cassandra.repair.messages.FinalizePromise;
@@ -37,7 +38,14 @@ import org.apache.cassandra.utils.TimeUUID;
  */
 public class CoordinatorSessions
 {
+    private final SharedContext ctx;
+    
     private final Map<TimeUUID, CoordinatorSession> sessions = new HashMap<>();
+
+    public CoordinatorSessions(SharedContext ctx)
+    {
+        this.ctx = ctx;
+    }
 
     protected CoordinatorSession buildSession(CoordinatorSession.Builder builder)
     {
@@ -46,14 +54,14 @@ public class CoordinatorSessions
 
     public synchronized CoordinatorSession registerSession(TimeUUID sessionId, Set<InetAddressAndPort> participants, boolean isForced) throws NoSuchRepairSessionException
     {
-        ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(sessionId);
+        ActiveRepairService.ParentRepairSession prs = ctx.repair().getParentRepairSession(sessionId);
 
         Preconditions.checkArgument(!sessions.containsKey(sessionId),
                                     "A coordinator already exists for session %s", sessionId);
         Preconditions.checkArgument(!isForced || prs.repairedAt == ActiveRepairService.UNREPAIRED_SSTABLE,
                                     "cannot promote data for forced incremental repairs");
 
-        CoordinatorSession.Builder builder = CoordinatorSession.builder();
+        CoordinatorSession.Builder builder = CoordinatorSession.builder(ctx);
         builder.withState(ConsistentSession.State.PREPARING);
         builder.withSessionID(sessionId);
         builder.withCoordinator(prs.coordinator);
@@ -62,6 +70,7 @@ public class CoordinatorSessions
         builder.withRepairedAt(prs.repairedAt);
         builder.withRanges(prs.getRanges());
         builder.withParticipants(participants);
+        builder.withContext(ctx);
         CoordinatorSession session = buildSession(builder);
         sessions.put(session.sessionID, session);
         return session;

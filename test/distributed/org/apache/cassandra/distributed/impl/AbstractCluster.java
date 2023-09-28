@@ -193,7 +193,7 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
             // those properties may be set for unit-test optimizations; those should not be used when running dtests
             CassandraRelevantProperties.TEST_FLUSH_LOCAL_SCHEMA_CHANGES.reset();
             CassandraRelevantProperties.NON_GRACEFUL_SHUTDOWN.reset();
-            CassandraRelevantProperties.NATIVE_EPOLL_ENABLED.setBoolean(false);
+            CassandraRelevantProperties.IO_NETTY_TRANSPORT_NONATIVE.setBoolean(false);
         }
 
         public AbstractBuilder(Factory<I, C, B> factory)

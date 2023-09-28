@@ -23,14 +23,36 @@ import os
 import re
 import subprocess
 import sys
+import time
 import traceback
 import warnings
 import webbrowser
 from contextlib import contextmanager
+from enum import Enum
 from io import StringIO
 from uuid import UUID
 
+import cassandra
+from cassandra.auth import PlainTextAuthProvider
+from cassandra.cluster import Cluster
+from cassandra.cqltypes import cql_typename
+from cassandra.marshal import int64_unpack
+from cassandra.metadata import (ColumnMetadata, KeyspaceMetadata, TableMetadata)
+from cassandra.policies import WhiteListRoundRobinPolicy
+from cassandra.query import SimpleStatement, ordered_dict_factory, TraceUnavailable
+from cassandra.util import datetime_from_timestamp
+
+from cqlshlib import cql3handling, pylexotron, sslhandling, cqlshhandling, authproviderhandling
+from cqlshlib.copyutil import ExportTask, ImportTask
+from cqlshlib.displaying import (ANSI_RESET, BLUE, COLUMN_NAME_COLORS, CYAN,
+                                 RED, WHITE, FormattedValue, colorme)
+from cqlshlib.formatting import (DEFAULT_DATE_FORMAT, DEFAULT_NANOTIME_FORMAT,
+                                 DEFAULT_TIMESTAMP_FORMAT, CqlType, DateTimeFormat,
+                                 format_by_type)
 from cqlshlib.helptopics import get_html_anchor, get_html_topics
+from cqlshlib.tracing import print_trace, print_trace_session
+from cqlshlib.util import get_file_encoding_bomsize, is_file_secure
+from cqlshlib.serverversion import version as build_version
 
 UTF8 = 'utf-8'
 
@@ -39,9 +61,8 @@ version = "6.2.0"
 
 readline = None
 try:
-    # check if tty first, cause readline doesn't check, and only cares
-    # about $TERM. we don't want the funky escape code stuff to be
-    # output if not a tty.
+    # Check if tty first, as readline doesn't check and only cares about $TERM.
+    # We don't want the funky escape code stuff to be output if not a tty.
     if sys.stdin.isatty():
         import readline
 except ImportError:
@@ -62,27 +83,6 @@ if webbrowser._tryorder and webbrowser._tryorder[0] == 'xdg-open' and os.environ
     webbrowser._tryorder.append('xdg-open')
 
 warnings.filterwarnings("ignore", r".*blist.*")
-
-import cassandra
-from cassandra.auth import PlainTextAuthProvider
-from cassandra.cluster import Cluster
-from cassandra.cqltypes import cql_typename
-from cassandra.marshal import int64_unpack
-from cassandra.metadata import (ColumnMetadata, KeyspaceMetadata, TableMetadata)
-from cassandra.policies import WhiteListRoundRobinPolicy
-from cassandra.query import SimpleStatement, ordered_dict_factory, TraceUnavailable
-from cassandra.util import datetime_from_timestamp
-
-from cqlshlib import cql3handling, pylexotron, sslhandling, cqlshhandling, authproviderhandling
-from cqlshlib.copyutil import ExportTask, ImportTask
-from cqlshlib.displaying import (ANSI_RESET, BLUE, COLUMN_NAME_COLORS, CYAN,
-                                 RED, WHITE, FormattedValue, colorme)
-from cqlshlib.formatting import (DEFAULT_DATE_FORMAT, DEFAULT_NANOTIME_FORMAT,
-                                 DEFAULT_TIMESTAMP_FORMAT, CqlType, DateTimeFormat,
-                                 format_by_type)
-from cqlshlib.tracing import print_trace, print_trace_session
-from cqlshlib.util import get_file_encoding_bomsize, is_file_secure
-from cqlshlib.serverversion import version as build_version
 
 DEFAULT_HOST = '127.0.0.1'
 DEFAULT_PORT = 9042
@@ -280,6 +280,11 @@ class FormatError(DecodeError):
     verb = 'format'
 
 
+class SwitchState(Enum):
+    ON = True
+    OFF = False
+
+
 def format_value(val, cqltype, encoding, addcolor=False, date_time_format=None,
                  float_precision=None, colormap=None, nullval=None):
     if isinstance(val, DecodeError):
@@ -325,7 +330,7 @@ class Shell(cmd.Cmd):
     default_page_size = 100
 
     def __init__(self, hostname, port, color=False,
-                 username=None, encoding=None, stdin=None, tty=True,
+                 username=None, encoding=None, elapsed_enabled=False, stdin=None, tty=True,
                  completekey=DEFAULT_COMPLETEKEY, browser=None, use_conn=None,
                  cqlver=None, keyspace=None,
                  tracing_enabled=False, expand_enabled=False,
@@ -408,6 +413,7 @@ class Shell(cmd.Cmd):
 
         self.tty = tty
         self.encoding = encoding
+        self.elapsed_enabled = elapsed_enabled
 
         self.output_codec = codecs.lookup(encoding)
 
@@ -966,6 +972,7 @@ class Shell(cmd.Cmd):
         if not statement:
             return False, None
 
+        start_time = time.time()
         future = self.session.execute_async(statement, trace=self.tracing_enabled)
         result = None
         try:
@@ -986,6 +993,8 @@ class Shell(cmd.Cmd):
                               "nodes in system.local and system.peers.")
                 self.conn.refresh_schema_metadata(-1)
 
+        elapsed = int((time.time() - start_time) * 1000)
+
         if result is None:
             return False, None
 
@@ -999,6 +1008,8 @@ class Shell(cmd.Cmd):
             # CAS INSERT/UPDATE
             self.writeresult("")
             self.print_static_result(result, self.parse_for_update_meta(statement.query_string), with_header=True, tty=self.tty)
+        if self.elapsed_enabled:
+            self.writeresult("(%dms elapsed)" % elapsed)
         self.flush_output()
         return True, future
 
@@ -1547,7 +1558,8 @@ class Shell(cmd.Cmd):
             return
         subshell = Shell(self.hostname, self.port, color=self.color,
                          username=self.username,
-                         encoding=self.encoding, stdin=f, tty=False, use_conn=self.conn,
+                         encoding=self.encoding, elapsed_enabled=self.elapsed_enabled,
+                         stdin=f, tty=False, use_conn=self.conn,
                          cqlver=self.cql_version, keyspace=self.current_keyspace,
                          tracing_enabled=self.tracing_enabled,
                          display_nanotime_format=self.display_nanotime_format,
@@ -1649,7 +1661,24 @@ class Shell(cmd.Cmd):
 
           TRACING with no arguments shows the current tracing status.
         """
-        self.tracing_enabled = SwitchCommand("TRACING", "Tracing").execute(self.tracing_enabled, parsed, self.printerr)
+        self.tracing_enabled \
+            = self.on_off_switch("TRACING", self.tracing_enabled, parsed.get_binding('switch'))
+
+    def do_elapsed(self, parsed):
+        """
+        ELAPSED
+
+          Returns whether displaying of elapsed time for each CQL query is enabled or not
+
+        ELAPSED ON
+
+          Enables displaying of elapsed time for each CQL query
+
+        ELAPSED OFF
+
+          Disables displaying of elapsed time for each CQL query
+        """
+        self.elapsed_enabled = self.on_off_switch("ELAPSED", self.elapsed_enabled, parsed.get_binding('switch'))
 
     def do_expand(self, parsed):
         """
@@ -1669,7 +1698,7 @@ class Shell(cmd.Cmd):
 
           EXPAND with no arguments shows the current value of expand setting.
         """
-        self.expand_enabled = SwitchCommand("EXPAND", "Expanded output").execute(self.expand_enabled, parsed, self.printerr)
+        self.expand_enabled = self.on_off_switch("EXPAND", self.expand_enabled, parsed.get_binding('switch'))
 
     def do_consistency(self, parsed):
         """
@@ -1893,8 +1922,8 @@ class Shell(cmd.Cmd):
 
           PAGING with no arguments shows the current query paging status.
         """
-        (self.use_paging, requested_page_size) = SwitchCommandWithValue(
-            "PAGING", "Query paging", value_type=int).execute(self.use_paging, parsed, self.printerr)
+        (self.use_paging, requested_page_size) = \
+            self.on_off_switch_with_value("PAGING", self.use_paging, parsed.get_binding('switch'))
         if self.use_paging and requested_page_size is not None:
             self.page_size = requested_page_size
         if self.use_paging:
@@ -1953,65 +1982,46 @@ class Shell(cmd.Cmd):
             except IOError:
                 pass
 
+    @staticmethod
+    def on_off_switch(name, current, state_name=None):
+        """
+        switches between ON and OFF values
 
-class SwitchCommand(object):
-    command = None
-    description = None
+        :param name: a command name
+        :param current: a boolean value
+        :param state_name: "ON", "OFF" or None
+        :return: a boolean value
+        """
 
-    def __init__(self, command, desc):
-        self.command = command
-        self.description = desc
+        if state_name is None:
+            print(f"{name} is {SwitchState(current).name}")
+            return current
 
-    def execute(self, state, parsed, printerr):
-        switch = parsed.get_binding('switch')
-        if switch is None:
-            if state:
-                print("%s is currently enabled. Use %s OFF to disable"
-                      % (self.description, self.command))
-            else:
-                print("%s is currently disabled. Use %s ON to enable."
-                      % (self.description, self.command))
-            return state
+        new_state = SwitchState[state_name.upper()]
+        if current == new_state.value:
+            print(f"{name} is already {SwitchState(current).name}")
+            return current
+        else:
+            print(f"{name} set to {new_state.name}")
+            return new_state.value
 
-        if switch.upper() == 'ON':
-            if state:
-                printerr('%s is already enabled. Use %s OFF to disable.'
-                         % (self.description, self.command))
-                return state
-            print('Now %s is enabled' % (self.description,))
-            return True
+    @staticmethod
+    def on_off_switch_with_value(name, current, value=None):
+        """switches between ON and OFF values, and accepts an integer value in place of ON.
 
-        if switch.upper() == 'OFF':
-            if not state:
-                printerr('%s is not enabled.' % (self.description,))
-                return state
-            print('Disabled %s.' % (self.description,))
-            return False
+        This returns a tuple of the form: (SWITCH_VALUE, VALUE)
+        eg: PAGING 50 returns (True, 50)
+            PAGING OFF returns (False, None)
+            PAGING ON returns (True, None)
 
-
-class SwitchCommandWithValue(SwitchCommand):
-    """The same as SwitchCommand except it also accepts a value in place of ON.
-
-    This returns a tuple of the form: (SWITCH_VALUE, PASSED_VALUE)
-    eg: PAGING 50 returns (True, 50)
-        PAGING OFF returns (False, None)
-        PAGING ON returns (True, None)
-
-    The value_type must match for the PASSED_VALUE, otherwise it will return None.
-    """
-    def __init__(self, command, desc, value_type=int):
-        SwitchCommand.__init__(self, command, desc)
-        self.value_type = value_type
-
-    def execute(self, state, parsed, printerr):
-        binary_switch_value = SwitchCommand.execute(self, state, parsed, printerr)
-        switch = parsed.get_binding('switch')
-        try:
-            value = self.value_type(switch)
-            binary_switch_value = True
-        except (ValueError, TypeError):
-            value = None
-        return binary_switch_value, value
+        VALUE must be an Integer or None.
+        """
+        if value is None:
+            print(f"{name} is {SwitchState(current).name}")
+            return current, None
+        if value.isdigit():
+            return True, int(value)
+        return Shell.on_off_switch(name, current, value), None
 
 
 def option_with_default(cparser_getter, section, option, default=None):

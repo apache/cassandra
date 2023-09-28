@@ -1,0 +1,1 @@
+DESCRIBE TABLE cycling.birthday_list;

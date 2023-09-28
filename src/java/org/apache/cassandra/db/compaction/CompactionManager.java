@@ -135,7 +135,7 @@ import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
  * a set via Tracker. New scheduling attempts will ignore currently compacting
  * sstables.
  */
-public class CompactionManager implements CompactionManagerMBean
+public class CompactionManager implements CompactionManagerMBean, ICompactionManager
 {
     public static final String MBEAN_OBJECT_NAME = "org.apache.cassandra.db:type=CompactionManager";
     private static final Logger logger = LoggerFactory.getLogger(CompactionManager.class);
@@ -893,7 +893,7 @@ public class CompactionManager implements CompactionManagerMBean
             ActiveRepairService.ParentRepairSession prs;
             try
             {
-                prs = ActiveRepairService.instance.getParentRepairSession(sessionID);
+                prs = ActiveRepairService.instance().getParentRepairSession(sessionID);
             }
             catch (NoSuchRepairSessionException e)
             {
@@ -1624,7 +1624,7 @@ public class CompactionManager implements CompactionManagerMBean
                          .setMetadataCollector(new MetadataCollector(cfs.metadata().comparator).sstableLevel(sstable.getSSTableLevel()))
                          .setSerializationHeader(sstable.header)
                          .addDefaultComponents(cfs.indexManager.listIndexGroups())
-                         .addFlushObserversForSecondaryIndexes(cfs.indexManager.listIndexGroups(), txn, cfs.metadata.get())
+                         .setSecondaryIndexGroups(cfs.indexManager.listIndexGroups())
                          .build(txn, cfs);
     }
 
@@ -1664,7 +1664,7 @@ public class CompactionManager implements CompactionManagerMBean
                          .setMetadataCollector(new MetadataCollector(sstables, cfs.metadata().comparator).sstableLevel(minLevel))
                          .setSerializationHeader(SerializationHeader.make(cfs.metadata(), sstables))
                          .addDefaultComponents(cfs.indexManager.listIndexGroups())
-                         .addFlushObserversForSecondaryIndexes(cfs.indexManager.listIndexGroups(), txn, cfs.metadata.get())
+                         .setSecondaryIndexGroups(cfs.indexManager.listIndexGroups())
                          .build(txn, cfs);
     }
 
@@ -2193,6 +2193,7 @@ public class CompactionManager implements CompactionManagerMBean
         return metrics.totalCompactionsCompleted.getCount();
     }
 
+    @Override
     public int getPendingTasks()
     {
         return metrics.pendingTasks.getValue();

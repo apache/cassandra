@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.RepairJobDesc;
+import org.apache.cassandra.utils.Clock;
 
 public class JobState extends AbstractState<JobState.State, UUID>
 {
@@ -40,9 +41,9 @@ public class JobState extends AbstractState<JobState.State, UUID>
 
     public final Phase phase = new Phase();
 
-    public JobState(RepairJobDesc desc, ImmutableSet<InetAddressAndPort> endpoints)
+    public JobState(Clock clock, RepairJobDesc desc, ImmutableSet<InetAddressAndPort> endpoints)
     {
-        super(desc.determanisticId(), State.class);
+        super(clock, desc.determanisticId(), State.class);
         this.desc = desc;
         this.endpoints = endpoints;
     }

@@ -111,11 +111,11 @@ public class AntiCompactionTest
 
     private void registerParentRepairSession(TimeUUID sessionID, Iterable<Range<Token>> ranges, long repairedAt, TimeUUID pendingRepair) throws IOException
     {
-        ActiveRepairService.instance.registerParentRepairSession(sessionID,
-                                                                 InetAddressAndPort.getByName("10.0.0.1"),
-                                                                 Lists.newArrayList(cfs), ImmutableSet.copyOf(ranges),
-                                                                 pendingRepair != null || repairedAt != UNREPAIRED_SSTABLE,
-                                                                 repairedAt, true, PreviewKind.NONE);
+        ActiveRepairService.instance().registerParentRepairSession(sessionID,
+                                                                   InetAddressAndPort.getByName("10.0.0.1"),
+                                                                   Lists.newArrayList(cfs), ImmutableSet.copyOf(ranges),
+                                                                   pendingRepair != null || repairedAt != UNREPAIRED_SSTABLE,
+                                                                   repairedAt, true, PreviewKind.NONE);
     }
 
     private static RangesAtEndpoint atEndpoint(Collection<Range<Token>> full, Collection<Range<Token>> trans)

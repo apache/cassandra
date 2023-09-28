@@ -1,0 +1,69 @@
+= Single index match on a column
+
+This example uses the following table and indexes:
+
+[source, sql]
+----
+include::cassandra:example$CQL/sai/create-vector-table-cycling.cql[tag=createvstable]
+include::cassandra:example$CQL/sai/index-sai-multiple-index-match-with-and.cql[]
+----
+
+The column `commenter` is not the partition key in this table, so an index is required to query on it.
+
+Query for a match on that column:
+// 
+// == Create an index on a single column:
+// 
+// [source,cql]
+// ----
+// include::cassandra:example$CQL/sai/index-sai-single-index-match.cql[]
+// ----
+// 
+// == Query for a match on that column:
+
+[tabs]
+====
+Query::
++
+--
+[source, console]
+----
+include::cassandra:example$CQL/sai/index-sai-select-single-index-match.cql[]
+----
+--
+
+Result::
++
+--
+[source,results]
+----
+include::cassandra:example$RESULTS/sai/index-sai-select-single-index-match.result[]
+----
+--
+====
+
+.Failure with index
+****
+Note that a failure will occur if you try this query before creating the index:
+
+[tabs]
+====
+Query::
++
+--
+[source, console]
+----
+include::cassandra:example$CQL/sai/index-sai-select-single-index-match.cql[]
+----
+--
+
+Result::
++
+--
+[source,results]
+----
+include::cassandra:example$RESULTS/sai/index-sai-select-single-index-match-failure.result[]
+----
+--
+====
+****

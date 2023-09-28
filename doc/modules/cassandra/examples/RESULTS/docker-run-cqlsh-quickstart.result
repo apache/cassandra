@@ -1,0 +1,4 @@
+Connected to Test Cluster at cassandra:9042.
+[cqlsh 5.0.1 | Cassandra 4.0.4 | CQL spec 3.4.5 | Native protocol v5]
+Use HELP for help.
+cqlsh>

@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS cycling.lastname_sai_idx;
