@@ -33,6 +33,7 @@ import com.google.common.base.Strings;
 import com.google.common.collect.*;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.FutureCallback;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -509,23 +510,23 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                            {
                                SecondaryIndexBuilder builder = buildingSupport.getIndexBuildTask(baseCfs, groupedIndexes, sstables);
                                final AsyncPromise<Object> build = new AsyncPromise<>();
-                               CompactionManager.instance.submitIndexBuild(builder).addCallback(new FutureCallback()
+                               CompactionManager.instance.submitIndexBuild(builder).addCallback((r, t) ->
                                {
-                                   @Override
-                                   public void onFailure(Throwable t)
+                                   if (builder instanceof AutoCloseable)
+                                       t = Throwables.close(t, Arrays.asList((AutoCloseable) builder));
+
+                                   if (t != null)
                                    {
                                        logAndMarkIndexesFailed(groupedIndexes, t, false);
                                        unbuiltIndexes.addAll(groupedIndexes);
                                        build.tryFailure(t);
                                    }
-
-                                   @Override
-                                   public void onSuccess(Object o)
+                                   else
                                    {
                                        groupedIndexes.forEach(i -> markIndexBuilt(i, isFullRebuild));
                                        logger.info("Index build of {} completed", getIndexNames(groupedIndexes));
                                        builtIndexes.addAll(groupedIndexes);
-                                       build.trySuccess(o);
+                                       build.trySuccess(r);
                                    }
                                });
                                futures.add(build);
