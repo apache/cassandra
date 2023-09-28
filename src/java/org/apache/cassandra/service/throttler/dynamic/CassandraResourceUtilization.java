@@ -137,7 +137,7 @@ public class CassandraResourceUtilization
         {
             pendingMutationsSignal = true;
         }
-        if (cpuUtilSignal1 && cpuUtilSignal2 && pendingReadsSignal && pendingMutationsSignal)
+        if (cpuUtilSignal1 && cpuUtilSignal2 && (pendingReadsSignal || pendingMutationsSignal))
         {
             shouldThrottle = true;
             lastThrottlingIndicatorTimeInMS = System.currentTimeMillis();

@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-24706] Throttle, if either read or write pools, are saturated
  * [SO-24631] Cleanup code in the Rate limiter
  * [SO-24606] Remove CPU nr_throttling from rate limiter
  * [SO-24333] Rate limiter: Make the health thread pool configurable

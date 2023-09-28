@@ -505,6 +505,44 @@ public class CassandraResourceUtilizationTest extends CQLTester
     }
 
     @Test
+    public void testThrottleIfOnlyReadTrafficIsSaturated()
+    {
+        CassandraResourceUtilization cassandraResourceUtilization = CassandraResourceUtilization.instance;
+        cassandraResourceUtilization.setup(false);
+
+        Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.needsThrottling.getCount());
+        Assert.assertFalse(cassandraResourceUtilization.shouldThrottle);
+        cassandraResourceUtilization.throttlingOptions.setCpuThresholdOneMinute(0);
+        ResourcesStats resourcesStats = cassandraResourceUtilization.resourcesStats;
+        resourcesStats.setCpuUtil1(cassandraResourceUtilization.throttlingOptions.getCpuThresholdCur() +1);
+        resourcesStats.setCpuUtil2(cassandraResourceUtilization.throttlingOptions.getCpuThresholdCur() +1);
+        cassandraResourceUtilization.throttlingOptions.setPendingReadsThresholdCur(10);
+        cassandraResourceUtilization.throttlingOptions.setPendingMutationsThresholdCur(10);
+        resourcesStats.setPendingReads(cassandraResourceUtilization.throttlingOptions.getPendingReadsThresholdCur() +1);
+        cassandraResourceUtilization.checkSignals();
+        Assert.assertTrue(cassandraResourceUtilization.shouldThrottle);
+    }
+
+    @Test
+    public void testThrottleIfOnlyWriteTrafficIsSaturated()
+    {
+        CassandraResourceUtilization cassandraResourceUtilization = CassandraResourceUtilization.instance;
+        cassandraResourceUtilization.setup(false);
+
+        Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.needsThrottling.getCount());
+        Assert.assertFalse(cassandraResourceUtilization.shouldThrottle);
+        cassandraResourceUtilization.throttlingOptions.setCpuThresholdOneMinute(0);
+        ResourcesStats resourcesStats = cassandraResourceUtilization.resourcesStats;
+        resourcesStats.setCpuUtil1(cassandraResourceUtilization.throttlingOptions.getCpuThresholdCur() +1);
+        resourcesStats.setCpuUtil2(cassandraResourceUtilization.throttlingOptions.getCpuThresholdCur() +1);
+        cassandraResourceUtilization.throttlingOptions.setPendingReadsThresholdCur(10);
+        cassandraResourceUtilization.throttlingOptions.setPendingMutationsThresholdCur(10);
+        resourcesStats.setPendingMutations(cassandraResourceUtilization.throttlingOptions.getPendingMutationsThresholdCur() +1);
+        cassandraResourceUtilization.checkSignals();
+        Assert.assertTrue(cassandraResourceUtilization.shouldThrottle);
+    }
+
+    @Test
     public void testUpwardFunction()
     {
         Assert.assertTrue(CassandraResourceUtilization.isTrendingUpward(30, 20.0, 10.0));
