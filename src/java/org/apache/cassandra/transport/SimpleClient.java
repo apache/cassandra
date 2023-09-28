@@ -718,6 +718,7 @@ public class SimpleClient implements Closeable
                     int messageSize = envelopeSize(f.header);
                     if (bufferSize + messageSize >= MAX_FRAMED_PAYLOAD_SIZE)
                     {
+                        logger.trace("Sending frame of size: {}", bufferSize);
                         combiner.add(flushBuffer(ctx, buffer, bufferSize));
                         buffer = new ArrayList<>();
                         bufferSize = 0;
@@ -729,7 +730,10 @@ public class SimpleClient implements Closeable
             }
 
             if (pending)
+            {
+                logger.trace("Sending frame of size: {}", bufferSize);
                 combiner.add(flushBuffer(ctx, buffer, bufferSize));
+            }
             combiner.finish(promise);
         }
 
@@ -742,6 +746,7 @@ public class SimpleClient implements Closeable
 
             payload.finish();
             ChannelPromise release = AsyncChannelPromise.withListener(ctx, future -> {
+                logger.trace("Sent frame of size: {}", bufferSize);
                 for (Envelope e : messages)
                     e.release();
             });
@@ -787,7 +792,15 @@ public class SimpleClient implements Closeable
 
                 f.body.readerIndex(f.body.readerIndex() + remaining);
                 payload.finish();
-                futures.add(ctx.writeAndFlush(payload, ctx.newPromise()));
+                ChannelPromise promise = ctx.newPromise();
+                logger.trace("Sending frame of large message: {}", remaining);
+                futures.add(ctx.writeAndFlush(payload, promise));
+                promise.addListener(result -> {
+                    if (!result.isSuccess())
+                        logger.warn("Failed to send frame of large message, size: " + remaining, result.cause());
+                    else
+                        logger.trace("Sent frame of large message, size: {}", remaining);
+                });
             }
             f.release();
             return futures.toArray(EMPTY_FUTURES_ARRAY);
