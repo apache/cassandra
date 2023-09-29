@@ -47,6 +47,7 @@ import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
 import org.apache.cassandra.tcm.membership.NodeId;
@@ -128,7 +129,7 @@ public class AccordTopologyTest
             ReplicationParams replication = keyspace.params.replication;
             AbstractReplicationStrategy strategy = AbstractReplicationStrategy.createReplicationStrategy(keyspace.name, replication);
             DataPlacements.Builder placements = metadata.placements.unbuild();
-            DataPlacement placement = strategy.calculateDataPlacement(metadata.tokenMap.toRanges(), metadata);
+            DataPlacement placement = strategy.calculateDataPlacement(Epoch.EMPTY, metadata.tokenMap.toRanges(), metadata);
             placements.with(replication, placement);
             metadata = transformer.with(placements.build()).build().metadata;
         }
