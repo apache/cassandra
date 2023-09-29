@@ -273,7 +273,7 @@ public class SimulatedExecutorFactory implements ExecutorFactory, Clock
             long max = TimeUnit.MILLISECONDS.toNanos(5);
             LongSupplier small = () -> rs.nextLong(0, maxSmall);
             LongSupplier large = () -> rs.nextLong(maxSmall, max);
-            this.jitterNanos = Gens.bools().runs(rs.nextInt(1, 11) / 100.0D, rs.nextInt(3, 15)).mapToLong(b -> b ? large.getAsLong() : small.getAsLong()).asLongSupplier(rs);
+            this.jitterNanos = Gens.bools().biasedRepeatingRuns(rs.nextInt(1, 11) / 100.0D, rs.nextInt(3, 15)).mapToLong(b -> b ? large.getAsLong() : small.getAsLong()).asLongSupplier(rs);
         }
 
         @Override
