@@ -361,7 +361,7 @@ public class AccordSyncPropagatorTest
             {
                 if (self.equals(ep)) return true;
 
-                return !nodeRuns.computeIfAbsent(ep, ignore -> Gens.bools().biasedRepeatingRuns(.01)).next(rs);
+                return !nodeRuns.computeIfAbsent(ep, ignore -> Gens.bools().biasedRepeatingRuns(.01, rs.nextInt(3, 15))).next(rs);
             }
 
             @Override
