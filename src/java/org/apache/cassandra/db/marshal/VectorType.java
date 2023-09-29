@@ -175,7 +175,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
     public <V> V decomposeAsFloat(ValueAccessor<V> accessor, float[] value)
     {
         if (value == null)
-            rejectEmptyValue();
+            rejectNullOrEmptyValue();
         if (!(elementType instanceof FloatType))
             throw new IllegalStateException("Attempted to read as float, but element type is " + elementType.asCQL3Type());
         if (value.length != dimension)
@@ -217,7 +217,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
     public <V> V fromComparableBytes(ValueAccessor<V> accessor, ByteSource.Peekable comparableBytes, ByteComparable.Version version)
     {
         if (comparableBytes == null)
-            rejectEmptyValue();
+            rejectNullOrEmptyValue();
 
         assert version != ByteComparable.Version.LEGACY; // legacy translation is not reversible
 
@@ -362,7 +362,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
             throw new MarshalException("Unexpected " + remaining + " extraneous bytes after " + asCQL3Type() + " value");
     }
     
-    private static void rejectEmptyValue()
+    private static void rejectNullOrEmptyValue()
     {
         throw new MarshalException("Invalid empty vector value");
     }
@@ -456,7 +456,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
         public <V> V serializeRaw(List<V> value, ValueAccessor<V> accessor)
         {
             if (value == null)
-                rejectEmptyValue();
+                rejectNullOrEmptyValue();
 
             check(value);
 
@@ -472,7 +472,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
         public ByteBuffer serialize(List<T> value)
         {
             if (value == null)
-                rejectEmptyValue();
+                rejectNullOrEmptyValue();
 
             check(value);
 
@@ -507,7 +507,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
         public <V> void validate(V input, ValueAccessor<V> accessor) throws MarshalException
         {
             if (accessor.isEmpty(input))
-                rejectEmptyValue();
+                rejectNullOrEmptyValue();
 
             int offset = 0;
             int elementSize = elementType.valueLengthIfFixed();
@@ -597,7 +597,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
         public <V> V serializeRaw(List<V> value, ValueAccessor<V> accessor)
         {
             if (value == null)
-                rejectEmptyValue();
+                rejectNullOrEmptyValue();
 
             check(value);
 
@@ -612,7 +612,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
         public ByteBuffer serialize(List<T> value)
         {
             if (value == null)
-                rejectEmptyValue();
+                rejectNullOrEmptyValue();
 
             check(value);
 
@@ -645,7 +645,7 @@ public final class VectorType<T> extends AbstractType<List<T>>
         public <V> void validate(V input, ValueAccessor<V> accessor) throws MarshalException
         {
             if (accessor.isEmpty(input))
-                rejectEmptyValue();
+                rejectNullOrEmptyValue();
 
             int offset = 0;
             for (int i = 0; i < dimension; i++)
