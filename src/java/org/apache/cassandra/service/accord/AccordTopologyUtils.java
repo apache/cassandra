@@ -35,7 +35,6 @@ import accord.topology.Topology;
 import accord.utils.Invariants;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -48,6 +47,7 @@ import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
+import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 
 public class AccordTopologyUtils
 {
@@ -56,7 +56,7 @@ public class AccordTopologyUtils
         return new Node.Id(nodeId.id());
     }
 
-    private static Shard createShard(TokenRange range, Directory directory, EndpointsForRange reads, EndpointsForRange writes)
+    private static Shard createShard(TokenRange range, Directory directory, VersionedEndpoints.ForRange reads, VersionedEndpoints.ForRange writes)
     {
         Function<InetAddressAndPort, Node.Id> endpointMapper = e -> {
             NodeId tcmId = directory.peerId(e);
@@ -106,8 +106,8 @@ public class AccordTopologyUtils
         List<Shard> shards = new ArrayList<>(ranges.size());
         for (Range<Token> range : ranges)
         {
-            EndpointsForRange reads = placement.reads.forRange(range);
-            EndpointsForRange writes = placement.reads.forRange(range);
+            VersionedEndpoints.ForRange reads = placement.reads.forRange(range);
+            VersionedEndpoints.ForRange writes = placement.reads.forRange(range);
 
             // TCM doesn't create wrap around ranges
             Invariants.checkArgument(!range.isWrapAround() || range.right.equals(range.right.minValue()),

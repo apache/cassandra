@@ -230,7 +230,7 @@ public enum Verb
 
     // repair; mostly doesn't use callbacks and sends responses as their own request messages, with matching sessions by uuid; should eventually harmonize and make idiomatic
     // for the repair messages that implement retry logic, use rpcTimeout so the single request fails faster, then retries can be used to recover
-    REPAIR_RSP             (100, P1, repairTimeout,   REQUEST_RESPONSE,  () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             ),
+    REPAIR_RSP             (100, P1, repairTimeout,   REQUEST_RESPONSE,  () -> NoPayload.serializer,                 RESPONSE_HANDLER                             ),
     VALIDATION_RSP         (102, P1, repairValidationRspTimeout,    ANTI_ENTROPY,      () -> ValidationResponse.serializer,        () -> RepairMessageVerbHandler.instance(),   REPAIR_RSP          ),
     VALIDATION_REQ         (101, P1, repairWithBackoffTimeout,      ANTI_ENTROPY,      () -> ValidationRequest.serializer,         () -> RepairMessageVerbHandler.instance(),   REPAIR_RSP          ),
     SYNC_RSP               (104, P1, repairWithBackoffTimeout,      ANTI_ENTROPY,      () -> SyncResponse.serializer,              () -> RepairMessageVerbHandler.instance(),   REPAIR_RSP          ),
@@ -275,25 +275,25 @@ public enum Verb
     PAXOS2_CLEANUP_COMPLETE_REQ      (48, P2, repairTimeout, PAXOS_REPAIR,      () -> PaxosCleanupComplete.serializer,         () -> PaxosCleanupComplete.verbHandler,                      PAXOS2_CLEANUP_COMPLETE_RSP      ),
 
     // transactional cluster metadata
-    TCM_COMMIT_RSP         (801, P1, rpcTimeout,      INTERNAL_METADATA,    MessageSerializers::commitResultSerializer,         () -> ResponseVerbHandler.instance                                 ),
+    TCM_COMMIT_RSP         (801, P1, rpcTimeout,      INTERNAL_METADATA,    MessageSerializers::commitResultSerializer,         RESPONSE_HANDLER                                 ),
     TCM_COMMIT_REQ         (802, P1, rpcTimeout,      INTERNAL_METADATA,    MessageSerializers::commitSerializer,               () -> commitRequestHandler(),               TCM_COMMIT_RSP         ),
-    TCM_FETCH_CMS_LOG_RSP  (803, P1, rpcTimeout,      FETCH_LOG,            MessageSerializers::logStateSerializer,             () -> ResponseVerbHandler.instance                                 ),
+    TCM_FETCH_CMS_LOG_RSP  (803, P1, rpcTimeout,      FETCH_LOG,            MessageSerializers::logStateSerializer,             RESPONSE_HANDLER                                 ),
     TCM_FETCH_CMS_LOG_REQ  (804, P1, rpcTimeout,      FETCH_LOG,            () -> FetchCMSLog.serializer,                       () -> fetchLogRequestHandler(),             TCM_FETCH_CMS_LOG_RSP  ),
     TCM_REPLICATION        (805, P1, rpcTimeout,      INTERNAL_METADATA,    MessageSerializers::logStateSerializer,             () -> replicationHandler()                                         ),
     TCM_NOTIFY_RSP         (806, P1, rpcTimeout,      INTERNAL_METADATA,    () -> Epoch.messageSerializer,                      () -> ResponseVerbHandler.instance                                 ),
     TCM_NOTIFY_REQ         (807, P1, rpcTimeout,      INTERNAL_METADATA,    MessageSerializers::logStateSerializer,             () -> logNotifyHandler(),                   TCM_NOTIFY_RSP         ),
     TCM_CURRENT_EPOCH_REQ  (808, P1, rpcTimeout,      INTERNAL_METADATA,    () -> Epoch.messageSerializer,                      () -> currentEpochRequestHandler(),         TCM_NOTIFY_RSP         ),
-    TCM_INIT_MIG_RSP       (809, P1, rpcTimeout,      INTERNAL_METADATA,    MessageSerializers::metadataHolderSerializer,       () -> ResponseVerbHandler.instance                                 ),
+    TCM_INIT_MIG_RSP       (809, P1, rpcTimeout,      INTERNAL_METADATA,    MessageSerializers::metadataHolderSerializer,       RESPONSE_HANDLER                                 ),
     TCM_INIT_MIG_REQ       (810, P1, rpcTimeout,      INTERNAL_METADATA,    () -> Election.Initiator.serializer,                () -> Election.instance.prepareHandler,     TCM_INIT_MIG_RSP       ),
     TCM_ABORT_MIG          (811, P1, rpcTimeout,      INTERNAL_METADATA,    () -> Election.Initiator.serializer,                () -> Election.instance.abortHandler,       TCM_INIT_MIG_RSP       ),
-    TCM_DISCOVER_RSP       (812, P1, rpcTimeout,      INTERNAL_METADATA,    () -> Discovery.serializer,                         () -> ResponseVerbHandler.instance                                 ),
+    TCM_DISCOVER_RSP       (812, P1, rpcTimeout,      INTERNAL_METADATA,    () -> Discovery.serializer,                         RESPONSE_HANDLER                                 ),
     TCM_DISCOVER_REQ       (813, P1, rpcTimeout,      INTERNAL_METADATA,    () -> NoPayload.serializer,                         () -> Discovery.instance.requestHandler,    TCM_DISCOVER_RSP       ),
-    TCM_FETCH_PEER_LOG_RSP (818, P1, rpcTimeout,      FETCH_LOG,            MessageSerializers::logStateSerializer,             () -> ResponseVerbHandler.instance                                 ),
+    TCM_FETCH_PEER_LOG_RSP (818, P1, rpcTimeout,      FETCH_LOG,            MessageSerializers::logStateSerializer,             RESPONSE_HANDLER                                 ),
     TCM_FETCH_PEER_LOG_REQ (819, P1, rpcTimeout,      FETCH_LOG,            () -> FetchPeerLog.serializer,                      () -> FetchPeerLog.Handler.instance,        TCM_FETCH_PEER_LOG_RSP ),
 
-    INITIATE_DATA_MOVEMENTS_RSP (814, P1, rpcTimeout, MISC, () -> NoPayload.serializer,             () -> ResponseVerbHandler.instance                                  ),
+    INITIATE_DATA_MOVEMENTS_RSP (814, P1, rpcTimeout, MISC, () -> NoPayload.serializer,             RESPONSE_HANDLER                                  ),
     INITIATE_DATA_MOVEMENTS_REQ (815, P1, rpcTimeout, MISC, () -> DataMovement.serializer,          () -> DataMovementVerbHandler.instance, INITIATE_DATA_MOVEMENTS_RSP ),
-    DATA_MOVEMENT_EXECUTED_RSP  (816, P1, rpcTimeout, MISC, () -> NoPayload.serializer,             () -> ResponseVerbHandler.instance                                  ),
+    DATA_MOVEMENT_EXECUTED_RSP  (816, P1, rpcTimeout, MISC, () -> NoPayload.serializer,             RESPONSE_HANDLER                                  ),
     DATA_MOVEMENT_EXECUTED_REQ  (817, P1, rpcTimeout, MISC, () -> DataMovement.Status.serializer,   () -> DataMovements.instance,           DATA_MOVEMENT_EXECUTED_RSP  ),
 
     // accord
