@@ -23,6 +23,7 @@ import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ChecksumType;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -39,16 +40,16 @@ import static org.apache.cassandra.net.Crc.crc24;
 public
 class FrameEncoderLZ4 extends FrameEncoder
 {
-    public static final FrameEncoderLZ4 fastInstance = new FrameEncoderLZ4(LZ4Factory.fastestInstance().fastCompressor(), Crc::crc32);
-    public static final FrameEncoderLZ4 fastInstanceWithCRC32C = new FrameEncoderLZ4(LZ4Factory.fastestInstance().fastCompressor(), CRC32C::new);
+    public static final FrameEncoderLZ4 fastInstance = new FrameEncoderLZ4(LZ4Factory.fastestInstance().fastCompressor(), ChecksumType.CRC32_WITH_INITIAL_BYTES);
+    public static final FrameEncoderLZ4 fastInstanceWithCRC32C = new FrameEncoderLZ4(LZ4Factory.fastestInstance().fastCompressor(), ChecksumType.CRC32C);
 
     private final LZ4Compressor compressor;
-    private final Supplier<Checksum> crc32factory;
+    private final ChecksumType payloadChecksum;
 
-    private FrameEncoderLZ4(LZ4Compressor compressor, Supplier<Checksum> crc32factory)
+    private FrameEncoderLZ4(LZ4Compressor compressor, ChecksumType payloadChecksum)
     {
         this.compressor = compressor;
-        this.crc32factory = crc32factory;
+        this.payloadChecksum = payloadChecksum;
     }
 
     private static final int HEADER_LENGTH = 8;
@@ -92,12 +93,10 @@ class FrameEncoderLZ4 extends FrameEncoder
 
             writeHeader(frame, isSelfContained, compressedLength, uncompressedLength);
 
-            Checksum crc = crc32factory.get();
             frame.position(HEADER_LENGTH);
             frame.limit(compressedLength + HEADER_LENGTH);
-            crc.update(frame);
 
-            int frameCrc = (int) crc.getValue();
+            int frameCrc = (int) payloadChecksum.of(frame);
             if (frame.order() == ByteOrder.BIG_ENDIAN)
                 frameCrc = Integer.reverseBytes(frameCrc);
             int frameLength = compressedLength + HEADER_AND_TRAILER_LENGTH;

@@ -19,12 +19,10 @@ package org.apache.cassandra.net;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandler;
+import org.apache.cassandra.utils.ChecksumType;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.function.Supplier;
-import java.util.zip.CRC32C;
-import java.util.zip.Checksum;
 
 import static org.apache.cassandra.net.Crc.crc24;
 
@@ -37,22 +35,22 @@ public class FrameEncoderCrc extends FrameEncoder
     static final int HEADER_LENGTH = 6;
     private static final int TRAILER_LENGTH = 4;
     public static final int HEADER_AND_TRAILER_LENGTH = 10;
-    private final Supplier<Checksum> crc32factory;
+    private final ChecksumType payloadChecksum;
 
     public static final FrameEncoderCrc instance = new FrameEncoderCrc();
-    public static final FrameEncoderCrc instanceWithCRC32C = new FrameEncoderCrc(CRC32C::new);
+    public static final FrameEncoderCrc instanceWithCRC32C = new FrameEncoderCrc(ChecksumType.CRC32C);
 
     static final PayloadAllocator allocator = (isSelfContained, capacity) ->
         new Payload(isSelfContained, capacity, HEADER_LENGTH, TRAILER_LENGTH);
 
     public FrameEncoderCrc()
     {
-        this(Crc::crc32);
+        this(ChecksumType.CRC32_WITH_INITIAL_BYTES);
     }
 
-    public FrameEncoderCrc(Supplier<Checksum> crc32factory)
+    public FrameEncoderCrc(ChecksumType payloadChecksum)
     {
-        this.crc32factory = crc32factory;
+        this.payloadChecksum = payloadChecksum;
     }
 
     @Override
@@ -89,12 +87,10 @@ public class FrameEncoderCrc extends FrameEncoder
 
             writeHeader(frame, isSelfContained, dataLength);
 
-            Checksum crc = crc32factory.get();
             frame.position(HEADER_LENGTH);
             frame.limit(dataLength + HEADER_LENGTH);
-            crc.update(frame);
 
-            int frameCrc = (int) crc.getValue();
+            int frameCrc = (int) payloadChecksum.of(frame);
             if (frame.order() == ByteOrder.BIG_ENDIAN)
                 frameCrc = Integer.reverseBytes(frameCrc);
 

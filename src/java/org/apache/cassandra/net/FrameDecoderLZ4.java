@@ -20,16 +20,13 @@ package org.apache.cassandra.net;
 import io.netty.channel.ChannelPipeline;
 import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.lz4.LZ4SafeDecompressor;
+import org.apache.cassandra.utils.ChecksumType;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Collection;
-import java.util.function.Supplier;
-import java.util.zip.CRC32C;
-import java.util.zip.Checksum;
 
 import static org.apache.cassandra.net.Crc.crc24;
-import static org.apache.cassandra.net.Crc.updateCrc32;
 
 /**
  * Framing format that compresses payloads with LZ4, and protects integrity of data in movement with CRCs
@@ -64,12 +61,12 @@ public final class FrameDecoderLZ4 extends FrameDecoderWith8bHeader
 {
     public static FrameDecoderLZ4 fast(BufferPoolAllocator allocator)
     {
-        return new FrameDecoderLZ4(allocator, LZ4Factory.fastestInstance().safeDecompressor(), Crc::crc32);
+        return new FrameDecoderLZ4(allocator, LZ4Factory.fastestInstance().safeDecompressor(), ChecksumType.CRC32_WITH_INITIAL_BYTES);
     }
 
     public static FrameDecoderLZ4 fastWithCRC32C(BufferPoolAllocator allocator)
     {
-        return new FrameDecoderLZ4(allocator, LZ4Factory.fastestInstance().safeDecompressor(), CRC32C::new);
+        return new FrameDecoderLZ4(allocator, LZ4Factory.fastestInstance().safeDecompressor(), ChecksumType.CRC32C);
     }
 
     private static final int HEADER_LENGTH = 8;
@@ -94,13 +91,13 @@ public final class FrameDecoderLZ4 extends FrameDecoderWith8bHeader
     }
 
     private final LZ4SafeDecompressor decompressor;
-    private final Supplier<Checksum> crc32factory;
+    private final ChecksumType payloadChecksum;
 
-    private FrameDecoderLZ4(BufferPoolAllocator allocator, LZ4SafeDecompressor decompressor, Supplier<Checksum> crc32factory)
+    private FrameDecoderLZ4(BufferPoolAllocator allocator, LZ4SafeDecompressor decompressor, ChecksumType payloadChecksum)
     {
         super(allocator);
         this.decompressor = decompressor;
-        this.crc32factory = crc32factory;
+        this.payloadChecksum = payloadChecksum;
     }
 
     final long readHeader(ByteBuffer frame, int begin)
@@ -131,13 +128,11 @@ public final class FrameDecoderLZ4 extends FrameDecoderWith8bHeader
         boolean isSelfContained = isSelfContained(header8b);
         int uncompressedLength = uncompressedLength(header8b);
 
-        Checksum crc = crc32factory.get();
         int readFullCrc = input.getInt(end - TRAILER_LENGTH);
         if (input.order() == ByteOrder.BIG_ENDIAN)
             readFullCrc = Integer.reverseBytes(readFullCrc);
 
-        updateCrc32(crc, input, begin + HEADER_LENGTH, end - TRAILER_LENGTH);
-        int computeFullCrc = (int) crc.getValue();
+        int computeFullCrc = (int) payloadChecksum.of(input, begin + HEADER_LENGTH, end - TRAILER_LENGTH);
 
         if (readFullCrc != computeFullCrc)
             return CorruptFrame.recoverable(isSelfContained, uncompressedLength, readFullCrc, computeFullCrc);
