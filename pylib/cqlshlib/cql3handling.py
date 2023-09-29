@@ -64,7 +64,7 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
             ('class', 'max_threshold', 'tombstone_compaction_interval', 'tombstone_threshold', 'enabled',
              'unchecked_tombstone_compaction', 'only_purge_repaired_tombstones', 'provide_overlapping_tombstones')),
         ('compression', 'compression_parameters',
-            ('sstable_compression', 'chunk_length_kb', 'crc_check_chance')),
+            ('class', 'chunk_length_in_kb', 'enabled', 'min_compress_ratio', 'max_compressed_length')),
         ('caching', None,
             ('rows_per_partition', 'keys')),
     )
@@ -498,7 +498,7 @@ def cf_prop_val_completer(ctxt, cass):
     exist_opts = ctxt.get_binding('propname')
     this_opt = exist_opts[-1]
     if this_opt == 'compression':
-        return ["{'sstable_compression': '"]
+        return ["{'class': '"]
     if this_opt == 'compaction':
         return ["{'class': '"]
     if this_opt == 'caching':
@@ -563,7 +563,7 @@ def cf_prop_val_mapval_completer(ctxt, cass):
             return [Hint('<NONE|ROW|CELL>')]
         return [Hint('<option_value>')]
     elif opt == 'compression':
-        if key == 'sstable_compression':
+        if key == 'class':
             return list(map(escape_value, CqlRuleSet.available_compression_classes))
         return [Hint('<option_value>')]
     elif opt == 'caching':
