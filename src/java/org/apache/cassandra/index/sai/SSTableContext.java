@@ -112,6 +112,16 @@ public class SSTableContext extends SharedCloseableImpl
         return sstable;
     }
 
+    public IndexDescriptor indexDescriptor()
+    {
+        return indexDescriptor;
+    }
+
+    public PrimaryKeyMap.Factory primaryKeyMapFactory()
+    {
+        return primaryKeyMapFactory;
+    }
+
     /**
      * @return disk usage of per-sstable index files
      */

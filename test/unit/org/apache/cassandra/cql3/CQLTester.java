@@ -45,6 +45,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -2131,17 +2132,46 @@ public abstract class CQLTester
     }
 
     @SafeVarargs
-    protected final <T> Vector<T> vector(T... values)
+    protected static <T> Vector<T> vector(T... values)
     {
         return new Vector<>(values);
     }
 
-    protected Vector<Float> vector(float[] v)
+    protected static Vector<Float> vector(float[] v)
     {
         var v2 = new Float[v.length];
         for (int i = 0; i < v.length; i++)
             v2[i] = v[i];
         return new Vector<>(v2);
+    }
+
+    /** @return a normalized vector with the given dimension */
+    protected static Vector<Float> randomVector(int dimension)
+    {
+        var R = ThreadLocalRandom.current();
+
+        var vector = new Float[dimension];
+        for (int i = 0; i < dimension; i++)
+        {
+            vector[i] = R.nextFloat();
+        }
+        normalize(vector);
+
+        return new Vector<>(vector);
+    }
+
+    /** Normalize the given vector in-place */
+    protected static void normalize(Float[] v)
+    {
+        var sum = 0.0f;
+        for (int i = 0; i < v.length; i++)
+        {
+            sum += v[i] * v[i];
+        }
+
+        sum = (float) Math.sqrt(sum);
+        for (int i = 0; i < v.length; i++)
+            v[i] /= sum;
     }
 
     protected Object set(Object...values)

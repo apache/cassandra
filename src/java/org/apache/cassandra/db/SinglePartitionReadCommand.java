@@ -708,7 +708,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
                                                             iter.partitionLevelDeletion().markedForDeleteAt());
             }
 
-            if (Tracing.isTracing())
+            if (Tracing.traceSinglePartitions())
                 Tracing.trace("Skipped {}/{} non-slice-intersecting sstables, included {} due to tombstones",
                                nonIntersectingSSTables, view.sstables.size(), includedDueToTombstones);
 

@@ -27,7 +27,8 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.lucene.index.VectorSimilarityFunction;
+import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
+import org.apache.cassandra.index.sai.disk.vector.OptimizeFor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -115,5 +116,26 @@ public class IndexWriterConfigTest
         assertThatThrownBy(() -> IndexWriterConfig.fromOptions("test", VectorType.getInstance(FloatType.instance, 3), options))
         .isInstanceOf(InvalidRequestException.class)
         .hasMessage("Similarity function BLAH was not recognized for index test. Valid values are: EUCLIDEAN, DOT_PRODUCT, COSINE");
+    }
+
+    @Test
+    public void optimizeForTest()
+    {
+        // optimize for may be changed even when allow_custom_parameters is false
+        CassandraRelevantProperties.SAI_HNSW_ALLOW_CUSTOM_PARAMETERS.setBoolean(false);
+
+        Map<String, String> options = new HashMap<>();
+        options.put(IndexWriterConfig.OPTIMIZE_FOR, "LATENCY");
+        IndexWriterConfig config = IndexWriterConfig.fromOptions("test", VectorType.getInstance(FloatType.instance, 3), options);
+        assertThat(config.getOptimizeFor()).isEqualTo(OptimizeFor.LATENCY);
+
+        options.put(IndexWriterConfig.OPTIMIZE_FOR, "recall");
+        config = IndexWriterConfig.fromOptions("test", VectorType.getInstance(FloatType.instance, 3), options);
+        assertThat(config.getOptimizeFor()).isEqualTo(OptimizeFor.RECALL);
+
+        options.put(IndexWriterConfig.OPTIMIZE_FOR, "blah");
+        assertThatThrownBy(() -> IndexWriterConfig.fromOptions("test", VectorType.getInstance(FloatType.instance, 3), options))
+        .isInstanceOf(InvalidRequestException.class)
+        .hasMessage("optimize_for 'BLAH' was not recognized for index test. Valid values are: LATENCY, RECALL");
     }
 }

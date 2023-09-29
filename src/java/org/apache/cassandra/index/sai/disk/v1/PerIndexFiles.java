@@ -39,47 +39,48 @@ public class PerIndexFiles implements Closeable
     {
         this.indexDescriptor = indexDescriptor;
         this.indexContext = indexContext;
-        if (indexContext.isVector())
+        for (IndexComponent component : indexDescriptor.version.onDiskFormat().perIndexComponents(indexContext))
         {
-            files.put(IndexComponent.POSTING_LISTS, indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext, temporary));
-            files.put(IndexComponent.TERMS_DATA, indexDescriptor.createPerIndexFileHandle(IndexComponent.TERMS_DATA, indexContext, temporary));
-            files.put(IndexComponent.VECTOR, indexDescriptor.createPerIndexFileHandle(IndexComponent.VECTOR, indexContext, temporary));
-        }
-        else if (TypeUtil.isLiteral(indexContext.getValidator()))
-        {
-            files.put(IndexComponent.POSTING_LISTS, indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext, temporary));
-            files.put(IndexComponent.TERMS_DATA, indexDescriptor.createPerIndexFileHandle(IndexComponent.TERMS_DATA, indexContext, temporary));
-        }
-        else
-        {
-            files.put(IndexComponent.KD_TREE, indexDescriptor.createPerIndexFileHandle(IndexComponent.KD_TREE, indexContext, temporary));
-            files.put(IndexComponent.KD_TREE_POSTING_LISTS, indexDescriptor.createPerIndexFileHandle(IndexComponent.KD_TREE_POSTING_LISTS, indexContext, temporary));
+            if (component == IndexComponent.META || component == IndexComponent.COLUMN_COMPLETION_MARKER)
+                continue;
+            files.put(component, indexDescriptor.createPerIndexFileHandle(component, indexContext, temporary));
         }
     }
 
+    /** It is the caller's responsibility to close the returned file handle. */
     public FileHandle termsData()
     {
-        return getFile(IndexComponent.TERMS_DATA);
+        return getFile(IndexComponent.TERMS_DATA).sharedCopy();
     }
 
+    /** It is the caller's responsibility to close the returned file handle. */
     public FileHandle postingLists()
     {
-        return getFile(IndexComponent.POSTING_LISTS);
+        return getFile(IndexComponent.POSTING_LISTS).sharedCopy();
     }
 
+    /** It is the caller's responsibility to close the returned file handle. */
     public FileHandle kdtree()
     {
-        return getFile(IndexComponent.KD_TREE);
+        return getFile(IndexComponent.KD_TREE).sharedCopy();
     }
 
+    /** It is the caller's responsibility to close the returned file handle. */
     public FileHandle kdtreePostingLists()
     {
-        return getFile(IndexComponent.KD_TREE_POSTING_LISTS);
+        return getFile(IndexComponent.KD_TREE_POSTING_LISTS).sharedCopy();
     }
 
+    /** It is the caller's responsibility to close the returned file handle. */
     public FileHandle vectors()
     {
-        return getFile(IndexComponent.VECTOR);
+        return getFile(IndexComponent.VECTOR).sharedCopy();
+    }
+
+    /** It is the caller's responsibility to close the returned file handle. */
+    public FileHandle pq()
+    {
+        return getFile(IndexComponent.PQ).sharedCopy();
     }
 
     private FileHandle getFile(IndexComponent indexComponent)

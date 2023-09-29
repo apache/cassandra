@@ -39,9 +39,11 @@ public enum IndexComponent
     KD_TREE_POSTING_LISTS("KDTreePostingLists"),
 
     /**
-     * Lucene creates 3 vector files with ".vex", ".vec" and ".vem" extensions
+     * Vector index components
      */
     VECTOR("Vector"),
+    PQ("PQ"),
+
     /**
      * Term dictionary written by {@code TrieTermsDictionaryWriter} stores mappings of term and
      * file pointer to posting block on posting file.

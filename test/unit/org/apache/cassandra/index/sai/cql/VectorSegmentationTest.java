@@ -18,10 +18,7 @@
 
 package org.apache.cassandra.index.sai.cql;
 
-import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 
 import org.junit.Test;
@@ -29,15 +26,7 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.VectorType;
-import org.apache.cassandra.index.sai.SAITester;
-import org.apache.cassandra.index.sai.disk.hnsw.ConcurrentVectorValues;
 import org.apache.cassandra.index.sai.disk.v1.SegmentBuilder;
-import org.apache.lucene.index.VectorEncoding;
-import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.hnsw.ConcurrentHnswGraphBuilder;
-import org.apache.lucene.util.hnsw.HnswGraphSearcher;
-import org.apache.lucene.util.hnsw.NeighborQueue;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -71,7 +60,7 @@ public class VectorSegmentationTest extends VectorTester
         assertThat(resultSet.size()).isEqualTo(limit);
 
         List<float[]> resultVectors = getVectorsFromResult(resultSet);
-        double recall = getRecall(vectors, queryVector, resultVectors, limit);
+        double recall = rawIndexedRecall(vectors, queryVector, resultVectors, limit);
         assertThat(recall).isGreaterThanOrEqualTo(0.99);
     }
 
@@ -104,7 +93,7 @@ public class VectorSegmentationTest extends VectorTester
         assertThat(resultSet.size()).isEqualTo(limit);
 
         List<float[]> resultVectors = getVectorsFromResult(resultSet);
-        double recall = getRecall(vectors, queryVector, resultVectors, limit);
+        double recall = rawIndexedRecall(vectors, queryVector, resultVectors, limit);
         assertThat(recall).isGreaterThanOrEqualTo(0.99);
 
 
@@ -116,17 +105,8 @@ public class VectorSegmentationTest extends VectorTester
         assertThat(resultSet.size()).isEqualTo(limit);
 
         resultVectors = getVectorsFromResult(resultSet);
-        recall = getRecall(vectors, queryVector, resultVectors, limit);
+        recall = rawIndexedRecall(vectors, queryVector, resultVectors, limit);
         assertThat(recall).isGreaterThanOrEqualTo(0.99);
-    }
-
-    protected Vector<Float> vector(float[] values)
-    {
-        Float[] floats = new Float[values.length];
-        for (int i = 0; i < values.length; i++)
-            floats[i] = values[i];
-
-        return new Vector<>(floats);
     }
 
     private float[] nextVector()
@@ -137,60 +117,6 @@ public class VectorSegmentationTest extends VectorTester
             rawVector[i] = getRandom().nextFloat();
         }
         return rawVector;
-    }
-
-    private double getRecall(Collection<float[]> vectors, float[] query, List<float[]> result, int topK) throws IOException
-    {
-        ConcurrentVectorValues vectorValues = new ConcurrentVectorValues(query.length);
-        int ordinal = 0;
-
-        ConcurrentHnswGraphBuilder<float[]> graphBuilder = new ConcurrentHnswGraphBuilder<>(vectorValues,
-                                                                                            VectorEncoding.FLOAT32,
-                                                                                            VectorSimilarityFunction.COSINE,
-                                                                                            16,
-                                                                                            100);
-
-        for (float[] vector : vectors)
-        {
-            vectorValues.add(ordinal, vector);
-            graphBuilder.addGraphNode(ordinal++, vectorValues);
-        }
-
-        NeighborQueue queue = HnswGraphSearcher.search(query,
-                                                       topK,
-                                                       vectorValues,
-                                                       VectorEncoding.FLOAT32,
-                                                       VectorSimilarityFunction.COSINE,
-                                                       graphBuilder.getGraph().getView(),
-                                                       new Bits.MatchAllBits(vectors.size()),
-                                                       Integer.MAX_VALUE);
-
-        List<float[]> nearestNeighbors = new ArrayList<>();
-        while (queue.size() > 0)
-            nearestNeighbors.add(vectorValues.vectorValue(queue.pop()));
-
-        return recallMatch(nearestNeighbors, result, topK);
-    }
-
-    private double recallMatch(List<float[]> expected, List<float[]> actual, int topK)
-    {
-        if (expected.size() == 0 && actual.size() == 0)
-            return 1.0;
-
-        int matches = 0;
-        for (float[] in : expected)
-        {
-            for (float[] out : actual)
-            {
-                if (Arrays.compare(in, out) == 0)
-                {
-                    matches++;
-                    break;
-                }
-            }
-        }
-
-        return (double) matches / topK;
     }
 
     private List<float[]> getVectorsFromResult(UntypedResultSet result)

@@ -121,8 +121,8 @@ public interface SegmentMerger extends Closeable
             final long footerPointer = footerPointerString == null ? -1 : Long.parseLong(footerPointerString);
 
             final TermsReader termsReader = new TermsReader(indexContext,
-                                                            indexFiles.termsData().sharedCopy(),
-                                                            indexFiles.postingLists().sharedCopy(),
+                                                            indexFiles.termsData(),
+                                                            indexFiles.postingLists(),
                                                             root,
                                                             footerPointer);
             readers.add(termsReader);
@@ -201,9 +201,9 @@ public interface SegmentMerger extends Closeable
             assert postingsPosition >= 0;
 
             final BKDReader bkdReader = new BKDReader(indexContext,
-                                                      indexFiles.kdtree().sharedCopy(),
+                                                      indexFiles.kdtree(),
                                                       bkdPosition,
-                                                      indexFiles.kdtreePostingLists().sharedCopy(),
+                                                      indexFiles.kdtreePostingLists(),
                                                       postingsPosition);
             readers.add(bkdReader);
             return bkdReader.iteratorState(rowid -> rowid + segment.segmentRowIdOffset);

@@ -64,9 +64,9 @@ public class KDTreeIndexSearcher extends IndexSearcher
         assert postingsPosition >= 0;
 
         bkdReader = new BKDReader(indexContext,
-                                  indexFiles.kdtree().sharedCopy(),
+                                  indexFiles.kdtree(),
                                   bkdPosition,
-                                  indexFiles.kdtreePostingLists().sharedCopy(),
+                                  indexFiles.kdtreePostingLists(),
                                   postingsPosition);
         perColumnEventListener = (QueryEventListener.BKDIndexEventListener)indexContext.getColumnQueryMetrics();
     }

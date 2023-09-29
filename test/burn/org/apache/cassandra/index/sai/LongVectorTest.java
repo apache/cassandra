@@ -197,35 +197,6 @@ public class LongVectorTest extends SAITester
         return new Vector<>(vector);
     }
 
-    /** @return a normalized vector with the given dimension */
-    private static Vector<Float> randomVector(int dimension)
-    {
-        var R = ThreadLocalRandom.current();
-
-        var vector = new Float[dimension];
-        for (int i = 0; i < dimension; i++)
-        {
-            vector[i] = R.nextFloat();
-        }
-        normalize(vector);
-
-        return new Vector<>(vector);
-    }
-
-    /** Normalize the given vector in-place */
-    private static void normalize(Float[] v)
-    {
-        var sum = 0.0f;
-        for (int i = 0; i < v.length; i++)
-        {
-            sum += v[i] * v[i];
-        }
-
-        sum = (float) Math.sqrt(sum);
-        for (int i = 0; i < v.length; i++)
-            v[i] /= sum;
-    }
-
     private static class KeySet
     {
         private final Map<Integer, Integer> keys = new ConcurrentHashMap<>();

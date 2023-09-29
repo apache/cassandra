@@ -25,6 +25,7 @@ import com.google.common.collect.Lists;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.v1.V1OnDiskFormat;
 import org.apache.cassandra.index.sai.disk.v2.V2OnDiskFormat;
+import org.apache.cassandra.index.sai.disk.v3.V3OnDiskFormat;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
@@ -38,15 +39,17 @@ public class Version
     public static final Version AA = new Version("aa", V1OnDiskFormat.instance, Version::aaFileNameFormat);
     // Stargazer
     public static final Version BA = new Version("ba", V2OnDiskFormat.instance, (c, i) -> stargazerFileNameFormat(c, i, "ba"));
+    // Converged Cassandra with JVector
+    public static final Version CA = new Version("ca", V3OnDiskFormat.instance, (c, i) -> stargazerFileNameFormat(c, i, "ca"));
 
     // These are in reverse order so that the latest version is used first. Version matching tests
     // are more likely to match the latest version so we want to test that one first.
-    public static final List<Version> ALL = Lists.newArrayList(AA, BA);
+    public static final List<Version> ALL = Lists.newArrayList(CA, BA, AA);
 
     public static final Version EARLIEST = AA;
     // The latest version can be configured to be an earlier version to support partial upgrades that don't
     // write newer versions of the on-disk formats.
-    public static final Version LATEST = parse(System.getProperty("cassandra.sai.latest.version", "ba"));
+    public static final Version LATEST = parse(System.getProperty("cassandra.sai.latest.version", "ca"));
 
     private final String version;
     private final OnDiskFormat onDiskFormat;
@@ -63,11 +66,11 @@ public class Version
     {
         checkArgument(input != null);
         checkArgument(input.length() == 2);
-        if (input.equals(AA.version))
-            return AA;
-        if (input.equals(BA.version))
-            return BA;
-        throw new IllegalArgumentException();
+        for (var v : ALL) {
+            if (input.equals(v.version))
+                return v;
+        }
+        throw new IllegalArgumentException("Unrecognized SAI version string " + input);
     }
 
     @Override

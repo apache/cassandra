@@ -69,8 +69,8 @@ public class InvertedIndexSearcher extends IndexSearcher
         long footerPointer = footerPointerString == null ? -1 : Long.parseLong(footerPointerString);
 
         reader = new TermsReader(indexContext,
-                                 indexFiles.termsData().sharedCopy(),
-                                 indexFiles.postingLists().sharedCopy(),
+                                 indexFiles.termsData(),
+                                 indexFiles.postingLists(),
                                  root, footerPointer);
     }
 

@@ -27,11 +27,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ClusteringComparator;
+import org.apache.cassandra.index.sai.IndexContext;
+import org.apache.cassandra.index.sai.SSTableContext;
 import org.apache.cassandra.index.sai.disk.PerSSTableWriter;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.format.IndexFeatureSet;
+import org.apache.cassandra.index.sai.disk.v1.IndexSearcher;
+import org.apache.cassandra.index.sai.disk.v1.PerIndexFiles;
+import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.v1.V1OnDiskFormat;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.SAICodecUtils;
@@ -49,6 +54,12 @@ public class V2OnDiskFormat extends V1OnDiskFormat
                                                                                  IndexComponent.PRIMARY_KEY_BLOCKS,
                                                                                  IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS);
 
+    private static final Set<IndexComponent> VECTOR_COMPONENTS_V2 = EnumSet.of(IndexComponent.COLUMN_COMPLETION_MARKER,
+                                                                               IndexComponent.META,
+                                                                               IndexComponent.VECTOR,
+                                                                               IndexComponent.TERMS_DATA,
+                                                                               IndexComponent.POSTING_LISTS);
+
     public static final V2OnDiskFormat instance = new V2OnDiskFormat();
 
     private static final IndexFeatureSet v2IndexFeatureSet = new IndexFeatureSet()
@@ -57,6 +68,12 @@ public class V2OnDiskFormat extends V1OnDiskFormat
         public boolean isRowAware()
         {
             return true;
+        }
+
+        @Override
+        public boolean hasVectorIndexChecksum()
+        {
+            return false;
         }
     };
 
@@ -79,6 +96,17 @@ public class V2OnDiskFormat extends V1OnDiskFormat
     public PrimaryKeyMap.Factory newPrimaryKeyMapFactory(IndexDescriptor indexDescriptor, SSTableReader sstable) throws IOException
     {
         return new RowAwarePrimaryKeyMap.RowAwarePrimaryKeyMapFactory(indexDescriptor, sstable);
+    }
+
+    @Override
+    public IndexSearcher newIndexSearcher(SSTableContext sstableContext,
+                                          IndexContext indexContext,
+                                          PerIndexFiles indexFiles,
+                                          SegmentMetadata segmentMetadata) throws IOException
+    {
+        if (indexContext.isVector())
+            return new V2VectorIndexSearcher(sstableContext.primaryKeyMapFactory, indexFiles, segmentMetadata, sstableContext.indexDescriptor, indexContext);
+        return super.newIndexSearcher(sstableContext, indexContext, indexFiles, segmentMetadata);
     }
 
     @Override
@@ -114,6 +142,20 @@ public class V2OnDiskFormat extends V1OnDiskFormat
             }
         }
         return true;
+    }
+
+    @Override
+    public Set<IndexComponent> perIndexComponents(IndexContext indexContext)
+    {
+        if (indexContext.isVector())
+            return VECTOR_COMPONENTS_V2;
+        return super.perIndexComponents(indexContext);
+    }
+
+    @Override
+    protected boolean isVectorComponent(IndexComponent indexComponent)
+    {
+        return VECTOR_COMPONENTS_V2.contains(indexComponent);
     }
 
     @Override

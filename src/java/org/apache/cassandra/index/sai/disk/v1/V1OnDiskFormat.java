@@ -42,6 +42,7 @@ import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.format.IndexFeatureSet;
 import org.apache.cassandra.index.sai.disk.format.OnDiskFormat;
+import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.memory.RowMapping;
 import org.apache.cassandra.index.sai.metrics.AbstractMetrics;
 import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
@@ -64,11 +65,6 @@ public class V1OnDiskFormat implements OnDiskFormat
                                                                                  IndexComponent.TOKEN_VALUES,
                                                                                  IndexComponent.OFFSETS_VALUES);
 
-    private static final Set<IndexComponent> VECTOR_COMPONENTS = EnumSet.of(IndexComponent.COLUMN_COMPLETION_MARKER,
-                                                                            IndexComponent.META,
-                                                                            IndexComponent.VECTOR,
-                                                                            IndexComponent.TERMS_DATA,
-                                                                            IndexComponent.POSTING_LISTS);
     private static final Set<IndexComponent> LITERAL_COMPONENTS = EnumSet.of(IndexComponent.COLUMN_COMPLETION_MARKER,
                                                                              IndexComponent.META,
                                                                              IndexComponent.TERMS_DATA,
@@ -117,6 +113,12 @@ public class V1OnDiskFormat implements OnDiskFormat
         {
             return false;
         }
+
+        @Override
+        public boolean hasVectorIndexChecksum()
+        {
+            return false;
+        }
     };
 
     protected V1OnDiskFormat()
@@ -137,6 +139,9 @@ public class V1OnDiskFormat implements OnDiskFormat
     @Override
     public boolean isPerSSTableBuildComplete(IndexDescriptor indexDescriptor)
     {
+        // TODO this is fragile, it can return true for any descriptor version as long as the
+        // completion marker is there.  Ideally we would check to see if the expected
+        // perIndexComponents are there as well.
         return indexDescriptor.hasComponent(IndexComponent.GROUP_COMPLETION_MARKER);
     }
 
@@ -157,6 +162,17 @@ public class V1OnDiskFormat implements OnDiskFormat
     public SearchableIndex newSearchableIndex(SSTableContext sstableContext, IndexContext indexContext)
     {
         return new V1SearchableIndex(sstableContext, indexContext);
+    }
+
+    @Override
+    public IndexSearcher newIndexSearcher(SSTableContext sstableContext,
+                                          IndexContext indexContext,
+                                          PerIndexFiles indexFiles,
+                                          SegmentMetadata segmentMetadata) throws IOException
+    {
+        if (indexContext.isLiteral())
+            return new InvertedIndexSearcher(sstableContext.primaryKeyMapFactory, indexFiles, segmentMetadata, sstableContext.indexDescriptor, indexContext);
+        return new KDTreeIndexSearcher(sstableContext.primaryKeyMapFactory, indexFiles, segmentMetadata, sstableContext.indexDescriptor, indexContext);
     }
 
     @Override
@@ -192,58 +208,57 @@ public class V1OnDiskFormat implements OnDiskFormat
     {
         for (IndexComponent indexComponent : perSSTableComponents())
         {
-            if (!isBuildCompletionMarker(indexComponent))
+            if (isBuildCompletionMarker(indexComponent))
+                continue;
+
+            try (IndexInput input = indexDescriptor.openPerSSTableInput(indexComponent))
             {
-                try (IndexInput input = indexDescriptor.openPerSSTableInput(indexComponent))
+                if (checksum)
+                    SAICodecUtils.validateChecksum(input);
+                else
+                    SAICodecUtils.validate(input);
+            }
+            catch (Throwable e)
+            {
+                if (logger.isDebugEnabled())
                 {
-                    if (checksum)
-                        SAICodecUtils.validateChecksum(input);
-                    else
-                        SAICodecUtils.validate(input);
+                    logger.debug(indexDescriptor.logMessage("{} failed for index component {} on SSTable {}"),
+                                 (checksum ? "Checksum validation" : "Validation"),
+                                 indexComponent,
+                                 indexDescriptor.descriptor);
                 }
-                catch (Throwable e)
-                {
-                    if (logger.isDebugEnabled())
-                    {
-                        logger.debug(indexDescriptor.logMessage("{} failed for index component {} on SSTable {}"),
-                                     (checksum ? "Checksum validation" : "Validation"),
-                                     indexComponent,
-                                     indexDescriptor.descriptor);
-                    }
-                    return false;
-                }
+                return false;
             }
         }
         return true;
     }
 
     @Override
-    public boolean validatePerIndexComponents(IndexDescriptor indexDescriptor, IndexContext indexContext, boolean checksum)
+    public boolean validateOneIndexComponent(IndexComponent component, IndexDescriptor descriptor, IndexContext context, boolean checksum)
     {
-        for (IndexComponent indexComponent : perIndexComponents(indexContext))
+        if (isBuildCompletionMarker(component))
+            return true;
+        // starting with v3, vector components include proper headers and checksum; skip for earlier versions
+        if (!descriptor.version.onDiskFormat().indexFeatureSet().hasVectorIndexChecksum() && isVectorComponent(component))
+            return true;
+
+        try (IndexInput input = descriptor.openPerIndexInput(component, context))
         {
-            // VSTODO: lucene doesn't follow SAI naming patterns and manage its own validation
-            if (!isBuildCompletionMarker(indexComponent) && !(indexContext.isVector()))
+            if (checksum)
+                SAICodecUtils.validateChecksum(input);
+            else
+                SAICodecUtils.validate(input);
+        }
+        catch (Throwable e)
+        {
+            if (logger.isDebugEnabled())
             {
-                try (IndexInput input = indexDescriptor.openPerIndexInput(indexComponent, indexContext))
-                {
-                    if (checksum)
-                        SAICodecUtils.validateChecksum(input);
-                    else
-                        SAICodecUtils.validate(input);
-                }
-                catch (Throwable e)
-                {
-                    if (logger.isDebugEnabled())
-                    {
-                        logger.debug(indexDescriptor.logMessage("{} failed for index component {} on SSTable {}"),
-                                     (checksum ? "Checksum validation" : "Validation"),
-                                     indexComponent,
-                                     indexDescriptor.descriptor);
-                    }
-                    return false;
-                }
+                logger.debug(descriptor.logMessage("{} failed for index component {} on SSTable {}"),
+                             (checksum ? "Checksum validation" : "Validation"),
+                             component,
+                             descriptor.descriptor);
             }
+            return false;
         }
         return true;
     }
@@ -257,9 +272,7 @@ public class V1OnDiskFormat implements OnDiskFormat
     @Override
     public Set<IndexComponent> perIndexComponents(IndexContext indexContext)
     {
-        if (indexContext.isVector())
-            return VECTOR_COMPONENTS;
-        else if (TypeUtil.isLiteral(indexContext.getValidator()))
+        if (TypeUtil.isLiteral(indexContext.getValidator()))
             return LITERAL_COMPONENTS;
         return NUMERIC_COMPONENTS;
     }
@@ -281,5 +294,12 @@ public class V1OnDiskFormat implements OnDiskFormat
     {
         return indexComponent == IndexComponent.GROUP_COMPLETION_MARKER ||
                indexComponent == IndexComponent.COLUMN_COMPLETION_MARKER;
+    }
+
+    protected boolean isVectorComponent(IndexComponent indexComponent)
+    {
+        return indexComponent == IndexComponent.VECTOR ||
+               indexComponent == IndexComponent.PQ ||
+               indexComponent == IndexComponent.POSTING_LISTS;
     }
 }

@@ -30,7 +30,7 @@ import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.Rebufferer.BufferHolder;
 
 @NotThreadSafe
-public class RandomAccessReader extends RebufferingInputStream implements FileDataInput
+public class RandomAccessReader extends RebufferingInputStream implements FileDataInput, io.github.jbellis.jvector.disk.RandomAccessReader
 {
     // The default buffer size when the client doesn't specify it
     public static final int DEFAULT_BUFFER_SIZE = 4096;
@@ -74,21 +74,14 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
         assert buffer.order() == ByteOrder.BIG_ENDIAN : "Buffer must have BIG ENDIAN byte ordering";
     }
 
-    /**
-     * Read a vector at the given (absolute) position.
-     *
-     * @param position the position to read from, in bytes
-     * @param dest the array to read into (always the entire array will be filled)
-     *
-     * May change the buffer position.
-     */
-    public void readFloatsAt(long position, float[] dest) throws IOException
+    @Override
+    public void readFully(float[] dest) throws IOException
     {
-        assert position % Float.BYTES == 0 : "Position must be aligned to multiple of " + Float.BYTES;
-        var bh = rebufferer.rebuffer(position);
+        var bh = bufferHolder;
+        long position = getPosition();
 
         FloatBuffer floatBuffer;
-        if (bh.offset() == 0)
+        if (bh.offset() == 0 && position % Float.BYTES == 0)
         {
             // this is a separate code path because buffer() and asFloatBuffer() both allocate
             // new and relatively expensive xBuffer objects, so we want to avoid doing that
@@ -109,12 +102,12 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
         {
             // slow path -- desired slice is across region boundaries
             var bb = ByteBuffer.allocate(Float.BYTES * dest.length);
-            reBufferAt(position);
             readFully(bb);
             floatBuffer = bb.asFloatBuffer();
         }
 
         floatBuffer.get(dest);
+        seek(position + (long) Float.BYTES * dest.length);
     }
 
     /**
