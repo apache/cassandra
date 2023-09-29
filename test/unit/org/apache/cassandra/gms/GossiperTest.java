@@ -195,9 +195,7 @@ public class GossiperTest
 
             stateChangedNum = 0;
             Gossiper.instance.applyStateLocally(ImmutableMap.of(remoteHostAddress, proposedRemoteState));
-            // TOKENS are maintained in ClusterMetadata. Although present in ApplicationState for backwards
-            // compatibility, they don't trigger state changes any more.
-            assertEquals(0, stateChangedNum);
+            assertEquals(1, stateChangedNum);
 
             HeartBeatState actualRemoteHeartBeat = Gossiper.instance.getEndpointStateForEndpoint(remoteHostAddress).getHeartBeatState();
             assertEquals(proposedRemoteHeartBeat.getGeneration(), actualRemoteHeartBeat.getGeneration());
@@ -214,7 +212,7 @@ public class GossiperTest
             Gossiper.instance.applyStateLocally(ImmutableMap.of(remoteHostAddress, proposedRemoteState));
             // TOKENS are maintained in ClusterMetadata. Although present in ApplicationState for backwards
             // compatibility, they don't trigger state changes any more.
-            assertEquals(0, stateChangedNum);
+            assertEquals(1, stateChangedNum);
 
             actualRemoteHeartBeat = Gossiper.instance.getEndpointStateForEndpoint(remoteHostAddress).getHeartBeatState();
             assertEquals(proposedRemoteHeartBeat.getGeneration(), actualRemoteHeartBeat.getGeneration());
