@@ -136,11 +136,9 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
     private int topKFor(int limit)
     {
         // compute the factor `n` to multiply limit by to increase the number of results from the index.
-        // "recall mode" scales smoothly from n=10 at limit=1 to n=2 at limit=100 to n=1 at limit=1000;
-        // jvector testing shows that at limit 100 / n=2 the quantized results almost exactly match unquantized.
         var n = indexContext.getIndexWriterConfig().getOptimizeFor() == OptimizeFor.LATENCY
-                ? 1
-                : 0.271 + 9.729 * pow(limit, -0.375);
+                ? 0.979 + 4.021 * pow(limit, -0.761)  // f(1) =  5.0, f(100) = 1.1, f(1000) = 1.0
+                : 0.509 + 9.491 * pow(limit, -0.402); // f(1) = 10.0, f(100) = 2.0, f(1000) = 1.1
         return (int) (n * limit);
     }
 
