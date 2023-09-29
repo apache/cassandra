@@ -71,6 +71,7 @@ public class CQLUnifiedCompactionTest extends CQLTester
     @BeforeClass
     public static void beforeClass()
     {
+        System.setProperty("unified_compaction.l0_shards_enabled", "true");
         CQLTester.setUpClass();
         StorageService.instance.initServer();
     }
