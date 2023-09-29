@@ -203,7 +203,7 @@ public class CachingBenchTest extends CQLTester
         DatabaseDescriptor.setFileCacheEnabled(cacheEnabled);
         DatabaseDescriptor.setDiskAccessMode(mode);
         alterTable("ALTER TABLE %s WITH compaction = { 'class' :  '" + compactionClass + "'  };");
-        alterTable("ALTER TABLE %s WITH compression = { 'sstable_compression' : '" + compressorClass + "'  };");
+        alterTable("ALTER TABLE %s WITH compression = { 'class' : '" + compressorClass + "'  };");
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
         cfs.disableAutoCompaction();
 

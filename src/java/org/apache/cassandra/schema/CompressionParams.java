@@ -50,8 +50,6 @@ public final class CompressionParams
 {
     private static final Logger logger = LoggerFactory.getLogger(CompressionParams.class);
 
-    private static volatile boolean hasLoggedSsTableCompressionWarning;
-    private static volatile boolean hasLoggedChunkLengthWarning;
     private static volatile boolean hasLoggedCrcCheckChanceWarning;
 
     public static final int DEFAULT_CHUNK_LENGTH = 1024 * 16;
@@ -83,8 +81,6 @@ public final class CompressionParams
     private static final String CRC_CHECK_CHANCE_WARNING = "The option crc_check_chance was deprecated as a compression option. " +
                                                            "You should specify it as a top-level table option instead";
 
-    @Deprecated public static final String SSTABLE_COMPRESSION = "sstable_compression";
-    @Deprecated public static final String CHUNK_LENGTH_KB = "chunk_length_kb";
     @Deprecated public static final String CRC_CHECK_CHANCE = "crc_check_chance";
 
     private final ICompressor sstableCompressor;
@@ -102,20 +98,13 @@ public final class CompressionParams
 
         String sstableCompressionClass;
 
-        if (!opts.isEmpty() && isEnabled(opts) && !containsSstableCompressionClass(opts))
+        if (!opts.isEmpty() && isEnabled(opts) && !options.containsKey(CLASS))
             throw new ConfigurationException(format("Missing sub-option '%s' for the 'compression' option.", CLASS));
 
-        if (!removeEnabled(options))
-        {
-            sstableCompressionClass = null;
-
-            if (!options.isEmpty())
-                throw new ConfigurationException(format("If the '%s' option is set to false no other options must be specified", ENABLED));
-        }
+        if (!removeEnabled(options) && !options.isEmpty())
+            throw new ConfigurationException(format("If the '%s' option is set to false no other options must be specified", ENABLED));
         else
-        {
-            sstableCompressionClass = removeSstableCompressionClass(options);
-        }
+            sstableCompressionClass = removeSSTableCompressionClass(options);
 
         int chunkLength = removeChunkLength(options);
         double minCompressRatio = removeMinCompressRatio(options);
@@ -133,7 +122,7 @@ public final class CompressionParams
 
     public static CompressionParams noCompression()
     {
-        return new CompressionParams((ICompressor) null, DEFAULT_CHUNK_LENGTH, Integer.MAX_VALUE, 0.0, Collections.emptyMap());
+        return new CompressionParams(null, DEFAULT_CHUNK_LENGTH, Integer.MAX_VALUE, 0.0, Collections.emptyMap());
     }
 
     // The shorthand methods below are only used for tests. They are a little inconsistent in their choice of
@@ -403,27 +392,7 @@ public final class CompressionParams
     {
         if (options.containsKey(CHUNK_LENGTH_IN_KB))
         {
-            if (options.containsKey(CHUNK_LENGTH_KB))
-            {
-                throw new ConfigurationException(format("The '%s' option must not be used if the chunk length is already specified by the '%s' option",
-                                                        CHUNK_LENGTH_KB,
-                                                        CHUNK_LENGTH_IN_KB));
-            }
-
             return parseChunkLength(options.remove(CHUNK_LENGTH_IN_KB));
-        }
-
-        if (options.containsKey(CHUNK_LENGTH_KB))
-        {
-            if (!hasLoggedChunkLengthWarning)
-            {
-                hasLoggedChunkLengthWarning = true;
-                logger.warn("The {} option has been deprecated. You should use {} instead",
-                                   CHUNK_LENGTH_KB,
-                                   CHUNK_LENGTH_IN_KB);
-            }
-
-            return parseChunkLength(options.remove(CHUNK_LENGTH_KB));
         }
 
         return DEFAULT_CHUNK_LENGTH;
@@ -446,49 +415,24 @@ public final class CompressionParams
     }
 
     /**
-     * Returns {@code true} if the specified options contains the name of the compression class to be used,
-     * {@code false} otherwise.
-     *
-     * @param options the options
-     * @return {@code true} if the specified options contains the name of the compression class to be used,
-     * {@code false} otherwise.
-     */
-    public static boolean containsSstableCompressionClass(Map<String, String> options)
-    {
-        return options.containsKey(CLASS) || options.containsKey(SSTABLE_COMPRESSION);
-    }
-
-    /**
      * Removes the option specifying the name of the compression class
      *
      * @param options the options
      * @return the name of the compression class
      */
-    private static String removeSstableCompressionClass(Map<String, String> options)
+    private static String removeSSTableCompressionClass(Map<String, String> options)
     {
         if (options.containsKey(CLASS))
         {
-            if (options.containsKey(SSTABLE_COMPRESSION))
-                throw new ConfigurationException(format("The '%s' option must not be used if the compression algorithm is already specified by the '%s' option",
-                                                        SSTABLE_COMPRESSION,
-                                                        CLASS));
-
             String clazz = options.remove(CLASS);
-            if (clazz.isEmpty())
+
+            if (clazz == null || clazz.isEmpty())
                 throw new ConfigurationException(format("The '%s' option must not be empty. To disable compression use 'enabled' : false", CLASS));
 
             return clazz;
         }
 
-        if (options.containsKey(SSTABLE_COMPRESSION) && !hasLoggedSsTableCompressionWarning)
-        {
-            hasLoggedSsTableCompressionWarning = true;
-            logger.warn("The {} option has been deprecated. You should use {} instead",
-                               SSTABLE_COMPRESSION,
-                               CLASS);
-        }
-
-        return options.remove(SSTABLE_COMPRESSION);
+        return null;
     }
 
     /**

@@ -44,7 +44,7 @@ table_definition: |
         PRIMARY KEY((name,choice), date, address, dbl, lval, ival, uid)
   ) 
     WITH compaction = { 'class':'LeveledCompactionStrategy' }
-#    AND compression = { 'sstable_compression' : '' }
+#    AND compression = { 'class' : 'LZ4Compressor' }
 #    AND comment='A table of many types to test wide rows'
 
 #
