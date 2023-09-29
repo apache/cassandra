@@ -153,12 +153,6 @@ public class V2OnDiskFormat extends V1OnDiskFormat
     }
 
     @Override
-    protected boolean isVectorComponent(IndexComponent indexComponent)
-    {
-        return VECTOR_COMPONENTS_V2.contains(indexComponent);
-    }
-
-    @Override
     public Set<IndexComponent> perSSTableComponents()
     {
         return PER_SSTABLE_COMPONENTS;

@@ -239,8 +239,12 @@ public class V1OnDiskFormat implements OnDiskFormat
         if (isBuildCompletionMarker(component))
             return true;
         // starting with v3, vector components include proper headers and checksum; skip for earlier versions
-        if (!descriptor.version.onDiskFormat().indexFeatureSet().hasVectorIndexChecksum() && isVectorComponent(component))
+        if (context.isVector()
+            && isVectorDataComponent(component)
+            && !descriptor.version.onDiskFormat().indexFeatureSet().hasVectorIndexChecksum())
+        {
             return true;
+        }
 
         try (IndexInput input = descriptor.openPerIndexInput(component, context))
         {
@@ -296,10 +300,12 @@ public class V1OnDiskFormat implements OnDiskFormat
                indexComponent == IndexComponent.COLUMN_COMPLETION_MARKER;
     }
 
-    protected boolean isVectorComponent(IndexComponent indexComponent)
+    /** vector data components (that did not have checksums before v3) */
+    private boolean isVectorDataComponent(IndexComponent indexComponent)
     {
         return indexComponent == IndexComponent.VECTOR ||
                indexComponent == IndexComponent.PQ ||
+               indexComponent == IndexComponent.TERMS_DATA ||
                indexComponent == IndexComponent.POSTING_LISTS;
     }
 }
