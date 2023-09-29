@@ -565,7 +565,7 @@ public class ImportTest extends CQLTester
     @Test
     public void testRefreshCorrupt() throws Throwable
     {
-        createTable("create table %s (id int primary key, d int) WITH caching = { 'keys': 'NONE', 'rows_per_partition': 'ALL' }");
+        createTable("create table %s (id int primary key, d int) WITH compaction = {'class':'SizeTieredCompactionStrategy'} AND caching = { 'keys': 'NONE', 'rows_per_partition': 'ALL' }");
         for (int i = 0; i < 10; i++)
             execute("insert into %s (id, d) values (?, ?)", i, i);
         flush();
