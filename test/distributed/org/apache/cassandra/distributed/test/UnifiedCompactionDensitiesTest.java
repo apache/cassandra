@@ -64,13 +64,14 @@ public class UnifiedCompactionDensitiesTest extends TestBaseImpl
 
     private void testTargetSSTableSize(int nodeCount, int dataDirs) throws IOException
     {
+        System.setProperty("unified_compaction.l0_shards_enabled", "true");
         try (Cluster cluster = init(builder().withNodes(nodeCount)
                                              .withDataDirCount(dataDirs)
                                              .withConfig(cfg -> cfg.set("memtable_heap_space_in_mb", "100"))
                                              .start()))
         {
             cluster.schemaChange(withKeyspace("alter keyspace %s with replication = {'class': 'SimpleStrategy', 'replication_factor':1}"));
-            cluster.schemaChange(withKeyspace("create table %s.tbl (id bigint primary key, value text) with compaction = {'class':'UnifiedCompactionStrategy', 'target_sstable_size' : '1MiB'}"));
+            cluster.schemaChange(withKeyspace("create table %s.tbl (id bigint primary key, value text) with compaction = {'class':'UnifiedCompactionStrategy', 'target_sstable_size' : '1MiB', 'sstable_growth' : '0'}"));
             long targetSize = 1L<<20;
             long targetMin = targetSize * 10 / 16;  // Size must be within sqrt(0.5), sqrt(2) of target, use 1.6 to account for estimations
             long targetMax = targetSize * 16 / 10;

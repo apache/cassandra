@@ -305,6 +305,7 @@ public abstract class ControllerTest
         options.put(Controller.BASE_SHARD_COUNT_OPTION, Integer.toString(3));
         options.put(Controller.TARGET_SSTABLE_SIZE_OPTION, "100MiB");
         options.put(Controller.MIN_SSTABLE_SIZE_OPTION, "10MiB");
+        options.put(Controller.SSTABLE_GROWTH_OPTION, "0.0");
         Controller controller = Controller.fromOptions(cfs, options);
         assertEquals(0.0, controller.sstableGrowthModifier, 0.0);
 
@@ -346,6 +347,7 @@ public abstract class ControllerTest
         options.put(Controller.MIN_SSTABLE_SIZE_OPTION, "10MiB");
         options.put(Controller.SSTABLE_GROWTH_OPTION, "1.0");
         Controller controller = Controller.fromOptions(cfs, options);
+        assertEquals(1.0, controller.sstableGrowthModifier, 0.0);
 
         // Easy ones
         // x00 MiB = x * 100
@@ -424,6 +426,7 @@ public abstract class ControllerTest
         options.put(Controller.MIN_SSTABLE_SIZE_OPTION, "10MiB");
         options.put(Controller.SSTABLE_GROWTH_OPTION, "0.5");
         Controller controller = Controller.fromOptions(cfs, options);
+        assertEquals(0.5, controller.sstableGrowthModifier, 0.0);
 
         // Easy ones
         // x00 MiB = x * 3 * 100
@@ -499,6 +502,7 @@ public abstract class ControllerTest
         options.put(Controller.BASE_SHARD_COUNT_OPTION, Integer.toString(3));
         options.put(Controller.TARGET_SSTABLE_SIZE_OPTION, "200MiB");
         options.put(Controller.MIN_SSTABLE_SIZE_OPTION, "auto");
+        options.put(Controller.SSTABLE_GROWTH_OPTION, "0");
         mockFlushSize(45); // rounds up to 50MiB
         Controller controller = Controller.fromOptions(cfs, options);
 
@@ -533,6 +537,7 @@ public abstract class ControllerTest
         options.put(Controller.BASE_SHARD_COUNT_OPTION, Integer.toString(3));
         options.put(Controller.TARGET_SSTABLE_SIZE_OPTION, "200MiB");
         options.put(Controller.MIN_SSTABLE_SIZE_OPTION, "Auto");
+        options.put(Controller.SSTABLE_GROWTH_OPTION, "0");
         mockFlushSize(300); // above target min, set to 141MiB
         Controller controller = Controller.fromOptions(cfs, options);
 

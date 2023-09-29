@@ -248,7 +248,7 @@ public class CostsCalculator
         @Override
         public String toString()
         {
-            return String.format("%s/%d sec", FBUtilities.prettyPrintMemory((long) avg.get()), TimeUnit.MILLISECONDS.toSeconds(samplingPeriodMs));
+            return String.format("%s/%d sec", FBUtilities.prettyPrintMemory((long) (avg != null ? avg.get() : 0)), TimeUnit.MILLISECONDS.toSeconds(samplingPeriodMs));
         }
     }
 }
