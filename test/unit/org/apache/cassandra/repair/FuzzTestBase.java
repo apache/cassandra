@@ -83,7 +83,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper;
-import org.apache.cassandra.exceptions.RequestFailureReason;
+import org.apache.cassandra.exceptions.RequestFailure;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.HeartBeatState;
@@ -767,9 +767,9 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                 callback.onResponse(msg);
             }
 
-            public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+            public void onFailure(InetAddressAndPort from, RequestFailure failure)
             {
-                if (callback.invokeOnFailure()) callback.onFailure(from, failureReason);
+                if (callback.invokeOnFailure()) callback.onFailure(from, failure);
             }
         }
 
@@ -864,7 +864,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                                 assert ctx == cb;
                                 try
                                 {
-                                    ctx.onFailure(to, RequestFailureReason.TIMEOUT);
+                                    ctx.onFailure(to, RequestFailure.TIMEOUT);
                                 }
                                 catch (Throwable t)
                                 {
@@ -884,13 +884,13 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                     long max = TimeUnit.SECONDS.toNanos(5);
                     LongSupplier small = () -> rs.nextLong(min, maxSmall);
                     LongSupplier large = () -> rs.nextLong(maxSmall, max);
-                    return Gens.bools().runs(rs.nextInt(1, 11) / 100.0D, rs.nextInt(3, 15)).mapToLong(b -> b ? large.getAsLong() : small.getAsLong()).asLongSupplier(rs);
+                    return Gens.bools().biasedRepeatingRuns(rs.nextInt(1, 11) / 100.0D, rs.nextInt(3, 15)).mapToLong(b -> b ? large.getAsLong() : small.getAsLong()).asLongSupplier(rs);
                 }).getAsLong();
             }
 
             private boolean networkDrops(InetAddressAndPort to)
             {
-                return networkDrops.computeIfAbsent(new Connection(broadcastAddressAndPort, to), ignore -> Gens.bools().runs(rs.nextInt(1, 11) / 100.0D, rs.nextInt(3, 15)).asSupplier(rs)).get();
+                return networkDrops.computeIfAbsent(new Connection(broadcastAddressAndPort, to), ignore -> Gens.bools().biasedRepeatingRuns(rs.nextInt(1, 11) / 100.0D, rs.nextInt(3, 15)).asSupplier(rs)).get();
             }
 
             @Override
@@ -906,9 +906,9 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                     }
 
                     @Override
-                    public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+                    public void onFailure(InetAddressAndPort from, RequestFailure failure)
                     {
-                        promise.tryFailure(new MessagingService.FailureResponseException(from, failureReason));
+                        promise.tryFailure(new MessagingService.FailureResponseException(from, failure.reason));
                     }
 
                     @Override
@@ -1040,7 +1040,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                         try
                         {
                             if (msg.isFailureResponse())
-                                callback.onFailure(msg.from(), (RequestFailureReason) msg.payload);
+                                callback.onFailure(msg.from(), (RequestFailure) msg.payload);
                             else callback.onResponse(msg);
                         }
                         catch (Throwable t)

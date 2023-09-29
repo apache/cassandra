@@ -180,6 +180,7 @@ public class ClusterMetadataTestHelper
                                    null,
                                    null,
                                    DataPlacements.empty(),
+                                   AccordKeyspaces.EMPTY,
                                    null,
                                    null,
                                    ImmutableMap.of());
