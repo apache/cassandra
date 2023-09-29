@@ -816,9 +816,9 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                 callback.onResponse(msg);
             }
 
-            public void onFailure(InetAddressAndPort from, RequestFailure failureReason)
+            public void onFailure(InetAddressAndPort from, RequestFailure failure)
             {
-                if (callback.invokeOnFailure()) callback.onFailure(from, failureReason);
+                if (callback.invokeOnFailure()) callback.onFailure(from, failure);
             }
         }
 
@@ -992,9 +992,9 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                     }
 
                     @Override
-                    public void onFailure(InetAddressAndPort from, RequestFailure failureReason)
+                    public void onFailure(InetAddressAndPort from, RequestFailure failure)
                     {
-                        promise.tryFailure(new MessagingService.FailureResponseException(from, failureReason));
+                        promise.tryFailure(new MessagingService.FailureResponseException(from, failure));
                     }
 
                     @Override
