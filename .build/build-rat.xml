@@ -77,6 +77,7 @@
                  <exclude NAME="CHANGES.txt"/>
                  <exclude NAME="CASSANDRA-14092.txt"/>
                  <exclude NAME="debian/TODO"/>
+                 <exclude NAME="accord_demo.txt"/>
                  <!-- legal files -->
                  <exclude NAME="NOTICE.txt"/>
                  <exclude NAME="LICENSE.txt"/>
