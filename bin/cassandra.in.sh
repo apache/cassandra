@@ -128,14 +128,19 @@ elif [ "$JVM_VERSION" \< "17" ] ; then
     echo "Cassandra 5.0 requires Java 11 or Java 17."
     exit 1;
 fi
-# Allow execution if a supported Java version is used or CASSANDRA_USE_ALL_JDK argument is set
+# Allow execution if a supported Java version is used or CASSANDRA_JDK_UNSUPPORTED argument is set
 java_versions_supported=11,17
 supported_version=$(echo "$java_versions_supported" | tr "," '\n' | grep -F -x "$short")
-
-if [ -z "$CASSANDRA_USE_ALL_JDK" ] && [ -z "$supported_version" ] ; then
-    echo "Cassandra 5.0 requires Java 11, Java 17."
-    echo "If you would like to test with other Java versions > 17, set \$CASSANDRA_USE_ALL_JDK=true"
-    exit 1;
+if [ -z "$supported_version" ] ; then
+    if [ -z "$CASSANDRA_JDK_UNSUPPORTED" ] ; then
+        echo "Cassandra 5.0 requires Java 11, Java 17."
+        echo "If you would like to test with other Java versions > 17, set \$CASSANDRA_JDK_UNSUPPORTED=true"
+        exit 1;
+    else
+        echo "######################################################################"
+        echo "Warning! You are using JDK$short. Cassandra is currently being tested with 11 and 17 by the community. Use this version at your own risk!!"
+        echo "######################################################################"
+    fi
 fi
 JAVA_VERSION=$short
 
