@@ -259,7 +259,9 @@ public class OnDiskHnswGraph extends HnswGraph implements AutoCloseable
             // seek to the neighbor list
             reader.seek(neighborsOffset);
             currentNeighbors = new int[reader.readInt()];
-            reader.readIntsAt(reader.getPosition(), currentNeighbors);
+            long position = reader.getPosition();
+            reader.seek(position);
+            reader.read(currentNeighbors, 0, currentNeighbors.length);
         }
 
         @Override

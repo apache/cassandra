@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
+import java.nio.IntBuffer;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -74,6 +75,13 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
         assert buffer.order() == ByteOrder.BIG_ENDIAN : "Buffer must have BIG ENDIAN byte ordering";
     }
 
+    /**
+     * Read a float[] at the current position.
+     *
+     * @param dest the array to read into (always the entire array will be filled)
+     *
+     * Will change the buffer position.
+     */
     @Override
     public void readFully(float[] dest) throws IOException
     {
@@ -111,30 +119,51 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
     }
 
     /**
-     * Read a vector at the given (absolute) position.
+     * Read ints into an int[], starting at the current position.
      *
-     * @param position the position to read from, in bytes
-     * @param dest the array to read into (always the entire array will be filled)
+     * @param dest the array to read into
+     * @param offset the offset in the array at which to start writing ints
+     * @param count the number of ints to read
      *
-     * May change the buffer position.
+     * Will change the buffer position.
      */
-    public void readIntsAt(long position, int[] dest) throws IOException
+    @Override
+    public void read(int[] dest, int offset, int count) throws IOException
     {
-        assert position % Integer.BYTES == 0 : "Position must be aligned to multiple of " + Integer.BYTES;
-        var bh = rebufferer.rebuffer(position);
-        var intBuffer = bh.intBuffer();
-        intBuffer.position(Ints.checkedCast((position - bh.offset()) / Float.BYTES));
+        if (count == 0)
+            return;
 
-        if (dest.length > intBuffer.remaining())
+        var bh = bufferHolder;
+        long position = getPosition();
+
+        IntBuffer intBuffer;
+        if (bh.offset() == 0 && position % Integer.BYTES == 0)
+        {
+            // this is a separate code path because buffer() and asIntBuffer() both allocate
+            // new and relatively expensive xBuffer objects, so we want to avoid doing that
+            // twice, where possible
+            intBuffer = bh.intBuffer();
+            intBuffer.position(Ints.checkedCast(position / Integer.BYTES));
+        }
+        else
+        {
+            // offset is non-zero, and probably not aligned to Integer.BYTES, so
+            // set the position before converting to IntBuffer.
+            var bb = bh.buffer();
+            bb.position(Ints.checkedCast(position - bh.offset()));
+            intBuffer = bb.asIntBuffer();
+        }
+
+        if (count > intBuffer.remaining())
         {
             // slow path -- desired slice is across region boundaries
-            var bb = ByteBuffer.allocate(Float.BYTES * dest.length);
-            reBufferAt(position);
+            var bb = ByteBuffer.allocate(Integer.BYTES * count);
             readFully(bb);
             intBuffer = bb.asIntBuffer();
         }
 
-        intBuffer.get(dest);
+        intBuffer.get(dest, offset, count);
+        seek(position + (long) Integer.BYTES * count);
     }
 
     @Override

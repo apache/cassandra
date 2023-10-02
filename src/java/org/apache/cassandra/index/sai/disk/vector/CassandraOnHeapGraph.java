@@ -362,7 +362,7 @@ public class CassandraOnHeapGraph<T>
             assert !vectorValues.isValueShared();
             var encoded = IntStream.range(0, vectorValues.size()).parallel()
                           .mapToObj(i -> pq.encode(vectorValues.vectorValue(i)))
-                          .collect(Collectors.toList());
+                          .toArray(byte[][]::new);
             var cv = new CompressedVectors(pq, encoded);
             // save
             cv.write(writer);
