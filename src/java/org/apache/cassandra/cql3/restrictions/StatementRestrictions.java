@@ -23,6 +23,7 @@ import java.util.stream.Collectors;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Streams;
 
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.Function;
@@ -32,6 +33,8 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.FloatType;
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.db.virtual.VirtualTable;
 import org.apache.cassandra.dht.*;
@@ -68,6 +71,8 @@ public final class StatementRestrictions
     public static final String ANN_REQUIRES_INDEX_MESSAGE = "ANN ordering by vector requires the column to be indexed";
 
     public static final String VECTOR_INDEXES_ANN_ONLY_MESSAGE = "Vector indexes only support ANN queries";
+
+    public static final String ANN_ONLY_SUPPORTED_ON_VECTOR_MESSAGE = "ANN ordering is only supported on vector indexes";
 
     /**
      * The type of statement
@@ -278,8 +283,6 @@ public final class StatementRestrictions
         // there is restrictions not covered by the PK.
         if (!nonPrimaryKeyRestrictions.isEmpty())
         {
-            var columnRestrictions = allColumnRestrictions(clusteringColumnsRestrictions, nonPrimaryKeyRestrictions);
-
             if (!type.allowNonPrimaryKeyInWhereClause())
             {
                 Collection<ColumnIdentifier> nonPrimaryKeyColumns =
@@ -289,22 +292,31 @@ public final class StatementRestrictions
                                      Joiner.on(", ").join(nonPrimaryKeyColumns));
             }
             if (hasQueriableIndex)
+            {
                 usesSecondaryIndexing = true;
+            }
             else
             {
                 if (nonPrimaryKeyRestrictions.hasAnn())
                 {
-                    var vectorColumn = nonPrimaryKeyRestrictions.getColumnDefs().stream().filter(c -> c.type.isVector()).findFirst();
-                    if (vectorColumn.isPresent())
-                    {
-                        var vc = vectorColumn.get();
-                        var hasIndex = indexRegistry.listIndexes().stream().anyMatch(i -> i.dependsOn(vc));
-                        if (hasIndex)
-                            throw invalidRequest(StatementRestrictions.VECTOR_INDEXES_ANN_ONLY_MESSAGE);
-                        else
-                            throw invalidRequest(StatementRestrictions.ANN_REQUIRES_INDEX_MESSAGE);
-                    }
+                    var annVectorColumn = Streams.stream(nonPrimaryKeyRestrictions)
+                                                 .filter(SingleRestriction::isANN)
+                                                 .map(Restriction::getFirstColumn)
+                                                 .filter(c -> (c.type.isVector() && ((VectorType<?>) c.type).elementType instanceof FloatType))
+                                                 .findFirst();
+                    if (annVectorColumn.isEmpty())
+                        throw invalidRequest(StatementRestrictions.ANN_ONLY_SUPPORTED_ON_VECTOR_MESSAGE);
+                    if (indexRegistry == null || indexRegistry.listIndexes().stream().noneMatch(i -> i.dependsOn(annVectorColumn.get())))
+                        throw invalidRequest(StatementRestrictions.ANN_REQUIRES_INDEX_MESSAGE);
                 }
+
+                var vectorColumn = nonPrimaryKeyRestrictions.getColumnDefs()
+                                                            .stream()
+                                                            .filter(c -> (c.type.isVector() && ((VectorType<?>) c.type).elementType instanceof FloatType))
+                                                            .findFirst();
+                if (vectorColumn.isPresent() && indexRegistry != null &&
+                    indexRegistry.listIndexes().stream().anyMatch(i -> i.dependsOn(vectorColumn.get())))
+                    throw invalidRequest(StatementRestrictions.VECTOR_INDEXES_ANN_ONLY_MESSAGE);
 
                 if (!allowFiltering && requiresAllowFilteringIfNotSpecified())
                     throw invalidRequest(allowFilteringMessage(state));
@@ -481,6 +493,10 @@ public final class StatementRestrictions
         return false;
     }
 
+    public boolean isTopK()
+    {
+        return nonPrimaryKeyRestrictions.hasAnn();
+    }
     /**
      * Returns the <code>Restrictions</code> for the specified type of columns.
      *

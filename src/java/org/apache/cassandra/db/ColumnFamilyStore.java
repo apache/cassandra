@@ -1460,15 +1460,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         }
         catch (RuntimeException e)
         {
+            String message = e.getMessage() + " for ks: " + keyspace.getName() + ", table: " + name;
+
             if (e instanceof InvalidRequestException)
-            {
-                throw new InvalidRequestException(e.getMessage()
-                                                  + " for ks: "
-                                                  + keyspace.getName() + ", table: " + name, e);
-            }
-            throw new RuntimeException(e.getMessage()
-                                       + " for ks: "
-                                       + getKeyspaceName() + ", table: " + name, e);
+                throw new InvalidRequestException(message, e);
+
+            throw new RuntimeException(message, e);
         }
     }
     

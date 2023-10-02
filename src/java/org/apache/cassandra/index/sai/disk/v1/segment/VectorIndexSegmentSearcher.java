@@ -36,6 +36,7 @@ import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
+import org.apache.cassandra.index.sai.VectorQueryContext;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.v1.PerColumnIndexFiles;
 import org.apache.cassandra.index.sai.disk.v1.postings.ReorderingPostingList;
@@ -49,7 +50,7 @@ import org.apache.cassandra.index.sai.utils.RangeUtil;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 
 /**
- * Executes ann search against the HNSW graph for an individual index segment.
+ * Executes ANN search against a vector graph for an individual index segment.
  */
 public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
 {
@@ -57,9 +58,10 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
 
     private final CassandraDiskAnn graph;
     private final VectorType<float[]> type;
-    private int maxBruteForceRows; // not final so test can inject its own setting
+    private final int maxBruteForceRows;
     private final ThreadLocal<SparseFixedBitSet> cachedBitSets;
 
+    @SuppressWarnings("unchecked")
     VectorIndexSegmentSearcher(PrimaryKeyMap.Factory primaryKeyMapFactory,
                                PerColumnIndexFiles perIndexFiles,
                                SegmentMetadata segmentMetadata,
@@ -84,10 +86,10 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
     @Override
     public PostingList search(Expression exp, AbstractBounds<PartitionPosition> keyRange, QueryContext context) throws IOException
     {
-        return toRangePostingList(searchPosting(context, exp, keyRange), context);
+        return toRangePostingList(searchPosting(context.vectorContext(), exp, keyRange), context);
     }
 
-    private PostingList searchPosting(QueryContext context, Expression exp, AbstractBounds<PartitionPosition> keyRange) throws IOException
+    private PostingList searchPosting(VectorQueryContext context, Expression exp, AbstractBounds<PartitionPosition> keyRange) throws IOException
     {
         if (logger.isTraceEnabled())
             logger.trace(indexContext.logMessage("Searching on expression '{}'..."), exp);
@@ -101,13 +103,13 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
 
         ByteBuffer buffer = exp.lower.value.raw;
         float[] queryVector = TypeUtil.decomposeVector(indexContext, buffer.duplicate());
-        return graph.search(queryVector, context.limit(), bitsOrPostingList.getBits(), context);
+        return graph.search(queryVector, context.limit(), bitsOrPostingList.getBits());
     }
 
     /**
-     * Return bit set if needs to search HNSW; otherwise return posting list to bypass HNSW
+     * Return bit set we need to search the graph; otherwise return posting list to bypass the graph
      */
-    private BitsOrPostingList bitsOrPostingListForKeyRange(QueryContext context, AbstractBounds<PartitionPosition> keyRange) throws IOException
+    private BitsOrPostingList bitsOrPostingListForKeyRange(VectorQueryContext context, AbstractBounds<PartitionPosition> keyRange) throws IOException
     {
         // create a bitset of ordinals corresponding to the rows in the given key range
         SparseFixedBitSet bits = bitSetForSearch();
@@ -117,20 +119,18 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
         {
             // not restricted
             if (RangeUtil.coversFullRing(keyRange))
-                return new BitsOrPostingList(context.vectorContext().bitsetForShadowedPrimaryKeys(metadata, primaryKeyMap, graph));
+                return new BitsOrPostingList(context.bitsetForShadowedPrimaryKeys(metadata, primaryKeyMap, graph));
 
             // it will return the next row id if given key is not found.
             long minSSTableRowId = primaryKeyMap.firstRowIdForRange(keyRange);
-            logger.info("minSSTableRowId = " + minSSTableRowId + ", firstToken = " + keyRange.left.getToken().getLongValue());
             long maxSSTableRowId = primaryKeyMap.lastRowIdForRange(keyRange);
-            logger.info("maxSSTableRowId = " + maxSSTableRowId + ", lastToken = " + keyRange.right.getToken().getLongValue());
 
             if (minSSTableRowId > maxSSTableRowId)
                 return new BitsOrPostingList(PostingList.EMPTY);
 
             // if it covers entire segment, skip bit set
             if (minSSTableRowId <= metadata.minSSTableRowId && maxSSTableRowId >= metadata.maxSSTableRowId)
-                return new BitsOrPostingList(context.vectorContext().bitsetForShadowedPrimaryKeys(metadata, primaryKeyMap, graph));
+                return new BitsOrPostingList(context.bitsetForShadowedPrimaryKeys(metadata, primaryKeyMap, graph));
 
             minSSTableRowId = Math.max(minSSTableRowId, metadata.minSSTableRowId);
             maxSSTableRowId = Math.min(maxSSTableRowId, metadata.maxSSTableRowId);
@@ -142,7 +142,7 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
                 IntArrayList postings = new IntArrayList(Math.toIntExact(nRows), -1);
                 for (long sstableRowId = minSSTableRowId; sstableRowId <= maxSSTableRowId; sstableRowId++)
                 {
-                    if (context.vectorContext().shouldInclude(sstableRowId, primaryKeyMap))
+                    if (context.shouldInclude(sstableRowId, primaryKeyMap))
                         postings.addInt(Math.toIntExact(sstableRowId - metadata.rowIdOffset));
                 }
                 return new BitsOrPostingList(new IntArrayPostingList(postings.toIntArray()));
@@ -152,7 +152,7 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
             {
                 for (long sstableRowId = minSSTableRowId; sstableRowId <= maxSSTableRowId; sstableRowId++)
                 {
-                    if (context.vectorContext().shouldInclude(sstableRowId, primaryKeyMap))
+                    if (context.shouldInclude(sstableRowId, primaryKeyMap))
                     {
                         int segmentRowId = Math.toIntExact(sstableRowId - metadata.rowIdOffset);
                         int ordinal = ordinalsView.getOrdinalForRowId(segmentRowId);
@@ -184,13 +184,13 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
     }
 
     @Override
-    public KeyRangeIterator limitToTopResults(QueryContext context, PeekablePostingList postingList, Expression exp) throws IOException
+    public KeyRangeIterator limitToTopKResults(QueryContext context, PeekablePostingList postingList, Expression exp) throws IOException
     {
         // the iterator represents keys from all the segments in our sstable -- we'll only pull of those that
-        // are from our own token range so we can use row ids to order the results by vector similarity.
+        // are from our own token range, so we can use row ids to order the results by vector similarity.
         var maxSegmentRowId = Math.toIntExact(metadata.maxSSTableRowId - metadata.rowIdOffset);
         SparseFixedBitSet bits = bitSetForSearch();
-        int[] bruteForceRows = new int[Math.max(context.limit(), this.maxBruteForceRows)];
+        int[] bruteForceRows = new int[Math.max(context.vectorContext().limit(), this.maxBruteForceRows)];
         int n = 0;
         try (var ordinalsView = graph.getOrdinalsView(); PrimaryKeyMap primaryKeyMap = primaryKeyMapFactory.newPerSSTablePrimaryKeyMap())
         {
@@ -232,7 +232,7 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
         // else ask hnsw to perform a search limited to the bits we created
         ByteBuffer buffer = exp.lower.value.raw;
         float[] queryVector = type.getSerializer().deserializeFloatArray(buffer);
-        var results = graph.search(queryVector, context.limit(), bits, context);
+        var results = graph.search(queryVector, context.vectorContext().limit(), bits);
         return toPrimaryKeyIterator(results, context);
     }
 

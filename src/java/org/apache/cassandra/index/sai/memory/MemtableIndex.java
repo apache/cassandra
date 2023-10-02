@@ -86,9 +86,9 @@ public class MemtableIndex implements MemtableOrdering
         return ram;
     }
 
-    public void update(DecoratedKey key, Clustering<?> clustering, ByteBuffer oldValue, ByteBuffer newValue)
+    public long update(DecoratedKey key, Clustering<?> clustering, ByteBuffer oldValue, ByteBuffer newValue)
     {
-        index.update(key, clustering, oldValue, newValue);
+        return index.update(key, clustering, oldValue, newValue);
     }
 
     public KeyRangeIterator search(QueryContext queryContext, Expression expression, AbstractBounds<PartitionPosition> keyRange)

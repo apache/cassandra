@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.index.sai.disk.v1.vector;
 
-import org.apache.lucene.util.RamUsageEstimator;
 import org.jctools.maps.NonBlockingHashMapLong;
 
 public class ConcurrentVectorValues implements RamAwareVectorValues
@@ -61,14 +60,6 @@ public class ConcurrentVectorValues implements RamAwareVectorValues
     {
         // no actual copy required because we always return distinct float[] for distinct vector ordinals
         return this;
-    }
-
-    public long ramBytesUsed()
-    {
-        long REF_BYTES = RamUsageEstimator.NUM_BYTES_OBJECT_REF;
-        return 2 * REF_BYTES
-               + RamEstimation.concurrentHashMapRamUsed(values.size())
-               + values.size() * oneVectorBytesUsed();
     }
 
     private long oneVectorBytesUsed()

@@ -262,6 +262,18 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
         return null;
     }
 
+    @Override
+    public Index findSupportingIndexFromQueryPlan(Index.QueryPlan indexQueryPlan)
+    {
+        for (SingleRestriction restriction : restrictions.values())
+        {
+            Index index = restriction.findSupportingIndexFromQueryPlan(indexQueryPlan);
+            if (index != null)
+                return index;
+        }
+        return null;
+    }
+
     /**
      * Returns the column after the specified one.
      *

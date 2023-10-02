@@ -417,6 +417,7 @@ public class VectorDistributedTest extends TestBaseImpl
         return IntStream.range(0, vectorCount).mapToObj(s -> randomVector()).collect(Collectors.toList());
     }
 
+    @SuppressWarnings("unchecked")
     private List<float[]> getVectors(Object[][] result)
     {
         List<float[]> vectors = new ArrayList<>();

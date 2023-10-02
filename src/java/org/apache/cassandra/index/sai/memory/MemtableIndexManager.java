@@ -92,21 +92,20 @@ public class MemtableIndexManager
         return bytes;
     }
 
-    public void update(DecoratedKey key, Row oldRow, Row newRow, Memtable memtable)
+    public long update(DecoratedKey key, Row oldRow, Row newRow, Memtable memtable)
     {
         if (!indexContext.isVector())
         {
-            index(key, newRow, memtable);
-            return;
+            return index(key, newRow, memtable);
         }
 
         MemtableIndex target = liveMemtableIndexMap.get(memtable);
         if (target == null)
-            return;
+            return 0;
 
         ByteBuffer oldValue = indexContext.getValueOf(key, oldRow, FBUtilities.nowInSeconds());
         ByteBuffer newValue = indexContext.getValueOf(key, newRow, FBUtilities.nowInSeconds());
-        target.update(key, oldRow.clustering(), oldValue, newValue);
+        return target.update(key, oldRow.clustering(), oldValue, newValue);
     }
 
     public void renewMemtable(Memtable renewed)

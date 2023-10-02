@@ -18,12 +18,19 @@
 
 package org.apache.cassandra.index.sai.cql;
 
+import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.exceptions.InvalidQueryException;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
+import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.sai.SAITester;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
+import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
+
 import org.junit.Test;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.Assert.assertEquals;
 
 public class VectorInvalidQueryTest extends SAITester
 {
@@ -37,7 +44,7 @@ public class VectorInvalidQueryTest extends SAITester
     }
 
     @Test
-    public void cannotQueryEmptyVectorColumn() throws Throwable
+    public void cannotQueryEmptyVectorColumn()
     {
         createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
         assertThatThrownBy(() -> execute("SELECT similarity_cosine((vector<float, 0>) [], []) FROM %s"))
@@ -56,7 +63,7 @@ public class VectorInvalidQueryTest extends SAITester
     }
 
     @Test
-    public void cannotQueryWrongNumberOfDimensions() throws Throwable
+    public void cannotQueryWrongNumberOfDimensions()
     {
         createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
@@ -116,26 +123,45 @@ public class VectorInvalidQueryTest extends SAITester
     }
 
     @Test
-    public void annOrderingMustHaveLimit() throws Throwable
-    {
-        createTable("CREATE TABLE %s (pk int, ck int, val vector<float, 3>, PRIMARY KEY(pk, ck))");
-        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
-
-        assertInvalidMessage("Use of ANN OF in an ORDER BY clause requires a LIMIT that is not greater than 1000. LIMIT was NO LIMIT",
-                             "SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5]");
-
-    }
-
-    @Test
     public void testInvalidColumnNameWithAnn() throws Throwable
     {
         String table = createTable(KEYSPACE, "CREATE TABLE %s (k int, c int, v int, primary key (k, c))");
-        assertInvalidMessage(String.format("Undefined column name bad_col in table %s", KEYSPACE + "." + table),
+        assertInvalidMessage(String.format("Undefined column name bad_col in table %s", KEYSPACE + '.' + table),
                              "SELECT k from %s ORDER BY bad_col ANN OF [1.0] LIMIT 1");
     }
 
     @Test
-    public void disallowZeroVectorsWithCosineSimilarity() throws Throwable
+    public void cannotPerformNonANNQueryOnVectorIndex() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, val vector<float, 3>, PRIMARY KEY(pk, ck))");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+
+        assertInvalidMessage(StatementRestrictions.VECTOR_INDEXES_ANN_ONLY_MESSAGE,
+                             "SELECT * FROM %s WHERE val = [1.0, 2.0, 3.0]");
+    }
+
+    @Test
+    public void cannotOrderWithAnnOnNonVectorColumn() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int, v int, primary key(k))");
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex'");
+
+        assertInvalidMessage(StatementRestrictions.ANN_ONLY_SUPPORTED_ON_VECTOR_MESSAGE,
+                             "SELECT * FROM %s ORDER BY v ANN OF 1 LIMIT 1");
+    }
+
+    @Test
+    public void cannotOrderWithAnnNonFloatVectorColumn() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int, v vector<int, 3>, primary key(k))");
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex'");
+
+        assertInvalidMessage(StatementRestrictions.ANN_ONLY_SUPPORTED_ON_VECTOR_MESSAGE,
+                             "SELECT * FROM %s ORDER BY v ANN OF [1, 2, 3] LIMIT 1");
+    }
+
+    @Test
+    public void disallowZeroVectorsWithCosineSimilarity()
     {
         createTable(KEYSPACE, "CREATE TABLE %s (pk int primary key, value vector<float, 2>)");
         createIndex("CREATE CUSTOM INDEX ON %s(value) USING 'StorageAttachedIndex' WITH OPTIONS = {'similarity_function' : 'cosine'}");
@@ -146,5 +172,73 @@ public class VectorInvalidQueryTest extends SAITester
         assertThatThrownBy(() -> execute("INSERT INTO %s (pk, value) VALUES (0, ?)", vector(1.0f, Float.POSITIVE_INFINITY))).isInstanceOf(InvalidRequestException.class);
         assertThatThrownBy(() -> execute("INSERT INTO %s (pk, value) VALUES (0, ?)", vector(Float.NEGATIVE_INFINITY, 1.0f))).isInstanceOf(InvalidRequestException.class);
         assertThatThrownBy(() -> execute("SELECT * FROM %s ORDER BY value ann of [0.0, 0.0] LIMIT 2")).isInstanceOf(InvalidRequestException.class);
+    }
+
+    @Test
+    public void cannotUseAggregationWithAnnOrdering()
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v vector<float, 1>, c int)");
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex'");
+
+        assertThatThrownBy(() -> executeNet("SELECT sum(c) FROM %s WHERE k = 1 ORDER BY v ANN OF [0] LIMIT 4"))
+        .isInstanceOf(InvalidQueryException.class).hasMessage(SelectStatement.TOPK_AGGREGATION_ERROR);
+    }
+
+    @Test
+    public void mustHaveLimitSpecifiedAndWithinMaxAllowed()
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v vector<float, 1>)");
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex'");
+
+        assertThatThrownBy(() -> executeNet("SELECT * FROM %s WHERE k = 1 ORDER BY v ANN OF [0]"))
+        .isInstanceOf(InvalidQueryException.class).hasMessage(SelectStatement.TOPK_LIMIT_ERROR);
+
+        assertThatThrownBy(() -> executeNet("SELECT * FROM %s WHERE k = 1 ORDER BY v ANN OF [0] LIMIT 1001"))
+        .isInstanceOf(InvalidQueryException.class).hasMessage(String.format(StorageAttachedIndex.ANN_LIMIT_ERROR, IndexWriterConfig.MAX_TOP_K, 1001));
+    }
+
+    @Test
+    public void mustHaveLimitWithinPageSize()
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v vector<float, 3>)");
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex'");
+
+        execute("INSERT INTO %s (k, v) VALUES (1, [1.0, 2.0, 3.0])");
+        execute("INSERT INTO %s (k, v) VALUES (2, [2.0, 3.0, 4.0])");
+        execute("INSERT INTO %s (k, v) VALUES (3, [3.0, 4.0, 5.0])");
+
+        assertThatThrownBy(() -> executeNetWithPaging("SELECT * FROM %s WHERE k = 1 ORDER BY v ANN OF [2.0, 3.0, 4.0] LIMIT 10", 9))
+        .isInstanceOf(InvalidQueryException.class).hasMessageContaining(SelectStatement.TOPK_LIMIT_ERROR);
+
+        ResultSet resultSet = executeNetWithPaging("SELECT * FROM %s WHERE k = 1 ORDER BY v ANN OF [2.0, 3.0, 4.0] LIMIT 10", 11);
+
+        assertEquals(1, resultSet.all().size());
+    }
+
+    @Test
+    public void cannotHaveAggregationOnANNQuery()
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v vector<float, 1>, c int)");
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex'");
+
+        execute("INSERT INTO %s (k, v, c) VALUES (1, [4], 1)");
+        execute("INSERT INTO %s (k, v, c) VALUES (2, [3], 10)");
+        execute("INSERT INTO %s (k, v, c) VALUES (3, [2], 100)");
+        execute("INSERT INTO %s (k, v, c) VALUES (4, [1], 1000)");
+
+        assertThatThrownBy(() -> executeNet("SELECT sum(c) FROM %s WHERE k = 1 ORDER BY v ANN OF [0] LIMIT 4"))
+        .isInstanceOf(InvalidQueryException.class).hasMessage(SelectStatement.TOPK_AGGREGATION_ERROR);
+    }
+
+    @Test
+    public void multipleVectorColumnsInQueryFailCorrectlyTest() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v1 vector<float, 1>, v2 vector<float, 1>)");
+        createIndex("CREATE CUSTOM INDEX ON %s(v1) USING 'StorageAttachedIndex'");
+
+        execute("INSERT INTO %s (k, v1, v2) VALUES (1, [1], [2])");
+
+        assertInvalidMessage(StatementRestrictions.ANN_REQUIRES_INDEX_MESSAGE,
+                             "SELECT * FROM %s WHERE v1 = [1] ORDER BY v2 ANN OF [2] ALLOW FILTERING");
     }
 }

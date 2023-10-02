@@ -23,6 +23,4 @@ import io.github.jbellis.jvector.graph.RandomAccessVectorValues;
 public interface RamAwareVectorValues extends RandomAccessVectorValues<float[]>
 {
     float[] vectorValue(int i);
-
-    long ramBytesUsed();
 }

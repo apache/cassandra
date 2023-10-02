@@ -27,7 +27,6 @@ import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
@@ -94,7 +93,6 @@ public class WidePrimaryKeyMap extends SkinnyPrimaryKeyMap
                                          partitionIdToToken,
                                          partitionKeyReader.openCursor(),
                                          clusteringKeyReader.openCursor(),
-                                         partitioner,
                                          primaryKeyFactory,
                                          clusteringComparator);
         }
@@ -114,11 +112,10 @@ public class WidePrimaryKeyMap extends SkinnyPrimaryKeyMap
                               LongArray partitionArray,
                               KeyLookup.Cursor partitionKeyCursor,
                               KeyLookup.Cursor clusteringKeyCursor,
-                              IPartitioner partitioner,
                               PrimaryKey.Factory primaryKeyFactory,
                               ClusteringComparator clusteringComparator)
     {
-        super(tokenArray, partitionArray, partitionKeyCursor, partitioner, primaryKeyFactory);
+        super(tokenArray, partitionArray, partitionKeyCursor, primaryKeyFactory);
 
         this.clusteringComparator = clusteringComparator;
         this.clusteringKeyCursor = clusteringKeyCursor;

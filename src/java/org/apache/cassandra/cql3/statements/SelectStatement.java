@@ -112,7 +112,9 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(SelectStatement.logger, 1, TimeUnit.MINUTES);
 
     public static final int DEFAULT_PAGE_SIZE = 10000;
-    public static final String TOPK_CONSISTENCY_LEVEL_ERROR = "Top K queries can only be run with consistency level one";
+    public static final String TOPK_CONSISTENCY_LEVEL_ERROR = "Top-k queries can only be run with consistency level one. Consistency level %s was used.";
+    public static final String TOPK_LIMIT_ERROR = "Top-k queries must have a limit specified and the limit must be less than the query page size";
+    public static final String TOPK_AGGREGATION_ERROR = "Top-k queries can not be run with aggregation";
 
     public final VariableSpecifications bindVariables;
     public final TableMetadata table;
@@ -285,10 +287,21 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 
         Selectors selectors = selection.newSelectors(options);
         AggregationSpecification aggregationSpec = getAggregationSpec(options);
-        ReadQuery query = getQuery(options, state.getClientState(), selectors.getColumnFilter(),
-                                   nowInSec, userLimit, userPerPartitionLimit, pageSize, aggregationSpec);
+        DataLimits limit = getDataLimits(userLimit, userPerPartitionLimit, pageSize, aggregationSpec);
 
-        checkFalse(query.isTopK() && options.getConsistency() != ConsistencyLevel.ONE, TOPK_CONSISTENCY_LEVEL_ERROR);
+        // Handle additional validation for topK queries
+        if (restrictions.isTopK())
+        {
+            checkFalse(aggregationSpec != null, TOPK_AGGREGATION_ERROR);
+
+            checkFalse(options.getConsistency() != ConsistencyLevel.ONE &&
+                       options.getConsistency() != ConsistencyLevel.LOCAL_ONE,
+                       String.format(TOPK_CONSISTENCY_LEVEL_ERROR, options.getConsistency()));
+
+            checkFalse(limit.isUnlimited() || (pageSize > 0 && limit.count() > pageSize), TOPK_LIMIT_ERROR);
+        }
+
+        ReadQuery query = getQuery(options, state.getClientState(), selectors.getColumnFilter(), nowInSec, limit);
 
         if (options.isReadThresholdsEnabled())
             query.trackWarnings();
@@ -347,9 +360,18 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                               int pageSize,
                               AggregationSpecification aggregationSpec)
     {
-        boolean isPartitionRangeQuery = restrictions.isKeyRange() || restrictions.usesSecondaryIndexing();
-
         DataLimits limit = getDataLimits(userLimit, perPartitionLimit, pageSize, aggregationSpec);
+
+        return getQuery(options, state, columnFilter, nowInSec, limit);
+    }
+
+    public ReadQuery getQuery(QueryOptions options,
+                              ClientState state,
+                              ColumnFilter columnFilter,
+                              long nowInSec,
+                              DataLimits limit)
+    {
+        boolean isPartitionRangeQuery = restrictions.isKeyRange() || restrictions.usesSecondaryIndexing();
 
         if (isPartitionRangeQuery)
             return getRangeCommand(options, state, columnFilter, limit, nowInSec);
@@ -828,7 +850,9 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         // If we do post ordering we need to get all the results sorted before we can trim them.
         if (aggregationSpec != AggregationSpecification.AGGREGATE_EVERYTHING)
         {
-            if (!needsToSkipUserLimit())
+            // If we aren't need post-query ordering but we are doing index ordering (currently ANN only) then
+            // we do need to use the user limit.
+            if (!needsPostQueryOrdering() || needIndexOrdering())
                 cqlRowLimit = userLimit;
             cqlPerPartitionLimit = perPartitionLimit;
         }
@@ -1084,12 +1108,6 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         }
     }
 
-    private boolean needsToSkipUserLimit()
-    {
-        // if post query ordering is required, and it's not ANN
-        return needsPostQueryOrdering() && !needIndexOrdering();
-    }
-
     private boolean needsPostQueryOrdering()
     {
         // We need post-query ordering only for queries with IN on the partition key and an ORDER BY or index restriction reordering
@@ -1109,7 +1127,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         if (cqlRows.size() == 0 || !needsPostQueryOrdering())
             return;
 
-        Comparator<List<ByteBuffer>> comparator = orderingComparator.prepareFor(table, options);
+        Comparator<List<ByteBuffer>> comparator = orderingComparator.prepareFor(table, getRowFilter(options), options);
         if (comparator != null)
             Collections.sort(cqlRows.rows, comparator);
     }
@@ -1471,7 +1489,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                 if (e.getValue().expression.hasNonClusteredOrdering())
                 {
                     Preconditions.checkState(orderingColumns.size() == 1);
-                    return new IndexColumnComparator<>(e.getValue().expression.toRestriction(), selection.getOrderingIndex(e.getKey()));
+                    return new IndexColumnComparator(e.getValue().expression.toRestriction(), selection.getOrderingIndex(e.getKey()));
                 }
             }
 
@@ -1617,7 +1635,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         /**
          * Produces a prepared {@link ColumnComparator} for current table and query-options
          */
-        public Comparator<T> prepareFor(TableMetadata table, QueryOptions options)
+        public Comparator<T> prepareFor(TableMetadata table, RowFilter rowFilter, QueryOptions options)
         {
             return this;
         }
@@ -1659,12 +1677,11 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         }
     }
 
-    private static class IndexColumnComparator<T> extends ColumnComparator<List<ByteBuffer>>
+    private static class IndexColumnComparator extends ColumnComparator<List<ByteBuffer>>
     {
         private final SingleRestriction restriction;
         private final int columnIndex;
 
-        // VSTODO maybe cache in prepared statement
         public IndexColumnComparator(SingleRestriction restriction, int columnIndex)
         {
             this.restriction = restriction;
@@ -1678,11 +1695,17 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         }
 
         @Override
-        public Comparator<List<ByteBuffer>> prepareFor(TableMetadata table, QueryOptions options)
+        public Comparator<List<ByteBuffer>> prepareFor(TableMetadata table, RowFilter rowFilter, QueryOptions options)
         {
-            Index index = restriction.findSupportingIndex(IndexRegistry.obtain(table));
+            if (table.indexes.isEmpty() || rowFilter.isEmpty())
+                return this;
+
+            Index.QueryPlan indexQueryPlan = Keyspace.openAndGetStore(table).indexManager.getBestIndexQueryPlanFor(rowFilter);
+
+            Index index = restriction.findSupportingIndexFromQueryPlan(indexQueryPlan);
             assert index != null;
-            return index.getPostQueryOrdering(restriction, columnIndex, options);
+            Comparator<ByteBuffer> comparator = index.getPostQueryOrdering(restriction, options);
+            return (a, b) -> compare(comparator, a.get(columnIndex), b.get(columnIndex));
         }
 
         @Override

@@ -40,8 +40,10 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UUIDType;
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.dht.IPartitioner;
@@ -371,7 +373,7 @@ public class IndexContext
 
     public boolean isVector()
     {
-        return getValidator().isVector();
+        return getValidator().isVector() && ((VectorType<?>)getValidator()).elementType instanceof FloatType;
     }
 
     @Override

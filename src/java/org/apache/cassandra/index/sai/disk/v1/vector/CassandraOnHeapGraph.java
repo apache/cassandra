@@ -56,7 +56,6 @@ import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.lucene.util.StringHelper;
 
 public class CassandraOnHeapGraph<T>
@@ -65,7 +64,7 @@ public class CassandraOnHeapGraph<T>
 
     private final RamAwareVectorValues vectorValues;
     private final GraphIndexBuilder<float[]> builder;
-    private final VectorType.VectorSerializer serializer;
+    private final VectorType<?>.VectorSerializer serializer;
     private final VectorSimilarityFunction similarityFunction;
     private final Map<float[], VectorPostings<T>> postingsMap;
     private final NonBlockingHashMapLong<VectorPostings<T>> postingsByOrdinal;
@@ -85,19 +84,20 @@ public class CassandraOnHeapGraph<T>
 
     /**
      * @param termComparator the vector type
-     * @param indexWriterConfig
+     * @param indexWriterConfig the {@link IndexWriterConfig} for the graph
      * @param concurrent should be true for memtables, false for compaction.  Concurrent allows us to search
      *                   while building the graph; non-concurrent allows us to avoid synchronization costs.
      */
+    @SuppressWarnings("unchecked")
     public CassandraOnHeapGraph(AbstractType<?> termComparator, IndexWriterConfig indexWriterConfig, boolean concurrent)
     {
-        serializer = (VectorType.VectorSerializer)termComparator.getSerializer();
+        serializer = (VectorType<?>.VectorSerializer)termComparator.getSerializer();
         vectorValues = concurrent
-                       ? new ConcurrentVectorValues(((VectorType) termComparator).dimension)
+                       ? new ConcurrentVectorValues(((VectorType<?>) termComparator).dimension)
                        : new CompactionVectorValues(((VectorType<Float>) termComparator));
         similarityFunction = indexWriterConfig.getSimilarityFunction();
         // We need to be able to inexpensively distinguish different vectors, with a slower path
-        // that identifies vectors that are equal but not the same reference.  A comparison-
+        // that identifies vectors that are equal but not the same reference.  A comparison
         // based Map (which only needs to look at vector elements until a difference is found)
         // is thus a better option than hash-based (which has to look at all elements to compute the hash).
         postingsMap = new ConcurrentSkipListMap<>(Arrays::compare);
@@ -138,7 +138,7 @@ public class CassandraOnHeapGraph<T>
             }
             catch (InvalidRequestException e)
             {
-                logger.trace("Ignoring invalid vector during index build against existing data: {}", e);
+                logger.trace("Ignoring invalid vector during index build against existing data: {}", vector, e);
                 return 0;
             }
         }
@@ -182,17 +182,21 @@ public class CassandraOnHeapGraph<T>
 
     // copied out of a Lucene PR -- hopefully committed soon
     public static final float MAX_FLOAT32_COMPONENT = 1E17f;
-    public static float[] checkInBounds(float[] v) {
-        for (int i = 0; i < v.length; i++) {
-            if (!Float.isFinite(v[i])) {
+
+    public static void checkInBounds(float[] v)
+    {
+        for (int i = 0; i < v.length; i++)
+        {
+            if (!Float.isFinite(v[i]))
+            {
                 throw new IllegalArgumentException("non-finite value at vector[" + i + "]=" + v[i]);
             }
 
-            if (Math.abs(v[i]) > MAX_FLOAT32_COMPONENT) {
+            if (Math.abs(v[i]) > MAX_FLOAT32_COMPONENT)
+            {
                 throw new IllegalArgumentException("Out-of-bounds value at vector[" + i + "]=" + v[i]);
             }
         }
-        return v;
     }
 
     public static void validateIndexable(float[] vector, VectorSimilarityFunction similarityFunction)
@@ -222,7 +226,7 @@ public class CassandraOnHeapGraph<T>
         return postingsByOrdinal.get(node).getPostings();
     }
 
-    public void remove(ByteBuffer term, T key)
+    public long remove(ByteBuffer term, T key)
     {
         assert term != null && term.remaining() != 0;
 
@@ -233,17 +237,17 @@ public class CassandraOnHeapGraph<T>
             // it's possible for this to be called against a different memtable than the one
             // the value was originally added to, in which case we do not expect to find
             // the key among the postings for this vector
-            return;
+            return 0;
         }
 
         hasDeletions = true;
-        postings.remove(key);
+        return postings.remove(key);
     }
 
     /**
      * @return keys (PrimaryKey or segment row id) associated with the topK vectors near the query
      */
-    public PriorityQueue<T> search(float[] queryVector, int limit, Bits toAccept, int visitedLimit)
+    public PriorityQueue<T> search(float[] queryVector, int limit, Bits toAccept)
     {
         validateIndexable(queryVector, similarityFunction);
 
@@ -279,7 +283,7 @@ public class CassandraOnHeapGraph<T>
                                                                                   postingsMap.keySet().size(), vectorValues.size());
         logger.debug("Writing graph with {} rows and {} distinct vectors", postingsMap.values().stream().mapToInt(VectorPostings::size).sum(), vectorValues.size());
 
-        try (var pqOutput = IndexFileUtils.instance.openOutput(indexDescriptor.fileFor(IndexComponent.PQ, indexContext), true);
+        try (var pqOutput = IndexFileUtils.instance.openOutput(indexDescriptor.fileFor(IndexComponent.VECTORS, indexContext), true);
              var postingsOutput = IndexFileUtils.instance.openOutput(indexDescriptor.fileFor(IndexComponent.POSTING_LISTS, indexContext), true);
              var indexOutput = IndexFileUtils.instance.openOutput(indexDescriptor.fileFor(IndexComponent.TERMS_DATA, indexContext), true))
         {
@@ -313,11 +317,12 @@ public class CassandraOnHeapGraph<T>
             metadataMap.put(IndexComponent.TERMS_DATA, -1, termsOffset, termsLength, Map.of());
             metadataMap.put(IndexComponent.POSTING_LISTS, -1, postingsOffset, postingsLength, Map.of());
             Map<String, String> vectorConfigs = Map.of("SEGMENT_ID", ByteBufferUtil.bytesToHex(ByteBuffer.wrap(StringHelper.randomId())));
-            metadataMap.put(IndexComponent.PQ, -1, pqOffset, pqLength, vectorConfigs);
+            metadataMap.put(IndexComponent.VECTORS, -1, pqOffset, pqLength, vectorConfigs);
             return metadataMap;
         }
     }
 
+    @SuppressWarnings("SynchronizationOnLocalVariableOrMethodParameter")
     private long writePQ(SequentialWriter writer) throws IOException
     {
         // don't bother with PQ if there are fewer than 1K vectors
@@ -345,21 +350,6 @@ public class CassandraOnHeapGraph<T>
             cv.write(writer);
             return writer.position();
         }
-    }
-
-    public long ramBytesUsed()
-    {
-        return postingsBytesUsed() + vectorValues.ramBytesUsed() + builder.getGraph().ramBytesUsed();
-    }
-
-    private long postingsBytesUsed()
-    {
-        return postingsMap.values().stream().mapToLong(VectorPostings::ramBytesUsed).sum();
-    }
-
-    private long exactRamBytesUsed()
-    {
-        return ObjectSizes.measureDeep(this);
     }
 
     public enum InvalidVectorBehavior

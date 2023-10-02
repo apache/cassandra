@@ -88,14 +88,6 @@ public class CompactionVectorValues implements RamAwareVectorValues
         return writer.position();
     }
 
-    public long ramBytesUsed()
-    {
-        long REF_BYTES = RamUsageEstimator.NUM_BYTES_OBJECT_REF;
-        return 2 * REF_BYTES
-               + RamEstimation.concurrentHashMapRamUsed(values.size())
-               + values.size() * oneVectorBytesUsed();
-    }
-
     private long oneVectorBytesUsed()
     {
         return RamUsageEstimator.NUM_BYTES_OBJECT_REF;

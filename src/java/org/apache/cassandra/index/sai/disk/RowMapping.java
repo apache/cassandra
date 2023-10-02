@@ -180,6 +180,13 @@ public class RowMapping
         count++;
     }
 
+    /**
+     * Returns the SSTable row Id for a {@link PrimaryKey}
+     *
+     * @param key the {@link PrimaryKey}
+     * @return a valid SSTable row Id for the {@link PrimaryKey} or -1 if the {@link PrimaryKey} doesn't exist
+     * in the {@link RowMapping}
+     */
     public int get(PrimaryKey key)
     {
         Long sstableRowId = rowMapping.get(key);

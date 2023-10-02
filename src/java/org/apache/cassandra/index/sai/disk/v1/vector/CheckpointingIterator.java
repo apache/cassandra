@@ -27,6 +27,10 @@ import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.util.FileUtils;
 
+/**
+ * A {@link KeyRangeIterator}, used when returning results from a vector search, that checks for query timeouts
+ * during the iteration process.
+ */
 public class CheckpointingIterator extends KeyRangeIterator
 {
     private static final Logger logger = LoggerFactory.getLogger(CheckpointingIterator.class);
@@ -35,7 +39,10 @@ public class CheckpointingIterator extends KeyRangeIterator
     private final KeyRangeIterator union;
     private final Iterable<SSTableIndex> referencedIndexes;
 
-    public CheckpointingIterator(KeyRangeIterator wrapped, Iterable<SSTableIndex> referencedIndexes, Iterable<SSTableIndex> referencedAnnIndexesInHybridSearch, QueryContext queryContext)
+    public CheckpointingIterator(KeyRangeIterator wrapped,
+                                 Iterable<SSTableIndex> referencedIndexes,
+                                 Iterable<SSTableIndex> referencedAnnIndexesInHybridSearch,
+                                 QueryContext queryContext)
     {
         super(wrapped.getMinimum(), wrapped.getMaximum(), wrapped.getCount());
 
@@ -47,6 +54,7 @@ public class CheckpointingIterator extends KeyRangeIterator
         this.context = queryContext;
     }
 
+    @Override
     protected PrimaryKey computeNext()
     {
         try
@@ -59,6 +67,7 @@ public class CheckpointingIterator extends KeyRangeIterator
         }
     }
 
+    @Override
     protected void performSkipTo(PrimaryKey nextKey)
     {
         try
@@ -71,6 +80,7 @@ public class CheckpointingIterator extends KeyRangeIterator
         }
     }
 
+    @Override
     public void close()
     {
         FileUtils.closeQuietly(union);

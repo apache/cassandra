@@ -24,12 +24,10 @@ import java.util.List;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
-import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
-import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
@@ -51,8 +49,6 @@ public interface QueryController
     PrimaryKey firstPrimaryKeyInRange();
 
     PrimaryKey lastPrimaryKeyInRange();
-
-    AbstractBounds<PartitionPosition> mergeRange();
 
     IndexContext getContext(RowFilter.Expression expression);
 

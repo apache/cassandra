@@ -25,7 +25,6 @@ import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -461,11 +460,10 @@ public interface Index
      * Return a comparator that reorders query result before sending to client
      *
      * @param restriction restriction that requires current index
-     * @param columnIndex idx of the indexed column in returned row
      * @param options query options
-     * @return comparator that for post-query ordering; or null if not supported
+     * @return a comparator for post-query ordering; or null if not supported
      */
-    default Comparator<List<ByteBuffer>> getPostQueryOrdering(Restriction restriction, int columnIndex, QueryOptions options)
+    default Comparator<ByteBuffer> getPostQueryOrdering(Restriction restriction, QueryOptions options)
     {
         return null;
     }

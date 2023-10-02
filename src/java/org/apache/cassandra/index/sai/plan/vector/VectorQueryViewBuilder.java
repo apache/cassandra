@@ -144,9 +144,8 @@ public class VectorQueryViewBuilder
             if (expression.context.isNotIndexed())
                 continue;
 
-            // Finally, we select the sstable index corresponding to this expression and sstable
-            // if it has overlapping keys with the most select sstable index, and
-            // and has a term range that is satisfied by the expression.
+            // Finally, we select the sstable index corresponding to this expression and sstable if it has overlapping
+            // keys with the most select sstable index, and has a term range that is satisfied by the expression.
             View view = expression.context.getView();
             for (var index: view.match(expression))
             {

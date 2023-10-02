@@ -18,12 +18,15 @@
 
 package org.apache.cassandra.index.sai.disk.v1.postings;
 
-import java.io.IOException;
 import java.util.PrimitiveIterator;
 
 import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.lucene.util.LongHeap;
 
+/**
+ * A {@link PostingList} implementation that takes an unordered iterator of primitive {@code int} and returns
+ * ordered {@code long} postings.
+ */
 public class ReorderingPostingList implements PostingList
 {
     private final LongHeap segmentRowIds;
@@ -42,7 +45,7 @@ public class ReorderingPostingList implements PostingList
     }
 
     @Override
-    public long nextPosting() throws IOException
+    public long nextPosting()
     {
         if (segmentRowIds.size() == 0)
             return PostingList.END_OF_STREAM;
@@ -56,13 +59,14 @@ public class ReorderingPostingList implements PostingList
     }
 
     @Override
-    public long advance(long targetRowID) throws IOException
+    public long advance(long targetRowID)
     {
         long rowId;
         do
         {
             rowId = nextPosting();
-        } while (rowId < targetRowID);
+        }
+        while (rowId < targetRowID);
         return rowId;
     }
 }

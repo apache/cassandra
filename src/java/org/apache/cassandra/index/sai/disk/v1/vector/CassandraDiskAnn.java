@@ -24,7 +24,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -40,7 +39,6 @@ import io.github.jbellis.jvector.graph.SearchResult.NodeScore;
 import io.github.jbellis.jvector.util.Bits;
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 import org.apache.cassandra.index.sai.IndexContext;
-import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.v1.PerColumnIndexFiles;
 import org.apache.cassandra.index.sai.disk.v1.postings.ReorderingPostingList;
@@ -51,8 +49,6 @@ import org.apache.cassandra.io.util.RandomAccessReader;
 
 public class CassandraDiskAnn implements AutoCloseable
 {
-    private static final Logger logger = Logger.getLogger(CassandraDiskAnn.class.getName());
-
     private final OnDiskOrdinalsMap ordinalsMap;
     private final CachingGraphIndex graph;
     private final VectorSimilarityFunction similarityFunction;
@@ -68,8 +64,8 @@ public class CassandraDiskAnn implements AutoCloseable
         SegmentMetadata.ComponentMetadata termsMetadata = componentMetadatas.get(IndexComponent.TERMS_DATA);
         graph = new CachingGraphIndex(new OnDiskGraphIndex<>(new TermsReaderSupplier(indexFiles.termsData()), termsMetadata.offset));
 
-        long pqSegmentOffset = componentMetadatas.get(IndexComponent.PQ).offset;
-        try (var fileHandle = indexFiles.pq(); var reader = new RandomAccessReaderAdapter(fileHandle.createReader()))
+        long pqSegmentOffset = componentMetadatas.get(IndexComponent.VECTORS).offset;
+        try (var fileHandle = indexFiles.vectors(); var reader = new RandomAccessReaderAdapter(fileHandle.createReader()))
         {
             reader.seek(pqSegmentOffset);
             var containsCompressedVectors = reader.readBoolean();
@@ -109,7 +105,7 @@ public class CassandraDiskAnn implements AutoCloseable
      * @return Row IDs associated with the topK vectors near the query
      */
     // VSTODO make this return something with a size
-    public ReorderingPostingList search(float[] queryVector, int topK, Bits acceptBits, QueryContext context)
+    public ReorderingPostingList search(float[] queryVector, int topK, Bits acceptBits)
     {
         CassandraOnHeapGraph.validateIndexable(queryVector, similarityFunction);
 
@@ -213,7 +209,7 @@ public class CassandraDiskAnn implements AutoCloseable
         }
 
         @Override
-        public void close() throws IOException
+        public void close()
         {
             FileUtils.closeQuietly(fileHandle);
         }
@@ -239,7 +235,7 @@ public class CassandraDiskAnn implements AutoCloseable
         }
 
         @Override
-        public void seek(long offset) throws IOException
+        public void seek(long offset)
         {
             reader.seek(offset);
         }

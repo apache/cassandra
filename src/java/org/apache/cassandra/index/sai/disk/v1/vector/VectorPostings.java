@@ -34,8 +34,6 @@ public class VectorPostings<T>
 
     private volatile IntArrayList rowIds;
 
-    // VSTODO refactor this so we can add the first posting at construction time instead of having
-    // to append it separately (which will require a copy of the list)
     public VectorPostings(int ordinal)
     {
         this.ordinal = ordinal;
@@ -90,9 +88,11 @@ public class VectorPostings<T>
         return rowIds;
     }
 
-    public void remove(T key)
+    public long remove(T key)
     {
+        long bytesUsed = ramBytesUsed();
         postings.remove(key);
+        return bytesUsed - ramBytesUsed();
     }
 
     public long ramBytesUsed()
@@ -115,7 +115,7 @@ public class VectorPostings<T>
         long REF_BYTES = RamUsageEstimator.NUM_BYTES_OBJECT_REF;
         return REF_BYTES
                + 2 * Long.BYTES // hashes in PreHashedDecoratedKey
-               + REF_BYTES; // key ByteBuffer, this is used elsewhere so we don't take the deep size
+               + REF_BYTES; // key ByteBuffer, this is used elsewhere, so we don't take the deep size
     }
 
     public int size()

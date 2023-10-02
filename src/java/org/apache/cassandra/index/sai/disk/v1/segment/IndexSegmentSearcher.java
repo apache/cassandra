@@ -93,8 +93,6 @@ public abstract class IndexSegmentSearcher implements SegmentOrdering, Closeable
 
         IndexSegmentSearcherContext searcherContext = new IndexSegmentSearcherContext(metadata.minKey,
                                                                                       metadata.maxKey,
-                                                                                      metadata.minSSTableRowId,
-                                                                                      metadata.maxSSTableRowId,
                                                                                       metadata.rowIdOffset,
                                                                                       queryContext,
                                                                                       PeekablePostingList.makePeekable(postingList));

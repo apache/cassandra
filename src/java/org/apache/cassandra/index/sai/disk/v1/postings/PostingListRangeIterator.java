@@ -91,7 +91,9 @@ public class PostingListRangeIterator extends KeyRangeIterator
                                     PostingList postingList,
                                     QueryContext queryContext)
     {
-        super(primaryKeyMap.primaryKeyFromRowId(postingList.minimum()), primaryKeyMap.primaryKeyFromRowId(postingList.maximum()), postingList.size());
+        super(primaryKeyMap.primaryKeyFromRowId(postingList.minimum()),
+              primaryKeyMap.primaryKeyFromRowId(postingList.maximum()),
+              postingList.size());
         this.indexContext = indexContext;
         this.primaryKeyMap = primaryKeyMap;
         this.postingList = postingList;

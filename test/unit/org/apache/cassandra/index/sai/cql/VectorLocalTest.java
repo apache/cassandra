@@ -54,6 +54,23 @@ public class VectorLocalTest extends VectorTester
     }
 
     @Test
+    public void keyRestrictionsWithFilteringTest()
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v vector<float, 1>)");
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex' WITH OPTIONS = {'similarity_function' : 'euclidean'}");
+        execute("INSERT INTO %s (k, v) VALUES (1, [1])");
+
+        assertRows(execute("SELECT k, v FROM %s WHERE k > 0 LIMIT 4 ALLOW FILTERING"), row(1, vector(1f)));
+        assertRows(execute("SELECT k, v FROM %s WHERE k = 1 ORDER BY v ANN OF [0] LIMIT 4 ALLOW FILTERING"), row(1, vector(1f)));
+        assertRows(execute("SELECT k, v FROM %s WHERE k > 0 ORDER BY v ANN OF [0] LIMIT 4 ALLOW FILTERING"), row(1, vector(1f)));
+
+        flush();
+        assertRows(execute("SELECT k, v FROM %s WHERE k > 0 LIMIT 4 ALLOW FILTERING"), row(1, vector(1f)));
+        assertRows(execute("SELECT k, v FROM %s WHERE k = 1 ORDER BY v ANN OF [0] LIMIT 4 ALLOW FILTERING"), row(1, vector(1f)));
+        assertRows(execute("SELECT k, v FROM %s WHERE k > 0 ORDER BY v ANN OF [0] LIMIT 4 ALLOW FILTERING"), row(1, vector(1f)));
+    }
+
+    @Test
     public void randomizedTest()
     {
         createTable(String.format("CREATE TABLE %%s (pk int, str_val text, val vector<float, %d>, PRIMARY KEY(pk))", word2vec.dimension()));

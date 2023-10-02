@@ -121,24 +121,6 @@ public class TypeUtil
     }
 
     /**
-     * Returns the lesser of two {@code ByteComparable} values, based on the result of {@link
-     * ByteComparable#compare(ByteComparable, ByteComparable, ByteComparable.Version)} comparision.
-     */
-    public static ByteComparable min(ByteComparable a, ByteComparable b)
-    {
-        return a == null ? b : (b == null || ByteComparable.compare(b, a, ByteComparable.Version.OSS50) > 0) ? a : b;
-    }
-
-    /**
-     * Returns the greater of two {@code ByteComparable} values, based on the result of {@link
-     * ByteComparable#compare(ByteComparable, ByteComparable, ByteComparable.Version)} comparision.
-     */
-    public static ByteComparable max(ByteComparable a, ByteComparable b)
-    {
-        return a == null ? b : (b == null || ByteComparable.compare(b, a, ByteComparable.Version.OSS50) < 0) ? a : b;
-    }
-
-    /**
      * Returns the value length for the given {@link AbstractType}, selecting 16 for types
      * that officially use VARIABLE_LENGTH but are, in fact, of a fixed length.
      */

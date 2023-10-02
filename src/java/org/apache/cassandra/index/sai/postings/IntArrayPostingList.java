@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.index.sai.postings;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 
 public class IntArrayPostingList implements OrdinalPostingList
@@ -76,12 +75,6 @@ public class IntArrayPostingList implements OrdinalPostingList
                           .add("idx", idx)
                           .add("hashCode", Integer.toHexString(hashCode()))
                           .toString();
-    }
-
-    @VisibleForTesting
-    public void reset()
-    {
-        idx = 0;
     }
 
     public int getPostingAt(int i)
