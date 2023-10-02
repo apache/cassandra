@@ -725,7 +725,9 @@ public class StorageAttachedIndex implements Index
 
         void adjustMemtableSize(long additionalSpace, OpOrder.Group opGroup)
         {
-            memtable.markExtraOnHeapUsed(additionalSpace, opGroup);
+            // The memtable will assert if we try and reduce its memory usage so, for now, just don't tell it.
+            if (additionalSpace >= 0)
+                memtable.markExtraOnHeapUsed(additionalSpace, opGroup);
         }
     }
 }
