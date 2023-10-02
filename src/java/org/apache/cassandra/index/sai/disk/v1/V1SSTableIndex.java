@@ -177,11 +177,11 @@ public class V1SSTableIndex extends SSTableIndex
     }
 
     @Override
-    public KeyRangeIterator limitToTopResults(QueryContext context, PeekablePostingList iterator, Expression exp) throws IOException
+    public KeyRangeIterator limitToTopKResults(QueryContext context, PeekablePostingList iterator, Expression exp) throws IOException
     {
         KeyRangeUnionIterator.Builder unionIteratorBuilder = KeyRangeUnionIterator.builder(segments.size());
         for (Segment segment : segments)
-            unionIteratorBuilder.add(segment.limitToTopResults(context, iterator, exp));
+            unionIteratorBuilder.add(segment.limitToTopKResults(context, iterator, exp));
 
         return unionIteratorBuilder.build();
     }

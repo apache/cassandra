@@ -92,6 +92,16 @@ public abstract class SingleColumnRestriction implements SingleRestriction
     }
 
     @Override
+    public Index findSupportingIndexFromQueryPlan(Index.QueryPlan indexQueryPlan)
+    {
+        for (Index index : indexQueryPlan.getIndexes())
+            if (isSupportedBy(index))
+                return index;
+
+        return null;
+    }
+
+    @Override
     public boolean needsFiltering(Index.Group indexGroup)
     {
         for (Index index : indexGroup.getIndexes())

@@ -53,7 +53,7 @@ public enum IndexComponent
     /**
      * Product Quantization store used to store compressed vectors for the vector index
      */
-    PQ("PQ"),
+    VECTORS("Vectors"),
 
     /**
      * Stores postings written by {@link PostingsWriter}

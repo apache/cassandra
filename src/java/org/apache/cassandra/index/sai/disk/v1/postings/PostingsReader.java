@@ -23,15 +23,12 @@ import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import org.apache.cassandra.index.sai.disk.io.SeekingRandomAccessInput;
 import org.apache.cassandra.index.sai.disk.v1.DirectReaders;
-import org.apache.cassandra.index.sai.postings.OrdinalPostingList;
-import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.index.sai.disk.v1.LongArray;
 import org.apache.cassandra.index.sai.metrics.QueryEventListener;
-import org.apache.cassandra.index.sai.disk.io.SeekingRandomAccessInput;
+import org.apache.cassandra.index.sai.postings.OrdinalPostingList;
+import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.IndexInput;
@@ -48,8 +45,6 @@ import org.apache.lucene.util.packed.DirectReader;
 @NotThreadSafe
 public class PostingsReader implements OrdinalPostingList
 {
-    private static final Logger logger = LoggerFactory.getLogger(PostingsReader.class);
-
     private final IndexInput input;
     private final SeekingRandomAccessInput seekingInput;
     private final QueryEventListener.PostingListEventListener listener;

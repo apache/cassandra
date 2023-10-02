@@ -34,29 +34,30 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_VECTOR
 public class IndexWriterConfig
 {
     public static final String MAXIMUM_NODE_CONNECTIONS = "maximum_node_connections";
-    public static final String CONSTRUCTION_BEAM_WIDTH = "construction_beam_width";
-    public static final String SIMILARITY_FUNCTION = "similarity_function";
-
     public static final int MAXIMUM_MAXIMUM_NODE_CONNECTIONS = 512;
-    public static final int MAXIMUM_CONSTRUCTION_BEAM_WIDTH = 3200;
-
     public static final int DEFAULT_MAXIMUM_NODE_CONNECTIONS = 16;
+
+    public static final String CONSTRUCTION_BEAM_WIDTH = "construction_beam_width";
+    public static final int MAXIMUM_CONSTRUCTION_BEAM_WIDTH = 3200;
     public static final int DEFAULT_CONSTRUCTION_BEAM_WIDTH = 100;
 
-    public static final int MAX_TOP_K = SAI_VECTOR_SEARCH_MAX_TOP_K.getInt();
-
+    public static final String SIMILARITY_FUNCTION = "similarity_function";
     public static final VectorSimilarityFunction DEFAULT_SIMILARITY_FUNCTION = VectorSimilarityFunction.COSINE;
-
     public static final String validSimilarityFunctions = Arrays.stream(VectorSimilarityFunction.values())
                                                                 .map(Enum::name)
                                                                 .collect(Collectors.joining(", "));
 
+    public static final int MAX_TOP_K = SAI_VECTOR_SEARCH_MAX_TOP_K.getInt();
+
     private static final IndexWriterConfig EMPTY_CONFIG = new IndexWriterConfig(-1, -1, null);
 
+    // The maximum number of outgoing connections a node can have in a graph.
     private final int maximumNodeConnections;
 
+    // The size of the beam search used when finding nearest neighbours.
     private final int constructionBeamWidth;
 
+    // Used to determine the search to determine the topK results. The score returned is used to order the topK results.
     private final VectorSimilarityFunction similarityFunction;
 
     public IndexWriterConfig(int maximumNodeConnections,

@@ -118,7 +118,7 @@ public class SSTableRowIdKeyRangeIterator extends KeyRangeIterator
     }
 
     @Override
-    public void close() throws IOException
+    public void close()
     {
         if (logger.isTraceEnabled())
         {

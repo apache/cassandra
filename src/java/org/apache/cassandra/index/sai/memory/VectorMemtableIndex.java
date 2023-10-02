@@ -88,12 +88,12 @@ public class VectorMemtableIndex extends MemoryIndex
     }
 
     @Override
-    public void update(DecoratedKey key, Clustering<?> clustering, ByteBuffer oldValue, ByteBuffer newValue)
+    public long update(DecoratedKey key, Clustering<?> clustering, ByteBuffer oldValue, ByteBuffer newValue)
     {
         int oldRemaining = oldValue == null ? 0 : oldValue.remaining();
         int newRemaining = newValue == null ? 0 : newValue.remaining();
         if (oldRemaining == 0 && newRemaining == 0)
-            return;
+            return 0;
 
         boolean different;
         if (oldRemaining != newRemaining)
@@ -106,6 +106,7 @@ public class VectorMemtableIndex extends MemoryIndex
             different = IntStream.range(0, oldRemaining).anyMatch(i -> oldValue.get(i) != newValue.get(i));
         }
 
+        long bytesUsed = 0;
         if (different)
         {
             var primaryKey = indexContext.hasClustering() ? indexContext.keyFactory().create(key, clustering)
@@ -116,14 +117,15 @@ public class VectorMemtableIndex extends MemoryIndex
 
             // make the changes in this order, so we don't have a window where the row is not in the index at all
             if (newRemaining > 0)
-                graph.add(newValue, primaryKey, CassandraOnHeapGraph.InvalidVectorBehavior.FAIL);
+                bytesUsed += graph.add(newValue, primaryKey, CassandraOnHeapGraph.InvalidVectorBehavior.FAIL);
             if (oldRemaining > 0)
-                graph.remove(oldValue, primaryKey);
+                bytesUsed -= graph.remove(oldValue, primaryKey);
 
             // remove primary key if it's no longer indexed
             if (newRemaining <= 0 && oldRemaining > 0)
                 primaryKeys.remove(primaryKey);
         }
+        return bytesUsed;
     }
 
     private void updateKeyBounds(PrimaryKey primaryKey) {
@@ -166,7 +168,7 @@ public class VectorMemtableIndex extends MemoryIndex
                 return KeyRangeIterator.empty();
 
             int bruteForceRows = (int)(indexContext.getIndexWriterConfig().getMaximumNodeConnections() * Math.log(graph.size()));
-            if (resultKeys.size() < Math.max(queryContext.limit(), bruteForceRows))
+            if (resultKeys.size() < Math.max(queryContext.vectorContext().limit(), bruteForceRows))
                 return new ReorderingRangeIterator(new PriorityQueue<>(resultKeys));
             else
                 bits = new KeyRangeFilteringBits(keyRange, queryContext.vectorContext().bitsetForShadowedPrimaryKeys(graph));
@@ -177,7 +179,7 @@ public class VectorMemtableIndex extends MemoryIndex
             bits = queryContext.vectorContext().bitsetForShadowedPrimaryKeys(graph);
         }
 
-        var keyQueue = graph.search(qv, queryContext.limit(), bits, Integer.MAX_VALUE);
+        var keyQueue = graph.search(qv, queryContext.vectorContext().limit(), bits);
         if (keyQueue.isEmpty())
             return KeyRangeIterator.empty();
         return new ReorderingRangeIterator(keyQueue);
@@ -194,7 +196,7 @@ public class VectorMemtableIndex extends MemoryIndex
                 results.add(key);
         }
 
-        int maxBruteForceRows = Math.max(context.limit(), (int)(indexContext.getIndexWriterConfig().getMaximumNodeConnections() * Math.log(graph.size())));
+        int maxBruteForceRows = Math.max(context.vectorContext().limit(), (int)(indexContext.getIndexWriterConfig().getMaximumNodeConnections() * Math.log(graph.size())));
         if (results.size() <= maxBruteForceRows)
         {
             if (results.isEmpty())
@@ -205,7 +207,7 @@ public class VectorMemtableIndex extends MemoryIndex
         ByteBuffer buffer = exp.lower.value.raw;
         float[] qv = TypeUtil.decomposeVector(indexContext, buffer);
         var bits = new KeyFilteringBits(results);
-        var keyQueue = graph.search(qv, context.limit(), bits, Integer.MAX_VALUE);
+        var keyQueue = graph.search(qv, context.vectorContext().limit(), bits);
         if (keyQueue.isEmpty())
             return KeyRangeIterator.empty();
         return new ReorderingRangeIterator(keyQueue);

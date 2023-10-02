@@ -125,18 +125,6 @@ public class StorageAttachedIndexQueryController implements QueryController
     }
 
     /**
-     * Note: merged range may contain subrange that no longer belongs to the local node after range movement.
-     * It should only be used as an optimization to reduce search space. Use {@link #dataRanges()} instead to filter data.
-     *
-     * @return merged token range
-     */
-    @Override
-    public AbstractBounds<PartitionPosition> mergeRange()
-    {
-        return mergeRange;
-    }
-
-    /**
      * @return indexed {@code IndexContext} if index is found; otherwise return non-indexed {@code IndexContext}.
      */
     @Override

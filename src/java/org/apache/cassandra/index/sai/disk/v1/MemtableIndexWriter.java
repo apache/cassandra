@@ -107,7 +107,7 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
 
             if (indexContext.isVector())
             {
-                flushVectorIndex(rowMapping.minKey, rowMapping.maxKey, start, stopwatch);
+                flushVectorIndex(start, stopwatch);
             }
             else
             {
@@ -115,7 +115,7 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
 
                 try (MemtableTermsIterator terms = new MemtableTermsIterator(memtable.getMinTerm(), memtable.getMaxTerm(), iterator))
                 {
-                    long cellCount = flush(rowMapping.minKey, rowMapping.maxKey, indexContext.getValidator(), terms, rowMapping.maxSSTableRowId);
+                    long cellCount = flush(indexContext.getValidator(), terms, rowMapping.maxSSTableRowId);
 
                     completeIndexFlush(cellCount, start, stopwatch);
                 }
@@ -130,11 +130,7 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
         }
     }
 
-    private long flush(PrimaryKey minKey,
-                       PrimaryKey maxKey,
-                       AbstractType<?> termComparator,
-                       MemtableTermsIterator terms,
-                       long maxSSTableRowId) throws IOException
+    private long flush(AbstractType<?> termComparator, MemtableTermsIterator terms, long maxSSTableRowId) throws IOException
     {
         long numRows;
         SegmentMetadata.ComponentMetadataMap indexMetas;
@@ -170,8 +166,8 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
                                                        numRows,
                                                        terms.getMinSSTableRowId(),
                                                        terms.getMaxSSTableRowId(),
-                                                       minKey,
-                                                       maxKey,
+                                                       rowMapping.minKey,
+                                                       rowMapping.maxKey,
                                                        terms.getMinTerm(),
                                                        terms.getMaxTerm(),
                                                        indexMetas);
@@ -184,7 +180,7 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
         return numRows;
     }
 
-    private void flushVectorIndex(PrimaryKey minKey, PrimaryKey maxKey, long startTime, Stopwatch stopwatch) throws IOException
+    private void flushVectorIndex(long startTime, Stopwatch stopwatch) throws IOException
     {
         SegmentMetadata.ComponentMetadataMap metadataMap = memtable.writeDirect(indexDescriptor, indexContext, rowMapping::get);
 
@@ -194,8 +190,8 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
                                                        rowMapping.size(),
                                                        0,
                                                        rowMapping.maxSSTableRowId,
-                                                       minKey,
-                                                       maxKey,
+                                                       rowMapping.minKey,
+                                                       rowMapping.maxKey,
                                                        ByteBufferUtil.bytes(0), // VSTODO by pass min max terms for vectors
                                                        ByteBufferUtil.bytes(0), // VSTODO by pass min max terms for vectors
                                                        metadataMap);

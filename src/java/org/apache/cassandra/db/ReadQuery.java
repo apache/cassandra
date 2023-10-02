@@ -258,7 +258,10 @@ public interface ReadQuery
     }
 
     /**
-     * @return true given read query is a top-k request
+     * The query is a top-k query if the query has an {@link org.apache.cassandra.index.Index.QueryPlan} that
+     * supports top-k ordering.
+     *
+     * @return {@code true} if this is a top-k query
      */
     default boolean isTopK()
     {

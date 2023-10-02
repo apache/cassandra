@@ -58,7 +58,7 @@ public class QueryContext
 
     public boolean queryTimedOut = false;
 
-    private VectorContext vectorContext;
+    private VectorQueryContext vectorContext;
 
     public QueryContext(ReadCommand readCommand, long executionQuotaMs)
     {
@@ -81,15 +81,10 @@ public class QueryContext
         }
     }
 
-    public int limit()
-    {
-        return readCommand.limits().count();
-    }
-
-    public VectorContext vectorContext()
+    public VectorQueryContext vectorContext()
     {
         if (vectorContext == null)
-            vectorContext = new VectorContext();
+            vectorContext = new VectorQueryContext(readCommand);
         return vectorContext;
     }
 }

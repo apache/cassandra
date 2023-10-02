@@ -87,6 +87,7 @@ public class VectorQueryController extends StorageAttachedIndexQueryController
 
         // search memtable before referencing sstable indexes; otherwise we may miss newly flushed memtable index
         var iteratorsByMemtable = expressions.stream()
+                                             .filter(expr -> !expr.context.isNotIndexed())
                                              .flatMap(expr -> expr.context.getMemtableIndexManager().iteratorsForSearch(queryContext, expr, mergeRange).stream())
                                              .collect(Collectors.groupingBy(pair -> pair.left, Collectors.mapping(pair -> pair.right, Collectors.toList())));
 
@@ -176,7 +177,7 @@ public class VectorQueryController extends StorageAttachedIndexQueryController
 
         try
         {
-            return annIndexExpression.index.limitToTopResults(queryContext, PeekablePostingList.makePeekable(original), annIndexExpression.expression);
+            return annIndexExpression.index.limitToTopKResults(queryContext, PeekablePostingList.makePeekable(original), annIndexExpression.expression);
         }
         catch (IOException e)
         {
@@ -195,7 +196,13 @@ public class VectorQueryController extends StorageAttachedIndexQueryController
             return null;
         }
 
-        return expressions.stream().filter(e -> e.getOp() == Expression.IndexOperator.ANN).findFirst().orElse(null);
+        Expression ann = expressions.stream().filter(e -> e.getOp() == Expression.IndexOperator.ANN).findFirst().orElse(null);
+
+        // If we have an ANN expression but none of the other expressions are indexed then this isn't a hybrid search
+        if (ann != null && expressions.stream().filter(e -> e.getOp() != Expression.IndexOperator.ANN && !e.context.isNotIndexed()).findFirst().orElse(null) == null)
+            return null;
+
+        return ann;
     }
 
     /**

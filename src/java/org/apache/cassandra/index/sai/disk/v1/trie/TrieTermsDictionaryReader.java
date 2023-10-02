@@ -44,7 +44,7 @@ public class TrieTermsDictionaryReader extends Walker<TrieTermsDictionaryReader>
         super(rebufferer, root);
     }
 
-    public static final TrieSerializer<Long, DataOutputPlus> trieSerializer = new TrieSerializer<Long, DataOutputPlus>()
+    public static final TrieSerializer<Long, DataOutputPlus> trieSerializer = new TrieSerializer<>()
     {
         @Override
         public int sizeofNode(SerializationNode<Long> node, long nodePosition)

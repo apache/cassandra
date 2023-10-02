@@ -142,7 +142,7 @@ public class TrieMemoryIndex extends MemoryIndex
     }
 
     @Override
-    public void update(DecoratedKey key, Clustering<?> clustering, ByteBuffer oldValue, ByteBuffer newValue)
+    public long update(DecoratedKey key, Clustering<?> clustering, ByteBuffer oldValue, ByteBuffer newValue)
     {
         throw new UnsupportedOperationException();
     }

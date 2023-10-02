@@ -23,8 +23,6 @@ import java.util.HashSet;
 import java.util.Set;
 
 import com.google.common.base.Preconditions;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import io.github.jbellis.jvector.util.Bits;
 import org.apache.cassandra.io.util.FileHandle;
@@ -32,8 +30,6 @@ import org.apache.cassandra.io.util.RandomAccessReader;
 
 public class OnDiskOrdinalsMap
 {
-    private static final Logger logger = LoggerFactory.getLogger(OnDiskOrdinalsMap.class);
-
     private final FileHandle fh;
     private final long ordToRowOffset;
     private final long segmentEnd;
@@ -81,7 +77,7 @@ public class OnDiskOrdinalsMap
 
     public class RowIdsView implements AutoCloseable
     {
-        RandomAccessReader reader = fh.createReader();
+        final RandomAccessReader reader = fh.createReader();
 
         public int[] getSegmentRowIdsMatching(int vectorOrdinal) throws IOException
         {
@@ -131,7 +127,7 @@ public class OnDiskOrdinalsMap
 
     public class OrdinalsView implements AutoCloseable
     {
-        RandomAccessReader reader = fh.createReader();
+        final RandomAccessReader reader = fh.createReader();
         private final long high = (segmentEnd - 8 - rowOrdinalOffset) / 8;
 
         /**

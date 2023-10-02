@@ -89,7 +89,7 @@ public class V1OnDiskFormat implements OnDiskFormat
     @VisibleForTesting
     public static final Set<IndexComponent> VECTOR_COMPONENTS = EnumSet.of(IndexComponent.COLUMN_COMPLETION_MARKER,
                                                                            IndexComponent.META,
-                                                                           IndexComponent.PQ,
+                                                                           IndexComponent.VECTORS,
                                                                            IndexComponent.TERMS_DATA,
                                                                            IndexComponent.POSTING_LISTS);
 

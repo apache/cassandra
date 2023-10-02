@@ -49,7 +49,7 @@ public abstract class MemoryIndex implements MemtableOrdering
 
     public abstract long add(DecoratedKey key, Clustering<?> clustering, ByteBuffer value);
 
-    public abstract void update(DecoratedKey key, Clustering<?> clustering, ByteBuffer oldValue, ByteBuffer newValue);
+    public abstract long update(DecoratedKey key, Clustering<?> clustering, ByteBuffer oldValue, ByteBuffer newValue);
 
     public abstract KeyRangeIterator search(QueryContext queryContext, Expression expression, AbstractBounds<PartitionPosition> keyRange);
 

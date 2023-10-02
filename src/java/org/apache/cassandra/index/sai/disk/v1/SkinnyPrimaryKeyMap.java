@@ -26,7 +26,6 @@ import javax.annotation.concurrent.ThreadSafe;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
@@ -68,7 +67,6 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
         protected final LongArray.Factory tokenReaderFactory;
         protected final LongArray.Factory partitionReaderFactory;
         protected final KeyLookup partitionKeyReader;
-        protected final IPartitioner partitioner;
         protected final PrimaryKey.Factory primaryKeyFactory;
 
         private final FileHandle tokensFile;
@@ -92,7 +90,6 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
                 NumericValuesMeta partitionKeyBlockOffsetsMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCK_OFFSETS)));
                 KeyLookupMeta partitionKeysMeta = new KeyLookupMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PARTITION_KEY_BLOCKS)));
                 this.partitionKeyReader = new KeyLookup(partitionKeyBlocksFile, partitionKeyBlockOffsetsFile, partitionKeysMeta, partitionKeyBlockOffsetsMeta);
-                this.partitioner = sstable.metadata().partitioner;
                 this.primaryKeyFactory = indexDescriptor.primaryKeyFactory;
             }
             catch (Throwable t)
@@ -110,7 +107,6 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
             return new SkinnyPrimaryKeyMap(rowIdToToken,
                                            rowIdToPartitionId,
                                            partitionKeyReader.openCursor(),
-                                           partitioner,
                                            primaryKeyFactory);
         }
 
@@ -124,19 +120,16 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
     protected final LongArray tokenArray;
     protected final LongArray partitionArray;
     protected final KeyLookup.Cursor partitionKeyCursor;
-    protected final IPartitioner partitioner;
     protected final PrimaryKey.Factory primaryKeyFactory;
 
     protected SkinnyPrimaryKeyMap(LongArray tokenArray,
                                   LongArray partitionArray,
                                   KeyLookup.Cursor partitionKeyCursor,
-                                  IPartitioner partitioner,
                                   PrimaryKey.Factory primaryKeyFactory)
     {
         this.tokenArray = tokenArray;
         this.partitionArray = partitionArray;
         this.partitionKeyCursor = partitionKeyCursor;
-        this.partitioner = partitioner;
         this.primaryKeyFactory = primaryKeyFactory;
     }
 

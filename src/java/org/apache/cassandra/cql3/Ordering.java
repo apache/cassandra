@@ -41,53 +41,52 @@ public class Ordering
         this.direction = direction;
     }
 
-    public interface Expression
+    public static abstract class Expression
     {
-        default boolean hasNonClusteredOrdering()
+        protected final ColumnMetadata columnMetadata;
+
+        public Expression(ColumnMetadata columnMetadata)
+        {
+            this.columnMetadata = columnMetadata;
+        }
+
+        public boolean hasNonClusteredOrdering()
         {
             return false;
         }
 
-        default SingleRestriction toRestriction()
+        public SingleRestriction toRestriction()
         {
             throw new UnsupportedOperationException();
         }
 
-        ColumnMetadata getColumn();
-    }
-
-    /**
-     * Represents a single column in
-     * <code>ORDER BY column</code>
-     */
-    public static class SingleColumn implements Expression
-    {
-        public final ColumnMetadata column;
-
-        public SingleColumn(ColumnMetadata column)
-        {
-            this.column = column;
-        }
-
-        @Override
         public ColumnMetadata getColumn()
         {
-            return column;
+            return columnMetadata;
         }
     }
 
     /**
-     * An expression used in Approximate Nearest Neighbor ordering.
-     * <code>ORDER BY column ANN OF value</code>
+     * Represents a single column in <code>ORDER BY column</code>
      */
-    public static class Ann implements Expression
+    public static class SingleColumn extends Expression
     {
-        final ColumnMetadata column;
+        public SingleColumn(ColumnMetadata columnMetadata)
+        {
+            super(columnMetadata);
+        }
+    }
+
+    /**
+     * An expression used in Approximate Nearest Neighbor ordering. <code>ORDER BY column ANN OF value</code>
+     */
+    public static class Ann extends Expression
+    {
         final Term vectorValue;
 
-        public Ann(ColumnMetadata column, Term vectorValue)
+        public Ann(ColumnMetadata columnMetadata, Term vectorValue)
         {
-            this.column = column;
+            super(columnMetadata);
             this.vectorValue = vectorValue;
         }
 
@@ -100,13 +99,7 @@ public class Ordering
         @Override
         public SingleRestriction toRestriction()
         {
-            return new SingleColumnRestriction.AnnRestriction(column, vectorValue);
-        }
-
-        @Override
-        public ColumnMetadata getColumn()
-        {
-            return column;
+            return new SingleColumnRestriction.AnnRestriction(columnMetadata, vectorValue);
         }
     }
 
@@ -115,7 +108,7 @@ public class Ordering
 
 
     /**
-     * Represents the AST of a single element in the ORDER BY clause.
+     * Represents ANTLR's abstract syntax tree of a single element in the {@code ORDER BY} clause.
      * This comes directly out of CQL parser.
      */
     public static class Raw

@@ -26,15 +26,39 @@ import java.util.Set;
 import java.util.TreeSet;
 
 import io.github.jbellis.jvector.util.Bits;
+import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.v1.vector.CassandraDiskAnn;
 import org.apache.cassandra.index.sai.disk.v1.vector.CassandraOnHeapGraph;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 
-public class VectorContext
+
+/**
+ * This represents the state of a vector query. It is repsonsible for maintaining a list of any {@link PrimaryKey}s
+ * that have been updated or deleted during a search of the indexes.
+ * <p>
+ * The number of {@link #shadowedPrimaryKeys} is compared before and after a search is performed. If it changes, it
+ * means that a {@link PrimaryKey} was found to have been changed. In this case the whole search is repeated until the
+ * counts match.
+ * <p>
+ * When this process has completed, a {@link Bits} array is generated. This is used by the vector graph search to
+ * identify which nodes in the graph to include in the results.
+ */
+public class VectorQueryContext
 {
     private TreeSet<PrimaryKey> shadowedPrimaryKeys; // allocate when needed
+    private int limit;
+
+    public VectorQueryContext(ReadCommand readCommand)
+    {
+        this.limit = readCommand.limits().count();
+    }
+
+    public int limit()
+    {
+        return limit;
+    }
 
     public void recordShadowedPrimaryKey(PrimaryKey primaryKey)
     {

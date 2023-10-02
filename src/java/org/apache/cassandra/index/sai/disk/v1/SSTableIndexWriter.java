@@ -84,7 +84,7 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
         this.analyzer = indexContext.getAnalyzerFactory().create();
         this.limiter = limiter;
         this.isIndexValid = isIndexValid;
-        this.maxTermSize = indexContext.isVector() ? MAX_VECTOR_TERM_SIZE : indexContext.isFrozen() ? MAX_FROZEN_TERM_SIZE : MAX_STRING_TERM_SIZE;
+        this.maxTermSize = indexContext.isVector() ? MAX_VECTOR_TERM_SIZE : (indexContext.isFrozen() ? MAX_FROZEN_TERM_SIZE : MAX_STRING_TERM_SIZE);
     }
 
     @Override

@@ -119,12 +119,6 @@ public final class TokenRelation extends Relation
     }
 
     @Override
-    protected Restriction newAnnRestriction(TableMetadata table, VariableSpecifications boundNames)
-    {
-        throw invalidRequest("%s cannot be used for toekn relations", operator());
-    }
-
-    @Override
     protected Term toTerm(List<? extends ColumnSpecification> receivers,
                           Raw raw,
                           String keyspace,
