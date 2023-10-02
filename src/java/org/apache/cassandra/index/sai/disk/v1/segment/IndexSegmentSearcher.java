@@ -105,6 +105,6 @@ public abstract class IndexSegmentSearcher implements SegmentOrdering, Closeable
         if (postingList == null || postingList.size() == 0)
             return PostingList.EMPTY;
 
-        return new RangePostingList(postingList, metadata.rowIdOffset, metadata.minSSTableRowId, metadata.maxSSTableRowId, metadata.numRows, queryContext);
+        return new RangePostingList(postingList, metadata.rowIdOffset, metadata.minSSTableRowId, metadata.maxSSTableRowId, postingList.size(), queryContext);
     }
 }
