@@ -330,6 +330,8 @@ public class SAITester extends CQLTester
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
             IndexDescriptor indexDescriptor = IndexDescriptor.create(sstable);
+            if (indexDescriptor.isIndexEmpty(context))
+                continue;
             if (!indexDescriptor.validatePerSSTableComponentsChecksum() || !indexDescriptor.validatePerIndexComponentsChecksum(context))
                 return false;
         }

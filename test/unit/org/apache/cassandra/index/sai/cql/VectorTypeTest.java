@@ -30,16 +30,11 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.tracing.TracingTestImpl;
@@ -55,20 +50,6 @@ public class VectorTypeTest extends VectorTester
     public static void setupClass()
     {
         System.setProperty("cassandra.custom_tracing_class", "org.apache.cassandra.tracing.TracingTestImpl");
-    }
-
-    private void verifyChecksum() {
-        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(currentTable());
-        cfs.indexManager.listIndexes().stream().forEach(index -> {
-            var indexContext = SAITester.createIndexContext(index.getIndexMetadata().name, VectorType.getInstance(FloatType.instance, 100), cfs);
-            if (!indexContext.getColumnName().matches("table_\\d+_val_idx"))
-            {
-                return;
-            }
-            logger.info("Verifying checksum for index {}", index.getIndexMetadata().name);
-            boolean checksumValid = verifyChecksum(indexContext);
-            assertThat(checksumValid).isTrue();
-        });
     }
 
     @Override
@@ -748,5 +729,21 @@ public class VectorTypeTest extends VectorTester
         flush();
 
         assertRows(execute("SELECT pk FROM %s ORDER BY vec ANN OF [1,1] LIMIT 2"), row(1), row(2));
+    }
+
+    @Test
+    public void testRowWithMissingVectorThatMatchesQueryPredicates()
+    {
+        createTable(KEYSPACE, "CREATE TABLE %s (pk int, val text, vec vector<float, 2>, PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(vec) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        // There was an edge case where we failed because there was just a single row in the table.
+        execute("INSERT INTO %s (pk, val) VALUES (1, 'match me')");
+        assertRows(execute("SELECT pk FROM %s WHERE val = 'match me' ORDER BY vec ANN OF [1,1] LIMIT 2"));
+        // Push memtable to sstable. we should get same result
+        flush();
+        assertRows(execute("SELECT pk FROM %s WHERE val = 'match me' ORDER BY vec ANN OF [1,1] LIMIT 2"));
     }
 }

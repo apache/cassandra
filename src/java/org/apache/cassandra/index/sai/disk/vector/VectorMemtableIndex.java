@@ -203,6 +203,11 @@ public class VectorMemtableIndex implements MemtableIndex
     @Override
     public RangeIterator<PrimaryKey> limitToTopResults(QueryContext context, RangeIterator<PrimaryKey> iterator, Expression exp, int limit)
     {
+        if (minimumKey == null)
+        {
+            assert maximumKey == null : "Minimum key is null but maximum key is not";
+            return RangeIterator.emptyKeys();
+        }
         Set<PrimaryKey> results = new HashSet<>();
         while (iterator.hasNext())
         {

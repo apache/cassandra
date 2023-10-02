@@ -524,19 +524,4 @@ public class VectorLocalTest extends VectorTester
         super.compact();
         verifyChecksum();
     }
-
-    private void verifyChecksum()  {
-        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(currentTable());
-        cfs.indexManager.listIndexes().stream().forEach(index -> {
-            var indexContext = SAITester.createIndexContext(index.getIndexMetadata().name, VectorType.getInstance(FloatType.instance, 100), cfs);
-            if (!indexContext.getColumnName().matches("table_\\d+_val_idx"))
-            {
-                return;
-            }
-            logger.info("Verifying checksum for index {}", index.getIndexMetadata().name);
-            boolean checksumValid = verifyChecksum(indexContext);
-            assertThat(checksumValid).isTrue();
-        });
-    }
-
 }

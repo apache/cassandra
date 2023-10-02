@@ -24,17 +24,23 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
+import org.apache.commons.lang.reflect.FieldUtils;
 import org.junit.Before;
 
 import io.github.jbellis.jvector.graph.GraphIndexBuilder;
 import io.github.jbellis.jvector.graph.GraphSearcher;
 import io.github.jbellis.jvector.vector.VectorEncoding;
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.vector.ConcurrentVectorValues;
 import org.apache.cassandra.inject.ActionBuilder;
 import org.apache.cassandra.inject.Injections;
 import org.apache.cassandra.inject.InvokePointBuilder;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 public class VectorTester extends SAITester
 {
@@ -111,5 +117,25 @@ public class VectorTester extends SAITester
         }
 
         return (double) matches / topK;
+    }
+
+    protected void verifyChecksum() {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(currentTable());
+        cfs.indexManager.listIndexes().stream().forEach(index -> {
+            try
+            {
+                var indexContext = (IndexContext) FieldUtils
+                                                  .getDeclaredField(index.getClass(), "indexContext", true)
+                                                  .get(index);
+                if (!indexContext.isVector())
+                    return;
+                logger.info("Verifying checksum for index {}", index.getIndexMetadata().name);
+                boolean checksumValid = verifyChecksum(indexContext);
+                assertThat(checksumValid).isTrue();
+            } catch (IllegalAccessException e)
+            {
+                throw new RuntimeException(e);
+            }
+        });
     }
 }
