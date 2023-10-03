@@ -261,9 +261,9 @@ public abstract class RepairMessage
             }
 
             @Override
-            public void onFailure(InetAddressAndPort from, RequestFailure failureReason)
+            public void onFailure(InetAddressAndPort from, RequestFailure failure)
             {
-                failureCallback.onFailure(RepairException.error(request.desc, PreviewKind.NONE, String.format("Got %s failure from %s: %s", verb, from, failureReason)));
+                failureCallback.onFailure(RepairException.error(request.desc, PreviewKind.NONE, String.format("Got %s failure from %s: %s", verb, from, failure.reason)));
             }
 
             @Override
