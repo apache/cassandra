@@ -27,6 +27,7 @@ import org.apache.cassandra.auth.AuthCacheService;
 import org.apache.cassandra.auth.AuthTestUtils;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.IRoleManager;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.tools.ToolRunner;
@@ -43,6 +44,7 @@ public class InvalidateCIDRPermissionsCacheTest extends CQLTester
     @BeforeClass
     public static void setup() throws Exception
     {
+        DatabaseDescriptor.setRolesValidity(Integer.MAX_VALUE-1);
         CQLTester.setUpClass();
         CQLTester.requireAuthentication();
 
@@ -122,6 +124,7 @@ public class InvalidateCIDRPermissionsCacheTest extends CQLTester
         // invalidate cidr permission
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("invalidatecidrpermissionscache", ROLE_A.getRoleName());
         tool.assertOnCleanExit();
+        assertThat(tool.getStdout()).contains("Invalidated the role role_a from CIDR permissions cache");
 
         // ensure cidr permission is reloaded
         assertThat(role.hasAccessFromIp(new InetSocketAddress("127.0.0.0", 0))).isTrue();

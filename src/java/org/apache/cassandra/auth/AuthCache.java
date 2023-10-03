@@ -352,7 +352,7 @@ public class AuthCache<K, V> implements AuthCacheMBean, Shutdownable
             updatedCache = cache;
             // Always set as mandatory
             cache.policy().refreshAfterWrite().ifPresent(policy ->
-                policy.setExpiresAfter(activeUpdate ? getValidity() : getUpdateInterval(), TimeUnit.MILLISECONDS));
+                policy.setRefreshesAfter(activeUpdate ? getValidity() : getUpdateInterval(), TimeUnit.MILLISECONDS));
             cache.policy().expireAfterWrite().ifPresent(policy -> policy.setExpiresAfter(getValidity(), TimeUnit.MILLISECONDS));
             cache.policy().eviction().ifPresent(policy -> policy.setMaximum(getMaxEntries()));
         }
