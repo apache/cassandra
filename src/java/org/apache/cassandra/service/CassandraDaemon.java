@@ -780,9 +780,9 @@ public class CassandraDaemon
             start();
 
             logger.info("Startup complete");
-            if (SystemD.isAvailable()) {
-                SystemD.get().notifyReady();
-            }
+
+            if (Systemd.isAvailable())
+                Systemd.get().notifyReady();
         }
         catch (Throwable e)
         {
