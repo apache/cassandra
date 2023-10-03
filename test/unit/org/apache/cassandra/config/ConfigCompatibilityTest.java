@@ -101,6 +101,7 @@ public class ConfigCompatibilityTest
                                                                    .add("authenticator types do not match; org.apache.cassandra.config.ParameterizedClass != java.lang.String")
                                                                    .add("Property internode_authenticator used to be a value-type, but now is nested type class org.apache.cassandra.config.ParameterizedClass")
                                                                    .add("Property authenticator used to be a value-type, but now is nested type class org.apache.cassandra.config.ParameterizedClass")
+                                                                   .add("available_processors types do not match; org.apache.cassandra.config.OptionaldPositiveInt != java.lang.Integer")
                                                                    .build();
 
     /**
