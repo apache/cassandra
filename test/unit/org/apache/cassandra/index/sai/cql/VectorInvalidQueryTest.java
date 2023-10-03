@@ -151,16 +151,6 @@ public class VectorInvalidQueryTest extends SAITester
     }
 
     @Test
-    public void cannotOrderWithAnnNonFloatVectorColumn() throws Throwable
-    {
-        createTable("CREATE TABLE %s (k int, v vector<int, 3>, primary key(k))");
-        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex'");
-
-        assertInvalidMessage(StatementRestrictions.ANN_ONLY_SUPPORTED_ON_VECTOR_MESSAGE,
-                             "SELECT * FROM %s ORDER BY v ANN OF [1, 2, 3] LIMIT 1");
-    }
-
-    @Test
     public void disallowZeroVectorsWithCosineSimilarity()
     {
         createTable(KEYSPACE, "CREATE TABLE %s (pk int primary key, value vector<float, 2>)");
@@ -172,16 +162,6 @@ public class VectorInvalidQueryTest extends SAITester
         assertThatThrownBy(() -> execute("INSERT INTO %s (pk, value) VALUES (0, ?)", vector(1.0f, Float.POSITIVE_INFINITY))).isInstanceOf(InvalidRequestException.class);
         assertThatThrownBy(() -> execute("INSERT INTO %s (pk, value) VALUES (0, ?)", vector(Float.NEGATIVE_INFINITY, 1.0f))).isInstanceOf(InvalidRequestException.class);
         assertThatThrownBy(() -> execute("SELECT * FROM %s ORDER BY value ann of [0.0, 0.0] LIMIT 2")).isInstanceOf(InvalidRequestException.class);
-    }
-
-    @Test
-    public void cannotUseAggregationWithAnnOrdering()
-    {
-        createTable("CREATE TABLE %s (k int PRIMARY KEY, v vector<float, 1>, c int)");
-        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex'");
-
-        assertThatThrownBy(() -> executeNet("SELECT sum(c) FROM %s WHERE k = 1 ORDER BY v ANN OF [0] LIMIT 4"))
-        .isInstanceOf(InvalidQueryException.class).hasMessage(SelectStatement.TOPK_AGGREGATION_ERROR);
     }
 
     @Test
@@ -240,5 +220,47 @@ public class VectorInvalidQueryTest extends SAITester
 
         assertInvalidMessage(StatementRestrictions.ANN_REQUIRES_INDEX_MESSAGE,
                              "SELECT * FROM %s WHERE v1 = [1] ORDER BY v2 ANN OF [2] ALLOW FILTERING");
+    }
+
+    @Test
+    public void annOrderingIsNotAllowedWithoutIndexWhereIndexedColumnExistsInQueryTest() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v vector<float, 1>, c int)");
+        createIndex("CREATE CUSTOM INDEX ON %s(c) USING 'StorageAttachedIndex'");
+
+        execute("INSERT INTO %s (k, v, c) VALUES (1, [4], 1)");
+        execute("INSERT INTO %s (k, v, c) VALUES (2, [3], 10)");
+        execute("INSERT INTO %s (k, v, c) VALUES (3, [2], 100)");
+        execute("INSERT INTO %s (k, v, c) VALUES (4, [1], 1000)");
+
+        assertInvalidMessage(StatementRestrictions.ANN_REQUIRES_INDEX_MESSAGE,
+                             "SELECT * FROM %s WHERE c >= 100 ORDER BY v ANN OF [1] LIMIT 4 ALLOW FILTERING");
+    }
+
+    @Test
+    public void cannotPostFilterOnNonIndexedColumnWithAnnOrdering() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, v vector<float, 1>, c int, primary key (pk, ck))");
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex'");
+
+        execute("INSERT INTO %s (pk, ck, v, c) VALUES (1, 1, [4], 1)");
+        execute("INSERT INTO %s (pk, ck, v, c) VALUES (2, 1, [3], 10)");
+        execute("INSERT INTO %s (pk, ck, v, c) VALUES (3, 1, [2], 100)");
+        execute("INSERT INTO %s (pk, ck, v, c) VALUES (4, 1, [1], 1000)");
+
+        assertInvalidMessage(StatementRestrictions.ANN_REQUIRES_INDEXED_FILTERING_MESSAGE,
+                             "SELECT * FROM %s WHERE c >= 100 ORDER BY v ANN OF [1] LIMIT 4 ALLOW FILTERING");
+
+        assertInvalidMessage(StatementRestrictions.ANN_REQUIRES_INDEXED_FILTERING_MESSAGE,
+                             "SELECT * FROM %s WHERE ck >= 0 ORDER BY v ANN OF [1] LIMIT 4 ALLOW FILTERING");
+    }
+
+    @Test
+    public void cannotCreateIndexOnNonFloatVector()
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v vector<int, 1>)");
+
+        assertThatThrownBy(() -> createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex'"))
+            .isInstanceOf(InvalidRequestException.class).hasRootCauseMessage(StorageAttachedIndex.VECTOR_NON_FLOAT_ERROR);
     }
 }

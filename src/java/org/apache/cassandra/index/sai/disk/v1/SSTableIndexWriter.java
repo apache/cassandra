@@ -59,9 +59,9 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
     private static final Logger logger = LoggerFactory.getLogger(SSTableIndexWriter.class);
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
 
-    public static final int MAX_STRING_TERM_SIZE = SAI_MAX_STRING_TERM_SIZE.getInt() * 1024;
-    public static final int MAX_FROZEN_TERM_SIZE = SAI_MAX_FROZEN_TERM_SIZE.getInt() * 1024;
-    public static final int MAX_VECTOR_TERM_SIZE = SAI_MAX_VECTOR_TERM_SIZE.getInt() * 1024;
+    public static final long MAX_STRING_TERM_SIZE = SAI_MAX_STRING_TERM_SIZE.getSizeInBytes();
+    public static final long MAX_FROZEN_TERM_SIZE = SAI_MAX_FROZEN_TERM_SIZE.getSizeInBytes();
+    public static final long MAX_VECTOR_TERM_SIZE = SAI_MAX_VECTOR_TERM_SIZE.getSizeInBytes();
     public static final String TERM_OVERSIZE_MESSAGE = "Can't add term of column {} to index for key: {}, term size {} " +
                                                        "max allowed size {}, use analyzed = true (if not yet set) for that column.";
 
@@ -70,7 +70,7 @@ public class SSTableIndexWriter implements PerColumnIndexWriter
     private final long nowInSec = FBUtilities.nowInSeconds();
     private final AbstractAnalyzer analyzer;
     private final NamedMemoryLimiter limiter;
-    private final int maxTermSize;
+    private final long maxTermSize;
     private final BooleanSupplier isIndexValid;
     private final List<SegmentMetadata> segments = new ArrayList<>();
 

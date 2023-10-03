@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.restrictions;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Iterables;
@@ -72,7 +73,9 @@ public final class StatementRestrictions
 
     public static final String VECTOR_INDEXES_ANN_ONLY_MESSAGE = "Vector indexes only support ANN queries";
 
-    public static final String ANN_ONLY_SUPPORTED_ON_VECTOR_MESSAGE = "ANN ordering is only supported on vector indexes";
+    public static final String ANN_ONLY_SUPPORTED_ON_VECTOR_MESSAGE = "ANN ordering is only supported on float vector indexes";
+
+    public static final String ANN_REQUIRES_INDEXED_FILTERING_MESSAGE = "ANN ordered queries can only be filtered with indexed columns";
 
     /**
      * The type of statement
@@ -174,9 +177,7 @@ public final class StatementRestrictions
     {
         this(type, table, allowFiltering);
 
-        IndexRegistry indexRegistry = null;
-        if (type.allowUseOfSecondaryIndices())
-            indexRegistry = IndexRegistry.obtain(table);
+        final IndexRegistry indexRegistry = type.allowUseOfSecondaryIndices() ? IndexRegistry.obtain(table) : null;
 
         /*
          * WHERE clause. For a given entity, rules are:
@@ -291,33 +292,48 @@ public final class StatementRestrictions
                 throw invalidRequest("Non PRIMARY KEY columns found in where clause: %s ",
                                      Joiner.on(", ").join(nonPrimaryKeyColumns));
             }
+
+            var annRestriction = Streams.stream(nonPrimaryKeyRestrictions).filter(SingleRestriction::isANN).findFirst();
+            if (annRestriction.isPresent())
+            {
+                // If there is an ANN restriction then it must be for a vector<float, n> column, and it must have an index
+                var annColumn = annRestriction.get().getFirstColumn();
+
+                if (!annColumn.type.isVector() || !(((VectorType<?>)annColumn.type).elementType instanceof FloatType))
+                    throw invalidRequest(StatementRestrictions.ANN_ONLY_SUPPORTED_ON_VECTOR_MESSAGE);
+                if (indexRegistry == null || indexRegistry.listIndexes().stream().noneMatch(i -> i.dependsOn(annColumn)))
+                    throw invalidRequest(StatementRestrictions.ANN_REQUIRES_INDEX_MESSAGE);
+                // We do not allow ANN query filtering using non-indexed columns
+                var nonAnnColumns = Streams.stream(nonPrimaryKeyRestrictions).filter(r -> !r.isANN()).map(r -> r.getFirstColumn()).collect(Collectors.toList());
+                var clusteringColumns = clusteringColumnsRestrictions.getColumnDefinitions();
+                if (!nonAnnColumns.isEmpty() || !clusteringColumns.isEmpty())
+                {
+                    var nonIndexedColumns = Stream.concat(nonAnnColumns.stream(), clusteringColumns.stream())
+                                                  .filter(c -> indexRegistry == null || indexRegistry.listIndexes()
+                                                                                                     .stream()
+                                                                                                     .noneMatch(i -> i.dependsOn(c)))
+                                                  .collect(Collectors.toList());
+                    if (!nonIndexedColumns.isEmpty())
+                        throw invalidRequest(StatementRestrictions.ANN_REQUIRES_INDEXED_FILTERING_MESSAGE);
+                }
+            }
+            else
+            {
+                // We do not support indexed vector restrictions that are not part of an ANN ordering
+                var vectorColumn = nonPrimaryKeyRestrictions.getColumnDefs()
+                                                            .stream()
+                                                            .filter(c -> c.type.isVector())
+                                                            .findFirst();
+                if (vectorColumn.isPresent() && indexRegistry.listIndexes().stream().anyMatch(i -> i.dependsOn(vectorColumn.get())))
+                    throw invalidRequest(StatementRestrictions.VECTOR_INDEXES_ANN_ONLY_MESSAGE);
+            }
+
             if (hasQueriableIndex)
             {
                 usesSecondaryIndexing = true;
             }
             else
             {
-                if (nonPrimaryKeyRestrictions.hasAnn())
-                {
-                    var annVectorColumn = Streams.stream(nonPrimaryKeyRestrictions)
-                                                 .filter(SingleRestriction::isANN)
-                                                 .map(Restriction::getFirstColumn)
-                                                 .filter(c -> (c.type.isVector() && ((VectorType<?>) c.type).elementType instanceof FloatType))
-                                                 .findFirst();
-                    if (annVectorColumn.isEmpty())
-                        throw invalidRequest(StatementRestrictions.ANN_ONLY_SUPPORTED_ON_VECTOR_MESSAGE);
-                    if (indexRegistry == null || indexRegistry.listIndexes().stream().noneMatch(i -> i.dependsOn(annVectorColumn.get())))
-                        throw invalidRequest(StatementRestrictions.ANN_REQUIRES_INDEX_MESSAGE);
-                }
-
-                var vectorColumn = nonPrimaryKeyRestrictions.getColumnDefs()
-                                                            .stream()
-                                                            .filter(c -> (c.type.isVector() && ((VectorType<?>) c.type).elementType instanceof FloatType))
-                                                            .findFirst();
-                if (vectorColumn.isPresent() && indexRegistry != null &&
-                    indexRegistry.listIndexes().stream().anyMatch(i -> i.dependsOn(vectorColumn.get())))
-                    throw invalidRequest(StatementRestrictions.VECTOR_INDEXES_ANN_ONLY_MESSAGE);
-
                 if (!allowFiltering && requiresAllowFilteringIfNotSpecified())
                     throw invalidRequest(allowFilteringMessage(state));
             }

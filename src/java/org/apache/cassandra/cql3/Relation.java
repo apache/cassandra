@@ -155,8 +155,8 @@ public abstract class Relation
             case LIKE_MATCHES:
             case LIKE:
                 return newLikeRestriction(table, boundNames, relationType);
-//            case ANN:
-//                return newAnnRestriction(table, boundNames);
+            case ANN:
+                throw invalidRequest("ANN is only supported in ORDER BY");
             default: throw invalidRequest("Unsupported \"!=\" relation: %s", this);
         }
     }

@@ -67,6 +67,8 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.FloatType;
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
@@ -97,6 +99,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -106,6 +109,12 @@ import static org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig.MAX_TOP_K
 public class StorageAttachedIndex implements Index
 {
     public static final String NAME = "sai";
+
+    public static final String VECTOR_USAGE_WARNING = "SAI ANN indexes on vector columns are experimental and are not recommended for production use.\n" +
+                                                      "They cannot be queried with a read consistency level higher than ONE/LOCAL_ONE.\n" +
+                                                      "They cannot use paging, or be used in aggregation queries.\n" +
+                                                      "These limitations are planned to be removed in future versions.";
+    public static final String VECTOR_NON_FLOAT_ERROR = "SAI ANN indexes are only allowed on vector columns with float elements";
 
     @VisibleForTesting
     public static final String ANALYSIS_ON_KEY_COLUMNS_MESSAGE = "Analysis options are not supported on primary key columns, but found ";
@@ -270,6 +279,13 @@ public class StorageAttachedIndex implements Index
         else if (!SUPPORTED_TYPES.contains(type.asCQL3Type()) && !TypeUtil.isFrozen(type))
         {
             throw new InvalidRequestException("Unsupported type: " + type.asCQL3Type());
+        }
+        else if (type.isVector())
+        {
+            if (!(((VectorType<?>)type).elementType instanceof FloatType))
+                throw new InvalidRequestException(VECTOR_NON_FLOAT_ERROR);
+
+            ClientWarn.instance.warn(VECTOR_USAGE_WARNING);
         }
 
         Map<String, String> analysisOptions = AbstractAnalyzer.getAnalyzerOptions(options);
