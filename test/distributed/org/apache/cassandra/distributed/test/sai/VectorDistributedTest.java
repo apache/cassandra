@@ -128,7 +128,7 @@ public class VectorDistributedTest extends TestBaseImpl
         int limit = Math.min(SAITester.getRandom().nextIntBetween(10, 50), vectors.size());
         float[] queryVector = randomVector();
         assertThatThrownBy(() -> execute("SELECT val FROM %s ORDER BY val ann of " + Arrays.toString(queryVector) + " LIMIT " + limit, ConsistencyLevel.QUORUM))
-            .hasMessage(SelectStatement.TOPK_CONSISTENCY_LEVEL_ERROR);
+            .hasMessage(String.format(SelectStatement.TOPK_CONSISTENCY_LEVEL_ERROR, ConsistencyLevel.QUORUM));
 
         Object[][] result = execute("SELECT val FROM %s ORDER BY val ann of " + Arrays.toString(queryVector) + " LIMIT " + limit, ConsistencyLevel.ONE);
         assertThat(result).hasNumberOfRows(limit);
@@ -163,7 +163,7 @@ public class VectorDistributedTest extends TestBaseImpl
         assertThat(memtableRecall).isGreaterThanOrEqualTo(MIN_RECALL);
 
         assertThatThrownBy(() -> searchWithoutLimit(randomVector(), vectorCount))
-        .hasMessageContaining(INVALID_LIMIT_MESSAGE);
+        .hasMessageContaining(SelectStatement.TOPK_LIMIT_ERROR);
 
         int pageSize = SAITester.getRandom().nextIntBetween(40, 70);
         limit = SAITester.getRandom().nextIntBetween(20, 50);
@@ -175,7 +175,7 @@ public class VectorDistributedTest extends TestBaseImpl
         assertThat(memtableRecallWithPaging).isGreaterThanOrEqualTo(MIN_RECALL);
 
         assertThatThrownBy(() -> searchWithPageWithoutLimit(randomVector()))
-        .hasMessageContaining(INVALID_LIMIT_MESSAGE);
+        .hasMessageContaining(SelectStatement.TOPK_LIMIT_ERROR);
 
         // query on-disk index
         cluster.forEach(n -> n.flush(KEYSPACE));
