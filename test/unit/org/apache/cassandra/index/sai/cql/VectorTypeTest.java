@@ -34,16 +34,20 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
+import org.apache.cassandra.service.ClientWarn;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class VectorTypeTest extends VectorTester
 {
     private static final IPartitioner partitioner = Murmur3Partitioner.instance;
 
     @Test
-    public void endToEndTest() throws Throwable
+    public void endToEndTest()
     {
         createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
@@ -85,7 +89,19 @@ public class VectorTypeTest extends VectorTester
     }
 
     @Test
-    public void createIndexAfterInsertTest() throws Throwable
+    public void warningIsIssuedOnIndexCreation()
+    {
+        ClientWarn.instance.captureWarnings();
+        createTable("CREATE TABLE %s (pk int, val vector<float, 3>, PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        List<String> warnings = ClientWarn.instance.getWarnings();
+
+        assertTrue(warnings.size() > 0);
+        assertEquals(StorageAttachedIndex.VECTOR_USAGE_WARNING, warnings.get(0));
+    }
+
+    @Test
+    public void createIndexAfterInsertTest()
     {
         createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
 
@@ -118,7 +134,7 @@ public class VectorTypeTest extends VectorTester
     }
 
     @Test
-    public void testTwoPredicates() throws Throwable
+    public void testTwoPredicates()
     {
         createTable("CREATE TABLE %s (pk int, b boolean, v vector<float, 3>, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(b) USING 'StorageAttachedIndex'");
@@ -141,7 +157,7 @@ public class VectorTypeTest extends VectorTester
     }
 
     @Test
-    public void testTwoPredicatesManyRows() throws Throwable
+    public void testTwoPredicatesManyRows()
     {
         createTable("CREATE TABLE %s (pk int, b boolean, v vector<float, 3>, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(b) USING 'StorageAttachedIndex'");
@@ -162,7 +178,7 @@ public class VectorTypeTest extends VectorTester
     }
 
     @Test
-    public void testThreePredicates() throws Throwable
+    public void testThreePredicates()
     {
         createTable("CREATE TABLE %s (pk int, b boolean, v vector<float, 3>, str text, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(b) USING 'StorageAttachedIndex'");
@@ -186,7 +202,7 @@ public class VectorTypeTest extends VectorTester
     }
 
     @Test
-    public void testSameVectorMultipleRows() throws Throwable
+    public void testSameVectorMultipleRows()
     {
         createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
@@ -206,7 +222,7 @@ public class VectorTypeTest extends VectorTester
     }
 
     @Test
-    public void testQueryEmptyTable() throws Throwable
+    public void testQueryEmptyTable()
     {
         createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
@@ -216,7 +232,7 @@ public class VectorTypeTest extends VectorTester
     }
 
     @Test
-    public void testQueryTableWithNulls() throws Throwable
+    public void testQueryTableWithNulls()
     {
         createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
@@ -231,7 +247,7 @@ public class VectorTypeTest extends VectorTester
     }
 
     @Test
-    public void testLimitLessThanInsertedRowCount() throws Throwable
+    public void testLimitLessThanInsertedRowCount()
     {
         createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
@@ -247,7 +263,7 @@ public class VectorTypeTest extends VectorTester
     }
 
     @Test
-    public void testQueryMoreRowsThanInserted() throws Throwable
+    public void testQueryMoreRowsThanInserted()
     {
         createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
@@ -259,7 +275,7 @@ public class VectorTypeTest extends VectorTester
     }
 
     @Test
-    public void changingOptionsTest() throws Throwable
+    public void changingOptionsTest()
     {
         createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
         if (CassandraRelevantProperties.SAI_VECTOR_ALLOW_CUSTOM_PARAMETERS.getBoolean())
@@ -300,7 +316,7 @@ public class VectorTypeTest extends VectorTester
     }
 
     @Test
-    public void bindVariablesTest() throws Throwable
+    public void bindVariablesTest()
     {
         createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
@@ -315,7 +331,7 @@ public class VectorTypeTest extends VectorTester
     }
 
     @Test
-    public void intersectedSearcherTest() throws Throwable
+    public void intersectedSearcherTest()
     {
         // check that we correctly get back the two rows with str_val=B even when those are not
         // the closest rows to the query vector
@@ -338,7 +354,7 @@ public class VectorTypeTest extends VectorTester
     }
 
     @Test
-    public void nullVectorTest() throws Throwable
+    public void nullVectorTest()
     {
         createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(str_val) USING 'StorageAttachedIndex'");
@@ -366,7 +382,7 @@ public class VectorTypeTest extends VectorTester
     }
 
     @Test
-    public void lwtTest() throws Throwable
+    public void lwtTest()
     {
         createTable("CREATE TABLE %s (p int, c int, v text, vec vector<float, 2>, PRIMARY KEY(p, c))");
         createIndex("CREATE CUSTOM INDEX ON %s(vec) USING 'StorageAttachedIndex'");
@@ -382,7 +398,7 @@ public class VectorTypeTest extends VectorTester
     }
 
     @Test
-    public void twoVectorFieldsTest() throws Throwable
+    public void twoVectorFieldsTest()
     {
         createTable("CREATE TABLE %s (pk int, v2 vector<float, 2>, v3 vector<float, 3>, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(v2) USING 'StorageAttachedIndex'");
@@ -390,7 +406,7 @@ public class VectorTypeTest extends VectorTester
     }
 
     @Test
-    public void primaryKeySearchTest() throws Throwable
+    public void primaryKeySearchTest()
     {
         createTable("CREATE TABLE %s (pk int, val vector<float, 3>, i int, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
@@ -416,7 +432,7 @@ public class VectorTypeTest extends VectorTester
     }
 
     @Test
-    public void partitionKeySearchTest() throws Throwable
+    public void partitionKeySearchTest()
     {
         createTable("CREATE TABLE %s (partition int, row int, val vector<float, 2>, PRIMARY KEY(partition, row))");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = {'similarity_function' : 'euclidean'}");
@@ -455,6 +471,17 @@ public class VectorTypeTest extends VectorTester
                                     row(i, 1),
                                     row(i, 2));
         }
+    }
+
+    @Test
+    public void clusteringKeyIndexTest()
+    {
+        createTable("CREATE TABLE %s (pk int, ck vector<float, 2>, PRIMARY KEY(pk, ck))");
+        createIndex("CREATE CUSTOM INDEX ON %s(ck) USING 'StorageAttachedIndex'");
+
+        execute("INSERT INTO %s (pk, ck) VALUES (1, [1.0, 2.0])");
+
+        assertRows(execute("SELECT * FROM %s ORDER BY ck ANN OF [1.0, 2.0] LIMIT 1"), row(1, vector(1.0F, 2.0F)));
     }
 
     @Test
@@ -551,7 +578,7 @@ public class VectorTypeTest extends VectorTester
     }
 
     @Test
-    public void selectFloatVectorFunctions() throws Throwable
+    public void selectFloatVectorFunctions()
     {
         createTable(KEYSPACE, "CREATE TABLE %s (pk int primary key, value vector<float, 2>)");
 
@@ -576,7 +603,7 @@ public class VectorTypeTest extends VectorTester
     }
 
     @Test
-    public void selectSimilarityWithAnn() throws Throwable
+    public void selectSimilarityWithAnn()
     {
         createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
@@ -596,7 +623,7 @@ public class VectorTypeTest extends VectorTester
     }
 
     @Test
-    public void castedTerminalFloatVectorFunctions() throws Throwable
+    public void castedTerminalFloatVectorFunctions()
     {
         createTable(KEYSPACE, "CREATE TABLE %s (pk int primary key, value vector<float, 2>)");
 
