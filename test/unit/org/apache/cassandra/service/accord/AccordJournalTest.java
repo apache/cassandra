@@ -23,18 +23,21 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import accord.primitives.TxnId;
 import accord.utils.AccordGens;
 import accord.utils.Gen;
 import accord.utils.Gens;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.service.accord.AccordJournal.Key;
 import org.apache.cassandra.utils.AsymmetricOrdering;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FBUtilities.Order;
+import org.apache.cassandra.utils.StorageCompatibilityMode;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import static accord.utils.Property.qt;
@@ -42,6 +45,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class AccordJournalTest
 {
+    @BeforeClass
+    public static void setCompatibilityMode()
+    {
+        CassandraRelevantProperties.JUNIT_STORAGE_COMPATIBILITY_MODE.setEnum(StorageCompatibilityMode.NONE);
+    }
+
     @Test
     public void keySerde()
     {
