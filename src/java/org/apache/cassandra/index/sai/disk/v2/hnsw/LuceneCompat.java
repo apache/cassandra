@@ -25,9 +25,12 @@ public class LuceneCompat
 {
     public static org.apache.lucene.util.Bits bits(Bits bits)
     {
-        if (bits instanceof org.apache.lucene.util.Bits) {
+        if (bits == null)
+            return null;
+
+        if (bits instanceof org.apache.lucene.util.Bits)
             return (org.apache.lucene.util.Bits) bits;
-        }
+
         return new org.apache.lucene.util.Bits()
         {
             @Override
