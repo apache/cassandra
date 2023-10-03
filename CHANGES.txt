@@ -19,6 +19,7 @@ Merged from 4.1:
  * Internode legacy SSL storage port certificate is not hot reloaded on update (CASSANDRA-18681)
  * Nodetool paxos-only repair is no longer incremental (CASSANDRA-18466)
 Merged from 4.0:
+ * Update hdrhistogram to 2.1.12 (CASSANDRA-18893)
  * Improve performance of compactions when table does not have an index (CASSANDRA-18773)
  * JMH improvements - faster build and async profiler (CASSANDRA-18871)
  * Enable 3rd party JDK installations for Debian package (CASSANDRA-18844)
