@@ -554,7 +554,7 @@
             <exclusion groupId="com.google.errorprone" artifactId="error_prone_annotations" />
           </dependency>
           <dependency groupId="com.google.jimfs" artifactId="jimfs" version="1.1"/>
-          <dependency groupId="org.hdrhistogram" artifactId="HdrHistogram" version="2.1.9"/>
+          <dependency groupId="org.hdrhistogram" artifactId="HdrHistogram" version="2.1.12"/>
           <dependency groupId="commons-cli" artifactId="commons-cli" version="1.1"/>
           <dependency groupId="commons-codec" artifactId="commons-codec" version="1.9"/>
           <dependency groupId="commons-io" artifactId="commons-io" version="2.6"/>

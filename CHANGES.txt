@@ -5,6 +5,7 @@
  * Allow empty keystore_password in encryption_options (CASSANDRA-18778)
  * Skip ColumnFamilyStore#topPartitions initialization when client or tool mode (CASSANDRA-18697)
 Merged from 4.0:
+ * Update hdrhistogram to 2.1.12 (CASSANDRA-18893)
  * Improve performance of compactions when table does not have an index (CASSANDRA-18773)
  * JMH improvements - faster build and async profiler (CASSANDRA-18871)
  * Enable 3rd party JDK installations for Debian package (CASSANDRA-18844)
