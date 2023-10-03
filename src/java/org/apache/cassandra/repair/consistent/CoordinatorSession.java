@@ -21,6 +21,7 @@ package org.apache.cassandra.repair.consistent;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -75,9 +76,12 @@ public class CoordinatorSession extends ConsistentSession
     private volatile long repairStart = Long.MIN_VALUE;
     private volatile long finalizeStart = Long.MIN_VALUE;
 
+    private final Consumer<CoordinatorSession> listener;
+
     public CoordinatorSession(Builder builder)
     {
         super(builder);
+        this.listener = builder.listener;
         ctx = builder.ctx == null ? SharedContext.Global.instance : builder.ctx;
         for (InetAddressAndPort participant : participants)
         {
@@ -87,11 +91,17 @@ public class CoordinatorSession extends ConsistentSession
 
     public static class Builder extends AbstractBuilder
     {
+        Consumer<CoordinatorSession> listener;
         private SharedContext ctx;
 
         public Builder(SharedContext ctx)
         {
             super(ctx);
+        }
+
+        public void withListener(Consumer<CoordinatorSession> listener)
+        {
+            this.listener = listener;
         }
 
         public Builder withContext(SharedContext ctx)
@@ -116,6 +126,8 @@ public class CoordinatorSession extends ConsistentSession
     {
         logger.trace("Setting coordinator state to {} for repair {}", state, sessionID);
         super.setState(state);
+        if (listener != null)
+            listener.accept(this);
     }
 
     @VisibleForTesting
