@@ -43,7 +43,10 @@ class AccordClusterSimulation extends ClusterSimulation<PaxosSimulation> impleme
         public void applyHandicaps()
         {
             /**
-             * TODO: remove after partial replication patch
+             * TODO (required): remove
+             * We currently require coordinators to have a CommandStore to coordinate a query, but not every node
+             * is a replica under standard simulation
+             *
              * The current homekey implementation isn't compatible with the C* commands per key implementation when
              * a non-replica coordinates a query.
              *

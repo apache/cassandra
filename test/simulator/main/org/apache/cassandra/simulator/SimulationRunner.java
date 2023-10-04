@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 import java.util.function.ToDoubleFunction;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -51,6 +52,7 @@ import org.apache.cassandra.simulator.systems.InterceptibleThread;
 import org.apache.cassandra.simulator.systems.InterceptorOfGlobalMethods;
 import org.apache.cassandra.simulator.utils.ChanceRange;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Hex;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
@@ -75,7 +77,10 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.MEMTABLE_O
 import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_REPAIR_RETRY_TIMEOUT_IN_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.RING_DELAY;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SHUTDOWN_ANNOUNCE_DELAY_IN_MS;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SIMULATOR_STARTED;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SYSTEM_AUTH_DEFAULT_RF;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_CASSANDRA_SUITENAME;
+import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_CASSANDRA_TESTTAG;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_JVM_DTEST_DISABLE_SSL;
 import static org.apache.cassandra.simulator.debug.Reconcile.reconcileWith;
 import static org.apache.cassandra.simulator.debug.Record.record;
@@ -135,6 +140,7 @@ public class SimulationRunner
         IGNORE_MISSING_NATIVE_FILE_HINTS.setBoolean(true);
         ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.setBoolean(true);
         TEST_JVM_DTEST_DISABLE_SSL.setBoolean(true); // to support easily running without netty from dtest-jar
+        SIMULATOR_STARTED.setString(Long.toString(TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis())));
 
         if (Thread.currentThread() instanceof InterceptibleThread); // load InterceptibleThread class to avoid infinite loop in InterceptorOfGlobalMethods
         new InterceptedWait.CaptureSites(Thread.currentThread())
@@ -344,8 +350,11 @@ public class SimulationRunner
         {
             long seed = parseHex(Optional.ofNullable(this.seed)).orElse(new Random(System.nanoTime()).nextLong());
             SeedDefiner.setSeed(seed);
-            logger();
             beforeAll();
+            // TODO (expected): this doesn't work properly for multiple seeds in a single JVM
+            TEST_CASSANDRA_TESTTAG.setString("simulator");
+            TEST_CASSANDRA_SUITENAME.setString(SIMULATOR_STARTED.getString() + '-' + CassandraRelevantProperties.SIMULATOR_SEED.getString());
+            logger();
             Thread.setDefaultUncaughtExceptionHandler((th, e) -> {
                 boolean isInterrupt = false;
                 Throwable t = e;
@@ -378,6 +387,7 @@ public class SimulationRunner
         protected void run(long seed, B builder) throws IOException
         {
             logger().error("Seed 0x{}", Long.toHexString(seed));
+            logger().info("Cassandra {} / {}", FBUtilities.getReleaseVersionString(), FBUtilities.getGitSHA());
 
             try (ClusterSimulation<?> cluster = builder.create(seed))
             {
@@ -456,6 +466,16 @@ public class SimulationRunner
         }
     }
 
+    @Command(name = "version", description = "Display version information")
+    protected static class VersionCommand<B extends ClusterSimulation.Builder<?>> implements ICommand<B>
+    {
+        @Override
+        public void run(B builder) throws IOException
+        {
+            System.out.println(FBUtilities.getReleaseVersionString());
+            System.out.println(FBUtilities.getGitSHA());
+        }
+    }
 
     public static Optional<Long> parseHex(Optional<String> value)
     {

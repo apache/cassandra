@@ -36,6 +36,7 @@ import org.slf4j.LoggerFactory;
 import com.carrotsearch.hppc.IntArrayList;
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.cursors.IntCursor;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.rows.Cell;
@@ -139,7 +140,10 @@ public class PairOfSequencesAccordSimulation extends AbstractPairOfSequencesPaxo
               seed, primaryKeys,
               runForNanos, jitter);
         this.writeRatio = 1F - readRatio;
-        validator = new LoggingHistoryValidator(new StrictSerializabilityValidator(primaryKeys));
+        HistoryValidator validator = new StrictSerializabilityValidator(primaryKeys);
+        if (CassandraRelevantProperties.TEST_HISTORY_VALIDATOR_LOGGING_ENABLED.getBoolean())
+            validator = new LoggingHistoryValidator(validator);
+        this.validator = validator;
     }
 
     @Override

@@ -50,6 +50,7 @@ import org.apache.cassandra.journal.Segments.ReferencedSegments;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Crc;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.Simulate;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
 import static java.lang.String.format;
@@ -61,6 +62,7 @@ import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe
 import static org.apache.cassandra.concurrent.Interruptible.State.NORMAL;
 import static org.apache.cassandra.concurrent.Interruptible.State.SHUTTING_DOWN;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.Simulate.With.MONITORS;
 import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
 
 /**
@@ -77,6 +79,7 @@ import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
  * @param <K> the type of keys used to address the records;
               must be fixed-size and byte-order comparable
  */
+@Simulate(with=MONITORS)
 public class Journal<K, V> implements Shutdownable
 {
     private static final Logger logger = LoggerFactory.getLogger(Journal.class);

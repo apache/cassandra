@@ -126,7 +126,7 @@ public class IsolatedExecutor implements IIsolatedExecutor
 
     public Future<Void> shutdown()
     {
-        isolatedExecutor.shutdownNow();
+        isolatedExecutor.shutdown();
         return shutdownExecutor.shutdown(name, classLoader, isolatedExecutor, () -> {
 
             // Shutdown logging last - this is not ideal as the logging subsystem is initialized

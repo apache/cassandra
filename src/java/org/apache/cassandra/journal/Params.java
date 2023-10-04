@@ -41,7 +41,7 @@ public interface Params
     /**
      * @return milliseconds between journal flushes
      */
-    int flushPeriod();
+    int flushPeriodMillis();
 
     /**
      * @return milliseconds to block writes for while waiting for a slow disk flush to complete

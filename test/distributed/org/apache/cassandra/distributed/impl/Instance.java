@@ -102,6 +102,7 @@ import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.hints.DTestSerializer;
 import org.apache.cassandra.hints.HintsService;
+import org.apache.cassandra.index.IndexStatusManager;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.io.IVersionedAsymmetricSerializer;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -628,6 +629,9 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 {
                     assert config.networkTopology().contains(config.broadcastAddress()) : String.format("Network topology %s doesn't contain the address %s",
                                                                                                         config.networkTopology(), config.broadcastAddress());
+                    // org.apache.cassandra.distributed.impl.AbstractCluster.startup sets the exception handler for the thread
+                    // so extract it to populate ExecutorFactory.Global
+                    ExecutorFactory.Global.tryUnsafeSet(new ExecutorFactory.Default(Thread.currentThread().getContextClassLoader(), null, Thread.getDefaultUncaughtExceptionHandler()));
                     DistributedTestInitialLocationProvider.assign(config.networkTopology());
                     CassandraDaemon.getInstanceForTesting().activate(false);
                     // TODO: filters won't work for the messages dispatched during startup
@@ -927,6 +931,11 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                 error = parallelRun(error, executor,
                                     () -> Gossiper.instance.stopShutdownAndWait(1L, MINUTES));
             }
+            else
+            {
+                error = parallelRun(error, executor,
+                                    () -> Gossiper.instance.shutdownAndWait(1L, MINUTES));
+            }
 
             error = parallelRun(error, executor, StorageService.instance::disableAutoCompaction);
 
@@ -970,6 +979,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
                                 () -> ActiveRepairService.instance().shutdownNowAndWait(1L, MINUTES),
                                 () -> EpochAwareDebounce.instance.close(),
                                 SnapshotManager.instance::close,
+                                () -> IndexStatusManager.instance.shutdownAndWait(1L, MINUTES),
                                 DiskErrorsHandlerService::close
             );
 

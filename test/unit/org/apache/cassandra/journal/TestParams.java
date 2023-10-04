@@ -42,7 +42,7 @@ public class TestParams implements Params
     }
 
     @Override
-    public int flushPeriod()
+    public int flushPeriodMillis()
     {
         return 1000;
     }

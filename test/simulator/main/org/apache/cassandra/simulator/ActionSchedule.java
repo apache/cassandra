@@ -281,6 +281,12 @@ public class ActionSchedule implements CloseableIterator<Object>, LongConsumer
         if (!runnable.isEmpty() || !scheduled.isEmpty())
             return true;
 
+        while (moreWork())
+        {
+            if (!runnable.isEmpty() || !scheduled.isEmpty())
+                return true;
+        }
+
         if (!sequences.isEmpty())
         {
             // TODO (feature): detection of which action is blocking progress, and logging of its stack trace only
@@ -313,14 +319,11 @@ public class ActionSchedule implements CloseableIterator<Object>, LongConsumer
             throw failWithOOM();
         }
 
-        while (moreWork())
-        {
-            if (!runnable.isEmpty() || !scheduled.isEmpty())
-                return true;
-        }
-
         return false;
     }
+
+    // NOTE: this is only here for debugging, its a quick way to see if pre (0), interleave (1), or post (2) is active
+    private int step = -1;
 
     private boolean moreWork()
     {
@@ -347,6 +350,8 @@ public class ActionSchedule implements CloseableIterator<Object>, LongConsumer
         work.actors.forEach(runnableScheduler::attachTo);
         work.actors.forEach(a -> a.forEach(Action::setConsequence));
         work.actors.forEach(this::add);
+
+        step++;
         return true;
     }
 

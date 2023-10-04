@@ -62,6 +62,8 @@ public class InterceptClasses implements BiFunction<String, byte[], byte[]>
                                                             "|org[/.]apache[/.]cassandra[/.]distributed[/.]impl[/.]DirectStreamingConnectionFactory.*" +
                                                             "|org[/.]apache[/.]cassandra[/.]db[/.]commitlog[/.].*" +
                                                             "|org[/.]apache[/.]cassandra[/.]service[/.]paxos[/.].*" +
+                                                            "|org[/.]apache[/.]cassandra[/.]service[/.]accord[/.].*" +
+                                                            "|org[/.]apache[/.]cassandra[/.]journal[/.].*" +
                                                             "|accord[/.].*"
     );
 

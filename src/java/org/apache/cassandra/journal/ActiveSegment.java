@@ -33,6 +33,9 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
+import static org.apache.cassandra.utils.Simulate.With.MONITORS;
+
+@Simulate(with=MONITORS)
 final class ActiveSegment<K, V> extends Segment<K, V>
 {
     final FileChannel channel;
@@ -246,6 +249,12 @@ final class ActiveSegment<K, V> extends Segment<K, V>
     /*
      * Flush logic; closing and component flushing
      */
+
+    boolean shouldFlush()
+    {
+        int allocatePosition = this.allocatePosition.get();
+        return lastFlushedOffset < allocatePosition;
+    }
 
     /**
      * Possibly force a disk flush for this segment file.

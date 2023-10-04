@@ -137,6 +137,7 @@ public class PaxosSimulationRunner extends SimulationRunner
     }
 
     public static class Help extends HelpCommand<PaxosClusterSimulation.Builder> {}
+    public static class Version extends VersionCommand<PaxosClusterSimulation.Builder> {}
 
     static void propagateTo(String consistency, boolean withStateCache, boolean withoutStateCache, String variant, String toVariant, PaxosClusterSimulation.Builder builder)
     {
@@ -163,6 +164,7 @@ public class PaxosSimulationRunner extends SimulationRunner
            .withCommand(Run.class)
            .withCommand(Reconcile.class)
            .withCommand(Record.class)
+           .withCommand(Version.class)
            .withCommand(Help.class)
            .withDefaultCommand(Help.class)
            .build()

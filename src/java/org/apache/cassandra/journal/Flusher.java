@@ -28,6 +28,7 @@ import org.apache.cassandra.concurrent.Interruptible;
 import org.apache.cassandra.concurrent.Interruptible.TerminateException;
 import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.utils.Simulate;
 import org.apache.cassandra.utils.concurrent.Semaphore;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
@@ -45,6 +46,9 @@ import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.LocalizeString.toLowerCaseLocalized;
 import static org.apache.cassandra.utils.MonotonicClock.Global.preciseTime;
+import static org.apache.cassandra.utils.Simulate.With.GLOBAL_CLOCK;
+import static org.apache.cassandra.utils.Simulate.With.LOCK_SUPPORT;
+import static org.apache.cassandra.utils.Simulate.With.MONITORS;
 import static org.apache.cassandra.utils.concurrent.Semaphore.newSemaphore;
 import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
 
@@ -96,6 +100,7 @@ final class Flusher<K, V>
         flushExecutor.shutdown();
     }
 
+    @Simulate(with={MONITORS,GLOBAL_CLOCK,LOCK_SUPPORT})
     private class FlushRunnable implements Interruptible.Task
     {
         private final MonotonicClock clock;
@@ -151,9 +156,17 @@ final class Flusher<K, V>
             if (state == SHUTTING_DOWN)
                 return;
 
-            long wakeUpAt = startedRunAt + flushPeriodNanos();
-            if (wakeUpAt > now)
-                haveWork.tryAcquireUntil(1, wakeUpAt);
+            long flushPeriodNanos = flushPeriodNanos();
+            if (flushPeriodNanos <= 0)
+            {
+                haveWork.acquire(1);
+            }
+            else
+            {
+                long wakeUpAt = startedRunAt + flushPeriodNanos;
+                if (wakeUpAt > now)
+                    haveWork.tryAcquireUntil(1, wakeUpAt);
+            }
         }
 
         private void doFlush()
@@ -168,6 +181,9 @@ final class Flusher<K, V>
 
                 for (ActiveSegment<K, V> segment : segmentsToFlush)
                 {
+                    if (!segment.shouldFlush())
+                        break;
+
                     syncedSegment = segment.descriptor.timestamp;
                     syncedOffset = segment.flush();
 
@@ -202,8 +218,9 @@ final class Flusher<K, V>
             flushCount++;
             flushDuration += (finishedFlushAt - startedFlushAt);
 
-            long lag = finishedFlushAt - (startedFlushAt + flushPeriodNanos());
-            if (lag <= 0)
+            long flushPeriodNanos = flushPeriodNanos();
+            long lag = finishedFlushAt - (startedFlushAt + flushPeriodNanos);
+            if (flushPeriodNanos <= 0 || lag <= 0)
                 return;
 
             lagCount++;
@@ -349,7 +366,7 @@ final class Flusher<K, V>
 
     private long flushPeriodNanos()
     {
-        return 1_000_000L * params.flushPeriod();
+        return 1_000_000L * params.flushPeriodMillis();
     }
 
     private long periodicFlushLagBlockNanos()
