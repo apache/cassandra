@@ -46,12 +46,6 @@ public class DurationType extends AbstractType<Duration>
         super(ComparisonType.BYTE_ORDER);
     } // singleton
 
-    @Override
-    public boolean allowsEmpty()
-    {
-        return false;
-    }
-
     public ByteBuffer fromString(String source) throws MarshalException
     {
         // Return an empty ByteBuffer for an empty string.
