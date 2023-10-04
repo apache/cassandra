@@ -545,15 +545,13 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                                            if (t != null)
                                            {
                                                doOnFailure(t);
-                                           }
-                                           else
-                                           {
-                                               groupedIndexes.forEach(i -> markIndexBuilt(i, isFullRebuild));
-                                               logger.info("Index build of {} completed", getIndexNames(groupedIndexes));
-                                               builtIndexes.addAll(groupedIndexes);
-                                               build.set(o);
+                                               return;
                                            }
                                        }
+                                       groupedIndexes.forEach(i -> markIndexBuilt(i, isFullRebuild));
+                                       logger.info("Index build of {} completed", getIndexNames(groupedIndexes));
+                                       builtIndexes.addAll(groupedIndexes);
+                                       build.set(o);
                                    }
                                }, MoreExecutors.directExecutor());
                                futures.add(build);
