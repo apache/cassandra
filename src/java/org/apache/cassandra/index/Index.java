@@ -23,6 +23,7 @@ package org.apache.cassandra.index;
 import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -55,8 +56,8 @@ import org.apache.cassandra.index.transactions.IndexTransaction;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
-import org.apache.cassandra.io.sstable.SSTableFlushObserver;
 import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.SSTableFlushObserver;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
@@ -274,6 +275,17 @@ public interface Index
      * @param registry the index registry to register the instance with
      */
     public void register(IndexRegistry registry);
+
+    /**
+     * Unregister current index when it's removed from system
+     *
+     * @param registry the index registry to register the instance with
+     */
+    default void unregister(IndexRegistry registry)
+    {
+        // for singleton index, the group key is the index itself
+        registry.unregisterIndex(this, new Index.Group.Key(this));
+    }
 
     /**
      * If the index implementation uses a local table to store its index data, this method should return a
@@ -677,11 +689,39 @@ public interface Index
      * Class providing grouped operations for indexes that communicate with each other.
      *
      * Index implementations should provide a {@code Group} implementation calling to
-     * {@link SecondaryIndexManager#registerIndex(Index, Object, Supplier)} during index registering
+     * {@link SecondaryIndexManager#registerIndex(Index, Index.Group.Key, Supplier)} during index registering
      * at {@link #register(IndexRegistry)} method.
      */
     interface Group
     {
+        /**
+         * Group key is used to uniquely identify a {@link Group} within a table
+         */
+        class Key
+        {
+            private final Object object;
+
+            public Key(Object object)
+            {
+                this.object = object;
+            }
+
+            @Override
+            public boolean equals(Object o)
+            {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+                Key key = (Key) o;
+                return Objects.equals(object, key.object);
+            }
+
+            @Override
+            public int hashCode()
+            {
+                return Objects.hash(object);
+            }
+        }
+
         /**
          * Returns the indexes that are members of this group.
          *
@@ -694,14 +734,16 @@ public interface Index
          *
          * @param index the index to be added
          */
-        void addIndex(Index index);
+        default void addIndex(Index index)
+        {}
 
         /**
          * Removes the specified {@link Index} from the members of this group.
          *
          * @param index the index to be removed
          */
-        void removeIndex(Index index);
+        default void removeIndex(Index index)
+        {}
 
         /**
          * Returns if this group contains the specified {@link Index}.
@@ -710,6 +752,16 @@ public interface Index
          * @return {@code true} if this group contains {@code index}, {@code false} otherwise
          */
         boolean containsIndex(Index index);
+
+        /**
+         * Returns whether this group can only ever contain a single index.
+         *
+         * @return {@code true} if this group only contains a single index, {@code false} otherwise
+         */
+        default boolean isSingleton()
+        {
+            return true;
+        }
 
         /**
          * Creates an new {@code Indexer} object for updates to a given partition.
@@ -769,8 +821,8 @@ public interface Index
         }
 
         /**
-         * Called when the table associated with this group has been invalidated. Implementations
-         * should dispose of any resources tied to the lifecycle of the {@link Group}.
+         * Called when the table associated with this group has been invalidated or all indexes in the group are removed.
+         * Implementations should dispose of any resources tied to the lifecycle of the {@link Group}.
          */
         default void invalidate() { }
 
