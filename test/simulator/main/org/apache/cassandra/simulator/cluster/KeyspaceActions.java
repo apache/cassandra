@@ -207,6 +207,7 @@ public class KeyspaceActions extends ClusterActions
         for (int i = 0; i < rfs.length; i++)
             rf.put(factory.lookup().dc(i + 1), rfs[i]);
 
+        nodes.sort(PlacementSimulator.Node::compareTo);
         return new PlacementSimulator.NtsReplicationFactor(rfs).replicate(nodes);
     }
 

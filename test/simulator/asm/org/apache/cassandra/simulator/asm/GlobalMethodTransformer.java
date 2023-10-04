@@ -97,7 +97,8 @@ class GlobalMethodTransformer extends MethodVisitor
             super.visitMethodInsn(Opcodes.INVOKESTATIC, "org/apache/cassandra/simulator/systems/InterceptorOfSystemMethods$Global", "sleep", "(Ljava/util/concurrent/TimeUnit;J)V", false);
         }
         else if ((globalMethods || deterministic) && opcode == Opcodes.INVOKESTATIC &&
-            owner.equals("java/util/concurrent/ThreadLocalRandom") && (name.equals("getProbe") || name.equals("advanceProbe") || name.equals("localInit"))
+                 ((owner.equals("java/util/concurrent/ThreadLocalRandom") && (name.equals("getProbe") || name.equals("advanceProbe") || name.equals("localInit")))
+                  || (owner.equals("java/util/concurrent/atomic/Striped64") && (name.equals("getProbe") || name.equals("advanceProbe"))))
         )
         {
             transformer.witness(GLOBAL_METHOD);

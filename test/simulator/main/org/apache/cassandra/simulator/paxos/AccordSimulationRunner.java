@@ -21,12 +21,22 @@ package org.apache.cassandra.simulator.paxos;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.junit.BeforeClass;
+
 import io.airlift.airline.Cli;
 import io.airlift.airline.Command;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.simulator.SimulationRunner;
+import org.apache.cassandra.utils.StorageCompatibilityMode;
 
 public class AccordSimulationRunner extends SimulationRunner
 {
+    @BeforeClass
+    public static void beforeAll()
+    {
+        CassandraRelevantProperties.JUNIT_STORAGE_COMPATIBILITY_MODE.setString(StorageCompatibilityMode.NONE.toString());
+    }
+
     @Command(name = "run")
     public static class Run extends SimulationRunner.Run<AccordClusterSimulation.Builder>
     {
@@ -35,6 +45,7 @@ public class AccordSimulationRunner extends SimulationRunner
         @Override
         protected void run(long seed, AccordClusterSimulation.Builder builder) throws IOException
         {
+            beforeAll();
             builder.applyHandicaps();
             super.run(seed, builder);
         }
@@ -44,12 +55,28 @@ public class AccordSimulationRunner extends SimulationRunner
     public static class Record extends SimulationRunner.Record<AccordClusterSimulation.Builder>
     {
         public Record() {}
+
+        @Override
+        protected void run(long seed, AccordClusterSimulation.Builder builder) throws IOException
+        {
+            beforeAll();
+            builder.applyHandicaps();
+            super.run(seed, builder);
+        }
     }
 
     @Command(name = "reconcile")
     public static class Reconcile extends SimulationRunner.Reconcile<AccordClusterSimulation.Builder>
     {
         public Reconcile() {}
+
+        @Override
+        protected void run(long seed, AccordClusterSimulation.Builder builder) throws IOException
+        {
+            beforeAll();
+            builder.applyHandicaps();
+            super.run(seed, builder);
+        }
     }
 
     public static class Help extends HelpCommand<AccordClusterSimulation.Builder> {}

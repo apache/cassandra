@@ -172,9 +172,9 @@ public class AccordJournal implements Shutdownable
         }
 
         @Override
-        public int flushPeriod()
+        public int flushPeriodMillis()
         {
-            return 1000;
+            return DatabaseDescriptor.getCommitLogSyncPeriod();
         }
 
         @Override

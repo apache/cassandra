@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 import org.apache.cassandra.utils.Intercept;
 import org.apache.cassandra.utils.Shared;
 
+import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
 
 @Shared(scope = SIMULATION)
@@ -139,7 +140,7 @@ public interface Semaphore
          */
         public boolean tryAcquireUntil(int acquire, long nanoTimeDeadline) throws InterruptedException
         {
-            long wait = nanoTimeDeadline - System.nanoTime();
+            long wait = nanoTimeDeadline - nanoTime();
             return tryAcquire(acquire, Math.max(0, wait), TimeUnit.NANOSECONDS);
         }
 

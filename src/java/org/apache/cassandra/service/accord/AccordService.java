@@ -26,11 +26,14 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.Nonnull;
 
+import javax.annotation.concurrent.GuardedBy;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 
 import accord.coordinate.TopologyMismatch;
 import org.apache.cassandra.cql3.statements.RequestValidations;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.transformations.AddAccordTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -91,7 +94,6 @@ import org.apache.cassandra.service.accord.interop.AccordInteropExecution;
 import org.apache.cassandra.service.accord.interop.AccordInteropPersist;
 import org.apache.cassandra.service.accord.txn.TxnResult;
 import org.apache.cassandra.tcm.ClusterMetadata;
-import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.utils.Clock;
@@ -116,6 +118,10 @@ public class AccordService implements IAccordService, Shutdownable
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordService.class);
 
+    private enum State { INIT, STARTED, SHUTDOWN}
+
+    public static final AccordClientRequestMetrics readMetrics = new AccordClientRequestMetrics("AccordRead");
+    public static final AccordClientRequestMetrics writeMetrics = new AccordClientRequestMetrics("AccordWrite");
     private static final Future<Void> BOOTSTRAP_SUCCESS = ImmediateFuture.success(null);
 
     private final Node node;
@@ -128,6 +134,8 @@ public class AccordService implements IAccordService, Shutdownable
     private final AccordJournal journal;
     private final AccordVerbHandler<? extends Request> verbHandler;
     private final LocalConfig configuration;
+    @GuardedBy("this")
+    private State state = State.INIT;
 
     private static final IAccordService NOOP_SERVICE = new IAccordService()
     {
@@ -307,13 +315,16 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @Override
-    public void startup()
+    public synchronized void startup()
     {
+        if (state != State.INIT)
+            return;
         journal.start(node);
         configService.start();
         ClusterMetadataService.instance().log().addListener(configService);
         fastPathCoordinator.start();
         ClusterMetadataService.instance().log().addListener(fastPathCoordinator);
+        state = State.STARTED;
     }
 
     @Override
@@ -525,15 +536,18 @@ public class AccordService implements IAccordService, Shutdownable
     }
 
     @Override
-    public void shutdown()
+    public synchronized void shutdown()
     {
-        ExecutorUtils.shutdown(Arrays.asList(scheduler, nodeShutdown, journal));
+        if (state != State.STARTED)
+            return;
+        ExecutorUtils.shutdown(shutdownableSubsystems());
+        state = State.SHUTDOWN;
     }
 
     @Override
     public Object shutdownNow()
     {
-        ExecutorUtils.shutdownNow(Arrays.asList(scheduler, nodeShutdown, journal));
+        shutdown();
         return null;
     }
 
@@ -542,7 +556,7 @@ public class AccordService implements IAccordService, Shutdownable
     {
         try
         {
-            ExecutorUtils.awaitTermination(timeout, units, Arrays.asList(scheduler, nodeShutdown, journal));
+            ExecutorUtils.awaitTermination(timeout, units, shutdownableSubsystems());
             return true;
         }
         catch (TimeoutException e)
@@ -551,11 +565,16 @@ public class AccordService implements IAccordService, Shutdownable
         }
     }
 
+    private List<Shutdownable> shutdownableSubsystems()
+    {
+        return Arrays.asList(scheduler, nodeShutdown, journal, configService);
+    }
+
     @VisibleForTesting
     @Override
     public void shutdownAndWait(long timeout, TimeUnit unit) throws InterruptedException, TimeoutException
     {
-        scheduler.shutdownNow();
+        shutdown();
         ExecutorUtils.shutdownAndWait(timeout, unit, this);
     }
 

@@ -20,13 +20,12 @@ package org.apache.cassandra.service.accord;
 
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import accord.impl.AbstractConfigurationService;
 import accord.local.Node;
@@ -36,6 +35,7 @@ import accord.utils.Invariants;
 import accord.utils.async.AsyncResult;
 import accord.utils.async.AsyncResults;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.concurrent.Shutdownable;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.IFailureDetector;
@@ -44,19 +44,23 @@ import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.accord.AccordKeyspace.EpochDiskState;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.listeners.ChangeListener;
+import org.apache.cassandra.utils.Simulate;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 
+import static org.apache.cassandra.utils.Simulate.With.MONITORS;
+
 // TODO: listen to FailureDetector and rearrange fast path accordingly
-public class AccordConfigurationService extends AbstractConfigurationService<AccordConfigurationService.EpochState, AccordConfigurationService.EpochHistory> implements ChangeListener, AccordEndpointMapper, AccordSyncPropagator.Listener
+@Simulate(with=MONITORS)
+public class AccordConfigurationService extends AbstractConfigurationService<AccordConfigurationService.EpochState, AccordConfigurationService.EpochHistory> implements ChangeListener, AccordEndpointMapper, AccordSyncPropagator.Listener, Shutdownable
 {
-    private static final Logger logger = LoggerFactory.getLogger(AccordConfigurationService.class);
     private final AccordSyncPropagator syncPropagator;
 
     private EpochDiskState diskState = EpochDiskState.EMPTY;
 
-    private enum State { INITIALIZED, LOADING, STARTED }
+    private enum State { INITIALIZED, LOADING, STARTED, SHUTDOWN }
 
     private State state = State.INITIALIZED;
     private volatile EndpointMapping mapping = EndpointMapping.EMPTY;
@@ -150,6 +154,35 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
             receiveRedundant(redundant, epoch);
         }));
         state = State.STARTED;
+        ClusterMetadataService.instance().log().addListener(this);
+    }
+
+    @Override
+    public synchronized boolean isTerminated()
+    {
+        return state == State.SHUTDOWN;
+    }
+
+    @Override
+    public synchronized void shutdown()
+    {
+        if (isTerminated())
+            return;
+        ClusterMetadataService.instance().log().removeListener(this);
+        state = State.SHUTDOWN;
+    }
+
+    @Override
+    public Object shutdownNow()
+    {
+        shutdown();
+        return null;
+    }
+
+    @Override
+    public boolean awaitTermination(long timeout, TimeUnit units) throws InterruptedException
+    {
+        return isTerminated();
     }
 
     @Override
@@ -262,7 +295,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     }
 
     @Override
-    protected void receiveRemoteSyncCompletePreListenerNotify(Node.Id node, long epoch)
+    protected synchronized void receiveRemoteSyncCompletePreListenerNotify(Node.Id node, long epoch)
     {
         if (state == State.STARTED)
             diskState = AccordKeyspace.markRemoteTopologySync(node, epoch, diskState);
@@ -271,7 +304,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     @Override
     public synchronized void reportEpochClosed(Ranges ranges, long epoch)
     {
-        Invariants.checkState(state == State.STARTED);
+        checkStarted();
         Topology topology = getTopologyForEpoch(epoch);
         syncPropagator.reportClosed(epoch, topology.nodes(), ranges);
     }
@@ -279,7 +312,7 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     @Override
     public synchronized void reportEpochRedundant(Ranges ranges, long epoch)
     {
-        Invariants.checkState(state == State.STARTED);
+        checkStarted();
         // TODO (expected): ensure we aren't fetching a truncated epoch; otherwise this should be non-null
         Topology topology = getTopologyForEpoch(epoch);
         syncPropagator.reportRedundant(epoch, topology.nodes(), ranges);
@@ -300,16 +333,22 @@ public class AccordConfigurationService extends AbstractConfigurationService<Acc
     }
 
     @Override
-    protected void truncateTopologiesPreListenerNotify(long epoch)
+    protected synchronized void truncateTopologiesPreListenerNotify(long epoch)
     {
-        Invariants.checkState(state == State.STARTED);
+        checkStarted();
     }
 
     @Override
-    protected void truncateTopologiesPostListenerNotify(long epoch)
+    protected synchronized void truncateTopologiesPostListenerNotify(long epoch)
     {
         if (state == State.STARTED)
             diskState = AccordKeyspace.truncateTopologyUntil(epoch, diskState);
+    }
+
+    private void checkStarted()
+    {
+        State state = this.state;
+        Invariants.checkState(state == State.STARTED, "Expected state to be STARTED but was %s", state);
     }
 
     @VisibleForTesting
