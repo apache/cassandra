@@ -1341,6 +1341,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
                     if (group.getIndexes().isEmpty())
                     {
                         indexGroups.remove(groupKey);
+                        group.invalidate();
                     }
                 }
             }
