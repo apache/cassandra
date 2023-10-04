@@ -30,7 +30,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.*;
 
-import org.apache.cassandra.transport.ClientResourceLimits.Overload;
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.Before;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -53,10 +53,12 @@ import org.apache.cassandra.net.*;
 import org.apache.cassandra.net.proxy.InboundProxyHandler;
 import org.apache.cassandra.service.NativeTransportService;
 import org.apache.cassandra.transport.CQLMessageHandler.MessageConsumer;
+import org.apache.cassandra.transport.ClientResourceLimits.Overload;
 import org.apache.cassandra.transport.messages.*;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.concurrent.NonBlockingRateLimiter;
 import org.apache.cassandra.utils.concurrent.Condition;
+import org.apache.cassandra.utils.concurrent.NonBlockingRateLimiter;
+import org.awaitility.Awaitility;
 
 import static org.apache.cassandra.config.EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED;
 import static org.apache.cassandra.io.util.FileUtils.ONE_MIB;
@@ -162,11 +164,8 @@ public class CQLConnectionTest
             error -> error.error.getMessage().contains("unrecoverable CRC mismatch detected in frame body");
 
         // expected allocated bytes are 0 as the errors happen before allocation
-        testFrameCorruption(10, Codec.crc(alloc), envelopeProvider, corruptor, 0, errorCheck);
-        testFrameCorruption(10, Codec.lz4(alloc), envelopeProvider, corruptor, 0, errorCheck);
-
-        testFrameCorruption(100, Codec.crc(alloc), envelopeProvider, corruptor, 0, errorCheck);
-        testFrameCorruption(100, Codec.lz4(alloc), envelopeProvider, corruptor, 0, errorCheck);
+        testFrameCorruption(1, Codec.crc(alloc), envelopeProvider, corruptor, 0, errorCheck);
+        testFrameCorruption(1, Codec.lz4(alloc), envelopeProvider, corruptor, 0, errorCheck);
 
         // we don't do more rounds with higher message count as the connection
         // will be closed when the first corrupt frame is encountered
@@ -191,21 +190,19 @@ public class CQLConnectionTest
             // a byte which will be in the second frame of the large message .
             int seenBytes = 0;
             int corruptedByte = 0;
+
             public ByteBuf apply(ByteBuf msg)
             {
-                // If we've already injected some corruption, pass through
-                if (corruptedByte > 0)
-                    return msg;
-
                 // Will the current buffer size take us into the second frame? If so, corrupt it
-                if (seenBytes + msg.readableBytes() > MAX_FRAMED_PAYLOAD_SIZE + 100)
+                if (corruptedByte == 0 && seenBytes + msg.readableBytes() > MAX_FRAMED_PAYLOAD_SIZE * 3 / 2)
                 {
-                    int frameBoundary = MAX_FRAMED_PAYLOAD_SIZE - seenBytes;
-                    corruptedByte = msg.readerIndex() + frameBoundary + 100;
+                    logger.info("Corrupting");
+                    corruptedByte = msg.readerIndex() + 100;
                     flipBit(msg, corruptedByte);
                 }
                 else
                 {
+                    logger.info("Skipping");
                     seenBytes += msg.readableBytes();
                 }
 
@@ -213,12 +210,12 @@ public class CQLConnectionTest
             }
         };
 
-        int totalBytesPerEnvelope = MAX_FRAMED_PAYLOAD_SIZE * 2;
+        int totalBytesPerEnvelope = MAX_FRAMED_PAYLOAD_SIZE * 3 / 2; // make sure we send 2 frame and no more
         IntFunction<Envelope> envelopeProvider = i -> randomEnvelope(i, Message.Type.OPTIONS, totalBytesPerEnvelope, totalBytesPerEnvelope);
         Predicate<ErrorMessage> errorCheck =
             error -> error.error.getMessage().contains("unrecoverable CRC mismatch detected in frame body");
 
-        testFrameCorruption(2, Codec.crc(alloc), envelopeProvider, corruptor, totalBytesPerEnvelope, errorCheck);
+        testFrameCorruption(1, Codec.crc(alloc), envelopeProvider, corruptor, totalBytesPerEnvelope, errorCheck);
     }
 
     @Test
@@ -306,13 +303,13 @@ public class CQLConnectionTest
         // badly behaved client could also include garbage which may render
         // any following bytes in the Frame unusable, even though the Frame
         // level CRC32 is valid for the payload.
-        final IntPredicate firstTen = i -> i < 10;
+        int maxErrorCount = DatabaseDescriptor.getConsecutiveMessageErrorsThreshold();
 
         // mutate the request from the erroring streams to have an invalid opcode (99)
-        IntFunction<Envelope> envelopeProvider = mutatedEnvelopeProvider(firstTen, b -> b.put(4, (byte)99));
+        IntFunction<Envelope> envelopeProvider = mutatedEnvelopeProvider(ignored -> true, b -> b.put(4, (byte)99));
 
         Predicate<ErrorMessage> errorCheck = error -> error.error.getMessage().contains("Unknown opcode 99");
-        testFrameCorruption(100, Codec.crc(alloc), envelopeProvider, Function.identity(), 0, errorCheck);
+        testFrameCorruption(maxErrorCount + 1, Codec.crc(alloc), envelopeProvider, Function.identity(), 0, errorCheck);
     }
 
     @Test
@@ -321,13 +318,13 @@ public class CQLConnectionTest
         // A negative value for the body length of an envelope is essentially a
         // fatal exception as the stream of bytes is unrecoverable
 
-        // every other message should error while extracting the Envelope header
-        IntPredicate shouldError = i -> i % 2 == 0;
+        // the first message should error while extracting the Envelope header
+        IntPredicate shouldError = i -> i == 0;
         // set the bodyLength byte to a negative value
         IntFunction<Envelope> envelopeProvider = mutatedEnvelopeProvider(shouldError, b -> b.putInt(5, -10));
         Predicate<ErrorMessage> errorCheck = error ->
             error.error.getMessage().contains("Invalid value for envelope header body length field: -10");
-        testFrameCorruption(100, Codec.crc(alloc), envelopeProvider, Function.identity(), 0, errorCheck);
+        testFrameCorruption(1, Codec.crc(alloc), envelopeProvider, Function.identity(), 0, errorCheck);
     }
 
     @Test
@@ -387,13 +384,13 @@ public class CQLConnectionTest
         // client could also send garbage which may render any following
         // bytes in the Frame unusable, even though the Frame level CRC32
         // is valid for the payload.
-        final IntPredicate firstTen = i -> i < 10;
+        int maxErrorCount = DatabaseDescriptor.getConsecutiveMessageErrorsThreshold();
         final ProtocolException protocolError = new ProtocolException("Unknown opcode 99");
         IntFunction<Envelope> envelopeProvider = (i) -> randomEnvelope(i, Message.Type.OPTIONS);
-        Message.Decoder<Message.Request> decoder = new FixedDecoder(firstTen, protocolError);
+        FixedDecoder decoder = new FixedDecoder(ignored -> true, protocolError);
         Function<ByteBuf, ByteBuf> frameTransform = Function.identity();
         Predicate<ErrorMessage> errorCheck = error -> error.error.getMessage().contains(protocolError.getMessage());
-        testFrameCorruption(100, Codec.crc(alloc), envelopeProvider, frameTransform, 0, decoder, errorCheck);
+        testFrameCorruption(maxErrorCount + 1, Codec.crc(alloc), envelopeProvider, frameTransform, 0, decoder, errorCheck);
     }
 
     private void runTest(ServerConfigurator configurator,
@@ -413,6 +410,7 @@ public class CQLConnectionTest
 
             for (int i = 0; i < messageCount; i++)
                 client.send(envelopeProvider.apply(i));
+            client.awaitFlushed();
 
             long totalBytes = client.sendSize;
 
@@ -447,7 +445,7 @@ public class CQLConnectionTest
                                      long expectedBytesAllocated,
                                      Predicate<ErrorMessage> errorPredicate)
     {
-        testFrameCorruption(messageCount, codec, envelopeProvider, transform, expectedBytesAllocated, null, errorPredicate);
+        testFrameCorruption(messageCount, codec, envelopeProvider, transform, expectedBytesAllocated, new FixedDecoder(), errorPredicate);
     }
 
     private void testFrameCorruption(int messageCount,
@@ -455,14 +453,11 @@ public class CQLConnectionTest
                                      IntFunction<Envelope> envelopeProvider,
                                      Function<ByteBuf, ByteBuf> transform,
                                      long expectedBytesAllocated,
-                                     Message.Decoder<Message.Request> requestDecoder,
+                                     FixedDecoder requestDecoder,
                                      Predicate<ErrorMessage> errorPredicate)
     {
         AllocationObserver observer = new AllocationObserver(false);
         InboundProxyHandler.Controller controller = new InboundProxyHandler.Controller();
-
-        if (requestDecoder == null)
-            requestDecoder = new FixedDecoder();
 
         ServerConfigurator configurator = ServerConfigurator.builder()
                                                             .withAllocationObserver(observer)
@@ -482,10 +477,11 @@ public class CQLConnectionTest
 
             for (int i = 0; i < messageCount; i++)
                 client.send(envelopeProvider.apply(i));
+            client.awaitFlushed();
 
             client.awaitResponses();
             // Client has disconnected
-            assertFalse(client.isConnected());
+            client.awaitState(false);
             // But before it did, it sent an error response
             Envelope received = client.inboundMessages.poll();
             assertNotNull(received);
@@ -775,7 +771,7 @@ public class CQLConnectionTest
                 {
                     return NO_OP_LIMITER;
                 }
-                
+
                 public void release()
                 {
                     delegate.release();
@@ -1104,7 +1100,35 @@ public class CQLConnectionTest
 
         private void awaitResponses() throws InterruptedException
         {
-            responsesReceived.await(1, TimeUnit.SECONDS);
+            assertTrue(responsesReceived.await(10, TimeUnit.SECONDS));
+        }
+
+        private void awaitState(boolean connected)
+        {
+            Awaitility.await()
+                      .atMost(10, TimeUnit.SECONDS)
+                      .until(() -> this.connected == connected);
+        }
+
+        private void awaitFlushed()
+        {
+            int lastSize = flusher.outbound.size();
+            long lastUpdate = System.currentTimeMillis();
+            while (!flusher.outbound.isEmpty())
+            {
+                int newSize = flusher.outbound.size();
+                if (newSize < lastSize)
+                {
+                    lastSize = newSize;
+                    lastUpdate = System.currentTimeMillis();
+                }
+                else if (System.currentTimeMillis() - lastUpdate > 30000)
+                {
+                    throw new RuntimeException("Timeout");
+                }
+                logger.info("Waiting for flush to complete - outbound queue size: {}", flusher.outbound.size());
+                Uninterruptibles.sleepUninterruptibly(500, TimeUnit.MILLISECONDS);
+            }
         }
 
         private boolean isConnected()
