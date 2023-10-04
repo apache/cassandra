@@ -39,11 +39,10 @@ import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
+import org.apache.cassandra.distributed.api.LogAction;
 import org.apache.cassandra.distributed.api.LogResult;
-import org.apache.cassandra.distributed.impl.FileLogAction;
 import org.apache.cassandra.distributed.impl.Instance;
 import org.apache.cassandra.distributed.shared.Metrics;
-import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.simulator.Action;
 import org.apache.cassandra.simulator.ActionList;
 import org.apache.cassandra.simulator.ActionPlan;
@@ -53,8 +52,6 @@ import org.apache.cassandra.simulator.RandomSource;
 import org.apache.cassandra.simulator.RunnableActionScheduler;
 import org.apache.cassandra.simulator.cluster.ClusterActions;
 import org.apache.cassandra.simulator.cluster.KeyspaceActions;
-import org.apache.cassandra.simulator.logging.RunStartDefiner;
-import org.apache.cassandra.simulator.logging.SeedDefiner;
 import org.apache.cassandra.simulator.systems.SimulatedActionTask;
 import org.apache.cassandra.simulator.systems.SimulatedSystems;
 import org.apache.cassandra.simulator.utils.IntRange;
@@ -131,11 +128,7 @@ abstract class AbstractPairOfSequencesPaxosSimulation extends PaxosSimulation
             @Override
             protected ActionList performSimple()
             {
-                // can't use inst.logs as that runs in the class loader, which uses in-memory file system
-                String suite = new RunStartDefiner().getPropertyValue() + "-" +  new SeedDefiner().getPropertyValue();
-                String instanceId = "node" + inst.config().num();
-                File logFile = new File(String.format("build/test/logs/simulator/%s/%s/system.log", suite, instanceId));
-                FileLogAction logs = new FileLogAction(logFile);
+                LogAction logs = inst.logs();
 
                 LogResult<List<String>> errors = logs.grepForErrors();
                 if (!errors.getResult().isEmpty())

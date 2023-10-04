@@ -253,7 +253,7 @@ public abstract class AccordFastPathCoordinator implements ChangeListener, Confi
 
     private void scheduleMaintenanceTask(long delayMillis)
     {
-        ScheduledExecutors.scheduledTasks.schedule(this::maintenance, delayMillis, TimeUnit.MILLISECONDS);
+        ScheduledExecutors.scheduledTasks.scheduleSelfRecurring(this::maintenance, delayMillis, TimeUnit.MILLISECONDS);
     }
 
     synchronized void maintenance()

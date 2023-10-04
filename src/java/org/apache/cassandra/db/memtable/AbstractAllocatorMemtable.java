@@ -220,6 +220,12 @@ public abstract class AbstractAllocatorMemtable extends AbstractMemtableWithComm
                 if (current instanceof AbstractAllocatorMemtable)
                     ((AbstractAllocatorMemtable) current).flushIfPeriodExpired();
             }
+
+            @Override
+            public String toString()
+            {
+                return "Scheduled Flush of " + owner;
+            }
         };
         ScheduledExecutors.scheduledTasks.scheduleSelfRecurring(runnable, period, TimeUnit.MILLISECONDS);
     }

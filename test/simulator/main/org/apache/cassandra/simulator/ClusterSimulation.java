@@ -791,6 +791,9 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                              @Override
                              public void initialise(ClassLoader classLoader, ThreadGroup threadGroup, int num, int generation)
                              {
+                                 IsolatedExecutor.transferAdhoc((IIsolatedExecutor.SerializableConsumer<Integer>) InstanceIDDefiner::setInstanceId, classLoader)
+                                                 .accept(num);
+
                                  List<Closeable> onShutdown = new ArrayList<>();
                                  IsolatedExecutor.transferAdhoc((SerializableConsumer<Integer>) InstanceIDDefiner::setInstanceId, classLoader)
                                                  .accept(num);
