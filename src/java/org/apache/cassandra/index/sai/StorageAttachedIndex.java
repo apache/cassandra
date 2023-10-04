@@ -272,7 +272,13 @@ public class StorageAttachedIndex implements Index
     public void register(IndexRegistry registry)
     {
         // index will be available for writes
-        registry.registerIndex(this, StorageAttachedIndexGroup.class, () -> new StorageAttachedIndexGroup(baseCfs));
+        registry.registerIndex(this, StorageAttachedIndexGroup.GROUP_KEY, () -> new StorageAttachedIndexGroup(baseCfs));
+    }
+
+    @Override
+    public void unregister(IndexRegistry registry)
+    {
+        registry.unregisterIndex(this, StorageAttachedIndexGroup.GROUP_KEY);
     }
 
     @Override

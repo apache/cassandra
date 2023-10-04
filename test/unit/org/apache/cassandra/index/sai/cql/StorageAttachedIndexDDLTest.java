@@ -84,6 +84,7 @@ import static java.util.Collections.singletonList;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.when;
@@ -667,8 +668,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
 
         dropIndex("DROP INDEX %s." + literalIndexName);
         verifyIndexFiles(numericIndexContext, literalIndexContext, 0, 0);
-        verifySSTableIndexes(numericIndexName, 0);
-        verifySSTableIndexes(literalIndexName, 0);
+        assertNull(getCurrentIndexGroup());
 
         assertEquals("Segment memory limiter should revert to zero on drop.", 0L, getSegmentBufferUsedBytes());
         assertEquals("There should be no segment builders in progress.", 0L, getColumnIndexBuildsInProgress());
@@ -1182,7 +1182,7 @@ public class StorageAttachedIndexDDLTest extends SAITester
 
         delayIndexBuilderCompletion.disable();
 
-        verifySSTableIndexes(indexName, 0);
+        assertNull(getCurrentIndexGroup());
         assertFalse("Expect index not built", SystemKeyspace.isIndexBuilt(KEYSPACE, indexName));
 
         // create index again, it should succeed
