@@ -51,8 +51,22 @@ public abstract class MicrometerMetrics
 
     public Timer timer(String name)
     {
+        return timer(name, false);
+    }
+
+    public Timer timer(String name, boolean publishHistogram)
+    {
+        return timer(name, publishHistogram, Tags.empty());
+    }
+
+    public Timer timer(String name, boolean publishHistogram, Tags tags)
+    {
         Pair<MeterRegistry, Tags> current = registryWithTags;
-        return current.left.timer(name, current.right);
+        Timer.Builder builder = Timer.builder(name).tags(current.right.and(tags));
+        if (publishHistogram)
+            builder = builder.publishPercentileHistogram();
+
+        return builder.register(current.left);
     }
 
     public <T> T gauge(String name, T obj, ToDoubleFunction<T> fcn)
