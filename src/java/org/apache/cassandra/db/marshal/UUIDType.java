@@ -59,6 +59,13 @@ public class UUIDType extends AbstractType<UUID>
         super(ComparisonType.CUSTOM);
     }
 
+    @Override
+    public boolean allowsEmpty()
+    {
+        return true;
+    }
+
+    @Override
     public boolean isEmptyValueMeaningless()
     {
         return true;

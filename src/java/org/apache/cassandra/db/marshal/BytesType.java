@@ -38,6 +38,12 @@ public class BytesType extends AbstractType<ByteBuffer>
 
     BytesType() {super(ComparisonType.BYTE_ORDER);} // singleton
 
+    @Override
+    public boolean allowsEmpty()
+    {
+        return true;
+    }
+
     public ByteBuffer fromString(String source)
     {
         try

@@ -512,7 +512,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
      */
     public boolean allowsEmpty()
     {
-        return true;
+        return false;
     }
 
     public boolean isNull(ByteBuffer bb)

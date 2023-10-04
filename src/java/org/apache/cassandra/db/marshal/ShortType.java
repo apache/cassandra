@@ -46,12 +46,6 @@ public class ShortType extends NumberType<Short>
         super(ComparisonType.CUSTOM);
     } // singleton
 
-    @Override
-    public boolean allowsEmpty()
-    {
-        return false;
-    }
-
     public <VL, VR> int compareCustom(VL left, ValueAccessor<VL> accessorL, VR right, ValueAccessor<VR> accessorR)
     {
         int diff = accessorL.getByte(left, 0) - accessorR.getByte(right, 0);

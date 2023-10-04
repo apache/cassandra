@@ -38,6 +38,13 @@ public class BooleanType extends AbstractType<Boolean>
 
     BooleanType() {super(ComparisonType.CUSTOM);} // singleton
 
+    @Override
+    public boolean allowsEmpty()
+    {
+        return true;
+    }
+
+    @Override
     public boolean isEmptyValueMeaningless()
     {
         return true;
