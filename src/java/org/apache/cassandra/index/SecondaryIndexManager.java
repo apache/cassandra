@@ -1329,15 +1329,18 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         if (removed != null)
         {
             // Remove the index from any non-singleton groups...
-            for (Index.Group group : listIndexGroups())
+            for (Map.Entry<Object, Index.Group> entry : indexGroups.entrySet())
             {
+                Object groupKey = entry.getKey();
+                Index.Group group = entry.getValue();
+
                 if (!(group instanceof SingletonIndexGroup) && group.containsIndex(removed))
                 {
                     group.removeIndex(removed);
 
                     if (group.getIndexes().isEmpty())
                     {
-                        indexGroups.remove(group);
+                        indexGroups.remove(groupKey);
                     }
                 }
             }
