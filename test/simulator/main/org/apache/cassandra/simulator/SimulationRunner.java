@@ -51,6 +51,7 @@ import org.apache.cassandra.simulator.systems.InterceptibleThread;
 import org.apache.cassandra.simulator.systems.InterceptorOfGlobalMethods;
 import org.apache.cassandra.simulator.utils.ChanceRange;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Hex;
 import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
@@ -379,6 +380,7 @@ public class SimulationRunner
         protected void run(long seed, B builder) throws IOException
         {
             logger().error("Seed 0x{}", Long.toHexString(seed));
+            logger().info("Cassandra {} / {}", FBUtilities.getReleaseVersionString(), FBUtilities.getGitSHA());
 
             try (ClusterSimulation<?> cluster = builder.create(seed))
             {
@@ -457,6 +459,16 @@ public class SimulationRunner
         }
     }
 
+    @Command(name = "version", description = "Display version information")
+    protected static class VersionCommand<B extends ClusterSimulation.Builder<?>> implements ICommand<B>
+    {
+        @Override
+        public void run(B builder) throws IOException
+        {
+            System.out.println(FBUtilities.getReleaseVersionString());
+            System.out.println(FBUtilities.getGitSHA());
+        }
+    }
 
     private static Optional<Long> parseHex(Optional<String> value)
     {

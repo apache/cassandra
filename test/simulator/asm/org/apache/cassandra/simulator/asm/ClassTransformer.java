@@ -189,6 +189,10 @@ class ClassTransformer extends ClassVisitor implements MethodWriterSink
     {
         if (dependentTypes != null)
             Utils.visitIfRefType(descriptor, dependentTypes);
+        // org.apache.cassandra.simulator.systems.SimulatedTime.InstanceTime.nanoTime does not change between invokes which causes AbstractQueuedSynchronizer to loop forever,
+        // so need to make the threshold negative to avoid the spin loop.
+        if (className.equals("java/util/concurrent/locks/AbstractQueuedSynchronizer") && name.equals("SPIN_FOR_TIMEOUT_THRESHOLD"))
+            return super.visitField(makePublic(access), name, descriptor, signature, Long.MIN_VALUE);
         return super.visitField(makePublic(access), name, descriptor, signature, value);
     }
 
