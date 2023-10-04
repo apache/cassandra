@@ -25,12 +25,10 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.PriorityQueue;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
@@ -71,7 +69,7 @@ public class CassandraOnHeapGraph<T>
     private final GraphIndexBuilder<float[]> builder;
     private final VectorType.VectorSerializer serializer;
     private final VectorSimilarityFunction similarityFunction;
-    private final Map<float[], VectorPostings<T>> postingsMap;
+    private final ConcurrentMap<float[], VectorPostings<T>> postingsMap;
     private final NonBlockingHashMapLong<VectorPostings<T>> postingsByOrdinal;
     private final AtomicInteger nextOrdinal = new AtomicInteger();
     private volatile boolean hasDeletions;
@@ -152,39 +150,45 @@ public class CassandraOnHeapGraph<T>
             validateIndexable(vector, similarityFunction);
         }
 
-        var bytesUsed = new AtomicLong();
-        var newVector = new AtomicBoolean();
+        var bytesUsed = 0L;
+        VectorPostings<T> postings = postingsMap.get(vector);
         // if the vector is already in the graph, all that happens is that the postings list is updated
         // otherwise, we add the vector in this order:
-        // 1. to the vectorValues
-        // 2. to the postingsMap
+        // 1. to the postingsMap
+        // 2. to the vectorValues
         // 3. to the graph
         // This way, concurrent searches of the graph won't see the vector until it's visible
         // in the other structures as well.
-        var postings = postingsMap.computeIfAbsent(vector, v -> {
-            var bytes = RamEstimation.concurrentHashMapRamUsed(1); // the new posting Map entry
-            var ordinal = nextOrdinal.getAndIncrement();
-            bytes += (vectorValues instanceof ConcurrentVectorValues)
-                     ? ((ConcurrentVectorValues) vectorValues).add(ordinal, vector)
-                     : ((CompactionVectorValues) vectorValues).add(ordinal, term);
-            bytes += VectorPostings.emptyBytesUsed() + VectorPostings.bytesPerPosting();
-            bytesUsed.addAndGet(bytes);
-            newVector.set(true);
-            var vp = new VectorPostings<T>(ordinal, key);
-            postingsByOrdinal.put(ordinal, vp);
-            return vp;
-        });
-        if (newVector.get())
+        if (postings == null)
         {
-            // add to the index outside of the computeIfAbsent block
-            bytesUsed.addAndGet(builder.addGraphNode(postings.getOrdinal(), vectorValues));
+            postings = new VectorPostings<T>(key);
+            // since we are using ConcurrentSkipListMap, it is NOT correct to use computeIfAbsent here
+            if (postingsMap.putIfAbsent(vector, postings) == null)
+            {
+                // we won the race to add the new entry; assign it an ordinal and add to the other structures
+                var ordinal = nextOrdinal.getAndIncrement();
+                postings.setOrdinal(ordinal);
+                bytesUsed += RamEstimation.concurrentHashMapRamUsed(1); // the new posting Map entry
+                bytesUsed += (vectorValues instanceof ConcurrentVectorValues)
+                             ? ((ConcurrentVectorValues) vectorValues).add(ordinal, vector)
+                             : ((CompactionVectorValues) vectorValues).add(ordinal, term);
+                bytesUsed += VectorPostings.emptyBytesUsed() + VectorPostings.bytesPerPosting();
+                postingsByOrdinal.put(ordinal, postings);
+                bytesUsed += builder.addGraphNode(ordinal, vectorValues);
+                return bytesUsed;
+            }
+            else
+            {
+                postings = postingsMap.get(vector);
+            }
         }
-        else if (postings.add(key))
+        // postings list already exists, just add the new key (if it's not already in the list)
+        if (postings.add(key))
         {
-            bytesUsed.addAndGet(VectorPostings.bytesPerPosting());
+            bytesUsed += VectorPostings.bytesPerPosting();
         }
 
-        return bytesUsed.get();
+        return bytesUsed;
     }
 
     // copied out of a Lucene PR -- hopefully committed soon

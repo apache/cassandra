@@ -31,14 +31,23 @@ public class VectorPostings<T>
 {
     // we expect that the overwhelmingly most common cardinality will be 1, so optimize for reads using COWAL
     private final CopyOnWriteArrayList<T> postings;
-    private final int ordinal;
+    private volatile int ordinal = -1;
 
     private volatile IntArrayList rowIds;
 
-    public VectorPostings(int ordinal, T firstKey)
+    public VectorPostings(T firstKey)
     {
-        this.ordinal = ordinal;
         postings = new CopyOnWriteArrayList<>(List.of(firstKey));
+    }
+
+    /**
+     * Split out from constructor only to make dealing with concurrent inserts easier for CassandraOnHeapGraph.
+     * Should be called at most once per instance.
+     */
+    void setOrdinal(int ordinal)
+    {
+        assert this.ordinal == -1 : String.format("ordinal already set to %d; attempted to set to %d", this.ordinal, ordinal);
+        this.ordinal = ordinal;
     }
 
     public boolean add(T key)
@@ -133,6 +142,7 @@ public class VectorPostings<T>
 
     public int getOrdinal()
     {
+        assert ordinal >= 0 : "ordinal not set";
         return ordinal;
     }
 }
