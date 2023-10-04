@@ -1435,20 +1435,26 @@ public class CustomIndexTest extends CQLTester
         assertEquals(2, indexManager.listIndexes().size());
         assertEquals(1, indexManager.listIndexGroups().size());
 
-        // drop the remaining members of the shared group and verify that it is kept empty in the manager
+        // drop the remaining members of the shared group and verify that it no longer exists in the manager
         dropIndex("DROP INDEX %s." + idx2);
         dropIndex("DROP INDEX %s." + idx5);
         assertEquals(0, indexManager.listIndexes().size());
-        assertEquals(1, indexManager.listIndexGroups().size());
+        assertEquals(0, indexManager.listIndexGroups().size());
         assertEquals(0, group.indexes.size());
 
-        // create the sharing group members again and verify that they are added to the existing group instance
+        // create the sharing group members again and verify that they are added to a new group instance
         createIndex(String.format("CREATE CUSTOM INDEX %s ON %%s(v1) USING '%s'", idx1, indexClassName));
         createIndex(String.format("CREATE CUSTOM INDEX %s ON %%s(v2) USING '%s'", idx2, indexClassName));
         createIndex(String.format("CREATE CUSTOM INDEX %s ON %%s(v3) USING '%s'", idx3, indexClassName));
+        IndexWithSharedGroup.Group newGroup = indexManager.listIndexGroups()
+                                                          .stream()
+                                                          .filter(g -> g instanceof IndexWithSharedGroup.Group)
+                                                          .map(g -> (IndexWithSharedGroup.Group) g)
+                                                          .findAny()
+                                                          .orElseThrow(AssertionError::new);
         assertEquals(3, indexManager.listIndexes().size());
         assertEquals(1, indexManager.listIndexGroups().size());
-        assertEquals(3, group.indexes.size());
+        assertEquals(3, newGroup.indexes.size());
     }
 
     /**
