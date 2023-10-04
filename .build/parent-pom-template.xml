@@ -713,17 +713,6 @@
         </exclusions>
       </dependency>
       <dependency>
-        <groupId>com.addthis.metrics</groupId>
-        <artifactId>reporter-config3</artifactId>
-        <version>3.0.3</version>
-        <exclusions>
-          <exclusion>
-            <artifactId>hibernate-validator</artifactId>
-            <groupId>org.hibernate</groupId>
-          </exclusion>
-        </exclusions>
-      </dependency>
-      <dependency>
         <groupId>org.mindrot</groupId>
         <artifactId>jbcrypt</artifactId>
         <version>0.4</version>
