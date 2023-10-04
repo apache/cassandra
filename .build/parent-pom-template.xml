@@ -38,7 +38,7 @@
   <properties>
     <bytebuddy.version>1.12.13</bytebuddy.version>
     <byteman.version>4.0.20</byteman.version>
-    <ohc.version>0.5.1</ohc.version>
+    <ohc.version>0.7.4</ohc.version>
 
     <!-- These are referenced in build.xml, so need to be propagated from there -->
     <asm.version>@asm.version@</asm.version>
@@ -968,11 +968,6 @@
             <groupId>org.slf4j</groupId>
           </exclusion>
         </exclusions>
-      </dependency>
-      <dependency>
-        <groupId>org.caffinitas.ohc</groupId>
-        <artifactId>ohc-core-j8</artifactId>
-        <version>${ohc.version}</version>
       </dependency>
       <dependency>
         <groupId>net.ju-n.compile-command-annotations</groupId>

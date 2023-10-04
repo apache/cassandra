@@ -264,10 +264,6 @@
       <artifactId>ohc-core</artifactId>
     </dependency>
     <dependency>
-      <groupId>org.caffinitas.ohc</groupId>
-      <artifactId>ohc-core-j8</artifactId>
-    </dependency>
-    <dependency>
       <groupId>com.github.ben-manes.caffeine</groupId>
       <artifactId>caffeine</artifactId>
     </dependency>
