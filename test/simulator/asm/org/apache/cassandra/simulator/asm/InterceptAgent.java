@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.regex.Pattern;
 
@@ -39,12 +40,14 @@ import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.FieldVisitor;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Opcodes;
 
 import static org.apache.cassandra.simulator.asm.Flag.DETERMINISTIC;
 import static org.apache.cassandra.simulator.asm.Flag.LOCK_SUPPORT;
 import static org.apache.cassandra.simulator.asm.Flag.NO_PROXY_METHODS;
 import static org.apache.cassandra.simulator.asm.Flag.SYSTEM_CLOCK;
 import static org.apache.cassandra.simulator.asm.InterceptClasses.BYTECODE_VERSION;
+import static org.apache.cassandra.simulator.asm.TransformationKind.HASHCODE;
 import static org.objectweb.asm.Opcodes.ALOAD;
 import static org.objectweb.asm.Opcodes.GETFIELD;
 import static org.objectweb.asm.Opcodes.GETSTATIC;
@@ -93,6 +96,9 @@ public class InterceptAgent
                 if (className.equals("java/lang/Object"))
                     return transformObject(bytecode);
 
+                if (className.equals("java/lang/Class"))
+                    return transformClass(bytecode);
+
                 if (className.equals("java/lang/Enum"))
                     return transformEnum(bytecode);
 
@@ -103,10 +109,14 @@ public class InterceptAgent
                     return transformThreadLocalRandom(bytecode);
 
                 if (className.startsWith("java/util/concurrent/ConcurrentHashMap"))
-                    return transformConcurrent(className, bytecode, DETERMINISTIC, NO_PROXY_METHODS);
+                    return InterceptAgent.transform(className, bytecode, DETERMINISTIC, NO_PROXY_METHODS);
 
                 if (className.startsWith("java/util/concurrent/locks"))
-                    return transformConcurrent(className, bytecode, SYSTEM_CLOCK, LOCK_SUPPORT, NO_PROXY_METHODS);
+                {
+                    if (className.equals("java/util/concurrent/locks/AbstractQueuedSynchronizer"))
+                        return InterceptAgent.transformAbstractQueuedSynchronizer(className, bytecode, SYSTEM_CLOCK, LOCK_SUPPORT, NO_PROXY_METHODS);
+                    return InterceptAgent.transform(className, bytecode, SYSTEM_CLOCK, LOCK_SUPPORT, NO_PROXY_METHODS);
+                }
 
                 return null;
             }
@@ -170,6 +180,29 @@ public class InterceptAgent
             }
         }
         return transform(bytes, ObjectVisitor::new);
+    }
+
+    /**
+     * We don't want Object.toString() to invoke our overridden identityHashCode by virtue of invoking some overridden hashCode()
+     * So we overwrite Object.toString() to replace calls to Object.hashCode() with direct calls to System.identityHashCode()
+     */
+    private static byte[] transformClass(byte[] bytes)
+    {
+        class ClazzVisitor extends ClassVisitor
+        {
+            public ClazzVisitor(int api, ClassVisitor classVisitor)
+            {
+                super(api, classVisitor);
+            }
+
+            @Override
+            public void visitEnd()
+            {
+                new StringHashcode(api).accept(this);
+                super.visitEnd();
+            }
+        }
+        return transform(bytes, ClazzVisitor::new);
     }
 
     /**
@@ -314,7 +347,7 @@ public class InterceptAgent
                 else
                 {
                     MethodVisitor mv = super.visitMethod(access, name, descriptor, signature, exceptions);
-                    if (determinismCheck && (name.equals("nextSeed") || name.equals("nextSecondarySeed")))
+                    if (determinismCheck && (name.equals("nextSeed") || name.equals("nextSecondarySeed") || name.equals("advanceProbe")))
                         mv = new ThreadLocalRandomCheckTransformer(api, mv);
                     return mv;
                 }
@@ -323,7 +356,61 @@ public class InterceptAgent
         return transform(bytes, ThreadLocalRandomVisitor::new);
     }
 
-    private static byte[] transform(byte[] bytes, BiFunction<Integer, ClassWriter, ClassVisitor> constructor)
+    /**
+     * We require ThreadLocalRandom to be deterministic, so we modify its initialisation method to invoke a
+     * global deterministic random value generator
+     */
+    private static byte[] transformAbstractQueuedSynchronizer(String className, byte[] bytes, Flag flag, Flag ... flags)
+    {
+        class AbstractQueuedSynchronizerVisitor extends ClassVisitor
+        {
+            private long defaultSpinForTimeoutThreshold = 1000L;
+
+            public AbstractQueuedSynchronizerVisitor(int api, ClassVisitor classVisitor)
+            {
+                super(api, classVisitor);
+            }
+
+            @Override
+            public FieldVisitor visitField(int access, String name, String descriptor, String signature, Object value)
+            {
+                if (name.equals("SPIN_FOR_TIMEOUT_THRESHOLD"))
+                {
+                    defaultSpinForTimeoutThreshold = (Long)value;
+                    return super.visitField(access, name, descriptor, signature, 0L);
+                }
+
+                return super.visitField(access, name, descriptor, signature, value);
+            }
+
+            @Override
+            public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions)
+            {
+                /// !!!!! WARNING !!!!!
+                /// THIS IS SUPER BRITTLE BECAUSE rt.jar INLINES GETSTATIC AS LDC
+                // TODO (desired): visit constructor to fetch actual value of constant in case changes in future release -
+                //  but this is brittle enough changes upstream will likely need revisiting anyway
+                MethodVisitor mv = super.visitMethod(access, name, descriptor, signature, exceptions);
+                if (!name.equals("doAcquireNanos") && !name.equals("doAcquireSharedNanos"))
+                    return mv;
+
+                return new MethodVisitor(api, mv)
+                {
+                    @Override
+                    public void visitLdcInsn(Object value)
+                    {
+                        if (Objects.equals(defaultSpinForTimeoutThreshold, value))
+                            super.visitLdcInsn(0L);
+                        else
+                            super.visitLdcInsn(value);
+                    }
+                };
+            }
+        }
+        return transform(className, bytes, AbstractQueuedSynchronizerVisitor::new, flag, flags);
+    }
+
+    private static byte[] transform(byte[] bytes, BiFunction<Integer, ClassVisitor, ClassVisitor> constructor)
     {
         ClassWriter out = new ClassWriter(0);
         ClassReader in = new ClassReader(bytes);
@@ -332,12 +419,21 @@ public class InterceptAgent
         return out.toByteArray();
     }
 
-    private static byte[] transformConcurrent(String className, byte[] bytes, Flag flag, Flag ... flags)
+    private static byte[] transform(String className, byte[] bytes, Flag flag, Flag ... flags)
     {
         ClassTransformer transformer = new ClassTransformer(BYTECODE_VERSION, className, EnumSet.of(flag, flags), null);
         transformer.readAndTransform(bytes);
         if (!transformer.isTransformed())
             return null;
+        return transformer.toBytes();
+    }
+
+    private static byte[] transform(String className, byte[] bytes, BiFunction<Integer, ClassVisitor, ClassVisitor> constructor, Flag flag, Flag ... flags)
+    {
+        ClassReader in = new ClassReader(bytes);
+        ClassTransformer transformer = new ClassTransformer(BYTECODE_VERSION, className, EnumSet.of(flag, flags), null);
+        ClassVisitor extraTransformer = constructor.apply(BYTECODE_VERSION, transformer);
+        in.accept(extraTransformer, 0);
         return transformer.toBytes();
     }
 }

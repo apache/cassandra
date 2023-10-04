@@ -93,6 +93,7 @@ import org.apache.cassandra.simulator.utils.KindOfSequence;
 import org.apache.cassandra.simulator.utils.LongRange;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.Closeable;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.memory.BufferPool;
@@ -782,6 +783,9 @@ public class ClusterSimulation<S extends Simulation> implements AutoCloseable
                              @Override
                              public void initialise(ClassLoader classLoader, ThreadGroup threadGroup, int num, int generation)
                              {
+                                 IsolatedExecutor.transferAdhoc((IIsolatedExecutor.SerializableConsumer<Integer>) InstanceIDDefiner::setInstanceId, classLoader)
+                                                 .accept(num);
+
                                  List<Closeable> onShutdown = new ArrayList<>();
                                  IsolatedExecutor.transferAdhoc((SerializableConsumer<Integer>) InstanceIDDefiner::setInstanceId, classLoader)
                                                  .accept(num);

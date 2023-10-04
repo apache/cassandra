@@ -122,8 +122,7 @@ class MonitorMethodTransformer extends MethodNode
         }
 
         int invokeCode;
-        if (isInstanceMethod && (access & Opcodes.ACC_PRIVATE) != 0) invokeCode = Opcodes.INVOKESPECIAL;
-        else if (isInstanceMethod) invokeCode = Opcodes.INVOKEVIRTUAL;
+        if (isInstanceMethod) invokeCode = Opcodes.INVOKESPECIAL;
         else invokeCode = Opcodes.INVOKESTATIC;
         return invokeCode;
     }

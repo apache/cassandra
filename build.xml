@@ -232,6 +232,24 @@
     <condition property="jvm_xss" value="-Xss256k" else="-Xss384k">
       <isset property="arch_x86" />
     </condition>
+    <condition property="java.version.11">
+      <!-- This includes every JDK other than 8; so JDK 9 is flagged as JDK 11, and JDK 17 is as well... at the moment this is desired behavior
+      and may be relooked at once JDK 8 support is dropped -->
+        <not><isset property="java.version.8"/></not>
+    </condition>
+    <fail message="Unsupported JDK version used: ${ant.java.version}"><condition><not><or>
+        <isset property="java.version.8"/>
+        <isset property="java.version.11"/>
+    </or></not></condition></fail>
+
+    <condition property="arch_x86">
+      <equals arg1="${os.arch}" arg2="x86" />
+    </condition>
+    <!-- On non-X86 JDK 8 (such as M1 Mac) the smallest allowed Xss is 384k; so need a larger value
+    when on these platforms. -->
+    <condition property="jvm_xss" value="-Xss256k" else="-Xss384k">
+      <isset property="arch_x86" />
+    </condition>
 
     <resources id="_jvm11_arg_items">
         <string>-Djdk.attach.allowAttachSelf=true</string>

@@ -32,7 +32,7 @@ public class AccordStateCacheMetrics extends CacheAccessMetrics
 
     public final Histogram objectSize;
 
-    private final Map<Class<?>, CacheAccessMetrics> instanceMetrics = new ConcurrentHashMap<>(2);
+    private final Map<String, CacheAccessMetrics> instanceMetrics = new ConcurrentHashMap<>(2);
 
     private final String type;
 
@@ -45,6 +45,8 @@ public class AccordStateCacheMetrics extends CacheAccessMetrics
 
     public CacheAccessMetrics forInstance(Class<?> klass)
     {
-        return instanceMetrics.computeIfAbsent(klass, k -> new CacheAccessMetrics(new DefaultNameFactory(CACHE, String.format("%s-%s", type, k.getSimpleName()))));
+        // cannot make Class<?> hashCode deterministic, as cannot rewrite - so cannot safely use as Map key if want deterministic simulation
+        // (or we need to create extra hoops to catch this specific case in method rewriting)
+        return instanceMetrics.computeIfAbsent(klass.getSimpleName(), k -> new CacheAccessMetrics(new DefaultNameFactory(CACHE, String.format("%s-%s", type, k))));
     }
 }
