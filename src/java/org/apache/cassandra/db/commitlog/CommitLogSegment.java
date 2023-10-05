@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.StandardOpenOption;
+import com.sun.nio.file.ExtendedOpenOption;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -138,7 +139,8 @@ public abstract class CommitLogSegment
         Configuration config = commitLog.configuration;
         CommitLogSegment segment = config.useEncryption() ? new EncryptedSegment(commitLog, manager)
                                                           : config.useCompression() ? new CompressedSegment(commitLog, manager)
-                                                                                    : new MemoryMappedSegment(commitLog, manager);
+                                                                                    : ! config.isDirectIOEnabled() ? new MemoryMappedSegment(commitLog, manager)
+                                                                                                                   : new DirectIOSegment(commitLog, manager);
         segment.writeLogHeader();
         return segment;
     }
@@ -175,7 +177,10 @@ public abstract class CommitLogSegment
 
         try
         {
-            channel = FileChannel.open(logFile.toPath(), StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE);
+            if(commitLog.configuration.isDirectIOEnabled())
+                channel = FileChannel.open(logFile.toPath(), StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE,ExtendedOpenOption.DIRECT);
+            else
+                channel = FileChannel.open(logFile.toPath(), StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE);
             fd = NativeLibrary.getfd(channel);
         }
         catch (IOException e)

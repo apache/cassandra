@@ -2649,6 +2649,11 @@ public class DatabaseDescriptor
         conf.commitlog_segment_size = new DataStorageSpec.IntMebibytesBound(sizeMebibytes);
     }
 
+    public static boolean getDirectIOStatus()
+    {
+        return conf.use_directio_for_commitlog;
+    }
+
     public static String getSavedCachesLocation()
     {
         return conf.saved_caches_directory;
