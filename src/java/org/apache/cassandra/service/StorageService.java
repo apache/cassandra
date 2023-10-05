@@ -290,6 +290,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private static final boolean REQUIRE_SCHEMAS = !BOOTSTRAP_SKIP_SCHEMA_CHECK.getBoolean();
 
+    {
+        PathUtils.setDeletionListener(path -> {
+            if (isDaemonSetupCompleted())
+                PathUtils.setDeletionListener(ignore -> {});
+            else
+                logger.trace("Deleting file during startup: {}", path);
+        });
+    }
+
     private final JMXProgressSupport progressSupport = new JMXProgressSupport(this);
 
     private static int getRingDelay()

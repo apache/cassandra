@@ -20,8 +20,14 @@ package org.apache.cassandra.db.commitlog;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.file.StandardOpenOption;
-import java.util.*;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -29,21 +35,21 @@ import java.util.concurrent.locks.LockSupport;
 import java.util.zip.CRC32;
 
 import com.google.common.annotations.VisibleForTesting;
-import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.io.util.FileWriter;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import com.codahale.metrics.Timer;
-import org.apache.cassandra.config.*;
+import net.openhft.chronicle.core.util.ThrowingFunction;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.commitlog.CommitLog.Configuration;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.util.File;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.FileWriter;
+import org.apache.cassandra.io.util.SimpleCachedBufferPool;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
-import org.apache.cassandra.utils.NativeLibrary;
 import org.apache.cassandra.utils.IntegerInterval;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
@@ -124,7 +130,6 @@ public abstract class CommitLogSegment
 
     final File logFile;
     final FileChannel channel;
-    final int fd;
 
     protected final AbstractCommitLogSegmentManager manager;
 
@@ -132,28 +137,6 @@ public abstract class CommitLogSegment
     private volatile boolean headerWritten;
 
     public final CommitLogDescriptor descriptor;
-
-    static CommitLogSegment createSegment(CommitLog commitLog, AbstractCommitLogSegmentManager manager)
-    {
-        Configuration config = commitLog.configuration;
-        CommitLogSegment segment = config.useEncryption() ? new EncryptedSegment(commitLog, manager)
-                                                          : config.useCompression() ? new CompressedSegment(commitLog, manager)
-                                                                                    : new MemoryMappedSegment(commitLog, manager);
-        segment.writeLogHeader();
-        return segment;
-    }
-
-    /**
-     * Checks if the segments use a buffer pool.
-     *
-     * @param commitLog the commit log
-     * @return <code>true</code> if the segments use a buffer pool, <code>false</code> otherwise.
-     */
-    static boolean usesBufferPool(CommitLog commitLog)
-    {
-        Configuration config = commitLog.configuration;
-        return config.useEncryption() || config.useCompression();
-    }
 
     static long getNextId()
     {
@@ -163,27 +146,26 @@ public abstract class CommitLogSegment
     /**
      * Constructs a new segment file.
      */
-    CommitLogSegment(CommitLog commitLog, AbstractCommitLogSegmentManager manager)
+    CommitLogSegment(AbstractCommitLogSegmentManager manager, ThrowingFunction<Path, FileChannel, IOException> channelFactory)
     {
         this.manager = manager;
 
         id = getNextId();
         descriptor = new CommitLogDescriptor(id,
-                                             commitLog.configuration.getCompressorClass(),
-                                             commitLog.configuration.getEncryptionContext());
+                                             manager.getConfiguration().getCompressorClass(),
+                                             manager.getConfiguration().getEncryptionContext());
         logFile = new File(manager.storageDirectory, descriptor.fileName());
 
         try
         {
-            channel = FileChannel.open(logFile.toPath(), StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE);
-            fd = NativeLibrary.getfd(channel);
+            channel = channelFactory.apply(logFile.toPath());
         }
         catch (IOException e)
         {
             throw new FSWriteError(e, logFile);
         }
 
-        buffer = createBuffer(commitLog);
+        this.buffer = createBuffer();
     }
 
     /**
@@ -207,7 +189,10 @@ public abstract class CommitLogSegment
         return Collections.<String, String>emptyMap();
     }
 
-    abstract ByteBuffer createBuffer(CommitLog commitLog);
+    protected ByteBuffer createBuffer()
+    {
+        return manager.getBufferPool().createBuffer();
+    }
 
     /**
      * Allocate space in this buffer for the provided mutation, and return the allocated Allocation object.
@@ -763,5 +748,19 @@ public abstract class CommitLogSegment
         {
             return new CommitLogPosition(segment.id, buffer.limit());
         }
+    }
+
+    protected abstract static class Builder
+    {
+        protected final AbstractCommitLogSegmentManager segmentManager;
+
+        public Builder(AbstractCommitLogSegmentManager segmentManager)
+        {
+            this.segmentManager = segmentManager;
+        }
+
+        public abstract CommitLogSegment build();
+
+        public abstract SimpleCachedBufferPool createBufferPool();
     }
 }

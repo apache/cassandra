@@ -816,4 +816,23 @@ public final class FileUtils
             }
         }
     }
+
+    public static int getBlockSize(File directory)
+    {
+        File f = FileUtils.createTempFile("block-size-test", ".tmp", directory);
+        try
+        {
+            long bs = Files.getFileStore(f.toPath()).getBlockSize();
+            assert bs >= 0 && bs <= Integer.MAX_VALUE;
+            return (int) bs;
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("Failed to get file block size in " + directory, e);
+        }
+        finally
+        {
+            f.tryDelete();
+        }
+    }
 }
