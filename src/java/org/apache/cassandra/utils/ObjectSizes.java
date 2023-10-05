@@ -23,7 +23,11 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.util.UUID;
 
+import org.apache.cassandra.cache.IMeasurableMemory;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.github.jamm.MemoryMeter;
 import org.github.jamm.MemoryMeter.ByteBufferMode;
 import org.github.jamm.MemoryMeter.Guess;
@@ -46,6 +50,8 @@ public class ObjectSizes
     private static final long DIRECT_BUFFER_DEEP_SIZE = measureDeep(ByteBuffer.allocateDirect(0));
 
     public static final long IPV6_SOCKET_ADDRESS_SIZE = ObjectSizes.measureDeep(new InetSocketAddress(getIpvAddress(16), 42));
+
+    private static final long UUID_SIZE = measure(new UUID(0L, 0L));
 
     /**
      * Memory a byte array consumes
@@ -219,6 +225,13 @@ public class ObjectSizes
     public static long sizeOf(String str)
     {
         return meter.measureStringDeep(str);
+    }
+
+    public static long sizeOf(Range<Token> range)
+    {
+        if (range == null)
+            return 0;
+        return Range.EMPTY_SIZE + range.left.getHeapSize() + range.right.getHeapSize();
     }
 
     /**

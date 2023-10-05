@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -40,6 +41,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.Future;
@@ -440,15 +442,15 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
         RepairTask task;
         if (state.options.isPreview())
         {
-            task = new PreviewRepairTask(this, state.id, neighborsAndRanges.filterCommonRanges(state.keyspace, cfnames), cfnames);
+            task = new PreviewRepairTask(this, neighborsAndRanges.filterCommonRanges(state.keyspace, cfnames), cfnames);
         }
         else if (state.options.isIncremental())
         {
-            task = new IncrementalRepairTask(this, state.id, neighborsAndRanges, cfnames);
+            task = new IncrementalRepairTask(this, neighborsAndRanges, cfnames);
         }
         else
         {
-            task = new NormalRepairTask(this, state.id, neighborsAndRanges.filterCommonRanges(state.keyspace, cfnames), cfnames);
+            task = new NormalRepairTask(this, neighborsAndRanges.filterCommonRanges(state.keyspace, cfnames), cfnames);
         }
 
         ExecutorPlus executor = createExecutor();
@@ -576,11 +578,13 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
         }
     }
 
-    public static final class NeighborsAndRanges
+    public static final class NeighborsAndRanges implements IMeasurableMemory
     {
         final boolean shouldExcludeDeadParticipants;
         public final Set<InetAddressAndPort> participants;
         public final List<CommonRange> commonRanges;
+
+        private static final long EMPTY_SIZE = ObjectSizes.measure(new NeighborsAndRanges(false, Collections.emptySet(), Collections.emptyList()));
 
         public NeighborsAndRanges(boolean shouldExcludeDeadParticipants, Set<InetAddressAndPort> participants, List<CommonRange> commonRanges)
         {
@@ -628,6 +632,18 @@ public class RepairCoordinator implements Runnable, ProgressEventNotifier, Repai
                 Preconditions.checkState(!filtered.isEmpty(), "Not enough live endpoints for a repair");
                 return filtered;
             }
+        }
+
+        @Override
+        public long unsharedHeapSize()
+        {
+            long size = EMPTY_SIZE;
+
+            // Excludes participants, which is populated by endpoints from TokenMetadata, which retains long lifetimes to endpoints.
+
+            for (CommonRange range : commonRanges)
+                size += range.unsharedHeapSize();
+            return size;
         }
     }
 }

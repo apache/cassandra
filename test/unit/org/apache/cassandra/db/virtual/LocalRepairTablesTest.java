@@ -56,6 +56,8 @@ import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static org.apache.cassandra.repair.RepairSessionTest.coordinator;
+
 public class LocalRepairTablesTest extends CQLTester
 {
     private static final String KS_NAME = "vts";
@@ -299,7 +301,7 @@ public class LocalRepairTablesTest extends CQLTester
     private static SessionState session()
     {
         CoordinatorState parent = coordinator();
-        SessionState state = new SessionState(Clock.Global.clock(), parent.id, REPAIR_KS, new String[]{ REPAIR_TABLE }, COMMON_RANGE);
+        SessionState state = new SessionState(parent, Clock.Global.clock(), REPAIR_KS, new String[]{ REPAIR_TABLE }, COMMON_RANGE);
         parent.register(state);
         return state;
     }

@@ -17,13 +17,18 @@
  */
 package org.apache.cassandra.repair.state;
 
+import java.util.Collections;
 import java.util.UUID;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.ObjectSizes;
 
-public class ValidationState extends AbstractState<ValidationState.State, UUID>
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
+
+public class ValidationState extends AbstractState<ValidationState.State, UUID> implements WeightedHierarchy.Node
 {
     public enum State
     { ACCEPT, START, SENDING_TREES }
@@ -36,12 +41,23 @@ public class ValidationState extends AbstractState<ValidationState.State, UUID>
     public long partitionsProcessed;
     public long bytesRead;
 
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new ValidationState(Clock.Global.clock(), new RepairJobDesc(nextTimeUUID(), nextTimeUUID(), "", "", Collections.emptySet()), FBUtilities.getBroadcastAddressAndPort()));
+
     public ValidationState(Clock clock, RepairJobDesc desc, InetAddressAndPort initiator)
     {
         // UUID is used to make the validations table easier for users to lookup by a single key rather than a composite key
         super(clock, desc.determanisticId(), State.class);
         this.desc = desc;
         this.initiator = initiator;
+    }
+
+    @Override
+    public long independentRetainedSize()
+    {
+        long size = EMPTY_SIZE;
+        size += desc.unsharedHeapSize();
+        size += initiator.unsharedHeapSize();
+        return size;
     }
 
     public float getProgress()

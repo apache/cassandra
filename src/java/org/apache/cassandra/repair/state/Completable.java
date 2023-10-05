@@ -20,7 +20,9 @@ package org.apache.cassandra.repair.state;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.ObjectSizes;
 
 public interface Completable<I>
 {
@@ -65,8 +67,16 @@ public interface Completable<I>
         return r.message;
     }
 
-    class Result
+    class Result implements IMeasurableMemory
     {
+        private static final long EMPTY_SIZE = ObjectSizes.measure(new Result(Kind.SUCCESS, ""));
+
+        @Override
+        public long unsharedHeapSize()
+        {
+            return EMPTY_SIZE + ObjectSizes.sizeOf(message);
+        }
+
         public enum Kind
         {SUCCESS, SKIPPED, FAILURE}
 

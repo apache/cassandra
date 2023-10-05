@@ -805,4 +805,27 @@ public class DatabaseDescriptorTest
     {
         DatabaseDescriptor.setDefaultKeyspaceRF(0);
     }
+
+    @Test
+    public void testRepairStateCacheConfiguration()
+    {
+        Config original = DatabaseDescriptor.getRawConfig();
+
+        Config conf = new Config();
+        DatabaseDescriptor.setConfig(conf);
+
+        // Defaults
+        Assert.assertNotNull(DatabaseDescriptor.getRepairStateHeapSize());
+        Assert.assertNull(DatabaseDescriptor.getRepairStateSize());
+
+        // Handle existing config with repair_state_size already set, should ignore the default for repair_state_heap_size
+        conf = new Config();
+        conf.repair_state_size = 99;
+        DatabaseDescriptor.setConfig(conf);
+        DatabaseDescriptor.applyRepairStateSizingValidations();
+        Assert.assertNull(DatabaseDescriptor.getRepairStateHeapSize());
+        Assert.assertNotNull(DatabaseDescriptor.getRepairStateSize());
+
+        DatabaseDescriptor.setConfig(original);
+    }
 }
