@@ -72,7 +72,7 @@ import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
  */
 public class CommitLog implements CommitLogMBean
 {
-    private static final Logger logger = LoggerFactory.getLogger(CommitLog.class);
+    public static final Logger logger = LoggerFactory.getLogger(CommitLog.class);
 
     public static final CommitLog instance = CommitLog.construct();
 
@@ -129,6 +129,10 @@ public class CommitLog implements CommitLogMBean
 
         // register metrics
         metrics.attach(executor, segmentManager);
+
+	if (configuration.isDirectIOEnabled()) {
+          logger.info("Direct-IO feature enabled for Commitlog files.");
+	}
     }
 
     /**
@@ -609,6 +613,7 @@ public class CommitLog implements CommitLogMBean
 
     public static final class Configuration
     {
+        private final boolean useDirectIO;
         /**
          * The compressor class.
          */
@@ -629,6 +634,7 @@ public class CommitLog implements CommitLogMBean
             this.compressorClass = compressorClass;
             this.compressor = compressorClass != null ? CompressionParams.createCompressor(compressorClass) : null;
             this.encryptionContext = encryptionContext;
+            this.useDirectIO = DatabaseDescriptor.getDirectIOStatus();
         }
 
         /**
@@ -683,6 +689,15 @@ public class CommitLog implements CommitLogMBean
         public EncryptionContext getEncryptionContext()
         {
             return encryptionContext;
+        }
+
+        /**
+         * Returns DirectIO/non-buffer IO status
+         * @return DirectIO/non-buffer IO status
+         */
+        public boolean isDirectIOEnabled()
+        {
+            return useDirectIO;
         }
     }
 }
