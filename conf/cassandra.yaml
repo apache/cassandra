@@ -2127,3 +2127,6 @@ drop_compact_storage_enabled: false
 #   a stable cluster. If a node from a previous version was started by accident we won't any longer toggle behaviors as when UPGRADING.
 #
 storage_compatibility_mode: CASSANDRA_4
+
+# Enable Direct IO feature for Commitlog files. Java-11 forces minimum alignement to 4K and minimum disk write to 4K.
+use_directio_for_commitlog: false
