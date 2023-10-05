@@ -23,6 +23,11 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.service.EmbeddedCassandraService;
+
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -69,6 +74,33 @@ public class KeyspaceMetricsTest
         session.execute(String.format("DROP KEYSPACE %s;", keyspace));
         // no metrics after drop
         assertEquals(metrics.get().collect(Collectors.joining(",")), 0, metrics.get().count());
+    }
+
+    @Test
+    public void testResultSetSizeCount() {
+        session.execute("CREATE KEYSPACE junit WITH replication = { 'class' : 'SimpleStrategy', 'replication_factor' : 1 };");
+        session.execute("CREATE TABLE IF NOT EXISTS junit.resultset (id int PRIMARY KEY, content text);");
+
+        KeyspaceMetrics junitMetrics = Keyspace.open("junit").metric;
+        // Upon receiving schema change events, clients scan the system schema to confirm the schema version,
+        // find out existing peers in the ring, etc.
+        // These activities shouldn't be reflected on the user keyspace metrics.
+        assertEquals(0, junitMetrics.resultsetSize.getCount());
+
+        for (int i = 0; i < 10; i++)
+            session.execute(String.format("INSERT INTO junit.resultset (id, content) VALUES (%d, '%s')", i, "val" + i));
+
+        // These LWT won't increase result set size
+        session.execute("INSERT INTO junit.resultset (id, content) VALUES (4, 'new') IF NOT EXISTS;");
+        session.execute("UPDATE junit.resultset SET content='new' WHERE id=1 IF content='old'");
+        session.execute("UPDATE junit.resultset SET content='new' WHERE id=1 IF content='1'");
+        assertEquals(0, junitMetrics.resultsetSize.getCount());
+
+
+        session.execute("SELECT * FROM junit.resultset");
+        assertEquals(10, junitMetrics.resultsetSize.getCount());
+        session.execute("SELECT * FROM junit.resultset WHERE id < 5 ALLOW FILTERING;");
+        assertEquals(15, junitMetrics.resultsetSize.getCount());
     }
 
     @AfterClass

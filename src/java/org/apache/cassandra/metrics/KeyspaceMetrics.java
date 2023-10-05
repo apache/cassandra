@@ -182,6 +182,8 @@ public class KeyspaceMetrics
     public final Counter singleMutationThrottles;
     /** Estimate of number of pending SSTable cleanup for this Keyspace */
     public final Gauge<Long> pendingCleanups;
+    /** Resultset size for client requests */
+    public final Counter resultsetSize;
 
     public final MetricNameFactory factory;
     private Keyspace keyspace;
@@ -291,6 +293,7 @@ public class KeyspaceMetrics
         rangeReadThrottles = createKeyspaceCounter("RangeReadThrottles");
         singleMutationThrottles = createKeyspaceCounter("SingleMutationThrottles");
         serialMutationThrottles = createKeyspaceCounter("SerialMutationThrottles");
+        resultsetSize = createKeyspaceCounter("ResultsetSize");
     }
 
     /**
