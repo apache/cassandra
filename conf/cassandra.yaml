@@ -863,7 +863,7 @@ native_transport_allow_older_protocols: true
 #
 # Idle connection timeouts are disabled by default.
 # Min unit: ms
-# native_transport_idle_timeout: 60000ms
+native_transport_idle_timeout: 600000ms
 
 # When enabled, limits the number of native transport requests dispatched for processing per second.
 # Behavior once the limit has been breached depends on the value of THROW_ON_OVERLOAD specified in
@@ -1089,19 +1089,19 @@ uuid_sstable_identifiers_enabled: false
 # How long the coordinator should wait for read operations to complete.
 # Lowest acceptable value is 10 ms.
 # Min unit: ms
-read_request_timeout: 5000ms
+read_request_timeout: 500000ms
 # How long the coordinator should wait for seq or index scans to complete.
 # Lowest acceptable value is 10 ms.
 # Min unit: ms
-range_request_timeout: 10000ms
+range_request_timeout: 100000ms
 # How long the coordinator should wait for writes to complete.
 # Lowest acceptable value is 10 ms.
 # Min unit: ms
-write_request_timeout: 2000ms
+write_request_timeout: 20000ms
 # How long the coordinator should wait for counter writes to complete.
 # Lowest acceptable value is 10 ms.
 # Min unit: ms
-counter_write_request_timeout: 5000ms
+counter_write_request_timeout: 50000ms
 # How long a coordinator should continue to retry a CAS operation
 # that contends with other proposals for the same row.
 # Lowest acceptable value is 10 ms.
@@ -1112,11 +1112,11 @@ cas_contention_timeout: 1000ms
 # we need to flush first so we can snapshot before removing the data.)
 # Lowest acceptable value is 10 ms.
 # Min unit: ms
-truncate_request_timeout: 60000ms
+truncate_request_timeout: 600000ms
 # The default timeout for other, miscellaneous operations.
 # Lowest acceptable value is 10 ms.
 # Min unit: ms
-request_timeout: 10000ms
+request_timeout: 1000000ms
 
 # Defensive settings for protecting Cassandra from true network partitions.
 # See (CASSANDRA-14358) for details.
@@ -1684,7 +1684,7 @@ drop_compact_storage_enabled: false
 #use_statements_enabled: true
 
 # Enables the execution of Accord (multi-key) transactions on this node.
-accord_transactions_enabled: false
+accord_transactions_enabled: true
 
 # When the client triggers a protocol exception or unknown issue (Cassandra bug) we increment
 # a client metric showing this; this logic will exclude specific subnets from updating these

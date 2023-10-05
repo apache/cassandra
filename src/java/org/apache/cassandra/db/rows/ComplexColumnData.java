@@ -51,7 +51,7 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell<?>>
     private static final long EMPTY_SIZE = ObjectSizes.measure(new ComplexColumnData(ColumnMetadata.regularColumn("", "", "", SetType.getInstance(ByteType.instance, true)), NO_CELLS, new DeletionTime(0, 0)));
 
     // The cells for 'column' sorted by cell path.
-    private final Object[] cells;
+    public final Object[] cells;
 
     private final DeletionTime complexDeletion;
 

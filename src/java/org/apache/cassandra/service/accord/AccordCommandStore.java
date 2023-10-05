@@ -77,7 +77,7 @@ public class AccordCommandStore implements CommandStore
     private final AccordStateCache.Instance<RoutableKey, CommandsForKey, AccordSafeCommandsForKey> commandsForKeyCache;
     private AsyncOperation<?> currentOperation = null;
     private AccordSafeCommandStore current = null;
-    private long lastSystemTimestampMicros = Long.MIN_VALUE;
+    public long lastSystemTimestampMicros = Long.MIN_VALUE;
 
     private final NodeTimeService time;
     private final Agent agent;

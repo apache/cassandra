@@ -337,6 +337,7 @@ public class AccordTestUtils
     public static AccordCommandStore createAccordCommandStore(LongSupplier now, String keyspace, String table)
     {
         TableMetadata metadata = Schema.instance.getTableMetadata(keyspace, table);
+        assert metadata != null;
         TokenRange range = TokenRange.fullRange(metadata.keyspace);
         Node.Id node = EndpointMapping.endpointToId(FBUtilities.getBroadcastAddressAndPort());
         Topology topology = new Topology(1, new Shard(range, Lists.newArrayList(node), Sets.newHashSet(node), Collections.emptySet()));

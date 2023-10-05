@@ -182,7 +182,11 @@ public class AccordService implements IAccordService, Shutdownable
     {
         return node.topology();
     }
-    
+
+    public Node node()
+    {
+        return this.node;
+    }
     /**
      * Consistency level is just echoed back in timeouts, in the future it may be used for interoperability
      * with non-Accord operations.

@@ -38,7 +38,11 @@ import org.antlr.runtime.*;
 import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
+import org.apache.cassandra.db.rows.BTreeRow;
+import org.apache.cassandra.db.rows.BufferCell;
+import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.metrics.ClientRequestMetrics;
 import org.apache.cassandra.metrics.ClientRequestsMetricsHolder;
@@ -446,6 +450,11 @@ public class QueryProcessor implements QueryHandler
     public static UntypedResultSet executeInternal(String query, Object... values)
     {
         Prepared prepared = prepareInternal(query);
+        return executeInternal(prepared, values);
+    }
+
+    public static UntypedResultSet executeInternal(Prepared prepared, Object... values)
+    {
         ResultMessage result = prepared.statement.executeLocally(internalQueryState(), makeInternalOptions(prepared.statement, values));
         if (result instanceof ResultMessage.Rows)
             return UntypedResultSet.create(((ResultMessage.Rows)result).result);

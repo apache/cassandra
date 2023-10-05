@@ -129,6 +129,7 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNull;
 import static org.apache.cassandra.service.paxos.Ballot.Flag.NONE;
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
+import com.google.common.annotations.VisibleForTesting;
 
 /*
  * Abstract parent class of individual modifications, i.e. INSERT, UPDATE and DELETE.
@@ -168,6 +169,8 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     private ModificationStatement txnStmt;
 
     public final StatementSource source;
+
+    public final List<IMutation> mutations =new ArrayList<>();;
 
     public ModificationStatement(StatementType type,
                                  VariableSpecifications bindVariables,
@@ -604,6 +607,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         }
 
         return null;
+        //return new ResultMessage.Rows(buildCasResultSet(result, queryState, options));
     }
 
     private ResultMessage executeWithCondition(QueryState queryState, QueryOptions options, long queryStartNanoTime)
@@ -760,7 +764,11 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
         long timestamp = options.getTimestamp(queryState);
         int nowInSeconds = options.getNowInSeconds(queryState);
         for (IMutation mutation : getMutations(queryState.getClientState(), options, true, timestamp, nowInSeconds, queryStartNanoTime))
+        {
             mutation.apply();
+            mutations.add(mutation);
+        }
+        //return new ResultMessage.Rows(  mutations, queryState, options));
         return null;
     }
 

@@ -70,7 +70,7 @@ public class PartitionUpdate extends AbstractBTreePartition
 
     public static final PartitionUpdateSerializer serializer = new PartitionUpdateSerializer();
 
-    private final BTreePartitionData holder;
+    public final BTreePartitionData holder;
     private final DeletionInfo deletionInfo;
     private final TableMetadata metadata;
 

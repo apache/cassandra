@@ -60,6 +60,8 @@ import org.apache.cassandra.utils.btree.BTreeSearchIterator;
 import org.apache.cassandra.utils.btree.UpdateFunction;
 import org.apache.cassandra.utils.memory.Cloner;
 
+import static org.apache.cassandra.db.rows.UnfilteredRowIteratorSerializer.logger;
+
 /**
  * Immutable implementation of a Row object.
  */
@@ -72,7 +74,7 @@ public class BTreeRow extends AbstractRow
     private final Deletion deletion;
 
     // The data for each columns present in this row in column sorted order.
-    private final Object[] btree;
+    public final Object[] btree;
 
     private static final ColumnData FIRST_COMPLEX_STATIC = new ComplexColumnData(Columns.FIRST_COMPLEX_STATIC, new Object[0], new DeletionTime(0, 0));
     private static final ColumnData FIRST_COMPLEX_REGULAR = new ComplexColumnData(Columns.FIRST_COMPLEX_REGULAR, new Object[0], new DeletionTime(0, 0));
@@ -432,6 +434,7 @@ public class BTreeRow extends AbstractRow
      */
     public Row updateAllTimestamp(long newTimestamp)
     {
+        logger.debug("Updating row {} to new timestamp {}", this, newTimestamp);
         LivenessInfo newInfo = primaryKeyLivenessInfo.isEmpty() ? primaryKeyLivenessInfo : primaryKeyLivenessInfo.withUpdatedTimestamp(newTimestamp);
         // If the deletion is shadowable and the row has a timestamp, we'll forced the deletion timestamp to be less than the row one, so we
         // should get rid of said deletion.

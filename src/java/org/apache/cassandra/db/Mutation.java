@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableMap;
@@ -60,8 +61,9 @@ public class Mutation implements IMutation, Supplier<Mutation>
     private final String keyspaceName;
 
     private final DecoratedKey key;
-    // map of column family id to mutations for that column family.
-    private final ImmutableMap<TableId, PartitionUpdate> modifications;
+    // map of column family id to mutations for that colun family.
+    @VisibleForTesting
+    public final ImmutableMap<TableId, PartitionUpdate> modifications;
 
     // Time at which this mutation or the builder that built it was instantiated
     final long approxCreatedAtNanos;
