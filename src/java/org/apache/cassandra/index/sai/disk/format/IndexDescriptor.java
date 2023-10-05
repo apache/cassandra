@@ -369,12 +369,7 @@ public class IndexDescriptor
                          component,
                          file);
 
-        IndexOutputWriter writer = IndexFileUtils.instance.openOutput(file);
-
-        if (append)
-        {
-            writer.skipBytes(file.length());
-        }
+        IndexOutputWriter writer = IndexFileUtils.instance.openOutput(file, append);
 
         registerPerSSTableComponent(component);
 
@@ -396,12 +391,7 @@ public class IndexDescriptor
                          component,
                          file);
 
-        IndexOutputWriter writer = IndexFileUtils.instance.openOutput(file);
-
-        if (append)
-        {
-            writer.skipBytes(file.length());
-        }
+        IndexOutputWriter writer = IndexFileUtils.instance.openOutput(file, append);
 
         if (!temporary)
             registerPerSSTableComponent(component);

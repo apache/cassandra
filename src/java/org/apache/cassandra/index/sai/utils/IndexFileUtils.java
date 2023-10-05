@@ -62,13 +62,6 @@ public class IndexFileUtils
     protected IndexFileUtils()
     {}
 
-    public IndexOutputWriter openOutput(File file)
-    {
-        assert writerOption.finishOnClose() : "IndexOutputWriter relies on close() to sync with disk.";
-
-        return new IndexOutputWriter(new IncrementalChecksumSequentialWriter(file));
-    }
-
     public IndexOutputWriter openOutput(File file, boolean append) throws IOException
     {
         assert writerOption.finishOnClose() : "IndexOutputWriter relies on close() to sync with disk.";

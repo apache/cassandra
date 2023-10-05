@@ -61,7 +61,7 @@ public class BKDTempFilesDirectory extends Directory
     }
 
     @Override
-    public IndexOutput createTempOutput(String prefix, String suffix, IOContext context)
+    public IndexOutput createTempOutput(String prefix, String suffix, IOContext context) throws IOException
     {
         final String name = prefix + "_" + Long.toString(nextTempFileCounter.getAndIncrement(), Character.MAX_RADIX) + "_" + suffix;
 
@@ -74,7 +74,7 @@ public class BKDTempFilesDirectory extends Directory
                                                                                               name +
                                                                                               ".db"));
 
-        return IndexFileUtils.instance.openOutput(file);
+        return IndexFileUtils.instance.openOutput(file, false);
     }
 
     @Override
