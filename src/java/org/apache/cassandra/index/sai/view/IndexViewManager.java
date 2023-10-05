@@ -148,16 +148,14 @@ public class IndexViewManager
      */
     public void invalidate(boolean obsolete)
     {
-        View currentView = view.get();
+        View previousView = view.getAndSet(new View(context, Collections.emptyList()));
 
-        for (SSTableIndex index : currentView)
+        for (SSTableIndex index : previousView)
         {
             if (obsolete)
                 index.markObsolete();
             else
                 index.release();
         }
-
-        view.set(new View(context, Collections.emptyList()));
     }
 }
