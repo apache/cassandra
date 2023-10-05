@@ -34,6 +34,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 
+import com.google.common.collect.Range;
 import org.apache.commons.lang3.ArrayUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -524,5 +525,12 @@ public final class Generators
             }
             throw new IllegalStateException("Gave up trying to find values matching assumptions after " + maxAttempts + " attempts");
         }
+    }
+
+    public static Gen<Range<Integer>> forwardRanges(int min, int max)
+    {
+        return SourceDSL.integers().between(min, max)
+                        .flatMap(start -> SourceDSL.integers().between(start, max)
+                                                   .map(end -> Range.closed(start, end)));
     }
 }

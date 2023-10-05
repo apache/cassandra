@@ -59,6 +59,7 @@ public class RecoveryManagerTruncateTest
     {
         DatabaseDescriptor.setCommitLogCompression(commitLogCompression);
         DatabaseDescriptor.setEncryptionContext(encryptionContext);
+        DatabaseDescriptor.initializeCommitLogDiskAccessMode();
     }
 
     @Parameters()

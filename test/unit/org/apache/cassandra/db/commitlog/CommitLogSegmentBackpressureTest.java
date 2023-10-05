@@ -85,6 +85,7 @@ public class CommitLogSegmentBackpressureTest
         DatabaseDescriptor.setCommitLogSync(CommitLogSync.periodic);
         DatabaseDescriptor.setCommitLogSyncPeriod(10 * 1000);
         DatabaseDescriptor.setCommitLogMaxCompressionBuffersPerPool(3);
+        DatabaseDescriptor.initializeCommitLogDiskAccessMode();
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),

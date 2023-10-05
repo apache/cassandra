@@ -19,17 +19,23 @@ package org.apache.cassandra.db.commitlog;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Map;
 import javax.crypto.Cipher;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import net.openhft.chronicle.core.util.ThrowingFunction;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.compress.ICompressor;
-import org.apache.cassandra.security.EncryptionUtils;
+import org.apache.cassandra.io.util.SimpleCachedBufferPool;
 import org.apache.cassandra.security.EncryptionContext;
+import org.apache.cassandra.security.EncryptionUtils;
 import org.apache.cassandra.utils.Hex;
 
 import static org.apache.cassandra.security.EncryptionUtils.ENCRYPTED_BLOCK_HEADER_SIZE;
@@ -63,10 +69,10 @@ public class EncryptedSegment extends FileDirectSegment
     private final EncryptionContext encryptionContext;
     private final Cipher cipher;
 
-    public EncryptedSegment(CommitLog commitLog, AbstractCommitLogSegmentManager manager)
+    public EncryptedSegment(AbstractCommitLogSegmentManager manager, ThrowingFunction<Path, FileChannel, IOException> channelFactory)
     {
-        super(commitLog, manager);
-        this.encryptionContext = commitLog.configuration.getEncryptionContext();
+        super(manager, channelFactory);
+        this.encryptionContext = manager.getConfiguration().getEncryptionContext();
 
         try
         {
@@ -86,12 +92,9 @@ public class EncryptedSegment extends FileDirectSegment
         return map;
     }
 
-    ByteBuffer createBuffer(CommitLog commitLog)
-    {
-        // Note: we want to keep the compression buffers on-heap as we need those bytes for encryption,
-        // and we want to avoid copying from off-heap (compression buffer) to on-heap encryption APIs
-        return manager.getBufferPool().createBuffer();
-    }
+    // Note: we want to keep the compression buffers on-heap as we need those bytes for encryption,
+    // and we want to avoid copying from off-heap (compression buffer) to on-heap encryption APIs
+    // (so we do not override the createBuffer method)
 
     void write(int startMarker, int nextMarker)
     {
@@ -149,5 +152,29 @@ public class EncryptedSegment extends FileDirectSegment
     public long onDiskSize()
     {
         return lastWrittenPos;
+    }
+
+    protected static class EncryptedSegmentBuilder extends CommitLogSegment.Builder
+    {
+
+        public EncryptedSegmentBuilder(AbstractCommitLogSegmentManager segmentManager)
+        {
+            super(segmentManager);
+        }
+
+        @Override
+        public EncryptedSegment build()
+        {
+            return new EncryptedSegment(segmentManager,
+                                        path ->  FileChannel.open(path, StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE));
+        }
+
+        @Override
+        public SimpleCachedBufferPool createBufferPool()
+        {
+            return new SimpleCachedBufferPool(DatabaseDescriptor.getCommitLogMaxCompressionBuffersInPool(),
+                                              DatabaseDescriptor.getCommitLogSegmentSize(),
+                                              BufferType.ON_HEAP);
+        }
     }
 }
