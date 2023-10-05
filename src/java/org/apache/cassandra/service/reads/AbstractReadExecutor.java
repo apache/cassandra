@@ -245,8 +245,15 @@ public abstract class AbstractReadExecutor
         // is not a representative metric of replica performance.
         if (logger.isTraceEnabled())
             logger.trace("Awaiting {}ns before speculating", sampleLatencyNanos);
-
-        return !handler.awaitUntil(requestTime.startedAtNanos() + sampleLatencyNanos);
+        boolean shouldSpeculate = !handler.awaitUntil(requestTime.startedAtNanos() + sampleLatencyNanos);
+        if (!shouldSpeculate && handler.throttlingFailures.get() > 0)
+        {
+            // if speculation is 'false' and if one of the replicas had failed due to throttling, then
+            // we should speculate to retry additional replica
+            cfs.metric.speculativeRetriesDueToThrottling.inc();
+            shouldSpeculate = true;
+        }
+        return shouldSpeculate;
     }
 
     ReplicaPlan.ForTokenRead replicaPlan()

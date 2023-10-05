@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.service.throttler.dynamic;
 
-import org.apache.cassandra.concurrent.DebuggableScheduledThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.junit.Assert;
 import org.junit.Before;

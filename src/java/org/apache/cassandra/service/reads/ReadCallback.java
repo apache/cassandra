@@ -20,6 +20,7 @@ package org.apache.cassandra.service.reads;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
@@ -63,7 +64,9 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     protected static final Logger logger = LoggerFactory.getLogger(ReadCallback.class);
 
     public final ResponseResolver<E, P> resolver;
+    public AtomicInteger throttlingFailures = new AtomicInteger(0);
     final Condition condition = newOneTimeCondition();
+    final Condition conditionSpeculativeReadDueToThrottling = newOneTimeCondition();
     private final Dispatcher.RequestTime requestTime;
     final int blockFor; // TODO: move to replica plan as well?
     // this uses a plain reference, but is initialised before handoff to any other threads; the later updates
@@ -73,6 +76,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     private static final AtomicIntegerFieldUpdater<ReadCallback> failuresUpdater
             = newUpdater(ReadCallback.class, "failures");
     private volatile int failures = 0;
+    private int prevReplicaContacts;
     private final Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint;
     private volatile WarningContext warningContext;
     private static final AtomicReferenceFieldUpdater<ReadCallback, WarningContext> warningsUpdater
@@ -88,7 +92,7 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         this.failureReasonByEndpoint = new ConcurrentHashMap<>();
         // we don't support read repair (or rapid read protection) for range scans yet (CASSANDRA-6897)
         assert !(command instanceof PartitionRangeReadCommand) || blockFor >= replicaPlan().contacts().size();
-
+        this.prevReplicaContacts = replicaPlan().contacts().size();
         if (logger.isTraceEnabled())
             logger.trace("Blockfor is {}; setting up requests to {}", blockFor, this.replicaPlan);
     }
@@ -127,9 +131,30 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
         }
     }
 
+    public boolean awaitSpeculativeReadDueToThrottling(long timePastStart, TimeUnit unit)
+    {
+        long time = unit.toNanos(timePastStart) - (System.nanoTime() - requestTime.startedAtNanos());
+        try
+        {
+            return conditionSpeculativeReadDueToThrottling.await(time, TimeUnit.NANOSECONDS);
+        }
+        catch (InterruptedException ex)
+        {
+            throw new AssertionError(ex);
+        }
+    }
+
     public void awaitResults() throws ReadFailureException, ReadTimeoutException
     {
         boolean signaled = await(command.getTimeout(MILLISECONDS), TimeUnit.MILLISECONDS);
+        if (throttlingFailures.get() > 0 && prevReplicaContacts < replicaPlan().contacts().size())
+        {
+            // Speculative retry would have happened if all of the following were true:
+            // 1. At least one replica failed due to TRAFFIC_THROTTLED
+            // 2. The current available replica count has increased from the previous replica count
+            // In that case, we should wait for the additional replica to respond; hence this additional wait
+            signaled = awaitSpeculativeReadDueToThrottling(command.getTimeout(MILLISECONDS), TimeUnit.MILLISECONDS);
+        }
         /**
          * Here we are checking isDataPresent in addition to the responses size because there is a possibility
          * that an asynchronous speculative execution request could be returning after a local failure already
@@ -170,8 +195,8 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 
         // Same as for writes, see AbstractWriteResponseHandler
         throw failed
-            ? new ReadFailureException(replicaPlan().consistencyLevel(), received, blockFor, resolver.isDataPresent(), failureReasonByEndpoint)
-            : new ReadTimeoutException(replicaPlan().consistencyLevel(), received, blockFor, resolver.isDataPresent());
+              ? new ReadFailureException(replicaPlan().consistencyLevel(), received, blockFor, resolver.isDataPresent(), failureReasonByEndpoint)
+              : new ReadTimeoutException(replicaPlan().consistencyLevel(), received, blockFor, resolver.isDataPresent());
     }
 
     public int blockFor()
@@ -209,7 +234,10 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
          * be accessible when we do signal. (see CASSANDRA-16807)
          */
         if (resolver.isDataPresent() && resolver.responses.size() >= blockFor)
+        {
             condition.signalAll();
+            conditionSpeculativeReadDueToThrottling.signalAll();
+        }
     }
 
     private WarningContext getWarningContext()
@@ -244,11 +272,22 @@ public class ReadCallback<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
     public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
     {
         assertWaitingFor(from);
-                
-        failureReasonByEndpoint.put(from, failureReason);
 
+        failureReasonByEndpoint.put(from, failureReason);
+        if (failureReason == RequestFailureReason.TRAFFIC_THROTTLED)
+        {
+            throttlingFailures.incrementAndGet();
+        }
         if (blockFor + failuresUpdater.incrementAndGet(this) > replicaPlan().contacts().size())
+        {
             condition.signalAll();
+            if (failuresUpdater.get(this) > 1)
+            {
+                // when the first replica fails, then speculative retry might be triggered, but when
+                // the second replica fails due to throttling (or any other error), then we need to give up
+                conditionSpeculativeReadDueToThrottling.signalAll();
+            }
+        }
     }
 
     @Override

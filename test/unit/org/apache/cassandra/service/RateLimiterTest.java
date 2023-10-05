@@ -229,7 +229,7 @@ public class RateLimiterTest extends CQLTester {
         try
         {
             PartitionRangeReadCommand rangCmd = PartitionRangeReadCommand.create(metadata, 0, null, null, null, null);
-            new RangeCommandIterator(null, rangCmd, 0, 0, 0, 0).computeNext();
+            new RangeCommandIterator(null, rangCmd, 0, 0, 0, Dispatcher.RequestTime.forImmediateExecution()).computeNext();
         }
         catch (OverloadedException e)
         {
