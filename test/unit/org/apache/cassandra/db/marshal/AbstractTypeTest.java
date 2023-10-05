@@ -101,7 +101,21 @@ public class AbstractTypeTest
     // TODO
     // isCompatibleWith/isValueCompatibleWith/isSerializationCompatibleWith,
     // withUpdatedUserType/expandUserTypes/referencesDuration - types that recursive check types
-    // getMaskedValue
+
+    @Test
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public void maskedValue()
+    {
+        qt().forAll(genBuilder().withoutTypeKinds(COMPOSITE, DYNAMIC_COMPOSITE).build())
+            .checkAssert(type -> {
+                ByteBuffer maskedValue = type.getMaskedValue();
+                type.validate(maskedValue);
+
+                Object composed = type.compose(maskedValue);
+                ByteBuffer decomposed = ((AbstractType) type).decompose(composed);
+                assertThat(decomposed).isEqualTo(maskedValue);
+            });
+    }
 
     @Test
     public void empty()
