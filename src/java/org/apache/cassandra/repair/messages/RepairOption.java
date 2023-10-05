@@ -21,20 +21,20 @@ import java.util.*;
 
 import com.google.common.base.Joiner;
 import com.google.common.base.Preconditions;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.repair.RepairParallelism;
+import org.apache.cassandra.utils.ObjectSizes;
 
 /**
  * Repair options.
  */
-public class RepairOption
+public class RepairOption implements IMeasurableMemory
 {
     public static final String PARALLELISM_KEY = "parallelism";
     public static final String PRIMARY_RANGE_KEY = "primaryRange";
@@ -57,7 +57,7 @@ public class RepairOption
     // we don't want to push nodes too much for repair
     public static final int MAX_JOB_THREADS = 4;
 
-    private static final Logger logger = LoggerFactory.getLogger(RepairOption.class);
+    static final long EMPTY_SIZE = ObjectSizes.measure(new RepairOption(RepairParallelism.SEQUENTIAL, false, false, false, 0, Collections.emptyList(), false, false, false, PreviewKind.NONE, false, false, false, false));
 
     public static Set<Range<Token>> parseRanges(String rangesStr, IPartitioner partitioner)
     {
@@ -470,5 +470,20 @@ public class RepairOption
         options.put(REPAIR_PAXOS_KEY, Boolean.toString(repairPaxos));
         options.put(PAXOS_ONLY_KEY, Boolean.toString(paxosOnly));
         return options;
+    }
+
+    @Override
+    public long unsharedHeapSize()
+    {
+        long size = EMPTY_SIZE;
+        for (String cf : columnFamilies)
+            size += ObjectSizes.sizeOf(cf);
+        for (String dc : dataCenters)
+            size += ObjectSizes.sizeOf(dc);
+        for (String host : hosts)
+            size += ObjectSizes.sizeOf(host);
+        for (Range<Token> range : ranges)
+            size += ObjectSizes.sizeOf(range);
+        return size;
     }
 }

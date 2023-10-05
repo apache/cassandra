@@ -365,7 +365,8 @@ public class DatabaseDescriptor
         }
     }
 
-    private static void setConfig(Config config)
+    @VisibleForTesting
+    public static void setConfig(Config config)
     {
         conf = config;
     }
@@ -906,6 +907,25 @@ public class DatabaseDescriptor
             conf.paxos_state_purging = PaxosStatePurging.legacy;
 
         logInitializationOutcome(logger);
+
+        applyRepairStateSizingValidations();
+    }
+
+    @VisibleForTesting
+    static void applyRepairStateSizingValidations()
+    {
+        // We default to use repair_state_heap_size, so allow users who have set repair_state_size in config to keep it
+        // during the deprecation period
+        if ((conf.repair_state_size != null) && (conf.repair_state_heap_size != null))
+        {
+            String msg = "Both repair_state_size and repair_state_heap_size are set, ignoring repair_state_heap_size. "
+                        + "Note that repair_state_size is deprecated and will be removed in a future release.";
+            logger.warn(msg);
+            conf.repair_state_heap_size = null;
+        }
+
+        if ((conf.repair_state_size == null) && (conf.repair_state_heap_size == null))
+            throw new ConfigurationException("Invalid configuration. One of repair_state_size OR repair_state_heap_size must be set.", false);
     }
 
     @VisibleForTesting
@@ -4336,27 +4356,14 @@ public class DatabaseDescriptor
         return conf.repair_state_expires;
     }
 
-    public static void setRepairStateExpires(DurationSpec.LongNanosecondsBound duration)
-    {
-        if (!conf.repair_state_expires.equals(Objects.requireNonNull(duration, "duration")))
-        {
-            logger.info("Setting repair_state_expires to {}", duration);
-            conf.repair_state_expires = duration;
-        }
-    }
-
-    public static int getRepairStateSize()
+    public static Integer getRepairStateSize()
     {
         return conf.repair_state_size;
     }
 
-    public static void setRepairStateSize(int size)
+    public static DataStorageSpec.IntBytesBound getRepairStateHeapSize()
     {
-        if (conf.repair_state_size != size)
-        {
-            logger.info("Setting repair_state_size to {}", size);
-            conf.repair_state_size = size;
-        }
+        return conf.repair_state_heap_size;
     }
 
     public static boolean topPartitionsEnabled()

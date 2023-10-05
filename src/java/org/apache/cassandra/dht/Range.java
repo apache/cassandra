@@ -25,6 +25,7 @@ import com.google.common.collect.Iterables;
 import org.apache.commons.lang3.ObjectUtils;
 
 import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -39,6 +40,8 @@ import org.apache.cassandra.utils.Pair;
 public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implements Comparable<Range<T>>, Serializable
 {
     public static final long serialVersionUID = 1L;
+
+    public static final long EMPTY_SIZE = ObjectSizes.measure(new Range<>(new Murmur3Partitioner.LongToken(Long.MIN_VALUE), new Murmur3Partitioner.LongToken(Long.MIN_VALUE)));
 
     public Range(T left, T right)
     {

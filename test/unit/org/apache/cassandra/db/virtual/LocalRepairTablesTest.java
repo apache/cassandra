@@ -55,6 +55,8 @@ import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 
+import static org.apache.cassandra.repair.RepairSessionTest.coordinator;
+
 public class LocalRepairTablesTest extends CQLTester
 {
     private static final String KS_NAME = "vts";
@@ -298,7 +300,7 @@ public class LocalRepairTablesTest extends CQLTester
     private static SessionState session()
     {
         CoordinatorState parent = coordinator();
-        SessionState state = new SessionState(parent.id, REPAIR_KS, new String[]{ REPAIR_TABLE }, COMMON_RANGE);
+        SessionState state = new SessionState(parent, REPAIR_KS, new String[]{ REPAIR_TABLE }, COMMON_RANGE);
         parent.register(state);
         return state;
     }
@@ -306,7 +308,7 @@ public class LocalRepairTablesTest extends CQLTester
     private static JobState job()
     {
         SessionState session = session();
-        JobState state = new JobState(new RepairJobDesc(session.parentRepairSession, session.id, session.keyspace, session.cfnames[0], session.commonRange.ranges), session.commonRange.endpoints);
+        JobState state = new JobState(new RepairJobDesc(session.id, session.id, session.keyspace, session.cfnames[0], session.commonRange.ranges), session.commonRange.endpoints);
         session.register(state);
         return state;
     }

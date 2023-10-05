@@ -52,6 +52,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.consistent.ConsistentSession;
 import org.apache.cassandra.repair.consistent.LocalSession;
 import org.apache.cassandra.repair.consistent.LocalSessions;
+import org.apache.cassandra.repair.state.CoordinatorState;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.PreviewKind;
@@ -132,7 +133,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
 
     /**
      * Create new repair session.
-     * @param parentRepairSession the parent sessions id
+     * @param coordinator the parent coordinator state
      * @param commonRange ranges to repair
      * @param keyspace name of keyspace
      * @param parallelismDegree specifies the degree of parallelism when calculating the merkle trees
@@ -141,7 +142,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
      * @param paxosOnly true if we should only complete paxos operations, not run a normal repair
      * @param cfnames names of columnfamilies
      */
-    public RepairSession(TimeUUID parentRepairSession,
+    public RepairSession(CoordinatorState coordinator,
                          CommonRange commonRange,
                          String keyspace,
                          RepairParallelism parallelismDegree,
@@ -156,7 +157,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
         this.repairPaxos = repairPaxos;
         this.paxosOnly = paxosOnly;
         assert cfnames.length > 0 : "Repairing no column families seems pointless, doesn't it";
-        this.state = new SessionState(parentRepairSession, keyspace, cfnames, commonRange);
+        this.state = new SessionState(coordinator, keyspace, cfnames, commonRange);
         this.parallelismDegree = parallelismDegree;
         this.isIncremental = isIncremental;
         this.previewKind = previewKind;
@@ -274,11 +275,11 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
             return;
 
         logger.info("{} parentSessionId = {}: new session: will sync {} on range {} for {}.{}",
-                    previewKind.logPrefix(getId()), state.parentRepairSession, repairedNodes(), state.commonRange, state.keyspace, Arrays.toString(state.cfnames));
+                    previewKind.logPrefix(getId()), state.id, repairedNodes(), state.commonRange, state.keyspace, Arrays.toString(state.cfnames));
         Tracing.traceRepair("Syncing range {}", state.commonRange);
         if (!previewKind.isPreview() && !paxosOnly)
         {
-            SystemDistributedKeyspace.startRepairs(getId(), state.parentRepairSession, state.keyspace, state.cfnames, state.commonRange);
+            SystemDistributedKeyspace.startRepairs(getId(), state.id, state.keyspace, state.cfnames, state.commonRange);
         }
 
         if (state.commonRange.endpoints.isEmpty())

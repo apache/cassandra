@@ -25,6 +25,7 @@ import java.util.UUID;
 import org.apache.commons.lang3.ArrayUtils;
 
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.ObjectSizes;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
@@ -38,6 +39,8 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  */
 public class TableId
 {
+    public static final long EMPTY_SIZE = ObjectSizes.measure(fromUUID(new UUID(0L, 0L)));
+
     // TODO: should this be a TimeUUID?
     private final UUID id;
 

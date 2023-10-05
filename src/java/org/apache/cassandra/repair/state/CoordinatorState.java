@@ -18,22 +18,29 @@
 package org.apache.cassandra.repair.state;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.CommonRange;
 import org.apache.cassandra.repair.RepairRunnable;
 import org.apache.cassandra.repair.messages.RepairOption;
+import org.apache.cassandra.repair.RepairParallelism;
+import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
-public class CoordinatorState extends AbstractState<CoordinatorState.State, TimeUUID>
+public class CoordinatorState extends AbstractState<CoordinatorState.State, TimeUUID> implements WeightedHierarchy.Root
 {
     public enum State
     {
@@ -52,6 +59,11 @@ public class CoordinatorState extends AbstractState<CoordinatorState.State, Time
 
     // API to split function calls for phase changes from getting the state
     public final Phase phase = new Phase();
+
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new CoordinatorState(0, "", new RepairOption(RepairParallelism.SEQUENTIAL, false, false, false,
+                                                                                                                          8, Collections.emptyList(), false, false, false, PreviewKind.NONE, false, false, false, false)));
+
+    private final AtomicLong nestedStateRetainedSize = new AtomicLong(0);
 
     public CoordinatorState(int cmd, String keyspace, RepairOption options)
     {
@@ -73,6 +85,7 @@ public class CoordinatorState extends AbstractState<CoordinatorState.State, Time
 
     public void register(SessionState state)
     {
+        onNestedStateRegistration(state);
         sessions.put(state.id, state);
     }
 
@@ -112,6 +125,39 @@ public class CoordinatorState extends AbstractState<CoordinatorState.State, Time
         if (neighborsAndRanges == null)
             return null;
         return neighborsAndRanges.filterCommonRanges(keyspace, getColumnFamilyNames());
+    }
+
+    @Override
+    public long independentRetainedSize()
+    {
+        long size = EMPTY_SIZE;
+        size += ObjectSizes.sizeOf(keyspace);
+        size += options.unsharedHeapSize();
+
+        // Excludes sessions, since those are measured by nestedStateRetainedSize and accounted on registration of nested
+        // SessionState and JobState. Also excludes columnFamilies, since those are referenced by Keyspace, which is long-lived
+        // as a referent from Schema.
+
+        size += neighborsAndRanges == null ? 0 : neighborsAndRanges.unsharedHeapSize();
+        return size;
+    }
+
+    @Override
+    public WeightedHierarchy.Root root()
+    {
+        return this;
+    }
+
+    @Override
+    public AtomicLong totalNestedRetainedSize()
+    {
+        return nestedStateRetainedSize;
+    }
+
+    @Override
+    public void onRetainedSizeUpdate()
+    {
+        ActiveRepairService.instance.onUpdate(this);
     }
 
     public final class Phase extends BaseSkipPhase

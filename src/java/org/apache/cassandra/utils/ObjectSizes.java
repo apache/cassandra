@@ -20,8 +20,11 @@
 package org.apache.cassandra.utils;
 
 import java.nio.ByteBuffer;
+import java.util.UUID;
 
 import org.github.jamm.MemoryLayoutSpecification;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.github.jamm.MemoryMeter;
 
 /**
@@ -37,6 +40,8 @@ public class ObjectSizes
     private static final long EMPTY_STRING_SIZE = measure("");
 
     private static final long DIRECT_BUFFER_HEAP_SIZE = measure(ByteBuffer.allocateDirect(0));
+
+    private static final long UUID_SIZE = measure(new UUID(0L, 0L));
 
     /**
      * Memory a byte array consumes
@@ -202,6 +207,13 @@ public class ObjectSizes
             return 0;
 
         return EMPTY_STRING_SIZE + sizeOfArray(str.length(), Character.BYTES);
+    }
+
+    public static long sizeOf(Range<Token> range)
+    {
+        if (range == null)
+            return 0;
+        return Range.EMPTY_SIZE + range.left.getHeapSize() + range.right.getHeapSize();
     }
 
     /**

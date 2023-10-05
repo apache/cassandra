@@ -18,24 +18,35 @@
 package org.apache.cassandra.repair.state;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+import com.google.common.collect.ImmutableSet;
+
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.CommonRange;
+import org.apache.cassandra.repair.RepairParallelism;
+import org.apache.cassandra.repair.messages.RepairOption;
+import org.apache.cassandra.streaming.PreviewKind;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.TimeUUID;
 
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
 
-public class SessionState extends AbstractState<SessionState.State, TimeUUID>
+public class SessionState extends AbstractState<SessionState.State, TimeUUID> implements WeightedHierarchy.InternalNode
 {
     public enum State
     {
         START, JOBS_START
     }
 
+    private final CoordinatorState coordinator;
     public final TimeUUID parentRepairSession;
     public final String keyspace;
     public final String[] cfnames;
@@ -44,10 +55,13 @@ public class SessionState extends AbstractState<SessionState.State, TimeUUID>
 
     public final Phase phase = new Phase();
 
-    public SessionState(TimeUUID parentRepairSession, String keyspace, String[] cfnames, CommonRange commonRange)
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new SessionState(new CoordinatorState(0, "", new RepairOption(RepairParallelism.SEQUENTIAL, false, false, false, 8, Collections.emptySet(), false, false, false, PreviewKind.NONE, false, false, false, false)), "", new String[] {}, new CommonRange(ImmutableSet.of(FBUtilities.getBroadcastAddressAndPort()), Collections.emptySet(), Range.rangeSet(new Range<>(new Murmur3Partitioner.LongToken(Long.MIN_VALUE), new Murmur3Partitioner.LongToken(Long.MIN_VALUE))))));
+
+    public SessionState(CoordinatorState coordinator, String keyspace, String[] cfnames, CommonRange commonRange)
     {
         super(nextTimeUUID(), State.class);
-        this.parentRepairSession = parentRepairSession;
+        this.coordinator = coordinator;
+        this.parentRepairSession = coordinator.id;
         this.keyspace = keyspace;
         this.cfnames = cfnames;
         this.commonRange = commonRange;
@@ -76,6 +90,30 @@ public class SessionState extends AbstractState<SessionState.State, TimeUUID>
     public void register(JobState state)
     {
         jobs.put(state.id, state);
+        onNestedStateRegistration(state);
+    }
+
+    @Override
+    public long independentRetainedSize()
+    {
+        long size = EMPTY_SIZE;
+        size += TimeUUID.TIMEUUID_SIZE; // parentRepairSession
+        size += ObjectSizes.sizeOf(keyspace);
+        for (String cfname : cfnames)
+            size += ObjectSizes.sizeOf(cfname);
+        size += commonRange.unsharedHeapSize();
+
+        // Excludes coordinator because it is the parent for this cached object, so it is already counted. Excludes jobs
+        // because those are also accounted for separately and reported as part of the parent's total cached size. See
+        // CoordinatorState.nestedStateRetainedSize, which includes both SessionStates and JobStates under a CoordinatorState.
+
+        return size;
+    }
+
+    @Override
+    public WeightedHierarchy.Root root()
+    {
+        return coordinator;
     }
 
     public final class Phase extends BaseSkipPhase

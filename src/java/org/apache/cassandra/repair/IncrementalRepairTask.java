@@ -26,6 +26,7 @@ import org.apache.cassandra.concurrent.ExecutorPlus;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.consistent.CoordinatorSession;
 import org.apache.cassandra.repair.messages.RepairOption;
+import org.apache.cassandra.repair.state.CoordinatorState;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
@@ -33,19 +34,18 @@ import org.apache.cassandra.utils.concurrent.Future;
 
 public class IncrementalRepairTask extends AbstractRepairTask
 {
-    private final TimeUUID parentSession;
     private final RepairRunnable.NeighborsAndRanges neighborsAndRanges;
     private final String[] cfnames;
 
-    protected IncrementalRepairTask(RepairOption options,
+    protected IncrementalRepairTask(CoordinatorState coordinator,
+                                    RepairOption options,
                                     String keyspace,
                                     RepairNotifier notifier,
                                     TimeUUID parentSession,
                                     RepairRunnable.NeighborsAndRanges neighborsAndRanges,
                                     String[] cfnames)
     {
-        super(options, keyspace, notifier);
-        this.parentSession = parentSession;
+        super(coordinator, options, keyspace, notifier);
         this.neighborsAndRanges = neighborsAndRanges;
         this.cfnames = cfnames;
     }
@@ -66,10 +66,7 @@ public class IncrementalRepairTask extends AbstractRepairTask
                                                   .build();
         // Not necessary to include self for filtering. The common ranges only contains neighbhor node endpoints.
         List<CommonRange> allRanges = neighborsAndRanges.filterCommonRanges(keyspace, cfnames);
-
-        CoordinatorSession coordinatorSession = ActiveRepairService.instance.consistent.coordinated.registerSession(parentSession, allParticipants, neighborsAndRanges.shouldExcludeDeadParticipants);
-
-        return coordinatorSession.execute(() -> runRepair(parentSession, true, executor, allRanges, cfnames));
-
+        CoordinatorSession coordinatorSession = ActiveRepairService.instance.consistent.coordinated.registerSession(coordinator.id, allParticipants, neighborsAndRanges.shouldExcludeDeadParticipants);
+        return coordinatorSession.execute(() -> runRepair(true, executor, allRanges, cfnames));
     }
 }

@@ -859,7 +859,11 @@ public class Config
     public volatile Map<StartupCheckType, Map<String, Object>> startup_checks = new HashMap<>();
 
     public volatile DurationSpec.LongNanosecondsBound repair_state_expires = new DurationSpec.LongNanosecondsBound("3d");
-    public volatile int repair_state_size = 100_000;
+
+    // Only one of repair_state_size and repair_state_heap_size should be set
+    @Deprecated
+    public volatile Integer repair_state_size = null;
+    public volatile DataStorageSpec.IntBytesBound repair_state_heap_size = new DataStorageSpec.IntBytesBound(5, DataStorageSpec.DataStorageUnit.MEBIBYTES);
 
     /**
      * The variants of paxos implementation and semantics supported by Cassandra.
