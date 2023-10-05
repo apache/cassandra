@@ -850,8 +850,13 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     public void schemaChange(String query, boolean ignoreStoppedInstances, I instance)
     {
+        schemaChange(query, ignoreStoppedInstances, instance, SchemaChangeMonitor.DEFAULT_WAIT_SECONDS, TimeUnit.SECONDS);
+    }
+
+    public void schemaChange(String query, boolean ignoreStoppedInstances, I instance, int waitSchemaAgreementAmount, TimeUnit unit)
+    {
         instance.sync(() -> {
-            try (SchemaChangeMonitor monitor = new SchemaChangeMonitor())
+            try (SchemaChangeMonitor monitor = new SchemaChangeMonitor(waitSchemaAgreementAmount, unit))
             {
                 if (ignoreStoppedInstances)
                     monitor.ignoreStoppedInstances();
@@ -963,9 +968,17 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
      */
     public class SchemaChangeMonitor extends ChangeMonitor
     {
+        // See CASSANDRA-18707
+        static final public int DEFAULT_WAIT_SECONDS = 120;
+
         public SchemaChangeMonitor()
         {
-            super(70, TimeUnit.SECONDS);
+            super(DEFAULT_WAIT_SECONDS, TimeUnit.SECONDS);
+        }
+
+        public SchemaChangeMonitor(int waitAmount, TimeUnit unit)
+        {
+            super(waitAmount, unit);
         }
 
         protected IListen.Cancel startPolling(IInstance instance)
