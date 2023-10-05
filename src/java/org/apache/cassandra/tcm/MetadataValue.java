@@ -18,8 +18,22 @@
 
 package org.apache.cassandra.tcm;
 
+/**
+ * A Cluster metadata element.
+ * @param <V> the {@code MetadataValue} object type.
+ */
 public interface MetadataValue<V>
 {
+    /**
+     * Creates a copy of this {@code MetadataValue} instance with the specified epoch.
+     * @param epoch the new epoch
+     * @return a copy of this {@code MetadataValue} instance with the specified epoch
+     */
     V withLastModified(Epoch epoch);
+
+    /**
+     * Returns the epoch at which this value was last modified.
+     * @return the epoch at which this value was last modified.
+     */
     Epoch lastModified();
 }

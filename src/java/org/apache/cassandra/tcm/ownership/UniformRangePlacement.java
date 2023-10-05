@@ -43,17 +43,17 @@ import org.apache.cassandra.tcm.membership.NodeId;
  * The defining feature of this placement stategy is that all layouts (i.e. replication params) use the same
  * set of ranges. So when splitting the current ranges, we only need to calculate the splits once and apply to
  * all existing placements.
- *
+ * <p>
  * Also, when using this strategy, the read and write placements should (eventually) be identical. While range
  * movements/bootstraps/decommissions are in-flight, this will not be the case as the read and write replica
  * sets will diverge while nodes are acquiring/relinquishing ranges. Although there may always be such operations
  * ongoing, this is technically a temporary state.
- *
+ * <p>
  * Because of this, when calculating the steps to transition between the current state and a proposed new state,
  * we work from the associated TokenMaps, the assumption being that eventually both the read and write placements
  * will converge and will, at that point, reflect those TokenMaps.
  * This means that the starting point of each transition is the intended end state of the preceding transitions.
- *
+ * <p>
  * To do this calculation, we create a canonical DataPlacement from the current TokenMap and split it according
  * to the proposed tokens. As we iterate through and split the existing ranges, we construct a new DataPlacement for
  * each currently defined. There is no movement of data between the initial and new placements, only splitting of

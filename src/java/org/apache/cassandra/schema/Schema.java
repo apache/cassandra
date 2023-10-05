@@ -20,6 +20,7 @@ package org.apache.cassandra.schema;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.Supplier;
@@ -305,6 +306,12 @@ public final class Schema implements SchemaProvider
                                                                     throw new InvalidRequestException(reason);
                                                             }
                                                         });
+    }
+
+    @Override
+    public UUID getVersion()
+    {
+        return SchemaProvider.super.getVersion();
     }
 
     // We need to lazy-initialize schema for test purposes: since column families are initialized

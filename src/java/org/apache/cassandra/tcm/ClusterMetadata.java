@@ -19,6 +19,7 @@
 package org.apache.cassandra.tcm;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -40,7 +41,9 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.locator.EndpointsForToken;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -67,6 +70,7 @@ import org.apache.cassandra.tcm.sequences.BootstrapAndJoin;
 import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 import org.apache.cassandra.tcm.serialization.MetadataSerializer;
+import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -830,6 +834,27 @@ public class ClusterMetadata
     public boolean metadataSerializationUpgradeInProgress()
     {
         return !directory.clusterMaxVersion.serializationVersion().equals(directory.clusterMinVersion.serializationVersion());
+    }
+
+    public static ByteBuffer toBytes(ClusterMetadata metadata) throws IOException
+    {
+        Version serializationVersion = Version.minCommonSerializationVersion();
+        long serializedSize = VerboseMetadataSerializer.serializedSize(serializer, metadata, serializationVersion);
+        ByteBuffer bytes = ByteBuffer.allocate((int) serializedSize);
+        try (DataOutputBuffer dob = new DataOutputBuffer(bytes))
+        {
+            VerboseMetadataSerializer.serialize(serializer, metadata, dob, serializationVersion);
+        }
+        bytes.flip().rewind();
+        return bytes;
+    }
+
+    public static ClusterMetadata fromBytes(ByteBuffer serialized) throws IOException
+    {
+        if (serialized == null)
+            return null;
+
+        return VerboseMetadataSerializer.deserialize(serializer, new DataInputBuffer(serialized, false));
     }
 
     public static class Serializer implements MetadataSerializer<ClusterMetadata>

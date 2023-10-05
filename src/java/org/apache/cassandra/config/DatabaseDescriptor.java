@@ -4985,6 +4985,12 @@ public class DatabaseDescriptor
         return conf.cms_await_timeout;
     }
 
+    /**
+     * Returns how often a snapshot of the cluster metadata must be taken.
+     * <p>The frequency is express in epochs. A frequency of 100, for example, means that a snapshot will be taken every time
+     * the epoch is a multiple of 100.</p>
+     * @return how often a snapshot of the cluster metadata must be taken.
+     */
     public static int getMetadataSnapshotFrequency()
     {
         return conf.metadata_snapshot_frequency;

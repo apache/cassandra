@@ -72,10 +72,24 @@ import static org.apache.cassandra.tcm.Epoch.FIRST;
 import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
 
 // TODO metrics for contention/buffer size/etc
+
+/**
+ * The {@code LocalLog} represent a local copy of the global cluster metadata log.
+ * <p>
+ *  Every peers persist a local copy of the metadata log so they can:
+ *  <ul>
+ *    <li>replay up to the last known point when they start up. This is an optimisation as peers could interrogate the CMS every time if necessary.</li>
+ *    <li>help peers catch up if they detect they are out of sync during a read/write operation. A local copy allows peers to catch each other while putting less load on the CMS.</li>
+ * </p>
+ */
 public abstract class LocalLog implements Closeable
 {
     private static final Logger logger = LoggerFactory.getLogger(LocalLog.class);
 
+    /**
+     * The current {@code ClusterMetadata} for this node.
+     * This
+     */
     protected final AtomicReference<ClusterMetadata> committed;
 
     /**
@@ -209,6 +223,10 @@ public abstract class LocalLog implements Closeable
         return persistence.getReplication(since);
     }
 
+    /**
+     *
+     * @return
+     */
     public ClusterMetadata waitForHighestConsecutive()
     {
         runOnce();
@@ -355,7 +373,7 @@ public abstract class LocalLog implements Closeable
                     if (committed.compareAndSet(prev, next))
                     {
                         logger.info("Enacted {}. New tail is {}", pendingEntry.transform, next.epoch);
-                        maybeNotifyListeners(pendingEntry, transformed);
+                        notifyLogListeners(pendingEntry, transformed);
                     }
                     else
                     {
@@ -409,7 +427,12 @@ public abstract class LocalLog implements Closeable
         return waitForHighestConsecutive().epoch;
     }
 
-    private void maybeNotifyListeners(Entry entry, Transformation.Result result)
+    /**
+     *
+     * @param entry
+     * @param result
+     */
+    private void notifyLogListeners(Entry entry, Transformation.Result result)
     {
         for (LogListener listener : listeners)
             listener.notify(entry, result);
@@ -679,6 +702,10 @@ public abstract class LocalLog implements Closeable
         addListener(new UpgradeMigrationListener());
     }
 
+    /**
+     * Creates a {@code LogListener} that will take a snapshot of the cluster metadata
+     * @return
+     */
     private LogListener snapshotListener()
     {
         return (entry, metadata) -> {

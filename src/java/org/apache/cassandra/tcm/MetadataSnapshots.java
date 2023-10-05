@@ -19,52 +19,38 @@
 package org.apache.cassandra.tcm;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.SystemKeyspace;
-import org.apache.cassandra.io.util.DataInputBuffer;
-import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
-import org.apache.cassandra.tcm.serialization.Version;
 
+/**
+ * {@code MetadataSnapshots} allow to store and retrieve cluster metadata snapshots.
+ * Snapshots are optimizations used to make local startup quicker or allow faster catch up by avoiding having to replay
+ * the all transformation history.
+ */
 public interface MetadataSnapshots
 {
     Logger logger = LoggerFactory.getLogger(MetadataSnapshots.class);
 
     ClusterMetadata getLatestSnapshotAfter(Epoch epoch);
+
+    /**
+     * Retrieves the cluster metadata snapshot taken at the specified epoch.
+     *
+     * @param epoch the epoch for which the snapshot must be retrieved
+     * @return the cluster metadata snapshot for the specified epoch or {@code null} if no snapshot exists for the epoch.
+     */
     ClusterMetadata getSnapshot(Epoch epoch);
+
+    /**
+     * Store the specified snapshot
+     * @param metadata the cluster metadata snapshot
+     */
     void storeSnapshot(ClusterMetadata metadata);
 
-    static ByteBuffer toBytes(ClusterMetadata metadata) throws IOException
-    {
-        Version serializationVersion = Version.minCommonSerializationVersion();
-        long serializedSize = VerboseMetadataSerializer.serializedSize(ClusterMetadata.serializer, metadata, serializationVersion);
-        ByteBuffer bytes = ByteBuffer.allocate((int) serializedSize);
-        try (DataOutputBuffer dob = new DataOutputBuffer(bytes))
-        {
-            VerboseMetadataSerializer.serialize(ClusterMetadata.serializer, metadata, dob, serializationVersion);
-        }
-        bytes.flip().rewind();
-        return bytes;
-    }
-
-    @SuppressWarnings("resource")
-    static ClusterMetadata fromBytes(ByteBuffer serialized) throws IOException
-    {
-        if (serialized == null)
-            return null;
-
-        return VerboseMetadataSerializer.deserialize(ClusterMetadata.serializer,
-                                                     new DataInputBuffer(serialized, false));
-    }
-
-
-    MetadataSnapshots NO_OP = new NoOp();
-
-    public class NoOp implements MetadataSnapshots
+    MetadataSnapshots NO_OP = new MetadataSnapshots()
     {
         @Override
         public ClusterMetadata getLatestSnapshotAfter(Epoch epoch)
@@ -80,7 +66,7 @@ public interface MetadataSnapshots
 
         @Override
         public void storeSnapshot(ClusterMetadata metadata) {}
-    }
+    };
 
     class SystemKeyspaceMetadataSnapshots implements MetadataSnapshots
     {
@@ -96,7 +82,7 @@ public interface MetadataSnapshots
         {
             try
             {
-                return fromBytes(SystemKeyspace.getSnapshot(epoch));
+                return ClusterMetadata.fromBytes(SystemKeyspace.getSnapshot(epoch));
             }
             catch (IOException e)
             {
@@ -110,7 +96,7 @@ public interface MetadataSnapshots
         {
             try
             {
-                SystemKeyspace.storeSnapshot(metadata.epoch, metadata.period, toBytes(metadata));
+                SystemKeyspace.storeSnapshot(metadata.epoch, metadata.period, ClusterMetadata.toBytes(metadata));
             }
             catch (IOException e)
             {

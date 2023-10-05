@@ -22,8 +22,8 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 
 /**
  * Invoked when cluster metadata changes
- *
- * `next` epoch is not guaranteed to directly follow `prev` epoch
+ * <p>
+ * {@code next} epoch is not guaranteed to directly follow {@code prev} epoch
  */
 public interface ChangeListener
 {

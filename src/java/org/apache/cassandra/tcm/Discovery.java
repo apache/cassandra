@@ -48,6 +48,9 @@ import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
+/**
+ * Service in charge of discovering nodes
+ */
 public class Discovery
 {
     private static final Logger logger = LoggerFactory.getLogger(Discovery.class);
@@ -143,6 +146,13 @@ public class Discovery
         return new ArrayList<>(discovered);
     }
 
+    /**
+     * A set of nodes that can either be:
+     * <ul>
+     *     <li>existing members of the CMS if one exists. i.e. this is an established cluster that the new node is joining (kind = {@code CMS_ONLY})</li>
+     *     <li>known peers, if the respondant does not know of any CMS. i.e. this is a brand new cluster that has not yet initialised its CMS (kind = {@code KNOWN_PEERS})</li>
+     * </ul>
+     */
     public static class DiscoveredNodes
     {
         private final Set<InetAddressAndPort> nodes;
@@ -174,7 +184,14 @@ public class Discovery
 
         public enum Kind
         {
-            CMS_ONLY, KNOWN_PEERS
+            /**
+             * All discovered nodes are all part of the CMS.
+             */
+            CMS_ONLY,
+            /**
+             * None of the discovered nodes are part of the CMS (no CMS exists).
+             */
+            KNOWN_PEERS
         }
     }
 
@@ -211,6 +228,9 @@ public class Discovery
         }
     }
 
+    /**
+     * The states of the discovery process.
+     */
     private enum State
     {
         NOT_STARTED,

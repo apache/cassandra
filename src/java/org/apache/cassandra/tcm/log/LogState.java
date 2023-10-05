@@ -42,6 +42,10 @@ import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
+/**
+ * A {@code LogState} represents the state of a cluster metadata log as a base state {@code ClusterMetadata)
+ * and a series of transformations applied to that base state.
+ */
 public class LogState
 {
     private static final Logger logger = LoggerFactory.getLogger(LogState.class);
@@ -59,7 +63,14 @@ public class LogState
         return cached;
     }
 
+    /**
+     * The base state.
+     */
     public final ClusterMetadata baseState;
+
+    /**
+     * The log entries containing the transformations that need to be applied to the base state to recreate the final state.
+     */
     public final Replication transformations;
 
     // Uses Replication rather than an just a list of entries primarily to avoid duplicating the existing serializer

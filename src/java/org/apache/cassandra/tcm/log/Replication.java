@@ -44,6 +44,9 @@ import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.VerboseMetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 
+/**
+ * A sorted set of log entries mainly used to replicate log entries within the cluster.
+ */
 public class Replication
 {
     private static final Logger logger = LoggerFactory.getLogger(Replication.class);
@@ -63,7 +66,9 @@ public class Replication
         return cached;
     }
 
-
+    /**
+     * The sorted entries that needs to be replicated.
+     */
     private final ImmutableList<Entry> entries;
 
     public Replication(Collection<Entry> entries)
@@ -94,6 +99,12 @@ public class Replication
         return entries;
     }
 
+    /**
+     * Retains only the log entries that have an epoch greater or equal to the specified epoch.
+     *
+     * @param epoch the epoch
+     * @return only the log entries that have an epoch greater or equal to the specified epoch.
+     */
     public Replication retainFrom(Epoch epoch)
     {
         ImmutableList.Builder<Entry> builder = ImmutableList.builder();
@@ -101,6 +112,10 @@ public class Replication
         return new Replication(builder.build());
     }
 
+    /**
+     * Returns the epoch of the last entry/transformation.
+     * @return the epoch of the last entry/transformation.
+     */
     public Epoch latestEpoch()
     {
         return tail().epoch;
@@ -117,6 +132,11 @@ public class Replication
         return entries.isEmpty();
     }
 
+    /**
+     * Appends the entries to the specified log.
+     * @param log the log to append to
+     * @return the new current epoch
+     */
     public Epoch apply(LocalLog log)
     {
         log.append(entries());

@@ -174,8 +174,13 @@ public class Config
     public volatile DurationSpec.LongMillisecondsBound cms_await_timeout = new DurationSpec.LongMillisecondsBound("120000ms");
     public volatile int cms_default_max_retries = 10;
     public volatile DurationSpec.IntMillisecondsBound cms_default_retry_backoff = new DurationSpec.IntMillisecondsBound("50ms");
+
     /**
-     * How often we should snapshot the cluster metadata.
+     * Specify how often a snapshot of the cluster metadata must be taken.
+     * <p>The frequency is express in epochs. A frequency of 100, for example, means that a snapshot will be taken every time
+     * the epoch is a multiple of 100.</p>
+     * <p>Taking a snapshot will also seal a period (e.g. cluster metadata partition). Therefore the snapshot frequency also determine the size of the
+     * {@code system.local_metadata_log} and {@code cluster_metadata.distributed_metadata_log} tables partitions.</p>
      */
     public volatile int metadata_snapshot_frequency = 100;
 

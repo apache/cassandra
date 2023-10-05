@@ -1968,6 +1968,13 @@ public final class SystemKeyspace
         }
     }
 
+    /**
+     * Insert the cluster metadata snapshot into the {@code metadata_snapshot} table.
+     *
+     * @param epoch the snapshot epoch
+     * @param period the period to which the snapshot belong
+     * @param snapshot the snapshot to store
+     */
     public static void storeSnapshot(Epoch epoch, long period, ByteBuffer snapshot)
     {
         logger.info("Storing snapshot of cluster metadata at epoch {} (period {})", epoch, period);
@@ -1975,6 +1982,12 @@ public final class SystemKeyspace
         executeInternal(query, epoch.getEpoch(), period, snapshot);
     }
 
+    /**
+     * Retrieves the cluster metadata snapshot for the specified epoch from the {@code metadata_snapshot} table.
+     *
+     * @param epoch the epoch for which the snapshot must be retrieved
+     * @return the cluster metadata snapshot for the specified epoch or {@code null} if no snapshot exists for the epoch.
+     */
     public static ByteBuffer getSnapshot(Epoch epoch)
     {
         logger.info("Getting snapshot of epoch = {}", epoch);
@@ -2030,6 +2043,11 @@ public final class SystemKeyspace
         return new Sealed(maxPeriod + 1, maxEpoch + 1);
     }
 
+
+    /**
+     * Retrieves the last sealed period from the {@code metadata_last_sealed_period} table.
+     * @return the last sealed period
+     */
     public static Sealed getLastSealedPeriod()
     {
         String query = String.format("SELECT epoch, period FROM %s.%s WHERE key = 'latest'", SchemaConstants.SYSTEM_KEYSPACE_NAME, LAST_SEALED_PERIOD_TABLE_NAME);
@@ -2041,6 +2059,12 @@ public final class SystemKeyspace
         return new Sealed(period, Epoch.create(epoch));
     }
 
+    /**
+     * Marks the period as sealed in the {@code metadata_sealed_periods} table and mark it as the latest seal period in
+     * the {@code metadata_last_sealed_period} table.
+     * @param period the period being sealed
+     * @param epoch the last epoch of the period
+     */
     public static void sealPeriod(long period, Epoch epoch)
     {
         String query = String.format("INSERT INTO %s.%s (max_epoch, period) VALUES (?,?)", SchemaConstants.SYSTEM_KEYSPACE_NAME, SEALED_PERIODS_TABLE_NAME);

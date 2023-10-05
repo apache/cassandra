@@ -27,6 +27,13 @@ import org.apache.cassandra.tcm.Sealed;
 import org.apache.cassandra.tcm.Transformation;
 import org.apache.cassandra.tcm.log.Entry;
 
+/**
+ * {@code LogListener} that store a snapshot of the cluster metadata when a period has been sealed.
+ * <p>
+ * Snapshots can be used to make local startup quicker as the node doesn't have to replay all the history of the metadata log.
+ * Likewise, when a node wants to catch up from a peer or the CMS, the responder may send the most recent snapshot + additional entries (i.e a Replication).
+ * </p>
+ */
 public class MetadataSnapshotListener implements LogListener
 {
     private static final Logger logger = LoggerFactory.getLogger(MetadataSnapshotListener.class);

@@ -36,8 +36,11 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
  */
 public class RecentlySealedPeriods
 {
-    private static final Sealed[] EMPTY_ARRAY = new Sealed[0];
-    public static final RecentlySealedPeriods EMPTY = new RecentlySealedPeriods(EMPTY_ARRAY);
+    public static final RecentlySealedPeriods EMPTY = new RecentlySealedPeriods(new Sealed[0]);
+
+    /**
+     * The maximum number of sealed periods stored in memory.
+     */
     private int maxSize = CassandraRelevantProperties.TCM_RECENTLY_SEALED_PERIOD_INDEX_SIZE.getInt();
     private Sealed[] recent;
 
@@ -56,6 +59,7 @@ public class RecentlySealedPeriods
         Collections.sort(recent);
         return new RecentlySealedPeriods(recent.toArray(new Sealed[recent.size()]));
     }
+
 
     public RecentlySealedPeriods with(Epoch epoch, long period)
     {

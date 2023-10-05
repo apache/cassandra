@@ -39,6 +39,9 @@ import org.apache.cassandra.tcm.Transformation;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.db.SystemKeyspace.LocalMetadataLog;
 
+/**
+ * {@code LogStorage} storing CMS log entries into the {@code system.local_metadata_log} table.
+ */
 public class SystemKeyspaceStorage implements LogStorage
 {
     private static final Logger logger = LoggerFactory.getLogger(SystemKeyspaceStorage.class);
@@ -67,6 +70,7 @@ public class SystemKeyspaceStorage implements LogStorage
     }
 
     // This method is always called from a single thread, so doesn't have to be synchonised.
+    @Override
     public void append(long period, Entry entry)
     {
         try
@@ -86,6 +90,10 @@ public class SystemKeyspaceStorage implements LogStorage
         }
     }
 
+    /**
+     * Checks if the metdata log table contains at least one row.
+     * @return {@code true} if the metdata log table contains at least one row, {@code false} otherwise.
+     */
     public synchronized static boolean hasAnyEpoch()
     {
         String query = String.format("SELECT epoch FROM %s.%s LIMIT 1", SchemaConstants.SYSTEM_KEYSPACE_NAME, NAME);
@@ -106,12 +114,10 @@ public class SystemKeyspaceStorage implements LogStorage
      * collating log entries which follow the supplied epoch. It is assumed that the
      * target epoch is found in the starting period, so any entries returned will be
      * from either the starting period or subsequent periods.
+     * @param startPeriod
      * @param since target epoch
      * @return contiguous list of log entries which follow the given epoch,
      *         which may be empty
-     * @param startPeriod
-     * @param since
-     * @return
      */
     public Replication getReplication(long startPeriod, Epoch since)
     {

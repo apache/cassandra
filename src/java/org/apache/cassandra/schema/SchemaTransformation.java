@@ -37,7 +37,7 @@ public interface SchemaTransformation
     /**
      * Apply a statement transformation to a schema snapshot.
      * <p>
-     * Implementing methods should be side-effect free (outside of throwing exceptions if the transformation cannot
+     * Implementing methods should be side effect free (outside of throwing exceptions if the transformation cannot
      * be successfully applied to the provided schema).
      *
      * @param metadata Cluster metadata representing the current state, including the DistributedSchema with the

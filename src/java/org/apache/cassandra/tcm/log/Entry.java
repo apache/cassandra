@@ -34,6 +34,23 @@ import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 
+/**
+ * Represents a log entry.
+ * <p>A log entry contains:
+ * <ul>
+ *     <li>an ID encoded on 8 bytes. An ID is composed of the node address encoded on the most significant 4 bytes
+ *     and of an incremented value encoded on the least significant 4 bytes</li>
+ *     <li>the epoch associated to the transformation</li>
+ *     <li>the transformation representing the Cluster Metadata change</li>
+ * </ul>
+ * </p>
+ * <p>
+ * Log entries are stored in the {@code system} local keyspace in the {@code local_metadata_log} table
+ * and in the distributed {@code cluster_metadata} keyspace in the {@code distributed_metadata_log} table.
+ * </p>
+ * @see org.apache.cassandra.db.SystemKeyspace
+ * @see org.apache.cassandra.schema.DistributedMetadataLogKeyspace
+ */
 public class Entry implements Comparable<Entry>
 {
     public static final Serializer serializer = new Serializer();

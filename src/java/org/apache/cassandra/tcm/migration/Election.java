@@ -179,6 +179,17 @@ public class Election
         return coordinator != null && coordinator != MIGRATED;
     }
 
+    /**
+     * Sends the specified message to specified nodes and wait for the responses.
+     *
+     * @param messaging the messaging service to use to send the message to the different nodes
+     * @param sendTo the nodes to which the message must be sent
+     * @param verb the verb used to send the message
+     * @param payload the message payload
+     * @return the responses per node
+     * @param <REQ> the request type
+     * @param <RSP> the response type
+     */
     public static <REQ, RSP> Collection<Pair<InetAddressAndPort, RSP>> fanoutAndWait(MessageDelivery messaging, Set<InetAddressAndPort> sendTo, Verb verb, REQ payload)
     {
         Accumulator<Pair<InetAddressAndPort, RSP>> responses = new Accumulator<>(sendTo.size());

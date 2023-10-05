@@ -43,14 +43,31 @@ import org.apache.cassandra.tcm.transformations.cms.PreInitialize;
 import org.apache.cassandra.tcm.transformations.cms.RemoveFromCMS;
 import org.apache.cassandra.tcm.transformations.cms.StartAddToCMS;
 
+/**
+ * A {@code ClusterMetadata} transformation.
+ * <p>{@code Transformation} are stored in the local and distributed cluster log and allow to rebuild the latest state of the cluster incrementally.</p>
+ */
 public interface Transformation
 {
     Serializer serializer = new Serializer();
 
+    /**
+     * Returns the transformation type.
+     * @return the transformation type.
+     */
     Kind kind();
 
+    /**
+     * Execute this transformation on the specified {@code ClusterMetadata}.
+     * @param metadata the {@code ClusterMetadata} on which the transformation must be performed.
+     * @return the result of the operation.
+     */
     Result execute(ClusterMetadata metadata);
 
+    /**
+     * Checks if this transformation is allowed during upgrades.
+     * @return {@code true} if this transformation is allowed during upgrade, {@code false} otherwise.
+     */
     default boolean allowDuringUpgrades()
     {
         return false;
@@ -62,8 +79,15 @@ public interface Transformation
         return new Success(transformed.metadata, affectedRanges, transformed.modifiedKeys);
     }
 
+    /**
+     * Describes if the transformation was successful or not and provide information on the outcome.
+     */
     interface Result
     {
+        /**
+         * Checks is the operation was successful.
+         * @return {@code true} if the operation was successful, {@code false} otherwise.
+         */
         boolean isSuccess();
         boolean isRejected();
 
@@ -152,11 +176,15 @@ public interface Transformation
         }
     }
 
+    /**
+     * A transformation kind/type.
+     */
     enum Kind
     {
         PRE_INITIALIZE_CMS(() -> PreInitialize.serializer),
         INITIALIZE_CMS(() -> Initialize.serializer),
         FORCE_SNAPSHOT(() -> ForceSnapshot.serializer),
+        // Transformation that seals the period and trigger the creation of a snapshot.
         SEAL_PERIOD(() -> SealPeriod.serializer),
         SCHEMA_CHANGE(() -> AlterSchema.serializer),
         REGISTER(() -> Register.serializer),
@@ -219,6 +247,12 @@ public interface Transformation
             return bb;
         }
 
+        /**
+         * Deserializes the specified bytes into a {@code Transformation}
+         * @param bb the bytes representing the transformation
+         * @return the {@code Transformation}
+         * @throws IOException if the {@code Transformation} cannot be deserialized
+         */
         public Transformation fromVersionedBytes(ByteBuffer bb) throws IOException
         {
             try (DataInputBuffer in = new DataInputBuffer(bb, true))

@@ -48,6 +48,10 @@ public class DistributedSchema implements MetadataValue<DistributedSchema>
 {
     public static final Serializer serializer = new Serializer();
 
+    /**
+     * A schema without any keyspace.
+     * @return a schema without any keyspace.
+     */
     public static final DistributedSchema empty()
     {
         return new DistributedSchema(Keyspaces.none(), Epoch.EMPTY);

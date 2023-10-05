@@ -30,12 +30,39 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.SystemKeyspace;
 
+/**
+ * A period that has been sealed.
+ * <p>
+ * A period is an implementation detail of having the logs stored in C* tables. It is the partition key of
+ * the log tables (system.local_metadata_log and cluster_metadata.distributed_metadata_log) and allows to keep partitions
+ * to a manageable size. Periods are "sealed" when the period number is bumped and a new partition is used to store transformations in the log table.
+ * </p>
+ * <p>
+ * When a new created epoch is a multiple of the {@code metadata_snapshot_frequency} the {@code LocalLog} snapshot listener
+ * will attempt to commit a {@code SealPeriod} transformation. The sealing of the period in the local log will trigger the {@code MetadataSnapshotListener}
+ * that will create a snaphot of the cluster metadata.
+ * The size of a sealed period is therefore controlled by the {@code metadata_snapshot_frequency} yaml property that control when
+ * {@code SealPeriod} transformations are created.
+ *
+ * </p>
+ * @see org.apache.cassandra.tcm.log.LocalLog
+ * @see ClusterMetadataService#sealPeriod()
+ * @see org.apache.cassandra.tcm.listeners.MetadataSnapshotListener
+ */
 public class Sealed implements Comparable<Sealed>
 {
     private static final Logger logger = LoggerFactory.getLogger(Sealed.class);
 
     public static final Sealed EMPTY = new Sealed(Period.EMPTY, Epoch.EMPTY);
+
+    /**
+     * The period number
+     */
     public final long period;
+
+    /**
+     * The latest epoch of the period
+     */
     public final Epoch epoch;
 
     private static final AtomicReference<RecentlySealedPeriods> index = new AtomicReference<>(RecentlySealedPeriods.EMPTY);

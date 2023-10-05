@@ -223,6 +223,13 @@ public class Startup
         assert cmGossip.equals(initial) : cmGossip + " != " + initial;
     }
 
+    /**
+     * Initializes or re-initializes the {@code ClusterMetadata} from the serialized data stored in the specified file.
+     * @param fileName the name of the file containing the serialized {@code ClusterMetadata}.
+     * @param wrapProcessor allow to wrap the processor for testing needs
+     * @param initMessaging allow the system to wait for messaging to be ready
+     * @throws IOException if the {@code ClusterMetadata} could not be deserialized
+     */
     public static void reinitializeWithClusterMetadata(String fileName, Function<Processor, Processor> wrapProcessor, Runnable initMessaging) throws IOException
     {
         // First set a minimal ClusterMetadata as some deserialization depends
@@ -267,10 +274,22 @@ public class Startup
 
     enum StartupMode
     {
+        /**
+         * The node will initialize as a non-CMS node.
+         */
         NORMAL,
+        /**
+         *  The node will transition from the gossip protocol to CMS.
+         */
         UPGRADE,
         VOTE,
+        /**
+         * The node will start as the first node from the CMS
+         */
         FIRST_CMS,
+        /**
+         * The node will use the existing {@code ClusterMetadata} provided through a file
+         */
         BOOT_WITH_CLUSTERMETADATA;
 
         static StartupMode get(Set<InetAddressAndPort> seeds)

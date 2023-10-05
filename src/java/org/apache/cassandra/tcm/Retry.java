@@ -29,10 +29,19 @@ import org.apache.cassandra.utils.Clock;
 import static com.google.common.util.concurrent.Uninterruptibles.sleepUninterruptibly;
 import static org.apache.cassandra.tcm.Retry.Jitter.MAX_JITTER_MS;
 
+/**
+ * Represents a strategy for retrying operations in the event of failures or issues.
+ * It provides mechanisms to manage and control retry attempts, respecting certain conditions and utilizing different
+ * backoff strategies to avoid overwhelming systems and to handle transient failures gracefully.
+ */
 public abstract class Retry
 {
     protected static final int MAX_TRIES = DatabaseDescriptor.getCmsDefaultRetryMaxTries();
     protected final int maxTries;
+
+    /**
+     * The number of attempts made so far.
+     */
     protected int tries;
     protected Meter retryMeter;
 
@@ -47,16 +56,28 @@ public abstract class Retry
         this.retryMeter = retryMeter;
     }
 
+    /**
+     * Returns the current number of attempts.
+     * @return the current number of attempts.
+     */
     public int currentTries()
     {
         return tries;
     }
 
+    /**
+     * Determines whether the retry strategy has reached the maximum retry attempts or has surpassed the deadline.
+     *
+     * @return {@code true} if the maximum retry attempts are reached or the deadline has been surpassed; {@code false} otherwise.
+     */
     public boolean reachedMax()
     {
         return tries >= maxTries;
     }
 
+    /**
+     * Sleep if needed.
+     */
     public void maybeSleep()
     {
         tries++;
@@ -64,12 +85,25 @@ public abstract class Retry
         sleepUninterruptibly(sleepFor(), TimeUnit.MILLISECONDS);
     }
 
+    /**
+     * Determines the duration to sleep before the next retry attempt.
+     *
+     * @return the duration to sleep in milliseconds.
+     */
     protected abstract long sleepFor();
 
+    /**
+     * Represents a retry strategy that introduces a randomized delay (jitter)
+     * between retry attempts.
+     */
     public static class Jitter extends Retry
     {
         public static final int MAX_JITTER_MS = Math.toIntExact(DatabaseDescriptor.getDefaultRetryBackoff().to(TimeUnit.MILLISECONDS));
         private final Random random;
+
+        /**
+         * The maximum ammount of jitter per milliseconds
+         */
         private final int maxJitterMs;
 
         public Jitter(Meter retryMeter)
@@ -84,6 +118,7 @@ public abstract class Retry
             this.maxJitterMs = maxJitterMs;
         }
 
+        @Override
         public long sleepFor()
         {
             int actualBackoff = ThreadLocalRandom.current().nextInt(maxJitterMs / 2, maxJitterMs);
@@ -91,11 +126,24 @@ public abstract class Retry
         }
     }
 
+    /**
+     * Retry strategy that introduces a fixed or exponentially increasing delay between retry attempts,
+     * allowing for a more conservative retry approach.
+     */
     public static class Backoff extends Retry
     {
         private static final int RETRY_BACKOFF_MS = Math.toIntExact(DatabaseDescriptor.getDefaultRetryBackoff().to(TimeUnit.MILLISECONDS));
+
+        /**
+         * The initial delay between retries in milliseconds
+         */
         protected final int backoffMs;
 
+        /**
+         * Constructs a new {@code Backoff} instance using specified retry meter.
+         *
+         * @param retryMeter a {@code Meter} instance used to keep track of retry attempts.
+         */
         public Backoff(Meter retryMeter)
         {
             this(MAX_TRIES, RETRY_BACKOFF_MS, retryMeter);
@@ -107,6 +155,7 @@ public abstract class Retry
             this.backoffMs = backoffMs;
         }
 
+        @Override
         public long sleepFor()
         {
             return (long) tries * backoffMs;
@@ -123,9 +172,20 @@ public abstract class Retry
         }
     }
 
+    /**
+     * {@code Retry} strategy that enforces a deadline, ensuring that retry attempts are halted after a certain point in time,
+     * preventing indefinite retries.
+     * <p>{@code Deadline} will retry using provided delegate but will ensure that the attempts stop after the deadline has been reached.</p>
+     */
     public static class Deadline extends Retry
     {
+        /**
+         * The deadline in nanoseconds
+         */
         public final long deadlineNanos;
+        /**
+         * The decorated {@code Retry} used to perform the retry attempts under the hood.
+         */
         protected final Retry delegate;
 
         private Deadline(long deadlineNanos, Retry delegate)
@@ -136,11 +196,25 @@ public abstract class Retry
             this.delegate = delegate;
         }
 
+        /**
+         * Creates a {@code Deadline} that will stop retrying at the specified time.
+         *
+         * @param deadlineNanos the number of nanoseconds at which the {@code Deadline} should stop retrying
+         * @param delegate the {@code Retry} to which the {@code Deadline} will delegate the retries.
+         * @return a new {@code Deadline} that will stop retrying at the specified time.
+         */
         public static Deadline at(long deadlineNanos, Retry delegate)
         {
             return new Deadline(deadlineNanos, delegate);
         }
 
+        /**
+         * Creates a {@code Deadline} that will stop retrying after the specified amount of nanoseconds.
+         *
+         * @param timeoutNanos the number of nanoseconds after which the {@code Deadline} should stop retrying
+         * @param delegate the {@code Retry} to which the {@code Deadline} will delegate the retries.
+         * @return a new {@code Deadline} that will stop retrying after the specified amount of nanoseconds.
+         */
         public static Deadline after(long timeoutNanos, Retry delegate)
         {
             return new Deadline(Clock.Global.nanoTime() + timeoutNanos, delegate);
@@ -176,6 +250,11 @@ public abstract class Retry
             return delegate.reachedMax() || Clock.Global.nanoTime() > deadlineNanos;
         }
 
+        /**
+         * Calculates the remaining time until the deadline.
+         *
+         * @return the remaining time in nanoseconds.
+         */
         public long remainingNanos()
         {
             return Math.max(0, deadlineNanos - Clock.Global.nanoTime());

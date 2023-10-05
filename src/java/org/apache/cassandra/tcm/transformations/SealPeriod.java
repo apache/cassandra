@@ -35,7 +35,7 @@ import static org.apache.cassandra.exceptions.ExceptionCode.INVALID;
  * asynchonous action, and we generally do not rely on the fact snapshot is, in fact going to be
  * there all the time. Snapshots are used as a performance optimization.
  */
-public class SealPeriod implements Transformation
+public final class SealPeriod implements Transformation
 {
     public static final Serializer serializer = new Serializer();
 

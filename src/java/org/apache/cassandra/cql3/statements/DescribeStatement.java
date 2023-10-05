@@ -202,6 +202,12 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
         }
     }
 
+    @Override
+    public short[] getPartitionKeyBindVariableIndexes()
+    {
+        return CQLStatement.super.getPartitionKeyBindVariableIndexes();
+    }
+
     private long getOffset(PagingState pagingState, UUID schemaVersion)
     {
         if (pagingState == null)

@@ -41,6 +41,10 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
+/**
+ * Utility methods and classes to work with {@code Period}.
+ *
+ */
 public class Period
 {
     private static final Logger logger = LoggerFactory.getLogger(Period.class);
