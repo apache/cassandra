@@ -19,11 +19,15 @@
 package org.apache.cassandra.service.throttler.dynamic;
 
 import java.text.DecimalFormat;
-import java.util.Map;
+import java.text.SimpleDateFormat;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.Date;
+import java.util.Map;
+import java.util.TimeZone;
 
+import com.codahale.metrics.Gauge;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.service.RateLimiterService;
@@ -43,6 +47,7 @@ import org.apache.cassandra.service.throttler.dynamic.metrics.KeyspaceThrottling
 import org.apache.cassandra.utils.FBUtilities;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
@@ -76,6 +81,13 @@ public class CassandraResourceUtilization
         RateLimiterService.instance.setThrottlingOptions(DatabaseDescriptor.getThrottlingOptions());
         throttlingOptions = RateLimiterService.instance.getThrottlingOptions();
         throttlingMetrics = new ThrottlingMetrics();
+        throttlingMetrics.currentThrottlingPercentage = Metrics.register(ThrottlingMetrics.factory.createMetricName("CurrentThrottlingPercentage"), new Gauge<Double>()
+        {
+            public Double getValue()
+            {
+                return currentThrottlingPercentage;
+            }
+        });
         currentThrottlingPercentage = throttlingOptions.getPercentageOfTrafficToThrottling();
         resourcesStats = new ResourcesStats();
     }
@@ -118,12 +130,12 @@ public class CassandraResourceUtilization
     public void checkSignals()
     {
         boolean cpuUtilSignal1 = false;
-        if (resourcesStats.getCpuUtil1Cur() >= throttlingOptions.getCpuThresholdCur() && resourcesStats.getCpuUtil1OneMinute() >= throttlingOptions.getCpuThresholdOneMinute())
+        if (resourcesStats.getCpuUtil1OneMinute() >= throttlingOptions.getCpuThresholdOneMinute())
         {
             cpuUtilSignal1 = true;
         }
         boolean cpuUtilSignal2 = false;
-        if (resourcesStats.getCpuUtil2Cur() == -1 || (resourcesStats.getCpuUtil2Cur() >= throttlingOptions.getCpuThresholdCur() && resourcesStats.getCpuUtil2OneMinute() >= throttlingOptions.getCpuThresholdOneMinute()))
+        if (resourcesStats.getCpuUtil2Cur() == -1 || (resourcesStats.getCpuUtil2OneMinute() >= throttlingOptions.getCpuThresholdOneMinute()))
         {
             cpuUtilSignal2 = true;
         }
@@ -228,7 +240,13 @@ public class CassandraResourceUtilization
           append(", PendingMutations: ").append(df.format(resourcesStats.getPendingMutationsCur())).
           append("-").append(df.format(resourcesStats.getPendingMutationsOneMinute())).
           append("-").append(df.format(resourcesStats.getPendingMutationsFiveMinute())).
-          append("-").append(df.format(resourcesStats.getPendingMutationsFifteenMinute()));
+          append("-").append(df.format(resourcesStats.getPendingMutationsFifteenMinute())).
+
+          append(", LastThrottlingCheckPointTimeInMS: ").append(convertEpochTimeToUTC(lastThrottlingCheckPointTimeInMS)).
+
+          append(", LastThrottlingIndicatorTimeInMS: ").append(convertEpochTimeToUTC(lastThrottlingIndicatorTimeInMS)).
+
+          append(", CurrentThrottlingPercentage: ").append(currentThrottlingPercentage);
 
         return sb.toString();
     }
@@ -243,6 +261,13 @@ public class CassandraResourceUtilization
         KeyspaceThrottlingMetrics ksThrottlingMetrics = KeyspaceThrottlingMetricsManager.getMetrics(keyspaceName);
         if (throttlingOptions.getIgnoreKeyspacesPattern().matcher(keyspaceName.toLowerCase()).matches())
         {
+            // 0.1% change to log the skipped keyspace
+            // TODO: remove the logging once we figure out why pingless traffic is not getting throttled when it is
+            //   removed from ignore_keyspaces
+            if (ThreadLocalRandom.current().nextDouble() <= 0.001)
+            {
+                logger.info("skipping ignored keyspace: {}", keyspaceName);
+            }
             ksThrottlingMetrics.skipKSThrottling.inc();
             return false;
         }
@@ -436,5 +461,16 @@ public class CassandraResourceUtilization
     public static boolean isExceptionDuetoRateLimiter(OverloadedException e)
     {
         return e.getMessage().contains(THROW_MESSAGE.toLowerCase());
+    }
+
+    public static String convertEpochTimeToUTC(long currentTimeMillis) {
+        // Convert to a Date object
+        Date currentDate = new Date(currentTimeMillis);
+
+        // Format the date for UTC
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
+        String formattedDate = sdf.format(currentDate);
+        return formattedDate + " UTC";
     }
 }

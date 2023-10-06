@@ -137,6 +137,9 @@ public class CassandraResourceUtilizationTest extends CQLTester
     @Test
     public void testNoThrottling()
     {
+        long originalCpuThresholdOneMinute = CassandraResourceUtilization.instance.throttlingOptions.getCpuThresholdOneMinute();
+        CassandraResourceUtilization.instance.throttlingOptions.setCpuThresholdOneMinute(99);
+
         CassandraResourceUtilization cassandraResourceUtilization = CassandraResourceUtilization.instance;
         Assert.assertFalse(cassandraResourceUtilization.shouldThrottle);
         cassandraResourceUtilization.setup(false);
@@ -147,45 +150,17 @@ public class CassandraResourceUtilizationTest extends CQLTester
         Assert.assertEquals(1, cassandraResourceUtilization.throttlingMetrics.doesNotNeedThrottling.getCount());
         Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.resetThrottling.getCount());
         Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.doubleThrottling.getCount());
-    }
+        Assert.assertEquals(0.1, cassandraResourceUtilization.throttlingMetrics.currentThrottlingPercentage.getValue());
 
-    @Test
-    public void testNoThrottlingOnlyWithCpuUtil1()
-    {
-        CassandraResourceUtilization cassandraResourceUtilization = CassandraResourceUtilization.instance;
-        Assert.assertFalse(cassandraResourceUtilization.shouldThrottle);
-        cassandraResourceUtilization.setup(false);
-        ResourcesStats resourcesStats = cassandraResourceUtilization.resourcesStats;
-        resourcesStats.setCpuUtil1(100);
-        cassandraResourceUtilization.checkSignals();
-        Assert.assertFalse(cassandraResourceUtilization.shouldThrottle);
-
-        Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.needsThrottling.getCount());
-        Assert.assertEquals(1, cassandraResourceUtilization.throttlingMetrics.doesNotNeedThrottling.getCount());
-        Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.resetThrottling.getCount());
-        Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.doubleThrottling.getCount());
-    }
-
-    @Test
-    public void testNoThrottlingOnlyWithCpuUtil2()
-    {
-        CassandraResourceUtilization cassandraResourceUtilization = CassandraResourceUtilization.instance;
-        Assert.assertFalse(cassandraResourceUtilization.shouldThrottle);
-        cassandraResourceUtilization.setup(false);
-        ResourcesStats resourcesStats = cassandraResourceUtilization.resourcesStats;
-        resourcesStats.setCpuUtil2(100);
-        cassandraResourceUtilization.checkSignals();
-        Assert.assertFalse(cassandraResourceUtilization.shouldThrottle);
-
-        Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.needsThrottling.getCount());
-        Assert.assertEquals(1, cassandraResourceUtilization.throttlingMetrics.doesNotNeedThrottling.getCount());
-        Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.resetThrottling.getCount());
-        Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.doubleThrottling.getCount());
+        CassandraResourceUtilization.instance.throttlingOptions.setCpuThresholdOneMinute(originalCpuThresholdOneMinute);
     }
 
     @Test
     public void testNoThrottlingOnlyWithPendingReads()
     {
+        long originalCpuThresholdOneMinute = CassandraResourceUtilization.instance.throttlingOptions.getCpuThresholdOneMinute();
+        CassandraResourceUtilization.instance.throttlingOptions.setCpuThresholdOneMinute(99);
+
         CassandraResourceUtilization cassandraResourceUtilization = CassandraResourceUtilization.instance;
         Assert.assertFalse(cassandraResourceUtilization.shouldThrottle);
         cassandraResourceUtilization.setup(false);
@@ -198,11 +173,17 @@ public class CassandraResourceUtilizationTest extends CQLTester
         Assert.assertEquals(1, cassandraResourceUtilization.throttlingMetrics.doesNotNeedThrottling.getCount());
         Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.resetThrottling.getCount());
         Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.doubleThrottling.getCount());
+        Assert.assertEquals(0.1, cassandraResourceUtilization.throttlingMetrics.currentThrottlingPercentage.getValue());
+
+        CassandraResourceUtilization.instance.throttlingOptions.setCpuThresholdOneMinute(originalCpuThresholdOneMinute);
     }
 
     @Test
     public void testNoThrottlingOnlyWithPendingMutations()
     {
+        long originalCpuThresholdOneMinute = CassandraResourceUtilization.instance.throttlingOptions.getCpuThresholdOneMinute();
+        CassandraResourceUtilization.instance.throttlingOptions.setCpuThresholdOneMinute(99);
+
         CassandraResourceUtilization cassandraResourceUtilization = CassandraResourceUtilization.instance;
         Assert.assertFalse(cassandraResourceUtilization.shouldThrottle);
         cassandraResourceUtilization.setup(false);
@@ -215,6 +196,9 @@ public class CassandraResourceUtilizationTest extends CQLTester
         Assert.assertEquals(1, cassandraResourceUtilization.throttlingMetrics.doesNotNeedThrottling.getCount());
         Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.resetThrottling.getCount());
         Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.doubleThrottling.getCount());
+        Assert.assertEquals(0.1, cassandraResourceUtilization.throttlingMetrics.currentThrottlingPercentage.getValue());
+
+        CassandraResourceUtilization.instance.throttlingOptions.setCpuThresholdOneMinute(originalCpuThresholdOneMinute);
     }
 
     @Test
@@ -238,6 +222,7 @@ public class CassandraResourceUtilizationTest extends CQLTester
         Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.doesNotNeedThrottling.getCount());
         Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.resetThrottling.getCount());
         Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.doubleThrottling.getCount());
+        Assert.assertEquals(0.1, cassandraResourceUtilization.throttlingMetrics.currentThrottlingPercentage.getValue());
     }
 
     @Test
@@ -265,6 +250,7 @@ public class CassandraResourceUtilizationTest extends CQLTester
         Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.doesNotNeedThrottling.getCount());
         Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.resetThrottling.getCount());
         Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.doubleThrottling.getCount());
+        Assert.assertEquals(0.1, cassandraResourceUtilization.throttlingMetrics.currentThrottlingPercentage.getValue());
     }
 
     @Test
@@ -295,6 +281,7 @@ public class CassandraResourceUtilizationTest extends CQLTester
         Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.doesNotNeedThrottling.getCount());
         Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.resetThrottling.getCount());
         Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.doubleThrottling.getCount());
+        Assert.assertEquals(0.1, cassandraResourceUtilization.throttlingMetrics.currentThrottlingPercentage.getValue());
     }
 
     @Test
@@ -323,6 +310,7 @@ public class CassandraResourceUtilizationTest extends CQLTester
         Assert.assertEquals(1, cassandraResourceUtilization.readAggressiveThorttlingKeyspaces.size());
         Assert.assertFalse(cassandraResourceUtilization.shouldThrottle);
         Assert.assertEquals(1, cassandraResourceUtilization.throttlingMetrics.doubleThrottling.getCount());
+        Assert.assertEquals(0.1 * 2, cassandraResourceUtilization.throttlingMetrics.currentThrottlingPercentage.getValue());
 
         lastThrottlingIndicatorTime = System.currentTimeMillis() - SECONDS.toMillis(cassandraResourceUtilization.throttlingOptions.getResetAfterNoThrottlingSeenInSec() + 1);
         oldestThrottlingIndicatorTimeInMS = lastThrottlingIndicatorTime;
@@ -343,11 +331,15 @@ public class CassandraResourceUtilizationTest extends CQLTester
         Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.doesNotNeedThrottling.getCount());
         Assert.assertEquals(1, cassandraResourceUtilization.throttlingMetrics.resetThrottling.getCount());
         Assert.assertEquals(1, cassandraResourceUtilization.throttlingMetrics.doubleThrottling.getCount());
+        Assert.assertEquals(0.1, cassandraResourceUtilization.throttlingMetrics.currentThrottlingPercentage.getValue());
     }
 
     @Test
     public void testValidateCpuThrottlingCalculation()
     {
+        long originalCpuThresholdOneMinute = CassandraResourceUtilization.instance.throttlingOptions.getCpuThresholdOneMinute();
+        CassandraResourceUtilization.instance.throttlingOptions.setCpuThresholdOneMinute(99);
+
         CassandraResourceUtilization cassandraResourceUtilization = CassandraResourceUtilization.instance;
         cassandraResourceUtilization.setup(false);
         Assert.assertEquals(0, cassandraResourceUtilization.lastThrottlingCheckPointTimeInMS);
@@ -370,6 +362,9 @@ public class CassandraResourceUtilizationTest extends CQLTester
         Assert.assertEquals(2, cassandraResourceUtilization.throttlingMetrics.doesNotNeedThrottling.getCount());
         Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.resetThrottling.getCount());
         Assert.assertEquals(0, cassandraResourceUtilization.throttlingMetrics.doubleThrottling.getCount());
+        Assert.assertEquals(0.1, cassandraResourceUtilization.throttlingMetrics.currentThrottlingPercentage.getValue());
+
+        CassandraResourceUtilization.instance.throttlingOptions.setCpuThresholdOneMinute(originalCpuThresholdOneMinute);
     }
 
     @Test
@@ -617,6 +612,9 @@ public class CassandraResourceUtilizationTest extends CQLTester
     @Test
     public void testHealthThreadpool() throws InterruptedException
     {
+        long originalCpuThresholdOneMinute = CassandraResourceUtilization.instance.throttlingOptions.getCpuThresholdOneMinute();
+        CassandraResourceUtilization.instance.throttlingOptions.setCpuThresholdOneMinute(99);
+
         // activate the health check thread pool by setting the init time lower
         CassandraResourceUtilization lowInitTime = CassandraResourceUtilization.instance;
         lowInitTime.throttlingOptions.setHealthCheckFreqInSec(1);
@@ -646,6 +644,16 @@ public class CassandraResourceUtilizationTest extends CQLTester
         highInitTime.reportThread.shutdown();
         Assert.assertTrue(highInitTime.reportThread.awaitTermination(10, SECONDS));
         Assert.assertTrue(highInitTime.reportThread.isShutdown());
+
+        CassandraResourceUtilization.instance.throttlingOptions.setCpuThresholdOneMinute(originalCpuThresholdOneMinute);
+    }
+
+    @Test
+    public void testEpochtimeConversion()
+    {
+
+        Assert.assertEquals("1970-01-01 00:00:00 UTC", CassandraResourceUtilization.convertEpochTimeToUTC(0));
+        Assert.assertEquals("2023-10-06 20:39:22 UTC", CassandraResourceUtilization.convertEpochTimeToUTC(1696624762983L));
     }
 
     private ResourcesStats getResourceStats()

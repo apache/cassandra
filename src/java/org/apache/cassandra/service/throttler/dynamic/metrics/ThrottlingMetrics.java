@@ -19,6 +19,7 @@
 package org.apache.cassandra.service.throttler.dynamic.metrics;
 
 import com.codahale.metrics.Counter;
+import com.codahale.metrics.Gauge;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.metrics.MetricNameFactory;
@@ -32,4 +33,5 @@ public class ThrottlingMetrics
     public Counter resetThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("ResetThrottling"));
     public Counter doubleThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("DoubleThrottling"));
     public Counter disableThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("DisableThrottling"));
+    public Gauge currentThrottlingPercentage;
 }
