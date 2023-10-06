@@ -73,8 +73,6 @@ public class CassandraStreamWriter
     /**
      * Stream file of specified sections to given channel.
      *
-     * CassandraStreamWriter uses LZF compression on wire to decrease size to transfer.
-     *
      * @param output where this writes data to
      * @throws IOException on any I/O error
      */
