@@ -49,10 +49,6 @@
       <artifactId>lz4-java</artifactId>
     </dependency>
     <dependency>
-      <groupId>com.ning</groupId>
-      <artifactId>compress-lzf</artifactId>
-    </dependency>
-    <dependency>
       <groupId>com.google.guava</groupId>
       <artifactId>guava</artifactId>
     </dependency>
