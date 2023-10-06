@@ -307,10 +307,10 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             }
         }
 
-        // if there's no initialization, just mark as built (if not skipped) and return:
+        // if there's no initialization, just mark as built (if it should be queryable) and return:
         if (initialBuildTask == null)
         {
-            if (!IndexBuildDecider.instance.onInitialBuild().skipped())
+            if (!IndexBuildDecider.instance.onInitialBuild().skipped() || IndexBuildDecider.instance.isIndexQueryableWithoutInitialBuild(baseCfs))
                 markIndexBuilt(index, true);
             return Futures.immediateFuture(null);
         }
