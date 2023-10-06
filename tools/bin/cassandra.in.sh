@@ -85,7 +85,7 @@ short=$(echo "${jvmver}" | cut -c1-2)
 if [ "$short" = "11" ] ; then
      JAVA_VERSION=11
 elif [ "$JVM_VERSION" \< "17" ] ; then
-    echo "Cassandra 5.0 requires Java 11 or Java 17(or newer)."
+    echo "Cassandra 5.0 requires Java 11 or Java 17."
     exit
 fi
 
