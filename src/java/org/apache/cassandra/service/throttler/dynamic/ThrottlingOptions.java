@@ -37,6 +37,8 @@ public class ThrottlingOptions implements Serializable
     public int pending_reads_threshold_one_minute = 0;
     public int pending_mutations_threshold_cur = 0;
     public int pending_mutations_threshold_one_minute = 0;
+    public int pending_native_transport_threshold_cur = 0;
+    public int pending_native_transport_threshold_one_minute = 0;
     public double percentage_of_traffic_to_throttling = 0.1;
     public int more_aggressive_throttling_after_in_sec = 1 * 60; // 1 minutes
     public int reset_after_no_throttling_seen_in_sec = 15 * 60; // 15 minutes
@@ -116,6 +118,26 @@ public class ThrottlingOptions implements Serializable
     public void setPendingMutationsThresholdOneMinute(int pending_mutations_threshold_one_minute)
     {
         this.pending_mutations_threshold_one_minute = pending_mutations_threshold_one_minute;
+    }
+
+    public int getPendingNativeTransportThresholdCur()
+    {
+        return pending_native_transport_threshold_cur;
+    }
+
+    public void setPendingNativeTransportThresholdCur(int pending_native_transport_threshold_cur)
+    {
+        this.pending_native_transport_threshold_cur = pending_native_transport_threshold_cur;
+    }
+
+    public int getPendingNativeTransportThresholdOneMinute()
+    {
+        return pending_native_transport_threshold_one_minute;
+    }
+
+    public void setPendingNativeTransportThresholdOneMinute(int pending_native_transport_threshold_one_minute)
+    {
+        this.pending_native_transport_threshold_one_minute = pending_native_transport_threshold_one_minute;
     }
 
     public double getPercentageOfTrafficToThrottling()
@@ -208,6 +230,8 @@ public class ThrottlingOptions implements Serializable
                "one minute pending reads threshold: " + pending_reads_threshold_one_minute + "\n" +
                "current pending mutations threshold: " + pending_mutations_threshold_cur + "\n" +
                "one minute pending mutations threshold: " + pending_mutations_threshold_one_minute + "\n" +
+               "current pending native transport threshold: " + pending_native_transport_threshold_cur + "\n" +
+               "one minute pending native transport threshold: " + pending_native_transport_threshold_one_minute + "\n" +
                "percentage of traffic to throttle: " + percentage_of_traffic_to_throttling + "\n" +
                "more aggressive throttling after in seconds: " + more_aggressive_throttling_after_in_sec + "\n" +
                "reset after no throttling seen in seconds: " + reset_after_no_throttling_seen_in_sec + "\n" +

@@ -48,6 +48,7 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
+import static org.apache.cassandra.transport.Dispatcher.NATIVE_TRANSPORT_THREAD_POOL;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
@@ -119,6 +120,11 @@ public class CassandraResourceUtilization
             {
                 resourcesStats.setPendingMutations(mutationSEPTP.getPendingTaskCount());
             }
+            SEPExecutor nativeTransportSEPTP = SharedExecutorPool.SHARED.getExecutor(NATIVE_TRANSPORT_THREAD_POOL);
+            if (nativeTransportSEPTP != null)
+            {
+                resourcesStats.setPendingNativeTransport(nativeTransportSEPTP.getPendingTaskCount());
+            }
             checkSignals();
             adjustThrottling();
 
@@ -149,26 +155,33 @@ public class CassandraResourceUtilization
         {
             pendingMutationsSignal = true;
         }
-        if (cpuUtilSignal1 && cpuUtilSignal2 && (pendingReadsSignal || pendingMutationsSignal))
+        boolean pendingNativeTransportSignal = false;
+        if (resourcesStats.getPendingNativeTransportCur() >= throttlingOptions.getPendingNativeTransportThresholdCur() && resourcesStats.getPendingNativeTransportOneMinute() >= throttlingOptions.getPendingNativeTransportThresholdOneMinute())
+        {
+            pendingNativeTransportSignal = true;
+        }
+        if (cpuUtilSignal1 && cpuUtilSignal2 && (pendingReadsSignal || pendingMutationsSignal || pendingNativeTransportSignal))
         {
             shouldThrottle = true;
             lastThrottlingIndicatorTimeInMS = System.currentTimeMillis();
             throttlingMetrics.needsThrottling.inc();
-            logger.info("Enforce throttling CpuUtil1: {}-{}, CpuUtil2: {}-{}, PendingReads: {}-{}, PendingMutations: {}-{}",
+            logger.info("Enforce throttling CpuUtil1: {}-{}, CpuUtil2: {}-{}, PendingReads: {}-{}, PendingMutations: {}-{}, PendingNativeTransportSignal: {}-{}",
                         resourcesStats.getCpuUtil1Cur(), resourcesStats.getCpuUtil1OneMinute(),
                         resourcesStats.getCpuUtil2Cur(), resourcesStats.getCpuUtil2OneMinute(),
                         resourcesStats.getPendingReadsCur(), resourcesStats.getPendingReadsOneMinute(),
-                        resourcesStats.getPendingMutationsCur(), resourcesStats.getPendingMutationsOneMinute());
+                        resourcesStats.getPendingMutationsCur(), resourcesStats.getPendingMutationsOneMinute(),
+                        resourcesStats.getPendingNativeTransportCur(), resourcesStats.getPendingNativeTransportOneMinute());
         }
         else
         {
             shouldThrottle = false;
             throttlingMetrics.doesNotNeedThrottling.inc();
-            logger.info("DO NOT Enforce throttling CpuUtil1: {}-{}-{}, CpuUtil2: {}-{}-{}, PendingReads: {}-{}-{}, PendingMutations: {}-{}-{}",
+            logger.info("DO NOT Enforce throttling CpuUtil1: {}-{}-{}, CpuUtil2: {}-{}-{}, PendingReads: {}-{}-{}, PendingMutations: {}-{}-{}, PendingNativeTransportSignal: {}-{}",
                         cpuUtilSignal1, resourcesStats.getCpuUtil1Cur(), resourcesStats.getCpuUtil1OneMinute(),
                         cpuUtilSignal2, resourcesStats.getCpuUtil2Cur(), resourcesStats.getCpuUtil2OneMinute(),
                         pendingReadsSignal, resourcesStats.getPendingReadsCur(), resourcesStats.getPendingReadsOneMinute(),
-                        pendingMutationsSignal, resourcesStats.getPendingMutationsCur(), resourcesStats.getPendingMutationsOneMinute());
+                        pendingMutationsSignal, resourcesStats.getPendingMutationsCur(), resourcesStats.getPendingMutationsOneMinute(),
+                        resourcesStats.getPendingNativeTransportCur(), resourcesStats.getPendingNativeTransportOneMinute());
         }
     }
 
@@ -241,11 +254,12 @@ public class CassandraResourceUtilization
           append("-").append(df.format(resourcesStats.getPendingMutationsOneMinute())).
           append("-").append(df.format(resourcesStats.getPendingMutationsFiveMinute())).
           append("-").append(df.format(resourcesStats.getPendingMutationsFifteenMinute())).
-
+          append(", PendingNativeTransport: ").append(df.format(resourcesStats.getPendingNativeTransportCur())).
+          append("-").append(df.format(resourcesStats.getPendingNativeTransportOneMinute())).
+          append("-").append(df.format(resourcesStats.getPendingNativeTransportFiveMinute())).
+          append("-").append(df.format(resourcesStats.getPendingNativeTransportFifteenMinute())).
           append(", LastThrottlingCheckPointTimeInMS: ").append(convertEpochTimeToUTC(lastThrottlingCheckPointTimeInMS)).
-
           append(", LastThrottlingIndicatorTimeInMS: ").append(convertEpochTimeToUTC(lastThrottlingIndicatorTimeInMS)).
-
           append(", CurrentThrottlingPercentage: ").append(currentThrottlingPercentage);
 
         return sb.toString();

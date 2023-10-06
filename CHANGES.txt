@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-24978] Add pending native transport as a signal
  * [SO-24942] Speculative read retry in case of throttling
  * [SO-24973] Fix the bug where changes for ignore_keyspace in cassandra.yaml don't take any effect
  * [SO-24971] Improve CPU signal check and add more logs and metrics around throttling percentage

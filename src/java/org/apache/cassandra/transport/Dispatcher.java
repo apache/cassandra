@@ -53,12 +53,13 @@ import static org.apache.cassandra.concurrent.SharedExecutorPool.SHARED;
 public class Dispatcher implements CQLMessageHandler.MessageConsumer<Message.Request>
 {
     private static final Logger logger = LoggerFactory.getLogger(Dispatcher.class);
+    public static final String NATIVE_TRANSPORT_THREAD_POOL = "Native-Transport-Requests";
 
     @VisibleForTesting
     static final LocalAwareExecutorPlus requestExecutor = SHARED.newExecutor(DatabaseDescriptor.getNativeTransportMaxThreads(),
                                                                              DatabaseDescriptor::setNativeTransportMaxThreads,
                                                                              "transport",
-                                                                             "Native-Transport-Requests");
+                                                                             NATIVE_TRANSPORT_THREAD_POOL);
 
     /** CASSANDRA-17812: Rate-limit new client connection setup to avoid overwhelming during bcrypt
      *

@@ -34,17 +34,19 @@ public class ResourcesStats
 
     Gauge<Integer> pendingReadsGauge;
     Gauge<Integer> pendingMutationsGauge;
+    Gauge<Integer> pendingNativeTransportGauge;
 
     Meter cpuUtil1Meter;
     Meter cpuUtil2Meter;
     Meter pendingReadsMeter;
     Meter pendingMutationsMeter;
+    Meter pendingNativeTransportMeter;
 
     long cpuUtil1CurVal;
     long cpuUtil2CurVal;
     int pendingReadsCurVal;
     int pendingMutationsCurVal;
-
+    int pendingNativeTransportCurVal;
 
     ResourcesStats()
     {
@@ -52,6 +54,7 @@ public class ResourcesStats
         cpuUtil2Meter = CassandraMetricsRegistry.Metrics.meter(factory.createMetricName("CpuUtil2"));
         pendingReadsMeter = CassandraMetricsRegistry.Metrics.meter(factory.createMetricName("PendingReads"));
         pendingMutationsMeter = CassandraMetricsRegistry.Metrics.meter(factory.createMetricName("PendingMutations"));
+        pendingNativeTransportMeter = CassandraMetricsRegistry.Metrics.meter(factory.createMetricName("PendingNativeTransport"));
 
         cpuUtil1Gauge = Metrics.register(factory.createMetricName("CpuUtil1Current"), new Gauge<Long>()
         {
@@ -79,6 +82,13 @@ public class ResourcesStats
             public Integer getValue()
             {
                 return pendingMutationsCurVal;
+            }
+        });
+        pendingNativeTransportGauge = Metrics.register(factory.createMetricName("PendingNativeTransportCurrent"), new Gauge<Integer>()
+        {
+            public Integer getValue()
+            {
+                return pendingNativeTransportCurVal;
             }
         });
     }
@@ -185,5 +195,31 @@ public class ResourcesStats
     {
         this.pendingMutationsCurVal = pendingMutations;
         pendingMutationsMeter.mark(this.pendingMutationsCurVal);
+    }
+
+    public int getPendingNativeTransportCur()
+    {
+        return pendingNativeTransportCurVal;
+    }
+
+    public long getPendingNativeTransportOneMinute()
+    {
+        return Double.valueOf(this.pendingNativeTransportMeter.getOneMinuteRate()).longValue();
+    }
+
+    public long getPendingNativeTransportFiveMinute()
+    {
+        return Double.valueOf(this.pendingNativeTransportMeter.getFiveMinuteRate()).longValue();
+    }
+
+    public long getPendingNativeTransportFifteenMinute()
+    {
+        return Double.valueOf(this.pendingNativeTransportMeter.getFifteenMinuteRate()).longValue();
+    }
+
+    public void setPendingNativeTransport(int pendingNativeTransport)
+    {
+        this.pendingNativeTransportCurVal = pendingNativeTransport;
+        pendingNativeTransportMeter.mark(this.pendingNativeTransportCurVal);
     }
 }

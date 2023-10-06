@@ -98,6 +98,18 @@ public class RateLimiterService implements RateLimiterServiceMBean {
     }
 
     @Override
+    public void setPendingNativeTransportThresholdCur(int pendingNativeTransportThresholdCur)
+    {
+        this.throttlingOptions.setPendingNativeTransportThresholdCur(pendingNativeTransportThresholdCur);
+    }
+
+    @Override
+    public void setPendingNativeTransportThresholdOneMinute(int pendingNativeTransportThresholdOneMinute)
+    {
+        this.throttlingOptions.setPendingNativeTransportThresholdOneMinute(pendingNativeTransportThresholdOneMinute);
+    }
+
+    @Override
     public void setPercentageOfTrafficToThrottling(double percentageOfTrafficToThrottling)
     {
         this.throttlingOptions.setPercentageOfTrafficToThrottling(percentageOfTrafficToThrottling);

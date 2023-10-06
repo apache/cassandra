@@ -35,6 +35,7 @@ public class SetRateLimiterConfig extends NodeTool.NodeToolCmd
                     "[enabled|cputhresholdcur|cputhresholdoneminute|" +
                     "pendingreadsthresholdcur|pendingreadsthresholdoneminute|" +
                     "pendingmutationsthresholdcur|pendingmutationsthresholdoneminute|" +
+                    "pendingnativetransportthresholdcur|pendingnativetransportthresholdoneminute|" +
                     "percentageoftraffictothrottling|moreaggressivethrottlingafterinsec|" +
                     "resetafternothrottlingseeninsec|aggressivethrottlingqpsratio|aggressivethrottlinglatencyratio|ignorekeyspaces]",
             required = true)
@@ -74,6 +75,14 @@ public class SetRateLimiterConfig extends NodeTool.NodeToolCmd
         else if (paramType.equals("pendingmutationsthresholdoneminute"))
         {
             probe.setThrottlingOptionsPendingMutationsThresholdOneMinute(Integer.parseInt(paramVal));
+        }
+        else if (paramType.equals("pendingnativetransportthresholdcur"))
+        {
+            probe.setThrottlingOptionsPendingNativeTransportThresholdCur(Integer.parseInt(paramVal));
+        }
+        else if (paramType.equals("pendingnativetransportthresholdoneminute"))
+        {
+            probe.setThrottlingOptionsPendingNativeTransportThresholdOneMinute(Integer.parseInt(paramVal));
         }
         else if (paramType.equals("percentageoftraffictothrottling"))
         {

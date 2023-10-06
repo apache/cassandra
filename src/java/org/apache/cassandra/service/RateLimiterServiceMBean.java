@@ -67,6 +67,16 @@ public interface RateLimiterServiceMBean
     public void setPendingMutationsThresholdOneMinute(int pendingMutationsThresholdOneMinute);
 
     /**
+     * Set pending_native_transport_threshold_cur
+     */
+    public void setPendingNativeTransportThresholdCur(int pendingNativeTransportThresholdCur);
+
+    /**
+     * Set pending_native_transport_threshold_one_minute
+     */
+    public void setPendingNativeTransportThresholdOneMinute(int pendingNativeTransportThresholdOneMinute);
+
+    /**
      * Set percentage_of_traffic_to_throttling
      */
     public void setPercentageOfTrafficToThrottling(double percentageOfTrafficToThrottling);
