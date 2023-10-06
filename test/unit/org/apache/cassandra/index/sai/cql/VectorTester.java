@@ -50,15 +50,20 @@ public class VectorTester extends SAITester
         // override maxBruteForceRows to a random number between 0 and 4 so that we make sure
         // the non-brute-force path gets called during tests (which mostly involve small numbers of rows)
         var n = getRandom().nextIntBetween(0, 4);
-        var ipb = InvokePointBuilder.newInvokePoint()
-                                    .onClass("org.apache.cassandra.index.sai.disk.v2.V2VectorIndexSearcher")
-                                    .onMethod("limitToTopResults")
-                                    .atEntry();
+        var limitToTopResults = InvokePointBuilder.newInvokePoint()
+                                                  .onClass("org.apache.cassandra.index.sai.disk.v2.V2VectorIndexSearcher")
+                                                  .onMethod("limitToTopResults")
+                                                  .atEntry();
+        var bitsOrPostingListForKeyRange = InvokePointBuilder.newInvokePoint()
+                                                             .onClass("org.apache.cassandra.index.sai.disk.v2.V2VectorIndexSearcher")
+                                                             .onMethod("bitsOrPostingListForKeyRange")
+                                                             .atEntry();
         var ab = ActionBuilder.newActionBuilder()
                               .actions()
                               .doAction("$this.globalBruteForceRows = " + n);
         var changeBruteForceThreshold = Injections.newCustom("force_non_bruteforce_queries")
-                                                  .add(ipb)
+                                                  .add(limitToTopResults)
+                                                  .add(bitsOrPostingListForKeyRange)
                                                   .add(ab)
                                                   .build();
         Injections.inject(changeBruteForceThreshold);
