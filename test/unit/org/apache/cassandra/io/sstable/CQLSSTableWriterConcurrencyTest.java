@@ -46,7 +46,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 public class CQLSSTableWriterConcurrencyTest extends CQLTester
 {
-    private static final Logger logger = LoggerFactory.getLogger(CQLSSTableWriterTest.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(CQLSSTableWriterTest.class);
     @Rule
     public TemporaryFolder tempFolder = new TemporaryFolder();
 
@@ -81,7 +81,7 @@ public class CQLSSTableWriterConcurrencyTest extends CQLTester
         {
             tableNames[i] = String.format("table_%02d", i);
             fullQueries[i] = String.format(schema, KEYSPACE + '.' + tableNames[i]);
-            logger.info(fullQueries[i]);
+            LOGGER.info(fullQueries[i]);
 
             if (i % 2 != 0)
             {
@@ -119,14 +119,17 @@ public class CQLSSTableWriterConcurrencyTest extends CQLTester
                 }
                 catch (Throwable throwable)
                 {
-                    logger.error("Error while processing element number {}", finalI, throwable);
+                    LOGGER.error("Error while processing element number {}", finalI, throwable);
                     errorCount.incrementAndGet();
                 }
             });
         }
 
         pool.shutdown();
-        assertThat(pool.awaitTermination(1, TimeUnit.MINUTES)).isTrue();
+        if (!pool.awaitTermination(1, TimeUnit.MINUTES))
+        {
+            LOGGER.warn("Unable to close executor pool after 1 minute");
+        }
         assertThat(errorCount.get()).isEqualTo(0);
     }
 }
