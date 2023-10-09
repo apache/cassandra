@@ -130,9 +130,7 @@ public class CommitLog implements CommitLogMBean
         // register metrics
         metrics.attach(executor, segmentManager);
 
-	if (configuration.isDirectIOEnabled()) {
-          logger.info("Direct-IO feature enabled for Commitlog files.");
-	}
+        logger.info("Direct I/O feature for Commitlog files is : " + configuration.isDirectIOEnabled() + ".");
     }
 
     /**
@@ -638,7 +636,7 @@ public class CommitLog implements CommitLogMBean
             this.compressorClass = compressorClass;
             this.compressor = compressorClass != null ? CompressionParams.createCompressor(compressorClass) : null;
             this.encryptionContext = encryptionContext;
-            this.useDirectIO = DatabaseDescriptor.getDirectIOStatus();
+            this.useDirectIO = DatabaseDescriptor.getDirectIOForCommitlogEnabled();
         }
 
         /**
