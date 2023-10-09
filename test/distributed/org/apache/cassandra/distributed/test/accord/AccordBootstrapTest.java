@@ -28,7 +28,6 @@ import java.util.function.Consumer;
 import org.junit.Assert;
 import org.junit.Test;
 
-import accord.local.CommandStore;
 import accord.local.PreLoadContext;
 import accord.primitives.Timestamp;
 import accord.topology.TopologyManager;
@@ -48,6 +47,7 @@ import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.service.accord.AccordCommandStore;
 import org.apache.cassandra.service.accord.AccordConfigurationService;
 import org.apache.cassandra.service.accord.AccordConfigurationService.EpochSnapshot;
 import org.apache.cassandra.service.accord.AccordService;
@@ -271,7 +271,7 @@ public class AccordBootstrapTest extends TestBaseImpl
                     });
 
                     awaitUninterruptiblyAndRethrow(service().node().commandStores().forEach(safeStore -> {
-                        CommandStore commandStore = safeStore.commandStore();
+                        AccordCommandStore commandStore = (AccordCommandStore) safeStore.commandStore();
                         Assert.assertEquals(Timestamp.NONE, getOnlyElement(commandStore.bootstrapBeganAt().keySet()));
                         Assert.assertEquals(Timestamp.NONE, getOnlyElement(commandStore.safeToRead().keySet()));
 //
@@ -316,7 +316,7 @@ public class AccordBootstrapTest extends TestBaseImpl
                         awaitUninterruptiblyAndRethrow(service().node().commandStores().forEach(safeStore -> {
                             if (safeStore.ranges().currentRanges().contains(partitionKey))
                             {
-                                CommandStore commandStore = safeStore.commandStore();
+                                AccordCommandStore commandStore = (AccordCommandStore) safeStore.commandStore();
                                 Assert.assertFalse(commandStore.bootstrapBeganAt().isEmpty());
                                 Assert.assertFalse(commandStore.safeToRead().isEmpty());
 
@@ -458,7 +458,7 @@ public class AccordBootstrapTest extends TestBaseImpl
                                                                                           safeStore -> {
                                 if (!safeStore.ranges().allAt(preMove).contains(partitionKey))
                                 {
-                                    CommandStore commandStore = safeStore.commandStore();
+                                    AccordCommandStore commandStore = (AccordCommandStore) safeStore.commandStore();
                                     Assert.assertFalse(commandStore.bootstrapBeganAt().isEmpty());
                                     Assert.assertFalse(commandStore.safeToRead().isEmpty());
 
