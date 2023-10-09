@@ -80,21 +80,27 @@ public class KDTreeIndexBuilder
         }
 
         @Override
-        public long rowIdFromPrimaryKey(PrimaryKey key)
+        public long exactRowIdForPrimaryKey(PrimaryKey key)
         {
             return key.token().getLongValue();
         }
 
         @Override
-        public long firstRowIdFromPrimaryKey(PrimaryKey key)
+        public long ceiling(PrimaryKey key)
         {
             return key.token().getLongValue();
         }
 
         @Override
-        public long lastRowIdFromPrimaryKey(PrimaryKey key)
+        public long floor(PrimaryKey key)
         {
             return key.token().getLongValue();
+        }
+
+        @Override
+        public boolean isNotFound(long sstableRowId)
+        {
+            return false;
         }
     };
     public static final PrimaryKeyMap.Factory TEST_PRIMARY_KEY_MAP_FACTORY = () -> TEST_PRIMARY_KEY_MAP;

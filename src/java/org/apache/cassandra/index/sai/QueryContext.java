@@ -156,8 +156,8 @@ public class QueryContext
                 if (primaryKey.compareTo(metadata.minKey) < 0 || primaryKey.compareTo(metadata.maxKey) > 0)
                     continue;
 
-                long sstableRowId = primaryKeyMap.rowIdFromPrimaryKey(primaryKey);
-                if (sstableRowId == Long.MAX_VALUE) // not found
+                long sstableRowId = primaryKeyMap.exactRowIdForPrimaryKey(primaryKey);
+                if (primaryKeyMap.isNotFound(sstableRowId)) // not found
                     continue;
 
                 int segmentRowId = metadata.toSegmentRowId(sstableRowId);

@@ -57,7 +57,9 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 import static org.apache.cassandra.index.sai.disk.v1.kdtree.BKDQueries.bkdQueryFrom;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Note: The sstables and SAI indexes used in this test were written with DSE 6.8
@@ -140,6 +142,20 @@ public class LegacyOnDiskFormatTest
         PrimaryKey primaryKey = primaryKeyMap.primaryKeyFromRowId(0);
 
         assertEquals(expected, primaryKey);
+    }
+
+    // This test should pass, but I am not able to run it yet due to the class being Ignored.
+    @Test
+    public void endOfStreamForLegacyPrimaryKeyMap() throws Throwable
+    {
+        try (PrimaryKeyMap.Factory primaryKeyMapFactory = indexDescriptor.newPrimaryKeyMapFactory(sstable);
+             PrimaryKeyMap primaryKeyMap = primaryKeyMapFactory.newPerSSTablePrimaryKeyMap())
+        {
+            assertTrue(primaryKeyMap.isNotFound(-1));
+            assertFalse(primaryKeyMap.isNotFound(0));
+            assertFalse(primaryKeyMap.isNotFound(1));
+        }
+
     }
 
     @Test

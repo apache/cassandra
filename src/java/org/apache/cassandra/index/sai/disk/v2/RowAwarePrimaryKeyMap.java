@@ -164,21 +164,27 @@ public class RowAwarePrimaryKeyMap implements PrimaryKeyMap
     }
 
     @Override
-    public long rowIdFromPrimaryKey(PrimaryKey key)
+    public long exactRowIdForPrimaryKey(PrimaryKey key)
     {
-        return sortedTermsReader.getPointId(v -> key.asComparableBytes(v));
+        return sortedTermsReader.getExactPointId(v -> key.asComparableBytes(v));
     }
 
     @Override
-    public long firstRowIdFromPrimaryKey(PrimaryKey key)
+    public long ceiling(PrimaryKey key)
     {
-        return sortedTermsReader.getPointId(v -> key.asComparableBytesMinPrefix(v));
+        return sortedTermsReader.ceiling(v -> key.asComparableBytesMinPrefix(v));
     }
 
     @Override
-    public long lastRowIdFromPrimaryKey(PrimaryKey key)
+    public long floor(PrimaryKey key)
     {
-        return sortedTermsReader.getLastPointId(v -> key.asComparableBytesMaxPrefix(v));
+        return sortedTermsReader.floor(v -> key.asComparableBytesMaxPrefix(v));
+    }
+
+    @Override
+    public boolean isNotFound(long sstableRowId)
+    {
+        return sstableRowId == Long.MAX_VALUE;
     }
 
 

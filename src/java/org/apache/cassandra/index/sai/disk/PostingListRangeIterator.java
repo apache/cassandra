@@ -146,9 +146,9 @@ public class PostingListRangeIterator extends RangeIterator<PrimaryKey>
         long segmentRowId;
         if (needsSkipping)
         {
-            long targetRowID = primaryKeyMap.rowIdFromPrimaryKey(skipToToken);
+            long targetRowID = primaryKeyMap.ceiling(skipToToken);
             // skipToToken is larger than max token in token file
-            if (targetRowID < 0)
+            if (primaryKeyMap.isNotFound(targetRowID))
             {
                 return PostingList.END_OF_STREAM;
             }

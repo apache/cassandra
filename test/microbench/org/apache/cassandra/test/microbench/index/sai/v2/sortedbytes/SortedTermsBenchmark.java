@@ -253,7 +253,7 @@ public class SortedTermsBenchmark extends AbstractOnDiskBenchmark
     {
         for (int i = 0; i < NUM_INVOCATIONS; i++)
         {
-            bh.consume(sortedTermsReader.getPointId(ByteComparable.fixedLength(this.bcIntBytes[i * skippingDistance])));
+            bh.consume(sortedTermsReader.ceiling(ByteComparable.fixedLength(this.bcIntBytes[i * skippingDistance])));
         }
     }
 

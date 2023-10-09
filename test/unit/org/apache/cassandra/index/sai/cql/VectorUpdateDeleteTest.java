@@ -472,4 +472,36 @@ public class VectorUpdateDeleteTest extends VectorTester
         var result = execute("SELECT * FROM %s ORDER BY val ann of [1.0, 2.0, 3.0] LIMIT 1");
         assertThat(result).hasSize(1);
     }
+
+    // This test intentionally has extra rows with primary keys that are above and below the
+    // deleted primary key so that we do not short circuit certain parts of the shadowed key logic.
+    @Test
+    public void shadowedPrimaryKeyInDifferentSSTableEachWithMultipleRows() throws Throwable
+    {
+        createTable(KEYSPACE, "CREATE TABLE %s (pk int primary key, str_val text, val vector<float, 3>)");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+        disableCompaction(KEYSPACE);
+
+        // flush a sstable with one vector
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (1, 'A', [1.0, 2.0, 3.0])");
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (2, 'A', [1.0, 2.0, 3.0])");
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (3, 'A', [1.0, 2.0, 3.0])");
+        flush();
+
+        // flush another sstable to shadow the vector row
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (1, 'A', [1.0, 2.0, 3.0])");
+        execute("DELETE FROM %s where pk = 2");
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (3, 'A', [1.0, 2.0, 3.0])");
+        flush();
+
+        // flush another sstable with one new vector row
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'B', [2.0, 3.0, 4.0])");
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (4, 'B', [2.0, 3.0, 4.0])");
+        flush();
+
+        // the shadow vector has the highest score
+        var result = execute("SELECT * FROM %s ORDER BY val ann of [1.0, 2.0, 3.0] LIMIT 4");
+        assertThat(result).hasSize(4);
+    }
 }

@@ -144,7 +144,7 @@ public class SortedTermsTest extends SaiRandomizedTest
         {
             for (int x = 0; x < terms.size(); x++)
             {
-                long pointId = reader.getPointId(ByteComparable.fixedLength(terms.get(x)));
+                long pointId = reader.ceiling(ByteComparable.fixedLength(terms.get(x)));
                 assertEquals(x, pointId);
             }
         });
@@ -154,7 +154,7 @@ public class SortedTermsTest extends SaiRandomizedTest
         {
             for (int x = terms.size() - 1; x >= 0; x--)
             {
-                long pointId = reader.getPointId(ByteComparable.fixedLength(terms.get(x)));
+                long pointId = reader.ceiling(ByteComparable.fixedLength(terms.get(x)));
                 assertEquals(x, pointId);
             }
         });
@@ -166,7 +166,7 @@ public class SortedTermsTest extends SaiRandomizedTest
             {
                 int target = nextInt(0, terms.size());
 
-                long pointId = reader.getPointId(ByteComparable.fixedLength(terms.get(target)));
+                long pointId = reader.ceiling(ByteComparable.fixedLength(terms.get(target)));
                 assertEquals(target, pointId);
             }
         });
@@ -188,8 +188,8 @@ public class SortedTermsTest extends SaiRandomizedTest
             for (int x = 0; x < termsMaxPrefixNoMatch.size(); x++)
             {
                 int index = x;
-                long pointIdStart = reader.getPointId(v -> termsMinPrefixNoMatch.get(index));
-                long pointIdEnd = reader.getLastPointId(v -> termsMaxPrefixNoMatch.get(index));
+                long pointIdStart = reader.ceiling(v -> termsMinPrefixNoMatch.get(index));
+                long pointIdEnd = reader.floor(v -> termsMaxPrefixNoMatch.get(index));
                 assertTrue(pointIdStart > pointIdEnd);
             }
         });
@@ -211,8 +211,8 @@ public class SortedTermsTest extends SaiRandomizedTest
             for (int x = 0; x < termsMaxPrefix.size(); x++)
             {
                 int index = x;
-                long pointIdStart = reader.getPointId(v -> termsMinPrefix.get(index));
-                long pointIdEnd = reader.getLastPointId(v -> termsMaxPrefix.get(index));
+                long pointIdStart = reader.ceiling(v -> termsMinPrefix.get(index));
+                long pointIdEnd = reader.floor(v -> termsMaxPrefix.get(index));
                 assertEquals(pointIdStart, x / valuesPerPrefix * valuesPerPrefix);
                 assertEquals(pointIdStart + valuesPerPrefix - 1, pointIdEnd);
             }
