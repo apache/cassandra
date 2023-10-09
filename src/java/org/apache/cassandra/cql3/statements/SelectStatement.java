@@ -88,6 +88,7 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNull;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
+import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 import static org.apache.cassandra.db.filter.DataLimits.NO_LIMIT;
 import static org.apache.cassandra.utils.ByteBufferUtil.UNSET_BYTE_BUFFER;
 
@@ -1462,6 +1463,13 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         /** If ALLOW FILTERING was not specified, this verifies that it is not needed */
         private void checkNeedsFiltering(TableMetadata table, StatementRestrictions restrictions) throws InvalidRequestException
         {
+            if (parameters.allowFiltering && restrictions.hasAnnRestriction())
+            {
+                // ANN queries do not currently work correctly when filtering is required, so
+                // we fail even though ALLOW FILTERING was passed
+                if (restrictions.needFiltering(table))
+                    throw invalidRequest(StatementRestrictions.ANN_REQUIRES_ALL_RESTRICTED_COLUMNS_INDEXED_MESSAGE);
+            }
             // non-key-range non-indexed queries cannot involve filtering underneath
             if (!parameters.allowFiltering && (restrictions.isKeyRange() || restrictions.usesSecondaryIndexing()))
             {

@@ -437,4 +437,47 @@ public class AllowFilteringTest extends SAITester
         assertInvalidMessage(String.format(StatementRestrictions.INDEX_DOES_NOT_SUPPORT_ANALYZER_MATCHES_MESSAGE, 'c'), "SELECT * FROM %s WHERE c : 'Test'");
         assertInvalidMessage(String.format(StatementRestrictions.INDEX_DOES_NOT_SUPPORT_ANALYZER_MATCHES_MESSAGE, 'd'), "SELECT * FROM %s WHERE d : 'Test'");
     }
+
+    @Test
+    public void testQueryRequiresFilteringButHasANNRestriction() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk text, i int, j int, k int, vec vector<float, 3>, PRIMARY KEY((pk, i), j))");
+        createIndex("CREATE CUSTOM INDEX ON %s(vec) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        // Should not fail because allow filtering is set but not required
+        assertRows(execute("SELECT * FROM %s ORDER BY vec ANN OF [1,1,1] LIMIT 10 ALLOW FILTERING;"));
+
+        // Do not recommend ALLOW FILTERING for non primary key, non clustering column restrictions
+        assertInvalidMessage(StatementRestrictions.ANN_REQUIRES_ALL_RESTRICTED_COLUMNS_INDEXED_MESSAGE,
+                             "SELECT * FROM %s WHERE k > 0 ORDER BY vec ANN OF [2.5, 3.5, 4.5] LIMIT 10;");
+
+        // Do not let ALLOW FILTERING to lead to query execution for non primary key, non clustering column restrictions
+        assertInvalidMessage(StatementRestrictions.ANN_REQUIRES_ALL_RESTRICTED_COLUMNS_INDEXED_MESSAGE,
+                             "SELECT * FROM %s WHERE k > 0 ORDER BY vec ANN OF [2.5, 3.5, 4.5] LIMIT 10 ALLOW FILTERING;");
+
+        // Do not recommend ALLOW FILTERING for clustering column restrictions
+        assertInvalidMessage(StatementRestrictions.ANN_REQUIRES_ALL_RESTRICTED_COLUMNS_INDEXED_MESSAGE,
+                             "SELECT * FROM %s WHERE j > 0 ORDER BY vec ANN OF [2.5, 3.5, 4.5] LIMIT 10;");
+
+        // Do not let ALLOW FILTERING lead to query execution for clustering column restrictions
+        assertInvalidMessage(StatementRestrictions.ANN_REQUIRES_ALL_RESTRICTED_COLUMNS_INDEXED_MESSAGE,
+                             "SELECT * FROM %s WHERE j > 0 ORDER BY vec ANN OF [2.5, 3.5, 4.5] LIMIT 10 ALLOW FILTERING;");
+
+        // Do not recommend ALLOW FILTERING for partial partition key restrictions
+        assertInvalidMessage(StatementRestrictions.ANN_REQUIRES_ALL_RESTRICTED_COLUMNS_INDEXED_MESSAGE,
+                             "SELECT * FROM %s WHERE pk > 'A' AND pk < 'C' ORDER BY vec ANN OF [2.5, 3.5, 4.5] LIMIT 10;");
+
+        // Do not let ALLOW FILTERING lead to query execution for partial partition key restrictions
+        assertInvalidMessage(StatementRestrictions.ANN_REQUIRES_ALL_RESTRICTED_COLUMNS_INDEXED_MESSAGE,
+                             "SELECT * FROM %s WHERE pk > 'A' AND pk < 'C' ORDER BY vec ANN OF [2.5, 3.5, 4.5] LIMIT 10 ALLOW FILTERING;");
+
+        // Do not recommend ALLOW FILTERING for complete partition key restrictions
+        assertInvalidMessage(StatementRestrictions.ANN_REQUIRES_ALL_RESTRICTED_COLUMNS_INDEXED_MESSAGE,
+                             "SELECT * FROM %s WHERE pk > 'A' AND pk < 'C' AND i > 0 ORDER BY vec ANN OF [2.5, 3.5, 4.5] LIMIT 10;");
+
+        // Do not let ALLOW FILTERING lead to query execution for complete partition key restrictions
+        assertInvalidMessage(StatementRestrictions.ANN_REQUIRES_ALL_RESTRICTED_COLUMNS_INDEXED_MESSAGE,
+                             "SELECT * FROM %s WHERE pk > 'A' AND pk < 'C' AND i > 0 ORDER BY vec ANN OF [2.5, 3.5, 4.5] LIMIT 10 ALLOW FILTERING;");
+    }
 }
