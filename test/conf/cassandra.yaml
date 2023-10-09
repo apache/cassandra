@@ -8,7 +8,6 @@ memtable_allocation_type: offheap_objects
 commitlog_sync: batch
 commitlog_segment_size: 5MiB
 commitlog_directory: build/test/cassandra/commitlog
-accord_journal_directory: build/test/cassandra/accord_journal
 # commitlog_compression:
 # - class_name: LZ4Compressor
 cdc_raw_directory: build/test/cassandra/cdc_raw
@@ -55,7 +54,6 @@ file_cache_enabled: true
 full_query_logging_options:
   allow_nodetool_archive_command: true
 auto_hints_cleanup_enabled: true
-accord_transactions_enabled: true
 
 heap_dump_path: build/test
 dump_heap_on_uncaught_exception: false
@@ -114,3 +112,9 @@ memtable:
             class_name: TrieMemtable
 # Note: keep the memtable configuration at the end of the file, so that the default mapping can be changed without
 # duplicating the whole section above.
+
+accord:
+    enabled: true
+    journal_directory: build/test/cassandra/accord_journal
+    shard_count: 4
+    progress_log_schedule_delay: 1s

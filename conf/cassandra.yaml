@@ -1818,9 +1818,6 @@ drop_compact_storage_enabled: false
 # Whether or not USE <keyspace> is allowed. This is enabled by default to avoid failure on upgrade.
 #use_statements_enabled: true
 
-# Enables the execution of Accord (multi-key) transactions on this node.
-accord_transactions_enabled: false
-
 # When the client triggers a protocol exception or unknown issue (Cassandra bug) we increment
 # a client metric showing this; this logic will exclude specific subnets from updating these
 # metrics
@@ -2113,3 +2110,16 @@ accord_transactions_enabled: false
 #   a stable cluster. If a node from a previous version was started by accident we won't any longer toggle behaviors as when UPGRADING.
 #
 storage_compatibility_mode: NONE
+
+#accord:
+#  # Enables the execution of Accord (multi-key) transactions on this node.
+#  enabled: false
+#
+#  # Journal directory for Accord
+#  journal_directory:
+#
+#  # The number of Accord shards on this node; -1 means use the number of cores
+#  shard_count: -1
+#
+#  # Progress log scheduling delay
+#  progress_log_schedule_delay: 1s
