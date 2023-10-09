@@ -26,7 +26,6 @@ memtable_allocation_type: offheap_objects
 commitlog_sync: batch
 commitlog_segment_size: 5MiB
 commitlog_directory: build/test/cassandra/commitlog
-accord_journal_directory: build/test/cassandra/accord_journal
 # commitlog_compression:
 # - class_name: LZ4Compressor
 cdc_raw_directory: build/test/cassandra/cdc_raw
@@ -149,3 +148,5 @@ stream_throughput_outbound: 24MiB/s
 sasi_indexes_enabled: true
 materialized_views_enabled: true
 file_cache_enabled: true
+accord:
+  journal_directory: build/test/cassandra/accord_journal
