@@ -207,6 +207,11 @@ public class EndpointState
         isAlive = false;
     }
 
+    public boolean isStateEmpty()
+    {
+        return applicationState.get().isEmpty();
+    }
+
     /**
      * @return true if {@link HeartBeatState#isEmpty()} is true and no STATUS application state exists
      */
