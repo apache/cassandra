@@ -95,6 +95,12 @@ public class AccordAgent implements Agent
     }
 
     @Override
+    public void onStale(Timestamp staleSince, Ranges ranges)
+    {
+        // TODO (required): decide how to handle this - maybe do nothing besides log? Maybe configurably try some number of repair attempts to catch up.
+    }
+
+    @Override
     public void onUncaughtException(Throwable t)
     {
         // TODO: this

@@ -880,7 +880,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             if (redundantBeforeEntry == null)
                 return row;
 
-            TxnId redundantBeforeTxnId = redundantBeforeEntry.redundantBefore;
+            TxnId redundantBeforeTxnId = redundantBeforeEntry.shardRedundantBefore();
 
             Cell lastExecuteMicrosCell = row.getCell(last_executed_micros);
             Long last_execute_micros = null;
@@ -937,7 +937,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             if (redundantBeforeEntry == null)
                 return row;
 
-            TxnId redundantBeforeTxnId = redundantBeforeEntry.redundantBefore;
+            TxnId redundantBeforeTxnId = redundantBeforeEntry.shardRedundantBefore();
             Timestamp timestamp = CommandsForKeyRows.getTimestamp(row);
             if (timestamp != null && timestamp.compareTo(redundantBeforeTxnId) < 0)
                 return null;

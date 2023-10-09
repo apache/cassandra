@@ -22,18 +22,20 @@ import java.io.IOException;
 
 import accord.api.Result;
 import accord.api.RoutingKey;
+import accord.coordinate.Infer;
 import accord.local.SaveStatus;
-import accord.local.Status;
 import accord.local.Status.Durability;
+import accord.local.Status.Known;
 import accord.messages.CheckStatus;
 import accord.messages.CheckStatus.CheckStatusNack;
 import accord.messages.CheckStatus.CheckStatusOk;
 import accord.messages.CheckStatus.CheckStatusOkFull;
 import accord.messages.CheckStatus.CheckStatusReply;
+import accord.messages.CheckStatus.FoundKnown;
+import accord.messages.CheckStatus.FoundKnownMap;
 import accord.primitives.Ballot;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
-import accord.primitives.Ranges;
 import accord.primitives.Route;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
@@ -48,7 +50,74 @@ import static accord.messages.CheckStatus.SerializationSupport.createOk;
 
 public class CheckStatusSerializers
 {
-    public static final IVersionedSerializer<CheckStatus> request = new IVersionedSerializer<CheckStatus>()
+    public static final IVersionedSerializer<FoundKnown> foundKnown = new IVersionedSerializer<>()
+    {
+        @Override
+        public void serialize(FoundKnown known, DataOutputPlus out, int version) throws IOException
+        {
+            CommandSerializers.known.serialize(known, out, version);
+            CommandSerializers.invalidIfNot.serialize(known.invalidIfNot, out, version);
+            CommandSerializers.isPreempted.serialize(known.isPreempted, out, version);
+        }
+
+        @Override
+        public FoundKnown deserialize(DataInputPlus in, int version) throws IOException
+        {
+            Known known = CommandSerializers.known.deserialize(in, version);
+            Infer.InvalidIfNot invalidIfNot = CommandSerializers.invalidIfNot.deserialize(in, version);
+            Infer.IsPreempted isPreempted = CommandSerializers.isPreempted.deserialize(in, version);
+            return new FoundKnown(known, invalidIfNot, isPreempted);
+        }
+
+        @Override
+        public long serializedSize(FoundKnown known, int version)
+        {
+            return CommandSerializers.known.serializedSize(known, version)
+                 + CommandSerializers.invalidIfNot.serializedSize(known.invalidIfNot, version)
+                 + CommandSerializers.isPreempted.serializedSize(known.isPreempted, version);
+        }
+    };
+
+    public static final IVersionedSerializer<FoundKnownMap> foundKnownMap = new IVersionedSerializer<>()
+    {
+        @Override
+        public void serialize(FoundKnownMap knownMap, DataOutputPlus out, int version) throws IOException
+        {
+            int size = knownMap.size();
+            out.writeUnsignedVInt32(size);
+            for (int i = 0 ; i <= size ; ++i)
+                KeySerializers.routingKey.serialize(knownMap.startAt(i), out, version);
+            for (int i = 0 ; i < size ; ++i)
+                foundKnown.serialize(knownMap.valueAt(i), out, version);
+        }
+
+        @Override
+        public FoundKnownMap deserialize(DataInputPlus in, int version) throws IOException
+        {
+            int size = in.readUnsignedVInt32();
+            RoutingKey[] starts = new RoutingKey[size + 1];
+            for (int i = 0 ; i <= size ; ++i)
+                starts[i] = KeySerializers.routingKey.deserialize(in, version);
+            FoundKnown[] values = new FoundKnown[size];
+            for (int i = 0 ; i < size ; ++i)
+                values[i] = foundKnown.deserialize(in, version);
+            return FoundKnownMap.SerializerSupport.create(true, starts, values);
+        }
+
+        @Override
+        public long serializedSize(FoundKnownMap knownMap, int version)
+        {
+            int size = knownMap.size();
+            long result = TypeSizes.sizeofUnsignedVInt(size);
+            for (int i = 0 ; i <= size ; ++i)
+                result += KeySerializers.routingKey.serializedSize(knownMap.startAt(i), version);
+            for (int i = 0 ; i < size ; ++i)
+                result += foundKnown.serializedSize(knownMap.valueAt(i), version);
+            return result;
+        }
+    };
+
+    public static final IVersionedSerializer<CheckStatus> request = new IVersionedSerializer<>()
     {
         final CheckStatus.IncludeInfo[] infos = CheckStatus.IncludeInfo.values();
 
@@ -81,7 +150,7 @@ public class CheckStatusSerializers
         }
     };
 
-    public static final IVersionedSerializer<CheckStatusReply> reply = new IVersionedSerializer<CheckStatusReply>()
+    public static final IVersionedSerializer<CheckStatusReply> reply = new IVersionedSerializer<>()
     {
         private static final byte OK   = 0x00;
         private static final byte FULL = 0x01;
@@ -98,9 +167,8 @@ public class CheckStatusSerializers
 
             CheckStatusOk ok = (CheckStatusOk) reply;
             out.write(reply instanceof CheckStatusOkFull ? FULL : OK);
-            KeySerializers.ranges.serialize(ok.truncated, out, version);
-            CommandSerializers.status.serialize(ok.invalidIfNotAtLeast, out, version);
-            CommandSerializers.saveStatus.serialize(ok.saveStatus, out, version);
+            foundKnownMap.serialize(ok.map, out, version);
+            CommandSerializers.saveStatus.serialize(ok.maxKnowledgeSaveStatus, out, version);
             CommandSerializers.saveStatus.serialize(ok.maxSaveStatus, out, version);
             CommandSerializers.ballot.serialize(ok.promised, out, version);
             CommandSerializers.ballot.serialize(ok.accepted, out, version);
@@ -130,9 +198,8 @@ public class CheckStatusSerializers
                     return CheckStatusNack.NotOwned;
                 case OK:
                 case FULL:
-                    Ranges truncated = KeySerializers.ranges.deserialize(in, version);
-                    Status invalidIfNotAtLeast = CommandSerializers.status.deserialize(in, version);
-                    SaveStatus status = CommandSerializers.saveStatus.deserialize(in, version);
+                    FoundKnownMap map = foundKnownMap.deserialize(in, version);
+                    SaveStatus maxKnowledgeStatus = CommandSerializers.saveStatus.deserialize(in, version);
                     SaveStatus maxStatus = CommandSerializers.saveStatus.deserialize(in, version);
                     Ballot promised = CommandSerializers.ballot.deserialize(in, version);
                     Ballot accepted = CommandSerializers.ballot.deserialize(in, version);
@@ -143,7 +210,7 @@ public class CheckStatusSerializers
                     RoutingKey homeKey = KeySerializers.nullableRoutingKey.deserialize(in, version);
 
                     if (kind == OK)
-                        return createOk(truncated, invalidIfNotAtLeast, status, maxStatus, promised, accepted, executeAt,
+                        return createOk(map, maxKnowledgeStatus, maxStatus, promised, accepted, executeAt,
                                         isCoordinating, durability, route, homeKey);
 
                     PartialTxn partialTxn = CommandSerializers.nullablePartialTxn.deserialize(in, version);
@@ -151,13 +218,11 @@ public class CheckStatusSerializers
                     Writes writes = CommandSerializers.nullableWrites.deserialize(in, version);
 
                     Result result = null;
-                    if (status == SaveStatus.PreApplied || status == SaveStatus.Applied
-                        || status == SaveStatus.TruncatedApply || status == SaveStatus.TruncatedApplyWithOutcome || status == SaveStatus.TruncatedApplyWithDeps)
-                        result = Result.APPLIED;
-                    else if (status == SaveStatus.Invalidated)
-                        result = Result.INVALIDATED;
+                    if (maxKnowledgeStatus == SaveStatus.PreApplied || maxKnowledgeStatus == SaveStatus.Applied
+                        || maxKnowledgeStatus == SaveStatus.TruncatedApply || maxKnowledgeStatus == SaveStatus.TruncatedApplyWithOutcome || maxKnowledgeStatus == SaveStatus.TruncatedApplyWithDeps)
+                        result = CommandSerializers.APPLIED;
 
-                    return createOk(truncated, invalidIfNotAtLeast, status, maxStatus, promised, accepted, executeAt,
+                    return createOk(map, maxKnowledgeStatus, maxStatus, promised, accepted, executeAt,
                                     isCoordinating, durability, route, homeKey, partialTxn, committedDeps, writes, result);
             }
         }
@@ -170,9 +235,8 @@ public class CheckStatusSerializers
                 return size;
 
             CheckStatusOk ok = (CheckStatusOk) reply;
-            size += KeySerializers.ranges.serializedSize(ok.truncated, version);
-            size += CommandSerializers.status.serializedSize(ok.invalidIfNotAtLeast, version);
-            size += CommandSerializers.saveStatus.serializedSize(ok.saveStatus, version);
+            size += foundKnownMap.serializedSize(ok.map, version);
+            size += CommandSerializers.saveStatus.serializedSize(ok.maxKnowledgeSaveStatus, version);
             size += CommandSerializers.saveStatus.serializedSize(ok.maxSaveStatus, version);
             size += CommandSerializers.ballot.serializedSize(ok.promised, version);
             size += CommandSerializers.ballot.serializedSize(ok.accepted, version);

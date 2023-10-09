@@ -139,7 +139,7 @@ public class AccordMessageSink implements MessageSink
             builder.put(MessageType.WAIT_ON_COMMIT_REQ,                       Verb.ACCORD_WAIT_ON_COMMIT_REQ);
             builder.put(MessageType.WAIT_ON_COMMIT_RSP,                       Verb.ACCORD_WAIT_ON_COMMIT_RSP);
             builder.put(MessageType.WAIT_UNTIL_APPLIED_REQ,                   Verb.ACCORD_WAIT_UNTIL_APPLIED_REQ);
-            builder.put(MessageType.APPLY_AND_WAIT_UNTIL_APPLIED_REQ,         Verb.ACCORD_APPLY_AND_WAIT_UNTIL_APPLIED_REQ);
+            builder.put(MessageType.APPLY_THEN_WAIT_UNTIL_APPLIED_REQ,        Verb.ACCORD_APPLY_AND_WAIT_UNTIL_APPLIED_REQ);
             builder.put(MessageType.INFORM_OF_TXN_REQ,                        Verb.ACCORD_INFORM_OF_TXN_REQ);
             builder.put(MessageType.INFORM_DURABLE_REQ,                       Verb.ACCORD_INFORM_DURABLE_REQ);
             builder.put(MessageType.INFORM_HOME_DURABLE_REQ,                  Verb.ACCORD_INFORM_HOME_DURABLE_REQ);

@@ -24,7 +24,9 @@ import com.google.common.base.Preconditions;
 
 import accord.api.Query;
 import accord.api.Read;
+import accord.api.Result;
 import accord.api.Update;
+import accord.coordinate.Infer;
 import accord.local.Node;
 import accord.local.SaveStatus;
 import accord.local.Status;
@@ -32,6 +34,7 @@ import accord.local.Status.Durability;
 import accord.local.Status.Known;
 import accord.primitives.Ballot;
 import accord.primitives.PartialTxn;
+import accord.primitives.ProgressToken;
 import accord.primitives.Ranges;
 import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
@@ -53,6 +56,16 @@ import org.apache.cassandra.utils.NullableSerializer;
 public class CommandSerializers
 {
     private CommandSerializers() {}
+
+    // TODO (expected): this is meant to encode e.g. whether the transaction's condition met or not
+    public static final Result APPLIED = new Result()
+    {
+        @Override
+        public ProgressToken asProgressToken()
+        {
+            return ProgressToken.APPLIED;
+        }
+    };
 
     public static final TimestampSerializer<TxnId> txnId = new TimestampSerializer<>(TxnId::fromBits);
     public static final TimestampSerializer<Timestamp> timestamp = new TimestampSerializer<>(Timestamp::fromBits);
@@ -228,16 +241,20 @@ public class CommandSerializers
 
     public static final IVersionedSerializer<Writes> nullableWrites = NullableSerializer.wrap(writes);
 
+    public static final EnumSerializer<Status.KnownRoute> route = new EnumSerializer<>(Status.KnownRoute.class);
     public static final EnumSerializer<Status.Definition> definition = new EnumSerializer<>(Status.Definition.class);
     public static final EnumSerializer<Status.KnownExecuteAt> knownExecuteAt = new EnumSerializer<>(Status.KnownExecuteAt.class);
     public static final EnumSerializer<Status.KnownDeps> knownDeps = new EnumSerializer<>(Status.KnownDeps.class);
     public static final EnumSerializer<Status.Outcome> outcome = new EnumSerializer<>(Status.Outcome.class);
+    public static final EnumSerializer<Infer.InvalidIfNot> invalidIfNot = new EnumSerializer<>(Infer.InvalidIfNot.class);
+    public static final EnumSerializer<Infer.IsPreempted> isPreempted = new EnumSerializer<>(Infer.IsPreempted.class);
 
-    public static final IVersionedSerializer<Known> known = new IVersionedSerializer<Known>()
+    public static final IVersionedSerializer<Known> known = new IVersionedSerializer<>()
     {
         @Override
         public void serialize(Known known, DataOutputPlus out, int version) throws IOException
         {
+            route.serialize(known.route, out, version);
             definition.serialize(known.definition, out, version);
             knownExecuteAt.serialize(known.executeAt, out, version);
             knownDeps.serialize(known.deps, out, version);
@@ -247,7 +264,8 @@ public class CommandSerializers
         @Override
         public Known deserialize(DataInputPlus in, int version) throws IOException
         {
-            return new Known(definition.deserialize(in, version),
+            return new Known(route.deserialize(in, version),
+                             definition.deserialize(in, version),
                              knownExecuteAt.deserialize(in, version),
                              knownDeps.deserialize(in, version),
                              outcome.deserialize(in, version));
@@ -256,7 +274,8 @@ public class CommandSerializers
         @Override
         public long serializedSize(Known known, int version)
         {
-            return definition.serializedSize(known.definition, version)
+            return route.serializedSize(known.route, version)
+                 + definition.serializedSize(known.definition, version)
                  + knownExecuteAt.serializedSize(known.executeAt, version)
                  + knownDeps.serializedSize(known.deps, version)
                  + outcome.serializedSize(known.outcome, version);

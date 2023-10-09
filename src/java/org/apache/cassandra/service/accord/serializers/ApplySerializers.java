@@ -63,7 +63,7 @@ public class ApplySerializers
                                     DepsSerializer.partialDeps.deserialize(in, version),
                                     CommandSerializers.nullablePartialTxn.deserialize(in, version),
                                     CommandSerializers.writes.deserialize(in, version),
-                                    Result.APPLIED);
+                                    CommandSerializers.APPLIED);
         }
 
         @Override

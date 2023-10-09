@@ -161,8 +161,9 @@ public class AccordInteropRead extends AbstractExecute
     }
 
     @Override
-    protected AsyncChain<Data> execute(SafeCommandStore safeStore, Timestamp executeAt, PartialTxn txn)
+    protected AsyncChain<Data> execute(SafeCommandStore safeStore, Timestamp executeAt, PartialTxn txn, Ranges unavailable)
     {
+        // TODO (required): subtract unavailable ranges, either from read or from response (or on coordinator)
         return AsyncChains.ofCallable(Stage.READ.executor(), () -> new LocalReadData(ReadCommandVerbHandler.instance.doRead(command, false)));
     }
 

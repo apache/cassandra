@@ -350,7 +350,7 @@ public class CompactionAccordIteratorsTest
     private static RedundantBefore redundantBefore(TxnId txnId)
     {
         Ranges ranges = AccordTestUtils.fullRange(AccordTestUtils.keys(table, 42));
-        return RedundantBefore.create(ranges, Long.MIN_VALUE, Long.MAX_VALUE, txnId, LT_TXN_ID);
+        return RedundantBefore.create(ranges, Long.MIN_VALUE, Long.MAX_VALUE, txnId, txnId, LT_TXN_ID);
     }
 
     enum DurableBeforeType
