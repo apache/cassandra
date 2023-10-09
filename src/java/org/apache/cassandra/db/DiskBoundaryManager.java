@@ -125,7 +125,7 @@ public class DiskBoundaryManager
     {
         RangesAtEndpoint localRanges;
         if (StorageService.instance.isBootstrapMode()
-        && !StorageService.isReplacingSameAddress()) // When replacing same address, the node marks itself as UN locally
+        && !StorageService.instance.isReplacingSameAddress()) // When replacing same address, the node marks itself as UN locally
         {
             PendingRangeCalculatorService.instance.blockUntilFinished();
             localRanges = tmd.getPendingRanges(cfs.getKeyspaceName(), FBUtilities.getBroadcastAddressAndPort());

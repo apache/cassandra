@@ -19,6 +19,7 @@ package org.apache.cassandra.gms;
 
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.service.SharedContext;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,15 +30,28 @@ public class GossipShutdownVerbHandler implements IVerbHandler<GossipShutdown>
 
     private static final Logger logger = LoggerFactory.getLogger(GossipShutdownVerbHandler.class);
 
+    private final SharedContext ctx;
+
+    public GossipShutdownVerbHandler()
+    {
+        this(SharedContext.Global.instance);
+    }
+
+    public GossipShutdownVerbHandler(SharedContext ctx)
+    {
+        this.ctx = ctx;
+    }
+
     public void doVerb(Message<GossipShutdown> message)
     {
-        if (!Gossiper.instance.isEnabled())
+        Gossiper inst = ctx.gossiper();
+        if (!inst.isEnabled())
         {
             logger.debug("Ignoring shutdown message from {} because gossip is disabled", message.from());
             return;
         }
-        if (message.payload == null) Gossiper.instance.markAsShutdown(message.from());
-        else                         Gossiper.instance.markAsShutdown(message.from(), message.payload.state);
+        if (message.payload == null) inst.markAsShutdown(message.from());
+        else                         inst.markAsShutdown(message.from(), message.payload.state);
     }
 
 }

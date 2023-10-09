@@ -32,7 +32,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.RepairRetrySpec;
 import org.apache.cassandra.config.RetrySpec;
-import org.apache.cassandra.repair.SharedContext;
+import org.apache.cassandra.service.SharedContext;
 import org.apache.cassandra.exceptions.RepairException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.locator.InetAddressAndPort;

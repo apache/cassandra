@@ -23,6 +23,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import com.google.common.collect.Iterables;
+import org.apache.cassandra.service.SharedContext;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;

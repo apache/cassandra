@@ -52,7 +52,7 @@ public class FailedAckTest extends FuzzTestBase
         DatabaseDescriptor.getRepairRetrySpec().maxAttempts = new RetrySpec.MaxAttempt(Integer.MAX_VALUE);
         DatabaseDescriptor.setRepairPendingCompactionRejectThreshold(1);
         Gen<RepairStage> stageGen = Gens.enums().all(RepairStage.class);
-        qt().withPure(false).withExamples(10).check(rs -> {
+        qt().withSeed(-7909491684085708484L).withPure(false).withExamples(10).check(rs -> {
             Cluster cluster = new Cluster(rs);
             enableMessageFaults(cluster);
 

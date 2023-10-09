@@ -22,7 +22,7 @@ import java.util.Objects;
 
 import com.google.common.base.Preconditions;
 
-import org.apache.cassandra.repair.SharedContext;
+import org.apache.cassandra.service.SharedContext;
 
 /**
  * Basically just a record of a local session. All of the local session logic is implemented in {@link LocalSessions}

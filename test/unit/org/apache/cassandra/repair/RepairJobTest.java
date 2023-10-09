@@ -40,6 +40,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 
 import org.apache.cassandra.repair.messages.SyncResponse;
 import org.apache.cassandra.repair.messages.ValidationResponse;
+import org.apache.cassandra.service.SharedContext;
 import org.assertj.core.api.Assertions;
 import org.junit.After;
 import org.junit.Before;

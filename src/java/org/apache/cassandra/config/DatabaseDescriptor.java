@@ -169,7 +169,7 @@ public class DatabaseDescriptor
     private static InetAddress broadcastAddress;
     private static InetAddress rpcAddress;
     private static InetAddress broadcastRpcAddress;
-    private static SeedProvider seedProvider;
+    private static volatile SeedProvider seedProvider;
     private static IInternodeAuthenticator internodeAuthenticator = new AllowAllInternodeAuthenticator();
 
     /* Hashing strategy Random or OPHF */

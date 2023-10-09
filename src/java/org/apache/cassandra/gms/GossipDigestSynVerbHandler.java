@@ -29,7 +29,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.service.SharedContext;
 
 import static org.apache.cassandra.net.Verb.GOSSIP_DIGEST_ACK;
 
@@ -39,12 +39,23 @@ public class GossipDigestSynVerbHandler extends GossipVerbHandler<GossipDigestSy
 
     private static final Logger logger = LoggerFactory.getLogger(GossipDigestSynVerbHandler.class);
 
+    public GossipDigestSynVerbHandler()
+    {
+        super(SharedContext.Global.instance);
+    }
+
+    public GossipDigestSynVerbHandler(SharedContext ctx)
+    {
+        super(ctx);
+    }
+
     public void doVerb(Message<GossipDigestSyn> message)
     {
         InetAddressAndPort from = message.from();
         if (logger.isTraceEnabled())
             logger.trace("Received a GossipDigestSynMessage from {}", from);
-        if (!Gossiper.instance.isEnabled() && !Gossiper.instance.isInShadowRound())
+        Gossiper inst = ctx.gossiper();
+        if (!inst.isEnabled() && !inst.isInShadowRound())
         {
             if (logger.isTraceEnabled())
                 logger.trace("Ignoring GossipDigestSynMessage because gossip is disabled");
@@ -72,7 +83,7 @@ public class GossipDigestSynVerbHandler extends GossipVerbHandler<GossipDigestSy
         // be in the sender's seed list and doing this allows the sender to
         // differentiate between seeds from which it is partitioned and those which
         // are in their shadow round
-        if (!Gossiper.instance.isEnabled() && Gossiper.instance.isInShadowRound())
+        if (!inst.isEnabled() && inst.isInShadowRound())
         {
             // a genuine syn (as opposed to one from a node currently
             // doing a shadow round) will always contain > 0 digests
@@ -84,9 +95,9 @@ public class GossipDigestSynVerbHandler extends GossipVerbHandler<GossipDigestSy
 
             logger.debug("Received a shadow round syn from {}. Gossip is disabled but " +
                          "currently also in shadow round, responding with a minimal ack", from);
-            MessagingService.instance()
-                            .send(Message.out(GOSSIP_DIGEST_ACK, new GossipDigestAck(Collections.emptyList(), Collections.emptyMap())),
-                                  from);
+            ctx.messaging()
+               .send(Message.out(GOSSIP_DIGEST_ACK, new GossipDigestAck(Collections.emptyList(), Collections.emptyMap())),
+                     from);
             return;
         }
 
@@ -107,24 +118,24 @@ public class GossipDigestSynVerbHandler extends GossipVerbHandler<GossipDigestSy
 
         if (logger.isTraceEnabled())
             logger.trace("Sending a GossipDigestAckMessage to {}", from);
-        MessagingService.instance().send(gDigestAckMessage, from);
+        ctx.messaging().send(gDigestAckMessage, from);
 
         super.doVerb(message);
     }
 
-    private static Message<GossipDigestAck> createNormalReply(List<GossipDigest> gDigestList)
+    private Message<GossipDigestAck> createNormalReply(List<GossipDigest> gDigestList)
     {
         List<GossipDigest> deltaGossipDigestList = new ArrayList<>();
         Map<InetAddressAndPort, EndpointState> deltaEpStateMap = new HashMap<>();
-        Gossiper.instance.examineGossiper(gDigestList, deltaGossipDigestList, deltaEpStateMap);
+        ctx.gossiper().examineGossiper(gDigestList, deltaGossipDigestList, deltaEpStateMap);
         logger.trace("sending {} digests and {} deltas", deltaGossipDigestList.size(), deltaEpStateMap.size());
 
         return Message.out(GOSSIP_DIGEST_ACK, new GossipDigestAck(deltaGossipDigestList, deltaEpStateMap));
     }
 
-    private static Message<GossipDigestAck> createShadowReply()
+    private Message<GossipDigestAck> createShadowReply()
     {
-        Map<InetAddressAndPort, EndpointState> stateMap = Gossiper.instance.examineShadowState();
+        Map<InetAddressAndPort, EndpointState> stateMap = ctx.gossiper().examineShadowState();
         logger.trace("sending 0 digests and {} deltas", stateMap.size());
         return Message.out(GOSSIP_DIGEST_ACK, new GossipDigestAck(Collections.emptyList(), stateMap));
     }

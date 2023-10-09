@@ -104,6 +104,12 @@ public class EndpointState
         return applicationState.get().entrySet();
     }
 
+    @VisibleForTesting
+    public Map<ApplicationState, VersionedValue> unsafeGetStates()
+    {
+        return applicationState.get();
+    }
+
     public void addApplicationState(ApplicationState key, VersionedValue value)
     {
         addApplicationStates(Collections.singletonMap(key, value));
@@ -116,6 +122,8 @@ public class EndpointState
 
     public void addApplicationStates(Set<Map.Entry<ApplicationState, VersionedValue>> values)
     {
+        if (values.isEmpty())
+            return;
         while (true)
         {
             Map<ApplicationState, VersionedValue> orig = applicationState.get();
@@ -152,7 +160,8 @@ public class EndpointState
                || (statesPresent.contains(ApplicationState.RPC_ADDRESS) && statesPresent.contains(ApplicationState.NATIVE_ADDRESS_AND_PORT));
     }
 
-    private static Map<ApplicationState, VersionedValue> filterMajorVersion3LegacyApplicationStates(Map<ApplicationState, VersionedValue> states)
+    @VisibleForTesting
+    public static Map<ApplicationState, VersionedValue> filterMajorVersion3LegacyApplicationStates(Map<ApplicationState, VersionedValue> states)
     {
         return states.entrySet().stream().filter(entry -> {
                 // Filter out pre-4.0 versions of data for more complete 4.0 versions

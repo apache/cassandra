@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.repair;
+package org.apache.cassandra.service;
 
 import java.util.Random;
 import java.util.function.Supplier;
@@ -31,12 +31,14 @@ import org.apache.cassandra.db.compaction.ICompactionManager;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.IFailureDetector;
-import org.apache.cassandra.gms.IGossiper;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.repair.IValidationManager;
+import org.apache.cassandra.repair.StreamExecutor;
+import org.apache.cassandra.repair.TableRepairManager;
+import org.apache.cassandra.repair.ValidationManager;
 import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
@@ -61,7 +63,8 @@ public interface SharedContext
     MessageDelivery messaging();
     IFailureDetector failureDetector();
     IEndpointSnitch snitch();
-    IGossiper gossiper();
+    Gossiper gossiper();
+    StorageService storageService();
     ICompactionManager compactionManager();
     ActiveRepairService repair();
     IValidationManager validationManager();
@@ -127,9 +130,15 @@ public interface SharedContext
         }
 
         @Override
-        public IGossiper gossiper()
+        public Gossiper gossiper()
         {
             return Gossiper.instance;
+        }
+
+        @Override
+        public StorageService storageService()
+        {
+            return StorageService.instance;
         }
 
         @Override

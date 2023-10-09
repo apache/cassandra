@@ -25,6 +25,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.service.SharedContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

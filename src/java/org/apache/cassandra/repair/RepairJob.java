@@ -35,6 +35,7 @@ import com.google.common.util.concurrent.*;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.repair.state.JobState;
+import org.apache.cassandra.service.SharedContext;
 import org.apache.cassandra.utils.concurrent.AsyncFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

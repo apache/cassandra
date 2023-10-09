@@ -21,7 +21,6 @@ package org.apache.cassandra.service;
  */
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.NoPayload;
 
 import org.slf4j.Logger;
@@ -33,13 +32,25 @@ public class EchoVerbHandler implements IVerbHandler<NoPayload>
 
     private static final Logger logger = LoggerFactory.getLogger(EchoVerbHandler.class);
 
+    private final SharedContext ctx;
+
+    public EchoVerbHandler()
+    {
+        this(SharedContext.Global.instance);
+    }
+
+    public EchoVerbHandler(SharedContext ctx)
+    {
+        this.ctx = ctx;
+    }
+
     public void doVerb(Message<NoPayload> message)
     {
         // only respond if we are not shutdown
-        if (!StorageService.instance.isShutdown())
+        if (!ctx.storageService().isShutdown())
         {
             logger.trace("Sending ECHO_RSP to {}", message.from());
-            MessagingService.instance().send(message.emptyResponse(), message.from());
+            ctx.messaging().send(message.emptyResponse(), message.from());
         }
         else
         {

@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.repair;
 
+import org.apache.cassandra.service.SharedContext;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;

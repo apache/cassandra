@@ -20,11 +20,20 @@ package org.apache.cassandra.gms;
 
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
+import org.apache.cassandra.service.SharedContext;
 
-public class GossipVerbHandler<T> implements IVerbHandler<T>
+public abstract class GossipVerbHandler<T> implements IVerbHandler<T>
 {
+    protected final SharedContext ctx;
+
+    public GossipVerbHandler(SharedContext ctx)
+    {
+        this.ctx = ctx;
+    }
+
     public void doVerb(Message<T> message)
     {
-        Gossiper.instance.setLastProcessedMessageAt(message.creationTimeMillis());
+        // TODO (now): simulate message.creationTimeMillis() or at least fix the timestamp...
+        ctx.gossiper().setLastProcessedMessageAt(message.creationTimeMillis());
     }
 }

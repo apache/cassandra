@@ -78,7 +78,7 @@ public class FailureDetectorTest
 
         // trigger handleStateLeft in StorageService
         ss.onChange(leftHost, ApplicationState.STATUS_WITH_PORT,
-                    valueFactory.left(Collections.singleton(endpointTokens.get(1)), Gossiper.computeExpireTime()));
+                    valueFactory.left(Collections.singleton(endpointTokens.get(1)), Gossiper.instance.computeExpireTime()));
 
         // confirm that handleStateLeft was called and leftEndpoint was removed from TokenMetadata
         assertFalse("Left endpoint not removed from TokenMetadata", tmd.isMember(leftHost));

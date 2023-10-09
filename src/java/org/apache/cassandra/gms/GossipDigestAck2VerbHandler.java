@@ -19,6 +19,7 @@ package org.apache.cassandra.gms;
 
 import java.util.Map;
 
+import org.apache.cassandra.service.SharedContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,6 +32,16 @@ public class GossipDigestAck2VerbHandler extends GossipVerbHandler<GossipDigestA
 
     private static final Logger logger = LoggerFactory.getLogger(GossipDigestAck2VerbHandler.class);
 
+    public GossipDigestAck2VerbHandler()
+    {
+        super(SharedContext.Global.instance);
+    }
+
+    public GossipDigestAck2VerbHandler(SharedContext ctx)
+    {
+        super(ctx);
+    }
+
     public void doVerb(Message<GossipDigestAck2> message)
     {
         if (logger.isTraceEnabled())
@@ -38,7 +49,8 @@ public class GossipDigestAck2VerbHandler extends GossipVerbHandler<GossipDigestA
             InetAddressAndPort from = message.from();
             logger.trace("Received a GossipDigestAck2Message from {}", from);
         }
-        if (!Gossiper.instance.isEnabled())
+        Gossiper inst = ctx.gossiper();
+        if (!inst.isEnabled())
         {
             if (logger.isTraceEnabled())
                 logger.trace("Ignoring GossipDigestAck2Message because gossip is disabled");
@@ -46,8 +58,8 @@ public class GossipDigestAck2VerbHandler extends GossipVerbHandler<GossipDigestA
         }
         Map<InetAddressAndPort, EndpointState> remoteEpStateMap = message.payload.epStateMap;
         /* Notify the Failure Detector */
-        Gossiper.instance.notifyFailureDetector(remoteEpStateMap);
-        Gossiper.instance.applyStateLocally(remoteEpStateMap);
+        inst.notifyFailureDetector(remoteEpStateMap);
+        inst.applyStateLocally(remoteEpStateMap);
 
         super.doVerb(message);
     }
