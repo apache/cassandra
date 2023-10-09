@@ -52,16 +52,16 @@ public class DirectIOSegment extends CommitLogSegment
         // Testing shows writing initial bytes takes some time. During peak load, it helps
         // lot and Syncer thread can actually do flush activity. Making this initial
         // slow operation to be executed by Allocator thread here.
-        int oldLastSyncedOffset=lastSyncedOffset;
+        int oldLastSyncedOffset = lastSyncedOffset;
         // 8 bytes are written above.
-        lastSyncedOffset=8;
-        flush(0,lastSyncedOffset);
+        lastSyncedOffset = 8;
+        flush(0, lastSyncedOffset);
         lastSyncedOffset = oldLastSyncedOffset;
     }
 
     ByteBuffer createBuffer(CommitLog commitLog)
     {
-        if (minimumAllowedAlign ==0)
+        if (minimumAllowedAlign == 0)
         {
             try
             {
@@ -79,8 +79,8 @@ public class DirectIOSegment extends CommitLogSegment
         ByteBuffer alignedBuffer = original.alignedSlice(minimumAllowedAlign);
         assert alignedBuffer.limit() >= cl_size : String.format("Bytebuffer slicing failed to get required buffer size (required=%d,current size=%d", cl_size, alignedBuffer.limit());
 
-        assert alignedBuffer.alignmentOffset(0, minimumAllowedAlign) ==0 : "Index 0 should be aligned to 4K page size";
-        assert alignedBuffer.alignmentOffset(alignedBuffer.limit(), minimumAllowedAlign) ==0 : "Limit should be aligned to 4K page size" ;
+        assert alignedBuffer.alignmentOffset(0, minimumAllowedAlign) == 0 : "Index 0 should be aligned to 4K page size";
+        assert alignedBuffer.alignmentOffset(alignedBuffer.limit(), minimumAllowedAlign) == 0 : "Limit should be aligned to 4K page size" ;
 
         manager.addSize(cl_size);
 

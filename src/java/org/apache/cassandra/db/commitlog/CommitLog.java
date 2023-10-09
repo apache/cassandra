@@ -613,7 +613,11 @@ public class CommitLog implements CommitLogMBean
 
     public static final class Configuration
     {
+        /**
+         * Flag used to shows user configured Direct-IO status.
+         */
         private final boolean useDirectIO;
+
         /**
          * The compressor class.
          */
