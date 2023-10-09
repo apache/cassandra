@@ -452,7 +452,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
         current = null;
     }
 
-    <O> O mapReduceForRange(Routables<?> keysOrRanges, Ranges slice, BiFunction<CommandTimeseriesHolder, O, O> map, O accumulate, Predicate<O> terminate)
+    <O> O mapReduceForRange(Routables<?> keysOrRanges, Ranges slice, BiFunction<CommandTimeseriesHolder, O, O> map, O accumulate, Predicate<? super O> terminate)
     {
         keysOrRanges = keysOrRanges.slice(slice, Routables.Slice.Minimal);
         switch (keysOrRanges.domain())
@@ -551,6 +551,9 @@ public class AccordCommandStore extends CommandStore implements CacheSize
         super.markShardDurable(safeStore, globalSyncId, ranges);
         commandsForRanges.prune(globalSyncId, ranges);
     }
+
+    public NavigableMap<TxnId, Ranges> bootstrapBeganAt() { return super.bootstrapBeganAt(); }
+    public NavigableMap<Timestamp, Ranges> safeToRead() { return super.safeToRead(); }
 
     MessageProvider makeMessageProvider(TxnId txnId)
     {

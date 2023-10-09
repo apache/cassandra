@@ -20,12 +20,16 @@ package org.apache.cassandra.simulator;
 
 import java.lang.reflect.Array;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.function.IntSupplier;
 import java.util.function.LongSupplier;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
+
+import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.utils.Shared;
 
@@ -47,10 +51,19 @@ public interface RandomSource
 
         public T choose(RandomSource random)
         {
+            return choose(random.uniformFloat());
+        }
+
+        public T choose(accord.utils.RandomSource random)
+        {
+            return choose(random.nextFloat());
+        }
+
+        private T choose(float choose)
+        {
             if (options.length == 0)
                 return null;
 
-            float choose = random.uniformFloat();
             int i = Arrays.binarySearch(cumulativeProbabilities, choose);
 
             if (i < 0) i = -1 - i;
@@ -130,6 +143,41 @@ public interface RandomSource
             float[] nonCumulativeProbabilities = new float[options.length];
             Arrays.fill(nonCumulativeProbabilities, 1f / options.length);
             return new Choices<>(cumulativeProbabilities(nonCumulativeProbabilities), options);
+        }
+
+        public static <T> T choose(RandomSource rs, Set<T> set)
+        {
+            return choose(rs.uniform(0, set.size()), set);
+        }
+
+        public static <T> T choose(accord.utils.RandomSource rs, Set<T> set)
+        {
+            return choose(rs.nextInt(set.size()), set);
+        }
+
+        private static <T> T choose(int i, Set<T> set)
+        {
+            return Iterators.get(set.iterator(), i);
+        }
+
+        public static <T> T choose(RandomSource rs, List<T> list)
+        {
+            return list.get(rs.uniform(0, list.size()));
+        }
+
+        public static <T> T choose(accord.utils.RandomSource rs, List<T> list)
+        {
+            return list.get(rs.nextInt(list.size()));
+        }
+
+        public static <T> T choose(RandomSource rs, T ... array)
+        {
+            return array[rs.uniform(0, array.length)];
+        }
+
+        public static <T> T choose(accord.utils.RandomSource rs, T ... array)
+        {
+            return array[rs.nextInt(array.length)];
         }
     }
 

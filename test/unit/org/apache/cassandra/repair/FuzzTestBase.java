@@ -148,6 +148,7 @@ import org.quicktheories.impl.JavaRandom;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CLOCK_GLOBAL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
+import static org.apache.cassandra.simulator.RandomSource.Choices.choose;
 
 public abstract class FuzzTestBase extends CQLTester.InMemory
 {
@@ -416,13 +417,12 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
     {
         if (repair.state.isComplete())
             throw new IllegalStateException("Repair is completed! " + repair.state.getResult());
-        List<InetAddressAndPort> participaents = new ArrayList<>(repair.state.getNeighborsAndRanges().participants.size() + 1);
-        if (rs.nextBoolean()) participaents.add(coordinator.broadcastAddressAndPort());
-        participaents.addAll(repair.state.getNeighborsAndRanges().participants);
-        participaents.sort(Comparator.naturalOrder());
+        List<InetAddressAndPort> participants = new ArrayList<>(repair.state.getNeighborsAndRanges().participants.size() + 1);
+        if (rs.nextBoolean()) participants.add(coordinator.broadcastAddressAndPort());
+        participants.addAll(repair.state.getNeighborsAndRanges().participants);
+        participants.sort(Comparator.naturalOrder());
 
-        InetAddressAndPort selected = rs.pick(participaents);
-        return selected;
+        return participants.get(rs.nextInt(participants.size()));
     }
 
     static void addMismatch(RandomSource rs, ColumnFamilyStore cfs, Validator validator)
@@ -681,7 +681,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                 {
                 }
 
-                String dc = rs.pick(dcs);
+                String dc = choose(rs, dcs);
                 String rack = "rack";
                 Mockito.when(snitch.getDatacenter(Mockito.eq(addressAndPort))).thenReturn(dc);
                 Mockito.when(snitch.getRack(Mockito.eq(addressAndPort))).thenReturn(rack);
