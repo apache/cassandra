@@ -31,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.Result;
+import accord.config.LocalConfig;
 import accord.coordinate.Preempted;
 import accord.coordinate.Timeout;
 import accord.impl.AbstractConfigurationService;
@@ -105,6 +106,7 @@ public class AccordService implements IAccordService, Shutdownable
     private final AccordDataStore dataStore;
     private final AccordJournal journal;
     private final AccordVerbHandler<? extends Request> verbHandler;
+    private final LocalConfig configuration;
 
     private static final IAccordService NOOP_SERVICE = new IAccordService()
     {
@@ -117,13 +119,13 @@ public class AccordService implements IAccordService, Shutdownable
         @Override
         public TxnData coordinate(Txn txn, ConsistencyLevel consistencyLevel)
         {
-            throw new UnsupportedOperationException("No accord transaction should be executed when accord_transactions_enabled = false in cassandra.yaml");
+            throw new UnsupportedOperationException("No accord transaction should be executed when accord.enabled = false in cassandra.yaml");
         }
 
         @Override
         public long currentEpoch()
         {
-            throw new UnsupportedOperationException("Cannot return epoch when accord_transactions_enabled = false in cassandra.yaml");
+            throw new UnsupportedOperationException("Cannot return epoch when accord.enabled = false in cassandra.yaml");
         }
 
         @Override
@@ -132,7 +134,7 @@ public class AccordService implements IAccordService, Shutdownable
         @Override
         public TopologyManager topology()
         {
-            throw new UnsupportedOperationException("Cannot return topology when accord_transactions_enabled = false in cassandra.yaml");
+            throw new UnsupportedOperationException("Cannot return topology when accord.enabled = false in cassandra.yaml");
         }
 
         @Override
@@ -227,6 +229,7 @@ public class AccordService implements IAccordService, Shutdownable
         this.scheduler = new AccordScheduler();
         this.dataStore = new AccordDataStore();
         this.journal = new AccordJournal();
+        this.configuration = new AccordConfiguration(DatabaseDescriptor.getRawConfig());
         this.node = new Node(localId,
                              messageSink,
                              this::handleLocalMessage,
@@ -240,7 +243,8 @@ public class AccordService implements IAccordService, Shutdownable
                              scheduler,
                              SizeOfIntersectionSorter.SUPPLIER,
                              SimpleProgressLog::new,
-                             AccordCommandStores.factory(journal));
+                             AccordCommandStores.factory(journal),
+                             configuration);
         this.nodeShutdown = toShutdownable(node);
         this.verbHandler = new AccordVerbHandler<>(node, configService, journal);
     }

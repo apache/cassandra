@@ -98,7 +98,7 @@ public class TransactionStatement implements CQLStatement.CompositeCQLStatement,
     public static final String NO_TIMESTAMPS_IN_UPDATES_MESSAGE = "Updates within transactions may not specify custom timestamps; %s statement %s";
     public static final String EMPTY_TRANSACTION_MESSAGE = "Transaction contains no reads or writes";
     public static final String SELECT_REFS_NEED_COLUMN_MESSAGE = "SELECT references must specify a column.";
-    public static final String TRANSACTIONS_DISABLED_MESSAGE = "Accord transactions are disabled. (See accord_transactions_enabled in cassandra.yaml)";
+    public static final String TRANSACTIONS_DISABLED_MESSAGE = "Accord transactions are disabled. (See accord.enabled in cassandra.yaml)";
     public static final String ILLEGAL_RANGE_QUERY_MESSAGE = "Range queries are not allowed for reads within a transaction; %s %s";
 
     static class NamedSelect

@@ -25,8 +25,6 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.apache.cassandra.schema.Schema;
-import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
 import org.apache.cassandra.db.virtual.AccordVirtualTables;
@@ -39,14 +37,15 @@ import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.test.TestBaseImpl;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.service.accord.AccordService;
 import org.apache.cassandra.utils.AssertionUtils;
-
-import static org.junit.Assert.assertEquals;
+import org.assertj.core.api.Assertions;
 
 import static org.apache.cassandra.config.DatabaseDescriptor.NO_ACCORD_PAXOS_STRATEGY_WITH_ACCORD_DISABLED_MESSAGE;
 import static org.apache.cassandra.cql3.statements.TransactionStatement.TRANSACTIONS_DISABLED_MESSAGE;
 import static org.apache.cassandra.schema.SchemaConstants.ACCORD_KEYSPACE_NAME;
+import static org.junit.Assert.assertEquals;
 
 public class AccordFeatureFlagTest extends TestBaseImpl
 {
@@ -55,7 +54,7 @@ public class AccordFeatureFlagTest extends TestBaseImpl
     {
         try (Cluster cluster = init(Cluster.build(1)
                                            .withoutVNodes()
-                                           .withConfig(c -> c.with(Feature.NETWORK).set("accord_transactions_enabled", "false"))
+                                           .withConfig(c -> c.with(Feature.NETWORK).set("accord.enabled", "false"))
                                            .start()))
         {
             cluster.schemaChange("CREATE TABLE " + KEYSPACE + ".tbl (k int, c int, v int, primary key (k, c))");
@@ -91,7 +90,7 @@ public class AccordFeatureFlagTest extends TestBaseImpl
         try (Cluster cluster = Cluster.build(1)
                                       .withoutVNodes()
                                       .withConfig(c -> c.with(Feature.NETWORK)
-                                                        .set("accord_transactions_enabled", "false")
+                                                        .set("accord.enabled", "false")
                                                         .set("legacy_paxos_strategy", "accord")).createWithoutStarting())
         {
 

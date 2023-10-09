@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.config;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -133,6 +134,11 @@ public abstract class DurationSpec
     public TimeUnit unit()
     {
         return unit;
+    }
+
+    public Duration toDuration()
+    {
+        return Duration.of(quantity(), unit().toChronoUnit());
     }
 
     /**
