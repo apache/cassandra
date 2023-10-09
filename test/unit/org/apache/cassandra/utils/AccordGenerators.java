@@ -26,6 +26,7 @@ import java.util.Set;
 
 import accord.local.Command;
 import accord.primitives.Deps;
+import accord.primitives.FullRoute;
 import accord.primitives.KeyDeps;
 import accord.primitives.PartialTxn;
 import accord.primitives.Range;
@@ -74,6 +75,8 @@ public class AccordGenerators
         //TODO goes against fuzz testing, and also limits to a very specific table existing...
         // There is a branch that can generate random transactions, so maybe look into that?
         PartialTxn txn = createPartialTxn(0);
+        FullRoute<?> route = txn.keys().toRoute(txn.keys().get(0).someIntersectingRoutingKey(null));
+
         return rs -> {
             TxnId id = ids.next(rs);
             Timestamp executeAt = id;
