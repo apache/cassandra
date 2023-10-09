@@ -388,9 +388,6 @@ public class Config
     public DataStorageSpec.IntMebibytesBound commitlog_total_space;
     public CommitLogSync commitlog_sync;
 
-    // Accord Journal
-    public String accord_journal_directory;
-
     @Replaces(oldName = "commitlog_sync_group_window_in_ms", converter = Converters.MILLIS_DURATION_DOUBLE, deprecated = true)
     public DurationSpec.IntMillisecondsBound commitlog_sync_group_window = new DurationSpec.IntMillisecondsBound("0ms");
     @Replaces(oldName = "commitlog_sync_period_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
@@ -604,9 +601,6 @@ public class Config
     public volatile boolean drop_compact_storage_enabled = false;
 
     public volatile boolean use_statements_enabled = true;
-
-    public boolean accord_transactions_enabled = false;
-    public OptionaldPositiveInt accord_shard_count = OptionaldPositiveInt.UNDEFINED;
 
     /**
      * Optionally disable asynchronous UDF execution.
@@ -1142,6 +1136,8 @@ public class Config
      * Default compaction configuration, used if a table does not specify any.
      */
     public ParameterizedClass default_compaction = null;
+
+    public final AccordSpec accord = new AccordSpec();
 
     public static Supplier<Config> getOverrideLoadConfig()
     {
