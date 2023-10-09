@@ -129,9 +129,7 @@ public class RecoverySerializers
 
             Result result = null;
             if (status == Status.PreApplied || status == Status.Applied || status == Status.Truncated)
-                result = Result.APPLIED;
-            else if (status == Status.Invalidated)
-                result = Result.INVALIDATED;
+                result = CommandSerializers.APPLIED;
 
             return deserializeOk(id,
                                  status,

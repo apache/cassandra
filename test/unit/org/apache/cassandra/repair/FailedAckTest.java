@@ -40,6 +40,7 @@ import org.assertj.core.api.Assertions;
 import org.mockito.Mockito;
 
 import static accord.utils.Property.qt;
+import static org.apache.cassandra.simulator.RandomSource.Choices.choose;
 
 public class FailedAckTest extends FuzzTestBase
 {
@@ -66,7 +67,7 @@ public class FailedAckTest extends FuzzTestBase
                 RepairCoordinator repair = coordinator.repair(KEYSPACE, irOption(rs, coordinator, KEYSPACE, ignore -> TABLES), false);
                 repair.run();
                 // make sure the failing node is not the coordinator, else messaging isn't used
-                InetAddressAndPort failingAddress = rs.pick(repair.state.getNeighborsAndRanges().participants);
+                InetAddressAndPort failingAddress = choose(rs, repair.state.getNeighborsAndRanges().participants);
                 Cluster.Node failingNode = cluster.nodes.get(failingAddress);
                 RepairStage stage = stageGen.next(rs);
                 switch (stage)
