@@ -56,6 +56,30 @@ public class LuceneAnalyzerTest extends SAITester
     }
 
     @Test
+    public void testStandardQueryAnalyzer()
+    {
+        createTable("CREATE TABLE %s (id int PRIMARY KEY, val text)");
+
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex' WITH OPTIONS = {" +
+                    "'index_analyzer': 'standard'};");
+
+        waitForIndexQueryable();
+
+        execute("INSERT INTO %s (id, val) VALUES (1, 'some row')");
+        execute("INSERT INTO %s (id, val) VALUES (2, 'a different row')");
+        execute("INSERT INTO %s (id, val) VALUES (3, 'a row with some and different but not together')");
+        execute("INSERT INTO %s (id, val) VALUES (4, 'a row with some different together')");
+        execute("INSERT INTO %s (id, val) VALUES (5, 'a row with some Different together but not same casing')");
+
+        flush();
+
+        // The query is parsed by the standard analyzer, so the query is tokenized by whitespace and lowercased
+        // and then we do an intersection on the results and get docs that have 'some' and 'different'
+        assertRows(execute("SELECT id FROM %s WHERE val : 'Some different'"), row(5), row(4), row(3));
+        assertRows(execute("SELECT id FROM %s WHERE val : 'some different'"), row(5), row(4), row(3));
+    }
+
+    @Test
     public void testQueryAnalyzerBuiltIn() throws Throwable
     {
         createTable("CREATE TABLE %s (id int PRIMARY KEY, val text)");
