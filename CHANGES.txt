@@ -1,4 +1,5 @@
 accord
+ * Add Accord configuration stub (CASSANDRA-18221)
  * Improve transaction statement validation (CASSANDRA-18302)
  * Add support for prepared statements for accord transactions (CASSANDRA-18299)
  * Fix statement validation against partition range queries (CASSANDRA-18240)

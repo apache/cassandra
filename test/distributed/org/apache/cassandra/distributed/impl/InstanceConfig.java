@@ -30,6 +30,8 @@ import java.util.UUID;
 import java.util.function.Function;
 
 import com.vdurmont.semver4j.Semver;
+import org.apache.cassandra.config.AccordSpec;
+import org.apache.cassandra.config.OptionaldPositiveInt;
 import org.apache.cassandra.distributed.api.Feature;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.shared.NetworkTopology;
@@ -70,7 +72,7 @@ public class InstanceConfig implements IInstanceConfig
                            String commitlog_directory,
                            String hints_directory,
                            String cdc_raw_directory,
-                           String accord_journal_directory,
+                           AccordSpec accord,
                            Collection<String> initial_token,
                            int storage_port,
                            int native_transport_port,
@@ -91,7 +93,10 @@ public class InstanceConfig implements IInstanceConfig
                 .set("commitlog_directory", commitlog_directory)
                 .set("hints_directory", hints_directory)
                 .set("cdc_raw_directory", cdc_raw_directory)
-                .set("accord_journal_directory", accord_journal_directory)
+                .set("accord.enabled", accord.enabled)
+                .set("accord.journal_directory", accord.journal_directory)
+                .set("accord.shard_count", accord.shard_count.toString())
+                .set("accord.progress_log_schedule_delay", accord.progress_log_schedule_delay.toString())
                 .set("partitioner", "org.apache.cassandra.dht.Murmur3Partitioner")
                 .set("start_native_transport", true)
                 .set("concurrent_writes", 2)
@@ -110,7 +115,6 @@ public class InstanceConfig implements IInstanceConfig
                 // required settings for dtest functionality
                 .set("diagnostic_events_enabled", true)
                 .set("auto_bootstrap", false)
-                .set("accord_transactions_enabled", true)
                 // capacities that are based on `totalMemory` that should be fixed size
                 .set("index_summary_capacity", "50MiB")
                 .set("counter_cache_size", "50MiB")
@@ -263,6 +267,10 @@ public class InstanceConfig implements IInstanceConfig
                                           Collection<String> tokens,
                                           int datadirCount)
     {
+        AccordSpec accordSpec = new AccordSpec();
+        accordSpec.enabled = true;
+        accordSpec.journal_directory = String.format("%s/node%d/accord_journal", root, nodeNum);
+        accordSpec.shard_count = new OptionaldPositiveInt(4);
         return new InstanceConfig(nodeNum,
                                   networkTopology,
                                   provisionStrategy.ipAddress(nodeNum),
@@ -276,7 +284,7 @@ public class InstanceConfig implements IInstanceConfig
                                   String.format("%s/node%d/commitlog", root, nodeNum),
                                   String.format("%s/node%d/hints", root, nodeNum),
                                   String.format("%s/node%d/cdc", root, nodeNum),
-                                  String.format("%s/node%d/accord_journal", root, nodeNum),
+                                  accordSpec,
                                   tokens,
                                   provisionStrategy.storagePort(nodeNum),
                                   provisionStrategy.nativeTransportPort(nodeNum),
