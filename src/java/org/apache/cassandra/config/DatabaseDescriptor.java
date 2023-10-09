@@ -2674,9 +2674,12 @@ public class DatabaseDescriptor
         conf.commitlog_segment_size = new DataStorageSpec.IntMebibytesBound(sizeMebibytes);
     }
 
-    public static boolean getDirectIOStatus()
+    /**
+     * Return user configured input for Commitlog files.
+     */
+    public static boolean getDirectIOForCommitlogEnabled()
     {
-        return conf.use_directio_for_commitlog;
+        return conf.direct_io_for_commitlog_enabled;
     }
 
     public static String getSavedCachesLocation()
