@@ -374,7 +374,7 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
         //  cfk into memory by retaining at all times in memory key ranges that are dirty and must use this logic;
         //  any that aren't can just use executeAt.hlc
         AccordSafeCommandsForKey cfk = ((AccordSafeCommandStore) safeStore).commandsForKey((RoutableKey) key);
-        cfk.updateLastExecutionTimestamps(executeAt, true);
+        cfk.updateLastExecutionTimestamps(safeStore, executeAt, true);
         long timestamp = cfk.timestampMicrosFor(executeAt, true);
         // TODO (low priority - do we need to compute nowInSeconds, or can we just use executeAt?)
         int nowInSeconds = cfk.nowInSecondsFor(executeAt, true);
