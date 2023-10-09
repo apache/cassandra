@@ -70,6 +70,8 @@ public class CompactionController extends AbstractCompactionController
 
     public CompactionController(CompactionRealm realm, Set<SSTableReader> compacting, int gcBefore, RateLimiter limiter, TombstoneOption tombstoneOption)
     {
+        //When making changes to the method, be aware that some of the state of the controller may still be uninitialized
+        //(e.g. TWCS sets up the value of ignoreOverlaps() after this completes)
         super(realm, gcBefore, tombstoneOption);
         this.compacting = compacting;
         this.limiter = limiter;
@@ -86,16 +88,11 @@ public class CompactionController extends AbstractCompactionController
             else
                 logger.debug("Not using overlaps for {}.{} - neverPurgeTombstones is enabled", realm.getKeyspaceName(), realm.getTableName());
         }
-        else if (ignoreOverlaps())
-        {
-            overlapTracker = realm.getOverlapTracker(null);
-            logger.debug("Ignoring overlapping sstables for {}.{}", realm.getKeyspaceName(), realm.getTableName());
-        }
         else
             overlapTracker = realm.getOverlapTracker(compacting);
 
-        logger.debug("Compaction controller created for {} with {} compacting sstables, {} overlapping sstables, tsOption={}, ignoreOverlaps={}, compactingRepaired={}",
-                     realm.metadata(), compacting == null ? 0 : compacting.size(), overlapTracker == null ? 0 : overlapTracker.overlaps().size(), tombstoneOption, ignoreOverlaps(), compactingRepaired());
+        logger.debug("Compaction controller created for {} with {} compacting sstables, {} overlapping sstables, tsOption={}, compactingRepaired={}",
+                     realm.metadata(), compacting == null ? 0 : compacting.size(), overlapTracker == null ? 0 : overlapTracker.overlaps().size(), tombstoneOption, compactingRepaired());
     }
 
     public void maybeRefreshOverlaps()
@@ -329,6 +326,8 @@ public class CompactionController extends AbstractCompactionController
      * of this time range is fully expired before considering to drop the sstable.
      * This strategy can retain for a long time a lot of sstables on disk (see CASSANDRA-13418) so this option
      * control whether or not this check should be ignored.
+     *
+     * Do NOT call this method in the CompactionController constructor
      *
      * @return false by default
      */

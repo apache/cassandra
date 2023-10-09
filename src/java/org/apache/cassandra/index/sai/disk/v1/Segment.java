@@ -45,9 +45,7 @@ import org.apache.cassandra.io.util.FileUtils;
  */
 public class Segment implements Closeable, SegmentOrdering
 {
-    private final Token minKey;
     private final Token.KeyBound minKeyBound;
-    private final Token maxKey;
     private final Token.KeyBound maxKeyBound;
 
     // per sstable
@@ -61,10 +59,8 @@ public class Segment implements Closeable, SegmentOrdering
 
     public Segment(IndexContext indexContext, SSTableContext sstableContext, PerIndexFiles indexFiles, SegmentMetadata metadata) throws IOException
     {
-        this.minKey = metadata.minKey.token();
-        this.minKeyBound = minKey.minKeyBound();
-        this.maxKey = metadata.maxKey.token();
-        this.maxKeyBound = maxKey.maxKeyBound();
+        this.minKeyBound = metadata.minKey.token().minKeyBound();
+        this.maxKeyBound = metadata.maxKey.token().maxKeyBound();
 
         this.primaryKeyMapFactory = sstableContext.primaryKeyMapFactory;
         this.indexFiles = indexFiles;
@@ -83,9 +79,7 @@ public class Segment implements Closeable, SegmentOrdering
         this.primaryKeyMapFactory = primaryKeyMapFactory;
         this.indexFiles = indexFiles;
         this.metadata = metadata;
-        this.minKey = null;
         this.minKeyBound = null;
-        this.maxKey = null;
         this.maxKeyBound = null;
         this.index = null;
     }
@@ -96,9 +90,7 @@ public class Segment implements Closeable, SegmentOrdering
         this.primaryKeyMapFactory = null;
         this.indexFiles = null;
         this.metadata = null;
-        this.minKey = minKey;
         this.minKeyBound = minKey.minKeyBound();
-        this.maxKey = maxKey;
         this.maxKeyBound = maxKey.maxKeyBound();
         this.index = null;
     }
@@ -113,12 +105,12 @@ public class Segment implements Closeable, SegmentOrdering
 
         int cmp = keyRange.right.compareTo(minKeyBound);
         // if right is minimum, it means right is the max token and bigger than maxKey.
-        // if right bound is less than minKey, no intersection
+        // if right bound is less than minKeyBound, no intersection
         if (!keyRange.right.isMinimum() && (!keyRange.inclusiveRight() && cmp == 0 || cmp < 0))
             return false;
 
         cmp = keyRange.left.compareTo(maxKeyBound);
-        // if left bound is bigger than maxKey, no intersection
+        // if left bound is bigger than maxKeyBound, no intersection
         return (keyRange.isStartInclusive() || cmp != 0) && cmp <= 0;
     }
 

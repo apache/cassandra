@@ -66,8 +66,13 @@ public class SegmentTest
         assertNoOverlapping(seg(tokens.get(5), tokens.get(6)), wrapAround);
 
         // exclusive intersection
+        assertFalse(inclusiveRight(tokens.get(0), tokens.get(1)).contains(tokens.get(0).maxKeyBound()));
         assertNoOverlapping(seg(min, tokens.get(0)), inclusiveRight(tokens.get(0), tokens.get(1)));
+
+        assertFalse(exclusive(tokens.get(0), tokens.get(1)).contains(tokens.get(1).minKeyBound()));
         assertNoOverlapping(seg(tokens.get(1), tokens.get(2)), exclusive(tokens.get(0), tokens.get(1)));
+
+        assertFalse(inclusiveLeft(tokens.get(0), tokens.get(3)).contains(tokens.get(3).minKeyBound()));
         assertNoOverlapping(seg(tokens.get(3), max), inclusiveLeft(tokens.get(0), tokens.get(3)));
 
         // disjoint
