@@ -19,6 +19,7 @@
 package org.apache.cassandra.index;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.notifications.SSTableAddedNotification;
 import org.apache.cassandra.notifications.SSTableListChangedNotification;
@@ -48,6 +49,14 @@ public interface IndexBuildDecider
     default Decision onInitialBuild()
     {
         return Decision.SYNC;
+    }
+
+    /**
+     * @return true if index should be queryable when initial build is skipped by {@link #onInitialBuild()}
+     */
+    default boolean isIndexQueryableWithoutInitialBuild(ColumnFamilyStore cfs)
+    {
+        return false;
     }
 
     default Decision onSSTableListChanged(SSTableListChangedNotification notification)
