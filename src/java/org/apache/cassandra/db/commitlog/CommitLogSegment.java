@@ -139,8 +139,8 @@ public abstract class CommitLogSegment
         Configuration config = commitLog.configuration;
         CommitLogSegment segment = config.useEncryption() ? new EncryptedSegment(commitLog, manager)
                                                           : config.useCompression() ? new CompressedSegment(commitLog, manager)
-                                                                                    : ! config.isDirectIOEnabled() ? new MemoryMappedSegment(commitLog, manager)
-                                                                                                                   : new DirectIOSegment(commitLog, manager);
+                                                                                    : config.isDirectIOEnabled() ? new DirectIOSegment(commitLog, manager)
+                                                                                                                 : new MemoryMappedSegment(commitLog, manager);
         segment.writeLogHeader();
         return segment;
     }
@@ -178,7 +178,7 @@ public abstract class CommitLogSegment
         try
         {
             if(commitLog.configuration.isDirectIOEnabled())
-                channel = FileChannel.open(logFile.toPath(), StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE,ExtendedOpenOption.DIRECT);
+                channel = FileChannel.open(logFile.toPath(), StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE, ExtendedOpenOption.DIRECT);
             else
                 channel = FileChannel.open(logFile.toPath(), StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE);
             fd = NativeLibrary.getfd(channel);
