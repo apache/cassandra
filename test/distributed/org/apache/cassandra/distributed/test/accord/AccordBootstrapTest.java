@@ -174,7 +174,7 @@ public class AccordBootstrapTest extends TestBaseImpl
                                       .withoutVNodes()
                                       .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(expandedNodeCount))
                                       .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(expandedNodeCount, "dc0", "rack0"))
-                                      .withConfig(config -> config.set("accord_shard_count", 2).with(NETWORK, GOSSIP))
+                                      .withConfig(config -> config.set("accord.shard_count", 2).with(NETWORK, GOSSIP))
                                       .start())
         {
             long initialMax = maxEpoch(cluster);
