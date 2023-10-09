@@ -45,6 +45,7 @@ import org.apache.cassandra.utils.Interval;
 import org.apache.cassandra.utils.IntervalTree;
 
 import static accord.utils.Property.qt;
+import static org.apache.cassandra.simulator.RandomSource.Choices.choose;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class CommandsForRangesTest
@@ -91,7 +92,7 @@ public class CommandsForRangesTest
     private static Gen<CommandsForRanges> cfr()
     {
         // TODO (coverage): once all partitioners work with regard to splitting, then should test all
-        Gen<IPartitioner> partitionerGen = rs -> rs.pick(Murmur3Partitioner.instance, RandomPartitioner.instance);
+        Gen<IPartitioner> partitionerGen = rs -> choose(rs, Murmur3Partitioner.instance, RandomPartitioner.instance);
         Gen<SaveStatus> statusGen = Gens.enums().all(SaveStatus.class);
         return rs -> {
             IPartitioner partitioner = partitionerGen.next(rs);

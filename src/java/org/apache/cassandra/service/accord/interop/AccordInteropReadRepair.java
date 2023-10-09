@@ -134,8 +134,9 @@ public class AccordInteropReadRepair extends AbstractExecute
     }
 
     @Override
-    protected AsyncChain<Data> execute(SafeCommandStore safeStore, Timestamp executeAt, PartialTxn txn)
+    protected AsyncChain<Data> execute(SafeCommandStore safeStore, Timestamp executeAt, PartialTxn txn, Ranges unavailable)
     {
+        // TODO (required): subtract unavailable ranges, either from read or from response (or on coordinator)
         return AsyncChains.ofCallable(Verb.READ_REPAIR_REQ.stage.executor(), () -> {
                                           ReadRepairVerbHandler.instance.applyMutation(mutation);
                                           return Data.NOOP_DATA;

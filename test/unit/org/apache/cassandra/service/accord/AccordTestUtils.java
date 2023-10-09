@@ -53,6 +53,7 @@ import accord.local.SaveStatus;
 import accord.local.SaveStatus.LocalExecution;
 import accord.primitives.Ballot;
 import accord.primitives.FullKeyRoute;
+import accord.primitives.FullRoute;
 import accord.primitives.Keys;
 import accord.primitives.PartialDeps;
 import accord.primitives.PartialTxn;
@@ -108,6 +109,7 @@ public class AccordTestUtils
         {
             CommonAttributes.Mutable attrs = new CommonAttributes.Mutable(txnId);
             attrs.partialTxn(txn);
+            attrs.route(route(txn));
             return Command.SerializerSupport.preaccepted(attrs, executeAt, Ballot.ZERO);
         }
 
@@ -115,15 +117,20 @@ public class AccordTestUtils
         {
             CommonAttributes.Mutable attrs = new CommonAttributes.Mutable(txnId).partialDeps(PartialDeps.NONE);
             attrs.partialTxn(txn);
-            Seekable key = txn.keys().get(0);
-            RoutingKey routingKey = key.asKey().toUnseekable();
-            attrs.route(new FullKeyRoute(routingKey, true, new RoutingKey[]{ routingKey}));
+            attrs.route(route(txn));
             return Command.SerializerSupport.committed(attrs,
                                                        SaveStatus.Committed,
                                                        executeAt,
                                                        Ballot.ZERO,
                                                        Ballot.ZERO,
                                                        Command.WaitingOn.EMPTY);
+        }
+
+        private static FullRoute<?> route(PartialTxn txn)
+        {
+            Seekable key = txn.keys().get(0);
+            RoutingKey routingKey = key.asKey().toUnseekable();
+            return new FullKeyRoute(routingKey, true, new RoutingKey[]{ routingKey });
         }
     }
 
@@ -171,6 +178,7 @@ public class AccordTestUtils
         @Override public void unwitnessed(TxnId txnId, ProgressShard progressShard) {}
         @Override public void preaccepted(Command command, ProgressShard progressShard) {}
         @Override public void accepted(Command command, ProgressShard progressShard) {}
+        @Override public void precommitted(Command command) {}
         @Override public void committed(Command command, ProgressShard progressShard) {}
         @Override public void readyToExecute(Command command) {}
         @Override public void executed(Command command, ProgressShard progressShard) {}

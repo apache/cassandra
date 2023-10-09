@@ -75,6 +75,7 @@ import org.apache.cassandra.utils.concurrent.Future;
 import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.qt;
+import static org.apache.cassandra.simulator.RandomSource.Choices.choose;
 
 public class AccordSyncPropagatorTest
 {
@@ -121,7 +122,7 @@ public class AccordSyncPropagatorTest
                     {
                         for (Range range : ranges)
                         {
-                            Cluster.Instace inst = cluster.node(rs.pick(nodes));
+                            Cluster.Instace inst = cluster.node(choose(rs, nodes));
                             scheduler.schedule(() -> {
                                 Ranges subrange = Ranges.of(range);
                                 inst.propagator.reportClosed(epoch, nodes, subrange);

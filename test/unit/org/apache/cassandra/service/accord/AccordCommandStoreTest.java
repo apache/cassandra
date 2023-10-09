@@ -54,6 +54,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.serializers.CommandSerializers;
 import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializer;
 import org.apache.cassandra.utils.Pair;
 
@@ -126,9 +127,8 @@ public class AccordCommandStoreTest
         attrs.addListener(new Command.ProxyListener(oldTxnId1));
         Pair<Writes, Result> result = AccordTestUtils.processTxnResult(commandStore, txnId, txn, executeAt);
 
-
         Command command = Command.SerializerSupport.executed(attrs, SaveStatus.Applied, executeAt, promised, accepted,
-                                                             waitingOn, result.left, Result.APPLIED);
+                                                             waitingOn, result.left, CommandSerializers.APPLIED);
         AccordSafeCommand safeCommand = new AccordSafeCommand(loaded(txnId, null));
         safeCommand.set(command);
 
@@ -142,7 +142,7 @@ public class AccordCommandStoreTest
                                               dependencies,
                                               txn,
                                               result.left,
-                                              Result.APPLIED);
+                                              CommandSerializers.APPLIED);
         commandStore.appendToJournal(apply);
         AccordKeyspace.getCommandMutation(commandStore, safeCommand, commandStore.nextSystemTimestampMicros()).apply();
 
@@ -172,10 +172,10 @@ public class AccordCommandStoreTest
         cfk.initialize(CommandsForKeySerializer.loader);
         cfk.updateMax(maxTimestamp);
 
-        cfk.updateLastExecutionTimestamps(txnId1, true);
+        cfk.updateLastExecutionTimestamps(null, txnId1, true);
         Assert.assertEquals(txnId1.hlc(), cfk.timestampMicrosFor(txnId1, true));
 
-        cfk.updateLastExecutionTimestamps(txnId2, true);
+        cfk.updateLastExecutionTimestamps(null, txnId2, true);
         Assert.assertEquals(txnId2.hlc(), cfk.timestampMicrosFor(txnId2, true));
 
         Assert.assertEquals(txnId2, cfk.current().lastExecutedTimestamp());
