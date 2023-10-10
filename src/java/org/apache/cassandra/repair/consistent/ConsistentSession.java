@@ -44,7 +44,7 @@ import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.repair.messages.StatusRequest;
 import org.apache.cassandra.repair.messages.StatusResponse;
 import org.apache.cassandra.repair.messages.ValidationRequest;
-import org.apache.cassandra.repair.SharedContext;
+import org.apache.cassandra.service.SharedContext;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.tools.nodetool.RepairAdmin;

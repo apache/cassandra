@@ -28,4 +28,11 @@ public interface MessageDelivery
     public <REQ, RSP> void sendWithCallback(Message<REQ> message, InetAddressAndPort to, RequestCallback<RSP> cb, ConnectionType specifyConnection);
     public <REQ, RSP> Future<Message<RSP>> sendWithResult(Message<REQ> message, InetAddressAndPort to);
     public <V> void respond(V response, Message<?> message);
+    public void listen();
+    public void waitUntilListening() throws InterruptedException;
+    public EndpointMessagingVersions versions();
+    public void closeOutbound(InetAddressAndPort to);
+    public void interruptOutbound(InetAddressAndPort to);
+    public void removeInbound(InetAddressAndPort from);
+    public void shutdown();
 }

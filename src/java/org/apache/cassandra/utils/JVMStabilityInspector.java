@@ -55,6 +55,7 @@ public final class JVMStabilityInspector
 {
     private static final Logger logger = LoggerFactory.getLogger(JVMStabilityInspector.class);
     private static Killer killer = new Killer();
+    private static Consumer<Throwable> onUnknown = ignore -> {};
 
     private static Object lock = new Object();
     private static boolean printingHeapHistogram;
@@ -76,6 +77,12 @@ public final class JVMStabilityInspector
                 logger.error("Exception in thread {}", thread, t2);
         }
         JVMStabilityInspector.inspectThrowable(t);
+    }
+
+    @VisibleForTesting
+    public static void setOnUnknown(Consumer<Throwable> fn)
+    {
+        onUnknown = fn;
     }
 
     /**
@@ -160,6 +167,15 @@ public final class JVMStabilityInspector
         try
         {
             fn.accept(t);
+        }
+        catch (Exception | Error e)
+        {
+            logger.warn("Unexpected error while handling unexpected error", e);
+        }
+
+        try
+        {
+            onUnknown.accept(t);
         }
         catch (Exception | Error e)
         {

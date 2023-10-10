@@ -21,15 +21,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.cassandra.service.SharedContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessagingService;
 
 import static org.apache.cassandra.net.Verb.GOSSIP_DIGEST_ACK2;
-import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 
 public class GossipDigestAckVerbHandler extends GossipVerbHandler<GossipDigestAck>
 {
@@ -37,12 +36,23 @@ public class GossipDigestAckVerbHandler extends GossipVerbHandler<GossipDigestAc
 
     private static final Logger logger = LoggerFactory.getLogger(GossipDigestAckVerbHandler.class);
 
+    public GossipDigestAckVerbHandler()
+    {
+        super(SharedContext.Global.instance);
+    }
+
+    public GossipDigestAckVerbHandler(SharedContext ctx)
+    {
+        super(ctx);
+    }
+
     public void doVerb(Message<GossipDigestAck> message)
     {
         InetAddressAndPort from = message.from();
         if (logger.isTraceEnabled())
             logger.trace("Received a GossipDigestAckMessage from {}", from);
-        if (!Gossiper.instance.isEnabled() && !Gossiper.instance.isInShadowRound())
+        Gossiper inst = ctx.gossiper();
+        if (!inst.isEnabled() && !inst.isInShadowRound())
         {
             if (logger.isTraceEnabled())
                 logger.trace("Ignoring GossipDigestAckMessage because gossip is disabled");
@@ -54,13 +64,13 @@ public class GossipDigestAckVerbHandler extends GossipVerbHandler<GossipDigestAc
         Map<InetAddressAndPort, EndpointState> epStateMap = gDigestAckMessage.getEndpointStateMap();
         logger.trace("Received ack with {} digests and {} states", gDigestList.size(), epStateMap.size());
 
-        if (Gossiper.instance.isInShadowRound())
+        if (inst.isInShadowRound())
         {
             if (logger.isDebugEnabled())
                 logger.debug("Received an ack from {}, which may trigger exit from shadow round", from);
 
             // if the ack is completely empty, then we can infer that the respondent is also in a shadow round
-            Gossiper.instance.maybeFinishShadowRound(from, gDigestList.isEmpty() && epStateMap.isEmpty(), epStateMap);
+            inst.maybeFinishShadowRound(from, gDigestList.isEmpty() && epStateMap.isEmpty(), epStateMap);
             return; // don't bother doing anything else, we have what we came for
         }
 
@@ -69,7 +79,7 @@ public class GossipDigestAckVerbHandler extends GossipVerbHandler<GossipDigestAc
             // Ignore any GossipDigestAck messages that we handle before a regular GossipDigestSyn has been send.
             // This will prevent Acks from leaking over from the shadow round that are not actual part of
             // the regular gossip conversation.
-            if ((nanoTime() - Gossiper.instance.firstSynSendAt) < 0 || Gossiper.instance.firstSynSendAt == 0)
+            if ((ctx.clock().nanoTime() - inst.firstSynSendAt) < 0 || inst.firstSynSendAt == 0)
             {
                 if (logger.isTraceEnabled())
                     logger.trace("Ignoring unrequested GossipDigestAck from {}", from);
@@ -77,8 +87,8 @@ public class GossipDigestAckVerbHandler extends GossipVerbHandler<GossipDigestAc
             }
 
             /* Notify the Failure Detector */
-            Gossiper.instance.notifyFailureDetector(epStateMap);
-            Gossiper.instance.applyStateLocally(epStateMap);
+            inst.notifyFailureDetector(epStateMap);
+            inst.applyStateLocally(epStateMap);
         }
 
         /* Get the state required to send to this gossipee - construct GossipDigestAck2Message */
@@ -86,7 +96,7 @@ public class GossipDigestAckVerbHandler extends GossipVerbHandler<GossipDigestAc
         for (GossipDigest gDigest : gDigestList)
         {
             InetAddressAndPort addr = gDigest.getEndpoint();
-            EndpointState localEpStatePtr = Gossiper.instance.getStateForVersionBiggerThan(addr, gDigest.getMaxVersion());
+            EndpointState localEpStatePtr = inst.getStateForVersionBiggerThan(addr, gDigest.getMaxVersion());
             if (localEpStatePtr != null)
                 deltaEpStateMap.put(addr, localEpStatePtr);
         }
@@ -94,7 +104,7 @@ public class GossipDigestAckVerbHandler extends GossipVerbHandler<GossipDigestAc
         Message<GossipDigestAck2> gDigestAck2Message = Message.out(GOSSIP_DIGEST_ACK2, new GossipDigestAck2(deltaEpStateMap));
         if (logger.isTraceEnabled())
             logger.trace("Sending a GossipDigestAck2Message to {}", from);
-        MessagingService.instance().send(gDigestAck2Message, from);
+        ctx.messaging().send(gDigestAck2Message, from);
 
         super.doVerb(message);
     }

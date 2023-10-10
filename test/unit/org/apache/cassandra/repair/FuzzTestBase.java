@@ -28,13 +28,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
@@ -43,13 +41,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.LongSupplier;
 import java.util.function.Supplier;
-import javax.annotation.Nullable;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 import org.apache.cassandra.config.UnitConfigOverride;
+import org.apache.cassandra.gms.*;
+import org.apache.cassandra.net.*;
+import org.apache.cassandra.repair.MockMessaging.Faults;
+import org.apache.cassandra.service.SharedContext;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -57,7 +57,6 @@ import accord.utils.DefaultRandom;
 import accord.utils.Gen;
 import accord.utils.Gens;
 import accord.utils.RandomSource;
-import org.agrona.collections.Long2ObjectHashMap;
 import org.agrona.collections.LongHashSet;
 import org.apache.cassandra.concurrent.ExecutorBuilder;
 import org.apache.cassandra.concurrent.ExecutorBuilderFactory;
@@ -80,27 +79,11 @@ import org.apache.cassandra.db.repair.PendingAntiCompaction;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.exceptions.RequestFailureReason;
-import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.gms.EndpointState;
-import org.apache.cassandra.gms.HeartBeatState;
-import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
-import org.apache.cassandra.gms.IFailureDetector;
-import org.apache.cassandra.gms.IGossiper;
-import org.apache.cassandra.gms.VersionedValue;
-import org.apache.cassandra.io.util.DataInputBuffer;
-import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.locator.RangesAtEndpoint;
 import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.net.ConnectionType;
-import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.Message;
-import org.apache.cassandra.net.MessageDelivery;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.repair.messages.ValidationResponse;
 import org.apache.cassandra.repair.state.Completable;
@@ -133,8 +116,6 @@ import org.apache.cassandra.utils.Generators;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.MerkleTrees;
-import org.apache.cassandra.utils.concurrent.AsyncPromise;
-import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
 import org.apache.cassandra.utils.progress.ProgressEventType;
 import org.assertj.core.api.Assertions;
@@ -573,49 +554,9 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
         return options;
     }
 
-    enum Faults
-    {
-        DELAY, DROP;
-
-        public static final Set<Faults> NONE = Collections.emptySet();
-        public static final Set<Faults> DROPPED = EnumSet.of(DELAY, DROP);
-    }
-
-    private static class Connection
-    {
-        final InetAddressAndPort from, to;
-
-        private Connection(InetAddressAndPort from, InetAddressAndPort to)
-        {
-            this.from = from;
-            this.to = to;
-        }
-
-        @Override
-        public boolean equals(Object o)
-        {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Connection that = (Connection) o;
-            return from.equals(that.from) && to.equals(that.to);
-        }
-
-        @Override
-        public int hashCode()
-        {
-            return Objects.hash(from, to);
-        }
-
-        @Override
-        public String toString()
-        {
-            return "Connection{" + "from=" + from + ", to=" + to + '}';
-        }
-    }
-
     interface MessageListener
     {
-        default void preHandle(Cluster.Node node, Message<?> msg) {}
+        void preHandle(Cluster.Node node, Message<?> msg);
     }
 
     static class Cluster
@@ -628,16 +569,12 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
         private final SimulatedExecutorFactory globalExecutor;
         final ScheduledExecutorPlus unorderedScheduled;
         final ExecutorPlus orderedExecutor;
-        private final Gossip gossiper = new Gossip();
+        private final Gossiper gossiper = new Gossiper(false);
         private final MBeanWrapper mbean = Mockito.mock(MBeanWrapper.class);
         private final List<Throwable> failures = new ArrayList<>();
         private final List<MessageListener> listeners = new ArrayList<>();
         private final RandomSource rs;
         private BiFunction<Node, Message<?>, Set<Faults>> allowedMessageFaults = (a, b) -> Collections.emptySet();
-
-        private final Map<Connection, LongSupplier> networkLatencies = new HashMap<>();
-        private final Map<Connection, Supplier<Boolean>> networkDrops = new HashMap<>();
-
         Cluster(RandomSource rs)
         {
             ClockAccess.includeThreadAsOwner();
@@ -685,9 +622,9 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                 state.addApplicationState(ApplicationState.RACK, valueFactory.rack(rack));
                 state.addApplicationState(ApplicationState.RELEASE_VERSION, valueFactory.releaseVersion());
 
-                gossiper.endpoints.put(addressAndPort, state);
+                gossiper.endpointStateMap.put(addressAndPort, state);
 
-                Node node = new Node(hostId, addressAndPort, Collections.singletonList(token), new Messaging(addressAndPort));
+                Node node = new Node(hostId, addressAndPort, Collections.singletonList(token));
                 nodes.put(addressAndPort, node);
             }
             this.nodes = nodes;
@@ -743,195 +680,6 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             }
         }
 
-        private static class CallbackContext
-        {
-            final RequestCallback callback;
-
-            private CallbackContext(RequestCallback callback)
-            {
-                this.callback = Objects.requireNonNull(callback);
-            }
-
-            public void onResponse(Message msg)
-            {
-                callback.onResponse(msg);
-            }
-
-            public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
-            {
-                if (callback.invokeOnFailure()) callback.onFailure(from, failureReason);
-            }
-        }
-
-        private class Messaging implements MessageDelivery
-        {
-            final InetAddressAndPort broadcastAddressAndPort;
-            final Long2ObjectHashMap<CallbackContext> callbacks = new Long2ObjectHashMap<>();
-
-            private Messaging(InetAddressAndPort broadcastAddressAndPort)
-            {
-                this.broadcastAddressAndPort = broadcastAddressAndPort;
-            }
-
-            @Override
-            public <REQ> void send(Message<REQ> message, InetAddressAndPort to)
-            {
-                message = message.withFrom(broadcastAddressAndPort);
-                maybeEnqueue(message, to, null);
-            }
-
-            @Override
-            public <REQ, RSP> void sendWithCallback(Message<REQ> message, InetAddressAndPort to, RequestCallback<RSP> cb)
-            {
-                message = message.withFrom(broadcastAddressAndPort);
-                maybeEnqueue(message, to, cb);
-            }
-
-            @Override
-            public <REQ, RSP> void sendWithCallback(Message<REQ> message, InetAddressAndPort to, RequestCallback<RSP> cb, ConnectionType specifyConnection)
-            {
-                message = message.withFrom(broadcastAddressAndPort);
-                maybeEnqueue(message, to, cb);
-            }
-
-            private <REQ, RSP> void maybeEnqueue(Message<REQ> message, InetAddressAndPort to, @Nullable RequestCallback<RSP> callback)
-            {
-                CallbackContext cb;
-                if (callback != null)
-                {
-                    cb = new CallbackContext(callback);
-                    callbacks.put(message.id(), cb);
-                }
-                else
-                {
-                    cb = null;
-                }
-                boolean toSelf = this.broadcastAddressAndPort.equals(to);
-                Node node = nodes.get(to);
-                Set<Faults> allowedFaults = allowedMessageFaults.apply(node, message);
-                if (allowedFaults.isEmpty())
-                {
-                    // enqueue so stack overflow doesn't happen with the inlining
-                    unorderedScheduled.submit(() -> node.handle(message));
-                }
-                else
-                {
-                    Runnable enqueue = () -> {
-                        if (!allowedFaults.contains(Faults.DELAY))
-                        {
-                            unorderedScheduled.submit(() -> node.handle(message));
-                        }
-                        else
-                        {
-                            if (toSelf) unorderedScheduled.submit(() -> node.handle(message));
-                            else
-                                unorderedScheduled.schedule(() -> node.handle(message), networkJitterNanos(to), TimeUnit.NANOSECONDS);
-                        }
-                    };
-
-                    if (!allowedFaults.contains(Faults.DROP)) enqueue.run();
-                    else
-                    {
-                        if (!toSelf && networkDrops(to))
-                        {
-//                            logger.warn("Dropped message {}", message);
-                            // drop
-                        }
-                        else
-                        {
-                            enqueue.run();
-                        }
-                    }
-
-                    if (cb != null)
-                    {
-                        unorderedScheduled.schedule(() -> {
-                            CallbackContext ctx = callbacks.remove(message.id());
-                            if (ctx != null)
-                            {
-                                assert ctx == cb;
-                                ctx.onFailure(to, RequestFailureReason.TIMEOUT);
-                            }
-                        }, message.verb().expiresAfterNanos(), TimeUnit.NANOSECONDS);
-                    }
-                }
-            }
-
-            private long networkJitterNanos(InetAddressAndPort to)
-            {
-                return networkLatencies.computeIfAbsent(new Connection(broadcastAddressAndPort, to), ignore -> {
-                    long min = TimeUnit.MICROSECONDS.toNanos(500);
-                    long maxSmall = TimeUnit.MILLISECONDS.toNanos(5);
-                    long max = TimeUnit.SECONDS.toNanos(5);
-                    LongSupplier small = () -> rs.nextLong(min, maxSmall);
-                    LongSupplier large = () -> rs.nextLong(maxSmall, max);
-                    return Gens.bools().runs(rs.nextInt(1, 11) / 100.0D, rs.nextInt(3, 15)).mapToLong(b -> b ? large.getAsLong() : small.getAsLong()).asLongSupplier(rs);
-                }).getAsLong();
-            }
-
-            private boolean networkDrops(InetAddressAndPort to)
-            {
-                return networkDrops.computeIfAbsent(new Connection(broadcastAddressAndPort, to), ignore -> Gens.bools().runs(rs.nextInt(1, 11) / 100.0D, rs.nextInt(3, 15)).asSupplier(rs)).get();
-            }
-
-            @Override
-            public <REQ, RSP> Future<Message<RSP>> sendWithResult(Message<REQ> message, InetAddressAndPort to)
-            {
-                AsyncPromise<Message<RSP>> promise = new AsyncPromise<>();
-                sendWithCallback(message, to, new RequestCallback<RSP>()
-                {
-                    @Override
-                    public void onResponse(Message<RSP> msg)
-                    {
-                        promise.trySuccess(msg);
-                    }
-
-                    @Override
-                    public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
-                    {
-                        promise.tryFailure(new MessagingService.FailureResponseException(from, failureReason));
-                    }
-
-                    @Override
-                    public boolean invokeOnFailure()
-                    {
-                        return true;
-                    }
-                });
-                return promise;
-            }
-
-            @Override
-            public <V> void respond(V response, Message<?> message)
-            {
-                send(message.responseWith(response), message.respondTo());
-            }
-        }
-
-        private class Gossip implements IGossiper
-        {
-            private final Map<InetAddressAndPort, EndpointState> endpoints = new HashMap<>();
-
-            @Override
-            public void register(IEndpointStateChangeSubscriber subscriber)
-            {
-
-            }
-
-            @Override
-            public void unregister(IEndpointStateChangeSubscriber subscriber)
-            {
-
-            }
-
-            @Nullable
-            @Override
-            public EndpointState getEndpointStateForEndpoint(InetAddressAndPort ep)
-            {
-                return endpoints.get(ep);
-            }
-        }
-
         class Node implements SharedContext
         {
             private final ICompactionManager compactionManager = Mockito.mock(ICompactionManager.class);
@@ -940,7 +688,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             final Collection<Token> tokens;
             final ActiveRepairService activeRepairService;
             final IVerbHandler verbHandler;
-            final Messaging messaging;
+            final MockMessaging<Node> messaging;
             final IValidationManager validationManager;
             private FailingBiConsumer<ColumnFamilyStore, Validator> doValidation = DEFAULT_VALIDATION;
             private final StreamExecutor defaultStreamExecutor = plan -> {
@@ -954,12 +702,11 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             };
             private StreamExecutor streamExecutor = defaultStreamExecutor;
 
-            private Node(UUID hostId, InetAddressAndPort addressAndPort, Collection<Token> tokens, Messaging messaging)
+            private Node(UUID hostId, InetAddressAndPort addressAndPort, Collection<Token> tokens)
             {
                 this.hostId = hostId;
                 this.addressAndPort = addressAndPort;
                 this.tokens = tokens;
-                this.messaging = messaging;
                 this.activeRepairService = new ActiveRepairService(this);
                 this.validationManager = (cfs, validator) -> unorderedScheduled.submit(() -> {
                     try
@@ -972,6 +719,12 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                     }
                 });
                 this.verbHandler = new RepairMessageVerbHandler(this);
+                this.messaging = new MockMessaging<>(this, failures::add, ignore -> verbHandler, i -> nodes.get(i).messaging);
+                messaging.allowedMessageFaults(m -> allowedMessageFaults.apply(this, m));
+                messaging.addListener((n, m) -> {
+                    for (MessageListener l : listeners)
+                        l.preHandle(n, m);
+                });
 
                 activeRepairService.start();
             }
@@ -999,48 +752,6 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                     throw new IllegalStateException("Attemptted to override sync, but was already overridden");
                 this.streamExecutor = streamExecutor;
                 return () -> this.streamExecutor = previous;
-            }
-
-            void handle(Message msg)
-            {
-                msg = serde(msg);
-                if (msg == null)
-                {
-                    logger.warn("Got a message that failed to serialize/deserialize");
-                    return;
-                }
-                for (MessageListener l : listeners)
-                    l.preHandle(this, msg);
-                if (msg.verb().isResponse())
-                {
-                    // handle callbacks
-                    if (messaging.callbacks.containsKey(msg.id()))
-                    {
-                        CallbackContext callback = messaging.callbacks.remove(msg.id());
-                        if (callback == null) return;
-                        try
-                        {
-                            if (msg.isFailureResponse())
-                                callback.onFailure(msg.from(), (RequestFailureReason) msg.payload);
-                            else callback.onResponse(msg);
-                        }
-                        catch (Throwable t)
-                        {
-                            failures.add(t);
-                        }
-                    }
-                }
-                else
-                {
-                    try
-                    {
-                        verbHandler.doVerb(msg);
-                    }
-                    catch (Throwable e)
-                    {
-                        failures.add(e);
-                    }
-                }
             }
 
             public UUID hostId()
@@ -1071,9 +782,15 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             }
 
             @Override
-            public IGossiper gossiper()
+            public Gossiper gossiper()
             {
                 return gossiper;
+            }
+
+            @Override
+            public StorageService storageService()
+            {
+                return StorageService.instance;
             }
 
             @Override
@@ -1177,22 +894,6 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                 return streamExecutor;
             }
         }
-
-        private Message serde(Message msg)
-        {
-            try (DataOutputBuffer b = DataOutputBuffer.scratchBuffer.get())
-            {
-                int messagingVersion = MessagingService.Version.CURRENT.value;
-                Message.serializer.serialize(msg, b, messagingVersion);
-                DataInputBuffer in = new DataInputBuffer(b.unsafeGetBufferAndFlip(), false);
-                return Message.serializer.deserialize(in, msg.from(), messagingVersion);
-            }
-            catch (Throwable e)
-            {
-                failures.add(e);
-                return null;
-            }
-        }
     }
 
     private static <T> Gen<T> fromQT(org.quicktheories.core.Gen<T> qt)
@@ -1247,7 +948,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             Access access = StackWalker.getInstance().walk(frames -> {
                 Iterator<StackWalker.StackFrame> it = frames.iterator();
                 boolean topLevel = false;
-                while (it.hasNext())
+                top: while (it.hasNext())
                 {
                     StackWalker.StackFrame next = it.next();
                     if (!topLevel)
@@ -1255,7 +956,8 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                         // need to find the top level!
                         while (!Clock.Global.class.getName().equals(next.getClassName()))
                         {
-                            assert it.hasNext();
+                            if (!it.hasNext())
+                                break top; // a service is called that uses SharedContext.Global
                             next = it.next();
                         }
                         topLevel = true;
@@ -1293,4 +995,5 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             super(message);
         }
     }
+
 }

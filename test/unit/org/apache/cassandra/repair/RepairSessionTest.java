@@ -26,6 +26,7 @@ import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
 import com.google.common.collect.Sets;
+import org.apache.cassandra.service.SharedContext;
 import org.junit.BeforeClass;
 import org.junit.Test;
 

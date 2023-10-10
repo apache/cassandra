@@ -348,9 +348,9 @@ public class LeaveAndBootstrapTest
         // Now finish node 6 and node 9 leaving, as well as boot1 (after this node 8 is still
         // leaving and boot2 in progress
         ss.onChange(hosts.get(LEAVING[0]), ApplicationState.STATUS,
-                valueFactory.left(Collections.singleton(endpointTokens.get(LEAVING[0])), Gossiper.computeExpireTime()));
+                valueFactory.left(Collections.singleton(endpointTokens.get(LEAVING[0])), Gossiper.instance.computeExpireTime()));
         ss.onChange(hosts.get(LEAVING[2]), ApplicationState.STATUS,
-                valueFactory.left(Collections.singleton(endpointTokens.get(LEAVING[2])), Gossiper.computeExpireTime()));
+                valueFactory.left(Collections.singleton(endpointTokens.get(LEAVING[2])), Gossiper.instance.computeExpireTime()));
         ss.onChange(boot1, ApplicationState.STATUS, valueFactory.normal(Collections.singleton(keyTokens.get(5))));
 
         // adjust precalcuated results.  this changes what the epected endpoints are.
@@ -569,7 +569,7 @@ public class LeaveAndBootstrapTest
         // node 3 goes through leave and left and then jumps to normal at its new token
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.leaving(Collections.singleton(keyTokens.get(2))));
         ss.onChange(hosts.get(2), ApplicationState.STATUS,
-                valueFactory.left(Collections.singleton(keyTokens.get(2)), Gossiper.computeExpireTime()));
+                valueFactory.left(Collections.singleton(keyTokens.get(2)), Gossiper.instance.computeExpireTime()));
         Gossiper.instance.injectApplicationState(hosts.get(2), ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(4))));
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(Collections.singleton(keyTokens.get(4))));
 
@@ -623,7 +623,7 @@ public class LeaveAndBootstrapTest
 
         // go to state left
         ss.onChange(hosts.get(2), ApplicationState.STATUS,
-                valueFactory.left(Collections.singleton(keyTokens.get(1)), Gossiper.computeExpireTime()));
+                valueFactory.left(Collections.singleton(keyTokens.get(1)), Gossiper.instance.computeExpireTime()));
 
         assertFalse(tmd.isMember(hosts.get(2)));
         assertFalse(tmd.isLeaving(hosts.get(2)));
@@ -649,7 +649,7 @@ public class LeaveAndBootstrapTest
 
         // node hosts.get(2) goes jumps to left
         ss.onChange(hosts.get(2), ApplicationState.STATUS,
-                valueFactory.left(Collections.singleton(endpointTokens.get(2)), Gossiper.computeExpireTime()));
+                valueFactory.left(Collections.singleton(endpointTokens.get(2)), Gossiper.instance.computeExpireTime()));
 
         assertFalse(tmd.isMember(hosts.get(2)));
 
@@ -664,7 +664,7 @@ public class LeaveAndBootstrapTest
         // and then directly to 'left'
         Gossiper.instance.injectApplicationState(hosts.get(2), ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(1))));
         ss.onChange(hosts.get(2), ApplicationState.STATUS,
-                valueFactory.left(Collections.singleton(keyTokens.get(1)), Gossiper.computeExpireTime()));
+                valueFactory.left(Collections.singleton(keyTokens.get(1)), Gossiper.instance.computeExpireTime()));
 
         assertTrue(tmd.getBootstrapTokens().size() == 0);
         assertFalse(tmd.isMember(hosts.get(2)));
@@ -692,7 +692,7 @@ public class LeaveAndBootstrapTest
 
         // mark the node as removed
         Gossiper.instance.injectApplicationState(toRemove, ApplicationState.STATUS,
-                valueFactory.left(Collections.singleton(endpointTokens.get(1)), Gossiper.computeExpireTime()));
+                valueFactory.left(Collections.singleton(endpointTokens.get(1)), Gossiper.instance.computeExpireTime()));
         assertTrue(Gossiper.instance.isDeadState(Gossiper.instance.getEndpointStateForEndpoint(hosts.get(1))));
 
         // state changes made after the endpoint has left should be ignored

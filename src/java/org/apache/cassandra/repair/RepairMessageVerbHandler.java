@@ -21,6 +21,7 @@ import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+import org.apache.cassandra.service.SharedContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

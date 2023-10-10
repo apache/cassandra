@@ -30,6 +30,7 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.CompactionsTest;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.service.SharedContext;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;

@@ -33,7 +33,7 @@ import org.apache.cassandra.locator.InetAddressAndPort;
  */
 public class EndpointMessagingVersions
 {
-    public volatile int minClusterVersion = MessagingService.current_version;
+    public volatile int minClusterVersion = MessagingService.Version.CURRENT.value;
     private static final Logger logger = LoggerFactory.getLogger(EndpointMessagingVersions.class);
 
     // protocol versions of the other nodes in the cluster
@@ -70,10 +70,10 @@ public class EndpointMessagingVersions
         {
             // we don't know the version. assume current. we'll know soon enough if that was incorrect.
             logger.trace("Assuming current protocol version for {}", endpoint);
-            return MessagingService.current_version;
+            return MessagingService.Version.CURRENT.value;
         }
         else
-            return Math.min(v, MessagingService.current_version);
+            return Math.min(v, MessagingService.Version.CURRENT.value);
     }
 
     public int get(String endpoint) throws UnknownHostException

@@ -18,6 +18,7 @@
 package org.apache.cassandra.gms;
 
 import java.io.*;
+import java.util.function.IntSupplier;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -75,9 +76,9 @@ public class HeartBeatState
         return generation;
     }
 
-    void updateHeartBeat()
+    void updateHeartBeat(IntSupplier versionGenerator)
     {
-        version = VersionGenerator.getNextVersion();
+        version = versionGenerator.getAsInt();
     }
 
     public int getHeartBeatVersion()

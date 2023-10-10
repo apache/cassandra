@@ -130,7 +130,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         private static List<GossipDigest> Digests = new ArrayList<GossipDigest>();
 
         {
-            HeartbeatSt.updateHeartBeat();
+            HeartbeatSt.updateHeartBeat(StorageService.instance.valueFactory.versionGenerator());
             EndpointSt.addApplicationState(ApplicationState.LOAD, vv0);
             EndpointSt.addApplicationState(ApplicationState.STATUS_WITH_PORT, vv1);
             for (int i = 0; i < 100; i++)

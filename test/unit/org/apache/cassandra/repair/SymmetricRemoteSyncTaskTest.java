@@ -21,6 +21,7 @@ package org.apache.cassandra.repair;
 import java.util.List;
 
 import com.google.common.collect.ImmutableList;
+import org.apache.cassandra.service.SharedContext;
 import org.junit.Assert;
 import org.junit.Test;
 

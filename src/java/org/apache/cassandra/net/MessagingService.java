@@ -318,6 +318,12 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
     }
 
     @Override
+    public EndpointMessagingVersions versions()
+    {
+        return versions;
+    }
+
+    @Override
     public <REQ, RSP> org.apache.cassandra.utils.concurrent.Future<Message<RSP>> sendWithResult(Message<REQ> message, InetAddressAndPort to)
     {
         AsyncPromise<Message<RSP>> promise = new AsyncPromise<>();
@@ -483,6 +489,7 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
      *
      * We close the connection after a five minute delay, to give asynchronous operations a chance to terminate
      */
+    @Override
     public void closeOutbound(InetAddressAndPort to)
     {
         OutboundConnections pool = channelManagers.get(to);
@@ -504,6 +511,7 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
     /**
      * Only to be invoked once we believe the connections will never be used again.
      */
+    @Override
     public void removeInbound(InetAddressAndPort from)
     {
         InboundMessageHandlers handlers = messageHandlers.remove(from);
@@ -515,6 +523,7 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
      * Closes any current open channel/connection to the endpoint, but does not cause any message loss, and we will
      * try to re-establish connections immediately
      */
+    @Override
     public void interruptOutbound(InetAddressAndPort to)
     {
         OutboundConnections pool = channelManagers.get(to);
@@ -549,6 +558,7 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
     /**
      * Wait for callbacks and don't allow anymore to be created (since they could require writing hints)
      */
+    @Override
     public void shutdown()
     {
         if (NON_GRACEFUL_SHUTDOWN.getBoolean())
@@ -678,11 +688,13 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
         return pool.connectionFor(messageOut).isConnected();
     }
 
+    @Override
     public void listen()
     {
         inboundSockets.open();
     }
 
+    @Override
     public void waitUntilListening() throws InterruptedException
     {
         inboundSockets.open().await();

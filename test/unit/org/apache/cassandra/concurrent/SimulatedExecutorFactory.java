@@ -95,6 +95,11 @@ public class SimulatedExecutorFactory implements ExecutorFactory, Clock
         // if we count the repeated tasks, then processAll will never complete
         if (queue.size() == repeatedTasks)
             return false;
+        return processAny();
+    }
+
+    public boolean processAny()
+    {
         Item item = queue.poll();
         if (item == null)
             return false;
