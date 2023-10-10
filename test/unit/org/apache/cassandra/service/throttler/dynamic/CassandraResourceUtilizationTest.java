@@ -42,6 +42,8 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.throttler.dynamic.metrics.KeyspaceThrottlingMetricsManager;
 
+import java.util.regex.Pattern;
+
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
@@ -365,6 +367,20 @@ public class CassandraResourceUtilizationTest extends CQLTester
         Assert.assertEquals(0.1, cassandraResourceUtilization.throttlingMetrics.currentThrottlingPercentage.getValue());
 
         CassandraResourceUtilization.instance.throttlingOptions.setCpuThresholdOneMinute(originalCpuThresholdOneMinute);
+    }
+
+    @Test
+    public void testIgnoreKeyspaceFromDatabaseDescriptor()
+    {
+        ThrottlingOptions originalThrottlingOptions = RateLimiterService.instance.getThrottlingOptions();
+
+        ThrottlingOptions simulatedFromDbDescriptor = new ThrottlingOptions();
+        simulatedFromDbDescriptor.ignore_keyspaces = "some_keyspace"; // change ignore_keyspaces without changing ignoreKeyspacesPattern
+        RateLimiterService.instance.setThrottlingOptions(simulatedFromDbDescriptor);
+        Assert.assertEquals(Pattern.compile(RateLimiterService.instance.getThrottlingOptions().ignore_keyspaces).toString(),
+                RateLimiterService.instance.getThrottlingOptions().getIgnoreKeyspacesPattern().toString());
+
+        RateLimiterService.instance.setThrottlingOptions(originalThrottlingOptions);
     }
 
     @Test

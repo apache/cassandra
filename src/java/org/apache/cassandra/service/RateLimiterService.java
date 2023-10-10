@@ -39,6 +39,13 @@ public class RateLimiterService implements RateLimiterServiceMBean {
     public void setThrottlingOptions(ThrottlingOptions throttlingOptions)
     {
         this.throttlingOptions = throttlingOptions;
+
+        // ensure ignoreKeyspacesPattern aligns with ignore_keyspaces. This is because in the input throttlingOptions,
+        // ignoreKeyspacesPattern might be not in sync with ignore_keyspaces, especially when the input comes from
+        // DatabaseDescriptor which only updates the member variables that have literal representation in cassandra.yaml.
+        // ignoreKeyspacesPattern doesn't have a literal representation in cassandra.yaml, as it is derived from
+        // ignore_keyspaces.
+        this.throttlingOptions.setIgnoreKeyspaces(throttlingOptions.ignore_keyspaces);
     }
 
     @Override

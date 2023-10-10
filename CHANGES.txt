@@ -175,6 +175,7 @@ Merged from 3.0:
  * Fix CQLSH online help topic link (CASSANDRA-17534)
  * Remove unused suppressions (CASSANDRA-18724)
 Unreleased
+ * [SO-24973] Fix the bug where changes for ignore_keyspace in cassandra.yaml don't take any effect
  * [SO-24971] Improve CPU signal check and add more logs and metrics around throttling percentage
  * [SO-24706] Throttle, if either read or write pools, are saturated
  * [SO-24631] Cleanup code in the Rate limiter

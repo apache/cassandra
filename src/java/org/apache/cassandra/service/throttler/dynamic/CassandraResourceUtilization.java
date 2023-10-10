@@ -261,13 +261,6 @@ public class CassandraResourceUtilization
         KeyspaceThrottlingMetrics ksThrottlingMetrics = KeyspaceThrottlingMetricsManager.getMetrics(keyspaceName);
         if (throttlingOptions.getIgnoreKeyspacesPattern().matcher(keyspaceName.toLowerCase()).matches())
         {
-            // 0.1% change to log the skipped keyspace
-            // TODO: remove the logging once we figure out why pingless traffic is not getting throttled when it is
-            //   removed from ignore_keyspaces
-            if (ThreadLocalRandom.current().nextDouble() <= 0.001)
-            {
-                logger.info("skipping ignored keyspace: {}", keyspaceName);
-            }
             ksThrottlingMetrics.skipKSThrottling.inc();
             return false;
         }
