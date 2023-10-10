@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.guardrails;
 
+import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
@@ -684,6 +685,7 @@ public abstract class DefaultGuardrail implements Guardrail
 
              warn(format("Ignoring provided values %s as they are not supported for %s (ignored values are: %s)",
                          toIgnore.stream().sorted().collect(Collectors.toList()), what, triggerValuesString()));
+             toIgnore = new HashSet<>(toIgnore); // defensive copy as the action may modify the underlying set
              for (T value : toIgnore)
                   ignoreAction.accept(value);
         }
