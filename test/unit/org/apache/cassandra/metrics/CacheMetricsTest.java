@@ -76,16 +76,16 @@ public class CacheMetricsTest
         // calculations - applying some general assertions for hitRate calculations that essentially just smoke test
         // existence (i.e. NaN at initialization) since they are established by way of an inner class on CacheMetrics
         // itself.
-        assertEquals(expectation.cacheSize.capacity(), actual.capacity.getValue().longValue());
-        assertEquals(expectation.cacheSize.weightedSize(), actual.size.getValue().longValue());
-        assertEquals(expectation.cacheSize.size(), actual.entries.getValue().intValue());
+        assertEquals(expectation.cacheSize.capacity(), actual.cacheSize.capacity.getValue().longValue());
+        assertEquals(expectation.cacheSize.weightedSize(), actual.cacheSize.size.getValue().longValue());
+        assertEquals(expectation.cacheSize.size(), actual.cacheSize.entries.getValue().intValue());
         assertEquals(expectation.hits, actual.hits.getCount());
         assertEquals(expectation.misses, actual.misses.getCount());
         assertEquals(expectation.requests(), actual.requests.getCount());
-        assertEquals(expectation.hitRate(), actual.hitRate.getValue(), 0.001d);
-        assertEquals(Double.NaN, actual.oneMinuteHitRate.getValue(), 0.001d);
-        assertEquals(Double.NaN, actual.fiveMinuteHitRate.getValue(), 0.001d);
-        assertEquals(Double.NaN, actual.fifteenMinuteHitRate.getValue(), 0.001d);
+        assertEquals(expectation.hitRate(), actual.hitRate.mean.getValue(), 0.001d);
+        assertEquals(Double.NaN, actual.hitRate.oneMinute.getValue(), 0.001d);
+        assertEquals(Double.NaN, actual.hitRate.fiveMinute.getValue(), 0.001d);
+        assertEquals(Double.NaN, actual.hitRate.fifteenMinute.getValue(), 0.001d);
     }
 
     static CacheMetricsExpectation expect(CacheSize cacheSize)

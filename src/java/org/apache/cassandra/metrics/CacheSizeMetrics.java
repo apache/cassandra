@@ -20,33 +20,44 @@ package org.apache.cassandra.metrics;
 import com.codahale.metrics.Gauge;
 import org.apache.cassandra.cache.CacheSize;
 
+import static org.apache.cassandra.metrics.CacheMetrics.CACHE;
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
-/**
- * Metrics for {@code ICache}.
- */
-public class CacheMetrics extends AbstractCacheMetrics
+public class CacheSizeMetrics
 {
-    /** Cache capacity in bytes */
+    public static final String CAPACITY = "Capacity";
+    public static final String SIZE = "Size";
+    public static final String ENTRIES = "Entries";
+    /**
+     * Cache capacity in bytes
+     */
     public final Gauge<Long> capacity;
 
-    /** Total size of cache, in bytes */
+    /**
+     * Total size of cache, in bytes
+     */
     public final Gauge<Long> size;
 
-    /** Total number of cache entries */
+    /**
+     * Total number of cache entries
+     */
     public final Gauge<Integer> entries;
 
     /**
      * Create metrics for the given cache supporting entity.
      *
-     * @param type Type of Cache to identify metrics
-     * @param cache Weighted Cache to measure metrics
+     * @param type  Type of Cache to identify metrics.
+     * @param cache Cache to measure metrics
      */
-    public CacheMetrics(String type, CacheSize cache)
+    public CacheSizeMetrics(String type, CacheSize cache)
     {
-        super(new DefaultNameFactory("Cache", type), type);
-        capacity = Metrics.register(factory.createMetricName("Capacity"), cache::capacity);
-        size = Metrics.register(factory.createMetricName("Size"), cache::weightedSize);
-        entries = Metrics.register(factory.createMetricName("Entries"), cache::size);
+        this(new DefaultNameFactory(CACHE, type), cache);
+    }
+
+    public CacheSizeMetrics(MetricNameFactory factory, CacheSize cache)
+    {
+        capacity = Metrics.register(factory.createMetricName(CAPACITY), cache::capacity);
+        size = Metrics.register(factory.createMetricName(SIZE), cache::weightedSize);
+        entries = Metrics.register(factory.createMetricName(ENTRIES), cache::size);
     }
 }
