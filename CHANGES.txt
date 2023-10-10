@@ -1,4 +1,5 @@
 4.0.12
+ * Gossip NPE due to shutdown event corrupting empty statuses (CASSANDRA-18913)
  * Synchronize CQLSSTableWriter#build on the Schema.instance object (CASSANDRA-18317)
  * Fix closing iterator in SecondaryIndexBuilder (CASSANDRA-18361)
  * Update hdrhistogram to 2.1.12 (CASSANDRA-18893)

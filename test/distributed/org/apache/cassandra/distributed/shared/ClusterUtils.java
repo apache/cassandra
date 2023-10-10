@@ -140,6 +140,22 @@ public class ClusterUtils
      * Create a new instance and add it to the cluster, without starting it.
      *
      * @param cluster to add to
+     * @param other config to copy from
+     * @param fn function to add to the config before starting
+     * @param <I> instance type
+     * @return the instance added
+     */
+    public static <I extends IInstance> I addInstance(AbstractCluster<I> cluster,
+                                                      IInstanceConfig other,
+                                                      Consumer<IInstanceConfig> fn)
+    {
+        return addInstance(cluster, other.localDatacenter(), other.localRack(), fn);
+    }
+
+    /**
+     * Create a new instance and add it to the cluster, without starting it.
+     *
+     * @param cluster to add to
      * @param dc the instance should be in
      * @param rack the instance should be in
      * @param <I> instance type
