@@ -30,12 +30,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
-
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -72,10 +70,12 @@ import accord.utils.ReducingRangeMap;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.Observable;
+import org.apache.cassandra.cache.CacheSize;
 import org.apache.cassandra.concurrent.ExecutorPlus;
-import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.metrics.AccordStateCacheMetrics;
 import org.apache.cassandra.service.accord.api.PartitionKey;
 import org.apache.cassandra.service.accord.async.AsyncOperation;
 import org.apache.cassandra.service.accord.async.ExecutionOrder;
@@ -85,7 +85,7 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
 
 import static org.apache.cassandra.concurrent.ExecutorFactory.Global.executorFactory;
 
-public class AccordCommandStore extends CommandStore
+public class AccordCommandStore extends CommandStore implements CacheSize
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordCommandStore.class);
 
@@ -124,9 +124,10 @@ public class AccordCommandStore extends CommandStore
                               DataStore dataStore,
                               ProgressLog.Factory progressLogFactory,
                               EpochUpdateHolder epochUpdateHolder,
-                              AccordJournal journal)
+                              AccordJournal journal,
+                              AccordStateCacheMetrics cacheMetrics)
     {
-        this(id, time, agent, dataStore, progressLogFactory, epochUpdateHolder, journal, Stage.READ.executor(), Stage.MUTATION.executor());
+        this(id, time, agent, dataStore, progressLogFactory, epochUpdateHolder, journal, Stage.READ.executor(), Stage.MUTATION.executor(), cacheMetrics);
     }
 
     @VisibleForTesting
@@ -138,7 +139,8 @@ public class AccordCommandStore extends CommandStore
                               EpochUpdateHolder epochUpdateHolder,
                               AccordJournal journal,
                               ExecutorPlus loadExecutor,
-                              ExecutorPlus saveExecutor)
+                              ExecutorPlus saveExecutor,
+                              AccordStateCacheMetrics cacheMetrics)
     {
         super(id, time, agent, dataStore, progressLogFactory, epochUpdateHolder);
         this.journal = journal;
@@ -146,7 +148,7 @@ public class AccordCommandStore extends CommandStore
         executor = executorFactory().sequential(CommandStore.class.getSimpleName() + '[' + id + ']');
         executionOrder = new ExecutionOrder();
         threadId = getThreadId(executor);
-        stateCache = new AccordStateCache(loadExecutor, saveExecutor, 8 << 20);
+        stateCache = new AccordStateCache(loadExecutor, saveExecutor, 8 << 20, cacheMetrics);
         commandCache =
             stateCache.instance(TxnId.class,
                                 TxnId.class,
@@ -181,10 +183,10 @@ public class AccordCommandStore extends CommandStore
         executor.execute(this::loadRangesToCommands);
     }
 
-    static Factory factory(AccordJournal journal)
+    static Factory factory(AccordJournal journal, AccordStateCacheMetrics cacheMetrics)
     {
         return (id, time, agent, dataStore, progressLogFactory, rangesForEpoch) ->
-               new AccordCommandStore(id, time, agent, dataStore, progressLogFactory, rangesForEpoch, journal);
+               new AccordCommandStore(id, time, agent, dataStore, progressLogFactory, rangesForEpoch, journal, cacheMetrics);
     }
 
     private void loadRangesToCommands()
@@ -250,15 +252,29 @@ public class AccordCommandStore extends CommandStore
         return Thread.currentThread().getId() == threadId;
     }
 
-    public void setCacheSize(long bytes)
+    @Override
+    public void setCapacity(long bytes)
     {
         checkInStoreThread();
-        stateCache.setMaxSize(bytes);
+        stateCache.setCapacity(bytes);
     }
 
-    public long getCacheSize()
+    @Override
+    public long capacity()
     {
-        return stateCache.getMaxSize();
+        return stateCache.capacity();
+    }
+
+    @Override
+    public int size()
+    {
+        return stateCache.size();
+    }
+
+    @Override
+    public long weightedSize()
+    {
+        return stateCache.weightedSize();
     }
 
     public void checkInStoreThread()
