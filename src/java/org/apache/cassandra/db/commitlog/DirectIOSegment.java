@@ -35,6 +35,9 @@ public class DirectIOSegment extends CommitLogSegment
     ByteBuffer original;
     static int minimumAllowedAlign;
 
+    // Needed to track number of bytes written to disk in multiple of page size.
+    int lastWritten = 0;
+
     /**
      * Constructs a new segment file.
      *
@@ -82,8 +85,6 @@ public class DirectIOSegment extends CommitLogSegment
         assert alignedBuffer.alignmentOffset(0, minimumAllowedAlign) == 0 : "Index 0 should be aligned to 4K page size";
         assert alignedBuffer.alignmentOffset(alignedBuffer.limit(), minimumAllowedAlign) == 0 : "Limit should be aligned to 4K page size" ;
 
-        manager.addSize(cl_size);
-
         return alignedBuffer;
     }
 
@@ -113,6 +114,7 @@ public class DirectIOSegment extends CommitLogSegment
             // and nextMarker to end of 4K page to avoid write errors.
             long filePosition = lastSyncedOffset;
             ByteBuffer duplicate = buffer.duplicate();
+            long file_old_position = channel.position();
 
             // Aligned file position if not aligned to start of 4K page.
             if (filePosition % minimumAllowedAlign != 0 )
@@ -126,11 +128,19 @@ public class DirectIOSegment extends CommitLogSegment
 
             // Align last byte to end of 4K page.
             if (flushSizeInBytes % minimumAllowedAlign !=0)
-                flushSizeInBytes = (flushSizeInBytes+minimumAllowedAlign) & ~(minimumAllowedAlign -1);
+                flushSizeInBytes = (flushSizeInBytes + minimumAllowedAlign) & ~(minimumAllowedAlign -1);
 
             duplicate.limit(flushSizeInBytes);
 
             channel.write(duplicate);
+
+            // Direct I/O always writes flushes in block size and writes more than the flush size.
+            // File size on disk will always multiple of page size and taking this into account
+            // helps testcases to pass.
+            if (flushSizeInBytes > lastWritten) {
+                manager.addSize(flushSizeInBytes - lastWritten);
+                lastWritten = (int)flushSizeInBytes;
+            }
         }
         catch (IOException e)
         {
@@ -141,7 +151,7 @@ public class DirectIOSegment extends CommitLogSegment
     @Override
     public long onDiskSize()
     {
-        return DatabaseDescriptor.getCommitLogSegmentSize();
+        return lastWritten ;
     }
 
     @Override

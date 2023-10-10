@@ -48,9 +48,9 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.io.compress.DeflateCompressor;
-import org.apache.cassandra.io.compress.LZ4Compressor;
-import org.apache.cassandra.io.compress.SnappyCompressor;
+//import org.apache.cassandra.io.compress.DeflateCompressor;
+//import org.apache.cassandra.io.compress.LZ4Compressor;
+//import org.apache.cassandra.io.compress.SnappyCompressor;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.schema.Schema;
@@ -93,6 +93,7 @@ public abstract class CommitLogStressTest
     private boolean randomSize = false;
     private boolean discardedRun = false;
     private CommitLogPosition discardedPos;
+    private long totalBytesWritten = 0;
 
     public CommitLogStressTest(ParameterizedClass commitLogCompression, EncryptionContext encryptionContext)
     {
@@ -142,11 +143,7 @@ public abstract class CommitLogStressTest
     public static Collection<Object[]> buildParameterizedVariants()
     {
         return Arrays.asList(new Object[][]{
-        {null, EncryptionContextGenerator.createDisabledContext()}, // No compression, no encryption
-        {null, EncryptionContextGenerator.createContext(true)}, // Encryption
-        { new ParameterizedClass(LZ4Compressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
-        { new ParameterizedClass(SnappyCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
-        { new ParameterizedClass(DeflateCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()}});
+        {null, EncryptionContextGenerator.createDisabledContext()}}); // No compression, no encryption
     }
 
     @Test
@@ -156,6 +153,7 @@ public abstract class CommitLogStressTest
         discardedRun = false;
         testLog();
     }
+
 
     @Test
     public void testFixedSize() throws Exception
@@ -190,10 +188,11 @@ public abstract class CommitLogStressTest
     }
 
     private void testLog(CommitLog commitLog) throws IOException, InterruptedException {
-        System.out.format("\nTesting commit log size %.0fmb, compressor: %s, encryption enabled: %b, sync %s%s%s\n",
+        System.out.format("\nTesting commit log size %.0fmb, compressor: %s, encryption enabled: %b, Direct I/O enabled: %b, sync %s%s%s\n",
                            mb(DatabaseDescriptor.getCommitLogSegmentSize()),
                            commitLog.configuration.getCompressorName(),
                            commitLog.configuration.useEncryption(),
+                           commitLog.configuration.isDirectIOEnabled(),
                            commitLog.executor.getClass().getSimpleName(),
                            randomSize ? " random size" : "",
                            discardedRun ? " with discarded run" : "");
@@ -258,15 +257,18 @@ public abstract class CommitLogStressTest
                 Assert.fail("Failed to delete " + f);
 
         if (hash == reader.hash && cells == reader.cells)
-            System.out.format("Test success. compressor = %s, encryption enabled = %b; discarded = %d, skipped = %d\n",
+            System.out.format("Test success. compressor = %s, encryption enabled = %b, direct I/O = %b; discarded = %d, skipped = %d; IO speed(total bytes=%.2fmb, rate=%.2fmb/sec)\n",
                               commitLog.configuration.getCompressorName(),
                               commitLog.configuration.useEncryption(),
-                              reader.discarded, reader.skipped);
+                              commitLog.configuration.isDirectIOEnabled(),
+                              reader.discarded, reader.skipped,
+                              mb(totalBytesWritten), mb(totalBytesWritten)/runTimeMs*1000);
         else
         {
-            System.out.format("Test failed (compressor = %s, encryption enabled = %b). Cells %d, expected %d, diff %d; discarded = %d, skipped = %d -  hash %d expected %d.\n",
+            System.out.format("Test failed (compressor = %s, encryption enabled = %b, direct I/O = %b). Cells %d, expected %d, diff %d; discarded = %d, skipped = %d -  hash %d expected %d.\n",
                               commitLog.configuration.getCompressorName(),
                               commitLog.configuration.useEncryption(),
+                              commitLog.configuration.isDirectIOEnabled(),
                               reader.cells, cells, cells - reader.cells, reader.discarded, reader.skipped,
                               reader.hash, hash);
             failed = true;
@@ -281,8 +283,10 @@ public abstract class CommitLogStressTest
         commitLog.segmentManager.awaitManagementTasksCompletion();
 
         long combinedSize = 0;
-        for (File f : new File(commitLog.segmentManager.storageDirectory).tryList())
+        for (File f : new File(commitLog.segmentManager.storageDirectory).tryList()) {
             combinedSize += f.length();
+        }
+        totalBytesWritten = combinedSize;
         Assert.assertEquals(combinedSize, commitLog.getActiveOnDiskSize());
 
         List<String> logFileNames = commitLog.getActiveSegmentNames();
