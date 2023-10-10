@@ -26,13 +26,15 @@ import java.util.function.ToLongFunction;
 import java.util.stream.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.utils.IntrusiveLinkedList;
 import accord.utils.async.AsyncChains;
+import org.apache.cassandra.cache.CacheSize;
 import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.metrics.AccordStateCacheMetrics;
+import org.apache.cassandra.metrics.CacheAccessMetrics;
 import org.apache.cassandra.service.accord.AccordCachingState.Status;
 
 import static accord.utils.Invariants.checkState;
@@ -49,7 +51,7 @@ import static org.apache.cassandra.service.accord.AccordCachingState.Status.SAVI
  * Supports dynamic object sizes. After each acquire/free cycle, the cacheable objects size is recomputed to
  * account for data added/removed during txn processing if it's modified flag is set
  */
-public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?>>
+public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?>> implements CacheSize
 {
     private static final Logger logger = LoggerFactory.getLogger(AccordStateCache.class);
 
@@ -63,13 +65,6 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
         VALIDATE_LOAD_ON_EVICT = value;
     }
 
-    static class Stats
-    {
-        private long queries;
-        private long hits;
-        private long misses;
-    }
-
     private final Map<Object, AccordCachingState<?, ?>> cache = new HashMap<>();
     private final HashMap<Class<?>, Instance<?, ?, ?>> instances = new HashMap<>();
 
@@ -78,22 +73,27 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
     private int unreferenced = 0;
     private long maxSizeInBytes;
     private long bytesCached = 0;
-    private final Stats stats = new Stats();
 
-    public AccordStateCache(ExecutorPlus loadExecutor, ExecutorPlus saveExecutor, long maxSizeInBytes)
+    @VisibleForTesting
+    final AccordStateCacheMetrics metrics;
+
+    public AccordStateCache(ExecutorPlus loadExecutor, ExecutorPlus saveExecutor, long maxSizeInBytes, AccordStateCacheMetrics metrics)
     {
         this.loadExecutor = loadExecutor;
         this.saveExecutor = saveExecutor;
         this.maxSizeInBytes = maxSizeInBytes;
+        this.metrics = metrics;
     }
 
-    public void setMaxSize(long size)
+    @Override
+    public void setCapacity(long sizeInBytes)
     {
-        maxSizeInBytes = size;
+        maxSizeInBytes = sizeInBytes;
         maybeEvictSomeNodes();
     }
 
-    public long getMaxSize()
+    @Override
+    public long capacity()
     {
         return maxSizeInBytes;
     }
@@ -114,7 +114,11 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
     private <K, V> void maybeUpdateSize(AccordCachingState<?, ?> node, ToLongFunction<?> estimator)
     {
         if (node.shouldUpdateSize())
-            bytesCached += ((AccordCachingState<K, V>) node).estimatedSizeOnHeapDelta((ToLongFunction<V>) estimator);
+        {
+            long delta = ((AccordCachingState<K, V>) node).estimatedSizeOnHeapDelta((ToLongFunction<V>) estimator);
+            bytesCached += delta;
+            instanceForNode(node).bytesCached += delta;
+        }
     }
 
     /*
@@ -174,6 +178,8 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
         checkState(!isInQueue(node));
 
         bytesCached -= node.lastQueriedEstimatedSizeOnHeap;
+        Instance<?, ?, ?> instance = instanceForNode(node);
+        instance.bytesCached -= node.lastQueriedEstimatedSizeOnHeap;
 
         if (node.status() == LOADED && VALIDATE_LOAD_ON_EVICT)
             instanceForNode(node).validateLoadEvicted(node);
@@ -181,6 +187,8 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
         if (!node.hasListeners())
         {
             AccordCachingState<?, ?> self = cache.remove(node.key());
+            if (self != null)
+                instance.itemsCached--;
             checkState(self == node, "Leaked node detected; was attempting to remove %s but cache had %s", node, self);
         }
         else
@@ -212,7 +220,7 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
         return instance;
     }
 
-    public class Instance<K, V, S extends AccordSafeState<K, V>>
+    public class Instance<K, V, S extends AccordSafeState<K, V>> implements CacheSize
     {
         private final Class<K> keyClass;
         private final Function<AccordCachingState<K, V>, S> safeRefFactory;
@@ -220,7 +228,11 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
         private BiFunction<V, V, Runnable> saveFunction;
         private final BiFunction<K, V, Boolean> validateFunction;
         private final ToLongFunction<V> heapEstimator;
-        private final Stats stats = new Stats();
+        private long bytesCached;
+        private int itemsCached;
+
+        @VisibleForTesting
+        final CacheAccessMetrics instanceMetrics;
 
         public Instance(
             Class<K> keyClass,
@@ -236,6 +248,7 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
             this.saveFunction = saveFunction;
             this.validateFunction = validateFunction;
             this.heapEstimator = heapEstimator;
+            this.instanceMetrics = metrics.forInstance(keyClass);
         }
 
         public Stream<AccordCachingState<K, V>> stream()
@@ -280,8 +293,11 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
             AccordCachingState<K, V> node = new AccordCachingState<>(key);
             node.load(loadExecutor, loadFunction);
             node.references++;
-            cache.put(key, node);
+
+            if (cache.put(key, node) == null)
+                itemsCached++;
             maybeUpdateSize(node, heapEstimator);
+            metrics.objectSize.update(node.lastQueriedEstimatedSizeOnHeap);
             maybeEvictSomeNodes();
             return node;
         }
@@ -413,37 +429,22 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
                 node.complete();
         }
 
-        public long cacheQueries()
-        {
-            return stats.queries;
-        }
-
-        public long cacheHits()
-        {
-            return stats.hits;
-        }
-
-        public long cacheMisses()
-        {
-            return stats.misses;
-        }
-
         private void incrementCacheQueries()
         {
-            stats.queries++;
-            AccordStateCache.this.stats.queries++;
+            instanceMetrics.requests.mark();
+            metrics.requests.mark();
         }
 
         private void incrementCacheHits()
         {
-            stats.hits++;
-            AccordStateCache.this.stats.hits++;
+            instanceMetrics.hits.mark();
+            metrics.hits.mark();
         }
 
         private void incrementCacheMisses()
         {
-            stats.misses++;
-            AccordStateCache.this.stats.misses++;
+            instanceMetrics.misses.mark();
+            metrics.misses.mark();
         }
 
         @VisibleForTesting
@@ -457,12 +458,43 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
         {
             this.saveFunction = saveFunction;
         }
+
+        @Override
+        public long capacity()
+        {
+            return AccordStateCache.this.capacity();
+        }
+
+        @Override
+        public void setCapacity(long capacity)
+        {
+            throw new UnsupportedOperationException("Capacity is shared between all instances. Please set the capacity on the global cache");
+        }
+
+        @Override
+        public int size()
+        {
+            return itemsCached;
+        }
+
+        @Override
+        public long weightedSize()
+        {
+            return bytesCached;
+        }
     }
 
     @VisibleForTesting
     void unsafeClear()
     {
         cache.clear();
+        bytesCached = 0;
+        metrics.reset();;
+        instances.values().forEach(i -> {
+            i.itemsCached = 0;
+            i.bytesCached = 0;
+            i.instanceMetrics.reset();
+        });
         //noinspection StatementWithEmptyBody
         while (null != poll());
     }
@@ -504,14 +536,14 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
         return unreferenced;
     }
 
-    @VisibleForTesting
-    int totalNumEntries()
+    @Override
+    public int size()
     {
         return cache.size();
     }
 
-    @VisibleForTesting
-    long bytesCached()
+    @Override
+    public long weightedSize()
     {
         return bytesCached;
     }
@@ -535,20 +567,5 @@ public class AccordStateCache extends IntrusiveLinkedList<AccordCachingState<?,?
     {
         AccordCachingState<?, ?> node = cache.get(key);
         return node != null ? node.references : 0;
-    }
-
-    public long cacheQueries()
-    {
-        return stats.queries;
-    }
-
-    public long cacheHits()
-    {
-        return stats.hits;
-    }
-
-    public long cacheMisses()
-    {
-        return stats.misses;
     }
 }
