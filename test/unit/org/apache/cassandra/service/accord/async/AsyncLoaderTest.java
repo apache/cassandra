@@ -84,7 +84,7 @@ public class AsyncLoaderTest
         AccordCommandStore commandStore =
             createAccordCommandStore(clock::incrementAndGet, "ks", "tbl", executor, executor);
         AccordStateCache.Instance<TxnId, Command, AccordSafeCommand> commandCache = commandStore.commandCache();
-        commandStore.executeBlocking(() -> commandStore.setCacheSize(1024));
+        commandStore.executeBlocking(() -> commandStore.setCapacity(1024));
 
         AccordStateCache.Instance<RoutableKey, CommandsForKey, AccordSafeCommandsForKey> cfkCache = commandStore.commandsForKeyCache();
         TxnId txnId = txnId(1, clock.incrementAndGet(), 1);
@@ -229,7 +229,7 @@ public class AsyncLoaderTest
         ManualExecutor executor = new ManualExecutor();
         AccordCommandStore commandStore =
             createAccordCommandStore(clock::incrementAndGet, "ks", "tbl", executor, executor);
-        commandStore.executor().submit(() -> commandStore.setCacheSize(1024)).get();
+        commandStore.executor().submit(() -> commandStore.setCapacity(1024)).get();
         AccordStateCache.Instance<TxnId, Command, AccordSafeCommand> commandCache = commandStore.commandCache();
         AccordStateCache.Instance<RoutableKey, CommandsForKey, AccordSafeCommandsForKey> cfkCache = commandStore.commandsForKeyCache();
         TxnId txnId = txnId(1, clock.incrementAndGet(), 1);

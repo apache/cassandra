@@ -18,25 +18,33 @@
 
 package org.apache.cassandra.metrics;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 import com.codahale.metrics.Histogram;
 
+import static org.apache.cassandra.metrics.CacheMetrics.CACHE;
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
-public class AccordClientRequestMetrics extends ClientRequestMetrics
+public class AccordStateCacheMetrics extends CacheAccessMetrics
 {
-    public final Histogram keySize;
+    public static final String OBJECT_SIZE = "ObjectSize";
 
-    public AccordClientRequestMetrics(String scope)
+    public final Histogram objectSize;
+
+    private final Map<Class<?>, CacheAccessMetrics> instanceMetrics = new ConcurrentHashMap<>(2);
+
+    private final String type;
+
+    public AccordStateCacheMetrics(String type)
     {
-        super(scope);
-
-        keySize = Metrics.histogram(factory.createMetricName("KeySizeHistogram"), false);
+        super(new DefaultNameFactory(CACHE, type));
+        objectSize = Metrics.histogram(factory.createMetricName(OBJECT_SIZE), false);
+        this.type = type;
     }
 
-    @Override
-    public void release()
+    public CacheAccessMetrics forInstance(Class<?> klass)
     {
-        super.release();
-        Metrics.remove(factory.createMetricName("KeySizeHistogram"));
+        return instanceMetrics.computeIfAbsent(klass, k -> new CacheAccessMetrics(new DefaultNameFactory(CACHE, String.format("%s-%s", type, k.getSimpleName()))));
     }
 }
