@@ -128,7 +128,7 @@ public class CassandraDiskAnn implements JVectorLuceneOnDiskGraph, AutoCloseable
                                      reRanker,
                                      topK,
                                      ordinalsMap.ignoringDeleted(acceptBits));
-        Tracing.trace("DiakANN search visited {} nodes to return {} results", result.getVisitedCount(), result.getNodes().length);
+        Tracing.trace("DiskANN search visited {} nodes to return {} results", result.getVisitedCount(), result.getNodes().length);
         return annRowIdsToPostings(result, limit);
     }
 
