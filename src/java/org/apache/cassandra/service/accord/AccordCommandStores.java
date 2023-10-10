@@ -30,15 +30,24 @@ import accord.local.ShardDistributor;
 import accord.primitives.Range;
 import accord.topology.Topology;
 import accord.utils.RandomSource;
+import org.apache.cassandra.cache.CacheSize;
+import org.apache.cassandra.metrics.AccordStateCacheMetrics;
+import org.apache.cassandra.metrics.CacheSizeMetrics;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey;
 
-public class AccordCommandStores extends CommandStores
+public class AccordCommandStores extends CommandStores implements CacheSize
 {
+    public static final String ACCORD_STATE_CACHE = "accord-state-cache";
+
+    private final CacheSizeMetrics cacheSizeMetrics;
+    private long cacheSize;
+
     AccordCommandStores(NodeTimeService time, Agent agent, DataStore store, RandomSource random,
                         ShardDistributor shardDistributor, ProgressLog.Factory progressLogFactory, AccordJournal journal)
     {
-        super(time, agent, store, random, shardDistributor, progressLogFactory, AccordCommandStore.factory(journal));
-        setCacheSize(maxCacheSize());
+        super(time, agent, store, random, shardDistributor, progressLogFactory, AccordCommandStore.factory(journal, new AccordStateCacheMetrics(ACCORD_STATE_CACHE)));
+        setCapacity(maxCacheSize());
+        this.cacheSizeMetrics = new CacheSizeMetrics(ACCORD_STATE_CACHE, this);
     }
 
     static Factory factory(AccordJournal journal)
@@ -67,12 +76,28 @@ public class AccordCommandStores extends CommandStores
         return false;
     }
 
-    private long cacheSize;
-
-    synchronized void setCacheSize(long bytes)
+    public synchronized void setCapacity(long bytes)
     {
         cacheSize = bytes;
         refreshCacheSizes();
+    }
+
+    @Override
+    public long capacity()
+    {
+        return cacheSize;
+    }
+
+    @Override
+    public int size()
+    {
+        return unsafeFoldLeft(0, (size, commandStore) -> size + ((AccordCommandStore) commandStore).size());
+    }
+
+    @Override
+    public long weightedSize()
+    {
+        return unsafeFoldLeft(0L, (size, commandStore) -> size + ((AccordCommandStore) commandStore).weightedSize());
     }
 
     synchronized void refreshCacheSizes()
@@ -81,7 +106,7 @@ public class AccordCommandStores extends CommandStores
             return;
         long perStore = cacheSize / count();
         // TODO (low priority, safety): we might transiently breach our limit if we increase one store before decreasing another
-        forEach(commandStore -> ((AccordSafeCommandStore) commandStore).commandStore().setCacheSize(perStore));
+        forEach(commandStore -> ((AccordSafeCommandStore) commandStore).commandStore().setCapacity(perStore));
     }
 
     private static long maxCacheSize()
