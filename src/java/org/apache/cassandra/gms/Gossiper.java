@@ -590,7 +590,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     {
         checkProperThreadForStateMutation();
         EndpointState epState = endpointStateMap.get(endpoint);
-        if (epState == null)
+        if (epState == null || epState.isStateEmpty())
             return;
         VersionedValue shutdown = StorageService.instance.valueFactory.shutdown(true);
         epState.addApplicationState(ApplicationState.STATUS_WITH_PORT, shutdown);
