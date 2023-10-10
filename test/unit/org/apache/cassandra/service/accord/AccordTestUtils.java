@@ -77,6 +77,7 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.TransactionStatement;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.metrics.AccordStateCacheMetrics;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.service.ClientState;
@@ -370,7 +371,8 @@ public class AccordTestUtils
                                                            holder,
                                                            journal,
                                                            loadExecutor,
-                                                           saveExecutor);
+                                                           saveExecutor,
+                                                           new AccordStateCacheMetrics(AccordCommandStores.ACCORD_STATE_CACHE + System.currentTimeMillis()));
         holder.set(result);
         result.updateRangesForEpoch();
         return result;
@@ -389,7 +391,7 @@ public class AccordTestUtils
         Node.Id node = new Id(1);
         Topology topology = new Topology(1, new Shard(range, Lists.newArrayList(node), Sets.newHashSet(node), Collections.emptySet()));
         AccordCommandStore store = createAccordCommandStore(node, now, topology, loadExecutor, saveExecutor);
-        store.execute(PreLoadContext.empty(), safeStore -> ((AccordCommandStore)safeStore.commandStore()).setCacheSize(1 << 20));
+        store.execute(PreLoadContext.empty(), safeStore -> ((AccordCommandStore)safeStore.commandStore()).setCapacity(1 << 20));
         return store;
     }
 

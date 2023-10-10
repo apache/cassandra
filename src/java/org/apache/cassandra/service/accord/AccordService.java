@@ -299,7 +299,6 @@ public class AccordService implements IAccordService, Shutdownable
             }
             if (cause instanceof Preempted)
             {
-                metrics.preempts.mark();
                 //TODO need to improve
                 // Coordinator "could" query the accord state to see whats going on but that doesn't exist yet.
                 // Protocol also doesn't have a way to denote "unknown" outcome, so using a timeout as the closest match
@@ -372,7 +371,7 @@ public class AccordService implements IAccordService, Shutdownable
     {
         long bytes = kb << 10;
         AccordCommandStores commandStores = (AccordCommandStores) node.commandStores();
-        commandStores.setCacheSize(bytes);
+        commandStores.setCapacity(bytes);
     }
 
     @Override

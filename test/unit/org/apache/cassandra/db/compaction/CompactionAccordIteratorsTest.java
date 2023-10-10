@@ -399,9 +399,9 @@ public class CompactionAccordIteratorsTest
     {
         commandStore.executeBlocking(() -> {
             // clear cache and wait for post-eviction writes to complete
-            long cacheSize = commandStore.getCacheSize();
-            commandStore.setCacheSize(0);
-            commandStore.setCacheSize(cacheSize);
+            long cacheSize = commandStore.capacity();
+            commandStore.setCapacity(0);
+            commandStore.setCapacity(cacheSize);
             commandStore.cache().awaitSaveResults();
         });
         commands.forceBlockingFlush(FlushReason.UNIT_TESTS);

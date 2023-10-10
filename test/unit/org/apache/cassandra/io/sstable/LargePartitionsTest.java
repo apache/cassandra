@@ -132,10 +132,10 @@ public class LargePartitionsTest extends CQLTester
     {
         CacheMetrics metrics = CacheService.instance.keyCache.getMetrics();
         System.out.println("Key cache metrics " + title + ": capacity:" + metrics.capacity.getValue() +
-                           " size:"+metrics.size.getValue()+
+                           " size:" + metrics.size.getValue() +
                            " entries:" + metrics.entries.getValue() +
-                           " hit-rate:"+metrics.hitRate.getValue() +
-                           " one-min-rate:"+metrics.oneMinuteHitRate.getValue());
+                           " hit-rate:" + metrics.hitRate.getValue() +
+                           " one-min-rate:" + metrics.hitRate.getValue());
     }
 
     @Test
