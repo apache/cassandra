@@ -299,12 +299,6 @@
         <version>1.8.0</version>
       </dependency>
       <dependency>
-        <groupId>com.ning</groupId>
-        <artifactId>compress-lzf</artifactId>
-        <version>0.8.4</version>
-        <scope>provided</scope>
-      </dependency>
-      <dependency>
         <groupId>com.github.luben</groupId>
         <artifactId>zstd-jni</artifactId>
         <version>1.5.5-1</version>
@@ -618,6 +612,8 @@
           </exclusion>
         </exclusions>
       </dependency>
+      <!-- these dependencies have to be of provided scope as they are used by cassandra-dtests and ccm is looking
+           for these libraries in build/lib/jars -->
       <dependency>
         <groupId>org.jboss.byteman</groupId>
         <artifactId>byteman-install</artifactId>
@@ -646,11 +642,13 @@
         <groupId>net.bytebuddy</groupId>
         <artifactId>byte-buddy</artifactId>
         <version>${bytebuddy.version}</version>
+        <scope>test</scope>
       </dependency>
       <dependency>
         <groupId>net.bytebuddy</groupId>
         <artifactId>byte-buddy-agent</artifactId>
         <version>${bytebuddy.version}</version>
+        <scope>test</scope>
       </dependency>
       <dependency>
         <groupId>org.openjdk.jmh</groupId>
