@@ -118,7 +118,7 @@ public class UnfilteredSerializer
      *
      * @deprecated See CASSANDRA-11500
      */
-    @Deprecated
+    @Deprecated(since = "4.0")
     private final static int HAS_SHADOWABLE_DELETION = 0x02; // Whether the row deletion is shadowable. If there is no extended flag (or no row deletion), the deletion is assumed not shadowable.
 
     public void serialize(Unfiltered unfiltered, SerializationHelper helper, DataOutputPlus out, int version)

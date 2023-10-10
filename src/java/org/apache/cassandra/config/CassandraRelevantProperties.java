@@ -219,15 +219,15 @@ public enum CassandraRelevantProperties
     FILE_CACHE_ENABLED("cassandra.file_cache_enabled"),
     /** @deprecated should be removed in favor of enable flag of relevant startup check (FileSystemOwnershipCheck) */
     /** @deprecated See CASSANDRA-17797 */
-    @Deprecated
+    @Deprecated(since = "4.1")
     FILE_SYSTEM_CHECK_ENABLE("cassandra.enable_fs_ownership_check"),
     /** @deprecated should be removed in favor of flags in relevant startup check (FileSystemOwnershipCheck) */
     /** @deprecated See CASSANDRA-17797 */
-    @Deprecated
+    @Deprecated(since = "4.1")
     FILE_SYSTEM_CHECK_OWNERSHIP_FILENAME("cassandra.fs_ownership_filename", FileSystemOwnershipCheck.DEFAULT_FS_OWNERSHIP_FILENAME),
     /** @deprecated should be removed in favor of flags in relevant startup check (FileSystemOwnershipCheck) */
     /** @deprecated See CASSANDRA-17797 */
-    @Deprecated
+    @Deprecated(since = "4.1")
     FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN(FileSystemOwnershipCheck.FILE_SYSTEM_CHECK_OWNERSHIP_TOKEN),
     FORCE_DEFAULT_INDEXING_PAGE_SIZE("cassandra.force_default_indexing_page_size"),
     /** Used when running in Client mode and the system and schema keyspaces need to be initialized outside of their normal initialization path **/
@@ -261,13 +261,13 @@ public enum CassandraRelevantProperties
     IGNORE_CORRUPTED_SCHEMA_TABLES("cassandra.ignore_corrupted_schema_tables"),
     /** @deprecated should be removed in favor of enable flag of relevant startup check (checkDatacenter) */
     /** @deprecated See CASSANDRA-17797 */
-    @Deprecated
+    @Deprecated(since = "4.1")
     IGNORE_DC("cassandra.ignore_dc"),
     IGNORE_DYNAMIC_SNITCH_SEVERITY("cassandra.ignore_dynamic_snitch_severity"),
     IGNORE_MISSING_NATIVE_FILE_HINTS("cassandra.require_native_file_hints"),
     /** @deprecated should be removed in favor of enable flag of relevant startup check (checkRack) */
     /** @deprecated See CASSANDRA-17797 */
-    @Deprecated
+    @Deprecated(since = "4.1")
     IGNORE_RACK("cassandra.ignore_rack"),
     INDEX_SUMMARY_EXPECTED_KEY_SIZE("cassandra.index_summary_expected_key_size", "64"),
     INITIAL_TOKEN("cassandra.initial_token"),

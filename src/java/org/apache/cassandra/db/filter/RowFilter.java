@@ -467,7 +467,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         }
 
         /** @deprecated See CASSANDRA-6377 */
-        @Deprecated
+        @Deprecated(since = "3.5")
         public void validateForIndexing()
         {
             checkFalse(value.remaining() > FBUtilities.MAX_UNSIGNED_SHORT,

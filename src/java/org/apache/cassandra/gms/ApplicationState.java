@@ -29,7 +29,7 @@ public enum ApplicationState
 {
     // never remove a state here, ordering matters.
     /** @deprecated See CASSANDRA-7544 */
-    @Deprecated STATUS, //Deprecated and unsued in 4.0, stop publishing in 5.0, reclaim in 6.0
+    @Deprecated(since = "4.0") STATUS, //Deprecated and unsued in 4.0, stop publishing in 5.0, reclaim in 6.0
     LOAD,
     SCHEMA,
     DC,
@@ -37,9 +37,9 @@ public enum ApplicationState
     RELEASE_VERSION,
     REMOVAL_COORDINATOR,
     /** @deprecated See CASSANDRA-7544 */
-    @Deprecated INTERNAL_IP, //Deprecated and unused in 4.0, stop publishing in 5.0, reclaim in 6.0
+    @Deprecated(since = "4.0") INTERNAL_IP, //Deprecated and unused in 4.0, stop publishing in 5.0, reclaim in 6.0
     /** @deprecated See CASSANDRA-7544 */
-    @Deprecated RPC_ADDRESS, // ^ Same
+    @Deprecated(since = "4.0") RPC_ADDRESS, // ^ Same
     X_11_PADDING, // padding specifically for 1.1
     SEVERITY,
     NET_VERSION,

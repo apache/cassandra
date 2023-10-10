@@ -64,7 +64,7 @@ public interface StorageProxyMBean
     public long getReadRepairRepairTimedOut();
 
     /** @deprecated See CASSANDRA-15066 */
-    @Deprecated
+    @Deprecated(since = "4.0")
     public int getOtcBacklogExpirationInterval();
 
     public void loadPartitionDenylist();
@@ -81,14 +81,14 @@ public interface StorageProxyMBean
     public boolean isKeyDenylisted(String keyspace, String table, String partitionKeyAsString);
 
     /** @deprecated See CASSANDRA-15066 */
-    @Deprecated
+    @Deprecated(since = "4.0")
     public void setOtcBacklogExpirationInterval(int intervalInMillis);
 
     /**
      * Returns each live node's schema version.
      * @deprecated See CASSANDRA-7544
      */
-    @Deprecated public Map<String, List<String>> getSchemaVersions();
+    @Deprecated(since = "4.0") public Map<String, List<String>> getSchemaVersions();
     public Map<String, List<String>> getSchemaVersionsWithPort();
 
     public int getNumberOfTables();

@@ -350,7 +350,7 @@ public class TokenMetadata
     }
 
     /** @deprecated See CASSANDRA-4121 */
-    @Deprecated
+    @Deprecated(since = "1.2.0")
     public void addBootstrapToken(Token token, InetAddressAndPort endpoint)
     {
         addBootstrapTokens(Collections.singleton(token), endpoint);
@@ -612,7 +612,8 @@ public class TokenMetadata
         }
     }
 
-    /** @deprecated See CASSANDRA-4121 */ @Deprecated
+    /** @deprecated See CASSANDRA-4121 */
+    @Deprecated(since = "1.2.0")
     public Token getToken(InetAddressAndPort endpoint)
     {
         return getTokens(endpoint).iterator().next();
@@ -793,7 +794,8 @@ public class TokenMetadata
         return ranges;
     }
 
-    /** @deprecated See CASSANDRA-4121 */ @Deprecated
+    /** @deprecated See CASSANDRA-4121 */
+    @Deprecated(since = "1.2.0")
     public Range<Token> getPrimaryRangeFor(Token right)
     {
         return getPrimaryRangesFor(Arrays.asList(right)).iterator().next();
@@ -1340,7 +1342,7 @@ public class TokenMetadata
     /**
      * @deprecated retained for benefit of old tests
      */
-    @Deprecated
+    @Deprecated(since = "4.0")
     public EndpointsForToken getWriteEndpoints(Token token, String keyspaceName, EndpointsForToken natural)
     {
         EndpointsForToken pending = pendingEndpointsForToken(token, keyspaceName);

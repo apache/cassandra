@@ -125,7 +125,7 @@ public class InboundSink implements InboundMessageHandlers.MessageConsumer
     }
 
     /** @deprecated See CASSANDRA-15066 */
-    @Deprecated // TODO: this is not the correct way to do things
+    @Deprecated(since = "4.0") // TODO: this is not the correct way to do things
     public boolean allow(Message<?> message)
     {
         return allows(sink, message);

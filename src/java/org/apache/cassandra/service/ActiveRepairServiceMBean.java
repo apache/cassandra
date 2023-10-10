@@ -30,21 +30,21 @@ public interface ActiveRepairServiceMBean
     public void failSession(String session, boolean force);
 
     /** @deprecated See CASSANDRA-15234 */
-    @Deprecated
+    @Deprecated(since = "4.1")
     public void setRepairSessionSpaceInMegabytes(int sizeInMegabytes);
     /** @deprecated See CASSANDRA-15234 */
-    @Deprecated
+    @Deprecated(since = "4.1")
     public int getRepairSessionSpaceInMegabytes();
 
     /**
      * @deprecated use setRepairSessionSpaceInMiB instead as it will not throw non-standard exceptions. See CASSANDRA-17668
      */
-    @Deprecated
+    @Deprecated(since = "4.1")
     public void setRepairSessionSpaceInMebibytes(int sizeInMebibytes);
     /**
      * @deprecated use getRepairSessionSpaceInMiB instead. See CASSANDRA-17668
      */
-    @Deprecated
+    @Deprecated(since = "4.1")
     public int getRepairSessionSpaceInMebibytes();
 
     public void setRepairSessionSpaceInMiB(int sizeInMebibytes);

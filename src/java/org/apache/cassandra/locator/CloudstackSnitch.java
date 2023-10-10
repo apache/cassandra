@@ -42,7 +42,7 @@ import static org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector
  *
  * @deprecated See CASSANDRA-18438
  */
-@Deprecated
+@Deprecated(since = "5.0")
 public class CloudstackSnitch extends AbstractCloudMetadataServiceSnitch
 {
     static final String ZONE_NAME_QUERY_URI = "/latest/meta-data/availability-zone";

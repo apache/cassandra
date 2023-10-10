@@ -293,7 +293,7 @@ public class VIntCoding
     }
 
     /** @deprecated See CASSANDRA-18099 */
-    @Deprecated
+    @Deprecated(since = "5.0")
     public static void writeUnsignedVInt(int value, DataOutputPlus output) throws IOException
     {
         throw new UnsupportedOperationException("Use writeUnsignedVInt32/readUnsignedVInt32");
@@ -332,7 +332,7 @@ public class VIntCoding
     }
 
     /** @deprecated See CASSANDRA-18099 */
-    @Deprecated
+    @Deprecated(since = "5.0")
     public static void writeUnsignedVInt(int value, ByteBuffer output) throws IOException
     {
         throw new UnsupportedOperationException("Use writeUnsignedVInt32/getUnsignedVInt32");
@@ -437,7 +437,7 @@ public class VIntCoding
     }
 
     /** @deprecated See CASSANDRA-18099 */
-    @Deprecated
+    @Deprecated(since = "5.0")
     public static void writeVInt(int value, DataOutputPlus output) throws IOException
     {
         throw new UnsupportedOperationException("Use writeVInt32/readVInt32");
@@ -456,7 +456,7 @@ public class VIntCoding
     }
 
     /** @deprecated See CASSANDRA-18099 */
-    @Deprecated
+    @Deprecated(since = "5.0")
     public static void writeVInt(int value, ByteBuffer output)
     {
         throw new UnsupportedOperationException("Use writeVInt32/getVInt32");

@@ -77,14 +77,14 @@ public abstract class Version
      * @deprecated it is replaced by {@link #hasImprovedMinMax()} since 'nc' and to be completetly removed since 'oa'
      */
     /** @deprecated See CASSANDRA-18134 */
-    @Deprecated
+    @Deprecated(since = "5.0")
     public abstract boolean hasAccurateMinMax();
 
     /**
      * @deprecated it is replaced by {@link #hasImprovedMinMax()} since 'nc' and to be completetly removed since 'oa'
      */
     /** @deprecated See CASSANDRA-18134 */
-    @Deprecated
+    @Deprecated(since = "5.0")
     public abstract boolean hasLegacyMinMax();
 
     public abstract boolean hasOriginatingHostId();

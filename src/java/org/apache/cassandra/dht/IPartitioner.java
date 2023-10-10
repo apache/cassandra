@@ -132,7 +132,7 @@ public interface IPartitioner
      * Used by secondary indices.
      */
     /** @deprecated See CASSANDRA-17698 */
-    @Deprecated // use #partitionOrdering(AbstractType) instead, see CASSANDRA-17698 for details
+    @Deprecated(since = "5.0") // use #partitionOrdering(AbstractType) instead, see CASSANDRA-17698 for details
     public AbstractType<?> partitionOrdering();
 
     /**

@@ -279,7 +279,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public final TableMetadataRef metadata;
     private final String mbeanName;
     /** @deprecated See CASSANDRA-9448 */
-    @Deprecated
+    @Deprecated(since = "3.0")
     private final String oldMBeanName;
     private volatile boolean valid = true;
 
@@ -845,7 +845,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         keyspace.getColumnFamilyStore(cfName).loadNewSSTables();
     }
 
-    /** @deprecated See CASSANDRA-6719 */ @Deprecated
+    /** @deprecated See CASSANDRA-6719 */
+    @Deprecated(since = "4.0")
     public void loadNewSSTables()
     {
 
@@ -919,7 +920,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         }
     }
 
-    /** @deprecated See CASSANDRA-9448 */ @Deprecated
+    /** @deprecated See CASSANDRA-9448 */
+    @Deprecated(since = "3.0")
     public String getColumnFamilyName()
     {
         return getTableName();

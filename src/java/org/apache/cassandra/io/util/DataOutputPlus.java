@@ -50,7 +50,7 @@ public interface DataOutputPlus extends DataOutput
     }
 
     /** @deprecated See CASSANDRA-18099 */
-    @Deprecated
+    @Deprecated(since = "5.0")
     default void writeVInt(int i)
     {
         throw new UnsupportedOperationException("Use writeVInt32/readVInt32");
@@ -73,7 +73,8 @@ public interface DataOutputPlus extends DataOutput
         VIntCoding.writeUnsignedVInt(i, this);
     }
 
-    /** @deprecated See CASSANDRA-18099 */ @Deprecated
+    /** @deprecated See CASSANDRA-18099 */
+    @Deprecated(since = "5.0")
     default void writeUnsignedVInt(int i)
     {
         throw new UnsupportedOperationException("Use writeUnsignedVInt32/readUnsignedVInt32");

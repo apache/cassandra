@@ -214,10 +214,10 @@ public enum Verb
     _TEST_2                (11,  P1, rpcTimeout,      IMMEDIATE,         () -> NoPayload.serializer,                 () -> null                                                     ),
 
     /** @deprecated See CASSANDRA-15066 */
-    @Deprecated
+    @Deprecated(since = "4.0")
     REQUEST_RSP            (4,   P1, rpcTimeout,      REQUEST_RESPONSE,  () -> null,                                 () -> ResponseVerbHandler.instance                             ),
     /** @deprecated See CASSANDRA-15066 */
-    @Deprecated
+    @Deprecated(since = "4.0")
     INTERNAL_RSP           (23,  P1, rpcTimeout,      INTERNAL_RESPONSE, () -> null,                                 () -> ResponseVerbHandler.instance                             ),
 
     // largest used ID: 116

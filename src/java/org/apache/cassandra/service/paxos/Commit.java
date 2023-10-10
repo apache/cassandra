@@ -270,7 +270,7 @@ public class Commit
     }
 
     /** @deprecated See CASSANDRA-17164 */
-    @Deprecated
+    @Deprecated(since = "4.1")
     public static Commit newProposal(Ballot ballot, PartitionUpdate update)
     {
         update = withTimestamp(update, ballot.unixMicros());

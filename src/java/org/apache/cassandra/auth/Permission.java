@@ -32,10 +32,10 @@ import com.google.common.collect.Sets;
 public enum Permission
 {
     /** @deprecated See CASSANDRA-4874 */
-    @Deprecated
+    @Deprecated(since = "1.2.0")
     READ,
     /** @deprecated See CASSANDRA-4874 */
-    @Deprecated
+    @Deprecated(since = "1.2.0")
     WRITE,
 
     // schema and role management

@@ -298,21 +298,21 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     }
 
     /** @deprecated See CASSANDRA-15234 */
-    @Deprecated
+    @Deprecated(since = "4.1")
     public void setRepairSessionSpaceInMegabytes(int sizeInMegabytes)
     {
         DatabaseDescriptor.setRepairSessionSpaceInMiB(sizeInMegabytes);
     }
 
     /** @deprecated See CASSANDRA-15234 */
-    @Deprecated
+    @Deprecated(since = "4.1")
     public int getRepairSessionSpaceInMegabytes()
     {
         return DatabaseDescriptor.getRepairSessionSpaceInMiB();
     }
 
     /** @deprecated See CASSANDRA-17668 */
-    @Deprecated
+    @Deprecated(since = "4.1")
     @Override
     public void setRepairSessionSpaceInMebibytes(int sizeInMebibytes)
     {
@@ -320,7 +320,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     }
 
     /** @deprecated See CASSANDRA-17668 */
-    @Deprecated
+    @Deprecated(since = "4.1")
     @Override
     public int getRepairSessionSpaceInMebibytes()
     {

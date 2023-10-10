@@ -35,7 +35,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.SCHEMA_UPD
 public class SchemaUpdateHandlerFactoryProvider implements Provider<SchemaUpdateHandlerFactory>
 {
     /** @deprecated Use CassandraRelevantProperties.SCHEMA_UPDATE_HANDLER_FACTORY_CLASS instead. See CASSANDRA-17797 */
-    @Deprecated
+    @Deprecated(since = "5.0")
     public static final String SUH_FACTORY_CLASS_PROPERTY = "cassandra.schema.update_handler_factory.class";
 
     public final static SchemaUpdateHandlerFactoryProvider instance = new SchemaUpdateHandlerFactoryProvider();

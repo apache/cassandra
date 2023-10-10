@@ -4347,7 +4347,7 @@ public class DatabaseDescriptor
     }
 
     /** @deprecated See CASSANDRA-17195 */
-    @Deprecated // this warning threshold will be replaced by an equivalent guardrail
+    @Deprecated(since = "4.1") // this warning threshold will be replaced by an equivalent guardrail
     public static ConsistencyLevel getAuthWriteConsistencyLevel()
     {
         return ConsistencyLevel.valueOf(conf.auth_write_consistency_level);

@@ -32,16 +32,16 @@ public interface FailureDetectorMBean
     public double getPhiConvictThreshold();
 
     /** @deprecated See CASSANDRA-7544 */
-    @Deprecated public String getAllEndpointStates();
+    @Deprecated(since = "4.0") public String getAllEndpointStates();
     /** @deprecated See CASSANDRA-17934 */
-    @Deprecated public String getAllEndpointStatesWithResolveIp();
+    @Deprecated(since = "5.0") public String getAllEndpointStatesWithResolveIp();
     public String getAllEndpointStatesWithPort();
     public String getAllEndpointStatesWithPortAndResolveIp();
 
     public String getEndpointState(String address) throws UnknownHostException;
 
     /** @deprecated See CASSANDRA-7544 */
-    @Deprecated public Map<String, String> getSimpleStates();
+    @Deprecated(since = "4.0") public Map<String, String> getSimpleStates();
     public Map<String, String> getSimpleStatesWithPort();
 
     public int getDownEndpointCount();
@@ -49,6 +49,6 @@ public interface FailureDetectorMBean
     public int getUpEndpointCount();
 
     /** @deprecated See CASSANDRA-7544 */
-    @Deprecated public TabularData getPhiValues() throws OpenDataException;
+    @Deprecated(since = "4.0") public TabularData getPhiValues() throws OpenDataException;
     public TabularData getPhiValuesWithPort() throws OpenDataException;
 }

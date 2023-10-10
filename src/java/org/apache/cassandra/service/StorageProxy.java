@@ -2859,13 +2859,13 @@ public class StorageProxy implements StorageProxyMBean
     }
 
     /** @deprecated See CASSANDRA-15066 */
-    @Deprecated
+    @Deprecated(since = "4.0")
     public int getOtcBacklogExpirationInterval() {
         return 0;
     }
 
     /** @deprecated See CASSANDRA-15066 */
-    @Deprecated
+    @Deprecated(since = "4.0")
     public void setOtcBacklogExpirationInterval(int intervalInMillis) { }
 
     @Override

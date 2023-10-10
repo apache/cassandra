@@ -72,7 +72,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
     private boolean throwEarly, throwLate;
 
     /** @deprecated See CASSANDRA-11148 */
-    @Deprecated
+    @Deprecated(since = "3.4")
     public SSTableRewriter(ILifecycleTransaction transaction, long maxAge, long preemptiveOpenInterval, boolean keepOriginals)
     {
         this(transaction, maxAge, preemptiveOpenInterval, keepOriginals, false);

@@ -333,7 +333,7 @@ public class Schema implements SchemaProvider
      * or virtual keyspaces.
      * @deprecated use {@link #distributedKeyspaces()}. See CASSANDRA-17044
      */
-    @Deprecated
+    @Deprecated(since = "4.1")
     public Keyspaces getNonSystemKeyspaces()
     {
         return distributedKeyspaces;

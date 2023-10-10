@@ -586,7 +586,7 @@ public class AuthorizationProxy implements InvocationHandler
     {
         public static final String CACHE_NAME = "JmxPermissionsCache";
         /** @deprecated See CASSANDRA-16404 */
-        @Deprecated
+        @Deprecated(since = "4.1")
         public static final String DEPRECATED_CACHE_NAME = "JMXPermissionsCache";
 
         public void invalidatePermissions(String roleName);

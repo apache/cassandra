@@ -82,7 +82,7 @@ public final class CompressionParams
                                                            "You should specify it as a top-level table option instead";
 
     /** @deprecated See CASSANDRA-9839 */
-    @Deprecated public static final String CRC_CHECK_CHANCE = "crc_check_chance";
+    @Deprecated(since = "3.0") public static final String CRC_CHECK_CHANCE = "crc_check_chance";
 
     private final ICompressor sstableCompressor;
     private final int chunkLength;

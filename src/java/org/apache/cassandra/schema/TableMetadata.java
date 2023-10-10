@@ -99,7 +99,7 @@ public class TableMetadata implements SchemaElement
         // upgrading). So we still "deserialize" those flags correctly, but otherwise prevent startup if any table
         // have them. Once we drop support for upgrading from pre-4.0, we can remove those values.
         /** @deprecated See CASSANDRA-16217 */
-        @Deprecated SUPER;
+        @Deprecated(since = "4.0") SUPER;
 
         /*
          *  We call dense a CF for which each component of the comparator is a clustering column, i.e. no

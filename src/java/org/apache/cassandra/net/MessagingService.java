@@ -213,10 +213,10 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
     public enum Version
     {
         /** @deprecated See CASSANDRA-18314 */
-        @Deprecated
+        @Deprecated(since = "5.0")
         VERSION_30(10),
         /** @deprecated See CASSANDRA-18314 */
-        @Deprecated
+        @Deprecated(since = "5.0")
         VERSION_3014(11),
         VERSION_40(12),
         // c14227 TTL overflow, 'uint' timestamps
@@ -244,9 +244,11 @@ public class MessagingService extends MessagingServiceMBeanImpl implements Messa
     // Maintance Note:
     // Try to keep Version enum in-sync for testing.  By having the versions in the enum tests can get access without forcing this class
     // to load, which adds a lot of costs to each test
-    /** @deprecated See CASSANDRA-18816 */ @Deprecated
+    /** @deprecated See CASSANDRA-18816 */
+    @Deprecated(since = "5.0")
     public static final int VERSION_30 = 10;
-    /** @deprecated See CASSANDRA-18816 */ @Deprecated
+    /** @deprecated See CASSANDRA-18816 */
+    @Deprecated(since = "5.0")
     public static final int VERSION_3014 = 11;
     public static final int VERSION_40 = 12;
     public static final int VERSION_50 = 13; // c14227 TTL overflow, 'uint' timestamps

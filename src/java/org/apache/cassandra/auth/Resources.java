@@ -65,14 +65,14 @@ public final class Resources
     }
 
     /** @deprecated See CASSANDRA-4874 */
-    @Deprecated
+    @Deprecated(since = "1.2.0")
     public final static String ROOT = "cassandra";
     /** @deprecated See CASSANDRA-4874 */
-    @Deprecated
+    @Deprecated(since = "1.2.0")
     public final static String KEYSPACES = "keyspaces";
 
     /** @deprecated See CASSANDRA-4874 */
-    @Deprecated
+    @Deprecated(since = "1.2.0")
     public static String toString(List<Object> resource)
     {
         StringBuilder buff = new StringBuilder();
