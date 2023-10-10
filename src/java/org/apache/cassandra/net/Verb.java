@@ -45,12 +45,13 @@ import org.apache.cassandra.db.TruncateResponse;
 import org.apache.cassandra.db.TruncateVerbHandler;
 import org.apache.cassandra.db.TruncateRequest;
 import org.apache.cassandra.exceptions.RequestFailureReason;
-import org.apache.cassandra.gms.GossipDigestAck;
 import org.apache.cassandra.gms.GossipDigestAck2;
 import org.apache.cassandra.gms.GossipDigestAck2VerbHandler;
+import org.apache.cassandra.gms.GossipDigestAck;
 import org.apache.cassandra.gms.GossipDigestAckVerbHandler;
 import org.apache.cassandra.gms.GossipDigestSyn;
 import org.apache.cassandra.gms.GossipDigestSynVerbHandler;
+import org.apache.cassandra.gms.GossipShutdown;
 import org.apache.cassandra.gms.GossipShutdownVerbHandler;
 import org.apache.cassandra.hints.HintMessage;
 import org.apache.cassandra.hints.HintVerbHandler;
@@ -143,7 +144,7 @@ public enum Verb
     GOSSIP_DIGEST_SYN      (14,  P0, longTimeout,     GOSSIP,            () -> GossipDigestSyn.serializer,           () -> GossipDigestSynVerbHandler.instance                      ),
     GOSSIP_DIGEST_ACK      (15,  P0, longTimeout,     GOSSIP,            () -> GossipDigestAck.serializer,           () -> GossipDigestAckVerbHandler.instance                      ),
     GOSSIP_DIGEST_ACK2     (16,  P0, longTimeout,     GOSSIP,            () -> GossipDigestAck2.serializer,          () -> GossipDigestAck2VerbHandler.instance                     ),
-    GOSSIP_SHUTDOWN        (29,  P0, rpcTimeout,      GOSSIP,            () -> NoPayload.serializer,                 () -> GossipShutdownVerbHandler.instance                       ),
+    GOSSIP_SHUTDOWN        (29,  P0, rpcTimeout,      GOSSIP,            () -> GossipShutdown.serializer,            () -> GossipShutdownVerbHandler.instance                       ),
 
     ECHO_RSP               (91,  P0, rpcTimeout,      GOSSIP,            () -> NoPayload.serializer,                 () -> ResponseVerbHandler.instance                             ),
     ECHO_REQ               (31,  P0, rpcTimeout,      GOSSIP,            () -> NoPayload.serializer,                 () -> EchoVerbHandler.instance,            ECHO_RSP            ),
