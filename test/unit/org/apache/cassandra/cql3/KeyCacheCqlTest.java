@@ -608,10 +608,10 @@ public class KeyCacheCqlTest extends CQLTester
         CassandraMetricsRegistry.Metrics.getNames().forEach(CassandraMetricsRegistry.Metrics::remove);
         CacheService.instance.keyCache.clear();
         CacheMetrics metrics = CacheService.instance.keyCache.getMetrics();
-        Assert.assertEquals(0, metrics.entries.getValue().intValue());
+        Assert.assertEquals(0, metrics.cacheSize.entries.getValue().intValue());
         Assert.assertEquals(0L, metrics.hits.getCount());
         Assert.assertEquals(0L, metrics.requests.getCount());
-        Assert.assertEquals(0L, metrics.size.getValue().longValue());
+        Assert.assertEquals(0L, metrics.cacheSize.size.getValue().longValue());
     }
 
     private static void triggerBlockingFlush(Index index) throws Exception

@@ -24,6 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.Agent;
+import accord.api.EventsListener;
 import accord.api.Result;
 import accord.local.Command;
 import accord.local.Node;
@@ -33,6 +34,7 @@ import accord.primitives.Timestamp;
 import accord.primitives.Txn;
 import accord.primitives.TxnId;
 import org.apache.cassandra.service.accord.AccordService;
+import org.apache.cassandra.metrics.AccordMetrics;
 import org.apache.cassandra.service.accord.txn.TxnQuery;
 import org.apache.cassandra.service.accord.txn.TxnRead;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -100,5 +102,11 @@ public class AccordAgent implements Agent
     public Txn emptyTxn(Txn.Kind kind, Seekables<?, ?> keysOrRanges)
     {
         return new Txn.InMemory(kind, keysOrRanges, TxnRead.EMPTY, TxnQuery.ALL, null);
+    }
+
+    @Override
+    public EventsListener metricsEventsListener()
+    {
+        return AccordMetrics.Listener.instance;
     }
 }
