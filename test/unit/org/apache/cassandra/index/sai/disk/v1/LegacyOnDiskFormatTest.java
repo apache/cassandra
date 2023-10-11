@@ -144,20 +144,6 @@ public class LegacyOnDiskFormatTest
         assertEquals(expected, primaryKey);
     }
 
-    // This test should pass, but I am not able to run it yet due to the class being Ignored.
-    @Test
-    public void endOfStreamForLegacyPrimaryKeyMap() throws Throwable
-    {
-        try (PrimaryKeyMap.Factory primaryKeyMapFactory = indexDescriptor.newPrimaryKeyMapFactory(sstable);
-             PrimaryKeyMap primaryKeyMap = primaryKeyMapFactory.newPerSSTablePrimaryKeyMap())
-        {
-            assertTrue(primaryKeyMap.isNotFound(-1));
-            assertFalse(primaryKeyMap.isNotFound(0));
-            assertFalse(primaryKeyMap.isNotFound(1));
-        }
-
-    }
-
     @Test
     public void canSearchBDKIndex() throws Throwable
     {

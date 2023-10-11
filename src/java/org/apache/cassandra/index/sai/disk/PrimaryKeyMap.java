@@ -61,7 +61,7 @@ public interface PrimaryKeyMap extends Closeable
     PrimaryKey primaryKeyFromRowId(long sstableRowId);
 
     /**
-     * Returns a row Id for a {@link PrimaryKey}. If there is no such term, {@link #isNotFound(long)} will return true.
+     * Returns a row Id for a {@link PrimaryKey}. If there is no such term, returns a negative value.
      *
      * @param key the {@link PrimaryKey} to lookup
      * @return the row Id associated with the {@link PrimaryKey}
@@ -70,7 +70,7 @@ public interface PrimaryKeyMap extends Closeable
 
     /**
      * Returns the sstable row id associated with the least {@link PrimaryKey} greater than or equal to the given
-     * {@link PrimaryKey}. If there is no such term, {@link #isNotFound(long)} will return true.
+     * {@link PrimaryKey}. If there is no such term, returns a negative value.
      *
      * @param key the {@link PrimaryKey} to lookup
      * @return the first row Id associated with the {@link PrimaryKey}
@@ -79,20 +79,12 @@ public interface PrimaryKeyMap extends Closeable
 
     /**
      * Returns the sstable row id associated with the greatest {@link PrimaryKey} less than or equal to the given
-     * {@link PrimaryKey}. If there is no such term, {@link #isNotFound(long)} will return true.
+     * {@link PrimaryKey}. If there is no such term, returns a negative value.
      *
      * @param key the {@link PrimaryKey} to lookup
      * @return an sstable row id
      */
     long floor(PrimaryKey key);
-
-    /**
-     * This method is necessary because the two implementations for this interface have divergent behavior for
-     * indicating that a {@link PrimaryKey} was not found.
-     * @param sstableRowId
-     * @return true if the passed row id is not found by the {@link PrimaryKeyMap}
-     */
-    boolean isNotFound(long sstableRowId);
 
     @Override
     default void close() throws IOException

@@ -181,12 +181,6 @@ public class RowAwarePrimaryKeyMap implements PrimaryKeyMap
         return sortedTermsReader.floor(v -> key.asComparableBytesMaxPrefix(v));
     }
 
-    @Override
-    public boolean isNotFound(long sstableRowId)
-    {
-        return sstableRowId == Long.MAX_VALUE;
-    }
-
 
     @Override
     public void close() throws IOException

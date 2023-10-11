@@ -72,6 +72,7 @@ import static org.apache.cassandra.index.sai.disk.v2.sortedterms.SortedTermsWrit
 @ThreadSafe
 public class SortedTermsReader
 {
+    private static final long NOT_FOUND = -1;
     private final FileHandle termsData;
     private final SortedTermsMeta meta;
     private final FileHandle termsTrie;
@@ -106,7 +107,7 @@ public class SortedTermsReader
 
     /**
      * Returns the point id (ordinal) associated with the least term greater than or equal to the given term, or
-     * <code>Long.MAX_VALUE</code> if there is no such point id.
+     * a negative value if there is no such term.
      * @param term
      * @return
      */
@@ -122,12 +123,12 @@ public class SortedTermsReader
                                                               true))
         {
             final Iterator<Pair<ByteSource, Long>> iterator = reader.iterator();
-            return iterator.hasNext() ? iterator.next().right : Long.MAX_VALUE;
+            return iterator.hasNext() ? iterator.next().right : NOT_FOUND;
         }
     }
 
     /**
-     * Returns the point id (ordinal) of the target term or <code>Long.MAX_VALUE</code> if there is no such term.
+     * Returns the point id (ordinal) of the target term or a negative value if there is no such term.
      * Complexity of this operation is O(log n).
      *
      * @param term target term to lookup
@@ -138,13 +139,13 @@ public class SortedTermsReader
         try (TrieTermsDictionaryReader reader = new TrieTermsDictionaryReader(termsTrie.instantiateRebufferer(), meta.trieFP))
         {
             long result = reader.exactMatch(term);
-            return result < 0 ? Long.MAX_VALUE : result;
+            return result < 0 ? NOT_FOUND : result;
         }
     }
 
     /**
      * Returns the point id (ordinal) associated with the greatest term less than or equal to the given term, or
-     * <code>Long.MAX_VALUE</code> if there is no such term.
+     * a negative value if there is no such term.
      * Complexity of this operation is O(log n).
      *
      * @param term target term to lookup
