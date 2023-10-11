@@ -244,9 +244,7 @@ public class TypeUtil
 
     public static float[] decomposeVector(IndexContext indexContext, ByteBuffer byteBuffer)
     {
-        return ((VectorType<?>.VectorSerializer)indexContext.getValidator()
-                                                            .getSerializer())
-               .deserializeFloatArray(byteBuffer);
+        return ((VectorType<?>)indexContext.getValidator()).composeAsFloat(byteBuffer);
     }
 
     /**

@@ -55,7 +55,7 @@ public class CompactionVectorValues implements RamAwareVectorValues
     @Override
     public float[] vectorValue(int i)
     {
-        return type.getSerializer().deserializeFloatArray(values.get(i));
+        return type.composeAsFloat(values.get(i));
     }
 
     /** return approximate bytes used by the new vector */
