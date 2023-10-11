@@ -218,7 +218,7 @@ CREATE CUSTOM INDEX lastname_sai_idx ON cycling.cyclist_semi_pro (lastname)
 
 [TIP]
 ====
-SAI added the `ascii` option with the DSE 6.8.7 release.
+SAI has an `ascii` option.
 The default is `false`.
 When set to `true`, SAI converts alphabetic, numeric, and symbolic characters that are not in the Basic Latin Unicode block (the first 127 ASCII characters) to the ASCII equivalent, if one exists.
 For example, this option changes à to a.
@@ -235,7 +235,6 @@ Also, SAI can use multiple defined indexes within a single read query.
 
 == How can I view SAI memory usage metrics?
 
-SAI follows the Threads Per Core (TPC) memory model for DSE.
 The SAI memory footprint is divided between the JVM heap and the Chunk Cache.
 The heap stores memtable indexes, and the chunk cache stores recently accessed on-disk index components as well as other SSTable components.
 SAI provides metrics for both the heap and the chunk cache.
@@ -243,7 +242,7 @@ For each index, SAI also provides metrics for determining the size in bytes of m
 Refer to xref:cassandra:developing/cql/indexing/sai/monitoring.adoc#saiIndexGroupMetrics[Index group metrics].
 SAI also provides Table state metrics that give you visibility into the disk usage, the percentage of disk usage of the base table, the index builds in progress, and related metrics.
 See xref:cassandra:developing/cql/indexing/sai/monitoring.adoc#saiTableStateMetrics[Table state metrics].
-These metrics and many others are accessible via DSE OpsCenter.
+
 
 [[saiAndQueriesFaq]]
 == What is the performance impact of adding SAI columns to a read query? How many `AND` clauses can I add?
