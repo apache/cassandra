@@ -181,7 +181,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     private IsolatedJmx isolatedJmx;
 
     /** @deprecated See CASSANDRA-17013 */
-    @Deprecated
+    @Deprecated(since = "4.1")
     Instance(IInstanceConfig config, ClassLoader classLoader)
     {
         this(config, classLoader, null);
