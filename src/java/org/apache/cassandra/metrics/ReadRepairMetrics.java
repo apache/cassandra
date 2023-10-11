@@ -31,8 +31,10 @@ public class ReadRepairMetrics
     public static final Meter repairedBlocking = Metrics.meter(factory.createMetricName("RepairedBlocking"));
     public static final Meter reconcileRead = Metrics.meter(factory.createMetricName("ReconcileRead"));
 
+    /** @deprecated See CASSANDRA-13910 */
     @Deprecated
     public static final Meter repairedBackground = Metrics.meter(factory.createMetricName("RepairedBackground"));
+    /** @deprecated See CASSANDRA-13910 */
     @Deprecated
     public static final Meter attempted = Metrics.meter(factory.createMetricName("Attempted"));
     public static final Meter timedOut = Metrics.meter(factory.createMetricName("RepairTimedOut"));

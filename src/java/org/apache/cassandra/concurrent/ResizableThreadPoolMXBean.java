@@ -21,28 +21,28 @@ public interface ResizableThreadPoolMXBean extends ResizableThreadPool
 {
     /**
      * Returns core pool size of thread pool.
-     * Deprecated, use getCorePoolSize instead.
+     * @deprecated use getCorePoolSize instead. See CASSANDRA-15277
      */
     @Deprecated
     public int getCoreThreads();
 
     /**
      * Allows user to resize core pool size of the thread pool.
-     * Deprecated, use setCorePoolSize instead.
+     * @deprecated  use setCorePoolSize instead. See CASSANDRA-15277
      */
     @Deprecated
     public void setCoreThreads(int number);
 
     /**
      * Returns maximum pool size of thread pool.
-     * Deprecated, use getMaximumThreads instead.
+     * @deprecated use getMaximumThreads instead. See CASSANDRA-15277
      */
     @Deprecated
     public int getMaximumThreads();
 
     /**
      * Allows user to resize maximum size of the thread pool.
-     * Deprecated, use setMaximumThreads instead.
+     * @deprecated use setMaximumThreads instead. See CASSANDRA-15277
      */
     @Deprecated
     public void setMaximumThreads(int number);

@@ -287,6 +287,7 @@ public abstract class AbstractReplicationStrategy
 
     public abstract void validateOptions() throws ConfigurationException;
 
+    /** @deprecated See CASSANDRA-17212 */
     @Deprecated // use #maybeWarnOnOptions(ClientState) instead
     public void maybeWarnOnOptions()
     {

@@ -42,6 +42,7 @@ public interface GuardrailsConfigProvider
     /**
      * @deprecated CUSTOM_GUARDRAILS_CONFIG_PROVIDER_CLASS.getKey() must be used instead.
      */
+    /** @deprecated See CASSANDRA-17797 */
     @Deprecated
     public static final String CUSTOM_IMPLEMENTATION_PROPERTY = CUSTOM_GUARDRAILS_CONFIG_PROVIDER_CLASS.getKey();
 

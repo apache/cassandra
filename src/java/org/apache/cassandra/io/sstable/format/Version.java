@@ -76,12 +76,14 @@ public abstract class Version
     /**
      * @deprecated it is replaced by {@link #hasImprovedMinMax()} since 'nc' and to be completetly removed since 'oa'
      */
+    /** @deprecated See CASSANDRA-18134 */
     @Deprecated
     public abstract boolean hasAccurateMinMax();
 
     /**
      * @deprecated it is replaced by {@link #hasImprovedMinMax()} since 'nc' and to be completetly removed since 'oa'
      */
+    /** @deprecated See CASSANDRA-18134 */
     @Deprecated
     public abstract boolean hasLegacyMinMax();
 

@@ -180,6 +180,7 @@ public class Instance extends IsolatedExecutor implements IInvokableInstance
     private final AtomicLong startedAt = new AtomicLong();
     private IsolatedJmx isolatedJmx;
 
+    /** @deprecated See CASSANDRA-17013 */
     @Deprecated
     Instance(IInstanceConfig config, ClassLoader classLoader)
     {

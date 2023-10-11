@@ -4346,6 +4346,7 @@ public class DatabaseDescriptor
         conf.auto_optimise_preview_repair_streams = enabled;
     }
 
+    /** @deprecated See CASSANDRA-17195 */
     @Deprecated // this warning threshold will be replaced by an equivalent guardrail
     public static ConsistencyLevel getAuthWriteConsistencyLevel()
     {

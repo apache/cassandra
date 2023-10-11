@@ -171,6 +171,8 @@
 
     <module name="RedundantImport"/>
     <module name="UnusedImports"/>
+
+    <module name="MissingDeprecated"/>
   </module>
 
 </module>

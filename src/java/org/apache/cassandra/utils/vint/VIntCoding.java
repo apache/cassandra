@@ -292,6 +292,7 @@ public class VIntCoding
         return Integer.numberOfLeadingZeros(~firstByte) - 24;
     }
 
+    /** @deprecated See CASSANDRA-18099 */
     @Deprecated
     public static void writeUnsignedVInt(int value, DataOutputPlus output) throws IOException
     {
@@ -330,6 +331,7 @@ public class VIntCoding
         writeUnsignedVInt((long)value, output);
     }
 
+    /** @deprecated See CASSANDRA-18099 */
     @Deprecated
     public static void writeUnsignedVInt(int value, ByteBuffer output) throws IOException
     {
@@ -434,6 +436,7 @@ public class VIntCoding
         writeUnsignedVInt((long)value, output);
     }
 
+    /** @deprecated See CASSANDRA-18099 */
     @Deprecated
     public static void writeVInt(int value, DataOutputPlus output) throws IOException
     {
@@ -452,6 +455,7 @@ public class VIntCoding
         writeVInt((long)value, output);
     }
 
+    /** @deprecated See CASSANDRA-18099 */
     @Deprecated
     public static void writeVInt(int value, ByteBuffer output)
     {

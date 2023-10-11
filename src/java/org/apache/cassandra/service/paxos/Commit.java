@@ -269,6 +269,7 @@ public class Commit
         return new Commit(Ballot.none(), PartitionUpdate.emptyUpdate(metadata, partitionKey));
     }
 
+    /** @deprecated See CASSANDRA-17164 */
     @Deprecated
     public static Commit newProposal(Ballot ballot, PartitionUpdate update)
     {

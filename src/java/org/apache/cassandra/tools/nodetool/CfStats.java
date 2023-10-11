@@ -23,6 +23,7 @@ import io.airlift.airline.Command;
  * @deprecated use TableStats
  */
 @Command(name = "cfstats", hidden = true, description = "Print statistics on tables")
+/** @deprecated See  */
 @Deprecated
 public class CfStats extends TableStats
 {

@@ -31,8 +31,10 @@ import com.google.common.collect.Sets;
  */
 public enum Permission
 {
+    /** @deprecated See CASSANDRA-4874 */
     @Deprecated
     READ,
+    /** @deprecated See CASSANDRA-4874 */
     @Deprecated
     WRITE,
 

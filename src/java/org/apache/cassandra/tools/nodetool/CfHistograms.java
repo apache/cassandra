@@ -23,6 +23,7 @@ import io.airlift.airline.Command;
  * @deprecated use TableHistograms
  */
 @Command(name = "cfhistograms", hidden = true, description = "Print statistic histograms for a given column family")
+/** @deprecated See  */
 @Deprecated
 public class CfHistograms extends TableHistograms
 {

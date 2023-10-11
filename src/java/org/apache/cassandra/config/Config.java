@@ -179,6 +179,7 @@ public class Config
     public int concurrent_materialized_view_writes = 32;
     public int available_processors = -1;
 
+    /** @deprecated See CASSANDRA-6504 */
     @Deprecated
     public Integer concurrent_replicates = null;
 
@@ -201,7 +202,7 @@ public class Config
     public MemtableOptions memtable;
 
     // Limit the maximum depth of repair session merkle trees
-    @Deprecated
+    /** @deprecated See  */ @Deprecated
     public volatile Integer repair_session_max_tree_depth = null;
     @Replaces(oldName = "repair_session_space_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
     public volatile DataStorageSpec.IntMebibytesBound repair_session_space = null;
@@ -295,7 +296,7 @@ public class Config
     @Replaces(oldName = "native_transport_receive_queue_capacity_in_bytes", converter = Converters.BYTES_DATASTORAGE, deprecated = true)
     public DataStorageSpec.IntBytesBound native_transport_receive_queue_capacity = new DataStorageSpec.IntBytesBound("1MiB");
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-5529 */ @Deprecated
     public Integer native_transport_max_negotiable_protocol_version = null;
 
     /**
@@ -347,7 +348,7 @@ public class Config
     /**
      * @deprecated retry support removed on CASSANDRA-10992
      */
-    @Deprecated
+    /** @deprecated See CASSANDRA-17378 */ @Deprecated
     public int max_streaming_retries = 3;
 
     @Replaces(oldName = "stream_throughput_outbound_megabits_per_sec", converter = Converters.MEGABITS_TO_BYTES_PER_SECOND_DATA_RATE, deprecated = true)
@@ -411,7 +412,7 @@ public class Config
     @Replaces(oldName = "cdc_free_space_check_interval_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
     public DurationSpec.IntMillisecondsBound cdc_free_space_check_interval = new DurationSpec.IntMillisecondsBound("250ms");
 
-    @Deprecated
+    /** @deprecated See  */ @Deprecated
     public int commitlog_periodic_queue_size = -1;
 
     public String endpoint_snitch;
@@ -500,7 +501,7 @@ public class Config
      */
     public Boolean file_cache_round_up;
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-15358 */ @Deprecated
     public boolean buffer_pool_use_heap_if_exhausted;
 
     public DiskOptimizationStrategy disk_optimization_strategy = DiskOptimizationStrategy.ssd;
@@ -549,7 +550,7 @@ public class Config
      */
     public volatile ConsistencyLevel ideal_consistency_level = null;
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17404 */ @Deprecated
     public int windows_timer_interval = 0;
 
     @Deprecated
@@ -576,7 +577,7 @@ public class Config
     @Replaces(oldName = "enable_user_defined_functions", converter = Converters.IDENTITY, deprecated = true)
     public boolean user_defined_functions_enabled = false;
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-18252 */ @Deprecated
     @Replaces(oldName = "enable_scripted_user_defined_functions", converter = Converters.IDENTITY, deprecated = true)
     public boolean scripted_user_defined_functions_enabled = false;
 
@@ -645,9 +646,9 @@ public class Config
      */
     public UserFunctionTimeoutPolicy user_function_timeout_policy = UserFunctionTimeoutPolicy.die;
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-15375 */ @Deprecated
     public volatile boolean back_pressure_enabled = false;
-    @Deprecated
+    /** @deprecated See CASSANDRA-15375 */ @Deprecated
     public volatile ParameterizedClass back_pressure_strategy;
 
     public volatile int concurrent_validations;
@@ -781,7 +782,7 @@ public class Config
     /**
      * @deprecated migrate to {@link DatabaseDescriptor#isClientInitialized()}
      */
-    @Deprecated
+    /** @deprecated See CASSANDRA-12550 */ @Deprecated
     public static boolean isClientMode()
     {
         return isClientMode;
@@ -821,7 +822,7 @@ public class Config
      *
      * @deprecated migrate to {@link DatabaseDescriptor#clientInitialization(boolean)}
      */
-    @Deprecated
+    /** @deprecated See CASSANDRA-12550 */ @Deprecated
     public static void setClientMode(boolean clientMode)
     {
         isClientMode = clientMode;

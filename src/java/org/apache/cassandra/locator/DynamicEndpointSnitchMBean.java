@@ -25,6 +25,7 @@ import java.util.List;
 public interface DynamicEndpointSnitchMBean 
 {
     public Map<String, Double> getScoresWithPort();
+    /** @deprecated See CASSANDRA-7544 */
     @Deprecated
     public Map<InetAddress, Double> getScores();
     public int getUpdateInterval();

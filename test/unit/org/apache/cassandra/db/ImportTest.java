@@ -135,6 +135,7 @@ public class ImportTest extends CQLTester
     }
 
 
+    /** @deprecated See CASSANDRA-6719 */
     @Test
     @Deprecated
     public void refreshTest() throws Throwable

@@ -199,6 +199,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
      * @param throughputMbPerSec throughput to set in MiB/s
      * @deprecated Use setRateInBytes instead
      */
+    /** @deprecated See CASSANDRA-17225 */
     @Deprecated
     public void setRate(final double throughputMbPerSec)
     {

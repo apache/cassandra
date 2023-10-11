@@ -31,6 +31,7 @@ public interface MessagingServiceMBean
     /**
      * Pending tasks for large message TCP Connections
      */
+    /** @deprecated See CASSANDRA-7544 */
     @Deprecated
     public Map<String, Integer> getLargeMessagePendingTasks();
     public Map<String, Integer> getLargeMessagePendingTasksWithPort();
@@ -38,6 +39,7 @@ public interface MessagingServiceMBean
     /**
      * Completed tasks for large message) TCP Connections
      */
+    /** @deprecated See CASSANDRA-7544 */
     @Deprecated
     public Map<String, Long> getLargeMessageCompletedTasks();
     public Map<String, Long> getLargeMessageCompletedTasksWithPort();
@@ -45,7 +47,7 @@ public interface MessagingServiceMBean
     /**
      * Dropped tasks for large message TCP Connections
      */
-    @Deprecated
+    /** @deprecated See CASSANDRA-7544 */ @Deprecated
     public Map<String, Long> getLargeMessageDroppedTasks();
     public Map<String, Long> getLargeMessageDroppedTasksWithPort();
 
@@ -53,7 +55,7 @@ public interface MessagingServiceMBean
     /**
      * Pending tasks for small message TCP Connections
      */
-    @Deprecated
+    /** @deprecated See CASSANDRA-7544 */ @Deprecated
     public Map<String, Integer> getSmallMessagePendingTasks();
     public Map<String, Integer> getSmallMessagePendingTasksWithPort();
 
@@ -61,7 +63,7 @@ public interface MessagingServiceMBean
     /**
      * Completed tasks for small message TCP Connections
      */
-    @Deprecated
+    /** @deprecated See CASSANDRA-7544 */ @Deprecated
     public Map<String, Long> getSmallMessageCompletedTasks();
     public Map<String, Long> getSmallMessageCompletedTasksWithPort();
 
@@ -69,7 +71,7 @@ public interface MessagingServiceMBean
     /**
      * Dropped tasks for small message TCP Connections
      */
-    @Deprecated
+    /** @deprecated See CASSANDRA-7544 */ @Deprecated
     public Map<String, Long> getSmallMessageDroppedTasks();
     public Map<String, Long> getSmallMessageDroppedTasksWithPort();
 
@@ -77,21 +79,21 @@ public interface MessagingServiceMBean
     /**
      * Pending tasks for gossip message TCP Connections
      */
-    @Deprecated
+    /** @deprecated See CASSANDRA-7544 */ @Deprecated
     public Map<String, Integer> getGossipMessagePendingTasks();
     public Map<String, Integer> getGossipMessagePendingTasksWithPort();
 
     /**
      * Completed tasks for gossip message TCP Connections
      */
-    @Deprecated
+    /** @deprecated See CASSANDRA-7544 */ @Deprecated
     public Map<String, Long> getGossipMessageCompletedTasks();
     public Map<String, Long> getGossipMessageCompletedTasksWithPort();
 
     /**
      * Dropped tasks for gossip message TCP Connections
      */
-    @Deprecated
+    /** @deprecated See CASSANDRA-7544 */ @Deprecated
     public Map<String, Long> getGossipMessageDroppedTasks();
     public Map<String, Long> getGossipMessageDroppedTasksWithPort();
 
@@ -108,26 +110,26 @@ public interface MessagingServiceMBean
     /**
      * Number of timeouts per host
      */
-    @Deprecated
+    /** @deprecated See CASSANDRA-7544 */ @Deprecated
     public Map<String, Long> getTimeoutsPerHost();
     public Map<String, Long> getTimeoutsPerHostWithPort();
 
     /**
      * Back-pressure rate limiting per host
      */
-    @Deprecated
+    /** @deprecated See CASSANDRA-7544 */ @Deprecated
     public Map<String, Double> getBackPressurePerHost();
 
     /**
      * Enable/Disable back-pressure
      */
-    @Deprecated
+    /** @deprecated See CASSANDRA-15375 */ @Deprecated
     public void setBackPressureEnabled(boolean enabled);
 
     /**
      * Get back-pressure enabled state
      */
-    @Deprecated
+    /** @deprecated See CASSANDRA-15375 */ @Deprecated
     public boolean isBackPressureEnabled();
 
     public int getVersion(String address) throws UnknownHostException;

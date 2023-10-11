@@ -34,6 +34,7 @@ public interface IInternodeAuthenticator
      * @param remotePort port of the connecting node.
      * @return true if the connection should be accepted, false otherwise.
      */
+    /** @deprecated See CASSANDRA-17661 */
     @Deprecated
     default boolean authenticate(InetAddress remoteAddress, int remotePort)
     {

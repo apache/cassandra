@@ -62,6 +62,7 @@ public class LoaderOptions
     public static final String NOPROGRESS_OPTION = "no-progress";
     public static final String NATIVE_PORT_OPTION = "port";
     public static final String STORAGE_PORT_OPTION = "storage-port";
+    /** @deprecated See CASSANDRA-17602 */
     @Deprecated
     public static final String SSL_STORAGE_PORT_OPTION = "ssl-storage-port";
     public static final String USER_OPTION = "username";
@@ -77,13 +78,14 @@ public class LoaderOptions
      * provide options instead of using these constant fields.
      * @deprecated Use {@code throttle-mib} instead
      */
+    /** @deprecated See CASSANDRA-17677 */
     @Deprecated
     public static final String THROTTLE_MBITS = "throttle";
     public static final String THROTTLE_MEBIBYTES = "throttle-mib";
     /**
      * Inter-datacenter throttle defined in megabits per second. CASSANDRA-10637 introduced a builder and is the
      * preferred way to provide options instead of using these constant fields.
-     * @deprecated Use {@code inter-dc-throttle-mib} instead
+     * @deprecated Use {@code inter-dc-throttle-mib} instead. See CASSANDRA-17677
      */
     @Deprecated
     public static final String INTER_DC_THROTTLE_MBITS = "inter-dc-throttle";
@@ -261,6 +263,7 @@ public class LoaderOptions
             return this;
         }
 
+        /** @deprecated See CASSANDRA-17677 */
         @Deprecated
         public Builder throttle(int throttleMegabits)
         {
@@ -280,6 +283,7 @@ public class LoaderOptions
             return this;
         }
 
+        /** @deprecated See CASSANDRA-17677 */
         @Deprecated
         public Builder interDcThrottle(int interDcThrottle)
         {
@@ -292,6 +296,7 @@ public class LoaderOptions
             return this;
         }
 
+        /** @deprecated See CASSANDRA-17677 */
         @Deprecated
         public Builder entireSSTableThrottle(int entireSSTableThrottle)
         {
@@ -305,6 +310,7 @@ public class LoaderOptions
             return this;
         }
 
+        /** @deprecated See CASSANDRA-17677 */
         @Deprecated
         public Builder entireSSTableInterDcThrottle(int entireSSTableInterDcThrottle)
         {
@@ -318,6 +324,7 @@ public class LoaderOptions
             return this;
         }
 
+        /** @deprecated See CASSANDRA-17602 */
         @Deprecated
         public Builder sslStoragePort(int sslStoragePort)
         {
@@ -343,6 +350,7 @@ public class LoaderOptions
             return this;
         }
 
+        /** @deprecated See CASSANDRA-7544 */
         @Deprecated
         public Builder hosts(Set<InetAddress> hosts)
         {

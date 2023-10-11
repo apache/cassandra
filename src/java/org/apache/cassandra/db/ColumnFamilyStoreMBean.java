@@ -39,6 +39,7 @@ public interface ColumnFamilyStoreMBean
     /**
      * @return the name of the column family
      */
+    /** @deprecated See CASSANDRA-9448 */
     @Deprecated
     public String getColumnFamilyName();
 
@@ -58,6 +59,8 @@ public interface ColumnFamilyStoreMBean
      * last keys of a sstable, even though the {@link Range} class is suppossed to be half-open by definition.
      *
      * @param tokenRanges The token ranges to be compacted, interpreted as closed intervals.
+     *
+     * @deprecated See CASSANDRA-17527
      */
     @BreaksJMX("This API was released in 3.10 using a parameter that takes Range of Token, which can only be done IFF client has Cassandra binaries in the classpath")
     @Deprecated
@@ -183,7 +186,7 @@ public interface ColumnFamilyStoreMBean
      *
      * @return list of failed import directories
      */
-    @Deprecated
+    /** @deprecated See CASSANDRA-16407 */ @Deprecated
     public List<String> importNewSSTables(Set<String> srcPaths,
                                            boolean resetLevel,
                                            boolean clearRepaired,
@@ -215,7 +218,7 @@ public interface ColumnFamilyStoreMBean
                                           boolean extendedVerify,
                                           boolean copyData);
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-6719 */ @Deprecated
     public void loadNewSSTables();
     /**
      * @return the number of SSTables in L0.  Always return 0 if Leveled compaction is not enabled.

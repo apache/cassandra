@@ -931,6 +931,7 @@ public class NodeProbe implements AutoCloseable
      * @param tag tag of snapshot to clear
      * @param keyspaces keyspaces to clear snapshots for
      */
+    /** @deprecated See CASSANDRA-16860 */
     @Deprecated
     public void clearSnapshot(String tag, String... keyspaces) throws IOException
     {
@@ -956,6 +957,7 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getSnapshotDetails(options);
     }
 
+    /** @deprecated See CASSANDRA-16789 */
     @Deprecated
     public Map<String, TabularData> getSnapshotDetails()
     {
@@ -1390,6 +1392,7 @@ public class NodeProbe implements AutoCloseable
         ssProxy.setCompactionThroughputMbPerSec(value);
     }
 
+    /** @deprecated See CASSANDRA-17225 */
     @Deprecated
     public int getCompactionThroughput()
     {
@@ -1475,6 +1478,7 @@ public class NodeProbe implements AutoCloseable
         }
     }
 
+    /** @deprecated See CASSANDRA-17225 */
     @Deprecated
     public int getStreamThroughput()
     {
@@ -1486,6 +1490,7 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getStreamThroughputMbitPerSecAsDouble();
     }
 
+    /** @deprecated See CASSANDRA-17225 */
     @Deprecated
     public int getInterDCStreamThroughput()
     {
@@ -1532,6 +1537,7 @@ public class NodeProbe implements AutoCloseable
         return msProxy.getDroppedMessages();
     }
 
+    /** @deprecated See CASSANDRA-6719 */
     @Deprecated
     public void loadNewSSTables(String ksName, String cfName)
     {

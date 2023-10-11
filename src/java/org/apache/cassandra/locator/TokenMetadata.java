@@ -349,6 +349,7 @@ public class TokenMetadata
         }
     }
 
+    /** @deprecated See CASSANDRA-4121 */
     @Deprecated
     public void addBootstrapToken(Token token, InetAddressAndPort endpoint)
     {
@@ -611,7 +612,7 @@ public class TokenMetadata
         }
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-4121 */ @Deprecated
     public Token getToken(InetAddressAndPort endpoint)
     {
         return getTokens(endpoint).iterator().next();
@@ -792,7 +793,7 @@ public class TokenMetadata
         return ranges;
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-4121 */ @Deprecated
     public Range<Token> getPrimaryRangeFor(Token right)
     {
         return getPrimaryRangesFor(Arrays.asList(right)).iterator().next();

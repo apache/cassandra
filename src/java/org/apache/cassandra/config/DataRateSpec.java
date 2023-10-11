@@ -255,6 +255,7 @@ public abstract class DataRateSpec
 
         // this one should be used only for backward compatibility for stream_throughput_outbound and inter_dc_stream_throughput_outbound
         // which were in megabits per second in 4.0. Do not start using it for any new properties
+        /** @deprecated See CASSANDRA-17225 */
         @Deprecated
         public static LongBytesPerSecondBound megabitsPerSecondInBytesPerSecond(long megabitsPerSecond)
         {

@@ -115,6 +115,8 @@ public class UnfilteredSerializer
     /**
      * A shadowable tombstone cannot replace a previous row deletion otherwise it could resurrect a
      * previously deleted cell not updated by a subsequent update, SEE CASSANDRA-11500
+     *
+     * @deprecated See CASSANDRA-11500
      */
     @Deprecated
     private final static int HAS_SHADOWABLE_DELETION = 0x02; // Whether the row deletion is shadowable. If there is no extended flag (or no row deletion), the deletion is assumed not shadowable.

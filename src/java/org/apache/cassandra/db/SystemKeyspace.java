@@ -175,11 +175,17 @@ public final class SystemKeyspace
                                                                                          PREPARED_STATEMENTS,
                                                                                          REPAIRS);
 
+    /** @deprecated See CASSANDRA-7544 */
     @Deprecated public static final String LEGACY_PEERS = "peers";
+    /** @deprecated See CASSANDRA-7544 */
     @Deprecated public static final String LEGACY_PEER_EVENTS = "peer_events";
+    /** @deprecated See CASSANDRA-7544 */
     @Deprecated public static final String LEGACY_TRANSFERRED_RANGES = "transferred_ranges";
+    /** @deprecated See CASSANDRA-14404 */
     @Deprecated public static final String LEGACY_AVAILABLE_RANGES = "available_ranges";
+    /** @deprecated See CASSANDRA-15637 */
     @Deprecated public static final String LEGACY_SIZE_ESTIMATES = "size_estimates";
+    /** @deprecated See CASSANDRA-17048 */
     @Deprecated public static final String LEGACY_SSTABLE_ACTIVITY = "sstable_activity";
 
     // Names of all tables that could have been a part of a system keyspace. Useful for pre-flight checks.
@@ -346,7 +352,7 @@ public final class SystemKeyspace
                 + "PRIMARY KEY ((keyspace_name, table_name, id)))")
                 .build();
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-15637 */ @Deprecated
     private static final TableMetadata LegacySizeEstimates =
         parse(LEGACY_SIZE_ESTIMATES,
               "per-table primary range size estimates, table is deprecated in favor of " + TABLE_ESTIMATES,
@@ -459,7 +465,7 @@ public final class SystemKeyspace
           + "cfids set<uuid>, "
           + "PRIMARY KEY (parent_id))").build();
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-7544 */ @Deprecated
     private static final TableMetadata LegacyPeers =
         parse(LEGACY_PEERS,
             "information about known peers in the cluster",
@@ -476,7 +482,7 @@ public final class SystemKeyspace
             + "PRIMARY KEY ((peer)))")
             .build();
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-7544 */ @Deprecated
     private static final TableMetadata LegacyPeerEvents =
         parse(LEGACY_PEER_EVENTS,
             "events related to peers",
@@ -486,7 +492,7 @@ public final class SystemKeyspace
             + "PRIMARY KEY ((peer)))")
             .build();
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-7544 */ @Deprecated
     private static final TableMetadata LegacyTransferredRanges =
         parse(LEGACY_TRANSFERRED_RANGES,
             "record of transferred ranges for streaming operation",
@@ -498,7 +504,7 @@ public final class SystemKeyspace
             + "PRIMARY KEY ((operation, keyspace_name), peer))")
             .build();
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-14404 */ @Deprecated
     private static final TableMetadata LegacyAvailableRanges =
         parse(LEGACY_AVAILABLE_RANGES,
               "available keyspace/ranges during bootstrap/replace that are ready to be served",

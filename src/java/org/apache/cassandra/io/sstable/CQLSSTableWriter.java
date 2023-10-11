@@ -525,6 +525,7 @@ public class CQLSSTableWriter implements Closeable
          * @param size the size to use in MiB.
          * @return this builder.
          */
+        /** @deprecated See CASSANDRA-17675 */
         @Deprecated
         public Builder withBufferSizeInMB(int size)
         {

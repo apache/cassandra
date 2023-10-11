@@ -623,24 +623,28 @@ public final class FileUtils
         fsErrorHandler.getAndSet(Optional.ofNullable(handler));
     }
 
+    /** @deprecated See CASSANDRA-16926 */
     @Deprecated
     public static void createDirectory(String directory)
     {
         createDirectory(new File(directory));
     }
 
+    /** @deprecated See CASSANDRA-16926 */
     @Deprecated
     public static void createDirectory(File directory)
     {
         PathUtils.createDirectoriesIfNotExists(directory.toPath());
     }
 
+    /** @deprecated See CASSANDRA-16926 */
     @Deprecated
     public static boolean delete(String file)
     {
         return new File(file).tryDelete();
     }
 
+    /** @deprecated See CASSANDRA-16926 */
     @Deprecated
     public static void delete(File... files)
     {
@@ -652,6 +656,8 @@ public final class FileUtils
      * Deletes all files and subdirectories under "dir".
      * @param dir Directory to be deleted
      * @throws FSWriteError if any part of the tree cannot be deleted
+     *
+     * @deprecated See CASSANDRA-16926
      */
     @Deprecated
     public static void deleteRecursiveWithThrottle(File dir, RateLimiter rateLimiter)
@@ -663,6 +669,8 @@ public final class FileUtils
      * Deletes all files and subdirectories under "dir".
      * @param dir Directory to be deleted
      * @throws FSWriteError if any part of the tree cannot be deleted
+     *
+     * @deprecated See CASSANDRA-16926
      */
     @Deprecated
     public static void deleteRecursive(File dir)
@@ -673,6 +681,8 @@ public final class FileUtils
     /**
      * Schedules deletion of all file and subdirectories under "dir" on JVM shutdown.
      * @param dir Directory to be deleted
+     *
+     * @deprecated See CASSANDRA-16926
      */
     @Deprecated
     public static void deleteRecursiveOnExit(File dir)
@@ -680,48 +690,56 @@ public final class FileUtils
         dir.deleteRecursiveOnExit();
     }
 
+    /** @deprecated See CASSANDRA-16926 */
     @Deprecated
     public static boolean isSubDirectory(File parent, File child)
     {
         return parent.isAncestorOf(child);
     }
 
+    /** @deprecated See CASSANDRA-16926 */
     @Deprecated
     public static Throwable deleteWithConfirm(File file, Throwable accumulate)
     {
         return file.delete(accumulate, null);
     }
 
+    /** @deprecated See CASSANDRA-16926 */
     @Deprecated
     public static Throwable deleteWithConfirm(File file, Throwable accumulate, RateLimiter rateLimiter)
     {
         return file.delete(accumulate, rateLimiter);
     }
 
+    /** @deprecated See CASSANDRA-16926 */
     @Deprecated
     public static void deleteWithConfirm(String file)
     {
         deleteWithConfirm(new File(file));
     }
 
+    /** @deprecated See CASSANDRA-16926 */
     @Deprecated
     public static void deleteWithConfirm(File file)
     {
         file.delete();
     }
 
+    /** @deprecated See CASSANDRA-16926 */
     @Deprecated
     public static void renameWithOutConfirm(String from, String to)
     {
         new File(from).tryMove(new File(to));
     }
 
+    /** @deprecated See CASSANDRA-16926 */
     @Deprecated
     public static void renameWithConfirm(String from, String to)
     {
         renameWithConfirm(new File(from), new File(to));
     }
 
+    /** @deprecated See CASSANDRA-16926 */
     @Deprecated
     public static void renameWithConfirm(File from, File to)
     {

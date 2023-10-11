@@ -131,6 +131,7 @@ public interface IPartitioner
      * Abstract type that orders the same way as DecoratedKeys provided by this partitioner.
      * Used by secondary indices.
      */
+    /** @deprecated See CASSANDRA-17698 */
     @Deprecated // use #partitionOrdering(AbstractType) instead, see CASSANDRA-17698 for details
     public AbstractType<?> partitionOrdering();
 
