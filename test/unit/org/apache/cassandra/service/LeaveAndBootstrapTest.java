@@ -32,6 +32,7 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.Util.PartitionerSwitcher;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.Schema;
@@ -62,6 +63,7 @@ public class LeaveAndBootstrapTest
     @BeforeClass
     public static void defineSchema() throws Exception
     {
+        CassandraRelevantProperties.GOSSIPER_QUARANTINE_DELAY.setLong(10000);
         DatabaseDescriptor.daemonInitialization();
         partitionerSwitcher = Util.switchPartitioner(partitioner);
         SchemaLoader.loadSchema();
@@ -123,7 +125,7 @@ public class LeaveAndBootstrapTest
         PendingRangeCalculatorService.instance.blockUntilFinished();
 
         AbstractReplicationStrategy strategy;
-        for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces().names())
+        for (String keyspaceName : Schema.instance.distributedKeyspaces().names())
         {
             strategy = getStrategy(keyspaceName, tmd);
             for (Token token : keyTokens)
