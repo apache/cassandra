@@ -49,7 +49,7 @@ public class SchemaTest
     @Test
     public void testTransKsMigration() throws IOException
     {
-        assertEquals(0, Schema.instance.getNonSystemKeyspaces().size());
+        assertEquals(0, Schema.instance.distributedKeyspaces().size());
 
         Gossiper.instance.start((int) (System.currentTimeMillis() / 1000));
         try
