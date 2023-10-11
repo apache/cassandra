@@ -113,6 +113,7 @@ public class StorageAttachedIndex implements Index
     public static final String VECTOR_USAGE_WARNING = "SAI ANN indexes on vector columns are experimental and are not recommended for production use.\n" +
                                                       "They cannot be queried with a read consistency level higher than ONE/LOCAL_ONE.\n" +
                                                       "They cannot use paging, or be used in aggregation queries.\n" +
+                                                      "They cannot be used with filtering queries.\n" +
                                                       "These limitations are planned to be removed in future versions.";
     public static final String VECTOR_NON_FLOAT_ERROR = "SAI ANN indexes are only allowed on vector columns with float elements";
 

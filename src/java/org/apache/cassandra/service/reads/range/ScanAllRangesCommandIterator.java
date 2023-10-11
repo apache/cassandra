@@ -45,9 +45,13 @@ import org.apache.cassandra.utils.CloseableIterator;
 /**
  * A custom {@link RangeCommandIterator} that queries all replicas required by consistency level at once with data range
  * specify in {@link PartitionRangeReadCommand}.
- *
+ * <p>
  * This is to speed up {@link Index.QueryPlan#isTopK()} queries that needs to find global top-k rows in the cluster, because
  * existing {@link RangeCommandIterator} has to execute a top-k search per vnode range which is wasting resources.
+ *
+ * The implementation combines the replica plans for each data range into a single shared replica plan. This results in
+ * queries using reconciliation where it may not be expected. This is handled in the {@link DataResolver} for top-K queries
+ * so any usage for queries other that top-K should bear this in mind.
  */
 public class ScanAllRangesCommandIterator extends RangeCommandIterator
 {
