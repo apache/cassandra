@@ -164,7 +164,10 @@ public class DataResolver<E extends Endpoints<E>, P extends ReplicaPlan.ForRead<
 
         private boolean needsReadRepair()
         {
-            // each replica may return different estimated top-K rows, it doesn't mean data is not replicated.
+            // Each replica may return different estimated top-K rows, it doesn't mean data is not replicated.
+            // Even though top-K queries are limited to CL ONE & LOCAL-ONE, they use the ScanAllRangesCommandIterator
+            // that combines the separate replica plans of each data range into a single replica plan. This is an
+            // optimisation but can result in the number of replicas being > 1.
             if (command.isTopK())
                 return false;
 
