@@ -37,10 +37,10 @@ import org.apache.cassandra.utils.bytecomparable.ByteSource;
 import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 
 /**
- * This is the old version of TimestampType, but has been replaced as it wasn't comparing pre-epoch timestamps
+ * @deprecated This is the old version of TimestampType, but has been replaced as it wasn't comparing pre-epoch timestamps
  * correctly. This is kept for backward compatibility but shouldn't be used in new code.
  */
-@Deprecated
+@Deprecated(since = "2.2.6")
 public class DateType extends AbstractType<Date>
 {
     private static final Logger logger = LoggerFactory.getLogger(DateType.class);

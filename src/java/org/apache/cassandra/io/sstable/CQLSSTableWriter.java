@@ -512,7 +512,6 @@ public class CQLSSTableWriter implements Closeable
         }
 
         /**
-         * This method is deprecated in favor of the new withBufferSizeInMiB(int size)
          * The size of the buffer to use.
          * <p>
          * This defines how much data will be buffered before being written as
@@ -522,10 +521,11 @@ public class CQLSSTableWriter implements Closeable
          * The default is 128MiB, which should be reasonable for a 1GiB heap. If you experience
          * OOM while using the writer, you should lower this value.
          *
+         * @deprecated This method is deprecated in favor of the new withBufferSizeInMiB(int size). See CASSANDRA-17675
          * @param size the size to use in MiB.
          * @return this builder.
          */
-        @Deprecated
+        @Deprecated(since = "4.1")
         public Builder withBufferSizeInMB(int size)
         {
             return withBufferSizeInMiB(size);
