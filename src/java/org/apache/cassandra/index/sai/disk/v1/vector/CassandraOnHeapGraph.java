@@ -64,7 +64,7 @@ public class CassandraOnHeapGraph<T>
 
     private final RamAwareVectorValues vectorValues;
     private final GraphIndexBuilder<float[]> builder;
-    private final VectorType<?>.VectorSerializer serializer;
+    private final VectorType<?> termComparator;
     private final VectorSimilarityFunction similarityFunction;
     private final Map<float[], VectorPostings<T>> postingsMap;
     private final NonBlockingHashMapLong<VectorPostings<T>> postingsByOrdinal;
@@ -91,7 +91,7 @@ public class CassandraOnHeapGraph<T>
     @SuppressWarnings("unchecked")
     public CassandraOnHeapGraph(AbstractType<?> termComparator, IndexWriterConfig indexWriterConfig, boolean concurrent)
     {
-        serializer = (VectorType<?>.VectorSerializer)termComparator.getSerializer();
+        this.termComparator = (VectorType<?>) termComparator;
         vectorValues = concurrent
                        ? new ConcurrentVectorValues(((VectorType<?>) termComparator).dimension)
                        : new CompactionVectorValues(((VectorType<Float>) termComparator));
@@ -129,7 +129,7 @@ public class CassandraOnHeapGraph<T>
     {
         assert term != null && term.remaining() != 0;
 
-        var vector = serializer.deserializeFloatArray(term);
+        var vector = termComparator.composeAsFloat(term);
         if (behavior == InvalidVectorBehavior.IGNORE)
         {
             try
@@ -230,7 +230,7 @@ public class CassandraOnHeapGraph<T>
     {
         assert term != null && term.remaining() != 0;
 
-        var vector = serializer.deserializeFloatArray(term);
+        var vector = termComparator.composeAsFloat(term);
         var postings = postingsMap.get(vector);
         if (postings == null)
         {

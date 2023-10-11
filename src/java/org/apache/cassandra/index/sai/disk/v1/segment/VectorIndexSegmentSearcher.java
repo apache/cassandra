@@ -231,7 +231,7 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
 
         // else ask hnsw to perform a search limited to the bits we created
         ByteBuffer buffer = exp.lower.value.raw;
-        float[] queryVector = type.getSerializer().deserializeFloatArray(buffer);
+        float[] queryVector = type.composeAsFloat(buffer);
         var results = graph.search(queryVector, context.vectorContext().limit(), bits);
         return toPrimaryKeyIterator(results, context);
     }

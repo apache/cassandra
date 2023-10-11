@@ -64,8 +64,6 @@ public class VectorDistributedTest extends TestBaseImpl
 
     private static final VectorSimilarityFunction function = IndexWriterConfig.DEFAULT_SIMILARITY_FUNCTION;
 
-    private static final String INVALID_LIMIT_MESSAGE = "Use of ANN OF in an ORDER BY clause requires a LIMIT that is not greater than 1000";
-
     private static final double MIN_RECALL = 0.8;
 
     private static final int NUM_REPLICAS = 3;
