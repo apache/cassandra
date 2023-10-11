@@ -47,7 +47,7 @@ import org.apache.cassandra.utils.MBeanWrapper;
  * <p>
  * In many parts of the code base we reach into the global space to pull out singletons, but this makes testing much harder; the main goals for this type is to make users easier to test.
  *
- * @see {@link Global#instance} for the main production path
+ * See {@link Global#instance} for the main production path
  */
 public interface SharedContext
 {

@@ -269,7 +269,8 @@ public class Commit
         return new Commit(Ballot.none(), PartitionUpdate.emptyUpdate(metadata, partitionKey));
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17164 */
+    @Deprecated(since = "4.1")
     public static Commit newProposal(Ballot ballot, PartitionUpdate update)
     {
         update = withTimestamp(update, ballot.unixMicros());

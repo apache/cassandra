@@ -339,7 +339,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     @VisibleForTesting // this is used for dtests only, see CASSANDRA-18152
     public volatile boolean skipNotificationListeners = false;
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-12509 */
+    @Deprecated(since = "3.10")
     public boolean isInShutdownHook()
     {
         return isShutdown();
@@ -1681,7 +1682,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return DatabaseDescriptor.getTruncateRpcTimeout(MILLISECONDS);
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-15234 */
+    @Deprecated(since = "4.1")
     public void setStreamThroughputMbPerSec(int value)
     {
         setStreamThroughputMbitPerSec(value);
@@ -1714,13 +1716,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return DatabaseDescriptor.getStreamThroughputOutboundMebibytesPerSecAsInt();
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-15234 */
+    @Deprecated(since = "4.1")
     public int getStreamThroughputMbPerSec()
     {
         return getStreamThroughputMbitPerSec();
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17225 */
+    @Deprecated(since = "4.1")
     public int getStreamThroughputMbitPerSec()
     {
         return DatabaseDescriptor.getStreamThroughputOutboundMegabitsPerSec();
@@ -1745,7 +1749,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return DatabaseDescriptor.getEntireSSTableStreamThroughputOutboundMebibytesPerSec();
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-15234 */
+    @Deprecated(since = "4.1")
     public void setInterDCStreamThroughputMbPerSec(int value)
     {
         setInterDCStreamThroughputMbitPerSec(value);
@@ -1759,13 +1764,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("setinterdcstreamthroughput: throttle set to {}{} megabits per second (was {} megabits per second)", value, value <= 0 ? " (unlimited)" : "", oldValue);
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-15234 */
+    @Deprecated(since = "4.1")
     public int getInterDCStreamThroughputMbPerSec()
     {
         return getInterDCStreamThroughputMbitPerSec();
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17225 */
+    @Deprecated(since = "4.1")
     public int getInterDCStreamThroughputMbitPerSec()
     {
         return DatabaseDescriptor.getInterDCStreamThroughputOutboundMegabitsPerSec();
@@ -1817,7 +1824,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return (long)DatabaseDescriptor.getCompactionThroughputBytesPerSec();
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17225 */
+    @Deprecated(since = "4.1")
     public int getCompactionThroughputMbPerSec()
     {
         return DatabaseDescriptor.getCompactionThroughputMebibytesPerSecAsInt();
@@ -3874,7 +3882,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return replicationInfo;
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-7544 */
+    @Deprecated(since = "4.0")
     public List<String> getLeavingNodes()
     {
         return stringify(tokenMetadata.getLeavingEndpoints(), false);
@@ -3885,7 +3894,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return stringify(tokenMetadata.getLeavingEndpoints(), true);
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-7544 */
+    @Deprecated(since = "4.0")
     public List<String> getMovingNodes()
     {
         List<String> endpoints = new ArrayList<>();
@@ -3910,7 +3920,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return endpoints;
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-7544 */
+    @Deprecated(since = "4.0")
     public List<String> getJoiningNodes()
     {
         return stringify(tokenMetadata.getBootstrapTokens().valueSet(), false);
@@ -3921,7 +3932,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return stringify(tokenMetadata.getBootstrapTokens().valueSet(), true);
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-7544 */
+    @Deprecated(since = "4.0")
     public List<String> getLiveNodes()
     {
         return stringify(Gossiper.instance.getLiveMembers(), false);
@@ -3956,7 +3968,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-7544 */
+    @Deprecated(since = "4.0")
     public List<String> getUnreachableNodes()
     {
         return stringify(Gossiper.instance.getUnreachableMembers(), false);
@@ -4067,7 +4080,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return status.statusCode;
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-14201 */
+    @Deprecated(since = "4.0")
     public int verify(boolean extendedVerify, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
         return verify(extendedVerify, false, false, false, false, false, keyspaceName, tableNames);
@@ -4545,7 +4559,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return snapshotMap;
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-16789 */
+    @Deprecated(since = "4.1")
     public Map<String, TabularData> getSnapshotDetails()
     {
         return getSnapshotDetails(ImmutableMap.of());
@@ -4842,14 +4857,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                ImmutableList.<String>builder().add(pair.left.name()).addAll(pair.right).build();
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17668 */
+    @Deprecated(since = "5.0")
     @Override
     public void setRepairSessionMaxTreeDepth(int depth)
     {
         DatabaseDescriptor.setRepairSessionMaxTreeDepth(depth);
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17668 */
+    @Deprecated(since = "5.0")
     @Override
     public int getRepairSessionMaxTreeDepth()
     {
@@ -5006,8 +5023,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * @param cf Column family name
      * @param key key for which we need to find the endpoint
      * @return the endpoint responsible for this key
+     * @deprecated See CASSANDRA-7544
      */
-    @Deprecated
+    @Deprecated(since = "4.0")
     public List<InetAddress> getNaturalEndpoints(String keyspaceName, String cf, String key)
     {
         EndpointsForToken replicas = getNaturalReplicasForToken(keyspaceName, cf, key);
@@ -5021,7 +5039,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return Replicas.stringify(getNaturalReplicasForToken(keyspaceName, cf, key), true);
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-7544 */
+    @Deprecated(since = "4.0")
     public List<InetAddress> getNaturalEndpoints(String keyspaceName, ByteBuffer key)
     {
         EndpointsForToken replicas = getNaturalReplicasForToken(keyspaceName, key);
@@ -5864,7 +5883,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * Add a runnable which will be called before shut down or drain. This is useful for other
      * applications running in the same JVM which may want to shut down first rather than time
      * out attempting to use Cassandra calls which will no longer work.
-     * @param hook: the code to run
+     * @param hook the code to run
      * @return true on success, false if Cassandra is already shutting down, in which case the runnable
      * has NOT been added.
      */
@@ -5887,7 +5906,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     /**
      * Add a runnable which will be called after shutdown or drain. This is useful for other applications
      * running in the same JVM that Cassandra needs to work and should shut down later.
-     * @param hook: the code to run
+     * @param hook the code to run
      * @return true on success, false if Cassandra is already shutting down, in which case the runnable has NOT been
      * added.
      */
@@ -6339,9 +6358,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     /**
-     * #{@inheritDoc}
+     * @deprecated See CASSANDRA-14417
      */
-    @Deprecated
+    @Deprecated(since = "4.0")
     public void loadNewSSTables(String ksName, String cfName)
     {
         if (!isInitialized())
@@ -6610,7 +6629,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("Updated column_index_size to {} KiB (was {} KiB)", columnIndexSizeInKiB, oldValueInKiB);
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17668 */
+    @Deprecated(since = "5.0")
     @Override
     public void setColumnIndexSize(int columnIndexSizeInKB)
     {
@@ -6619,14 +6639,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("Updated column_index_size to {} KiB (was {} KiB)", columnIndexSizeInKB, oldValueInKiB);
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17668 */
+    @Deprecated(since = "5.0")
     @Override
     public int getColumnIndexCacheSize()
     {
         return DatabaseDescriptor.getColumnIndexCacheSizeInKiB();
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17668 */
+    @Deprecated(since = "5.0")
     @Override
     public void setColumnIndexCacheSize(int cacheSizeInKB)
     {
@@ -6670,14 +6692,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("updated batch_size_fail_threshold to {}", threshold);
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17668 */
+    @Deprecated(since = "5.0")
     @Override
     public int getBatchSizeWarnThreshold()
     {
         return DatabaseDescriptor.getBatchSizeWarnThresholdInKiB();
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17668 */
+    @Deprecated(since = "5.0")
     @Override
     public void setBatchSizeWarnThreshold(int threshold)
     {
@@ -6775,7 +6799,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         logger.info("Auditlog is disabled");
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-16725 */
+    @Deprecated(since = "4.1")
     public void enableAuditLog(String loggerName, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories,
                                String includedUsers, String excludedUsers) throws ConfigurationException, IllegalStateException
     {
@@ -6791,7 +6816,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                        maxArchiveRetries, block, rollCycle, maxLogSize, maxQueueWeight, archiveCommand);
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-16725 */
+    @Deprecated(since = "4.1")
     public void enableAuditLog(String loggerName, Map<String, String> parameters, String includedKeyspaces, String excludedKeyspaces, String includedCategories, String excludedCategories,
                                String includedUsers, String excludedUsers) throws ConfigurationException, IllegalStateException
     {
@@ -6989,13 +7015,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         DatabaseDescriptor.setAutoOptimisePreviewRepairStreams(enabled);
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17195 */
+    @Deprecated(since = "4.1")
     public int getTableCountWarnThreshold()
     {
         return (int) Converters.TABLE_COUNT_THRESHOLD_TO_GUARDRAIL.unconvert(Guardrails.instance.getTablesWarnThreshold());
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17195 */
+    @Deprecated(since = "4.1")
     public void setTableCountWarnThreshold(int value)
     {
         if (value < 0)
@@ -7005,13 +7033,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                Guardrails.instance.getTablesFailThreshold());
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17195 */
+    @Deprecated(since = "4.1")
     public int getKeyspaceCountWarnThreshold()
     {
         return (int) Converters.KEYSPACE_COUNT_THRESHOLD_TO_GUARDRAIL.unconvert(Guardrails.instance.getKeyspacesWarnThreshold());
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17195 */
+    @Deprecated(since = "4.1")
     public void setKeyspaceCountWarnThreshold(int value)
     {
         if (value < 0)

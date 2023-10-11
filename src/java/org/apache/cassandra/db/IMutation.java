@@ -50,7 +50,7 @@ public interface IMutation
      * @param version the MessagingService version the mutation is being serialized for.
      *                see {@link org.apache.cassandra.net.MessagingService#current_version}
      * @param overhead overhadd to add for mutation size to validate. Pass zero if not required but not a negative value.
-     * @throws {@link MutationExceededMaxSizeException} if {@link DatabaseDescriptor#getMaxMutationSize()} is exceeded
+     * @throws MutationExceededMaxSizeException if {@link DatabaseDescriptor#getMaxMutationSize()} is exceeded
       */
     public void validateSize(int version, int overhead);
 

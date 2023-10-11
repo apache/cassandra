@@ -129,7 +129,7 @@ public abstract class SSTableIndex
      * will never be null but may be an empty {@link List}.
      *
      * @param expression The {@link Expression} to be searched for
-     * @param keyRange The {@link AbstractBounds<PartitionPosition>} defining the
+     * @param keyRange The {@code AbstractBounds<PartitionPosition>} defining the
      *                 token range for the search
      * @param context The {@link QueryContext} holding the per-query state
      * @return a {@link List} of {@link KeyRangeIterator}s containing the results
