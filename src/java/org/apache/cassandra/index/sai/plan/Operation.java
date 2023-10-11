@@ -21,7 +21,9 @@ package org.apache.cassandra.index.sai.plan;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -72,6 +74,7 @@ public class Operation
                                                                            List<RowFilter.Expression> expressions)
     {
         ListMultimap<ColumnMetadata, Expression> analyzed = ArrayListMultimap.create();
+        Map<ColumnMetadata, Boolean> columnIsMultiExpression = new HashMap<>();
 
         // sort all of the expressions in the operation by name and priority of the logical operator
         // this gives us an efficient way to handle inequality and combining into ranges without extra processing
@@ -99,7 +102,7 @@ public class Operation
                 // if there is no EQ operations and NOT_EQ is met or a single NOT_EQ expression present,
                 // in such case we know exactly that there would be no more EQ/RANGE expressions for given column
                 // since NOT_EQ has the lowest priority.
-                boolean isMultiExpression = false;
+                boolean isMultiExpression = columnIsMultiExpression.getOrDefault(e.column(), Boolean.FALSE);
                 switch (e.operator())
                 {
                     case EQ:
@@ -107,20 +110,23 @@ public class Operation
                         // map entries
                         isMultiExpression = indexContext.isNonFrozenCollection();
                         break;
-
                     case CONTAINS:
                     case CONTAINS_KEY:
+                    case NOT_CONTAINS:
+                    case NOT_CONTAINS_KEY:
                     case LIKE_PREFIX:
                     case LIKE_MATCHES:
                     case ANALYZER_MATCHES:
                         isMultiExpression = true;
                         break;
-
                     case NEQ:
-                        isMultiExpression = (perColumn.size() == 0 || perColumn.size() > 1
-                                             || (perColumn.size() == 1 && perColumn.get(0).getOp() == Expression.Op.NOT_EQ));
+                        // NEQ operator will always be a multiple expression if it is the only operator
+                        // (e.g. multiple NEQ expressions)
+                        isMultiExpression = isMultiExpression || perColumn.isEmpty();
                         break;
                 }
+                columnIsMultiExpression.put(e.column(), isMultiExpression);
+
                 if (isMultiExpression)
                 {
                     if (!analyzer.hasNext())
@@ -190,20 +196,26 @@ public class Operation
         switch (op)
         {
             case EQ:
+                return 7;
+
             case CONTAINS:
             case CONTAINS_KEY:
-                return 5;
+                return 6;
 
             case LIKE_PREFIX:
             case LIKE_MATCHES:
-                return 4;
+                return 5;
 
             case GTE:
             case GT:
-                return 3;
+                return 4;
 
             case LTE:
             case LT:
+                return 3;
+
+            case NOT_CONTAINS:
+            case NOT_CONTAINS_KEY:
                 return 2;
 
             case NEQ:

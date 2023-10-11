@@ -89,7 +89,6 @@ public abstract class IndexSearcher implements Closeable, SegmentOrdering
                                                                         metadata.segmentRowIdOffset,
                                                                         queryContext,
                                                                         postingList.peekable());
-
         return new PostingListRangeIterator(indexContext, primaryKeyMapFactory.newPerSSTablePrimaryKeyMap(), searcherContext);
     }
 }

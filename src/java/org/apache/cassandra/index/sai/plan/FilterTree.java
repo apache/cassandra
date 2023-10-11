@@ -107,12 +107,12 @@ public class FilterTree
                 if (TypeUtil.isNonFrozenCollection(column.type))
                 {
                     Iterator<ByteBuffer> valueIterator = filter.context.getValuesOf(row, now);
-                    result = op.apply(result, collectionMatch(valueIterator, filter));
+                    result = op.apply(result, filter.isSatisfiedBy(valueIterator));
                 }
                 else
                 {
                     ByteBuffer value = filter.context.getValueOf(key, row, now);
-                    result = op.apply(result, singletonMatch(value, filter));
+                    result = op.apply(result, filter.isSatisfiedBy(value));
                 }
 
                 if (shouldReturnNow(result))
@@ -130,31 +130,5 @@ public class FilterTree
      */
     private boolean shouldReturnNow(boolean result) {
         return (op == OperationType.AND && !result) || (op == OperationType.OR && result);
-    }
-
-    private boolean singletonMatch(ByteBuffer value, Expression filter)
-    {
-        boolean match = value != null && filter.isSatisfiedBy(value);
-        // If this is NOT_EQ operation we have to
-        // inverse match flag (to check against other expressions),
-        if (filter.getOp() == Op.NOT_EQ)
-            match = !match;
-        return match;
-    }
-
-    private boolean collectionMatch(Iterator<ByteBuffer> valueIterator, Expression filter)
-    {
-        if (valueIterator == null)
-            return false;
-
-        while (valueIterator.hasNext())
-        {
-            ByteBuffer value = valueIterator.next();
-            if (value == null)
-                continue;
-            if (filter.isSatisfiedBy(value))
-                return true;
-        }
-        return false;
     }
 }

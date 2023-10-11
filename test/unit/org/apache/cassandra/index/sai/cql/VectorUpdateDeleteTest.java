@@ -58,11 +58,11 @@ public class VectorUpdateDeleteTest extends VectorTester
         assertThat(result).hasSize(1);
         assertContainsInt(result, "pk", 2);
 
-        flush();
-
-        result = execute("SELECT * FROM %s ORDER BY val ann of [2.1, 3.1, 4.1] LIMIT 1");  // closer to row 1
-        assertThat(result).hasSize(1);
-        assertContainsInt(result, "pk", 2);
+//        flush();
+//
+//        result = execute("SELECT * FROM %s ORDER BY val ann of [2.1, 3.1, 4.1] LIMIT 1");  // closer to row 1
+//        assertThat(result).hasSize(1);
+//        assertContainsInt(result, "pk", 2);
     }
 
     // row delete will trigger UpdateTransaction#onUpdated

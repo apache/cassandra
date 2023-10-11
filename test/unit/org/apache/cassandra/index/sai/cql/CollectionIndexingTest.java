@@ -46,6 +46,57 @@ public class CollectionIndexingTest extends SAITester
         createIndex("CREATE CUSTOM INDEX ON %s(value) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
         assertEquals(2, execute("SELECT * FROM %s WHERE value CONTAINS 'v1'").size());
+
+        assertEmpty(execute("SELECT pk FROM %s WHERE value NOT CONTAINS 'v1'"));
+
+        assertRowsIgnoringOrder(execute("SELECT pk FROM %s WHERE value NOT CONTAINS 'v2'"),
+                                row(2));
+        assertRowsIgnoringOrder(execute("SELECT pk FROM %s WHERE value NOT CONTAINS 'v3'"),
+                                row(1));
+
+        flush();
+
+        assertRowsIgnoringOrder(execute("SELECT pk FROM %s WHERE value NOT CONTAINS 'v2'"),
+                                row(2));
+        assertRowsIgnoringOrder(execute("SELECT pk FROM %s WHERE value NOT CONTAINS 'v3'"),
+                                row(1));
+    }
+
+    @Test
+    public void indexEmptyMaps()
+    {
+        createTable("CREATE TABLE %s (pk int primary key, value map<int, text>)");
+        createIndex("CREATE CUSTOM INDEX ON %s(value) USING 'StorageAttachedIndex'");
+
+        // Test memtable index:
+        execute("INSERT INTO %s (pk, value) VALUES (?, ?)", 1, new HashMap<Integer, String>() {{
+            put(1, "v1");
+            put(2, "v2");
+        }});
+        execute("INSERT INTO %s (pk, value) VALUES (?, ?)", 2, new HashMap<Integer, String>());
+
+        assertRowsIgnoringOrder(execute("SELECT pk FROM %s WHERE value CONTAINS 'v1'"),
+                                row(1));
+        assertRowsIgnoringOrder(execute("SELECT pk FROM %s WHERE value NOT CONTAINS 'v1'"),
+                                row(2));
+
+        // Test sstable index:
+        flush();
+
+        assertRowsIgnoringOrder(execute("SELECT pk FROM %s WHERE value CONTAINS 'v1'"),
+                                row(1));
+        assertRowsIgnoringOrder(execute("SELECT pk FROM %s WHERE value NOT CONTAINS 'v1'"),
+                                row(2));
+
+        // Add one more row with an empty map and flush.
+        // This will create an sstable with no index.
+        execute("INSERT INTO %s (pk, value) VALUES (?, ?)", 3, new HashMap<Integer, String>());
+        flush();
+
+        assertRowsIgnoringOrder(execute("SELECT pk FROM %s WHERE value CONTAINS 'v1'"),
+                                row(1));
+        assertRowsIgnoringOrder(execute("SELECT pk FROM %s WHERE value NOT CONTAINS 'v1'"),
+                                row(2), row(3));
     }
 
     @Test
@@ -65,6 +116,8 @@ public class CollectionIndexingTest extends SAITester
         createIndex("CREATE CUSTOM INDEX ON %s(KEYS(value)) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
         assertEquals(2, execute("SELECT * FROM %s WHERE value CONTAINS KEY 1").size());
+        assertEquals(0, execute("SELECT * FROM %s WHERE value NOT CONTAINS KEY 1").size());
+        assertEquals(2, execute("SELECT * FROM %s WHERE value NOT CONTAINS KEY 5").size());
     }
 
     @Test
@@ -74,6 +127,8 @@ public class CollectionIndexingTest extends SAITester
         createIndex("CREATE CUSTOM INDEX ON %s(VALUES(value)) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
         assertEquals(2, execute("SELECT * FROM %s WHERE value CONTAINS 'v1'").size());
+        assertEquals(0, execute("SELECT * FROM %s WHERE value NOT CONTAINS 'v1'").size());
+        assertEquals(2, execute("SELECT * FROM %s WHERE value NOT CONTAINS 'v5'").size());
     }
 
     @Test
@@ -84,6 +139,9 @@ public class CollectionIndexingTest extends SAITester
         waitForIndexQueryable();
         assertEquals(2, execute("SELECT * FROM %s WHERE value[1] = 'v1'").size());
         assertEquals(1, execute("SELECT * FROM %s WHERE value[1] = 'v1' AND value[2] = 'v2'").size());
+        assertEquals(0, execute("SELECT * FROM %s WHERE value[1] != 'v1'").size());
+        assertEquals(1, execute("SELECT * FROM %s WHERE value[1] != 'v2' AND value[2] != 'v2'").size());
+        assertEquals(2, execute("SELECT * FROM %s WHERE value[1] != 'v3'").size());
     }
 
     @Test
@@ -115,6 +173,7 @@ public class CollectionIndexingTest extends SAITester
         createIndex("CREATE CUSTOM INDEX ON %s(FULL(value)) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
         assertUnsupportedIndexOperator("SELECT * FROM %s WHERE value contains key 1");
+        assertUnsupportedIndexOperator("SELECT * FROM %s WHERE value not contains key 1");
         assertEquals(2, execute("SELECT * FROM %s WHERE value contains key 1 ALLOW FILTERING").size());
     }
 
@@ -125,7 +184,9 @@ public class CollectionIndexingTest extends SAITester
         createIndex("CREATE CUSTOM INDEX ON %s(FULL(value)) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
         assertUnsupportedIndexOperator("SELECT * FROM %s WHERE value contains 'v1'");
+        assertUnsupportedIndexOperator("SELECT * FROM %s WHERE value not contains 'v1'");
         assertEquals(2, execute("SELECT * FROM %s WHERE value contains 'v1' ALLOW FILTERING").size());
+        assertEquals(0, execute("SELECT * FROM %s WHERE value not contains 'v1' ALLOW FILTERING").size());
     }
 
     @Test
@@ -155,7 +216,9 @@ public class CollectionIndexingTest extends SAITester
         createIndex("CREATE CUSTOM INDEX ON %s(ENTRIES(value)) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
         assertUnsupportedIndexOperator("SELECT * FROM %s WHERE value contains key 1");
+        assertUnsupportedIndexOperator("SELECT * FROM %s WHERE value not contains key 1");
         assertEquals(2, execute("SELECT * FROM %s WHERE value contains key 1 ALLOW FILTERING").size());
+        assertEquals(0, execute("SELECT * FROM %s WHERE value not contains key 1 ALLOW FILTERING").size());
     }
 
     @Test
@@ -165,7 +228,9 @@ public class CollectionIndexingTest extends SAITester
         createIndex("CREATE CUSTOM INDEX ON %s(ENTRIES(value)) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
         assertUnsupportedIndexOperator("SELECT * FROM %s WHERE value contains 'v1'");
+        assertUnsupportedIndexOperator("SELECT * FROM %s WHERE value not contains 'v1'");
         assertEquals(2, execute("SELECT * FROM %s WHERE value contains 'v1' ALLOW FILTERING").size());
+        assertEquals(0, execute("SELECT * FROM %s WHERE value not contains 'v1' ALLOW FILTERING").size());
     }
 
     @Test
@@ -215,7 +280,9 @@ public class CollectionIndexingTest extends SAITester
         createIndex("CREATE CUSTOM INDEX ON %s(VALUES(value)) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
         assertUnsupportedIndexOperator("SELECT * FROM %s WHERE value contains key 1");
+        assertUnsupportedIndexOperator("SELECT * FROM %s WHERE value not contains key 1");
         assertEquals(2, execute("SELECT * FROM %s WHERE value contains key 1 ALLOW FILTERING").size());
+        assertEquals(0, execute("SELECT * FROM %s WHERE value not contains key 1 ALLOW FILTERING").size());
     }
 
     @Test
@@ -225,7 +292,27 @@ public class CollectionIndexingTest extends SAITester
         createIndex("CREATE CUSTOM INDEX ON %s(VALUES(value)) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
         assertUnsupportedIndexOperator("SELECT * FROM %s WHERE value[1] = 'v1'");
+        assertUnsupportedIndexOperator("SELECT * FROM %s WHERE value[1] != 'v1'");
         assertEquals(2, execute("SELECT * FROM %s WHERE value[1] = 'v1' ALLOW FILTERING").size());
+        assertEquals(0, execute("SELECT * FROM %s WHERE value[1] != 'v1' ALLOW FILTERING").size());
+    }
+
+    @Test
+    public void notContainsShouldReturnUpdatedRows() throws Throwable
+    {
+        createTable("CREATE TABLE %s(id int PRIMARY KEY, text_map map<text, text>)");
+        createIndex("CREATE CUSTOM INDEX ON %s(values(text_map)) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+        execute("INSERT INTO %s(id, text_map) values (1, {'k1':'v1'})");
+        flush();
+        // This update overwrites 'v1', so now the map does not contain 'v1' and the row should be returned
+        // by the NOT CONTAINS 'v1' query. We purposefuly make this update after flush, so it ends up in a separate
+        // index than the original row.
+        execute("INSERT INTO %s(id, text_map) values (1, {'k2':'v2'})");
+
+        beforeAndAfterFlush(() -> {
+            assertRows(execute("SELECT id FROM %s WHERE text_map NOT CONTAINS 'v1'"), row(1));
+        });
     }
 
     private void createPopulatedMap() throws Throwable

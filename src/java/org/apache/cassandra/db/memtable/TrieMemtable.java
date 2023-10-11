@@ -315,6 +315,30 @@ public class TrieMemtable extends AbstractAllocatorMemtable
     }
 
     @Override
+    public DecoratedKey minPartitionKey()
+    {
+        for (int i = 0; i < shards.length; i++)
+        {
+            MemtableShard shard = shards[i];
+            if (!shard.isEmpty())
+                return shard.minPartitionKey();
+        }
+        return null;
+    }
+
+    @Override
+    public DecoratedKey maxPartitionKey()
+    {
+        for (int i = shards.length - 1; i >= 0; i--)
+        {
+            MemtableShard shard = shards[i];
+            if (!shard.isEmpty())
+                return shard.maxPartitionKey();
+        }
+        return null;
+    }
+
+    @Override
     RegularAndStaticColumns columns()
     {
         for (MemtableShard shard : shards)
@@ -473,6 +497,10 @@ public class TrieMemtable extends AbstractAllocatorMemtable
         @Unmetered
         private final TrieMemtableMetricsView metrics;
 
+        private TableMetadataRef metadata;
+
+        private DecoratedKey maxPartitionKey;
+
         MemtableShard(int shardId, TableMetadataRef metadata, TrieMemtableMetricsView metrics)
         {
             this(metadata, AbstractAllocatorMemtable.MEMORY_POOL.newAllocator(), metrics);
@@ -486,6 +514,7 @@ public class TrieMemtable extends AbstractAllocatorMemtable
             this.statsCollector = new AbstractMemtable.StatsCollector();
             this.allocator = allocator;
             this.metrics = metrics;
+            this.metadata = metadata;
         }
 
         public long put(DecoratedKey key, PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup)
@@ -531,6 +560,7 @@ public class TrieMemtable extends AbstractAllocatorMemtable
                     updateMinTimestamp(update.stats().minTimestamp);
                     updateLiveDataSize(updater.dataSize);
                     updateCurrentOperations(update.operationCount());
+                    updateMaxPartitionKey(key);
 
                     // TODO: lambov 2021-03-30: check if stats are further optimisable
                     columnsCollector.update(update.columns());
@@ -565,6 +595,12 @@ public class TrieMemtable extends AbstractAllocatorMemtable
             currentOperations = currentOperations + op;
         }
 
+        private void updateMaxPartitionKey(DecoratedKey key)
+        {
+            if (maxPartitionKey == null || key.compareTo(maxPartitionKey) > 0)
+                maxPartitionKey = key;
+        }
+
         public int size()
         {
             return data.valuesCount();
@@ -583,6 +619,23 @@ public class TrieMemtable extends AbstractAllocatorMemtable
         long currentOperations()
         {
             return currentOperations;
+        }
+
+        public DecoratedKey minPartitionKey()
+        {
+            Iterator<Map.Entry<ByteComparable, BTreePartitionData>> iter = data.entryIterator();
+            if (!iter.hasNext())
+                return null;
+
+            Map.Entry<ByteComparable, BTreePartitionData> entry = iter.next();
+            Partition partition = getPartitionFromTrieEntry(metadata.get(), allocator.ensureOnHeap(), entry);
+            return partition.partitionKey();
+        }
+
+        public DecoratedKey maxPartitionKey()
+        {
+            // Until we have a way to iterate the trie backwards, we need to update the max when putting data.
+            return maxPartitionKey;
         }
     }
 

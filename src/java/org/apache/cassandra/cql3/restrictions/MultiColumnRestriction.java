@@ -520,7 +520,9 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         @Override
         protected boolean isSupportedBy(Index index, ColumnMetadata column)
         {
-            return slice.isSupportedBy(column, index);
+            boolean supportsSlice = slice.isSupportedBy(column, index);
+            boolean supportsNeq = index.supportsExpression(column, Operator.NEQ);
+            return supportsSlice || !skippedValues.isEmpty() && supportsNeq;
         }
 
         @Override

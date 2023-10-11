@@ -18,16 +18,11 @@
 
 package org.apache.cassandra.distributed.test;
 
-import java.math.BigDecimal;
-import java.math.BigInteger;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableSet;
@@ -35,7 +30,6 @@ import com.google.common.collect.ImmutableSet;
 import org.junit.After;
 import org.junit.BeforeClass;
 
-import org.apache.cassandra.cql3.Duration;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.Feature;
@@ -43,6 +37,7 @@ import org.apache.cassandra.distributed.api.ICluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.DistributedTestBase;
+import org.apache.cassandra.distributed.util.ColumnTypeUtil;
 import org.apache.cassandra.gms.EndpointState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.locator.InetAddressAndPort;
@@ -107,7 +102,7 @@ public class TestBaseImpl extends DistributedTestBase
     {
         ByteBuffer[] bbs = new ByteBuffer[values.length];
         for (int i = 0; i < values.length; i++)
-            bbs[i] = makeByteBuffer(values[i]);
+            bbs[i] = ColumnTypeUtil.makeByteBuffer(values[i]);
         return TupleType.buildValue(bbs);
     }
 
@@ -143,68 +138,6 @@ public class TestBaseImpl extends DistributedTestBase
     private static InetAddressAndPort nodeAddress(InetSocketAddress address)
     {
         return InetAddressAndPort.getByAddressOverrideDefaults(address.getAddress(), address.getPort());
-    }
-
-    @SuppressWarnings("unchecked")
-    private static ByteBuffer makeByteBuffer(Object value)
-    {
-        if (value == null)
-            return null;
-
-        if (value instanceof ByteBuffer)
-            return (ByteBuffer) value;
-
-        return typeFor(value).decompose(value);
-    }
-
-    private static AbstractType typeFor(Object value)
-    {
-        if (value instanceof ByteBuffer || value == null)
-            return BytesType.instance;
-
-        if (value instanceof Byte)
-            return ByteType.instance;
-
-        if (value instanceof Short)
-            return ShortType.instance;
-
-        if (value instanceof Integer)
-            return Int32Type.instance;
-
-        if (value instanceof Long)
-            return LongType.instance;
-
-        if (value instanceof Float)
-            return FloatType.instance;
-
-        if (value instanceof Duration)
-            return DurationType.instance;
-
-        if (value instanceof Double)
-            return DoubleType.instance;
-
-        if (value instanceof BigInteger)
-            return IntegerType.instance;
-
-        if (value instanceof BigDecimal)
-            return DecimalType.instance;
-
-        if (value instanceof String)
-            return UTF8Type.instance;
-
-        if (value instanceof Boolean)
-            return BooleanType.instance;
-
-        if (value instanceof InetAddress)
-            return InetAddressType.instance;
-
-        if (value instanceof Date)
-            return TimestampType.instance;
-
-        if (value instanceof UUID)
-            return UUIDType.instance;
-
-        throw new IllegalArgumentException("Unsupported value type (value is " + value + ')');
     }
 
     public static void fixDistributedSchemas(Cluster cluster)

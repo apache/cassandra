@@ -38,7 +38,9 @@ import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SSTableContext;
+import org.apache.cassandra.index.sai.SSTableIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
+import org.apache.cassandra.index.sai.disk.EmptyIndex;
 import org.apache.cassandra.index.sai.disk.PerIndexWriter;
 import org.apache.cassandra.index.sai.disk.PerSSTableWriter;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
@@ -178,7 +180,9 @@ public class IndexDescriptor
 
     public SearchableIndex newSearchableIndex(SSTableContext sstableContext, IndexContext indexContext)
     {
-        return version.onDiskFormat().newSearchableIndex(sstableContext, indexContext);
+        return isIndexEmpty(indexContext)
+               ? new EmptyIndex()
+               : version.onDiskFormat().newSearchableIndex(sstableContext, indexContext);
     }
 
     public PerSSTableWriter newPerSSTableWriter() throws IOException

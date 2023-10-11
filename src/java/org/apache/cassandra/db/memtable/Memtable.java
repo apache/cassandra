@@ -224,6 +224,12 @@ public interface Memtable extends Comparable<Memtable>
     /** Minimum timestamp of all stored data */
     long getMinTimestamp();
 
+    /** Min partition key inserted so far. */
+    DecoratedKey minPartitionKey();
+
+    /** Max partition key inserted so far. */
+    DecoratedKey maxPartitionKey();
+
     /**
      * The table's definition metadata.
      *

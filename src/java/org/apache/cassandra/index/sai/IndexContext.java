@@ -65,10 +65,12 @@ import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
 import org.apache.cassandra.index.sai.disk.vector.CassandraOnHeapGraph;
 import org.apache.cassandra.index.sai.memory.MemtableIndex;
+import org.apache.cassandra.index.sai.memory.MemtableRangeIterator;
 import org.apache.cassandra.index.sai.metrics.ColumnQueryMetrics;
 import org.apache.cassandra.index.sai.metrics.IndexMetrics;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
+import org.apache.cassandra.index.sai.utils.RangeAntiJoinIterator;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.index.sai.utils.RangeUnionIterator;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
@@ -406,9 +408,16 @@ public class IndexContext
                             .orElse(null);
     }
 
-
     public RangeIterator searchMemtable(QueryContext context, Expression e, AbstractBounds<PartitionPosition> keyRange, int limit)
     {
+        if (e.getOp().isNonEquality())
+        {
+            Expression negExpression = e.negated();
+            RangeIterator allKeys = scanMemtable(keyRange);
+            RangeIterator matchedKeys = searchMemtable(context, negExpression, keyRange, Integer.MAX_VALUE);
+            return RangeAntiJoinIterator.create(allKeys, matchedKeys);
+        }
+
         Collection<MemtableIndex> memtables = liveMemtables.values();
 
         if (memtables.isEmpty())
@@ -423,6 +432,24 @@ public class IndexContext
             builder.add(index.search(context, e, keyRange, limit));
         }
 
+        return builder.build();
+    }
+
+    private RangeIterator scanMemtable(AbstractBounds<PartitionPosition> keyRange)
+    {
+        Collection<Memtable> memtables = liveMemtables.keySet();
+        if (memtables.isEmpty())
+        {
+            return RangeIterator.empty();
+        }
+
+        RangeIterator.Builder builder = RangeUnionIterator.builder(memtables.size());
+
+        for (Memtable memtable : memtables)
+        {
+            RangeIterator memtableIterator = new MemtableRangeIterator(memtable, primaryKeyFactory, keyRange);
+            builder.add(memtableIterator);
+        }
         return builder.build();
     }
 
@@ -482,6 +509,11 @@ public class IndexContext
     public boolean isNonFrozenCollection()
     {
         return TypeUtil.isNonFrozenCollection(column.type);
+    }
+
+    public boolean isCollection()
+    {
+        return column.type.isCollection();
     }
 
     public boolean isFrozen()
@@ -582,9 +614,14 @@ public class IndexContext
 
         if (isNonFrozenCollection())
         {
-            if (indexType == IndexTarget.Type.KEYS) return operator == Expression.Op.CONTAINS_KEY;
-            if (indexType == IndexTarget.Type.VALUES) return operator == Expression.Op.CONTAINS_VALUE;
-            return indexType == IndexTarget.Type.KEYS_AND_VALUES && operator == Expression.Op.EQ;
+            if (indexType == IndexTarget.Type.KEYS)
+                return operator == Expression.Op.CONTAINS_KEY
+                       || operator == Expression.Op.NOT_CONTAINS_KEY;
+            if (indexType == IndexTarget.Type.VALUES)
+                return operator == Expression.Op.CONTAINS_VALUE
+                       || operator == Expression.Op.NOT_CONTAINS_VALUE;
+            return indexType == IndexTarget.Type.KEYS_AND_VALUES &&
+                   (operator == Expression.Op.EQ || operator == Expression.Op.NOT_EQ);
         }
 
         if (indexType == IndexTarget.Type.FULL)
@@ -760,13 +797,6 @@ public class IndexContext
             if (!context.indexDescriptor.isPerIndexBuildComplete(this))
             {
                 logger.debug(logMessage("An on-disk index build for SSTable {} has not completed."), context.descriptor());
-                continue;
-            }
-
-            if (context.indexDescriptor.isIndexEmpty(this))
-            {
-                logger.debug(logMessage("No on-disk index was built for SSTable {} because the SSTable " +
-                                                "had no indexable rows for the index."), context.descriptor());
                 continue;
             }
 

@@ -79,6 +79,11 @@ public abstract class RangeIterator extends AbstractIterator<PrimaryKey> impleme
         return count;
     }
 
+    public final PrimaryKey nextOrNull()
+    {
+        return hasNext() ? next() : null;
+    }
+
     /**
      * When called, this iterators current position will
      * be skipped forwards until finding either:

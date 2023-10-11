@@ -90,6 +90,7 @@ public class GeoDistanceRelation extends Relation
     protected Restriction newEQRestriction(TableMetadata table, VariableSpecifications boundNames)
     {
         throw invalidRequest("%s cannot be used with the GEO_DISTANCE function", operator());
+
     }
 
     @Override

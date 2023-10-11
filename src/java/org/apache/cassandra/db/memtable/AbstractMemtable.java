@@ -27,11 +27,16 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.db.DataRange;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.partitions.Partition;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.EncodingStats;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.schema.TableMetadataRef;
@@ -43,6 +48,7 @@ public abstract class AbstractMemtable implements Memtable
     protected final StatsCollector statsCollector = new StatsCollector();
     // The smallest timestamp for all partitions stored in this memtable
     protected AtomicLong minTimestamp = new AtomicLong(Long.MAX_VALUE);
+
     private final AtomicReference<LifecycleTransaction> flushTransaction = new AtomicReference<>(null);
     protected TableMetadataRef metadata;
 

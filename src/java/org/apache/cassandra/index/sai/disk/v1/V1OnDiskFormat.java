@@ -42,7 +42,6 @@ import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.format.IndexFeatureSet;
 import org.apache.cassandra.index.sai.disk.format.OnDiskFormat;
-import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.memory.RowMapping;
 import org.apache.cassandra.index.sai.metrics.AbstractMetrics;
 import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
@@ -260,7 +259,8 @@ public class V1OnDiskFormat implements OnDiskFormat
                 logger.debug(descriptor.logMessage("{} failed for index component {} on SSTable {}"),
                              (checksum ? "Checksum validation" : "Validation"),
                              component,
-                             descriptor.descriptor);
+                             descriptor.descriptor,
+                             e);
             }
             return false;
         }

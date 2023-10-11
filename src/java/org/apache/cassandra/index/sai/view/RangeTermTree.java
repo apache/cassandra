@@ -55,8 +55,8 @@ public class RangeTermTree implements TermTree
 
     public Set<SSTableIndex> search(Expression e)
     {
-        ByteBuffer minTerm = e.lower == null ? min : e.lower.value.encoded;
-        ByteBuffer maxTerm = e.upper == null ? max : e.upper.value.encoded;
+        ByteBuffer minTerm = e.getOp().isNonEquality() || e.lower == null ? min : e.lower.value.encoded;
+        ByteBuffer maxTerm = e.getOp().isNonEquality() || e.upper == null ? max : e.upper.value.encoded;
 
         return new HashSet<>(rangeTree.search(Interval.create(new Term(minTerm, comparator),
                                                               new Term(maxTerm, comparator),
@@ -82,8 +82,8 @@ public class RangeTermTree implements TermTree
                 IndexContext context = index.getIndexContext();
                 logger.trace(context.logMessage("Adding index for SSTable {} with minTerm={} and maxTerm={}..."), 
                                                 index.getSSTable().descriptor, 
-                                                comparator.compose(index.minTerm()), 
-                                                comparator.compose(index.maxTerm()));
+                                                index.minTerm() != null ? comparator.compose(index.minTerm()) : null,
+                                                index.maxTerm() != null ? comparator.compose(index.maxTerm()) : null);
             }
 
             intervals.add(interval);
@@ -112,6 +112,12 @@ public class RangeTermTree implements TermTree
 
         public int compareTo(Term o)
         {
+            if (term == null && o.term == null)
+                return 0;
+            if (term == null)
+                return -1;
+            if (o.term == null)
+                return 1;
             return TypeUtil.compare(term, o.term, comparator);
         }
     }

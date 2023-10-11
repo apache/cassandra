@@ -162,6 +162,12 @@ public class PartitionAwarePrimaryKeyMap implements PrimaryKeyMap
     }
 
     @Override
+    public long count()
+    {
+        return rowIdToToken.length();
+    }
+
+    @Override
     public void close() throws IOException
     {
         FileUtils.closeQuietly(rowIdToToken, rowIdToOffset, reader);

@@ -72,6 +72,12 @@ public class TermIterator extends RangeIterator
     @SuppressWarnings("resource")
     public static TermIterator build(final Expression e, Set<SSTableIndex> perSSTableIndexes, AbstractBounds<PartitionPosition> keyRange, QueryContext queryContext, boolean defer, int limit)
     {
+        RangeIterator rangeIterator = buildRangeIterator(e, perSSTableIndexes, keyRange, queryContext, defer, limit);
+        return new TermIterator(rangeIterator, perSSTableIndexes, queryContext);
+    }
+
+    private static RangeIterator buildRangeIterator(final Expression e, Set<SSTableIndex> perSSTableIndexes, AbstractBounds<PartitionPosition> keyRange, QueryContext queryContext, boolean defer, int limit)
+    {
         final List<RangeIterator> tokens = new ArrayList<>(1 + perSSTableIndexes.size());
 
         RangeIterator memtableIterator = e.context.searchMemtable(queryContext, e, keyRange, limit);
@@ -102,8 +108,7 @@ public class TermIterator extends RangeIterator
             }
         }
 
-        RangeIterator ranges = RangeUnionIterator.build(tokens);
-        return new TermIterator(ranges, perSSTableIndexes, queryContext);
+        return RangeUnionIterator.build(tokens);
     }
 
     protected PrimaryKey computeNext()

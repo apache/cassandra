@@ -76,7 +76,9 @@ public class View implements Iterable<SSTableIndex>
      */
     public Set<SSTableIndex> match(Expression expression)
     {
-        if (expression.getOp() == Expression.Op.ANN || expression.getOp() == Expression.Op.BOUNDED_ANN)
+        if (expression.getOp() == Expression.Op.ANN
+                || expression.getOp() == Expression.Op.BOUNDED_ANN
+                || expression.getOp().isNonEquality())
             return new HashSet<>(getIndexes());
         return termTree.search(expression);
     }
@@ -121,6 +123,12 @@ public class View implements Iterable<SSTableIndex>
 
         public int compareTo(Key o)
         {
+            if (key == null && o.key == null)
+                return 0;
+            if (key == null)
+                return -1;
+            if (o.key == null)
+                return 1;
             return key.compareTo(o.key);
         }
     }

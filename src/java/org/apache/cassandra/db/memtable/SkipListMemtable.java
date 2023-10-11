@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db.memtable;
 
-import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
@@ -219,6 +218,24 @@ public class SkipListMemtable extends AbstractAllocatorMemtable
     public Partition getPartition(DecoratedKey key)
     {
         return partitions.get(key);
+    }
+
+    @Override
+    public DecoratedKey minPartitionKey()
+    {
+        Map.Entry<PartitionPosition, AtomicBTreePartition> entry = partitions.firstEntry();
+        return (entry != null)
+               ? entry.getValue().partitionKey()
+               : null;
+    }
+
+    @Override
+    public DecoratedKey maxPartitionKey()
+    {
+        Map.Entry<PartitionPosition, AtomicBTreePartition> entry = partitions.lastEntry();
+        return (entry != null)
+            ? entry.getValue().partitionKey()
+            : null;
     }
 
     private static int estimateRowOverhead(final int count)

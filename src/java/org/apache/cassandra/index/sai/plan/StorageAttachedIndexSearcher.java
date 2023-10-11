@@ -339,8 +339,15 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
                 }
                 else
                 {
-                    // key either before the current range, so let's move the key forward
-                    skipTo(currentKeyRange.left.getToken());
+                    // the following condition may be false if currentKeyRange.left is not inclusive,
+                    // and key == currentKeyRange.left; in this case we should not try to skipTo the beginning
+                    // of the range because that would be requesting the key to go backwards
+                    // (in some implementations, skipTo can go backwards, and we don't want that)
+                    if (currentKeyRange.left.getToken().compareTo(key.token()) > 0)
+                    {
+                        // key before the current range, so let's move the key forward
+                        skipTo(currentKeyRange.left.getToken());
+                    }
                     key = nextKey();
                 }
             }

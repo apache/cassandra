@@ -1869,9 +1869,25 @@ public abstract class CQLTester
      */
     public void beforeAndAfterFlush(CheckedFunction runnable) throws Throwable
     {
-        runnable.apply();
+        try
+        {
+            runnable.apply();
+        }
+        catch (Throwable t)
+        {
+            throw new AssertionError("Test failed before flush:\n" + t, t);
+        }
+
         flush();
-        runnable.apply();
+
+        try
+        {
+            runnable.apply();
+        }
+        catch (Throwable t)
+        {
+            throw new AssertionError("Test failed after flush:\n" + t, t);
+        }
     }
 
     private static String replaceValues(String query, Object[] values)

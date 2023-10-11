@@ -64,12 +64,36 @@ public class MultipleColumnIndexTest extends SAITester
 
         waitForIndexQueryable();
 
-        assertEquals(1, execute("SELECT * FROM %s WHERE text_map['k1'] = 'v1' AND text_map['k2'] = 'v2'").size());
-        assertEquals(2, execute("SELECT * FROM %s WHERE text_map CONTAINS 'v1'").size());
-        assertEquals(2, execute("SELECT * FROM %s WHERE text_map CONTAINS KEY 'k1'").size());
-        assertEquals(1, execute("SELECT * FROM %s WHERE text_map CONTAINS KEY 'k1' AND text_map CONTAINS KEY 'k2'").size());
-        assertEquals(2, execute("SELECT * FROM %s WHERE text_map['k1'] = 'v1' AND text_map CONTAINS KEY 'k1' AND text_map CONTAINS 'v1'").size());
-        assertEquals(1, execute("SELECT * FROM %s WHERE text_map['k1'] = 'v1' AND text_map CONTAINS KEY 'k1' AND text_map CONTAINS KEY 'k2' AND text_map CONTAINS 'v1'").size());
-        assertEquals(0, execute("SELECT * FROM %s WHERE text_map['k1'] = 'v1' AND text_map CONTAINS KEY 'k1' AND text_map CONTAINS KEY 'k4'").size());
+        beforeAndAfterFlush(() -> {
+            assertEquals(1, execute("SELECT * FROM %s WHERE text_map['k1'] = 'v1' AND text_map['k2'] = 'v2'").size());
+            assertEquals(2, execute("SELECT * FROM %s WHERE text_map CONTAINS 'v1'").size());
+            assertEquals(2, execute("SELECT * FROM %s WHERE text_map CONTAINS 'v1' AND text_map NOT CONTAINS 'v5'").size());
+            assertEquals(2, execute("SELECT * FROM %s WHERE text_map CONTAINS 'v1' AND text_map NOT CONTAINS KEY 'k5'").size());
+            assertEquals(1, execute("SELECT * FROM %s WHERE text_map CONTAINS 'v1' AND text_map['k2'] != 'v2'").size());
+
+
+            assertEquals(2, execute("SELECT * FROM %s WHERE text_map CONTAINS KEY 'k1'").size());
+            assertEquals(1, execute("SELECT * FROM %s WHERE text_map CONTAINS KEY 'k1' AND text_map CONTAINS 'v2'").size());
+            assertEquals(1, execute("SELECT * FROM %s WHERE text_map CONTAINS KEY 'k1' AND text_map CONTAINS KEY 'k2'").size());
+            assertEquals(1, execute("SELECT * FROM %s WHERE text_map CONTAINS KEY 'k1' AND text_map NOT CONTAINS 'v3'").size());
+            assertEquals(1, execute("SELECT * FROM %s WHERE text_map CONTAINS KEY 'k1' AND text_map NOT CONTAINS KEY 'k3'").size());
+            assertEquals(1, execute("SELECT * FROM %s WHERE text_map CONTAINS KEY 'k1' AND text_map['k2'] != 'v2'").size());
+
+            assertEquals(2, execute("SELECT * FROM %s WHERE text_map['k1'] = 'v1' AND text_map CONTAINS KEY 'k1' AND text_map CONTAINS 'v1'").size());
+            assertEquals(2, execute("SELECT * FROM %s WHERE text_map['k1'] = 'v1' AND text_map CONTAINS KEY 'k1' AND text_map CONTAINS 'v1' AND text_map NOT CONTAINS 'v8'").size());
+            assertEquals(1, execute("SELECT * FROM %s WHERE text_map['k1'] = 'v1' AND text_map CONTAINS KEY 'k1' AND text_map CONTAINS 'v1' AND text_map NOT CONTAINS 'v3'").size());
+            assertEquals(1, execute("SELECT * FROM %s WHERE text_map['k1'] = 'v1' AND text_map CONTAINS KEY 'k1' AND text_map CONTAINS KEY 'k2' AND text_map CONTAINS 'v1'").size());
+            assertEquals(1, execute("SELECT * FROM %s WHERE text_map['k1'] = 'v1' AND text_map CONTAINS KEY 'k1' AND text_map CONTAINS KEY 'k2' AND text_map NOT CONTAINS 'v3'").size());
+            assertEquals(0, execute("SELECT * FROM %s WHERE text_map['k1'] = 'v1' AND text_map CONTAINS KEY 'k1' AND text_map CONTAINS KEY 'k4'").size());
+            assertEquals(1, execute("SELECT * FROM %s WHERE text_map['k1'] = 'v1' AND text_map CONTAINS KEY 'k1' AND text_map NOT CONTAINS KEY 'k2'").size());
+            assertEquals(0, execute("SELECT * FROM %s WHERE text_map['k1'] = 'v1' AND text_map CONTAINS KEY 'k1' AND text_map CONTAINS KEY 'k4' AND text_map NOT CONTAINS KEY 'k2'").size());
+
+            assertEquals(1, execute("SELECT * FROM %s WHERE text_map['k1'] != 'v2' AND text_map['k2'] = 'v2'").size());
+            assertEquals(2, execute("SELECT * FROM %s WHERE text_map['k1'] != 'v2' AND text_map['k2'] != 'v2'").size());
+            assertEquals(2, execute("SELECT * FROM %s WHERE text_map['k1'] != 'v2' AND text_map NOT CONTAINS 'v3'").size());
+            assertEquals(1, execute("SELECT * FROM %s WHERE text_map['k1'] != 'v2' AND text_map NOT CONTAINS 'v3' AND text_map NOT CONTAINS 'v5'").size());
+            assertEquals(2, execute("SELECT * FROM %s WHERE text_map['k1'] != 'v2' AND text_map NOT CONTAINS KEY 'k3'").size());
+            assertEquals(1, execute("SELECT * FROM %s WHERE text_map['k1'] != 'v2' AND text_map NOT CONTAINS KEY 'k3' AND text_map NOT CONTAINS KEY 'k5'").size());
+        });
     }
 }

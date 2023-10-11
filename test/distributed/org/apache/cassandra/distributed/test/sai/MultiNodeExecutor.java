@@ -25,6 +25,7 @@ import java.util.List;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.ConsistencyLevel;
+import org.apache.cassandra.distributed.util.ColumnTypeUtil;
 import org.apache.cassandra.index.sai.cql.DataModel;
 
 public class MultiNodeExecutor implements DataModel.Executor
@@ -69,13 +70,15 @@ public class MultiNodeExecutor implements DataModel.Executor
     @Override
     public void executeLocal(String query, Object... values) throws Throwable
     {
-        cluster.coordinator(1).execute(query, ConsistencyLevel.QUORUM);
+        Object[] buffers = ColumnTypeUtil.transformValues(values);
+        cluster.coordinator(1).execute(query, ConsistencyLevel.QUORUM, buffers);
     }
 
     @Override
     public List<Object> executeRemote(String query, int fetchSize, Object... values) throws Throwable
     {
-        Iterator<Object> iterator = cluster.coordinator(1).executeWithPagingWithResult(query, ConsistencyLevel.QUORUM, fetchSize, values).map(row -> row.get(0));
+        Object[] buffers = ColumnTypeUtil.transformValues(values);
+        Iterator<Object> iterator = cluster.coordinator(1).executeWithPagingWithResult(query, ConsistencyLevel.QUORUM, fetchSize, buffers).map(row -> row.get(0));
 
         List<Object> result = new ArrayList<>();
         iterator.forEachRemaining(result::add);

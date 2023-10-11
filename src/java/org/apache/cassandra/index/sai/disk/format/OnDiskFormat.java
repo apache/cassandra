@@ -170,6 +170,8 @@ public interface OnDiskFormat
     {
         for (IndexComponent component : perIndexComponents(context))
         {
+            if (descriptor.isIndexEmpty(context))
+                continue;
             if (!validateOneIndexComponent(component, descriptor, context, checksum))
                 return false;
         }
