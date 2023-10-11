@@ -2408,8 +2408,8 @@ public class StorageProxy implements StorageProxyMBean
      * - The hints have reached to the size limit for the node
      * Otherwise, it permits.
      *
-     * @param replica, the replica for the hint
-     * @param tryEnablePersistentWindow, true to consider hint_window_persistent_enabled; otherwise, ignores
+     * @param replica the replica for the hint
+     * @param tryEnablePersistentWindow true to consider hint_window_persistent_enabled; otherwise, ignores
      * @return true to permit or false to reject hint
      */
     public static boolean shouldHint(Replica replica, boolean tryEnablePersistentWindow)
@@ -2858,12 +2858,14 @@ public class StorageProxy implements StorageProxyMBean
         return String.format("Updating ideal consistency level new value: %s old value %s", newCL, original.toString());
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-15066 */
+    @Deprecated(since = "4.0")
     public int getOtcBacklogExpirationInterval() {
         return 0;
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-15066 */
+    @Deprecated(since = "4.0")
     public void setOtcBacklogExpirationInterval(int intervalInMillis) { }
 
     @Override

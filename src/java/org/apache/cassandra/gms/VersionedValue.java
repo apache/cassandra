@@ -150,7 +150,8 @@ public class VersionedValue implements Comparable<VersionedValue>
             return new VersionedValue(value.value);
         }
 
-        @Deprecated
+        /** @deprecated See CASSANDRA-7544 */
+        @Deprecated(since = "4.0")
         public VersionedValue bootReplacing(InetAddress oldNode)
         {
             return new VersionedValue(versionString(VersionedValue.STATUS_BOOTSTRAPPING_REPLACE, oldNode.getHostAddress()));

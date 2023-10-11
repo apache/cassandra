@@ -60,7 +60,7 @@ public class ScalingReservoir implements SnapshottingReservoir
     /**
      * Scale the input value.
      *
-     * Not using {@linkplain java.util.function.Function<Long, Long>} to avoid auto-boxing.
+     * Not using {@code java.util.function.Function<Long, Long>} to avoid auto-boxing.
      */
     @FunctionalInterface
     public static interface ScaleFunction

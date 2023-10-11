@@ -30,10 +30,9 @@ public class Role
     /**
      * Represents a user or group in the auth subsystem.
      * Roles may be members of other roles, but circular graphs of roles are not permitted.
-     * The reason that memberOf is a Set<String> and not Set<Role> is to simplify loading
+     * The reason that memberOf is a {@code Set<String>} and not {@code Set<Role>} is to simplify loading
      * for IRoleManager implementations (in particular, CassandraRoleManager)
      */
-
     public final RoleResource resource;
     public final boolean isSuper;
     public final boolean canLogin;

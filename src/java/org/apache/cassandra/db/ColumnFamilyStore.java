@@ -278,7 +278,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
     public final String name;
     public final TableMetadataRef metadata;
     private final String mbeanName;
-    @Deprecated
+    /** @deprecated See CASSANDRA-9448 */
+    @Deprecated(since = "3.0")
     private final String oldMBeanName;
     private volatile boolean valid = true;
 
@@ -844,7 +845,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         keyspace.getColumnFamilyStore(cfName).loadNewSSTables();
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-6719 */
+    @Deprecated(since = "4.0")
     public void loadNewSSTables()
     {
 
@@ -918,7 +920,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         }
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-9448 */
+    @Deprecated(since = "3.0")
     public String getColumnFamilyName()
     {
         return getTableName();
@@ -1766,7 +1769,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
      *
      * @param skipIfCurrentVersion - if {@link true}, will rewrite only SSTables that have version older than the current one ({@link SSTableFormat#getLatestVersion()})
      * @param skipIfNewerThanTimestamp - max timestamp (local creation time) for SSTable; SSTables created _after_ this timestamp will be excluded from compaction
-     * @param skipIfCompressionMatches - if {@link true}, will rewrite only SSTables whose compression parameters are different from {@link TableMetadata#params#getCompressionParameters()} ()}
+     * @param skipIfCompressionMatches - if {@link true}, will rewrite only SSTables whose compression parameters are different from {@code TableMetadata#params#getCompressionParameters()}
      * @param jobs number of jobs for parallel execution
      */
     public CompactionManager.AllSSTableOpStatus sstablesRewrite(final boolean skipIfCurrentVersion,

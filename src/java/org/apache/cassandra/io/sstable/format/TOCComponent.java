@@ -58,7 +58,7 @@ public class TOCComponent
     /**
      * Reads the list of components from the TOC component.
      *
-     * @param skipMissing, skip adding the component to the returned set if the corresponding file is missing.
+     * @param skipMissing skip adding the component to the returned set if the corresponding file is missing.
      * @return set of components found in the TOC
      */
     public static Set<Component> loadTOC(Descriptor descriptor, boolean skipMissing) throws IOException

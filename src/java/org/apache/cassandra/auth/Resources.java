@@ -64,12 +64,15 @@ public final class Resources
             throw new IllegalArgumentException(String.format("Name %s is not valid for any resource type", name));
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-4874 */
+    @Deprecated(since = "1.2.0")
     public final static String ROOT = "cassandra";
-    @Deprecated
+    /** @deprecated See CASSANDRA-4874 */
+    @Deprecated(since = "1.2.0")
     public final static String KEYSPACES = "keyspaces";
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-4874 */
+    @Deprecated(since = "1.2.0")
     public static String toString(List<Object> resource)
     {
         StringBuilder buff = new StringBuilder();
