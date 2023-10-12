@@ -1,10 +1,9 @@
 = Monitoring
 
-Metrics in Cassandra are managed using the http://metrics.dropwizard.io[Dropwizard Metrics] library. 
-These metrics can be queried via JMX or pushed to external monitoring systems using a
-number of http://metrics.dropwizard.io/3.1.0/getting-started/#other-reporting[built
-in] and http://metrics.dropwizard.io/3.1.0/manual/third-party/[third
-party] reporter plugins.
+Metrics in Cassandra are managed using the https://metrics.dropwizard.io[Dropwizard Metrics] library.
+Metrics can be queried via JMX, link:virtualtables.adoc[Virtual Tables], or pushed to external monitoring systems
+using a variety of https://metrics.dropwizard.io/4.2.0/getting-started.html#other-reporting[built-in reporters]
+or https://metrics.dropwizard.io/4.2.0/manual/third-party.html[third-party] reporter plug-ins.
 
 Metrics are collected for a single node. 
 It's up to the operator to use an external monitoring system to aggregate them.
@@ -58,6 +57,7 @@ There is a special table called '`all`' without a keyspace. This
 represents the aggregation of metrics across *all* tables and keyspaces
 on the node.
 ====
+
 [cols=",,",options="header",]
 |===
 |Name |Type |Description
@@ -1073,8 +1073,6 @@ uncomment:
 
 == Metric Reporters [[metric_reporters]]
 
-As mentioned at the top of this section on monitoring the Cassandra
-metrics can be exported to a number of monitoring system a number of
-http://metrics.dropwizard.io/3.1.0/getting-started/#other-reporting[built
-in] and http://metrics.dropwizard.io/3.1.0/manual/third-party/[third
-party] reporter plugins.
+As mentioned at the top of this section the Cassandra metrics can be exported to a number of external monitoring system
+using https://metrics.dropwizard.io/4.2.0/getting-started.html#other-reporting[built-in reporters]
+or https://metrics.dropwizard.io/4.2.0/manual/third-party.html[third-party] reporter plugins.
