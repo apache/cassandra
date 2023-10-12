@@ -114,6 +114,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     public static final int DEFAULT_PAGE_SIZE = 10000;
     public static final String TOPK_CONSISTENCY_LEVEL_ERROR = "Top-k queries can only be run with consistency level one. Consistency level %s was used.";
     public static final String TOPK_LIMIT_ERROR = "Top-k queries must have a limit specified and the limit must be less than the query page size";
+    public static final String TOPK_PARTITION_LIMIT_ERROR = "Top-K queries do not support per-partition limits";
     public static final String TOPK_AGGREGATION_ERROR = "Top-k queries can not be run with aggregation";
 
     public final VariableSpecifications bindVariables;
@@ -299,6 +300,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                        String.format(TOPK_CONSISTENCY_LEVEL_ERROR, options.getConsistency()));
 
             checkFalse(limit.isUnlimited() || (pageSize > 0 && limit.count() > pageSize), TOPK_LIMIT_ERROR);
+
+            checkFalse(limit.perPartitionCount() != DataLimits.NO_LIMIT, TOPK_PARTITION_LIMIT_ERROR);
         }
 
         ReadQuery query = getQuery(options, state.getClientState(), selectors.getColumnFilter(), nowInSec, limit);

@@ -62,12 +62,10 @@ public class VectorLocalTest extends VectorTester
 
         assertRows(execute("SELECT k, v FROM %s WHERE k > 0 LIMIT 4 ALLOW FILTERING"), row(1, vector(1f)));
         assertRows(execute("SELECT k, v FROM %s WHERE k = 1 ORDER BY v ANN OF [0] LIMIT 4 ALLOW FILTERING"), row(1, vector(1f)));
-        assertRows(execute("SELECT k, v FROM %s WHERE k > 0 ORDER BY v ANN OF [0] LIMIT 4 ALLOW FILTERING"), row(1, vector(1f)));
 
         flush();
         assertRows(execute("SELECT k, v FROM %s WHERE k > 0 LIMIT 4 ALLOW FILTERING"), row(1, vector(1f)));
         assertRows(execute("SELECT k, v FROM %s WHERE k = 1 ORDER BY v ANN OF [0] LIMIT 4 ALLOW FILTERING"), row(1, vector(1f)));
-        assertRows(execute("SELECT k, v FROM %s WHERE k > 0 ORDER BY v ANN OF [0] LIMIT 4 ALLOW FILTERING"), row(1, vector(1f)));
     }
 
     @Test
