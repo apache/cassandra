@@ -3920,7 +3920,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return endpoints;
     }
 
-    /** @deprecated See  */
+    /** @deprecated See CASSANDRA-7544 */
     @Deprecated(since = "4.0")
     public List<String> getJoiningNodes()
     {
@@ -3932,7 +3932,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return stringify(tokenMetadata.getBootstrapTokens().valueSet(), true);
     }
 
-    /** @deprecated See  */
+    /** @deprecated See CASSANDRA-7544 */
     @Deprecated(since = "4.0")
     public List<String> getLiveNodes()
     {

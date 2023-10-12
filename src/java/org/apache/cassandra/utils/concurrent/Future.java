@@ -107,6 +107,7 @@ public interface Future<V> extends io.netty.util.concurrent.Future<V>, Listenabl
         return this;
     }
 
+    /** @deprecated See CASSANDRA-16924 */
     @Deprecated(since = "4.1")
     @Override
     default boolean await(long l) throws InterruptedException
@@ -114,6 +115,7 @@ public interface Future<V> extends io.netty.util.concurrent.Future<V>, Listenabl
         return await(l, MILLISECONDS);
     }
 
+    /** @deprecated See CASSANDRA-16924 */
     @Deprecated(since = "4.1")
     @Override
     default boolean awaitUninterruptibly(long l)

@@ -378,6 +378,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>, IMeasurableMemory
             return time.isLive() ? LIVE : new Deletion(time, false);
         }
 
+        /** @deprecated See CAASSANDRA-10261 */
         @Deprecated(since = "4.0")
         public static Deletion shadowable(DeletionTime time)
         {
