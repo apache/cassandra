@@ -149,13 +149,10 @@ CREATE TABLE audit ( id int PRIMARY KEY , text_map map<text, text>);
 
 Create multiple SAI indexes on the same `map` column, each using `KEYS`, `VALUES`, and `ENTRIES`.
 
-// ifeval::["{evalproduct}" == "dse"]
-// [NOTE]
-// ==== 
-// Creating multiple SAI indexes with different map types *on the same column* requires Cassandra 5.0 or later.
-// If you're using DSE 6.8.3, submit a `DROP INDEX index-name;` command before adding the next map type on the same column.
-// ====
-// endif::[]
+[NOTE]
+==== 
+Creating multiple SAI indexes with different map types *on the same column* requires Cassandra 5.0 or later.
+====
 
 [source,language-cql]
 ----

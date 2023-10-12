@@ -1,0 +1,278 @@
+=== compaction = \{compaction_map}
+:description: Construct a map of the compaction option and its subproperties.
+
+Defines the strategy for cleaning up data after writes.
+
+Syntax uses a simple JSON format:
+
+[source,language-cql]
+----
+compaction = {
+     'class' : '<compaction_strategy_name>',
+     '<property_name>' : <value> [, ...] }
+----
+
+where the <compaction_strategy_name> is xref:STCS[SizeTieredCompactionStrategy], xref:TWCS[TimeWindowCompactionStrategy], or xref:LCS[LeveledCompactionStrategy].
+
+[IMPORTANT]
+====
+Use only compaction implementations bundled with {product}.
+See xref:cassandra:managing/operating/compaction/index.adoc[Compaction Strategies] for more details.
+====
+
+==== Common properties
+
+The following properties apply to all compaction strategies.
+
+[source,language-cql]
+----
+compaction = {
+     'class' : 'compaction_strategy_name',
+     'enabled' : (true | false),
+     'log_all' : (true | false),
+     'only_purge_repaired_tombstone' : (true | false),
+     'tombstone_threshold' : <ratio>,
+     'tombstone_compaction_interval' : <sec>,
+     'unchecked_tombstone_compaction' : (true | false),
+     'min_threshold' : <num_sstables>,
+     'max_threshold' : <num_sstables> }
+----
+
+*enabled* ::
+Enable background compaction.
+
+* `true` runs minor compactions.
+* `false` disables minor compactions.
+
++
+[TIP]
+==== 
+Use `nodetool enableautocompaction` to start running compactions.
+====
+
+{empty}::
+Default: `true`
+
+*log_all* ::
+Activates advanced logging for the entire cluster.
++
+Default: `false`
+
+*only_purge_repaired_tombstone* ::
+Enabling this property prevents data from resurrecting when repair is not run within the `gc_grace_seconds`.
+When its been a long time between repairs, the database keeps all tombstones.
++
+
+* `true` - Only allow tombstone purges on repaired SSTables.
+* `false` - Purge tombstones on SSTables during compaction even if the table has not been repaired.
+
++
+Default: `false`
+
+*tombstone_threshold* ::
+The ratio of garbage-collectable tombstones to all contained columns.
+If the ratio exceeds this limit, compactions starts only on that table to purge the tombstones.
++
+Default: `0.2`
+
+*tombstone_compaction_interval* ::
+Number of seconds before compaction can run on an SSTable after it is created.
+An SSTable is eligible for compaction when it exceeds the `tombstone_threshold`.
+Because it might not be possible to drop tombstones when doing a single SSTable compaction, and since the compaction is triggered base on an estimated tombstone ratio, this setting makes the minimum interval between two single SSTable compactions tunable to prevent an SSTable from being constantly re-compacted.
++
+Default: `86400` (1 day)
+
+*unchecked_tombstone_compaction* ::
+Setting to `true` allows tombstone compaction to run without pre-checking which tables are eligible for the operation.
+Even without this pre-check, {product} checks an SSTable to make sure it is safe to drop tombstones.
++
+Default: `false`
+
+*min_threshold* :: 
+The minimum number of SSTables to trigger a minor compaction.
++
+*Restriction:* Not used in `LeveledCompactionStrategy`.
++
+Default: `4`
+
+*max_threshold* ::
+The maximum number of SSTables before a minor compaction is triggered.
++
+*Restriction:* Not used in `LeveledCompactionStrategy`.
++
+Default: `32`
+
+[[STCS]]
+==== SizeTieredCompactionStrategy
+
+The compaction class `SizeTieredCompactionStrategy` (STCS) triggers a minor compaction when table meets the `min_threshold`.
+Minor compactions do not involve all the tables in a keyspace.
+See xref:cassandra:managing/operating/compaction/stcs.adoc[SizeTieredCompactionStrategy (STCS)].
+
+[NOTE]
+====
+Default compaction strategy.
+====
+
+The following properties only apply to SizeTieredCompactionStrategy:
+
+[source,language-cql]
+----
+compaction = {
+     'class' : 'SizeTieredCompactionStrategy',
+     'bucket_high' : <factor>,
+     'bucket_low' : <factor>,
+     'min_sstable_size' : <int> }
+----
+
+*bucket_high* ::
+Size-tiered compaction merges sets of SSTables that are approximately the same size.
+The database compares each SSTable size to the average of all SSTable sizes for this table on the node.
+It merges SSTables whose size in KB are within [average-size * bucket_low] and [average-size * bucket_high].
++
+Default: `1.5`
+
+*bucket_low* ::
+Size-tiered compaction merges sets of SSTables that are approximately the same size.
+The database compares each SSTable size to the average of all SSTable sizes for this table on the node.
+It merges SSTables whose size in KB are within [average-size * bucket_low] and [average-size * bucket_high].
++
+Default: `0.5`
+
+*min_sstable_size* ::
+STCS groups SSTables into buckets.
+The bucketing process groups SSTables that differ in size by less than 50%.
+This bucketing process is too fine-grained for small SSTables.
+If your SSTables are small, use this option to define a size threshold in MB below which all SSTables belong to one unique bucket.
++
+Default: `50` (MB)
+
+[NOTE]
+==== 
+The `cold_reads_to_omit` property for xref:cassandra:managing/operating/compaction/stcs.adoc[SizeTieredCompactionStrategy (STCS)] is no longer supported.
+====
+
+[[TWCS]]
+==== TimeWindowCompactionStrategy
+
+The compaction class `TimeWindowCompactionStrategy` (TWCS) compacts SSTables using a series of _time windows_ or _buckets_.
+TWCS creates a new time window within each successive time period.
+During the active time window, TWCS compacts all SSTables flushed from memory into larger SSTables using STCS.
+At the end of the time period, all of these SSTables are compacted into a single SSTable.
+Then the next time window starts and the process repeats.
+See xref:cassandra:managing/operating/compaction/twcs.adoc[TimeWindowCompactionStrategy (TWCS)].
+
+[NOTE]
+==== 
+All of the properties for STCS are also valid for TWCS.
+====
+
+The following properties apply only to TimeWindowCompactionStrategy:
+
+[source,language-cql]
+----
+compaction = {
+     'class' : 'TimeWindowCompactionStrategy,
+     'compaction_window_unit' : <days>,
+     'compaction_window_size' : <int>,
+     'split_during_flush' : (true | false) }
+----
+
+*compaction_window_unit* ::
+Time unit used to define the bucket size.
+The value is based on the Java `TimeUnit`.
+For the list of valid values, see the Java API `TimeUnit` page located at https://docs.oracle.com/javase/8/docs/api/java/util/concurrent/TimeUnit.html.
++
+Default: `days`
+
+*compaction_window_size* ::
+Units per bucket.
++
+Default: `1`
+
+*split_during_flush* ::
+Prevents mixing older data from repairs and hints with newer data from the current time window.
+During a flush operation, determines whether data partitions are split based on the configured time window.
+
+* `false` - the data partitions are not split based on the configured time window.
+* `true` - ensure that data repaired by NodeSync is placed in the correct TWCS window.
+Enable `split_during_flush` when using NodeSync with TWCS or when running node repairs.
+Default: `false`
+
++
+During the flush operation, the data is split into a maximum of 12 windows.
+Each window holds the data in a separate SSTable.
+If the current time is <t0> and each window has a time duration of <w>, the data is split in the SSTables as follows:
+
+* SSTable 0 contains data for the time period < <t0> - 10 * <w>
+* SSTables 1 to 10 contain data for the 10 equal time periods from (<t0> - 10 * <w>) through to (<t0> - 1 * <w>)
+* SSTable 11, the 12th table, contains data for the time period > <t0>
+
+[[LCS]]
+==== LeveledCompactionStrategy
+
+The compaction class `LeveledCompactionStrategy` (LCS) creates SSTables of a fixed, relatively small size (160 MB by default) that are grouped into levels.
+Within each level, SSTables are guaranteed to be non-overlapping.
+Each level (L0, L1, L2 and so on) is 10 times as large as the previous.
+Disk I/O is more uniform and predictable on higher than on lower levels as SSTables are continuously being compacted into progressively larger levels.
+At each level, row keys are merged into non-overlapping SSTables in the next level.
+See xref:cassandra:managing/operating/compaction/lcs.adoc[LeveledCompactionStrategy (LCS)].
+
+[NOTE]
+==== 
+For more guidance, see https://www.datastax.com/dev/blog/when-to-use-leveled-compaction[When to Use Leveled Compaction] and https://www.datastax.com/dev/blog/leveled-compaction-in-apache-cassandra[Leveled Compaction] blog.
+====
+
+The following properties only apply to LeveledCompactionStrategy:
+
+[source,language-cql]
+----
+compaction = {
+     'class' : 'LeveledCompactionStrategy,
+     'sstable_size_in_mb' : <int> }
+----
+
+*sstable_size_in_mb* ::
+The target size for SSTables that use the LeveledCompactionStrategy.
+Although SSTable sizes should be less or equal to sstable_size_in_mb, it is possible that compaction could produce a larger SSTable during compaction.
+This occurs when data for a given partition key is exceptionally large.
+The {product} database does not split the data into two SSTables.
++
+Default: `160`
++
+[CAUTION]
+==== 
+The default value, 160 MB, may be inefficient and negatively impact database indexing and the queries that rely on indexes.
+For example, consider the benefit of using higher values for sstable_size_in_mb in tables that use (SAI) indexes.
+For related information, see xref:developing:indexing/sai/configuring.adoc#saiConfigure__saiCompactionStrategies[Compaction strategies].
+====
+
+==== DateTieredCompactionStrategy (deprecated)
+
+[IMPORTANT]
+====
+Use xref:TWCS[TimeWindowCompactionStrategy] instead.
+====
+
+Stores data written within a certain period of time in the same SSTable.
+
+*base_time_seconds* ::
+The size of the first time window.
++
+Default: `3600`
+
+*max_sstable_age_days (deprecated)* ::
+{product} does not compact SSTables if its most recent data is older than this property.
+Fractional days can be set.
++
+Default: `1000`
+
+*max_window_size_seconds* ::
+The maximum window size in seconds.
++
+Default: `86400`
+
+*timestamp_resolution* ::
+Units, <MICROSECONDS> or <MILLISECONDS>, to match the timestamp of inserted data.
++
+Default: `MICROSECONDS`
