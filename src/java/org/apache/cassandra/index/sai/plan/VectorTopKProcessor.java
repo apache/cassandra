@@ -95,8 +95,9 @@ public class VectorTopKProcessor
      */
     public <U extends Unfiltered, R extends BaseRowIterator<U>, P extends BasePartitionIterator<R>> BasePartitionIterator<?> filter(P partitions)
     {
-        // priority queue ordered by score in ascending order
-        PriorityQueue<Triple<PartitionInfo, Row, Float>> topK = new PriorityQueue<>(limit, Comparator.comparing(Triple::getRight));
+        // priority queue ordered by score in ascending order. We fill the queue with at most limit + 1 rows, so that we
+        // can then remove the lowest score row when exceeding limit. The capacity is limit + 1 to prevent resizing.
+        PriorityQueue<Triple<PartitionInfo, Row, Float>> topK = new PriorityQueue<>(limit + 1, Comparator.comparing(Triple::getRight));
         // to store top-k results in primary key order
         TreeMap<PartitionInfo, TreeSet<Unfiltered>> unfilteredByPartition = new TreeMap<>(Comparator.comparing(p -> p.key));
 

@@ -32,26 +32,25 @@ import org.apache.cassandra.io.util.FileUtils;
  * 1. no generic type to reduce allocation
  * 2. CONCAT iterator type
  */
-public abstract class RangeIterator<T extends Comparable<T>> extends AbstractIterator<T> implements Closeable
+public abstract class RangeIterator extends AbstractIterator<PrimaryKey> implements Closeable
 {
-    private static final Builder.EmptyRangeIterator<Long> EMPTY_LONGS = new Builder.EmptyRangeIterator<>();
-    private static final Builder.EmptyRangeIterator<PrimaryKey> EMPTY_KEYS = new Builder.EmptyRangeIterator<>();
+    private static final Builder.EmptyRangeIterator EMPTY = new Builder.EmptyRangeIterator();
 
-    private final T min, max;
+    private final PrimaryKey min, max;
     private final long count;
-    private T current;
+    private PrimaryKey current;
 
-    protected RangeIterator(Builder.Statistics<T> statistics)
+    protected RangeIterator(Builder.Statistics statistics)
     {
         this(statistics.min, statistics.max, statistics.tokenCount);
     }
 
-    public RangeIterator(RangeIterator<T> range)
+    public RangeIterator(RangeIterator range)
     {
         this(range == null ? null : range.min, range == null ? null : range.max, range == null ? -1 : range.count);
     }
 
-    public RangeIterator(T min, T max, long count)
+    public RangeIterator(PrimaryKey min, PrimaryKey max, long count)
     {
         if (min == null || max == null || count == 0)
             assert min == null && max == null && (count == 0 || count == -1) : min + " - " + max + " " + count;
@@ -62,17 +61,17 @@ public abstract class RangeIterator<T extends Comparable<T>> extends AbstractIte
         this.count = count;
     }
 
-    public final T getMinimum()
+    public final PrimaryKey getMinimum()
     {
         return min;
     }
 
-    public final T getCurrent()
+    public final PrimaryKey getCurrent()
     {
         return current;
     }
 
-    public final T getMaximum()
+    public final PrimaryKey getMaximum()
     {
         return max;
     }
@@ -94,7 +93,7 @@ public abstract class RangeIterator<T extends Comparable<T>> extends AbstractIte
      * This key will also be the next key returned by next(), i.e.,
      * we are "peeking" at the next key as part of the skip.
      */
-    public final T skipTo(T nextToken)
+    public final PrimaryKey skipTo(PrimaryKey nextToken)
     {
         if (min == null || max == null)
             return endOfData();
@@ -121,10 +120,10 @@ public abstract class RangeIterator<T extends Comparable<T>> extends AbstractIte
      * Skip up to nextKey, but leave your internal state in a position where
      * calling computeNext() will return nextKey or the first one after it.
      */
-    protected abstract void performSkipTo(T nextToken);
+    protected abstract void performSkipTo(PrimaryKey nextToken);
 
     // protected because inherited from Guava. We don't want to expose this method.
-    protected T recomputeNext()
+    protected PrimaryKey recomputeNext()
     {
         return tryToComputeNext() ? peek() : endOfData();
     }
@@ -136,21 +135,12 @@ public abstract class RangeIterator<T extends Comparable<T>> extends AbstractIte
         return hasNext;
     }
 
-    public static <T extends Comparable<T>> RangeIterator<T> empty()
+    public static RangeIterator empty()
     {
-        return new Builder.EmptyRangeIterator<>();
+        return EMPTY;
     }
 
-    public static RangeIterator<PrimaryKey> emptyKeys()
-    {
-        return EMPTY_KEYS;
-    }
-    public static RangeIterator<Long> emptyLongs()
-    {
-        return EMPTY_LONGS;
-    }
-
-    public static abstract class Builder<T extends Comparable<T>>
+    public static abstract class Builder
     {
         public enum IteratorType
         {
@@ -160,23 +150,23 @@ public abstract class RangeIterator<T extends Comparable<T>> extends AbstractIte
         }
 
         @VisibleForTesting
-        protected final Statistics<T> statistics;
+        protected final Statistics statistics;
 
         @VisibleForTesting
-        protected final PriorityQueue<RangeIterator<T>> ranges;
+        protected final PriorityQueue<RangeIterator> ranges;
 
         public Builder(IteratorType type)
         {
-            statistics = new Statistics<>(type);
+            statistics = new Statistics(type);
             ranges = new PriorityQueue<>(16, Comparator.comparing(RangeIterator::getCurrent));
         }
 
-        public T getMinimum()
+        public PrimaryKey getMinimum()
         {
             return statistics.min;
         }
 
-        public T getMaximum()
+        public PrimaryKey getMaximum()
         {
             return statistics.max;
         }
@@ -191,12 +181,12 @@ public abstract class RangeIterator<T extends Comparable<T>> extends AbstractIte
             return ranges.size();
         }
 
-        public Collection<RangeIterator<T>> ranges()
+        public Collection<RangeIterator> ranges()
         {
             return ranges;
         }
 
-        public Builder<T> add(RangeIterator<T> range)
+        public Builder add(RangeIterator range)
         {
             if (range == null)
                 return this;
@@ -210,7 +200,7 @@ public abstract class RangeIterator<T extends Comparable<T>> extends AbstractIte
             return this;
         }
 
-        public Builder<T> add(List<RangeIterator<T>> ranges)
+        public Builder add(List<RangeIterator> ranges)
         {
             if (ranges == null || ranges.isEmpty())
                 return this;
@@ -219,35 +209,35 @@ public abstract class RangeIterator<T extends Comparable<T>> extends AbstractIte
             return this;
         }
 
-        public final RangeIterator<T> build()
+        public final RangeIterator build()
         {
             if (rangeCount() == 0)
-                return new Builder.EmptyRangeIterator<>();
+                return new Builder.EmptyRangeIterator();
             else
                 return buildIterator();
         }
 
-        public static class EmptyRangeIterator<T extends Comparable<T>> extends RangeIterator<T>
+        public static class EmptyRangeIterator extends RangeIterator
         {
             EmptyRangeIterator() { super(null, null, 0); }
-            public T computeNext() { return endOfData(); }
-            protected void performSkipTo(T nextToken) { }
+            public org.apache.cassandra.index.sai.utils.PrimaryKey computeNext() { return endOfData(); }
+            protected void performSkipTo(org.apache.cassandra.index.sai.utils.PrimaryKey nextToken) { }
             public void close() { }
         }
 
-        protected abstract RangeIterator<T> buildIterator();
+        protected abstract RangeIterator buildIterator();
 
-        public static class Statistics<U extends Comparable<U>>
+        public static class Statistics
         {
             protected final IteratorType iteratorType;
 
-            protected U min, max;
+            protected org.apache.cassandra.index.sai.utils.PrimaryKey min, max;
             protected long tokenCount;
 
             // iterator with the least number of items
-            protected RangeIterator<U> minRange;
+            protected RangeIterator minRange;
             // iterator with the most number of items
-            protected RangeIterator<U> maxRange;
+            protected RangeIterator maxRange;
 
             // tracks if all of the added ranges overlap, which is useful in case of intersection,
             // as it gives direct answer as to such iterator is going to produce any results.
@@ -268,7 +258,7 @@ public abstract class RangeIterator<T extends Comparable<T>> extends AbstractIte
              *
              * @param range The range to update statistics with.
              */
-            public void update(RangeIterator<U> range)
+            public void update(RangeIterator range)
             {
                 switch (iteratorType)
                 {
@@ -321,12 +311,12 @@ public abstract class RangeIterator<T extends Comparable<T>> extends AbstractIte
                 hasRange = true;
             }
 
-            private RangeIterator<U> min(RangeIterator<U> a, RangeIterator<U> b)
+            private RangeIterator min(RangeIterator a, RangeIterator b)
             {
                 return a.getCount() > b.getCount() ? b : a;
             }
 
-            private RangeIterator<U> max(RangeIterator<U> a, RangeIterator<U> b)
+            private RangeIterator max(RangeIterator a, RangeIterator b)
             {
                 return a.getCount() > b.getCount() ? a : b;
             }
@@ -344,7 +334,7 @@ public abstract class RangeIterator<T extends Comparable<T>> extends AbstractIte
     }
 
     @VisibleForTesting
-    protected static <U extends Comparable<U>> boolean isOverlapping(RangeIterator<U> a, RangeIterator<U> b)
+    protected static <U extends Comparable<U>> boolean isOverlapping(RangeIterator a, RangeIterator b)
     {
         return isOverlapping(a.getCurrent(), a.getMaximum(), b);
     }
@@ -367,7 +357,7 @@ public abstract class RangeIterator<T extends Comparable<T>> extends AbstractIte
      *  If either range is empty, they're disjoint.
      */
     @VisibleForTesting
-    protected static <T extends Comparable<T>> boolean isOverlapping(T min, T max, RangeIterator<T> b)
+    protected static boolean isOverlapping(PrimaryKey min, PrimaryKey max, RangeIterator b)
     {
         return (min != null && max != null) &&
                b.getCount() != 0 &&

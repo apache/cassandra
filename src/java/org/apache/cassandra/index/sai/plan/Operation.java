@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ArrayListMultimap;
@@ -205,9 +206,18 @@ public class Operation
         }
     }
 
-    static RangeIterator<PrimaryKey> buildIterator(QueryController controller)
+    static RangeIterator buildIterator(QueryController controller)
     {
-        return Node.buildTree(controller.filterOperation()).analyzeTree(controller).rangeIterator(controller);
+        var orderings = controller.filterOperation().expressions()
+                                  .stream().filter(e -> e.operator() == Operator.ANN).collect(Collectors.toList());
+        assert orderings.size() <= 1;
+        if (controller.filterOperation().expressions().size() == 1 && orderings.size() == 1)
+            // If we only have one expression, we just use the ANN index to order and limit.
+            return controller.getTopKRows(orderings.get(0));
+        var iter = Node.buildTree(controller.filterOperation()).analyzeTree(controller).rangeIterator(controller);
+        if (orderings.isEmpty())
+            return iter;
+        return controller.getTopKRows(iter, orderings.get(0));
     }
 
     static FilterTree buildFilter(QueryController controller)
@@ -243,7 +253,7 @@ public class Operation
 
         abstract FilterTree filterTree();
 
-        abstract RangeIterator<PrimaryKey> rangeIterator(QueryController controller);
+        abstract RangeIterator rangeIterator(QueryController controller);
 
         static Node buildTree(RowFilter.FilterElement filterOperation)
         {
@@ -343,11 +353,11 @@ public class Operation
         }
 
         @Override
-        RangeIterator<PrimaryKey> rangeIterator(QueryController controller)
+        RangeIterator rangeIterator(QueryController controller)
         {
-            var builder = RangeIntersectionIterator.<PrimaryKey>sizedBuilder(1 + children.size());
+            var builder = RangeIntersectionIterator.sizedBuilder(1 + children.size());
             if (!expressionMap.isEmpty())
-                builder.add(controller.getIndexes(OperationType.AND, expressionMap.values()));
+                builder.add(controller.buildRangeIteratorForExpressions(OperationType.AND, expressionMap.values()));
             for (Node child : children)
                 if (child.canFilter())
                     builder.add(child.rangeIterator(controller));
@@ -370,11 +380,11 @@ public class Operation
         }
 
         @Override
-        RangeIterator<PrimaryKey> rangeIterator(QueryController controller)
+        RangeIterator rangeIterator(QueryController controller)
         {
             var builder = RangeUnionIterator.<PrimaryKey>builder(1 + children.size());
             if (!expressionMap.isEmpty())
-                builder.add(controller.getIndexes(OperationType.OR, expressionMap.values()));
+                builder.add(controller.buildRangeIteratorForExpressions(OperationType.OR, expressionMap.values()));
             for (Node child : children)
                 if (child.canFilter())
                     builder.add(child.rangeIterator(controller));
@@ -413,7 +423,7 @@ public class Operation
         RangeIterator rangeIterator(QueryController controller)
         {
             assert canFilter() : "Cannot process query with no expressions";
-            return controller.getIndexes(OperationType.AND, expressionMap.values());
+            return controller.buildRangeIteratorForExpressions(OperationType.AND, expressionMap.values());
         }
     }
 }

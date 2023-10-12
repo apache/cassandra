@@ -73,7 +73,7 @@ public interface MemtableIndex extends MemtableOrdering
         throw new UnsupportedOperationException();
     }
 
-    RangeIterator<PrimaryKey> search(QueryContext queryContext, Expression expression, AbstractBounds<PartitionPosition> keyRange, int limit);
+    RangeIterator search(QueryContext queryContext, Expression expression, AbstractBounds<PartitionPosition> keyRange, int limit);
 
     Iterator<Pair<ByteComparable, Iterator<PrimaryKey>>> iterator(DecoratedKey min, DecoratedKey max);
 

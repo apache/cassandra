@@ -24,6 +24,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
+import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import org.junit.Test;
 
@@ -164,7 +165,7 @@ public class KDTreeIndexSearcherTest extends SaiRandomizedTest
                                                   final NumberType<T> rawType, final NumberType<?> encodedType,
                                                   final Function<Short, T> rawValueProducer) throws Exception
     {
-        try (RangeIterator<Long> results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
+        try (RangeIterator results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
         {{
             operation = Op.EQ;
             lower = upper = new Bound(rawType.decompose(rawValueProducer.apply(EQ_TEST_LOWER_BOUND_INCLUSIVE)), encodedType, true);
@@ -173,7 +174,7 @@ public class KDTreeIndexSearcherTest extends SaiRandomizedTest
             assertEquals(results.getMinimum(), results.getCurrent());
             assertTrue(results.hasNext());
 
-            assertEquals(Long.valueOf(0), results.next());
+            assertEquals(0L, results.next().token().getLongValue());
         }
 
         try (RangeIterator results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
@@ -200,7 +201,7 @@ public class KDTreeIndexSearcherTest extends SaiRandomizedTest
                                                      final NumberType<T> rawType, final NumberType<?> encodedType,
                                                      final Function<Short, T> rawValueProducer, List<Long> expectedTokenList) throws Exception
     {
-        try (RangeIterator<Long> results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
+        try (RangeIterator results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
         {{
             operation = Op.RANGE;
 
@@ -211,7 +212,7 @@ public class KDTreeIndexSearcherTest extends SaiRandomizedTest
             assertEquals(results.getMinimum(), results.getCurrent());
             assertTrue(results.hasNext());
 
-            var actualTokenList = Lists.newArrayList(results);
+            List<Long> actualTokenList = Lists.newArrayList(Iterators.transform(results, key -> key.token().getLongValue()));
             assertEquals(expectedTokenList, actualTokenList);
         }
 

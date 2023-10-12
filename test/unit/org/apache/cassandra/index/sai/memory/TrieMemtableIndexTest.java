@@ -196,7 +196,7 @@ public class TrieMemtableIndexTest extends SAITester
 
             Set<Integer> foundKeys = new HashSet<>();
 
-            try (RangeIterator<PrimaryKey> iterator = memtableIndex.search(new QueryContext(), expression, keyRange, 0))
+            try (RangeIterator iterator = memtableIndex.search(new QueryContext(), expression, keyRange, 0))
             {
                 while (iterator.hasNext())
                 {

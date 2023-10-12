@@ -157,7 +157,7 @@ public abstract class AbstractKeyRangeIteratorTest
         assertIterator(iterator, 2, 3);
     }
 
-    private void assertIterator(RangeIterator<PrimaryKey> iterator, long... tokens) throws Exception
+    private void assertIterator(RangeIterator iterator, long... tokens) throws Exception
     {
         for(long token : tokens)
         {

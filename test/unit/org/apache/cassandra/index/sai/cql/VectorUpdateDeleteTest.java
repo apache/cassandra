@@ -18,9 +18,13 @@
 
 package org.apache.cassandra.index.sai.cql;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.index.sai.plan.QueryController;
 
 import static org.apache.cassandra.index.sai.cql.VectorTypeTest.assertContainsInt;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -473,6 +477,87 @@ public class VectorUpdateDeleteTest extends VectorTester
         assertThat(result).hasSize(1);
     }
 
+    @Test
+    public void testVectorRowWhereUpdateMakesRowMatchNonOrderingPredicates()
+    {
+        createTable(KEYSPACE, "CREATE TABLE %s (pk int, val text, vec vector<float, 2>, PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(vec) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        // Split the row across 1 sstable and the memtable.
+        execute("INSERT INTO %s (pk, vec) VALUES (1, [1,1])");
+        flush();
+        execute("INSERT INTO %s (pk, val) VALUES (1, 'match me')");
+
+        assertRows(execute("SELECT pk FROM %s WHERE val = 'match me' ORDER BY vec ANN OF [1,1] LIMIT 2"), row(1));
+        // Push memtable to sstable. we should get same result
+        flush();
+        assertRows(execute("SELECT pk FROM %s WHERE val = 'match me' ORDER BY vec ANN OF [1,1] LIMIT 2"), row(1));
+
+        // Run the test again but instead inserting a full row and then overwrite val to match the predicate.
+        // This covers a different case because when there is no data for a column, it doesn't get an index file.
+
+        execute("INSERT INTO %s (pk, val, vec) VALUES (1, 'no match', [1,1])");
+        flush();
+        execute("INSERT INTO %s (pk, val) VALUES (1, 'match me')");
+
+        assertRows(execute("SELECT pk FROM %s WHERE val = 'match me' ORDER BY vec ANN OF [1,1] LIMIT 2"), row(1));
+        // Push memtable to sstable. we should get same result
+        flush();
+        assertRows(execute("SELECT pk FROM %s WHERE val = 'match me' ORDER BY vec ANN OF [1,1] LIMIT 2"), row(1));
+    }
+
+    // We need to make sure that we search each vector index for all relevant primary keys. In this test, row 1
+    // matches the query predicate, but has a low score. It is later updated to have a vector that is closer to the
+    // searched vector. As such, we need to make sure that we get all possible primary keys that match the predicates
+    // and use those to search for topk vectors.
+    @Test
+    public void testUpdateVectorWithSplitRow()
+    {
+        createTable(KEYSPACE, "CREATE TABLE %s (pk int, val text, vec vector<float, 2>, PRIMARY KEY(pk))");
+        // Use euclidean distance to more easily verify correctness of caching
+        createIndex("CREATE CUSTOM INDEX ON %s(vec) USING 'StorageAttachedIndex' WITH OPTIONS = { 'similarity_function' : 'euclidean' }");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        // We will search for [11,11]
+        execute("INSERT INTO %s (pk, val, vec) VALUES (1, 'match me', [1,1])");
+        execute("INSERT INTO %s (pk, val, vec) VALUES (2, 'match me', [10,10])");
+        flush();
+        execute("INSERT INTO %s (pk, val, vec) VALUES (3, 'match me', [12,12])");
+        // Overwrite pk 1 with a vector that is closest to the search vector
+        execute("INSERT INTO %s (pk, vec) VALUES (1, [11,11])");
+
+
+        assertRows(execute("SELECT pk FROM %s WHERE val = 'match me' ORDER BY vec ANN OF [11,11] LIMIT 1"), row(1));
+        // Push memtable to sstable. we should get same result
+        flush();
+        assertRows(execute("SELECT pk FROM %s WHERE val = 'match me' ORDER BY vec ANN OF [11,11] LIMIT 1"), row(1));
+    }
+
+    @Test
+    public void testUpdateNonVectorColumnWhereNoSingleSSTableRowMatchesAllPredicates()
+    {
+        createTable(KEYSPACE, "CREATE TABLE %s (pk int, val1 text, val2 text, vec vector<float, 2>, PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(vec) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(val1) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(val2) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        execute("INSERT INTO %s (pk, val1, vec) VALUES (1, 'match me', [1,1])");
+        execute("INSERT INTO %s (pk, val2, vec) VALUES (2, 'match me', [1,2])");
+        flush();
+        execute("INSERT INTO %s (pk, val2, vec) VALUES (1, 'match me', [1,1])");
+        execute("INSERT INTO %s (pk, val1, vec) VALUES (2, 'match me', [1,2])");
+
+
+        assertRows(execute("SELECT pk FROM %s WHERE val1 = 'match me' AND val2 = 'match me' ORDER BY vec ANN OF [1,1] LIMIT 2"), row(1), row(2));
+        // Push memtable to sstable. we should get same result
+        flush();
+        assertRows(execute("SELECT pk FROM %s WHERE val1 = 'match me' AND val2 = 'match me' ORDER BY vec ANN OF [11,11] LIMIT 2"), row(1), row(2));
+    }
+
     // This test intentionally has extra rows with primary keys that are above and below the
     // deleted primary key so that we do not short circuit certain parts of the shadowed key logic.
     @Test
@@ -503,5 +588,65 @@ public class VectorUpdateDeleteTest extends VectorTester
         // the shadow vector has the highest score
         var result = execute("SELECT * FROM %s ORDER BY val ann of [1.0, 2.0, 3.0] LIMIT 4");
         assertThat(result).hasSize(4);
+    }
+
+    @Test
+    public void ensureVariableChunkSizeDoesNotLeadToIncorrectResults() throws Exception
+    {
+        // When adding the chunk size feature, there were issues related to leaked files.
+        // This setting only matters for hybrid queries
+        createTable(KEYSPACE, "CREATE TABLE %s (pk int primary key, str_val text, vec vector<float, 2>)");
+        createIndex("CREATE CUSTOM INDEX ON %s(vec) USING 'StorageAttachedIndex' WITH OPTIONS = { 'similarity_function' : 'euclidean' }");
+        createIndex("CREATE CUSTOM INDEX ON %s(str_val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        // Create many sstables to ensure chunk size matters
+        // Start at 1 to prevent indexing zero vector.
+        // Index every vector with A to match everything and because this test only makes sense for hybrid queries
+        for (int i = 1; i <= 100; i++)
+        {
+            execute("INSERT INTO %s (pk, str_val, vec) VALUES (?, ?, ?)", i, "A", vector((float) i, (float) i));
+            if (i % 10 == 0)
+                flush();
+            // Add some deletes in the next segment
+            if (i % 3 == 0)
+                execute("DELETE FROM %s WHERE pk = ?", i);
+        }
+
+        try
+        {
+            // We use a chunk size that is as low as possible (1) and goes up to the whole dataset (100).
+            // We also query for different LIMITs
+            for (int i = 1; i <= 100; i++)
+            {
+                setChunkSize(i);
+                var results = execute("SELECT pk FROM %s WHERE str_val = 'A' ORDER BY vec ANN OF [1,1] LIMIT 1");
+                assertRows(results, row(1));
+                results = execute("SELECT pk FROM %s WHERE str_val = 'A' ORDER BY vec ANN OF [1,1] LIMIT 3");
+                // Note that we delete row 3
+                assertRows(results, row(1), row(2), row(4));
+                results = execute("SELECT pk FROM %s WHERE str_val = 'A' ORDER BY vec ANN OF [1,1] LIMIT 10");
+                // Note that we delete row 3, 6, 9, 12
+                assertRows(results, row(1), row(2), row(4), row(5),
+                           row(7), row(8), row(10), row(11), row(13), row(14));
+            }
+        }
+        finally
+        {
+            // Revert to prevent interference with other tests. Note that a decreased chunk size can impact
+            // wether we compute the topk with brute force because it determines how many vectors get sent to the
+            // vector index.
+            setChunkSize(100000);
+        }
+    }
+
+    private static void setChunkSize(final int selectivityLimit) throws Exception
+    {
+        Field selectivity = QueryController.class.getDeclaredField("ORDER_CHUNK_SIZE");
+        selectivity.setAccessible(true);
+        Field modifiersField = Field.class.getDeclaredField("modifiers");
+        modifiersField.setAccessible(true);
+        modifiersField.setInt(selectivity, selectivity.getModifiers() & ~Modifier.FINAL);
+        selectivity.set(null, selectivityLimit);
     }
 }

@@ -140,7 +140,7 @@ public class VectorMemtableIndexTest extends SAITester
             Set<Integer> foundKeys = new HashSet<>();
             int limit = getRandom().nextIntBetween(1, 100);
 
-            try (RangeIterator<PrimaryKey> iterator = memtableIndex.search(new QueryContext(), expression, keyRange, limit))
+            try (RangeIterator iterator = memtableIndex.search(new QueryContext(), expression, keyRange, limit))
             {
                 while (iterator.hasNext())
                 {

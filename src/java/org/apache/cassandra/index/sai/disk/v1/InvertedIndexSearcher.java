@@ -83,10 +83,10 @@ public class InvertedIndexSearcher extends IndexSearcher
     }
 
     @SuppressWarnings("resource")
-    public RangeIterator<Long> search(Expression exp, AbstractBounds<PartitionPosition> keyRange, QueryContext context, boolean defer, int limit) throws IOException
+    public RangeIterator search(Expression exp, AbstractBounds<PartitionPosition> keyRange, QueryContext context, boolean defer, int limit) throws IOException
     {
         PostingList postingList = searchPosting(exp, context);
-        return toSSTableRowIdsIterator(postingList, context);
+        return toPrimaryKeyIterator(postingList, context);
     }
 
     private PostingList searchPosting(Expression exp, QueryContext context)

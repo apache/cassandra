@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.NavigableSet;
 import java.util.PriorityQueue;
 import java.util.Set;
@@ -47,6 +48,7 @@ import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
 import org.apache.cassandra.index.sai.memory.MemtableIndex;
 import org.apache.cassandra.index.sai.plan.Expression;
+import org.apache.cassandra.index.sai.utils.ListRangeIterator;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.index.sai.utils.RangeUtil;
@@ -152,7 +154,7 @@ public class VectorMemtableIndex implements MemtableIndex
     }
 
     @Override
-    public RangeIterator<PrimaryKey> search(QueryContext queryContext, Expression expr, AbstractBounds<PartitionPosition> keyRange, int limit)
+    public RangeIterator search(QueryContext queryContext, Expression expr, AbstractBounds<PartitionPosition> keyRange, int limit)
     {
         assert expr.getOp() == Expression.Op.ANN : "Only ANN is supported for vector search, received " + expr.getOp();
 
@@ -173,10 +175,10 @@ public class VectorMemtableIndex implements MemtableIndex
 
             Set<PrimaryKey> resultKeys = isMaxToken ? primaryKeys.tailSet(left, leftInclusive) : primaryKeys.subSet(left, leftInclusive, right, rightInclusive);
             if (!queryContext.getShadowedPrimaryKeys().isEmpty())
-                resultKeys = resultKeys.stream().filter(pk -> !queryContext.containsShadowedPrimaryKey(pk)).collect(Collectors.toSet());
+                resultKeys = resultKeys.stream().filter(queryContext::shouldInclude).collect(Collectors.toSet());
 
             if (resultKeys.isEmpty())
-                return RangeIterator.emptyKeys();
+                return RangeIterator.empty();
 
             int bruteForceRows = maxBruteForceRows(limit, resultKeys.size(), graph.size());
             logger.trace("Search range covers {} rows; max brute force rows is {} for memtable index with {} nodes, LIMIT {}",
@@ -196,25 +198,21 @@ public class VectorMemtableIndex implements MemtableIndex
 
         var keyQueue = graph.search(qv, limit, bits);
         if (keyQueue.isEmpty())
-            return RangeIterator.emptyKeys();
+            return RangeIterator.empty();
         return new ReorderingRangeIterator(keyQueue);
     }
 
     @Override
-    public RangeIterator<PrimaryKey> limitToTopResults(QueryContext context, RangeIterator<PrimaryKey> iterator, Expression exp, int limit)
+    public RangeIterator limitToTopResults(QueryContext context, List<PrimaryKey> keys, Expression exp, int limit)
     {
         if (minimumKey == null)
-        {
-            assert maximumKey == null : "Minimum key is null but maximum key is not";
-            return RangeIterator.emptyKeys();
-        }
-        Set<PrimaryKey> results = new HashSet<>();
-        while (iterator.hasNext())
-        {
-            var key = iterator.next();
-            if (!context.containsShadowedPrimaryKey(key))
-                results.add(key);
-        }
+            // This case implies maximumKey is empty too.
+            return RangeIterator.empty();
+
+        List<PrimaryKey> results = keys.stream()
+                                      .dropWhile(k -> k.compareTo(minimumKey) < 0)
+                                      .takeWhile(k -> k.compareTo(maximumKey) <= 0)
+                                      .collect(Collectors.toList());
 
         int maxBruteForceRows = maxBruteForceRows(limit, results.size(), graph.size());
         logger.trace("SAI materialized {} rows; max brute force rows is {} for memtable index with {} nodes, LIMIT {}",
@@ -224,15 +222,15 @@ public class VectorMemtableIndex implements MemtableIndex
         if (results.size() <= maxBruteForceRows)
         {
             if (results.isEmpty())
-                return RangeIterator.emptyKeys();
-            return new ReorderingRangeIterator(new PriorityQueue<>(results));
+                return RangeIterator.empty();
+            return new ListRangeIterator(minimumKey, maximumKey, results);
         }
 
         float[] qv = exp.lower.value.vector;
         var bits = new KeyFilteringBits(results);
         var keyQueue = graph.search(qv, limit, bits);
         if (keyQueue.isEmpty())
-            return RangeIterator.emptyKeys();
+            return RangeIterator.empty();
         return new ReorderingRangeIterator(keyQueue);
     }
 
@@ -343,7 +341,7 @@ public class VectorMemtableIndex implements MemtableIndex
         }
     }
 
-    private class ReorderingRangeIterator extends RangeIterator<PrimaryKey>
+    private class ReorderingRangeIterator extends RangeIterator
     {
         private final PriorityQueue<PrimaryKey> keyQueue;
 
@@ -376,9 +374,9 @@ public class VectorMemtableIndex implements MemtableIndex
     {
         private final Set<PrimaryKey> results;
 
-        public KeyFilteringBits(Set<PrimaryKey> results)
+        public KeyFilteringBits(List<PrimaryKey> results)
         {
-            this.results = results;
+            this.results = new HashSet<>(results);
         }
 
         @Override

@@ -75,7 +75,7 @@ public class V3OnDiskFormat extends V2OnDiskFormat
                                           SegmentMetadata segmentMetadata) throws IOException
     {
         if (indexContext.isVector())
-            return new V3VectorIndexSearcher(sstableContext.primaryKeyMapFactory, indexFiles, segmentMetadata, sstableContext.indexDescriptor, indexContext);
+            return new V3VectorIndexSearcher(sstableContext.primaryKeyMapFactory(), indexFiles, segmentMetadata, sstableContext.indexDescriptor, indexContext);
         return super.newIndexSearcher(sstableContext, indexContext, indexFiles, segmentMetadata);
     }
 

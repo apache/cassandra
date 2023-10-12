@@ -21,6 +21,7 @@ package org.apache.cassandra.index.sai.view;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -73,10 +74,10 @@ public class View implements Iterable<SSTableIndex>
      * Search for a list of {@link SSTableIndex}es that contain values within
      * the value range requested in the {@link Expression}
      */
-    public Collection<SSTableIndex> match(Expression expression)
+    public Set<SSTableIndex> match(Expression expression)
     {
         if (expression.getOp() == Expression.Op.ANN)
-            return getIndexes();
+            return new HashSet<>(getIndexes());
         return termTree.search(expression);
     }
 

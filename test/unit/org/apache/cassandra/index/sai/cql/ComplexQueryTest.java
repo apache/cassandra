@@ -20,7 +20,6 @@ package org.apache.cassandra.index.sai.cql;
 
 import org.junit.Test;
 
-import com.datastax.driver.core.ResultSet;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -48,6 +47,30 @@ public class ComplexQueryTest extends SAITester
 
         UntypedResultSet resultSet = execute("SELECT pk FROM %s WHERE c1 = 'b' AND c2='c'");
         assertRows(resultSet, row(1));
+    }
+
+    @Test
+    public void splitRowsWithBooleanLogic() throws Throwable
+    {
+        createTable(KEYSPACE, "CREATE TABLE %s (pk int primary key, str_val text, val text)");
+        createIndex("CREATE CUSTOM INDEX ON %s(str_val) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+        disableCompaction(KEYSPACE);
+
+        // flush a sstable with 2 partial rows
+        execute("INSERT INTO %s (pk, str_val) VALUES (3, 'A')");
+        execute("INSERT INTO %s (pk, val) VALUES (1, 'A')");
+        flush();
+
+        // flush another sstable with 2 more partial rows, where PK 3 is now a complete row
+        execute("INSERT INTO %s (pk, val) VALUES (3, 'A')");
+        execute("INSERT INTO %s (pk, str_val) VALUES (2, 'A')");
+        flush();
+
+        // pk 3 should match
+        var result = execute("SELECT pk FROM %s WHERE str_val = 'A' AND val = 'A'");
+        assertRows(result, row(3));
     }
 
     @Test

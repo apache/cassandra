@@ -19,17 +19,24 @@
 package org.apache.cassandra.index.sai.plan;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableSet;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
@@ -44,35 +51,41 @@ import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
-import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SSTableIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
-import org.apache.cassandra.index.sai.disk.CheckpointingIterator;
-import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
-import org.apache.cassandra.index.sai.disk.SSTableRowIdKeyRangeIterator;
 import org.apache.cassandra.index.sai.disk.format.IndexFeatureSet;
 import org.apache.cassandra.index.sai.metrics.TableQueryMetrics;
 import org.apache.cassandra.index.sai.utils.AbortedOperationException;
+import org.apache.cassandra.index.sai.utils.OrderingFilterRangeIterator;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeConcatIterator;
 import org.apache.cassandra.index.sai.utils.RangeIntersectionIterator;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.index.sai.utils.RangeUnionIterator;
+import org.apache.cassandra.index.sai.utils.TermIterator;
+import org.apache.cassandra.index.sai.view.View;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.Throwables;
+import org.apache.cassandra.utils.concurrent.Ref;
 
-import static org.apache.cassandra.index.sai.utils.RangeIntersectionIterator.INTERSECTION_CLAUSE_LIMIT;
+import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_VECTOR_SEARCH_ORDER_CHUNK_SIZE;
 
 public class QueryController
 {
     private static final Logger logger = LoggerFactory.getLogger(QueryController.class);
+
+    public static final int ORDER_CHUNK_SIZE = SAI_VECTOR_SEARCH_ORDER_CHUNK_SIZE.getInt();
 
     private final ColumnFamilyStore cfs;
     private final ReadCommand command;
@@ -206,103 +219,115 @@ public class QueryController
      *
      * @return range iterator builder based on given expressions and operation type.
      */
-    public RangeIterator<PrimaryKey> getIndexes(Operation.OperationType op, Collection<Expression> expressions)
+    public RangeIterator buildRangeIteratorForExpressions(Operation.OperationType op, Collection<Expression> expressions)
     {
         assert !expressions.isEmpty() : "expressions should not be empty for " + op + " in " + filterOperation;
 
-        boolean defer = op == Operation.OperationType.OR || RangeIntersectionIterator.shouldDefer(expressions.size());
+        // VSTODO move ANN out of expressions and into its own abstraction? That will help get generic ORDER BY support
+        Collection<Expression> exp = expressions.stream().filter(e -> e.operation != Expression.Op.ANN).collect(Collectors.toList());
+        boolean defer = op == Operation.OperationType.OR || RangeIntersectionIterator.shouldDefer(exp.size());
+        RangeIterator.Builder builder = op == Operation.OperationType.OR
+                                        ? RangeUnionIterator.builder()
+                                        : RangeIntersectionIterator.builder(RangeIntersectionIterator.INTERSECTION_CLAUSE_LIMIT);
 
-        // FIXME having this at the expression level means that it only gets applied to Nodes at that level;
-        // moving it to ORDER BY will allow us to apply it correctly for other Node sub-trees
-        var annExpressionInHybridSearch = getAnnExpressionInHybridSearch(expressions);
-        boolean isAnnHybridSearch = annExpressionInHybridSearch != null;
-        if (isAnnHybridSearch)
-            expressions = expressions.stream().filter(e -> e != annExpressionInHybridSearch).collect(Collectors.toList());
-
-        // search memtable before referencing sstable indexes; otherwise we may miss newly flushed memtable index
-        Map<Memtable, List<RangeIterator<PrimaryKey>>> iteratorsByMemtable = expressions
-                                                                    .stream()
-                                                                    .flatMap(expr -> {
-                                                                        return expr.context.iteratorsForSearch(queryContext, expr, mergeRange, getLimit()).stream();
-                                                                    }).collect(Collectors.groupingBy(pair -> pair.left,
-                                                                                                     Collectors.mapping(pair -> pair.right, Collectors.toList())));
-
-        var queryView = new QueryViewBuilder(expressions, mergeRange).build();
-        // in case of ANN query in hybrid search, we have to reference ANN sstable indexes separately because queryView doesn't include ANN sstable indexes
-        var annQueryViewInHybridSearch = isAnnHybridSearch ? new QueryViewBuilder(Collections.singleton(annExpressionInHybridSearch), mergeRange).build() : null;
+        Set<Map.Entry<Expression, NavigableSet<SSTableIndex>>> view = referenceAndGetView(op, exp).entrySet();
 
         try
         {
-            List<RangeIterator<PrimaryKey>> sstableIntersections = queryView.view.entrySet()
+            for (Map.Entry<Expression, NavigableSet<SSTableIndex>> e : view)
+            {
+                @SuppressWarnings("resource") // RangeIterators are closed by releaseIndexes
+                RangeIterator index = TermIterator.build(e.getKey(), e.getValue(), mergeRange, queryContext, defer, getLimit());
+
+                builder.add(index);
+            }
+        }
+        catch (Throwable t)
+        {
+            // all sstable indexes in view have been referenced, need to clean up when exception is thrown
+            FileUtils.closeQuietly(builder.ranges());
+            view.forEach(e -> e.getValue().forEach(SSTableIndex::release));
+            throw t;
+        }
+        return builder.build();
+    }
+
+    // This is an ANN only query
+    public RangeIterator getTopKRows(RowFilter.Expression expression)
+    {
+        assert expression.operator() == Operator.ANN;
+        var planExpression = new Expression(getContext(expression))
+                             .add(Operator.ANN, expression.getIndexValue().duplicate());
+        // search memtable before referencing sstable indexes; otherwise we may miss newly flushed memtable index
+        RangeIterator memtableResults = getContext(expression).searchMemtable(queryContext, planExpression, mergeRange, getLimit());
+
+        var queryView = new QueryViewBuilder(Collections.singleton(planExpression), mergeRange).build();
+
+        try
+        {
+            List<RangeIterator> sstableIntersections = queryView.view.values()
                                                                                  .stream()
-                                                                                 .filter(e -> !isAnnHybridSearch || annQueryViewInHybridSearch.view.containsKey(e.getKey()))
-                                                                                 .map(e -> {
-                                                                                     RangeIterator<Long> it = createRowIdIterator(op, e.getValue(), defer, isAnnHybridSearch);
-                                                                                     if (isAnnHybridSearch)
-                                                                                         return reorderAndLimitBySSTableRowIds(it, e.getKey(), annQueryViewInHybridSearch);
-                                                                                     var pkFactory = e.getValue().iterator().next().index.getSSTableContext().primaryKeyMapFactory;
-                                                                                     return convertToPrimaryKeyIterator(pkFactory, it);
-                                                                                 })
+                                                                                 .map(e -> createRowIdIterator(e, true))
                                                                                  .collect(Collectors.toList());
-
-            List<RangeIterator<PrimaryKey>> memtableIntersections = iteratorsByMemtable.entrySet()
-                                                                                       .stream()
-                                                                                       .map(e -> {
-                                                                                           // we need to do all the intersections at the index level, or ordering won't work
-                                                                                           RangeIterator<PrimaryKey> it = buildIterator(op, e.getValue(), isAnnHybridSearch);
-                                                                                           if (isAnnHybridSearch)
-                                                                                               it = reorderAndLimitBy(it, e.getKey(), annExpressionInHybridSearch);
-                                                                                           return it;
-                                                                                       })
-                                                                                       .collect(Collectors.toList());
-
-            Iterable<RangeIterator<PrimaryKey>> allIntersections = Iterables.concat(sstableIntersections, memtableIntersections);
-
-            queryContext.sstablesHit += queryView.referencedIndexes
-                                        .stream()
-                                        .map(SSTableIndex::getSSTable).collect(Collectors.toSet()).size();
-            queryContext.checkpoint();
-            RangeIterator<PrimaryKey> union = RangeUnionIterator.build(allIntersections);
-            return new CheckpointingIterator<>(union,
-                                               queryView.referencedIndexes,
-                                               annQueryViewInHybridSearch == null ? Collections.emptySet() : annQueryViewInHybridSearch.referencedIndexes,
-                                               queryContext);
+            return TermIterator.build(sstableIntersections, memtableResults, queryView.referencedIndexes, queryContext);
         }
         catch (Throwable t)
         {
             // all sstable indexes in view have been referenced, need to clean up when exception is thrown
             queryView.referencedIndexes.forEach(SSTableIndex::release);
-            // if ANN sstable indexes are referenced separately, release them
-            if (annQueryViewInHybridSearch != null)
-                annQueryViewInHybridSearch.referencedIndexes.forEach(SSTableIndex::release);
-
             throw t;
         }
     }
 
-    private RangeIterator<PrimaryKey> convertToPrimaryKeyIterator(PrimaryKeyMap.Factory pkFactory, RangeIterator<Long> sstableRowIdsIterator)
+    // This is a hybrid query. We apply all other predicates before ordering and limiting.
+    public RangeIterator getTopKRows(RangeIterator source, RowFilter.Expression expression)
     {
-        if (sstableRowIdsIterator.getCount() <= 0)
-            return RangeIterator.emptyKeys();
-
-        PrimaryKeyMap primaryKeyMap = pkFactory.newPerSSTablePrimaryKeyMap();
-        return SSTableRowIdKeyRangeIterator.create(primaryKeyMap, queryContext, sstableRowIdsIterator);
+        return new OrderingFilterRangeIterator(source,
+                                               ORDER_CHUNK_SIZE,
+                                               list -> this.getTopKRows(list, expression));
     }
 
-    private RangeIterator<PrimaryKey> reorderAndLimitBy(RangeIterator<PrimaryKey> original, Memtable memtable, Expression expression)
+    private RangeIterator getTopKRows(List<PrimaryKey> rawSourceKeys, RowFilter.Expression expression)
     {
-        return expression.context.reorderMemtable(memtable, queryContext, original, expression, getLimit());
+        // Filter out PKs now. Each PK is passed to every segment of the ANN index, so filtering shadowed keys
+        // eagerly can save some work when going from PK to row id for on disk segments.
+        // Since the result is shared with multiple streams, we use an unmodifiable list.
+        var sourceKeys = rawSourceKeys.stream().filter(queryContext::shouldInclude).collect(Collectors.toList());
+        var planExpression = new Expression(this.getContext(expression));
+        planExpression.add(Operator.ANN, expression.getIndexValue().duplicate());
+
+        // search memtable before referencing sstable indexes; otherwise we may miss newly flushed memtable index
+        RangeIterator memtableResults = this.getContext(expression).limitToTopResults(queryContext, sourceKeys, planExpression, getLimit());
+        var queryView = new QueryViewBuilder(Collections.singleton(planExpression), mergeRange).build();
+
+        try
+        {
+            List<RangeIterator> sstableIntersections = queryView.view.values()
+                                                                     .stream()
+                                                                     .map(e -> {
+                                                                         return reorderAndLimitBySSTableRowIds(sourceKeys, e);
+                                                                     })
+                                                                     .collect(Collectors.toList());
+
+            return TermIterator.build(sstableIntersections, memtableResults, queryView.referencedIndexes, queryContext);
+        }
+        catch (Throwable t)
+        {
+            // all sstable indexes in view have been referenced, need to clean up when exception is thrown
+            queryView.referencedIndexes.forEach(SSTableIndex::release);
+            throw t;
+        }
+
     }
 
-    private RangeIterator<PrimaryKey> reorderAndLimitBySSTableRowIds(RangeIterator<Long> original, SSTableReader sstable, QueryViewBuilder.QueryView annQueryView)
+    private RangeIterator reorderAndLimitBySSTableRowIds(List<PrimaryKey> keys, List<QueryViewBuilder.IndexExpression> annIndexExpressions)
     {
-        List<QueryViewBuilder.IndexExpression> annIndexExpressions = annQueryView.view.get(sstable);
         assert annIndexExpressions.size() == 1 : "only one index is expected in ANN expression, found " + annIndexExpressions.size() + " in " + annIndexExpressions;
         QueryViewBuilder.IndexExpression annIndexExpression = annIndexExpressions.get(0);
 
         try
         {
-            return annIndexExpression.index.limitToTopResults(queryContext, original, annIndexExpression.expression, getLimit());
+            return annIndexExpression.index.limitToTopResults(queryContext, keys, annIndexExpression.expression, getLimit());
         }
         catch (IOException e)
         {
@@ -311,23 +336,9 @@ public class QueryController
     }
 
     /**
-     * @return ann expression if expressions have one ANN index and at least one non-ANN index
-     */
-    private Expression getAnnExpressionInHybridSearch(Collection<Expression> expressions)
-    {
-        if (expressions.size() < 2)
-        {
-            // if there is a single expression, just run search against it even if it's ANN
-            return null;
-        }
-
-        return expressions.stream().filter(e -> e.operation == Expression.Op.ANN).findFirst().orElse(null);
-    }
-
-    /**
      * Create row id iterator from different indexes' on-disk searcher of the same sstable
      */
-    private RangeIterator<Long> createRowIdIterator(Operation.OperationType op, List<QueryViewBuilder.IndexExpression> indexExpressions, boolean defer, boolean hasAnn)
+    private RangeIterator createRowIdIterator(List<QueryViewBuilder.IndexExpression> indexExpressions, boolean defer)
     {
         var subIterators = indexExpressions
                            .stream()
@@ -335,7 +346,7 @@ public class QueryController
                                     {
                                         try
                                         {
-                                            List<RangeIterator<Long>> iterators = ie.index.searchSSTableRowIds(ie.expression, mergeRange, queryContext, defer, getLimit());
+                                            List<RangeIterator> iterators = ie.index.search(ie.expression, mergeRange, queryContext, defer, getLimit());
                                             // concat the result from multiple segments for the same index
                                             return RangeConcatIterator.build(iterators);
                                         }
@@ -347,23 +358,7 @@ public class QueryController
                                         }
                                     }).collect(Collectors.toList());
 
-        // we need to do all the intersections at the index level, or ordering won't work
-        return buildIterator(op, subIterators, hasAnn);
-    }
-
-    private static <T extends Comparable<T>> RangeIterator<T> buildIterator(Operation.OperationType op, List<RangeIterator<T>> subIterators, boolean isAnnHybridSearch)
-    {
-        RangeIterator.Builder<T> builder = null;
-        if (op == Operation.OperationType.OR)
-            builder = RangeUnionIterator.<T>builder(subIterators.size());
-        else if (isAnnHybridSearch)
-            // if it's ANN with other indexes, intersect all available indexes so result will be correct top-k
-            builder = RangeIntersectionIterator.<T>builder(subIterators.size(), subIterators.size());
-        else
-            // Otherwise, pick 2 most selective indexes for better performance
-            builder = RangeIntersectionIterator.<T>builder(INTERSECTION_CLAUSE_LIMIT);
-
-        return builder.add(subIterators).build();
+        return RangeUnionIterator.builder(subIterators.size()).add(subIterators).build();
     }
 
     private int getLimit()
@@ -415,12 +410,155 @@ public class QueryController
                                                   clusteringIndexFilter.isReversed());
     }
 
+    private static void releaseQuietly(SSTableIndex index)
+    {
+        try
+        {
+            index.release();
+        }
+        catch (Throwable e)
+        {
+            logger.error(index.getIndexContext().logMessage("Failed to release index on SSTable {}"), index.getSSTable().descriptor, e);
+        }
+    }
+
     /**
      * Used to release all resources and record metrics when query finishes.
      */
     public void finish()
     {
         if (tableQueryMetrics != null) tableQueryMetrics.record(queryContext);
+    }
+
+    /**
+     * Try to reference all SSTableIndexes before querying on disk indexes.
+     *
+     * If we attempt to proceed into {@link TermIterator#build(Expression, Set, AbstractBounds, QueryContext, boolean, int)}
+     * without first referencing all indexes, a concurrent compaction may decrement one or more of their backing
+     * SSTable {@link Ref} instances. This will allow the {@link SSTableIndex} itself to be released and will fail the query.
+     */
+    private Map<Expression, NavigableSet<SSTableIndex>> referenceAndGetView(Operation.OperationType op, Collection<Expression> expressions)
+    {
+        SortedSet<String> indexNames = new TreeSet<>();
+        try
+        {
+            while (true)
+            {
+                List<SSTableIndex> referencedIndexes = new ArrayList<>();
+                boolean failed = false;
+
+                Map<Expression, NavigableSet<SSTableIndex>> view = getView(op, expressions);
+
+                for (SSTableIndex index : view.values().stream().flatMap(Collection::stream).collect(Collectors.toList()))
+                {
+                    indexNames.add(index.getIndexContext().getIndexName());
+
+                    if (index.reference())
+                    {
+                        referencedIndexes.add(index);
+                    }
+                    else
+                    {
+                        failed = true;
+                        break;
+                    }
+                }
+
+                if (failed)
+                {
+                    // TODO: This might be a good candidate for a table/index group metric in the future...
+                    referencedIndexes.forEach(QueryController::releaseQuietly);
+                }
+                else
+                {
+                    return view;
+                }
+            }
+        }
+        finally
+        {
+            Tracing.trace("Querying storage-attached indexes {}", indexNames);
+        }
+    }
+
+    private Map<Expression, NavigableSet<SSTableIndex>> getView(Operation.OperationType op, Collection<Expression> expressions)
+    {
+        // first let's determine the primary expression if op is AND
+        Pair<Expression, NavigableSet<SSTableIndex>> primary = (op == Operation.OperationType.AND) ? calculatePrimary(expressions) : null;
+
+        Map<Expression, NavigableSet<SSTableIndex>> indexes = new HashMap<>();
+        for (Expression e : expressions)
+        {
+            // NO_EQ and non-index column query should only act as FILTER BY for satisfiedBy(Row) method
+            // because otherwise it likely to go through the whole index.
+            if (!e.context.isIndexed() || e.getOp() == Expression.Op.NOT_EQ)
+            {
+                continue;
+            }
+
+            // primary expression, we'll have to add as is
+            if (primary != null && e.equals(primary.left))
+            {
+                indexes.put(primary.left, primary.right);
+
+                continue;
+            }
+
+            View view = e.context.getView();
+
+            NavigableSet<SSTableIndex> readers = new TreeSet<>(SSTableIndex.COMPARATOR);
+            if (primary != null && primary.right.size() > 0)
+            {
+                for (SSTableIndex index : primary.right)
+                    readers.addAll(view.match(index.minKey(), index.maxKey()));
+            }
+            else
+            {
+                readers.addAll(applyScope(view.match(e)));
+            }
+
+            indexes.put(e, readers);
+        }
+
+        return indexes;
+    }
+
+    private Pair<Expression, NavigableSet<SSTableIndex>> calculatePrimary(Collection<Expression> expressions)
+    {
+        Expression expression = null;
+        NavigableSet<SSTableIndex> primaryIndexes = null;
+
+        for (Expression e : expressions)
+        {
+            if (!e.context.isIndexed())
+                continue;
+
+            View view = e.context.getView();
+
+            NavigableSet<SSTableIndex> indexes = new TreeSet<>(SSTableIndex.COMPARATOR);
+            indexes.addAll(applyScope(view.match(e)));
+
+            if (expression == null || primaryIndexes.size() > indexes.size())
+            {
+                primaryIndexes = indexes;
+                expression = e;
+            }
+        }
+
+        return expression == null ? null : Pair.create(expression, primaryIndexes);
+    }
+
+    private Set<SSTableIndex> applyScope(Set<SSTableIndex> indexes)
+    {
+        return Sets.filter(indexes, index -> {
+            SSTableReader sstable = index.getSSTable();
+            if (mergeRange instanceof Bounds && mergeRange.left.equals(mergeRange.right) && (!mergeRange.left.isMinimum()) && mergeRange.left instanceof DecoratedKey)
+            {
+                if (!sstable.getBloomFilter().isPresent((DecoratedKey)mergeRange.left))
+                    return false;
+            }
+            return mergeRange.left.compareTo(sstable.last) <= 0 && (mergeRange.right.isMinimum() || sstable.first.compareTo(mergeRange.right) <= 0);
+        });
     }
 
     /**

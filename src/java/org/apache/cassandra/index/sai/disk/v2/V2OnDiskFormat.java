@@ -105,7 +105,7 @@ public class V2OnDiskFormat extends V1OnDiskFormat
                                           SegmentMetadata segmentMetadata) throws IOException
     {
         if (indexContext.isVector())
-            return new V2VectorIndexSearcher(sstableContext.primaryKeyMapFactory, indexFiles, segmentMetadata, sstableContext.indexDescriptor, indexContext);
+            return new V2VectorIndexSearcher(sstableContext.primaryKeyMapFactory(), indexFiles, segmentMetadata, sstableContext.indexDescriptor, indexContext);
         return super.newIndexSearcher(sstableContext, indexContext, indexFiles, segmentMetadata);
     }
 

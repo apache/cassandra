@@ -49,7 +49,7 @@ public abstract class MemoryIndex
                              LongConsumer onHeapAllocationsTracker,
                              LongConsumer offHeapAllocationsTracker);
 
-    public abstract RangeIterator<PrimaryKey> search(Expression expression, AbstractBounds<PartitionPosition> keyRange);
+    public abstract RangeIterator search(Expression expression, AbstractBounds<PartitionPosition> keyRange);
 
     public abstract ByteBuffer getMinTerm();
 

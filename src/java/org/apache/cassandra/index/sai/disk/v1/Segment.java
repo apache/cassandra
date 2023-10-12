@@ -19,6 +19,7 @@ package org.apache.cassandra.index.sai.disk.v1;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.List;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
@@ -62,7 +63,7 @@ public class Segment implements Closeable, SegmentOrdering
         this.minKeyBound = metadata.minKey.token().minKeyBound();
         this.maxKeyBound = metadata.maxKey.token().maxKeyBound();
 
-        this.primaryKeyMapFactory = sstableContext.primaryKeyMapFactory;
+        this.primaryKeyMapFactory = sstableContext.primaryKeyMapFactory();
         this.indexFiles = indexFiles;
         this.metadata = metadata;
 
@@ -127,9 +128,9 @@ public class Segment implements Closeable, SegmentOrdering
      * @param context    to track per sstable cache and per query metrics
      * @param defer      create the iterator in a deferred state
      * @param limit      the num of rows to returned, used by ANN index
-     * @return range iterator of sstable row ids that matches given expression
+     * @return range iterator of {@link PrimaryKey} that matches given expression
      */
-    public RangeIterator<Long> search(Expression expression, AbstractBounds<PartitionPosition> keyRange, QueryContext context, boolean defer, int limit) throws IOException
+    public RangeIterator search(Expression expression, AbstractBounds<PartitionPosition> keyRange, QueryContext context, boolean defer, int limit) throws IOException
     {
         return index.search(expression, keyRange, context, defer, limit);
     }
@@ -150,9 +151,9 @@ public class Segment implements Closeable, SegmentOrdering
     }
 
     @Override
-    public RangeIterator<PrimaryKey> limitToTopResults(QueryContext context, RangeIterator<Long> iterator, Expression exp, int limit) throws IOException
+    public RangeIterator limitToTopResults(QueryContext context, List<PrimaryKey> keys, Expression exp, int limit) throws IOException
     {
-        return index.limitToTopResults(context, iterator, exp, limit);
+        return index.limitToTopResults(context, keys, exp, limit);
     }
 
     @Override

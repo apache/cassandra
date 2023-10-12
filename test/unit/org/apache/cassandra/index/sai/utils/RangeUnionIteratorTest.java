@@ -144,7 +144,7 @@ public class RangeUnionIteratorTest extends AbstractRangeIteratorTest
             Arrays.sort(totalOrdering);
 
             int count = 0;
-            RangeIterator<PrimaryKey> tokens = builder.build();
+            RangeIterator tokens = builder.build();
 
             Assert.assertNotNull(tokens);
             while (tokens.hasNext())
@@ -157,7 +157,7 @@ public class RangeUnionIteratorTest extends AbstractRangeIteratorTest
     @Test
     public void testMinMaxAndCount()
     {
-        RangeUnionIterator.Builder<PrimaryKey> builder = RangeUnionIterator.builder();
+        RangeUnionIterator.Builder builder = RangeUnionIterator.builder();
 
         builder.add(new LongIterator(new long[] { 1L, 2L, 3L }));
         builder.add(new LongIterator(new long[] { 4L, 5L, 6L }));
@@ -166,7 +166,7 @@ public class RangeUnionIteratorTest extends AbstractRangeIteratorTest
         Assert.assertEquals(9L, builder.getMaximum().token().getLongValue());
         Assert.assertEquals(9L, builder.getTokenCount());
 
-        RangeIterator<PrimaryKey> tokens = builder.build();
+        RangeIterator tokens = builder.build();
 
         Assert.assertNotNull(tokens);
         Assert.assertEquals(1L, tokens.getMinimum().token().getLongValue());
@@ -186,7 +186,7 @@ public class RangeUnionIteratorTest extends AbstractRangeIteratorTest
     @Test
     public void testBuilder()
     {
-        RangeUnionIterator.Builder<PrimaryKey> builder = RangeUnionIterator.builder();
+        RangeUnionIterator.Builder builder = RangeUnionIterator.builder();
 
         Assert.assertNull(builder.getMinimum());
         Assert.assertNull(builder.getMaximum());
@@ -207,7 +207,7 @@ public class RangeUnionIteratorTest extends AbstractRangeIteratorTest
         Assert.assertEquals(4L, builder.rangeIterators.get(1).getMinimum().token().getLongValue());
         Assert.assertEquals(7L, builder.rangeIterators.get(2).getMinimum().token().getLongValue());
 
-        RangeIterator<PrimaryKey> tokens = RangeUnionIterator.build(new ArrayList<RangeIterator<PrimaryKey>>()
+        RangeIterator tokens = RangeUnionIterator.build(new ArrayList<RangeIterator>()
         {{
             add(new LongIterator(new long[]{1L, 2L, 4L}));
             add(new LongIterator(new long[]{3L, 5L, 6L}));
@@ -221,8 +221,8 @@ public class RangeUnionIteratorTest extends AbstractRangeIteratorTest
         Assert.assertEquals(0, emptyTokens.getCount());
 
         builder = RangeUnionIterator.builder();
-        Assert.assertEquals(0L, builder.add((RangeIterator<PrimaryKey>) null).rangeCount());
-        Assert.assertEquals(0L, builder.add((List<RangeIterator<PrimaryKey>>) null).getTokenCount());
+        Assert.assertEquals(0L, builder.add((RangeIterator) null).rangeCount());
+        Assert.assertEquals(0L, builder.add((List<RangeIterator>) null).getTokenCount());
         Assert.assertEquals(0L, builder.add(new LongIterator(new long[] {})).rangeCount());
 
         var single = new LongIterator(new long[] { 1L, 2L, 3L });
@@ -241,7 +241,7 @@ public class RangeUnionIteratorTest extends AbstractRangeIteratorTest
         builder.add(new LongIterator(new long[]{4L, 5L, 6L}));
         builder.add(new LongIterator(new long[]{7L, 8L, 9L}));
 
-        RangeIterator<PrimaryKey> tokens = builder.build();
+        RangeIterator tokens = builder.build();
         Assert.assertNotNull(tokens);
 
         tokens.skipTo(LongIterator.fromToken(5L));
@@ -310,8 +310,8 @@ public class RangeUnionIteratorTest extends AbstractRangeIteratorTest
 
     @Test
     public void emptyRangeTest() {
-        RangeIterator.Builder<PrimaryKey> builder;
-        RangeIterator<PrimaryKey> range;
+        RangeIterator.Builder builder;
+        RangeIterator range;
         // empty, then non-empty
         builder = RangeUnionIterator.builder();
         builder.add(new LongIterator(new long[] {}));

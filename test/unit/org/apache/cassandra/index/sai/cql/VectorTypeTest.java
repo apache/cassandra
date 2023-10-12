@@ -764,4 +764,24 @@ public class VectorTypeTest extends VectorTester
         flush();
         assertRows(execute("SELECT pk FROM %s WHERE val = 'match me' ORDER BY vec ANN OF [1,1] LIMIT 2"));
     }
+
+    @Test
+    public void testMultipleVectorsInMemoryWithPredicate()
+    {
+        createTable(KEYSPACE, "CREATE TABLE %s (pk int, val text, vec vector<float, 2>, PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(vec) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+
+        // When we search the memtable, we filter out PKs outside the memtable's bounrdaries.
+        // Persist two rows and push to sstable that will be outside of bounds.
+        execute("INSERT INTO %s (pk, val, vec) VALUES (1, 'match me', [1, 1])");
+        execute("INSERT INTO %s (pk, val, vec) VALUES (5, 'match me', [1, 1])");
+        flush();
+        execute("INSERT INTO %s (pk, val, vec) VALUES (2, 'match me', [1, 1])");
+        execute("INSERT INTO %s (pk, val, vec) VALUES (3, 'match me', [1, 1])");
+        execute("INSERT INTO %s (pk, val, vec) VALUES (4, 'match me', [1, 1])");
+        assertRowsIgnoringOrder(execute("SELECT pk FROM %s WHERE val = 'match me' ORDER BY vec ANN OF [1,1] LIMIT 5"),
+                   row(1), row(2), row(3), row(4), row(5));
+    }
 }
