@@ -109,13 +109,18 @@ import static org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig.MAX_TOP_K
 public class StorageAttachedIndex implements Index
 {
     public static final String NAME = "sai";
-
+    
     public static final String VECTOR_USAGE_WARNING = "SAI ANN indexes on vector columns are experimental and are not recommended for production use.\n" +
-                                                      "They cannot be queried with a read consistency level higher than ONE/LOCAL_ONE.\n" +
-                                                      "They cannot use paging, or be used in aggregation queries.\n" +
-                                                      "They cannot be used with filtering queries.\n" +
-                                                      "They cannot be used with per-partition limits. \n" +
-                                                      "These limitations are planned to be removed in future versions.";
+                                                      "They don't yet support SELECT queries with:\n" +
+                                                      " * Consistency level higher than ONE/LOCAL_ONE.\n" +
+                                                      " * Paging.\n" +
+                                                      " * No LIMIT clauses.\n" +
+                                                      " * PER PARTITION LIMIT clauses.\n" +
+                                                      " * GROUP BY clauses.\n" +
+                                                      " * Aggregation functions.\n" +
+                                                      " * Filters on columns without a SAI index.\n" +
+                                                      "Most of these limitations are planned to be removed in future versions.";
+
     public static final String VECTOR_NON_FLOAT_ERROR = "SAI ANN indexes are only allowed on vector columns with float elements";
 
     @VisibleForTesting

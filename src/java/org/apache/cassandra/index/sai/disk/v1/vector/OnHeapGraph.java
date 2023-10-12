@@ -58,13 +58,13 @@ import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.lucene.util.StringHelper;
 
-public class CassandraOnHeapGraph<T>
+public class OnHeapGraph<T>
 {
-    private static final Logger logger = LoggerFactory.getLogger(CassandraOnHeapGraph.class);
+    private static final Logger logger = LoggerFactory.getLogger(OnHeapGraph.class);
 
     private final RamAwareVectorValues vectorValues;
     private final GraphIndexBuilder<float[]> builder;
-    private final VectorType<?> termComparator;
+    private final VectorType<?> vectorType;
     private final VectorSimilarityFunction similarityFunction;
     private final Map<float[], VectorPostings<T>> postingsMap;
     private final NonBlockingHashMapLong<VectorPostings<T>> postingsByOrdinal;
@@ -77,7 +77,7 @@ public class CassandraOnHeapGraph<T>
      *
      * Will create a concurrent object.
      */
-    public CassandraOnHeapGraph(AbstractType<?> termComparator, IndexWriterConfig indexWriterConfig)
+    public OnHeapGraph(AbstractType<?> termComparator, IndexWriterConfig indexWriterConfig)
     {
         this(termComparator, indexWriterConfig, true);
     }
@@ -89,9 +89,9 @@ public class CassandraOnHeapGraph<T>
      *                   while building the graph; non-concurrent allows us to avoid synchronization costs.
      */
     @SuppressWarnings("unchecked")
-    public CassandraOnHeapGraph(AbstractType<?> termComparator, IndexWriterConfig indexWriterConfig, boolean concurrent)
+    public OnHeapGraph(AbstractType<?> termComparator, IndexWriterConfig indexWriterConfig, boolean concurrent)
     {
-        this.termComparator = (VectorType<?>) termComparator;
+        this.vectorType = (VectorType<?>) termComparator;
         vectorValues = concurrent
                        ? new ConcurrentVectorValues(((VectorType<?>) termComparator).dimension)
                        : new CompactionVectorValues(((VectorType<Float>) termComparator));
@@ -129,7 +129,7 @@ public class CassandraOnHeapGraph<T>
     {
         assert term != null && term.remaining() != 0;
 
-        var vector = termComparator.composeAsFloat(term);
+        var vector = vectorType.composeAsFloat(term);
         if (behavior == InvalidVectorBehavior.IGNORE)
         {
             try
@@ -230,7 +230,7 @@ public class CassandraOnHeapGraph<T>
     {
         assert term != null && term.remaining() != 0;
 
-        var vector = termComparator.composeAsFloat(term);
+        var vector = vectorType.composeAsFloat(term);
         var postings = postingsMap.get(vector);
         if (postings == null)
         {
@@ -336,7 +336,7 @@ public class CassandraOnHeapGraph<T>
 
         logger.debug("Computing PQ for {} vectors", vectorValues.size());
         // hack to only do this one at a time during compaction since we're reading a ton of vectors into memory
-        var synchronizeOn = vectorValues instanceof ConcurrentVectorValues ? this : CassandraOnHeapGraph.class;
+        var synchronizeOn = vectorValues instanceof ConcurrentVectorValues ? this : OnHeapGraph.class;
         synchronized (synchronizeOn)
         {
             // train PQ and encode

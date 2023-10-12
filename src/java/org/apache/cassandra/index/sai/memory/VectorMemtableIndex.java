@@ -39,9 +39,10 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
+import org.apache.cassandra.index.sai.VectorQueryContext;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
-import org.apache.cassandra.index.sai.disk.v1.vector.CassandraOnHeapGraph;
+import org.apache.cassandra.index.sai.disk.v1.vector.OnHeapGraph;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
@@ -53,7 +54,7 @@ import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 public class VectorMemtableIndex extends MemoryIndex
 {
-    private final CassandraOnHeapGraph<PrimaryKey> graph;
+    private final OnHeapGraph<PrimaryKey> graph;
     private final LongAdder writeCount = new LongAdder();
 
     private PrimaryKey minimumKey;
@@ -64,7 +65,7 @@ public class VectorMemtableIndex extends MemoryIndex
     public VectorMemtableIndex(IndexContext indexContext)
     {
         super(indexContext);
-        this.graph = new CassandraOnHeapGraph<>(indexContext.getValidator(), indexContext.getIndexWriterConfig());
+        this.graph = new OnHeapGraph<>(indexContext.getValidator(), indexContext.getIndexWriterConfig());
     }
 
     @Override
@@ -84,7 +85,7 @@ public class VectorMemtableIndex extends MemoryIndex
 
         writeCount.increment();
         primaryKeys.add(primaryKey);
-        return graph.add(value, primaryKey, CassandraOnHeapGraph.InvalidVectorBehavior.FAIL);
+        return graph.add(value, primaryKey, OnHeapGraph.InvalidVectorBehavior.FAIL);
     }
 
     @Override
@@ -117,7 +118,7 @@ public class VectorMemtableIndex extends MemoryIndex
 
             // make the changes in this order, so we don't have a window where the row is not in the index at all
             if (newRemaining > 0)
-                bytesUsed += graph.add(newValue, primaryKey, CassandraOnHeapGraph.InvalidVectorBehavior.FAIL);
+                bytesUsed += graph.add(newValue, primaryKey, OnHeapGraph.InvalidVectorBehavior.FAIL);
             if (oldRemaining > 0)
                 bytesUsed -= graph.remove(oldValue, primaryKey);
 
@@ -144,6 +145,8 @@ public class VectorMemtableIndex extends MemoryIndex
     {
         assert expr.getOp() == Expression.IndexOperator.ANN : "Only ANN is supported for vector search, received " + expr.getOp();
 
+        VectorQueryContext vectorQueryContext = queryContext.vectorContext();
+
         var buffer = expr.lower.value.raw;
         float[] qv = TypeUtil.decomposeVector(indexContext, buffer);
 
@@ -161,17 +164,17 @@ public class VectorMemtableIndex extends MemoryIndex
             PrimaryKey right = isMaxToken ? null : indexContext.keyFactory().create(keyRange.right.getToken()); // upper bound
 
             Set<PrimaryKey> resultKeys = isMaxToken ? primaryKeys.tailSet(left, leftInclusive) : primaryKeys.subSet(left, leftInclusive, right, rightInclusive);
-            if (!queryContext.vectorContext().getShadowedPrimaryKeys().isEmpty())
-                resultKeys = resultKeys.stream().filter(pk -> !queryContext.vectorContext().containsShadowedPrimaryKey(pk)).collect(Collectors.toSet());
+            if (!vectorQueryContext.getShadowedPrimaryKeys().isEmpty())
+                resultKeys = resultKeys.stream().filter(pk -> !vectorQueryContext.containsShadowedPrimaryKey(pk)).collect(Collectors.toSet());
 
             if (resultKeys.isEmpty())
                 return KeyRangeIterator.empty();
 
             int bruteForceRows = (int)(indexContext.getIndexWriterConfig().getMaximumNodeConnections() * Math.log(graph.size()));
-            if (resultKeys.size() < Math.max(queryContext.vectorContext().limit(), bruteForceRows))
+            if (resultKeys.size() < Math.max(vectorQueryContext.limit(), bruteForceRows))
                 return new ReorderingRangeIterator(new PriorityQueue<>(resultKeys));
             else
-                bits = new KeyRangeFilteringBits(keyRange, queryContext.vectorContext().bitsetForShadowedPrimaryKeys(graph));
+                bits = new KeyRangeFilteringBits(keyRange, vectorQueryContext.bitsetForShadowedPrimaryKeys(graph));
         }
         else
         {

@@ -40,7 +40,7 @@ import org.apache.cassandra.index.sai.VectorQueryContext;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.v1.PerColumnIndexFiles;
 import org.apache.cassandra.index.sai.disk.v1.postings.ReorderingPostingList;
-import org.apache.cassandra.index.sai.disk.v1.vector.CassandraDiskAnn;
+import org.apache.cassandra.index.sai.disk.v1.vector.DiskAnn;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.postings.IntArrayPostingList;
@@ -56,7 +56,7 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
 {
     private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
-    private final CassandraDiskAnn graph;
+    private final DiskAnn graph;
     private final VectorType<float[]> type;
     private final int maxBruteForceRows;
     private final ThreadLocal<SparseFixedBitSet> cachedBitSets;
@@ -68,7 +68,7 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
                                IndexContext indexContext) throws IOException
     {
         super(primaryKeyMapFactory, perIndexFiles, segmentMetadata, indexContext);
-        graph = new CassandraDiskAnn(segmentMetadata.componentMetadatas, perIndexFiles, indexContext);
+        graph = new DiskAnn(segmentMetadata.componentMetadatas, perIndexFiles, indexContext);
         type = (VectorType<float[]>) indexContext.getValidator();
         cachedBitSets = ThreadLocal.withInitial(() -> new SparseFixedBitSet(graph.size()));
 

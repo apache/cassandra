@@ -29,8 +29,8 @@ import io.github.jbellis.jvector.util.Bits;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
-import org.apache.cassandra.index.sai.disk.v1.vector.CassandraDiskAnn;
-import org.apache.cassandra.index.sai.disk.v1.vector.CassandraOnHeapGraph;
+import org.apache.cassandra.index.sai.disk.v1.vector.DiskAnn;
+import org.apache.cassandra.index.sai.disk.v1.vector.OnHeapGraph;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 
 
@@ -47,8 +47,11 @@ import org.apache.cassandra.index.sai.utils.PrimaryKey;
  */
 public class VectorQueryContext
 {
-    private TreeSet<PrimaryKey> shadowedPrimaryKeys; // allocate when needed
-    private int limit;
+    private final int limit;
+    // Holds primary keys that are shadowed by expired TTL or row tombstone or range tombstone.
+    // They are populated by the StorageAttachedIndexSearcher during filtering. They are used to generate
+    // a bitset for the graph search to indicate graph nodes to ignore.
+    private TreeSet<PrimaryKey> shadowedPrimaryKeys;
 
     public VectorQueryContext(ReadCommand readCommand)
     {
@@ -88,7 +91,7 @@ public class VectorQueryContext
         return shadowedPrimaryKeys;
     }
 
-    public Bits bitsetForShadowedPrimaryKeys(CassandraOnHeapGraph<PrimaryKey> graph)
+    public Bits bitsetForShadowedPrimaryKeys(OnHeapGraph<PrimaryKey> graph)
     {
         if (shadowedPrimaryKeys == null)
             return null;
@@ -96,7 +99,7 @@ public class VectorQueryContext
         return new IgnoredKeysBits(graph, shadowedPrimaryKeys);
     }
 
-    public Bits bitsetForShadowedPrimaryKeys(SegmentMetadata metadata, PrimaryKeyMap primaryKeyMap, CassandraDiskAnn graph) throws IOException
+    public Bits bitsetForShadowedPrimaryKeys(SegmentMetadata metadata, PrimaryKeyMap primaryKeyMap, DiskAnn graph) throws IOException
     {
         Set<Integer> ignoredOrdinals = null;
         try (var ordinalsView = graph.getOrdinalsView())
@@ -161,10 +164,10 @@ public class VectorQueryContext
 
     private static class IgnoredKeysBits implements Bits
     {
-        private final CassandraOnHeapGraph<PrimaryKey> graph;
+        private final OnHeapGraph<PrimaryKey> graph;
         private final NavigableSet<PrimaryKey> ignored;
 
-        public IgnoredKeysBits(CassandraOnHeapGraph<PrimaryKey> graph, NavigableSet<PrimaryKey> ignored)
+        public IgnoredKeysBits(OnHeapGraph<PrimaryKey> graph, NavigableSet<PrimaryKey> ignored)
         {
             this.graph = graph;
             this.ignored = ignored;

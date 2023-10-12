@@ -111,7 +111,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
             Supplier<ResultRetriever> resultSupplier = () -> new ResultRetriever(queryController, executionController, queryContext, true);
 
             // VSTODO performance: if there is shadowed primary keys, we have to at least query twice.
-            //  First time to find out there are shawdow keys, second time to find out there are no more shadow keys.
+            //  First time to find out there are shadow keys, second time to find out there are no more shadow keys.
             while (true)
             {
                 long lastShadowedKeysCount = queryContext.vectorContext().getShadowedPrimaryKeys().size();
