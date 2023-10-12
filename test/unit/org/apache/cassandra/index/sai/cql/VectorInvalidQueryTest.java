@@ -265,6 +265,20 @@ public class VectorInvalidQueryTest extends SAITester
     }
 
     @Test
+    public void cannotHavePerPartitionLimitWithAnnOrdering() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int, c int, v vector<float, 1>, PRIMARY KEY(k, c))");
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex'");
+
+        execute("INSERT INTO %s (k, c, v) VALUES (1, 1, [1])");
+        execute("INSERT INTO %s (k, c, v) VALUES (1, 2, [2])");
+        execute("INSERT INTO %s (k, c, v) VALUES (1, 3, [3])");
+
+        assertThatThrownBy(() -> executeNet("SELECT * FROM %s ORDER BY v ANN OF [2] PER PARTITION LIMIT 1 LIMIT 3"))
+            .isInstanceOf(InvalidQueryException.class).hasMessage(SelectStatement.TOPK_PARTITION_LIMIT_ERROR);
+    }
+
+    @Test
     public void cannotCreateIndexOnNonFloatVector()
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v vector<int, 1>)");
