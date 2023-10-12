@@ -240,19 +240,28 @@ public class VectorInvalidQueryTest extends SAITester
     @Test
     public void cannotPostFilterOnNonIndexedColumnWithAnnOrdering() throws Throwable
     {
-        createTable("CREATE TABLE %s (pk int, ck int, v vector<float, 1>, c int, primary key (pk, ck))");
+        createTable("CREATE TABLE %s (pk1 int, pk2 int, ck1 int, ck2 int, v vector<float, 1>, c int, primary key ((pk1, pk2), ck1, ck2))");
         createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex'");
 
-        execute("INSERT INTO %s (pk, ck, v, c) VALUES (1, 1, [4], 1)");
-        execute("INSERT INTO %s (pk, ck, v, c) VALUES (2, 1, [3], 10)");
-        execute("INSERT INTO %s (pk, ck, v, c) VALUES (3, 1, [2], 100)");
-        execute("INSERT INTO %s (pk, ck, v, c) VALUES (4, 1, [1], 1000)");
+        execute("INSERT INTO %s (pk1, pk2, ck1, ck2, v, c) VALUES (1, 1, 1, 1, [4], 1)");
+        execute("INSERT INTO %s (pk1, pk2, ck1, ck2, v, c) VALUES (2, 2, 1, 1, [3], 10)");
+        execute("INSERT INTO %s (pk1, pk2, ck1, ck2, v, c) VALUES (3, 3, 1, 1, [2], 100)");
+        execute("INSERT INTO %s (pk1, pk2, ck1, ck2, v, c) VALUES (4, 4, 1, 1, [1], 1000)");
 
         assertInvalidMessage(StatementRestrictions.ANN_REQUIRES_INDEXED_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE c >= 100 ORDER BY v ANN OF [1] LIMIT 4 ALLOW FILTERING");
 
         assertInvalidMessage(StatementRestrictions.ANN_REQUIRES_INDEXED_FILTERING_MESSAGE,
-                             "SELECT * FROM %s WHERE ck >= 0 ORDER BY v ANN OF [1] LIMIT 4 ALLOW FILTERING");
+                             "SELECT * FROM %s WHERE ck1 >= 0 ORDER BY v ANN OF [1] LIMIT 4 ALLOW FILTERING");
+
+        assertInvalidMessage(StatementRestrictions.ANN_REQUIRES_INDEXED_FILTERING_MESSAGE,
+                             "SELECT * FROM %s WHERE ck2 = 1 ORDER BY v ANN OF [1] LIMIT 4 ALLOW FILTERING");
+
+        assertInvalidMessage(StatementRestrictions.ANN_REQUIRES_INDEXED_FILTERING_MESSAGE,
+                             "SELECT * FROM %s WHERE pk1 = 1 ORDER BY v ANN OF [1] LIMIT 4 ALLOW FILTERING");
+
+        assertInvalidMessage(StatementRestrictions.ANN_REQUIRES_INDEXED_FILTERING_MESSAGE,
+                             "SELECT * FROM %s WHERE pk2 = 1 ORDER BY v ANN OF [1] LIMIT 4 ALLOW FILTERING");
     }
 
     @Test
