@@ -303,6 +303,9 @@ public final class StatementRestrictions
                     throw invalidRequest(StatementRestrictions.ANN_ONLY_SUPPORTED_ON_VECTOR_MESSAGE);
                 if (indexRegistry == null || indexRegistry.listIndexes().stream().noneMatch(i -> i.dependsOn(annColumn)))
                     throw invalidRequest(StatementRestrictions.ANN_REQUIRES_INDEX_MESSAGE);
+                // We do not allow ANN queries using partition key restrictions that need filtering
+                if (partitionKeyRestrictions.needFiltering(table))
+                    throw invalidRequest(StatementRestrictions.ANN_REQUIRES_INDEXED_FILTERING_MESSAGE);
                 // We do not allow ANN query filtering using non-indexed columns
                 var nonAnnColumns = Streams.stream(nonPrimaryKeyRestrictions).filter(r -> !r.isANN()).map(r -> r.getFirstColumn()).collect(Collectors.toList());
                 var clusteringColumns = clusteringColumnsRestrictions.getColumnDefinitions();
