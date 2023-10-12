@@ -7,7 +7,7 @@ SAI supports collections of type `map`, `list`, and `set`.
 Collections allow you to group and store data together in a column.
 
 In a relational database, a grouping such as a user's multiple email addresses is achieved via many-to-one joined relationship between (for example) a `user` table and an `email` table.
-DSE avoids joins between two tables by storing the user's email addresses in a collection column in the `user` table.
+{product} avoids joins between two tables by storing the user's email addresses in a collection column in the `user` table.
 Each collection specifies the data type of the data held.
 
 A collection is appropriate if the data for collection storage is limited.
