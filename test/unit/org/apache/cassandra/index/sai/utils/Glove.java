@@ -28,6 +28,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * A simple wrapper of a <a href="https://nlp.stanford.edu/projects/glove/">glove</a> model that loads a set of
+ * word -> embedding mappings into a {@link WordVector} object. The embeddings are represented a fixed dimension
+ * float[].
+ * <p>
+ * The glove model provides a consistently valid embedding for each word that can be used for testing graph
+ * implementations that use embeddings.
+ */
 public class Glove
 {
     public static WordVector parse(InputStream inputStream) throws IOException

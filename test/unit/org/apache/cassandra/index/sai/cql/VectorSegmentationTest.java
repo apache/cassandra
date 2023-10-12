@@ -106,17 +106,8 @@ public class VectorSegmentationTest extends VectorTester
         recall = rawIndexedRecall(vectors, queryVector, resultVectors, limit);
         assertThat(recall).isGreaterThanOrEqualTo(0.99);
     }
-//
-//    protected Vector<Float> vector(float[] values)
-//    {
-//        Float[] floats = new Float[values.length];
-//        for (int i = 0; i < values.length; i++)
-//            floats[i] = values[i];
-//
-//        return new Vector<>(floats);
-//    }
 
-    private float[] nextVector()
+    private static float[] nextVector()
     {
         float[] rawVector = new float[dimension];
         for (int i = 0; i < dimension; i++)
@@ -126,7 +117,7 @@ public class VectorSegmentationTest extends VectorTester
         return rawVector;
     }
 
-    private List<float[]> getVectorsFromResult(UntypedResultSet result)
+    private static List<float[]> getVectorsFromResult(UntypedResultSet result)
     {
         List<float[]> vectors = new ArrayList<>();
         VectorType<?> vectorType = VectorType.getInstance(FloatType.instance, dimension);

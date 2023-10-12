@@ -33,7 +33,7 @@ import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
 import org.apache.cassandra.index.sai.disk.v1.bbtree.BlockBalancedTreeRamBuffer;
 import org.apache.cassandra.index.sai.disk.v1.bbtree.NumericIndexWriter;
 import org.apache.cassandra.index.sai.disk.v1.trie.LiteralIndexWriter;
-import org.apache.cassandra.index.sai.disk.v1.vector.CassandraOnHeapGraph;
+import org.apache.cassandra.index.sai.disk.v1.vector.OnHeapGraph;
 import org.apache.cassandra.index.sai.memory.RAMStringIndexer;
 import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
@@ -165,12 +165,12 @@ public abstract class SegmentBuilder
 
     public static class VectorSegmentBuilder extends SegmentBuilder
     {
-        private final CassandraOnHeapGraph<Integer> graphIndex;
+        private final OnHeapGraph<Integer> graphIndex;
 
         public VectorSegmentBuilder(AbstractType<?> termComparator, NamedMemoryLimiter limiter, IndexWriterConfig indexWriterConfig)
         {
             super(termComparator, limiter);
-            graphIndex = new CassandraOnHeapGraph<>(termComparator, indexWriterConfig, false);
+            graphIndex = new OnHeapGraph<>(termComparator, indexWriterConfig, false);
         }
 
         @Override
@@ -182,7 +182,7 @@ public abstract class SegmentBuilder
         @Override
         protected long addInternal(ByteBuffer term, int segmentRowId)
         {
-            return graphIndex.add(term, segmentRowId, CassandraOnHeapGraph.InvalidVectorBehavior.IGNORE);
+            return graphIndex.add(term, segmentRowId, OnHeapGraph.InvalidVectorBehavior.IGNORE);
         }
 
         @Override

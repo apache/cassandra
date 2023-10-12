@@ -112,7 +112,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(SelectStatement.logger, 1, TimeUnit.MINUTES);
 
     public static final int DEFAULT_PAGE_SIZE = 10000;
-    public static final String TOPK_CONSISTENCY_LEVEL_ERROR = "Top-k queries can only be run with consistency level one. Consistency level %s was used.";
+    public static final String TOPK_CONSISTENCY_LEVEL_ERROR = "Top-k queries can only be run with consistency level ONE/LOCAL_ONE. Consistency level %s was used.";
     public static final String TOPK_LIMIT_ERROR = "Top-k queries must have a limit specified and the limit must be less than the query page size";
     public static final String TOPK_PARTITION_LIMIT_ERROR = "Top-K queries do not support per-partition limits";
     public static final String TOPK_AGGREGATION_ERROR = "Top-k queries can not be run with aggregation";

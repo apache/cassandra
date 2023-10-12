@@ -28,7 +28,7 @@ import io.github.jbellis.jvector.util.Bits;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.RandomAccessReader;
 
-public class OnDiskOrdinalsMap
+public class OnDiskOrdinalsMap implements AutoCloseable
 {
     private final FileHandle fh;
     private final long ordToRowOffset;
@@ -163,6 +163,7 @@ public class OnDiskOrdinalsMap
         }
     }
 
+    @Override
     public void close()
     {
         fh.close();

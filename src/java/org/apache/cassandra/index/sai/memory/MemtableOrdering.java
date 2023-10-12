@@ -22,8 +22,8 @@ import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
 
-/***
- * Analogue of SegmentOrdering, but for memtables.
+/**
+ * Analogue of {@link org.apache.cassandra.index.sai.disk.v1.segment.SegmentOrdering}, but for memtables.
  */
 public interface MemtableOrdering
 {

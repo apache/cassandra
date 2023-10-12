@@ -47,7 +47,7 @@ import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 
-public class CassandraDiskAnn implements AutoCloseable
+public class DiskAnn implements AutoCloseable
 {
     private final OnDiskOrdinalsMap ordinalsMap;
     private final CachingGraphIndex graph;
@@ -57,7 +57,7 @@ public class CassandraDiskAnn implements AutoCloseable
     private final CompressedVectors compressedVectors;
     private final ListRandomAccessVectorValues uncompressedVectors;
 
-    public CassandraDiskAnn(SegmentMetadata.ComponentMetadataMap componentMetadatas, PerColumnIndexFiles indexFiles, IndexContext context) throws IOException
+    public DiskAnn(SegmentMetadata.ComponentMetadataMap componentMetadatas, PerColumnIndexFiles indexFiles, IndexContext context) throws IOException
     {
         similarityFunction = context.getIndexWriterConfig().getSimilarityFunction();
 
@@ -107,7 +107,7 @@ public class CassandraDiskAnn implements AutoCloseable
     // VSTODO make this return something with a size
     public ReorderingPostingList search(float[] queryVector, int topK, Bits acceptBits)
     {
-        CassandraOnHeapGraph.validateIndexable(queryVector, similarityFunction);
+        OnHeapGraph.validateIndexable(queryVector, similarityFunction);
 
         var searcher = new GraphSearcher.Builder<>(graph.getView()).build();
         NeighborSimilarity.ScoreFunction scoreFunction;
