@@ -48,9 +48,9 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.*;
-//import org.apache.cassandra.io.compress.DeflateCompressor;
-//import org.apache.cassandra.io.compress.LZ4Compressor;
-//import org.apache.cassandra.io.compress.SnappyCompressor;
+import org.apache.cassandra.io.compress.DeflateCompressor;
+import org.apache.cassandra.io.compress.LZ4Compressor;
+import org.apache.cassandra.io.compress.SnappyCompressor;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.schema.Schema;
@@ -95,11 +95,12 @@ public abstract class CommitLogStressTest
     private CommitLogPosition discardedPos;
     private long totalBytesWritten = 0;
 
-    public CommitLogStressTest(ParameterizedClass commitLogCompression, EncryptionContext encryptionContext)
+    public CommitLogStressTest(ParameterizedClass commitLogCompression, EncryptionContext encryptionContext, Config.CommitLogDiskAccessMode accessMode)
     {
         DatabaseDescriptor.setCommitLogCompression(commitLogCompression);
         DatabaseDescriptor.setEncryptionContext(encryptionContext);
         DatabaseDescriptor.setCommitLogSegmentSize(32);
+        DatabaseDescriptor.setCommitLogDiskAccessMode(accessMode);
     }
 
     @BeforeClass
@@ -142,8 +143,14 @@ public abstract class CommitLogStressTest
     @Parameters()
     public static Collection<Object[]> buildParameterizedVariants()
     {
+        //{null, EncryptionContextGenerator.createDisabledContext(), Config.CommitLogDiskAccessMode.direct_io}}); // No compression, no encryption
         return Arrays.asList(new Object[][]{
-        {null, EncryptionContextGenerator.createDisabledContext()}}); // No compression, no encryption
+        {null, EncryptionContextGenerator.createDisabledContext(), Config.CommitLogDiskAccessMode.mmap}, // No compression, no encryption, mmap
+        {null, EncryptionContextGenerator.createDisabledContext(), Config.CommitLogDiskAccessMode.direct_io}, // Direct-IO
+        {null, EncryptionContextGenerator.createContext(true), Config.CommitLogDiskAccessMode.standard},
+        { new ParameterizedClass(LZ4Compressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext(), Config.CommitLogDiskAccessMode.standard},
+        { new ParameterizedClass(SnappyCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext(), Config.CommitLogDiskAccessMode.standard},
+        { new ParameterizedClass(DeflateCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext(), Config.CommitLogDiskAccessMode.standard}});
     }
 
     @Test

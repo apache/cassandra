@@ -396,6 +396,7 @@ public class Config
     public FlushCompression flush_compression = FlushCompression.fast;
     public int commitlog_max_compression_buffers_in_pool = 3;
     public boolean direct_io_for_commitlog_enabled = false;
+    public CommitLogDiskAccessMode commitlog_disk_access_mode = CommitLogDiskAccessMode.mmap;
     @Replaces(oldName = "periodic_commitlog_sync_lag_block_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
     public DurationSpec.IntMillisecondsBound periodic_commitlog_sync_lag_block;
     public TransparentDataEncryptionOptions transparent_data_encryption_options = new TransparentDataEncryptionOptions();
@@ -1156,6 +1157,13 @@ public class Config
         mmap,
         mmap_index_only,
         standard,
+    }
+
+    public enum CommitLogDiskAccessMode
+    {
+        standard,
+        mmap,
+        direct_io,
     }
 
     public enum MemtableAllocationType
