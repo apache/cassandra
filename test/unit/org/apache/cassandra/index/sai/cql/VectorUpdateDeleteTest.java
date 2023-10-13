@@ -605,7 +605,7 @@ public class VectorUpdateDeleteTest extends VectorTester
         // Index every vector with A to match everything and because this test only makes sense for hybrid queries
         for (int i = 1; i <= 100; i++)
         {
-            execute("INSERT INTO %s (pk, str_val, vec) VALUES (?, ?, ?)", i, "A", vector((float) i, (float) i));
+            execute("INSERT INTO %s (pk, str_val, vec) VALUES (?, ?, ?)", i, "A", vector(i, i));
             if (i % 10 == 0)
                 flush();
             // Add some deletes in the next segment

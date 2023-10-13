@@ -65,16 +65,13 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.index.Index;
-import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.disk.v1.V1OnDiskFormat;
-import org.apache.cassandra.index.sai.metrics.QueryEventListeners;
 import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.ResourceLeakDetector;
-import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.inject.Injection;
 import org.apache.cassandra.inject.Injections;
 import org.apache.cassandra.io.sstable.Component;
@@ -242,6 +239,14 @@ public class SAITester extends CQLTester
                                 IndexTarget.Type.SIMPLE,
                                 IndexMetadata.fromSchemaMetadata(indexName, IndexMetadata.Kind.CUSTOM, null),
                                 MockSchema.newCFS("test_ks"));
+    }
+
+    protected static Vector<Float> vector(float... v)
+    {
+        var v2 = new Float[v.length];
+        for (int i = 0; i < v.length; i++)
+            v2[i] = v[i];
+        return new Vector<>(v2);
     }
 
     protected void simulateNodeRestart()

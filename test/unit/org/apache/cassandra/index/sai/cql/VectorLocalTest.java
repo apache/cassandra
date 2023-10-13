@@ -33,13 +33,10 @@ import org.junit.Test;
 
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.v1.SegmentBuilder;
 import org.apache.cassandra.index.sai.utils.Glove;
 import org.assertj.core.data.Percentage;

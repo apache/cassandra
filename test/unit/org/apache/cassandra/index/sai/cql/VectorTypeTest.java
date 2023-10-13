@@ -217,7 +217,7 @@ public class VectorTypeTest extends VectorTester
 
         for (int i = 0; i < 100; i++)
             execute("INSERT INTO %s (pk, b, v) VALUES (?, true, ?)",
-                    i, vector((float) i, (float) (i + 1), (float) (i + 2)));
+                    i, vector(i, i + 1, i + 2));
 
         var result = execute("SELECT * FROM %s WHERE b=true ORDER BY v ANN OF [3.1, 4.1, 5.1] LIMIT 2");
         assertThat(result).hasSize(2);
@@ -381,10 +381,10 @@ public class VectorTypeTest extends VectorTester
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
-        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', ?)", vector(1.0f, 2.0f ,3.0f));
-        execute("INSERT INTO %s (pk, str_val, val) VALUES (1, 'B', ?)", vector(2.0f ,3.0f, 4.0f));
-        execute("INSERT INTO %s (pk, str_val, val) VALUES (2, 'C', ?)", vector(3.0f, 4.0f, 5.0f));
-        execute("INSERT INTO %s (pk, str_val, val) VALUES (3, 'D', ?)", vector(4.0f, 5.0f, 6.0f));
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', ?)", vector(1, 2 , 3));
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (1, 'B', ?)", vector(2 , 3, 4));
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (2, 'C', ?)", vector(3, 4, 5));
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (3, 'D', ?)", vector(4, 5, 6));
 
         UntypedResultSet result = execute("SELECT * FROM %s ORDER BY val ann of ? LIMIT 3", vector(2.5f, 3.5f, 4.5f));
         assertThat(result).hasSize(3);
@@ -400,11 +400,11 @@ public class VectorTypeTest extends VectorTester
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
-        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', ?)", vector(1.0f, 2.0f ,3.0f));
-        execute("INSERT INTO %s (pk, str_val, val) VALUES (1, 'B', ?)", vector(2.0f ,3.0f, 4.0f));
-        execute("INSERT INTO %s (pk, str_val, val) VALUES (2, 'C', ?)", vector(3.0f, 4.0f, 5.0f));
-        execute("INSERT INTO %s (pk, str_val, val) VALUES (3, 'B', ?)", vector(4.0f, 5.0f, 6.0f));
-        execute("INSERT INTO %s (pk, str_val, val) VALUES (4, 'E', ?)", vector(5.0f, 6.0f, 7.0f));
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', ?)", vector(1, 2 , 3));
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (1, 'B', ?)", vector(2 , 3, 4));
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (2, 'C', ?)", vector(3, 4, 5));
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (3, 'B', ?)", vector(4, 5, 6));
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (4, 'E', ?)", vector(5, 6, 7));
 
         UntypedResultSet result = execute("SELECT * FROM %s WHERE str_val = 'B' ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 2");
         assertThat(result).hasSize(2);
@@ -422,11 +422,11 @@ public class VectorTypeTest extends VectorTester
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
-        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', ?)", vector(1.0f, 2.0f ,3.0f));
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (0, 'A', ?)", vector(1, 2 , 3));
         execute("INSERT INTO %s (pk, str_val) VALUES (1, 'B')"); // no vector
-        execute("INSERT INTO %s (pk, str_val, val) VALUES (2, 'C', ?)", vector(3.0f, 4.0f, 5.0f));
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (2, 'C', ?)", vector(3, 4, 5));
         execute("INSERT INTO %s (pk, str_val) VALUES (3, 'D')"); // no vector
-        execute("INSERT INTO %s (pk, str_val, val) VALUES (4, 'E', ?)", vector(5.0f, 6.0f, 7.0f));
+        execute("INSERT INTO %s (pk, str_val, val) VALUES (4, 'E', ?)", vector(5, 6, 7));
 
         UntypedResultSet result = execute("SELECT * FROM %s WHERE str_val = 'B' ORDER BY val ann of [2.5, 3.5, 4.5] LIMIT 2");
         assertThat(result).hasSize(0);
@@ -478,7 +478,7 @@ public class VectorTypeTest extends VectorTester
 
         var N = 5;
         for (int i = 0; i < N; i++)
-            execute("INSERT INTO %s (pk, val) VALUES (?, ?)", i, vector(1.0f + i, 2.0f + i, 3.0f + i));
+            execute("INSERT INTO %s (pk, val) VALUES (?, ?)", i, vector(1 + i, 2 + i, 3 + i));
 
         for (int i = 0; i < N; i++)
         {
@@ -640,7 +640,7 @@ public class VectorTypeTest extends VectorTester
 
         // basic functionality
         Vector<Float> q = vector(1f, 2f);
-        execute("INSERT INTO %s (pk, value) VALUES (0, ?)", vector(1f, 2f));
+        execute("INSERT INTO %s (pk, value) VALUES (0, ?)", vector(1, 2));
         execute("SELECT similarity_cosine(value, value) FROM %s WHERE pk=0");
 
         // type inference checks
@@ -684,7 +684,7 @@ public class VectorTypeTest extends VectorTester
     {
         createTable(KEYSPACE, "CREATE TABLE %s (pk int primary key, value vector<float, 2>)");
 
-        execute("INSERT INTO %s (pk, value) VALUES (0, ?)", vector(1f, 2f));
+        execute("INSERT INTO %s (pk, value) VALUES (0, ?)", vector(1, 2));
         execute("SELECT similarity_cosine(value, (vector<float, 2>) [1.0, 1.0]) FROM %s WHERE pk=0");
         execute("SELECT similarity_cosine((vector<float, 2>) [1.0, 1.0], value) FROM %s WHERE pk=0");
         execute("SELECT similarity_cosine((vector<float, 2>) [1.0, 1.0], (vector<float, 2>) [1.0, 1.0]) FROM %s WHERE pk=0");
@@ -695,7 +695,7 @@ public class VectorTypeTest extends VectorTester
     {
         createTable(KEYSPACE, "CREATE TABLE %s (pk int primary key, value vector<float, 2>)");
 
-        execute("INSERT INTO %s (pk, value) VALUES (0, ?)", vector(1f, 2f));
+        execute("INSERT INTO %s (pk, value) VALUES (0, ?)", vector(1, 2));
         assertRows(execute("SELECT similarity_cosine(value, [2.0, 4.0]) FROM %s WHERE pk=0"), row(1f));
         assertRows(execute("SELECT similarity_cosine([2.0, 4.0], value) FROM %s WHERE pk=0"), row(1f));
         assertRows(execute("SELECT similarity_cosine([1.0, 2.0], [2.0, 4.0]) FROM %s WHERE pk=0"), row(1f));

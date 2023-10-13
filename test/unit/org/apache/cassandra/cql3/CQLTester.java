@@ -2131,20 +2131,6 @@ public abstract class CQLTester
         return Arrays.asList(values);
     }
 
-    @SafeVarargs
-    protected static <T> Vector<T> vector(T... values)
-    {
-        return new Vector<>(values);
-    }
-
-    protected static Vector<Float> vector(float[] v)
-    {
-        var v2 = new Float[v.length];
-        for (int i = 0; i < v.length; i++)
-            v2[i] = v[i];
-        return new Vector<>(v2);
-    }
-
     /** @return a normalized vector with the given dimension */
     protected static Vector<Float> randomVector(int dimension)
     {

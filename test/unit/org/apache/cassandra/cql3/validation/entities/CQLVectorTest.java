@@ -122,4 +122,10 @@ public class CQLVectorTest extends CQLTester
                                   "INSERT INTO %s (pk, value) VALUES (0, ?)",
                                   vector(BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE), BigInteger.ONE));
     }
+
+    @SafeVarargs
+    protected final <T> Vector<T> vector(T... values)
+    {
+        return new Vector<>(values);
+    }
 }

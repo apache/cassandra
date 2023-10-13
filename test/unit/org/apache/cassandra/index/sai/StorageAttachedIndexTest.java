@@ -48,7 +48,6 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.TableMetadata;
@@ -56,6 +55,7 @@ import org.apache.cassandra.transport.ProtocolVersion;
 
 import static junit.framework.TestCase.assertEquals;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
+import static org.apache.cassandra.index.sai.SAITester.vector;
 
 
 public class StorageAttachedIndexTest
@@ -86,9 +86,9 @@ public class StorageAttachedIndexTest
         QueryProcessor.executeInternal(String.format("CREATE CUSTOM INDEX ON %s.%s(value) USING 'StorageAttachedIndex' WITH OPTIONS = { 'similarity_function': 'dot_product'}", KEYSPACE, TABLE));
 
         vectorFloatList = new ArrayList<>();
-        CQLTester.Vector<Float> vector1 = vector(1f, 2f);
-        CQLTester.Vector<Float> vector2 = vector(3f, 4f);
-        CQLTester.Vector<Float> vector3 = vector(5f, 6f);
+        CQLTester.Vector<Float> vector1 = vector(1, 2);
+        CQLTester.Vector<Float> vector2 = vector(3, 4);
+        CQLTester.Vector<Float> vector3 = vector(5, 6);
         vectorFloatList.add(vector1);
         vectorFloatList.add(vector2);
         vectorFloatList.add(vector3);
@@ -123,20 +123,6 @@ public class StorageAttachedIndexTest
         testRestriction = new SingleColumnRestriction.AnnRestriction(columnDef, terms);
 
         sai = (StorageAttachedIndex) cfs.getIndexManager().getIndexByName(String.format("%s_value_idx", TABLE));
-    }
-
-    @SafeVarargs
-    protected final <T> CQLTester.Vector<T> vector(T... values)
-    {
-        return new CQLTester.Vector<>(values);
-    }
-
-    protected CQLTester.Vector<Float> vector(float[] v)
-    {
-        var v2 = new Float[v.length];
-        for (int i = 0; i < v.length; i++)
-            v2[i] = v[i];
-        return new CQLTester.Vector<>(v2);
     }
 
     private static ByteBuffer floatVectorToByteBuffer(CQLTester.Vector<Float> vector) {
