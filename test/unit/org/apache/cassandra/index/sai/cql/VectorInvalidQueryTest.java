@@ -18,22 +18,40 @@
 
 package org.apache.cassandra.index.sai.cql;
 
-import com.datastax.driver.core.ResultSet;
+import java.util.Collections;
+
 import com.datastax.driver.core.exceptions.InvalidQueryException;
+import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.ResultSet;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.cql3.statements.SelectStatement;
+import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
+import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.ClientWarn;
+import org.apache.cassandra.service.QueryState;
+import org.apache.cassandra.transport.messages.ResultMessage;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 public class VectorInvalidQueryTest extends SAITester
 {
+    @BeforeClass
+    public static void setupClass()
+    {
+        requireNetwork();
+    }
+
     @Test
     public void cannotCreateEmptyVectorColumn()
     {
@@ -187,12 +205,16 @@ public class VectorInvalidQueryTest extends SAITester
         execute("INSERT INTO %s (k, v) VALUES (2, [2.0, 3.0, 4.0])");
         execute("INSERT INTO %s (k, v) VALUES (3, [3.0, 4.0, 5.0])");
 
-        assertThatThrownBy(() -> executeNetWithPaging("SELECT * FROM %s WHERE k = 1 ORDER BY v ANN OF [2.0, 3.0, 4.0] LIMIT 10", 9))
-        .isInstanceOf(InvalidQueryException.class).hasMessageContaining(SelectStatement.TOPK_LIMIT_ERROR);
+        ClientWarn.instance.captureWarnings();
+        ResultSet result = execute("SELECT * FROM %s WHERE k = 1 ORDER BY v ANN OF [2.0, 3.0, 4.0] LIMIT 10", 9);
+        assertEquals(1, ClientWarn.instance.getWarnings().size());
+        assertEquals(String.format(SelectStatement.TOPK_PAGE_SIZE_WARNING, 9, 10, 10), ClientWarn.instance.getWarnings().get(0));
+        assertEquals(1, result.size());
 
-        ResultSet resultSet = executeNetWithPaging("SELECT * FROM %s WHERE k = 1 ORDER BY v ANN OF [2.0, 3.0, 4.0] LIMIT 10", 11);
-
-        assertEquals(1, resultSet.all().size());
+        ClientWarn.instance.captureWarnings();
+        result = execute("SELECT * FROM %s WHERE k = 1 ORDER BY v ANN OF [2.0, 3.0, 4.0] LIMIT 10", 11);
+        assertNull(ClientWarn.instance.getWarnings());
+        assertEquals(1, result.size());
     }
 
     @Test
@@ -271,7 +293,7 @@ public class VectorInvalidQueryTest extends SAITester
     }
 
     @Test
-    public void cannotHavePerPartitionLimitWithAnnOrdering() throws Throwable
+    public void cannotHavePerPartitionLimitWithAnnOrdering()
     {
         createTable("CREATE TABLE %s (k int, c int, v vector<float, 1>, PRIMARY KEY(k, c))");
         createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex'");
@@ -291,5 +313,70 @@ public class VectorInvalidQueryTest extends SAITester
 
         assertThatThrownBy(() -> createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex'"))
             .isInstanceOf(InvalidRequestException.class).hasRootCauseMessage(StorageAttachedIndex.VECTOR_NON_FLOAT_ERROR);
+    }
+
+    @Test
+    public void canOnlyExecuteWithCorrectConsistencyLevel()
+    {
+        createTable("CREATE TABLE %s (k int, c int, v vector<float, 1>, PRIMARY KEY(k, c))");
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex'");
+
+        execute("INSERT INTO %s (k, c, v) VALUES (1, 1, [1])");
+        execute("INSERT INTO %s (k, c, v) VALUES (1, 2, [2])");
+        execute("INSERT INTO %s (k, c, v) VALUES (1, 3, [3])");
+
+        ClientWarn.instance.captureWarnings();
+        ResultSet result = execute("SELECT * FROM %s ORDER BY v ANN OF [2] LIMIT 3", ConsistencyLevel.ONE);
+        assertEquals(3, result.size());
+        assertNull(ClientWarn.instance.getWarnings());
+
+        result = execute("SELECT * FROM %s ORDER BY v ANN OF [2] LIMIT 3", ConsistencyLevel.LOCAL_ONE);
+        assertEquals(3, result.size());
+        assertNull(ClientWarn.instance.getWarnings());
+
+        result = execute("SELECT * FROM %s ORDER BY v ANN OF [2] LIMIT 3", ConsistencyLevel.QUORUM);
+        assertEquals(3, result.size());
+        assertEquals(1, ClientWarn.instance.getWarnings().size());
+        assertEquals(String.format(SelectStatement.TOPK_CONSISTENCY_LEVEL_WARNING, ConsistencyLevel.QUORUM, ConsistencyLevel.ONE),
+                     ClientWarn.instance.getWarnings().get(0));
+
+        ClientWarn.instance.captureWarnings();
+        result = execute("SELECT * FROM %s ORDER BY v ANN OF [2] LIMIT 3", ConsistencyLevel.LOCAL_QUORUM);
+        assertEquals(3, result.size());
+        assertEquals(1, ClientWarn.instance.getWarnings().size());
+        assertEquals(String.format(SelectStatement.TOPK_CONSISTENCY_LEVEL_WARNING, ConsistencyLevel.LOCAL_QUORUM, ConsistencyLevel.LOCAL_ONE),
+                     ClientWarn.instance.getWarnings().get(0));
+
+        assertThatThrownBy(() -> execute("SELECT * FROM %s ORDER BY v ANN OF [2] LIMIT 3", ConsistencyLevel.SERIAL))
+            .isInstanceOf(InvalidRequestException.class)
+            .hasMessage(String.format(SelectStatement.TOPK_CONSISTENCY_LEVEL_ERROR, ConsistencyLevel.SERIAL));
+
+        assertThatThrownBy(() -> execute("SELECT * FROM %s ORDER BY v ANN OF [2] LIMIT 3", ConsistencyLevel.LOCAL_SERIAL))
+            .isInstanceOf(InvalidRequestException.class)
+            .hasMessage(String.format(SelectStatement.TOPK_CONSISTENCY_LEVEL_ERROR, ConsistencyLevel.LOCAL_SERIAL));
+    }
+
+    protected ResultSet execute(String query, ConsistencyLevel consistencyLevel)
+    {
+        return execute(query, consistencyLevel, -1);
+    }
+
+    protected ResultSet execute(String query, int pageSize)
+    {
+        return execute(query, ConsistencyLevel.ONE, pageSize);
+    }
+
+    protected ResultSet execute(String query, ConsistencyLevel consistencyLevel, int pageSize)
+    {
+        ClientState state = ClientState.forInternalCalls();
+        QueryState queryState = new QueryState(state);
+
+        CQLStatement statement = QueryProcessor.parseStatement(formatQuery(query), queryState.getClientState());
+        statement.validate(state);
+
+        QueryOptions options = QueryOptions.withConsistencyLevel(QueryOptions.forInternalCalls(Collections.emptyList()), consistencyLevel);
+        options = QueryOptions.withPageSize(options, pageSize);
+
+        return ((ResultMessage.Rows)statement.execute(queryState, options, System.nanoTime())).result;
     }
 }

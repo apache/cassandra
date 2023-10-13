@@ -54,7 +54,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class VectorDistributedTest extends TestBaseImpl
 {
-
     @Rule
     public SAITester.FailureWatcher failureRule = new SAITester.FailureWatcher();
 
@@ -106,34 +105,6 @@ public class VectorDistributedTest extends TestBaseImpl
     public void after()
     {
         cluster.schemaChange(formatQuery("DROP TABLE IF EXISTS %s"));
-    }
-
-    @Test
-    public void topKQueryFailsUnlessAtConsistencyLevelOne()
-    {
-        cluster.schemaChange(formatQuery(String.format(CREATE_TABLE, dimensionCount)));
-        cluster.schemaChange(formatQuery(String.format(CREATE_INDEX, "val")));
-        SAIUtil.waitForIndexQueryable(cluster, KEYSPACE);
-
-        int vectorCount = SAITester.getRandom().nextIntBetween(500, 1000);
-        List<float[]> vectors = generateVectors(vectorCount);
-
-        int pk = 0;
-        for (float[] vector : vectors)
-            execute("INSERT INTO %s (pk, val) VALUES (" + (pk++) + ", " + vectorString(vector) + " )");
-
-        // query memtable index
-        int limit = Math.min(SAITester.getRandom().nextIntBetween(10, 50), vectors.size());
-        float[] queryVector = randomVector();
-        assertThatThrownBy(() -> execute("SELECT val FROM %s ORDER BY val ann of " + Arrays.toString(queryVector) + " LIMIT " + limit, ConsistencyLevel.QUORUM))
-            .hasMessage(String.format(SelectStatement.TOPK_CONSISTENCY_LEVEL_ERROR, ConsistencyLevel.QUORUM));
-
-        Object[][] result = execute("SELECT val FROM %s ORDER BY val ann of " + Arrays.toString(queryVector) + " LIMIT " + limit, ConsistencyLevel.ONE);
-        assertThat(result).hasNumberOfRows(limit);
-        List<float[]> resultVectors = getVectors(result);
-        assertDescendingScore(queryVector, resultVectors);
-        double memtableRecall = getRecall(vectors, queryVector, resultVectors);
-        assertThat(memtableRecall).isGreaterThanOrEqualTo(MIN_RECALL);
     }
 
     @Test
@@ -450,12 +421,7 @@ public class VectorDistributedTest extends TestBaseImpl
 
     private static Object[][] execute(String query)
     {
-        return execute(query, ConsistencyLevel.ONE);
-    }
-
-    private static Object[][] execute(String query, ConsistencyLevel consistencyLevel)
-    {
-        return cluster.coordinator(1).execute(formatQuery(query), consistencyLevel);
+        return cluster.coordinator(1).execute(formatQuery(query), ConsistencyLevel.ONE);
     }
 
     private static Object[][] executeWithPaging(String query, int pageSize)

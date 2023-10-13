@@ -880,8 +880,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         @Override
         public SingleRestriction doMergeWith(SingleRestriction otherRestriction)
         {
-            // VSTODO not sure if this is right
-            throw new UnsupportedOperationException();
+            throw invalidRequest("%s cannot be restricted by more than one relation in an ANN ordering", columnDef.name);
         }
 
         @Override

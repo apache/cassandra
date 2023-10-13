@@ -112,10 +112,15 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     private static final NoSpamLogger noSpamLogger = NoSpamLogger.getLogger(SelectStatement.logger, 1, TimeUnit.MINUTES);
 
     public static final int DEFAULT_PAGE_SIZE = 10000;
-    public static final String TOPK_CONSISTENCY_LEVEL_ERROR = "Top-k queries can only be run with consistency level ONE/LOCAL_ONE. Consistency level %s was used.";
-    public static final String TOPK_LIMIT_ERROR = "Top-k queries must have a limit specified and the limit must be less than the query page size";
+    public static final String TOPK_CONSISTENCY_LEVEL_ERROR = "Top-K queries can only be run with consistency level ONE/LOCAL_ONE. Consistency level %s was used.";
+    public static final String TOPK_LIMIT_ERROR = "Top-K queries must have a limit specified and the limit must be less than the query page size";
     public static final String TOPK_PARTITION_LIMIT_ERROR = "Top-K queries do not support per-partition limits";
-    public static final String TOPK_AGGREGATION_ERROR = "Top-k queries can not be run with aggregation";
+    public static final String TOPK_AGGREGATION_ERROR = "Top-K queries can not be run with aggregation";
+    public static final String TOPK_CONSISTENCY_LEVEL_WARNING = "Top-K queries can only be run with consistency level ONE " +
+                                                                "/ LOCAL_ONE / NODE_LOCAL. Consistency level %s was used. " +
+                                                                "Downgrading to consistency level %s.";
+    public static final String TOPK_PAGE_SIZE_WARNING = "Top-K queries do not support paging and the page size is set to %d, " +
+                                                        "which is less than LIMIT %d. The page size has been set to %d to match the LIMIT.";
 
     public final VariableSpecifications bindVariables;
     public final TableMetadata table;
@@ -295,13 +300,34 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
         {
             checkFalse(aggregationSpec != null, TOPK_AGGREGATION_ERROR);
 
-            checkFalse(options.getConsistency() != ConsistencyLevel.ONE &&
-                       options.getConsistency() != ConsistencyLevel.LOCAL_ONE,
+            // We aren't going to allow SERIAL at all, so we can error out on those.
+            checkFalse(options.getConsistency() == ConsistencyLevel.LOCAL_SERIAL ||
+                       options.getConsistency() == ConsistencyLevel.SERIAL,
                        String.format(TOPK_CONSISTENCY_LEVEL_ERROR, options.getConsistency()));
 
-            checkFalse(limit.isUnlimited() || (pageSize > 0 && limit.count() > pageSize), TOPK_LIMIT_ERROR);
+            if (options.getConsistency() != ConsistencyLevel.ONE &&
+                options.getConsistency() != ConsistencyLevel.LOCAL_ONE)
+            {
+                ConsistencyLevel supplied = options.getConsistency();
+                ConsistencyLevel downgrade = supplied.isDatacenterLocal() ? ConsistencyLevel.LOCAL_ONE : ConsistencyLevel.ONE;
+
+                options = QueryOptions.withConsistencyLevel(options, downgrade);
+
+                ClientWarn.instance.warn(String.format(TOPK_CONSISTENCY_LEVEL_WARNING, supplied, downgrade));
+            }
+
+            checkFalse(limit.isUnlimited(), TOPK_LIMIT_ERROR);
 
             checkFalse(limit.perPartitionCount() != DataLimits.NO_LIMIT, TOPK_PARTITION_LIMIT_ERROR);
+
+            if (pageSize > 0 && pageSize < limit.count())
+            {
+                int oldPageSize = pageSize;
+                pageSize = limit.count();
+                limit = getDataLimits(userLimit, userPerPartitionLimit, pageSize, aggregationSpec);
+                options = QueryOptions.withPageSize(options, pageSize);
+                ClientWarn.instance.warn(String.format(TOPK_PAGE_SIZE_WARNING, oldPageSize, limit.count(), limit.count()));
+            }
         }
 
         ReadQuery query = getQuery(options, state.getClientState(), selectors.getColumnFilter(), nowInSec, limit);

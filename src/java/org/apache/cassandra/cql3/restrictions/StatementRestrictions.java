@@ -75,7 +75,7 @@ public final class StatementRestrictions
 
     public static final String ANN_ONLY_SUPPORTED_ON_VECTOR_MESSAGE = "ANN ordering is only supported on float vector indexes";
 
-    public static final String ANN_REQUIRES_INDEXED_FILTERING_MESSAGE = "ANN ordered queries can only be filtered with indexed columns";
+    public static final String ANN_REQUIRES_INDEXED_FILTERING_MESSAGE = "ANN ordering by vector requires all restricted column(s) to be indexed";
 
     /**
      * The type of statement
