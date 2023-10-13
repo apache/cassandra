@@ -720,7 +720,7 @@ public class CommitLog implements CommitLogMBean
          */
         public boolean isDirectIOEnabled()
         {
-            return diskMode == Config.CommitLogDiskAccessMode.direct_io ;
+            return diskMode == Config.CommitLogDiskAccessMode.direct_io;
         }
 
         /**
@@ -729,7 +729,7 @@ public class CommitLog implements CommitLogMBean
          */
         public boolean isMMAPEnabled()
         {
-            return diskMode == Config.CommitLogDiskAccessMode.mmap ;
+            return diskMode == Config.CommitLogDiskAccessMode.mmap;
         }
 
         /**
@@ -738,7 +738,7 @@ public class CommitLog implements CommitLogMBean
          */
         public boolean isBufferedIOEnabled()
         {
-            return diskMode == Config.CommitLogDiskAccessMode.standard ;
+            return diskMode == Config.CommitLogDiskAccessMode.standard;
         }
     }
 }
