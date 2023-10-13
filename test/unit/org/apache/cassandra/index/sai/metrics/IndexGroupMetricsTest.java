@@ -26,6 +26,7 @@ import org.apache.cassandra.index.sai.disk.format.Version;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNull;
 
 public class IndexGroupMetricsTest extends AbstractMetricsTest
 {
@@ -76,8 +77,7 @@ public class IndexGroupMetricsTest extends AbstractMetricsTest
 
         // drop last index, no open index files
         dropIndex("DROP INDEX %s." + v1IndexName);
-        assertEquals(0, getOpenIndexFiles());
-        assertEquals(0, getDiskUsage());
+        assertNull(getCurrentIndexGroup());
     }
 
     protected int getOpenIndexFiles()

@@ -21,10 +21,11 @@
 
 package org.apache.cassandra.index;
 
-import java.util.Collections;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Sets;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RegularAndStaticColumns;
 import org.apache.cassandra.db.WriteContext;
@@ -42,13 +43,11 @@ import org.apache.cassandra.schema.TableMetadata;
  */
 public class SingletonIndexGroup implements Index.Group
 {
-    private final Index delegate;
-    private final Set<Index> indexes;
+    private volatile Index delegate;
+    private final Set<Index> indexes = Sets.newConcurrentHashSet();
 
-    protected SingletonIndexGroup(Index delegate)
+    protected SingletonIndexGroup()
     {
-        this.delegate = delegate;
-        this.indexes = Collections.singleton(delegate);
     }
 
     @Override
@@ -65,13 +64,17 @@ public class SingletonIndexGroup implements Index.Group
     @Override
     public void addIndex(Index index)
     {
-        throw new UnsupportedOperationException();
+        Preconditions.checkState(delegate == null);
+        delegate = index;
+        indexes.add(index);
     }
 
     @Override
     public void removeIndex(Index index)
     {
-        throw new UnsupportedOperationException();
+        Preconditions.checkState(containsIndex(index));
+        delegate = null;
+        indexes.clear();
     }
 
     @Override
@@ -89,26 +92,28 @@ public class SingletonIndexGroup implements Index.Group
                                     IndexTransaction.Type transactionType,
                                     Memtable memtable)
     {
-        return indexSelector.test(delegate)
-               ? delegate.indexerFor(key, columns, nowInSec, ctx, transactionType, memtable)
-               : null;
+        Preconditions.checkNotNull(delegate);
+        return indexSelector.test(delegate) ? delegate.indexerFor(key, columns, nowInSec, ctx, transactionType, memtable) : null;
     }
 
     @Override
     public Index.QueryPlan queryPlanFor(RowFilter rowFilter)
     {
+        Preconditions.checkNotNull(delegate);
         return SingletonIndexQueryPlan.create(delegate, rowFilter);
     }
 
     @Override
     public SSTableFlushObserver getFlushObserver(Descriptor descriptor, LifecycleNewTracker tracker, TableMetadata tableMetadata)
     {
+        Preconditions.checkNotNull(delegate);
         return delegate.getFlushObserver(descriptor, tracker);
     }
 
     @Override
     public Set<Component> getComponents()
     {
+        Preconditions.checkNotNull(delegate);
         return delegate.getComponents();
     }
 }

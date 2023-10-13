@@ -25,6 +25,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
@@ -1399,13 +1400,13 @@ public class CustomIndexTest extends CQLTester
         // create two indexes belonging to the same group and verify that only one group is added to the manager
         String idx1 = createIndex(String.format("CREATE CUSTOM INDEX ON %%s(v1) USING '%s'", indexClassName));
         String idx2 = createIndex(String.format("CREATE CUSTOM INDEX ON %%s(v2) USING '%s'", indexClassName));
-        IndexWithSharedGroup.Group group = indexManager.listIndexGroups()
-                                                       .stream()
-                                                       .filter(g -> g instanceof IndexWithSharedGroup.Group)
-                                                       .map(g -> (IndexWithSharedGroup.Group) g)
-                                                       .findAny()
-                                                       .orElseThrow(AssertionError::new);
-
+        Supplier<IndexWithSharedGroup.Group> groupSupplier =
+                () -> indexManager.listIndexGroups().stream()
+                                                    .filter(g -> g instanceof IndexWithSharedGroup.Group)
+                                                    .map(g -> (IndexWithSharedGroup.Group) g)
+                                                    .findAny()
+                                                    .orElse(null);
+        IndexWithSharedGroup.Group group = groupSupplier.get();
         // verify that only one group has been added to the manager
         assertEquals(2, indexManager.listIndexes().size());
         assertEquals(1, indexManager.listIndexGroups().size());
@@ -1477,7 +1478,13 @@ public class CustomIndexTest extends CQLTester
         @Override
         public void register(IndexRegistry registry)
         {
-            registry.registerIndex(this, Group.class, Group::new);
+            registry.registerIndex(this, new Group.Key(Group.class), Group::new);
+        }
+
+        @Override
+        public void unregister(IndexRegistry registry)
+        {
+            registry.unregisterIndex(this, new Group.Key(Group.class));
         }
 
         private static class Group implements Index.Group
@@ -1669,36 +1676,4 @@ public class CustomIndexTest extends CQLTester
             }
         }
     }
-
-    @Test
-    public void testMulticolumnIndexWithBaseTable() throws Throwable
-    {
-        createTable("CREATE TABLE %s(k int PRIMARY KEY, v int)");
-        assertInvalidMessage("Indexes belonging to a group of indexes shouldn't have a backing table",
-                             String.format("CREATE CUSTOM INDEX ON %%s(v) USING '%s'",
-                                           MulticolumnIndexWithBaseTable.class.getName()));
-    }
-
-    public static final class MulticolumnIndexWithBaseTable extends StubIndex
-    {
-        private final ColumnFamilyStore baseCfs;
-
-        public MulticolumnIndexWithBaseTable(ColumnFamilyStore baseCfs, IndexMetadata metadata)
-        {
-            super(baseCfs, metadata);
-            this.baseCfs = baseCfs;
-        }
-
-        @Override
-        public void register(IndexRegistry registry)
-        {
-            registry.registerIndex(this, MulticolumnIndexWithBaseTable.class, StubIndexGroup::new);
-        }
-
-        @Override
-        public Optional<ColumnFamilyStore> getBackingTable()
-        {
-            return Optional.of(baseCfs);
-        }
-    }    
 }
