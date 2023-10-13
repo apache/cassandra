@@ -2643,11 +2643,21 @@ public class DatabaseDescriptor
     }
 
     /**
-     * Return user configured input for Commitlog files.
+     * Return commitlog disk access mode.
      */
-    public static boolean getDirectIOForCommitlogEnabled()
+    public static Config.CommitLogDiskAccessMode getCommitLogDiskAccessMode()
     {
-        return conf.direct_io_for_commitlog_enabled;
+        return conf.commitlog_disk_access_mode;
+    }
+
+    public static boolean isCommitLogUsingDirectIO()
+    {
+        return getCommitLogDiskAccessMode() == Config.CommitLogDiskAccessMode.direct_io;
+    }
+
+    public static void setCommitLogDiskAccessMode(Config.CommitLogDiskAccessMode new_mode)
+    {
+        conf.commitlog_disk_access_mode = new_mode;
     }
 
     public static String getSavedCachesLocation()
