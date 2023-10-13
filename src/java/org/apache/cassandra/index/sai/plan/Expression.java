@@ -179,7 +179,7 @@ public class Expression
     public boolean isSatisfiedBy(ByteBuffer columnValue)
     {
         // If the expression represents an ANN ordering then we return true because the actual result
-        // is approximate and with rarely / never match the expression value
+        // is approximate and will rarely / never match the expression value
         if (validator.isVector())
             return true;
 
