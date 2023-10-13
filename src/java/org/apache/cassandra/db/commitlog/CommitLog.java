@@ -73,7 +73,7 @@ import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
  */
 public class CommitLog implements CommitLogMBean
 {
-    public static final Logger logger = LoggerFactory.getLogger(CommitLog.class);
+    private static final Logger logger = LoggerFactory.getLogger(CommitLog.class);
 
     public static final CommitLog instance = CommitLog.construct();
 
@@ -634,7 +634,7 @@ public class CommitLog implements CommitLogMBean
         /**
          * Flag used to shows user configured Direct-IO status.
          */
-        private final Config.CommitLogDiskAccessMode diskMode;
+        private final Config.CommitLogDiskAccessMode diskAccessMode;
 
         /**
          * The compressor class.
@@ -657,7 +657,7 @@ public class CommitLog implements CommitLogMBean
             this.compressorClass = compressorClass;
             this.compressor = compressorClass != null ? CompressionParams.createCompressor(compressorClass) : null;
             this.encryptionContext = encryptionContext;
-            this.diskMode = diskAccessMode;
+            this.diskAccessMode = diskAccessMode;
         }
 
         /**
@@ -720,7 +720,7 @@ public class CommitLog implements CommitLogMBean
          */
         public boolean isDirectIOEnabled()
         {
-            return diskMode == Config.CommitLogDiskAccessMode.direct_io;
+            return diskAccessMode == Config.CommitLogDiskAccessMode.direct_io;
         }
 
         /**
@@ -729,7 +729,7 @@ public class CommitLog implements CommitLogMBean
          */
         public boolean isMMAPEnabled()
         {
-            return diskMode == Config.CommitLogDiskAccessMode.mmap;
+            return diskAccessMode == Config.CommitLogDiskAccessMode.mmap;
         }
 
         /**
@@ -738,7 +738,7 @@ public class CommitLog implements CommitLogMBean
          */
         public boolean isBufferedIOEnabled()
         {
-            return diskMode == Config.CommitLogDiskAccessMode.standard;
+            return diskAccessMode == Config.CommitLogDiskAccessMode.standard;
         }
     }
 }
