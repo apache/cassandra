@@ -483,10 +483,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 
         // Please note that the isExhausted state of the pager only gets updated when we've closed the page, so this
         // shouldn't be moved inside the 'try' above.
-        if (!pager.isExhausted())
-            msg.result.metadata.setHasMorePages(pager.state());
-
-        return msg;
+        return pager.isExhausted() ? msg : msg.withPagingState(pager.state());
     }
 
     private void warn(String msg)
