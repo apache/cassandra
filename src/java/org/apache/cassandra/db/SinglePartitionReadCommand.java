@@ -718,7 +718,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
             StorageHook.instance.reportRead(cfs.metadata().id, partitionKey());
 
             List<UnfilteredRowIterator> iterators = inputCollector.finalizeIterators(cfs, nowInSec(), controller.oldestUnrepairedTombstone());
-            return withSSTablesIterated(iterators, view.sstables.size(), cfs.metric, metricsCollector, startTimeNanos);
+            return withSSTablesIterated(iterators, controller, view.sstables.size(), cfs.metric, metricsCollector, startTimeNanos);
         }
         catch (RuntimeException | Error e)
         {
@@ -783,6 +783,7 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
      */
     @SuppressWarnings("resource")
     private UnfilteredRowIterator withSSTablesIterated(List<UnfilteredRowIterator> iterators,
+                                                       ReadExecutionController controller,
                                                        int totalIntersectingSSTables,
                                                        TableMetrics metrics,
                                                        SSTableReadMetricsCollector metricsCollector,
@@ -797,16 +798,29 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
             metrics.topReadPartitionFrequency.addSample(key.getKey(), 1);
         }
 
+        return withSSTablesIterated(merged, controller, totalIntersectingSSTables, metrics, metricsCollector, startTimeNanos);
+    }
+
+    private UnfilteredRowIterator withSSTablesIterated(UnfilteredRowIterator iterator,
+                                                       ReadExecutionController controller,
+                                                       int totalIntersectingSSTables,
+                                                       TableMetrics metrics,
+                                                       SSTableReadMetricsCollector metricsCollector,
+                                                       long startTimeNanos)
+    {
+        DecoratedKey key = iterator.partitionKey();
+        metrics.topReadPartitionFrequency.addSample(key.getKey(), 1);
+
         class UpdateSstablesIterated extends Transformation<UnfilteredRowIterator>
         {
-           public void onPartitionClose()
-           {
-               int mergedSSTablesIterated = metricsCollector.getMergedSSTables();
-               metrics.updateSSTableIterated(mergedSSTablesIterated, totalIntersectingSSTables, System.nanoTime() - startTimeNanos);
-               Tracing.trace("Merged data from memtables and {} sstables", mergedSSTablesIterated);
-           }
+            public void onPartitionClose()
+            {
+                int mergedSSTablesIterated = metricsCollector.getMergedSSTables();
+                metrics.updateSSTableIterated(mergedSSTablesIterated, totalIntersectingSSTables, System.nanoTime() - startTimeNanos);
+                controller.updateSstablesIteratedPerRow(mergedSSTablesIterated);
+            }
         }
-        return Transformation.apply(merged, new UpdateSstablesIterated());
+        return Transformation.apply(iterator, new UpdateSstablesIterated());
     }
 
     private boolean queriesMulticellType()
@@ -933,7 +947,9 @@ public class SinglePartitionReadCommand extends ReadCommand implements SinglePar
         cfs.metric.topReadPartitionFrequency.addSample(key.getKey(), 1);
         StorageHook.instance.reportRead(cfs.metadata.id, partitionKey());
 
-        return result.unfilteredIterator(columnFilter(), Slices.ALL, clusteringIndexFilter().isReversed());
+        var iterator = result.unfilteredIterator(columnFilter(), Slices.ALL, clusteringIndexFilter().isReversed());
+        return withSSTablesIterated(iterator, controller, view.sstables.size(), cfs.metric, metricsCollector, startTimeNanos);
+
     }
 
     private ImmutableBTreePartition add(UnfilteredRowIterator iter, ImmutableBTreePartition result, ClusteringIndexNamesFilter filter, boolean isRepaired, ReadExecutionController controller)
