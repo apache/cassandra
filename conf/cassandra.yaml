@@ -589,6 +589,10 @@ commitlog_segment_size: 32MiB
 #     parameters:
 #         -
 
+# Configure commitlog disk access mode preferred order:direct_io, mmap, standard.
+# Default access mode is mmap. Direct I/O uses minimum page size to flush to disk.
+commitlog_disk_access_mode : mmap
+
 # Compression to apply to SSTables as they flush for compressed tables.
 # Note that tables without compression enabled do not respect this flag.
 #
@@ -2111,5 +2115,3 @@ drop_compact_storage_enabled: false
 #
 storage_compatibility_mode: CASSANDRA_4
 
-# Enable Direct I/O feature for Commitlog files. Java-11 forces minimum alignement to 4K and minimum disk write to 4K.
-direct_io_for_commitlog_enabled: true
