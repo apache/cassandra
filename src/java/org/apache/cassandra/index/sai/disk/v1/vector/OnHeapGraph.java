@@ -30,17 +30,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMapLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.github.jbellis.jvector.disk.CompressedVectors;
 import io.github.jbellis.jvector.disk.OnDiskGraphIndex;
 import io.github.jbellis.jvector.graph.GraphIndexBuilder;
 import io.github.jbellis.jvector.graph.GraphSearcher;
+import io.github.jbellis.jvector.pq.CompressedVectors;
 import io.github.jbellis.jvector.pq.ProductQuantization;
 import io.github.jbellis.jvector.util.Bits;
 import io.github.jbellis.jvector.vector.VectorEncoding;
@@ -53,8 +52,10 @@ import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.io.IndexFileUtils;
 import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
+import org.apache.cassandra.index.sai.disk.v1.SAICodecUtils;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.io.util.SequentialWriter;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.lucene.util.StringHelper;
 
@@ -264,6 +265,7 @@ public class OnHeapGraph<T>
                                           similarityFunction,
                                           builder.getGraph(),
                                           bits);
+        Tracing.trace("ANN search visited {} in-memory nodes to return {} results", result.getVisitedCount(), result.getNodes().length);
         var a = result.getNodes();
         PriorityQueue<T> keyQueue = new PriorityQueue<>();
         for (int i = 0; i < a.length; i++)
@@ -287,6 +289,10 @@ public class OnHeapGraph<T>
              var postingsOutput = IndexFileUtils.instance.openOutput(indexDescriptor.fileFor(IndexComponent.POSTING_LISTS, indexContext), true);
              var indexOutput = IndexFileUtils.instance.openOutput(indexDescriptor.fileFor(IndexComponent.TERMS_DATA, indexContext), true))
         {
+            SAICodecUtils.writeHeader(pqOutput);
+            SAICodecUtils.writeHeader(postingsOutput);
+            SAICodecUtils.writeHeader(indexOutput);
+
             // compute and write PQ
             long pqOffset = pqOutput.getFilePointer();
             long pqPosition = writePQ(pqOutput.asSequentialWriter());
@@ -312,6 +318,11 @@ public class OnHeapGraph<T>
             OnDiskGraphIndex.write(builder.getGraph(), vectorValues, indexOutput.asSequentialWriter());
             long termsLength = indexOutput.getFilePointer() - termsOffset;
 
+            // write footers/checksums
+            SAICodecUtils.writeFooter(pqOutput);
+            SAICodecUtils.writeFooter(postingsOutput);
+            SAICodecUtils.writeFooter(indexOutput);
+
             // add components to the metadata map
             SegmentMetadata.ComponentMetadataMap metadataMap = new SegmentMetadata.ComponentMetadataMap();
             metadataMap.put(IndexComponent.TERMS_DATA, -1, termsOffset, termsLength, Map.of());
@@ -335,16 +346,16 @@ public class OnHeapGraph<T>
         }
 
         logger.debug("Computing PQ for {} vectors", vectorValues.size());
-        // hack to only do this one at a time during compaction since we're reading a ton of vectors into memory
-        var synchronizeOn = vectorValues instanceof ConcurrentVectorValues ? this : OnHeapGraph.class;
-        synchronized (synchronizeOn)
+        // limit the PQ computation and encoding to one index at a time -- goal during flush is to
+        // evict from memory ASAP so better to do the PQ build (in parallel) one at a time
+        synchronized (OnHeapGraph.class)
         {
             // train PQ and encode
             var pq = ProductQuantization.compute(vectorValues, M, false);
-            // VSTODO assert !vectorValues.isValueShared();
+            assert !vectorValues.isValueShared();
             var encoded = IntStream.range(0, vectorValues.size()).parallel()
                           .mapToObj(i -> pq.encode(vectorValues.vectorValue(i)))
-                          .collect(Collectors.toList());
+                                   .toArray(byte[][]::new);
             var cv = new CompressedVectors(pq, encoded);
             // save
             cv.write(writer);
