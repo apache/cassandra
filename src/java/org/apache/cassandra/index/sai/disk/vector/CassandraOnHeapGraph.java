@@ -36,8 +36,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.github.jbellis.jvector.disk.OnDiskGraphIndex;
+import io.github.jbellis.jvector.graph.GraphIndex;
 import io.github.jbellis.jvector.graph.GraphIndexBuilder;
 import io.github.jbellis.jvector.graph.GraphSearcher;
+import io.github.jbellis.jvector.graph.NeighborSimilarity;
+import io.github.jbellis.jvector.graph.RandomAccessVectorValues;
 import io.github.jbellis.jvector.pq.CompressedVectors;
 import io.github.jbellis.jvector.pq.ProductQuantization;
 import io.github.jbellis.jvector.util.Bits;
@@ -264,13 +267,12 @@ public class CassandraOnHeapGraph<T>
 
         Bits bits = hasDeletions ? BitsUtil.bitsIgnoringDeleted(toAccept, postingsByOrdinal) : toAccept;
         // VSTODO re-use searcher objects
-        var result = GraphSearcher.search(queryVector,
-                                          limit,
-                                          vectorValues,
-                                          VectorEncoding.FLOAT32,
-                                          similarityFunction,
-                                          builder.getGraph(),
-                                          bits);
+        GraphIndex<float[]> graph = builder.getGraph();
+        var searcher = new GraphSearcher.Builder<>(graph.getView()).withConcurrentUpdates().build();
+        NeighborSimilarity.ExactScoreFunction scoreFunction = node2 -> {
+            return similarityFunction.compare(queryVector, ((RandomAccessVectorValues<float[]>) vectorValues).vectorValue(node2));
+        };
+        var result = searcher.search(scoreFunction, null, limit, bits);
         Tracing.trace("ANN search visited {} in-memory nodes to return {} results", result.getVisitedCount(), result.getNodes().length);
         var a = result.getNodes();
         PriorityQueue<T> keyQueue = new PriorityQueue<>();
