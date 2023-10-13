@@ -27,12 +27,13 @@ import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
 
 import static java.lang.String.format;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
-public class IndexUnregistrationTest extends SAITester
+public class IndexGroupLifecycleTest extends SAITester
 {
     @Before
     public void setup()
@@ -44,23 +45,44 @@ public class IndexUnregistrationTest extends SAITester
     public void testDropAndRecreate() throws Throwable
     {
         createTable("CREATE TABLE %s (pk text, value text, PRIMARY KEY (pk))");
+        populateOneSSTable();
 
         ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        cfs.disableAutoCompaction();
         Tracker tracker = cfs.getTracker();
 
         // create index and drop it: StorageAttachedIndexGroup should be removed
         createIndex("CREATE CUSTOM INDEX sai ON %s(value) USING 'StorageAttachedIndex'");
-        StorageAttachedIndexGroup group = (StorageAttachedIndexGroup) cfs.indexManager.getIndexGroup(StorageAttachedIndexGroup.class);
+
+        StorageAttachedIndexGroup group = (StorageAttachedIndexGroup) cfs.indexManager.getIndexGroup(StorageAttachedIndexGroup.GROUP_KEY);
         assertTrue(tracker.contains(group));
+        assertEquals(1, group.sstableContextManager().size());
 
         dropIndex(format("DROP INDEX %s.sai", KEYSPACE));
         assertFalse(tracker.contains(group));
-        assertNull(cfs.indexManager.getIndexGroup(StorageAttachedIndexGroup.class));
+        assertEquals(0, group.sstableContextManager().size()); // sstable should be cleared from old group
+        assertNull(cfs.indexManager.getIndexGroup(StorageAttachedIndexGroup.GROUP_KEY));
+
+        // populate 2nd sstable. Old group should not track it
+        populateOneSSTable();
+        assertEquals(0, group.sstableContextManager().size());
 
         // create index again: expect a new StorageAttachedIndexGroup to be registered into tracker
         createIndex("CREATE CUSTOM INDEX sai ON %s(value) USING 'StorageAttachedIndex'");
-        StorageAttachedIndexGroup newGroup = (StorageAttachedIndexGroup) cfs.indexManager.getIndexGroup(StorageAttachedIndexGroup.class);
+
+        StorageAttachedIndexGroup newGroup = (StorageAttachedIndexGroup) cfs.indexManager.getIndexGroup(StorageAttachedIndexGroup.GROUP_KEY);
         assertNotSame(group, newGroup);
         assertTrue(tracker.contains(newGroup));
+        assertEquals(2, newGroup.sstableContextManager().size());
+
+        // populate 3rd sstable. new group should  track it
+        populateOneSSTable();
+        assertEquals(3, newGroup.sstableContextManager().size());
+    }
+
+    private void populateOneSSTable() throws Throwable
+    {
+        execute("INSERT INTO %s(pk, value) VALUES('k', 'v')");
+        flush();
     }
 }
