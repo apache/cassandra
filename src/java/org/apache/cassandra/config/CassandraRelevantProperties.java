@@ -431,7 +431,7 @@ public enum CassandraRelevantProperties
     SAI_LATEST_VERSION("cassandra.sai.latest_version", "aa"),
     SAI_MAX_FROZEN_TERM_SIZE("cassandra.sai.max_frozen_term_size", "5KiB"),
     SAI_MAX_STRING_TERM_SIZE("cassandra.sai.max_string_term_size", "1KiB"),
-    SAI_MAX_VECTOR_TERM_SIZE("cassandra.sai.max_vector_term_size", "16KiB"),
+    SAI_MAX_VECTOR_TERM_SIZE("cassandra.sai.max_vector_term_size", "32KiB"),
 
     /** Minimum number of reachable leaves for a given node to be eligible for an auxiliary posting list */
     SAI_MINIMUM_POSTINGS_LEAVES("cassandra.sai.minimum_postings_leaves", "64"),
