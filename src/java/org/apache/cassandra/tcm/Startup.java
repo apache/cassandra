@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
@@ -155,7 +156,20 @@ public class Startup
         if (candidates.kind() == Discovery.DiscoveredNodes.Kind.KNOWN_PEERS)
         {
             logger.debug("Got candidates: " + candidates);
-            InetAddressAndPort min = candidates.nodes().stream().min(InetAddressAndPort::compareTo).get();
+            Optional<InetAddressAndPort> option = candidates.nodes().stream().min(InetAddressAndPort::compareTo);
+            InetAddressAndPort min;
+            if (!option.isPresent())
+            {
+                if (DatabaseDescriptor.getSeeds().contains(FBUtilities.getBroadcastAddressAndPort()))
+                    min = FBUtilities.getBroadcastAddressAndPort();
+                else
+                    throw new IllegalArgumentException(String.format("Found no candidates during initialization. Check if the seeds are up: %s", DatabaseDescriptor.getSeeds()));
+            }
+            else
+            {
+                min = option.get();
+            }
+
             // identify if you need to start the vote
             if (min.equals(FBUtilities.getBroadcastAddressAndPort()) || FBUtilities.getBroadcastAddressAndPort().compareTo(min) < 0)
             {

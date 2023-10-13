@@ -287,6 +287,20 @@ public class Message<T>
         return new Message<>(new Header(id, epochSupplier.get(), verb, from, createdAtNanos, expiresAtNanos, 0, NO_PARAMS), payload);
     }
 
+    @VisibleForTesting
+    public static <T> Message<T> forgeIdentityForTests(Message<T> msg, InetAddressAndPort addr)
+    {
+        return new Message<>(new Header(msg.header.id,
+                                        msg.header.epoch,
+                                        msg.header.verb,
+                                        addr,
+                                        msg.header.createdAtNanos,
+                                        msg.header.expiresAtNanos,
+                                        msg.header.flags,
+                                        msg.header.params),
+                             msg.payload);
+    }
+
     /** Builds a response Message with provided payload, and all the right fields inferred from request Message */
     public <T> Message<T> responseWith(T payload)
     {

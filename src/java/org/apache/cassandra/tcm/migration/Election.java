@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -36,8 +35,6 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -49,17 +46,16 @@ import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.RequestCallback;
-import org.apache.cassandra.net.RequestCallbackWithFailure;
 import org.apache.cassandra.net.Verb;
 import org.apache.cassandra.schema.DistributedMetadataLogKeyspace;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDSerializer;
-import org.apache.cassandra.utils.concurrent.Accumulator;
-import org.apache.cassandra.utils.concurrent.CountDownLatch;
 
+/**
+ * Election process establishes initial CMS leader, from which you can further evolve cluster metadata.
+ */
 public class Election
 {
     private static final Logger logger = LoggerFactory.getLogger(Election.class);
@@ -110,7 +106,7 @@ public class Election
             throw new IllegalStateException("Migration already initiated by " + initiator.get());
 
         logger.info("No previous migration detected, initiating");
-        Collection<Pair<InetAddressAndPort, ClusterMetadataHolder>> metadatas = fanoutAndWait(messaging, sendTo, Verb.TCM_INIT_MIG_REQ, initiator.get());
+        Collection<Pair<InetAddressAndPort, ClusterMetadataHolder>> metadatas = MessageDelivery.fanoutAndWait(messaging, sendTo, Verb.TCM_INIT_MIG_REQ, initiator.get());
         if (metadatas.size() != sendTo.size())
         {
             Set<InetAddressAndPort> responded = metadatas.stream().map(p -> p.left).collect(Collectors.toSet());
@@ -122,7 +118,6 @@ public class Election
         Set<InetAddressAndPort> mismatching = metadatas.stream().filter(p -> !isMatch.apply(p.right.metadata)).map(p -> p.left).collect(Collectors.toSet());
         if (!mismatching.isEmpty())
         {
-            // todo; log the differences between the metadatas
             String msg = String.format("Got mismatching cluster metadatas from %s aborting migration", mismatching);
             Map<InetAddressAndPort, ClusterMetadataHolder> metadataMap = new HashMap<>();
             metadatas.forEach(pair -> metadataMap.put(pair.left, pair.right));
@@ -147,7 +142,7 @@ public class Election
         Register.maybeRegister();
 
         updateInitiator(currentCoordinator, MIGRATED);
-        fanoutAndWait(messaging, sendTo, Verb.TCM_NOTIFY_REQ, DistributedMetadataLogKeyspace.getLogState(Epoch.EMPTY, false));
+        MessageDelivery.fanoutAndWait(messaging, sendTo, Verb.TCM_NOTIFY_REQ, DistributedMetadataLogKeyspace.getLogState(Epoch.EMPTY, false));
     }
 
     private void abort(Set<InetAddressAndPort> sendTo)
@@ -177,36 +172,6 @@ public class Election
     {
         Initiator coordinator = initiator();
         return coordinator != null && coordinator != MIGRATED;
-    }
-
-    public static <REQ, RSP> Collection<Pair<InetAddressAndPort, RSP>> fanoutAndWait(MessageDelivery messaging, Set<InetAddressAndPort> sendTo, Verb verb, REQ payload)
-    {
-        Accumulator<Pair<InetAddressAndPort, RSP>> responses = new Accumulator<>(sendTo.size());
-        CountDownLatch cdl = CountDownLatch.newCountDownLatch(sendTo.size());
-        RequestCallback<RSP> callback = new RequestCallbackWithFailure<RSP>()
-        {
-            @Override
-            public void onResponse(Message<RSP> msg)
-            {
-                logger.info("Received a {} response from {}: {}", msg.verb(), msg.from(), msg.payload);
-                responses.add(Pair.create(msg.from(), msg.payload));
-                cdl.decrement();
-            }
-
-            @Override
-            public void onFailure(InetAddressAndPort from, RequestFailureReason reason)
-            {
-                logger.info("Received failure in response to {} from {}: {}", verb, from, reason);
-                cdl.decrement();
-            }
-        };
-
-        sendTo.forEach((ep) -> {
-            logger.info("Election for metadata migration sending {} ({}) to {}", verb, payload.toString(), ep);
-            messaging.sendWithCallback(Message.out(verb, payload), ep, callback);
-        });
-        cdl.awaitUninterruptibly(DatabaseDescriptor.getCmsAwaitTimeout().to(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS);
-        return responses.snapshot();
     }
 
     public class PrepareHandler implements IVerbHandler<Initiator>
