@@ -18,9 +18,7 @@
 package org.apache.cassandra.io.util;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.FloatBuffer;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -39,14 +37,14 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
     private long markedPointer;
 
     final Rebufferer rebufferer;
-    private BufferHolder bufferHolder = Rebufferer.EMPTY;
+    protected BufferHolder bufferHolder = Rebufferer.EMPTY;
 
     /**
      * Only created through Builder
      *
      * @param rebufferer Rebufferer to use
      */
-    RandomAccessReader(Rebufferer rebufferer)
+    protected RandomAccessReader(Rebufferer rebufferer)
     {
         super(Rebufferer.EMPTY.buffer());
         this.rebufferer = rebufferer;
@@ -71,68 +69,6 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
         buffer.position(Ints.checkedCast(position - bufferHolder.offset()));
 
         assert buffer.order() == ByteOrder.BIG_ENDIAN : "Buffer must have BIG ENDIAN byte ordering";
-    }
-
-    public void readFully(float[] dest) throws IOException
-    {
-        var bh = bufferHolder;
-        long position = getPosition();
-
-        FloatBuffer floatBuffer;
-        if (bh.offset() == 0 && position % Float.BYTES == 0)
-        {
-            // this is a separate code path because buffer() and asFloatBuffer() both allocate
-            // new and relatively expensive xBuffer objects, so we want to avoid doing that
-            // twice, where possible
-            floatBuffer = bh.floatBuffer();
-            floatBuffer.position(Ints.checkedCast(position / Float.BYTES));
-        }
-        else
-        {
-            // offset is non-zero, and probably not aligned to Float.BYTES, so
-            // set the position before converting to FloatBuffer.
-            var bb = bh.buffer();
-            bb.position(Ints.checkedCast(position - bh.offset()));
-            floatBuffer = bb.asFloatBuffer();
-        }
-
-        if (dest.length > floatBuffer.remaining())
-        {
-            // slow path -- desired slice is across region boundaries
-            var bb = ByteBuffer.allocate(Float.BYTES * dest.length);
-            readFully(bb);
-            floatBuffer = bb.asFloatBuffer();
-        }
-
-        floatBuffer.get(dest);
-        seek(position + (long) Float.BYTES * dest.length);
-    }
-
-    /**
-     * Read a vector at the given (absolute) position.
-     *
-     * @param position the position to read from, in bytes
-     * @param dest the array to read into (always the entire array will be filled)
-     *
-     * May change the buffer position.
-     */
-    public void readIntsAt(long position, int[] dest) throws IOException
-    {
-        assert position % Integer.BYTES == 0 : "Position must be aligned to multiple of " + Integer.BYTES;
-        var bh = rebufferer.rebuffer(position);
-        var intBuffer = bh.intBuffer();
-        intBuffer.position(Ints.checkedCast((position - bh.offset()) / Float.BYTES));
-
-        if (dest.length > intBuffer.remaining())
-        {
-            // slow path -- desired slice is across region boundaries
-            var bb = ByteBuffer.allocate(Float.BYTES * dest.length);
-            reBufferAt(position);
-            readFully(bb);
-            intBuffer = bb.asIntBuffer();
-        }
-
-        intBuffer.get(dest);
     }
 
     @Override

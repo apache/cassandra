@@ -21,21 +21,16 @@ package org.apache.cassandra.index.sai.disk.v1.vector;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
-import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.PrimitiveIterator;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import io.github.jbellis.jvector.disk.CachingGraphIndex;
-import io.github.jbellis.jvector.disk.CompressedVectors;
 import io.github.jbellis.jvector.disk.OnDiskGraphIndex;
-import io.github.jbellis.jvector.disk.ReaderSupplier;
-import io.github.jbellis.jvector.graph.GraphIndex;
 import io.github.jbellis.jvector.graph.GraphSearcher;
-import io.github.jbellis.jvector.graph.ListRandomAccessVectorValues;
 import io.github.jbellis.jvector.graph.NeighborSimilarity;
 import io.github.jbellis.jvector.graph.SearchResult.NodeScore;
+import io.github.jbellis.jvector.pq.CompressedVectors;
 import io.github.jbellis.jvector.util.Bits;
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 import org.apache.cassandra.index.sai.IndexContext;
@@ -44,51 +39,39 @@ import org.apache.cassandra.index.sai.disk.v1.PerColumnIndexFiles;
 import org.apache.cassandra.index.sai.disk.v1.postings.ReorderingPostingList;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.io.util.FileHandle;
-import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.tracing.Tracing;
 
 public class DiskAnn implements AutoCloseable
 {
+    private final FileHandle graphHandle;
     private final OnDiskOrdinalsMap ordinalsMap;
     private final CachingGraphIndex graph;
     private final VectorSimilarityFunction similarityFunction;
 
     // only one of these will be not null
     private final CompressedVectors compressedVectors;
-    private final ListRandomAccessVectorValues uncompressedVectors;
 
     public DiskAnn(SegmentMetadata.ComponentMetadataMap componentMetadatas, PerColumnIndexFiles indexFiles, IndexContext context) throws IOException
     {
         similarityFunction = context.getIndexWriterConfig().getSimilarityFunction();
 
         SegmentMetadata.ComponentMetadata termsMetadata = componentMetadatas.get(IndexComponent.TERMS_DATA);
-        graph = new CachingGraphIndex(new OnDiskGraphIndex<>(new TermsReaderSupplier(indexFiles.termsData()), termsMetadata.offset));
+        graphHandle = indexFiles.termsData();
+        graph = new CachingGraphIndex(new OnDiskGraphIndex<>(RandomAccessReaderAdapter.createSupplier(graphHandle), termsMetadata.offset));
 
         long pqSegmentOffset = componentMetadatas.get(IndexComponent.VECTORS).offset;
-        try (var fileHandle = indexFiles.vectors(); var reader = new RandomAccessReaderAdapter(fileHandle.createReader()))
+        try (var pqFileHandle = indexFiles.vectors(); var reader = new RandomAccessReaderAdapter(pqFileHandle))
         {
             reader.seek(pqSegmentOffset);
             var containsCompressedVectors = reader.readBoolean();
-            if (containsCompressedVectors) {
+            if (containsCompressedVectors)
                 compressedVectors = CompressedVectors.load(reader, reader.getFilePointer());
-                uncompressedVectors = null;
-            }
             else
-            {
                 compressedVectors = null;
-                var vectors = cacheOriginalVectors(graph);
-                uncompressedVectors = new ListRandomAccessVectorValues(vectors, vectors.get(0).length);
-            }
         }
 
         SegmentMetadata.ComponentMetadata postingListsMetadata = componentMetadatas.get(IndexComponent.POSTING_LISTS);
         ordinalsMap = new OnDiskOrdinalsMap(indexFiles.postingLists(), postingListsMetadata.offset, postingListsMetadata.length);
-    }
-
-    private static List<float[]> cacheOriginalVectors(GraphIndex<float[]> graph)
-    {
-        var view = graph.getView();
-        return IntStream.range(0, graph.size()).mapToObj(view::getVector).collect(Collectors.toList());
     }
 
     public long ramBytesUsed()
@@ -109,14 +92,14 @@ public class DiskAnn implements AutoCloseable
     {
         OnHeapGraph.validateIndexable(queryVector, similarityFunction);
 
-        var searcher = new GraphSearcher.Builder<>(graph.getView()).build();
+        var view = graph.getView();
+        var searcher = new GraphSearcher.Builder<>(view).build();
         NeighborSimilarity.ScoreFunction scoreFunction;
         NeighborSimilarity.ReRanker<float[]> reRanker;
         if (compressedVectors == null)
         {
-            assert uncompressedVectors != null;
             scoreFunction = (NeighborSimilarity.ExactScoreFunction)
-                            i -> similarityFunction.compare(queryVector, uncompressedVectors.vectorValue(i));
+                            i -> similarityFunction.compare(queryVector, view.getVector(i));
             reRanker = null;
         }
         else
@@ -128,6 +111,7 @@ public class DiskAnn implements AutoCloseable
                                      reRanker,
                                      topK,
                                      ordinalsMap.ignoringDeleted(acceptBits));
+        Tracing.trace("DiskANN search visited {} nodes to return {} results", result.getVisitedCount(), result.getNodes().length);
         return annRowIdsToPostings(result.getNodes());
     }
 
@@ -186,82 +170,11 @@ public class DiskAnn implements AutoCloseable
     {
         ordinalsMap.close();
         graph.close();
+        graphHandle.close();
     }
 
     public OnDiskOrdinalsMap.OrdinalsView getOrdinalsView()
     {
         return ordinalsMap.getOrdinalsView();
-    }
-
-    private static class TermsReaderSupplier implements ReaderSupplier
-    {
-        private final FileHandle fileHandle;
-
-        private TermsReaderSupplier(FileHandle fileHandle)
-        {
-            this.fileHandle = fileHandle;
-        }
-
-        @Override
-        public io.github.jbellis.jvector.disk.RandomAccessReader get()
-        {
-            return new RandomAccessReaderAdapter(fileHandle.createReader());
-        }
-
-        @Override
-        public void close()
-        {
-            FileUtils.closeQuietly(fileHandle);
-        }
-    }
-
-    private static class RandomAccessReaderAdapter implements io.github.jbellis.jvector.disk.RandomAccessReader
-    {
-        private final RandomAccessReader reader;
-
-        private RandomAccessReaderAdapter(RandomAccessReader reader)
-        {
-            this.reader = reader;
-        }
-
-        public boolean readBoolean() throws IOException
-        {
-            return reader.readBoolean();
-        }
-
-        public long getFilePointer()
-        {
-            return reader.getFilePointer();
-        }
-
-        @Override
-        public void seek(long offset)
-        {
-            reader.seek(offset);
-        }
-
-        @Override
-        public int readInt() throws IOException
-        {
-            return reader.readInt();
-        }
-
-        @Override
-        public void readFully(byte[] bytes) throws IOException
-        {
-            reader.readFully(bytes);
-        }
-
-        @Override
-        public void readFully(float[] floats) throws IOException
-        {
-            reader.readFully(floats);
-        }
-
-        @Override
-        public void close()
-        {
-            FileUtils.closeQuietly(reader);
-        }
     }
 }
