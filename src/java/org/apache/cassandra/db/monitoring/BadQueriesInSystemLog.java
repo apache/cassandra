@@ -17,9 +17,10 @@
  */
 package org.apache.cassandra.db.monitoring;
 
-import com.codahale.metrics.Gauge;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.metrics.BadQueryMetrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -93,6 +94,19 @@ public class BadQueriesInSystemLog implements IBadQueryReporter
         {
             BAD_QUERY_CATEGORY_QUEUES.get(queryType).offer(operationDetails);
             CURRENT_SAMPLES.get(queryType).incrementAndGet();
+
+            // emit metric for large partition reads (table level)
+            if (operationDetails instanceof LargePartition) {
+                LargePartition op = (LargePartition) operationDetails;
+                ColumnFamilyStore cfs = Keyspace.open(operationDetails.keySpace)
+                                                .getColumnFamilyStore(operationDetails.tableName);
+                if (queryType == BadQuery.BadQueryCategory.LARGE_PARTITION_READ) {
+                    cfs.metric.largePartitionReadSize.inc(op.getSize());
+                }
+                if (queryType == BadQuery.BadQueryCategory.LARGE_PARTITION_WRITE) {
+                    cfs.metric.largePartitionWriteSize.inc(op.getSize());
+                }
+            }
         }
     }
 
@@ -122,7 +136,7 @@ public class BadQueriesInSystemLog implements IBadQueryReporter
                 }
                 logger.warn(String.format("%s detected: %s", type.toString(), bq.toString()));
             }
-            //reset sample count so we get next batch of bad queries
+            // reset sample count so we get next batch of bad queries
             CURRENT_SAMPLES.get(type).set(0);
         }
     }

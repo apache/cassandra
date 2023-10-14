@@ -25,6 +25,7 @@ import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.schema.CreateTableStatement;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
@@ -146,6 +147,19 @@ public class BadQueriesInTable implements IBadQueryReporter
         {
             BAD_QUERY_CATEGORY_QUEUES.get(queryType).offer(operationDetails);
             CURRENT_SAMPLES.get(queryType).incrementAndGet();
+
+            // emit metric for large partition reads (table level)
+            if (operationDetails instanceof LargePartition) {
+                LargePartition op = (LargePartition) operationDetails;
+                ColumnFamilyStore cfs = Keyspace.open(operationDetails.keySpace)
+                                                .getColumnFamilyStore(operationDetails.tableName);
+                if (queryType == BadQuery.BadQueryCategory.LARGE_PARTITION_READ) {
+                    cfs.metric.largePartitionReadSize.inc(op.getSize());
+                }
+                if (queryType == BadQuery.BadQueryCategory.LARGE_PARTITION_WRITE) {
+                    cfs.metric.largePartitionWriteSize.inc(op.getSize());
+                }
+            }
         }
     }
 

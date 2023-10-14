@@ -232,6 +232,12 @@ public class TableMetrics
     public final Gauge<Long> additionalWriteLatencyNanos;
 
     public final Gauge<Integer> unleveledSSTables;
+    /** metrics for large partition reads hit by queries for this table. See
+     * {@link org.apache.cassandra.db.monitoring.LargePartition} for more details.*/
+    public final Counter largePartitionReadSize;
+    /** metrics for large partition writes hit by queries for this table. See
+     * {@link org.apache.cassandra.db.monitoring.LargePartition} for more details.*/
+    public final Counter largePartitionWriteSize;
 
     /**
      * Metrics for inconsistencies detected between repaired data sets across replicas. These
@@ -940,6 +946,9 @@ public class TableMetrics
             }
             return cnt;
         });
+
+        largePartitionReadSize = createTableCounter("LargePartitionReadSize");
+        largePartitionWriteSize = createTableCounter("LargePartitionWriteSize");
 
         clientTombstoneWarnings = createTableMeter("ClientTombstoneWarnings", cfs.keyspace.metric.clientTombstoneWarnings);
         clientTombstoneAborts = createTableMeter("ClientTombstoneAborts", cfs.keyspace.metric.clientTombstoneAborts);

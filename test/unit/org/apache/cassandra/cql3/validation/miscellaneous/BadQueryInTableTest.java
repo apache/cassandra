@@ -95,6 +95,9 @@ public class BadQueryInTableTest extends CQLTester
         cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE);
         cfs.truncateBlocking();
         bq.clear();
+        // clear metric for large parition reads and writes
+        cfs.metric.largePartitionReadSize.dec(cfs.metric.largePartitionReadSize.getCount());
+        cfs.metric.largePartitionWriteSize.dec(cfs.metric.largePartitionWriteSize.getCount());
     }
 
     private void executeCQL()
@@ -119,6 +122,7 @@ public class BadQueryInTableTest extends CQLTester
 
         executeCQL();
         Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.LARGE_PARTITION_WRITE).size() > 0);
+        Assert.assertTrue(cfs.metric.largePartitionWriteSize.getCount() > 0);
     }
 
     @Test
@@ -129,6 +133,7 @@ public class BadQueryInTableTest extends CQLTester
         MonitoringService.instance.setBadQueryReadMaxPartitionSizeInbytes(0);
         executeCQL();
         Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.LARGE_PARTITION_READ).size() > 0);
+        Assert.assertTrue(cfs.metric.largePartitionReadSize.getCount() > 0);
     }
 
     @Test
@@ -159,6 +164,7 @@ public class BadQueryInTableTest extends CQLTester
         MonitoringService.instance.setBadQueryWriteMaxPartitionSizeInbytes(0);
         executeCQL();
         Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.LARGE_PARTITION_WRITE).size() == 0);
+        Assert.assertTrue(cfs.metric.largePartitionWriteSize.getCount() == 0);
     }
 
     @Test
@@ -169,6 +175,7 @@ public class BadQueryInTableTest extends CQLTester
         MonitoringService.instance.setBadQueryReadMaxPartitionSizeInbytes(0);
         executeCQL();
         Assert.assertTrue(bq.getBadQueryCategoryQueues().get(BadQuery.BadQueryCategory.LARGE_PARTITION_READ).size() == 0);
+        Assert.assertTrue(cfs.metric.largePartitionReadSize.getCount() == 0);
     }
 
     @Test

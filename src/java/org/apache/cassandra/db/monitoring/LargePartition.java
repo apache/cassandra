@@ -98,5 +98,10 @@ public class LargePartition extends BadQueryTypes
                             new LargePartition(metadata.keyspace, metadata.name, metadata.partitionKeyType.getString(decoratedKey.getKey()), size));
         }
     }
+
+    public long getSize()
+    {
+        return size;
+    }
 }
 
