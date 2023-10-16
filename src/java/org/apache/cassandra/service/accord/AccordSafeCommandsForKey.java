@@ -120,6 +120,7 @@ public class AccordSafeCommandsForKey extends SafeCommandsForKey implements Acco
 
     public long timestampMicrosFor(Timestamp executeAt, boolean isForWriteTxn)
     {
+        // TODO / Henrik
         return current().hlcFor(executeAt, isForWriteTxn);
     }
 

@@ -392,6 +392,7 @@ public abstract class SimpleBuilders
                     ListType lt = (ListType)column.type;
                     assert value instanceof List;
                     for (Object elt : (List)value)
+                        //TODO continue here
                         builder.addCell(cell(column, toByteBuffer(elt, lt.getElementsType()), CellPath.create(ByteBuffer.wrap(nextTimeUUIDAsBytes()))));
                     break;
                 case SET:

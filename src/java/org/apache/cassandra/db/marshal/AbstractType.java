@@ -771,6 +771,12 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         throw new UnsupportedOperationException("There isn't a defined masked value for type " + asCQL3Type());
     }
 
+    public void updatePathTimestamps(long newTimestamp)
+    {
+        // This method overridden in ListType
+        return;
+    }
+
     /**
      * {@link ArgumentDeserializer} that uses the type deserialization.
      */

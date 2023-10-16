@@ -17,11 +17,8 @@
  */
 package org.apache.cassandra.db.rows;
 
-import java.nio.ByteBuffer;
-import java.util.Objects;
-
-import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.DeletionPurger;
+import org.apache.cassandra.db.Digest;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -31,6 +28,13 @@ import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.memory.ByteBufferCloner;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.nio.ByteBuffer;
+import java.util.Objects;
+
+import static org.apache.cassandra.utils.TimeUUID.unixMicrosToRawTimestamp;
 
 /**
  * Base abstract class for {@code Cell} implementations.
@@ -40,6 +44,7 @@ import org.apache.cassandra.utils.memory.ByteBufferCloner;
  */
 public abstract class AbstractCell<V> extends Cell<V>
 {
+    protected static final Logger logger = LoggerFactory.getLogger(AbstractCell.class);
     protected AbstractCell(ColumnMetadata column)
     {
         super(column);
@@ -114,14 +119,29 @@ public abstract class AbstractCell<V> extends Cell<V>
     // note: while the cell returned may be different, the value is the same, so if the value is offheap it must be referenced inside a guarded context (or copied)
     public Cell<?> updateAllTimestamp(long newTimestamp)
     {
-        return new BufferCell(column, isTombstone() ? newTimestamp - 1 : newTimestamp, ttl(), localDeletionTime(), buffer(), path());
+        CellPath newPath = null;
+        if (path() != null) {
+            ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
+            buffer.putLong(unixMicrosToRawTimestamp(newTimestamp));
+            newPath = CellPath.create(buffer);
+            logger.debug("timestamp: {}   buffer: {}    newPath: {}", newTimestamp, buffer, newPath);
+        }
+        return new BufferCell(column, isTombstone() ? newTimestamp - 1 : newTimestamp, ttl(), localDeletionTime(), buffer(), newPath);
     }
 
     @Override
     public ColumnData updateAllTimestampAndLocalDeletionTime(long newTimestamp, int newLocalDeletionTime)
     {
         long localDeletionTime = localDeletionTime() != NO_DELETION_TIME ? newLocalDeletionTime : NO_DELETION_TIME;
-        return new BufferCell(column, isTombstone() ? newTimestamp - 1 : newTimestamp, ttl(), localDeletionTime, buffer(), path());
+        CellPath newPath = null;
+        if (path() != null) {
+            ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
+            buffer.putLong(unixMicrosToRawTimestamp(newTimestamp));
+            newPath = CellPath.create(buffer);
+            logger.debug("timestamp: {}   buffer: {}    newPath: {}", newTimestamp, buffer, newPath);
+        }
+
+        return new BufferCell(column, isTombstone() ? newTimestamp - 1 : newTimestamp, ttl(), localDeletionTime, buffer(), newPath);
     }
 
     public int dataSize()
