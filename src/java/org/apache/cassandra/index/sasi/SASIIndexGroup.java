@@ -28,6 +28,6 @@ public class SASIIndexGroup extends SingletonIndexGroup
     @Override
     public Index.QueryPlan queryPlanFor(RowFilter rowFilter)
     {
-        return SASIIndexQueryPlan.create((SASIIndex) getIndex(), rowFilter);
+        return getIndex() == null ? null : SASIIndexQueryPlan.create((SASIIndex) getIndex(), rowFilter);
     }
 }

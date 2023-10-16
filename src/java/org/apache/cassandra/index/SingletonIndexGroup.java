@@ -21,6 +21,7 @@
 
 package org.apache.cassandra.index;
 
+import java.util.Collections;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -92,28 +93,24 @@ public class SingletonIndexGroup implements Index.Group
                                     IndexTransaction.Type transactionType,
                                     Memtable memtable)
     {
-        Preconditions.checkNotNull(delegate);
-        return indexSelector.test(delegate) ? delegate.indexerFor(key, columns, nowInSec, ctx, transactionType, memtable) : null;
+        return delegate == null ? null : (indexSelector.test(delegate) ? delegate.indexerFor(key, columns, nowInSec, ctx, transactionType, memtable) : null);
     }
 
     @Override
     public Index.QueryPlan queryPlanFor(RowFilter rowFilter)
     {
-        Preconditions.checkNotNull(delegate);
-        return SingletonIndexQueryPlan.create(delegate, rowFilter);
+        return delegate == null ? null : SingletonIndexQueryPlan.create(delegate, rowFilter);
     }
 
     @Override
     public SSTableFlushObserver getFlushObserver(Descriptor descriptor, LifecycleNewTracker tracker, TableMetadata tableMetadata)
     {
-        Preconditions.checkNotNull(delegate);
-        return delegate.getFlushObserver(descriptor, tracker);
+        return delegate == null ? null : delegate.getFlushObserver(descriptor, tracker);
     }
 
     @Override
     public Set<Component> getComponents()
     {
-        Preconditions.checkNotNull(delegate);
-        return delegate.getComponents();
+        return delegate == null ? Collections.emptySet() : delegate.getComponents();
     }
 }
