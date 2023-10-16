@@ -624,7 +624,7 @@
         </javac>
     </target>
 
-    <target name="fqltool-test" depends="fqltool-build-test, build-test" description="Runs fqltool tests">
+    <target name="fqltool-test" depends="fqltool-build-test, maybe-build-test" description="Runs fqltool tests">
         <testmacro inputdir="${fqltool.test.src}"
                        timeout="${test.timeout}">
         </testmacro>

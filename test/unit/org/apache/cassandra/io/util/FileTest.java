@@ -37,7 +37,6 @@ import org.apache.commons.lang3.RandomUtils;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.assertj.core.api.Assertions;
 import org.psjava.util.Triple;
@@ -45,13 +44,14 @@ import org.psjava.util.Triple;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_IO_TMPDIR;
+import static org.apache.cassandra.config.CassandraRelevantProperties.USE_NIX_RECURSIVE_DELETE;
 
 public class FileTest
 {
     private static final java.io.File dir;
     static
     {
-        CassandraRelevantProperties.USE_NIX_RECURSIVE_DELETE.setBoolean(false);
+        USE_NIX_RECURSIVE_DELETE.setBoolean(false);
         java.io.File parent = new java.io.File(JAVA_IO_TMPDIR.getString()); //checkstyle: permit this instantiation
         String dirName = Long.toHexString(ThreadLocalRandom.current().nextLong());
         while (new java.io.File(parent, dirName).exists()) //checkstyle: permit this instantiation
@@ -115,6 +115,9 @@ public class FileTest
         regularLink.delete();
         regular.delete();
         emptySubdir.delete();
+        nonEmptySubdir.delete();
+        nonEmptySubdirLink.delete();
+        dir.setReadable(true);
     }
 
     private static String nonAbsolute(java.io.File file)
