@@ -1,0 +1,15 @@
+== PRIMARY KEY (column_list)
+:description: Uniquely identifies rows, determines storage partitions, and orders data (clustering columns) within a partition.
+
+Uniquely identifies rows, determines storage partitions, and orders data (clustering columns) within a partition.
+
+include::cassandra:partial$no-null-in-primary-key.adoc[]
+
+*column_list* ::
+Defines a partition and clustering columns, which affects how the data in stored.
+
+* Compound primary key: the first column is the partition key, and the additional columns are clustering keys.
+Syntax: `+PRIMARY KEY (<partition_column_name>, <clustering_column_name> [, ...])+`
+* [[cqlPKcomposite]]Composite partition key: Multiple columns in the partition key.
+Enclose the partition key columns in parentheses.
+Syntax: `+PRIMARY KEY ((<partition_column_name>[, ...]),<clustering_column_name> [, ...])+`

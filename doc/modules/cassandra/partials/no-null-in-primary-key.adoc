@@ -1,0 +1,2 @@
+A `NULL` value cannot be inserted into a `PRIMARY KEY` column.
+This restriction applies to both partition keys and clustering columns.
