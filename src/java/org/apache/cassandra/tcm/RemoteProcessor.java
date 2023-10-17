@@ -55,6 +55,9 @@ import static org.apache.cassandra.exceptions.ExceptionCode.SERVER_ERROR;
 import static org.apache.cassandra.net.NoPayload.noPayload;
 import static org.apache.cassandra.tcm.ClusterMetadataService.State.REMOTE;
 
+/**
+ * This processor delegates commit operation to some other node, a member of the CMS.
+ */
 public final class RemoteProcessor implements Processor
 {
     private static final Logger logger = LoggerFactory.getLogger(RemoteProcessor.class);

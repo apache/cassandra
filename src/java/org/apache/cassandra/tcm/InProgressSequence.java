@@ -23,6 +23,10 @@ import org.apache.cassandra.tcm.sequences.InProgressSequences;
 import org.apache.cassandra.tcm.sequences.SequenceState;
 import org.apache.cassandra.tcm.sequences.ProgressBarrier;
 
+/**
+ * A sequence of transformations associated with a node. When a node is executing a sequence, the order of transformations
+ * is strictly defined. The node also cannot execute any other sequences until the current one is completed.
+ */
 public abstract class InProgressSequence<T extends InProgressSequence<T>>
 {
     public abstract InProgressSequences.Kind kind();

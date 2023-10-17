@@ -43,6 +43,9 @@ import org.apache.cassandra.tcm.serialization.Version;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 import static org.apache.cassandra.tcm.sequences.InProgressSequences.Kind.LEAVE;
 
+/**
+ * A set of in-progress sequences per node. Each node can take part in only one sequence at a time.
+ */
 public class InProgressSequences implements MetadataValue<InProgressSequences>
 {
     public static final Serializer serializer = new Serializer();

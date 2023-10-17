@@ -164,6 +164,8 @@ public final class SystemKeyspace
     public static final String PREPARED_STATEMENTS = "prepared_statements";
     public static final String REPAIRS = "repairs";
     public static final String TOP_PARTITIONS = "top_partitions";
+
+    // --- TCM tables ---
     public static final String METADATA_LOG = "local_metadata_log";
     public static final String SNAPSHOT_TABLE_NAME = "metadata_snapshots";
     public static final String SEALED_PERIODS_TABLE_NAME = "metadata_sealed_periods";

@@ -659,6 +659,7 @@ public abstract class LocalLog implements Closeable
         }
     }
 
+    @VisibleForTesting // only for testing
     private static class Sync extends LocalLog
     {
         private Sync(ClusterMetadata initial, LogStorage logStorage, boolean addListeners, boolean isReset)

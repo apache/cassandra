@@ -37,6 +37,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
@@ -54,6 +55,8 @@ import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.tcm.extensions.ExtensionKey;
 import org.apache.cassandra.tcm.extensions.ExtensionValue;
+import org.apache.cassandra.tcm.listeners.MetadataSnapshotListener;
+import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.Location;
 import org.apache.cassandra.tcm.membership.NodeAddresses;
@@ -79,6 +82,18 @@ import org.apache.cassandra.utils.vint.VIntCoding;
 import static org.apache.cassandra.config.CassandraRelevantProperties.LINE_SEPARATOR;
 import static org.apache.cassandra.db.TypeSizes.sizeof;
 
+/**
+ * Represents all transactional metadata of the cluster. It is versioned, immutable and serializable.
+ * CMS guarantees that all the nodes in the cluster see the same cluster metadata for the given epoch.
+ * When the metadata gets updated by a node, the new version must be associated with the new epoch.
+ *
+ * Epochs are groupped into periods. The number of epoch that can fit into a period is defined by
+ * {@link DatabaseDescriptor#getMetadataSnapshotFrequency()}. When a period is completed, its number is incremented by
+ * {@link LocalLog#snapshotListener()}, and then, a snapshot is created by the {@link MetadataSnapshotListener}.
+ * Both are triggered by the {@link LocalLog#processPendingInternal()} method, which processes the log entries.
+ *
+ * @see MetadataSnapshots for more information about cluster metadata snapshots
+ */
 public class ClusterMetadata
 {
     public static final Serializer serializer = new Serializer();
@@ -356,6 +371,10 @@ public class ClusterMetadata
         return VersionedEndpoints.forToken(writeEndpoints.lastModified(), endpointsForToken.build());
     }
 
+    /**
+     * Builds a new cluster metadata based on top of the provided one, registering the keys of all the overridden
+     * items.
+     */
     public static class Transformer
     {
         private final ClusterMetadata base;

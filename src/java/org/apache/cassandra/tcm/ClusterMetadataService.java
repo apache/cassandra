@@ -81,6 +81,17 @@ import static org.apache.cassandra.tcm.compatibility.GossipHelper.emptyWithSchem
 import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.Collectors3.toImmutableSet;
 
+/**
+ * the entry point to TCM. It is responsible for transforming cluster metadata consistently in the cluster.
+ * Transformation is performed by the current {@link Processor}.
+ *
+ * There are 3 processors availabe that are used depending on the node state:
+ * <ul>
+ *     <li>gossip - the processor is used during upgrade</li>
+ *     <li>local - when the node fully started and registered in CMS - that is, it is a replica which joined the ring</li>
+ *     <li>remote - when the node is not a replica / didn't join the ring</li>
+ * </ul>
+ */
 public class ClusterMetadataService
 {
     private static final Logger logger = LoggerFactory.getLogger(ClusterMetadataService.class);

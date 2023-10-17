@@ -62,7 +62,7 @@ import org.apache.cassandra.utils.concurrent.AsyncPromise;
  * ProgressBarrier is responsible for ensuring that epoch visibility plays together with quorum consistency.
  *
  * When bootstrapping a node, streaming will not start until (by default) EACH_QUORUM of nodes has seen the epoch that
- * adds the joining jode to the write replica set.
+ * adds the joining node to the write replica set.
  *
  * Each subsequent step will be gated by waiting for (by default) EACH_QUORUM of nodes in or proposed to be in the replica set
  * to see the previous epoch.
@@ -246,7 +246,7 @@ public class ProgressBarrier
         return false;
     }
 
-    public static ConsistencyLevel relaxConsistency(ConsistencyLevel cl)
+    private static ConsistencyLevel relaxConsistency(ConsistencyLevel cl)
     {
         logger.debug("Relaxing ProgressBarrier consistency level {}", cl);
         TCMMetrics.instance.progressBarrierCLRelax.mark();
