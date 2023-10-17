@@ -811,20 +811,29 @@ public class DatabaseDescriptorTest
     {
         Config original = DatabaseDescriptor.getRawConfig();
 
+        // Defaults to heap-based if nothing is set
         Config conf = new Config();
         DatabaseDescriptor.setConfig(conf);
-
-        // Defaults
+        DatabaseDescriptor.applyRepairStateSizingValidations();
         Assert.assertNotNull(DatabaseDescriptor.getRepairStateHeapSize());
         Assert.assertNull(DatabaseDescriptor.getRepairStateSize());
 
-        // Handle existing config with repair_state_size already set, should ignore the default for repair_state_heap_size
+        // Handle existing config with repair_state_size already set
         conf = new Config();
         conf.repair_state_size = 99;
         DatabaseDescriptor.setConfig(conf);
         DatabaseDescriptor.applyRepairStateSizingValidations();
-        Assert.assertNull(DatabaseDescriptor.getRepairStateHeapSize());
         Assert.assertNotNull(DatabaseDescriptor.getRepairStateSize());
+        Assert.assertNull(DatabaseDescriptor.getRepairStateHeapSize());
+
+        // If both repair_state_size and repair_state_heap_size are set, reject
+        conf = new Config();
+        conf.repair_state_size = 99;
+        conf.repair_state_heap_size = new DataStorageSpec.IntBytesBound(99);
+        DatabaseDescriptor.setConfig(conf);
+        Assertions.assertThatThrownBy(DatabaseDescriptor::applyRepairStateSizingValidations)
+                .isInstanceOf(ConfigurationException.class)
+                .hasMessage("Invalid configuration. Cannot set both repair_state_size and repair_state_heap_size.");
 
         DatabaseDescriptor.setConfig(original);
     }

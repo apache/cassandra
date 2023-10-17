@@ -914,7 +914,7 @@ public class Config
     // Only one of repair_state_size and repair_state_heap_size should be set
     @Deprecated
     public volatile Integer repair_state_size = null;
-    public volatile DataStorageSpec.IntBytesBound repair_state_heap_size = new DataStorageSpec.IntBytesBound(5, DataStorageSpec.DataStorageUnit.MEBIBYTES);
+    public volatile DataStorageSpec.IntBytesBound repair_state_heap_size = null;
 
     /** The configuration of timestamp bounds */
     public volatile DurationSpec.LongMicrosecondsBound maximum_timestamp_warn_threshold = null;

@@ -982,18 +982,15 @@ public class DatabaseDescriptor
     @VisibleForTesting
     static void applyRepairStateSizingValidations()
     {
-        // We default to use repair_state_heap_size, so allow users who have set repair_state_size in config to keep it
-        // during the deprecation period
         if ((conf.repair_state_size != null) && (conf.repair_state_heap_size != null))
         {
-            String msg = "Both repair_state_size and repair_state_heap_size are set, ignoring repair_state_heap_size. "
-                        + "Note that repair_state_size is deprecated and will be removed in a future release.";
-            logger.warn(msg);
-            conf.repair_state_heap_size = null;
+            throw new ConfigurationException("Invalid configuration. Cannot set both repair_state_size and repair_state_heap_size.");
         }
 
         if ((conf.repair_state_size == null) && (conf.repair_state_heap_size == null))
-            throw new ConfigurationException("Invalid configuration. One of repair_state_size OR repair_state_heap_size must be set.", false);
+        {
+            conf.repair_state_heap_size = new DataStorageSpec.IntBytesBound(5, DataStorageSpec.DataStorageUnit.MEBIBYTES);
+        }
     }
 
     @VisibleForTesting

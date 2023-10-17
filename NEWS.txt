@@ -79,6 +79,9 @@ Upgrading
 
 Deprecation
 -----------
+    - Configuration `repair_state_size` has been deprecated in favor of the new `repair_state_heap_size` configuration.
+      The repair state cache can have significant skew in element sizes, so using heap-based sizing instead of number of
+      elements allows for these caches to more effectively control their memory usage.
 
 
 5.0
