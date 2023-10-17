@@ -212,10 +212,10 @@ public class CassandraResourceUtilization
                 if (currentThrottlingPercentage < MAX_THROTTLING)
                 {
                     // more aggressive throttling
-                    throttlingMetrics.doubleThrottling.inc();
+                    throttlingMetrics.increaseThrottling.inc();
                     double previous = currentThrottlingPercentage;
-                    currentThrottlingPercentage = Math.min(MAX_THROTTLING, previous * 2);
-                    logger.info("Double min throttling previous: {}, now: {}", previous, currentThrottlingPercentage);
+                    currentThrottlingPercentage = Math.min(MAX_THROTTLING, previous + throttlingOptions.getPercentageOfTrafficToThrottling());
+                    logger.info("Increase min throttling previous: {}, now: {}", previous, currentThrottlingPercentage);
                 }
             }
         }
@@ -301,7 +301,7 @@ public class CassandraResourceUtilization
         {
             if ((reads && readAggressiveThorttlingKeyspaces.containsKey(ksName.toLowerCase())) || (!reads && mutationAggressiveThorttlingKeyspaces.containsKey(ksName.toLowerCase())))
             {
-                throttlingPercentage *= 2;
+                throttlingPercentage = Math.min(MAX_THROTTLING, throttlingPercentage + throttlingOptions.getPercentageOfTrafficToThrottling());
                 ksThrottlingMetrics.aggressiveThrottling.inc();
             }
             else if(spikeInRequestRate(ksName, metrics, reads, ksThrottlingMetrics) || spikeInLatency(ksName, metrics, reads, ksThrottlingMetrics))
