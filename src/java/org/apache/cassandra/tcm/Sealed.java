@@ -150,6 +150,6 @@ public class Sealed implements Comparable<Sealed>
     @Override
     public int compareTo(Sealed o)
     {
-        return Long.compare(this.epoch.getEpoch(), o.epoch.getEpoch());
+        return this.epoch.compareTo(o.epoch);
     }
 }

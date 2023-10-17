@@ -19,6 +19,7 @@
 package org.apache.cassandra.tcm;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
@@ -49,11 +50,14 @@ public class RecentlySealedPeriodsTest
         for (int i=1; i<=10;i++)
             idx = idx.with(Epoch.create((i*3)+1), i);
 
-        assertEquals(10, idx.array().length);
+        System.out.println(Arrays.toString(idx.toArray()));
+
+
+        assertEquals(10, idx.toArray().length);
         // lowest indexed period is 1
-        assertEquals(1, idx.array()[0].period);
+        assertEquals(1, idx.toArray()[0].period);
         // greatest indexed period is 10
-        assertEquals(10, idx.array()[idx.array().length - 1].period);
+        assertEquals(10, idx.toArray()[idx.toArray().length - 1].period);
 
         assertEquals(7, idx.lookupPeriodForReplication(Epoch.create(20)).period);
         // looking an epoch which is the max in a sealed period, should return the next period (for replication purposes)
@@ -68,11 +72,11 @@ public class RecentlySealedPeriodsTest
         // add an additional entry
         idx = idx.with(Epoch.create(100), 11);
         // reassert the boundaries
-        assertEquals(10, idx.array().length);
+        assertEquals(10, idx.toArray().length);
         // lowest indexed period is now 2
-        assertEquals(2, idx.array()[0].period);
+        assertEquals(2, idx.toArray()[0].period);
         // greatest indexed period is now 11
-        assertEquals(11, idx.array()[idx.array().length - 1].period);
+        assertEquals(11, idx.toArray()[idx.toArray().length - 1].period);
 
         // lookup an epoch within the (new) maximum sealed period
         assertEquals(11, idx.lookupPeriodForReplication(Epoch.create(76)).period);
@@ -101,7 +105,7 @@ public class RecentlySealedPeriodsTest
         for (Long epoch : keys)
             idx = idx.with(Epoch.create(epoch), epoch/10);
 
-        Sealed[] index = idx.array();
+        Sealed[] index = idx.toArray();
         for(int i=0; i<index.length; i++)
         {
             Sealed entry = index[i];

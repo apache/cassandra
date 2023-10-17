@@ -18,11 +18,12 @@
 
 package org.apache.cassandra.tcm;
 
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.NavigableMap;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableSortedMap;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 
@@ -34,50 +35,40 @@ import org.apache.cassandra.config.CassandraRelevantProperties;
  * the target is outside the range of this index, we eventually fall back to a read
  * from the system.metadata_sealed_periods table.
  */
-public class RecentlySealedPeriods
+public final class RecentlySealedPeriods
 {
-    public static final RecentlySealedPeriods EMPTY = new RecentlySealedPeriods(new Sealed[0]);
+    public static final RecentlySealedPeriods EMPTY = new RecentlySealedPeriods(ImmutableSortedMap.of());
 
     /**
      * The maximum number of sealed periods stored in memory.
      */
-    private int maxSize = CassandraRelevantProperties.TCM_RECENTLY_SEALED_PERIOD_INDEX_SIZE.getInt();
-    private Sealed[] recent;
+    private final int maxSize = CassandraRelevantProperties.TCM_RECENTLY_SEALED_PERIOD_INDEX_SIZE.getInt();
+    private final NavigableMap<Epoch, Sealed> recent;
 
-    private RecentlySealedPeriods(Sealed first)
-    {
-        this.recent = new Sealed[]{first};
-    }
-
-    private RecentlySealedPeriods(Sealed[] recent)
+    private RecentlySealedPeriods(ImmutableSortedMap<Epoch, Sealed> recent)
     {
         this.recent = recent;
     }
 
     public static RecentlySealedPeriods init(List<Sealed> recent)
     {
-        Collections.sort(recent);
-        return new RecentlySealedPeriods(recent.toArray(new Sealed[recent.size()]));
+        ImmutableSortedMap.Builder<Epoch, Sealed> builder = ImmutableSortedMap.naturalOrder();
+        for (Sealed sealed: recent)
+        {
+            builder.put(sealed.epoch, sealed);
+        }
+        return new RecentlySealedPeriods(builder.build());
     }
-
 
     public RecentlySealedPeriods with(Epoch epoch, long period)
     {
-        if (recent == null)
-        {
-            return new RecentlySealedPeriods(new Sealed(period, epoch));
-        }
-        else
-        {
-            int toCopy = Math.min(recent.length, maxSize - 1);
-            int newSize = Math.min(recent.length + 1, maxSize);
-            Sealed[] newList = new Sealed[newSize];
-            System.arraycopy(recent, recent.length - toCopy, newList, 0, toCopy);
-            newList[newSize - 1] = new Sealed(period, epoch);
-            // shouldn't be necessary, but is cheap
-            Arrays.sort(newList, Sealed::compareTo);
-            return new RecentlySealedPeriods(newList);
-        }
+        NavigableMap<Epoch, Sealed> toKeep = recent.size() < maxSize ? recent
+                                                                     : recent.tailMap(recent.firstKey(), false);
+
+        return new RecentlySealedPeriods(ImmutableSortedMap.<Epoch, Sealed>naturalOrder()
+                                                           .putAll(toKeep)
+                                                           .put(epoch, new Sealed(period, epoch))
+                                                           .build());
     }
 
     /**
@@ -86,28 +77,27 @@ public class RecentlySealedPeriods
      * as long as its epoch is greater than the target.
      * If the target epoch is greater than the max epoch in the latest sealed
      * period, then assume there is no suitable snapshot.
-     * @param epoch
+     * @param epoch the target epoch
      * @return
      */
     public Sealed lookupEpochForSnapshot(Epoch epoch)
     {
+        if (recent.isEmpty())
+            return Sealed.EMPTY;
+
         // if the target is > the highest indexed value there's no need to
         // scan the index. Instead, just signal to the caller that no suitable
         // sealed period was found.
-        if (recent.length > 0)
-        {
-            Sealed latest = recent[recent.length - 1];
-            return latest.epoch.isAfter(epoch) ? latest : Sealed.EMPTY;
-        }
-        return Sealed.EMPTY;
+        Map.Entry<Epoch, Sealed> latest = recent.lastEntry();
+        return latest.getKey().isAfter(epoch) ? latest.getValue() : Sealed.EMPTY;
     }
 
     // TODO add a lookupEpochForSnapshotBetween(start, end) so we can walk
     //      through the index if the latest snapshot happens to be missing
 
     /**
-     * Find the *closest* sealed period to a target epoch. Used to identify
-     * the period to start at if building a list of all log entries with an
+     * Find the sealed period stricly greater than the target epoch.
+     * <p>This method is used to identify the period to start from if building a list of all log entries with an
      * epoch greater than the one supplied. If the target epoch happens to be
      * the max in a sealed period, we would start with the period following
      * that. If the target epoch is equal to or after the max in the latest
@@ -117,28 +107,18 @@ public class RecentlySealedPeriods
      */
     public Sealed lookupPeriodForReplication(Epoch epoch)
     {
-        // if the target is > the highest indexed value there's no need to
-        // scan the index. Instead, just signal to the caller that no suitable
-        // sealed period was found.
-        if (recent.length > 0 && epoch.isEqualOrAfter(recent[recent.length - 1].epoch))
-            return Sealed.EMPTY;
-
-        for (int i = recent.length - 1; i >= 0; i--)
-        {
-            Sealed e = recent[i];
-            if (e.epoch.isEqualOrBefore(epoch))
-                return recent[Math.min(i + 1, recent.length - 1)];
-        }
-
-        // the target epoch couldn't be found in the index, signal to the
+        // if the target is not within the index we need to signal to the
         // caller that a slower/more expensive/more comprehensive lookup
         // is required
-        return Sealed.EMPTY;
+        if (recent.isEmpty() || epoch.isBefore(recent.firstKey()) || epoch.isEqualOrAfter(recent.lastKey()))
+            return Sealed.EMPTY;
+
+        return recent.higherEntry(epoch).getValue();
     }
 
     @VisibleForTesting
-    public Sealed[] array()
+    public Sealed[] toArray()
     {
-        return recent;
+        return recent.values().toArray(new Sealed[recent.size()]);
     }
 }
