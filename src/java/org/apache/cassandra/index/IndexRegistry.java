@@ -291,7 +291,7 @@ public interface IndexRegistry
 
     default void registerIndex(Index index)
     {
-        registerIndex(index, new Index.Group.Key(index), SingletonIndexGroup::new);
+        registerIndex(index, new Index.Group.Key(index), () -> new SingletonIndexGroup(index));
     }
 
     void registerIndex(Index index, Index.Group.Key groupKey, Supplier<Index.Group> groupSupplier);

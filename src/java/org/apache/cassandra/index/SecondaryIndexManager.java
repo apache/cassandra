@@ -1318,6 +1318,7 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
         group.addIndex(index);
     }
 
+    @Override
     public void unregisterIndex(Index removed, Index.Group.Key groupKey)
     {
         Index.Group group = indexGroups.get(groupKey);
@@ -1326,8 +1327,8 @@ public class SecondaryIndexManager implements IndexRegistry, INotificationConsum
             // Remove the index from non-singleton groups...
             group.removeIndex(removed);
 
-            // if no more indexes left in the group, remove it
-            if (group.getIndexes().isEmpty())
+            // if the group is a singleton or there are no more indexes left in the group, remove it
+            if (group.isSingleton() || group.getIndexes().isEmpty())
             {
                 Index.Group removedGroup = indexGroups.remove(groupKey);
                 if (removedGroup != null)
