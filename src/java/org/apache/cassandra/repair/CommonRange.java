@@ -41,8 +41,6 @@ import org.apache.cassandra.utils.ObjectSizes;
  */
 public class CommonRange implements IMeasurableMemory
 {
-    // REVIEW: I've heard from some that these should be on a single line, others prefer them split out into separate lines
-    // in a static block. I'm open to either.
     private static final long EMPTY_SIZE = ObjectSizes.measure(new CommonRange(ImmutableSet.of(FBUtilities.getBroadcastAddressAndPort()), Collections.emptySet(), Range.rangeSet(new Range<>(new Murmur3Partitioner.LongToken(Long.MIN_VALUE), new Murmur3Partitioner.LongToken(Long.MIN_VALUE)))));
 
     public final ImmutableSet<InetAddressAndPort> endpoints;

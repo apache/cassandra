@@ -276,10 +276,6 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                   @Override
                                   public int weigh(TimeUUID id, CoordinatorState coordinatorState)
                                   {
-                                      // REVIEW: This addition is unchecked - I was planning to not check memory accounting
-                                      // additions into long because the maximum before overflow is ~thousands of PB, but
-                                      // I check any casts into ints (4GB). Is that a reasonable policy?
-
                                       long retained = coordinatorState.totalNestedRetainedSize().get() + coordinatorState.independentRetainedSize();
                                       int clamped = Ints.saturatedCast(retained);
                                       return Math.max(1, clamped);

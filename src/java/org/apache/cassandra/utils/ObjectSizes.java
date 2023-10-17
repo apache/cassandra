@@ -51,8 +51,6 @@ public class ObjectSizes
 
     public static final long IPV6_SOCKET_ADDRESS_SIZE = ObjectSizes.measureDeep(new InetSocketAddress(getIpvAddress(16), 42));
 
-    private static final long UUID_SIZE = measure(new UUID(0L, 0L));
-
     /**
      * Memory a byte array consumes
      *
