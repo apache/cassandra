@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.index.sai.cql;
 
-import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -35,12 +34,6 @@ import static org.junit.Assert.assertTrue;
 
 public class IndexGroupLifecycleTest extends SAITester
 {
-    @Before
-    public void setup()
-    {
-        requireNetwork();
-    }
-
     @Test
     public void testDropAndRecreate() throws Throwable
     {
@@ -80,7 +73,7 @@ public class IndexGroupLifecycleTest extends SAITester
         assertEquals(3, newGroup.sstableContextManager().size());
     }
 
-    private void populateOneSSTable() throws Throwable
+    private void populateOneSSTable()
     {
         execute("INSERT INTO %s(pk, value) VALUES('k', 'v')");
         flush();

@@ -1547,6 +1547,12 @@ public class CustomIndexTest extends CQLTester
             }
 
             @Override
+            public boolean isSingleton()
+            {
+                return false;
+            }
+
+            @Override
             public Index.Indexer indexerFor(Predicate<Index> indexSelector,
                                             DecoratedKey key,
                                             RegularAndStaticColumns columns,

@@ -1183,7 +1183,6 @@ public class StorageAttachedIndexDDLTest extends SAITester
         delayIndexBuilderCompletion.disable();
 
         assertNull(getCurrentIndexGroup());
-//        verifySSTableIndexes(indexName, 0);
         assertFalse("Expect index not built", SystemKeyspace.isIndexBuilt(KEYSPACE, indexName));
 
         // create index again, it should succeed

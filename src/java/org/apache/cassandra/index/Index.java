@@ -21,7 +21,11 @@
 package org.apache.cassandra.index;
 
 import java.io.UncheckedIOException;
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -52,8 +56,8 @@ import org.apache.cassandra.index.transactions.IndexTransaction;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
-import org.apache.cassandra.io.sstable.SSTableFlushObserver;
 import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.SSTableFlushObserver;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
@@ -730,14 +734,16 @@ public interface Index
          *
          * @param index the index to be added
          */
-        void addIndex(Index index);
+        default void addIndex(Index index)
+        {}
 
         /**
          * Removes the specified {@link Index} from the members of this group.
          *
          * @param index the index to be removed
          */
-        void removeIndex(Index index);
+        default void removeIndex(Index index)
+        {}
 
         /**
          * Returns if this group contains the specified {@link Index}.
@@ -746,6 +752,16 @@ public interface Index
          * @return {@code true} if this group contains {@code index}, {@code false} otherwise
          */
         boolean containsIndex(Index index);
+
+        /**
+         * Returns whether this group can only ever contain a single index.
+         *
+         * @return {@code true} if this group only contains a single index, {@code false} otherwise
+         */
+        default boolean isSingleton()
+        {
+            return true;
+        }
 
         /**
          * Creates an new {@code Indexer} object for updates to a given partition.
