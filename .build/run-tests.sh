@@ -88,13 +88,16 @@ _build_all_dtest_jars() {
     fi
 
     if [ -d ${TMP_DIR}/cassandra-dtest-jars ] && [ "https://github.com/apache/cassandra.git" == "$(git -C ${TMP_DIR}/cassandra-dtest-jars remote get-url origin)" ] ; then
+      echo "Reusing ${TMP_DIR}/cassandra-dtest-jars for past branch dtest jars"
       if [ "x" == "x${OFFLINE}" ] ; then
-        until git -C ${TMP_DIR}/cassandra-dtest-jars fetch --quiet origin ; do echo "git fetch failed… trying again… " ; done
+        until git -C ${TMP_DIR}/cassandra-dtest-jars fetch --quiet origin ; do echo "git -C ${TMP_DIR}/cassandra-dtest-jars fetch failed… trying again… " ; done
       fi
     else
+        echo "Cloning cassandra to ${TMP_DIR}/cassandra-dtest-jars for past branch dtest jars"
         rm -fR ${TMP_DIR}/cassandra-dtest-jars
         pushd $TMP_DIR >/dev/null
         until git clone --quiet --depth 1 --no-single-branch https://github.com/apache/cassandra.git cassandra-dtest-jars ; do echo "git clone failed… trying again… " ; done
+        chmod -R ag+rwx cassandra-dtest-jars
         popd >/dev/null
     fi
 
@@ -103,6 +106,7 @@ _build_all_dtest_jars() {
 
     pushd ${TMP_DIR}/cassandra-dtest-jars >/dev/null
     for branch in cassandra-4.0 cassandra-4.1 cassandra-5.0 trunk ; do
+        git reset --hard HEAD && git clean -qxdff  || echo "failed to reset/clean ${TMP_DIR}/cassandra-dtest-jars… continuing…"
         git checkout --quiet $branch
         dtest_jar_version=$(grep 'property\s*name=\"base.version\"' build.xml |sed -ne 's/.*value=\"\([^"]*\)\".*/\1/p')
         if [ -f "${DIST_DIR}/dtest-${dtest_jar_version}.jar" ] ; then
