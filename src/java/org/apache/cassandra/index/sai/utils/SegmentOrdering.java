@@ -21,24 +21,34 @@ package org.apache.cassandra.index.sai.utils;
 import java.io.IOException;
 import java.util.List;
 
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.QueryContext;
+import org.apache.cassandra.index.sai.disk.v1.IndexSearcher;
 import org.apache.cassandra.index.sai.plan.Expression;
 
 /**
- * There are two steps in ordering:
+ * A {@link SegmentOrdering} orders and limits a list of {@link PrimaryKey}s.
  *
- * 1. Limit a single sstable's results to the correct keys. At this stage
- *    we put them back in primary key order to play nice with the rest of
- *    the query pipeline.
- * 2. Merge the results from multiple sstables. Now we leave them in the
- *    final, correct order.
+ * When using {@link SegmentOrdering} there are several steps to
+ * build the list of Primary Keys to be ordered and limited:
  *
- * SegmentOrdering handles the first step.
+ * 1. Find all primary keys that match each non-ordering query predicate.
+ * 2. Union and intersect the results of step 1 to build a single {@link RangeIterator}
+ *    ordered by {@link PrimaryKey}.
+ * 3. Filter out any shadowed primary keys.
+ * 4. Fan the primary keys from step 3 out to each sstable segment to order and limit each
+ *    list of primary keys.
+ *
+ * SegmentOrdering handles the fourth step.
+ *
+ * Note: a segment ordering is only used when a query has both ordering and non-ordering predicates.
+ * Where a query has only ordering predicates, the ordering is handled by the
+ * {@link IndexSearcher#search(Expression, AbstractBounds, QueryContext, boolean, int)}.
  */
 public interface SegmentOrdering
 {
     /**
-     * Reorder, limit, and put back into original order the results from a single sstable
+     * Order and limit a list of primary keys to the top results.
      */
     default RangeIterator limitToTopResults(QueryContext context, List<PrimaryKey> keys, Expression exp, int limit) throws IOException
     {
