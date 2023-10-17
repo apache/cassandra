@@ -46,7 +46,7 @@ import static org.apache.cassandra.db.TypeSizes.sizeof;
 
 public final class ReplicationParams
 {
-    private static final ReplicationParams META = new ReplicationParams(MetaStrategy.class, ImmutableMap.of());;
+    private static final ReplicationParams META = new ReplicationParams(MetaStrategy.class, ImmutableMap.of());
 
     public static final Serializer serializer = new Serializer();
     public static final MessageSerializer messageSerializer = new MessageSerializer();

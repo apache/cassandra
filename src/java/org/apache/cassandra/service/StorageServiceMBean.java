@@ -1230,16 +1230,16 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void setSkipStreamDiskSpaceCheck(boolean value);
     public boolean getSkipStreamDiskSpaceCheck();
 
-    public void addToCms(List<String> ignoredEndpoints);
-    public void removeFromCms(boolean force);
-    public Map<String, String> describeCMS();
-    public void sealPeriod();
+    void addToCms(List<String> ignoredEndpoints);
+    void removeFromCms(boolean force);
+    Map<String, String> describeCMS();
+    void sealPeriod();
 
-    public void unsafeRevertClusterMetadata(long epoch);
-    public String dumpClusterMetadata(long epoch, long transformToEpoch, String version) throws IOException;
-    public String dumpClusterMetadata() throws IOException;
-    public void unsafeLoadClusterMetadata(String file) throws IOException;
+    void unsafeRevertClusterMetadata(long epoch);
+    String dumpClusterMetadata(long epoch, long transformToEpoch, String version) throws IOException;
+    String dumpClusterMetadata() throws IOException;
+    void unsafeLoadClusterMetadata(String file) throws IOException;
 
-    public void setCommitsPaused(boolean paused);
-    public boolean getCommitsPaused();
+    void setCommitsPaused(boolean paused);
+    boolean getCommitsPaused();
 }

@@ -60,7 +60,7 @@ public final class DistributedMetadataLogKeyspace
      * Generation is used as a timestamp for automatic table creation on startup.
      * If you make any changes to the tables below, make sure to increment the
      * generation and document your change here.
-     *
+     * <p>
      * gen 0: original definition in 5.0
      */
     public static final long GENERATION = 0;
@@ -96,7 +96,7 @@ public final class DistributedMetadataLogKeyspace
         }
         catch (CasWriteTimeoutException t)
         {
-            logger.warn("Timed out wile trying to CAS", t);
+            logger.warn("Timed out while trying to CAS", t);
             return false;
         }
         catch (Throwable t)
@@ -151,7 +151,7 @@ public final class DistributedMetadataLogKeyspace
         }
         catch (CasWriteTimeoutException t)
         {
-            logger.warn("Timed out wile trying to append item to the log: ", t.getMessage());
+            logger.warn("Timed out while trying to append item to the log: {}", t.getMessage());
             return false;
         }
         catch (Throwable t)
@@ -160,7 +160,7 @@ public final class DistributedMetadataLogKeyspace
             return false;
         }
     }
-
+    
     @VisibleForTesting
     public static void truncateLogState()
     {
@@ -259,7 +259,7 @@ public final class DistributedMetadataLogKeyspace
                 throw new RuntimeException(t);
             }
         }
-    };
+    }
 
     private static UntypedResultSet execute(String query, ConsistencyLevel cl, Object ... params)
     {

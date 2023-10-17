@@ -207,7 +207,7 @@ public class PlacementForRange
 
         // if any token is < the start or > the end of the ranges covered, error
         if (tokens.get(0).compareTo(min) < 0 || (!max.equals(min) && tokens.get(tokens.size()-1).compareTo(max) > 0))
-            throw new IllegalArgumentException("New tokens exceed total bounds of current placement ranges " + tokens + " " + eprs);
+            throw new IllegalArgumentException("New tokens exceed total bounds of current placement ranges " + tokens + ' ' + eprs);
         Iterator<VersionedEndpoints.ForRange> iter = eprs.iterator();
         VersionedEndpoints.ForRange current = iter.next();
         for (Token token : tokens)
@@ -279,7 +279,7 @@ public class PlacementForRange
                                                                                          .add(replica, ReplicaCollection.Builder.Conflict.NONE)
                                                                                          .build());
                                                });
-;            if (group == null)
+            if (group == null)
                 replicaGroups.put(replica.range(), VersionedEndpoints.forRange(epoch, EndpointsForRange.of(replica)));
             return this;
 

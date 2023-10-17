@@ -27,14 +27,14 @@ import org.apache.cassandra.simulator.paxos.PaxosSimulationRunner;
 
 /**
  * In order to run these tests in your IDE, you need to first build a simulator jara
- *
+ * <p>
  *    ant simulator-jars
- *
+ * <p>
  * And then run your test using the following settings (omit add-* if you are running on jdk8):
- *
+ * <p>
           -Dstorage-config=$MODULE_DIR$/test/conf
           -Djava.awt.headless=true
-          -javaagent:$MODULE_DIR$/lib/jamm-0.3.2.jar
+          -javaagent:$MODULE_DIR$/lib/jamm-0.4.0.jar
           -ea
           -Dcassandra.debugrefcount=true
           -Xss384k

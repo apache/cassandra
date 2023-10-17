@@ -253,7 +253,6 @@ public class ClusterMetadataService
         this.peerLogFetcher = peerLogFetcher;
     }
 
-    @SuppressWarnings("resource")
     public static void initializeForTools(boolean loadSSTables)
     {
         if (instance != null)
@@ -276,7 +275,6 @@ public class ClusterMetadataService
         ClusterMetadataService.setInstance(cms);
     }
 
-    @SuppressWarnings("resource")
     public static void initializeForClients()
     {
         if (instance != null)
@@ -424,7 +422,7 @@ public class ClusterMetadataService
 
     /**
      * dumps the cluster metadata at the given epoch, returns path to the generated file
-     *
+     * <p>
      * if the given Epoch is EMPTY, we dump the current metadata
      *
      * @param epoch dump clustermetadata at this epoch
@@ -602,7 +600,7 @@ public class ClusterMetadataService
 
     /**
      * Fetches log entries from directly from CMS, at least to the specified epoch.
-     *
+     * <p>
      * This operation is blocking and also waits for all retrieved log entries to be
      * enacted, so on return all transformations to ClusterMetadata will be visible.
      * @return metadata with all currently committed entries enacted.
@@ -659,7 +657,7 @@ public class ClusterMetadataService
     /**
      *
      * IMPORTANT: this call can return _without_ catching us up, so should only be used privately.
-     *
+     * <p>
      * Attempts to synchronously retrieve log entries from a non-CMS peer.
      * Fetches the log state representing the delta between the current local epoch and the one supplied.
      * This is to be used when a message from a peer contains an epoch higher than the current local epoch. As

@@ -35,8 +35,6 @@ common=(-Dstorage-config=$current_dir/../test/conf
         -Dcassandra.test.sstableformatdevelopment=true
         -Djava.security.egd=file:/dev/urandom
         -Dcassandra.testtag=.jdk11
-        -Dstorage-config=$current_dir/../test/conf
-        -Djava.awt.headless=true
         -Dcassandra.keepBriefBrief=true
         -Dcassandra.allow_simplestrategy=true
         -Dcassandra.strict.runtime.checks=true
@@ -57,7 +55,7 @@ common=(-Dstorage-config=$current_dir/../test/conf
         -Dcassandra.test.logConfigPath=$current_dir/../test/conf/log4j2-dtest-simulator.xml
         -Dcassandra.test.logConfigProperty=log4j.configurationFile
         -Dlog4j2.configurationFile=$current_dir/../test/conf/log4j2-dtest-simulator.xml
-        -javaagent:$current_dir/../lib/jamm-0.3.2.jar
+        -javaagent:$current_dir/../lib/jamm-0.4.0.jar
         -javaagent:$current_dir/../build/test/lib/jars/simulator-asm.jar
         -Xbootclasspath/a:$current_dir/../build/test/lib/jars/simulator-bootstrap.jar
         -XX:ActiveProcessorCount=4

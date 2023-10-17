@@ -73,7 +73,7 @@ public class LogState
      */
     public final Replication transformations;
 
-    // Uses Replication rather than an just a list of entries primarily to avoid duplicating the existing serializer
+    // Uses Replication rather than just a list of entries primarily to avoid duplicating the existing serializer
     public LogState(ClusterMetadata baseState, Replication transformations)
     {
         this.baseState = baseState;
@@ -192,10 +192,7 @@ public class LogState
      *    should determine the starting period itself (typically by checking the system.sealed_periods table, but
      *    falling back to a full log scan in the pathological case) and will read log entries from either the local or
      *    distributed log table depending on the calling context.
-     * @param since
-     * @param snapshots
-     * @param reader
-     * @return
+     * @return LogState
      */
     public static LogState getForRecovery(Epoch target)
     {
@@ -211,7 +208,7 @@ public class LogState
         if (sealed.epoch.isAfter(target))
         {
             // we need the snapshot from the preceding period plus some entries. Scan result includes the supplied
-            // start period so we have to either manually decrement the start period (or fetch a list of up to 2 items)
+            // start period, so we have to either manually decrement the start period (or fetch a list of up to 2 items)
             List<Sealed> before = Period.scanLogForRecentlySealed(SystemKeyspace.LocalMetadataLog, sealed.period - 1, 1);
             assert !before.isEmpty() : "No earlier snapshot found, started looking at " + (sealed.period - 1) + " target = " + target;
             preceding = before.get(0);

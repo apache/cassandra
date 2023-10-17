@@ -41,13 +41,13 @@ public final class AuthKeyspace
     {
     }
 
-    public static final int DEFAULT_RF = CassandraRelevantProperties.SYSTEM_AUTH_DEFAULT_RF.getInt();
+    private static final int DEFAULT_RF = CassandraRelevantProperties.SYSTEM_AUTH_DEFAULT_RF.getInt();
 
     /**
      * Generation is used as a timestamp for automatic table creation on startup.
      * If you make any changes to the tables below, make sure to increment the
      * generation and document your change here.
-     *
+     * <p>
      * gen 0: original definition in 3.0
      * gen 1: compression chunk length reduced to 16KiB, memtable_flush_period_in_ms now unset on all tables in 4.0
      */

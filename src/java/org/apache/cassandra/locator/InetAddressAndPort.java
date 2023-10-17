@@ -48,7 +48,7 @@ import org.apache.cassandra.utils.FastByteOperations;
  * Opting for a full replacement class so that in the future if we change the nature
  * of the identifier the refactor will be easier in that we don't have to change the type
  * just the methods.
- *
+ * <p>
  * Because an IP might contain multiple C* instances the identification must be done
  * using the IP + port. InetSocketAddress is undesirable for a couple of reasons. It's not comparable,
  * it's toString() method doesn't correctly bracket IPv6, it doesn't handle optional default values,
@@ -181,7 +181,7 @@ public final class InetAddressAndPort extends InetSocketAddress implements Compa
      *  The string returned is of the form: hostname / literal IP address : port
      *  (without the whitespace). Literal IPv6 addresses will be wrapped with [ ]
      *  to make the port number clear.
-     *
+     * <p>
      *  If the host name is unresolved, no reverse name service lookup
      *  is performed. The hostname part will be represented by an empty string.
      *
