@@ -19,8 +19,8 @@ package org.apache.cassandra.index.sai.utils;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
-import java.util.PriorityQueue;
 
 import org.apache.cassandra.io.util.FileUtils;
 
@@ -36,33 +36,34 @@ import org.apache.cassandra.io.util.FileUtils;
  */
 public class RangeConcatIterator extends RangeIterator
 {
-    private final PriorityQueue<RangeIterator> ranges;
+    private final Iterator<RangeIterator> ranges;
+    private RangeIterator currentRange;
     private final List<RangeIterator> toRelease;
 
-    protected RangeConcatIterator(RangeIterator.Builder.Statistics statistics, PriorityQueue<RangeIterator> ranges)
+    protected RangeConcatIterator(RangeIterator.Builder.Statistics statistics, List<RangeIterator> ranges)
     {
         super(statistics);
 
-        this.ranges = ranges;
-        this.toRelease = new ArrayList<>(ranges);
+        this.ranges = ranges.iterator();
+        this.toRelease = ranges;
     }
 
     @Override
     @SuppressWarnings("resource")
     protected void performSkipTo(PrimaryKey primaryKey)
     {
-        while (!ranges.isEmpty())
+        if (currentRange != null && currentRange.getMaximum().compareTo(primaryKey) >= 0)
         {
-            if (ranges.peek().getCurrent().compareTo(primaryKey) >= 0)
-                break;
-
-            var head = ranges.poll();
-
-            if (head.getMaximum().compareTo(primaryKey) >= 0)
+            currentRange.skipTo(primaryKey);
+            return;
+        }
+        while (ranges.hasNext())
+        {
+            currentRange = ranges.next();
+            if (currentRange.getMaximum().compareTo(primaryKey) >= 0)
             {
-                head.skipTo(primaryKey);
-                ranges.add(head);
-                break;
+                currentRange.skipTo(primaryKey);
+                return;
             }
         }
     }
@@ -78,50 +79,78 @@ public class RangeConcatIterator extends RangeIterator
     @SuppressWarnings("resource")
     protected PrimaryKey computeNext()
     {
-        while (!ranges.isEmpty())
+        if (currentRange == null || !currentRange.hasNext())
         {
-            RangeIterator current = ranges.poll();
-            if (current.hasNext())
-            {
-                PrimaryKey next = current.next();
-                // hasNext will update RangeIterator's current which is used to sort in PQ
-                if (current.hasNext())
-                    ranges.add(current);
-
-                return next;
-            }
+            if (!ranges.hasNext())
+                return endOfData();
+            currentRange = ranges.next();
+            assert currentRange.hasNext() : "Only non empty range iterators are added. Current range must not be empty.";
         }
-
-        return endOfData();
+        return currentRange.next();
     }
 
     public static Builder builder()
     {
-        return new Builder();
+        return builder(1);
+    }
+
+    public static Builder builder(int size)
+    {
+        return new Builder(size);
     }
 
     public static RangeIterator build(List<RangeIterator> tokens)
     {
-        return new Builder().add(tokens).build();
+        return new Builder(tokens.size()).add(tokens).build();
     }
 
     public static class Builder extends RangeIterator.Builder
     {
-        public Builder()
+        // We can use a list because the iterators are already in order
+        private final List<RangeIterator> rangeIterators;
+        public Builder(int size)
         {
             super(IteratorType.CONCAT);
+            this.rangeIterators = new ArrayList<>(size);
+        }
+
+        public int rangeCount()
+        {
+            return rangeIterators.size();
+        }
+
+        @Override
+        public Builder add(RangeIterator range)
+        {
+            if (range == null)
+                return this;
+
+            if (range.getCount() > 0)
+            {
+                rangeIterators.add(range);
+                statistics.update(range);
+            }
+            else
+                FileUtils.closeQuietly(range);
+
+            return this;
+        }
+
+        @Override
+        public RangeIterator.Builder add(List<RangeIterator> ranges)
+        {
+            if (ranges == null || ranges.isEmpty())
+                return this;
+
+            ranges.forEach(this::add);
+            return this;
         }
 
         protected RangeIterator buildIterator()
         {
-            switch (rangeCount())
-            {
-                case 1:
-                    return ranges.poll();
-
-                default:
-                    return new RangeConcatIterator(statistics, ranges);
-            }
+            if (rangeCount() == 1)
+                return rangeIterators.get(0);
+            return new RangeConcatIterator(statistics, rangeIterators);
         }
     }
 }

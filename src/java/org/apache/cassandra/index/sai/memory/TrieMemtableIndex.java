@@ -161,10 +161,11 @@ public class TrieMemtableIndex implements MemtableIndex
     @Override
     public RangeIterator search(QueryContext queryContext, Expression expression, AbstractBounds<PartitionPosition> keyRange, int limit)
     {
-        RangeConcatIterator.Builder builder = RangeConcatIterator.builder();
-
         int startShard = boundaries.getShardForToken(keyRange.left.getToken());
         int endShard = keyRange.right.isMinimum() ? boundaries.shardCount() - 1 : boundaries.getShardForToken(keyRange.right.getToken());
+
+        RangeConcatIterator.Builder builder = RangeConcatIterator.builder(endShard - startShard + 1);
+
         for (int shard  = startShard; shard <= endShard; ++shard)
         {
             assert rangeIndexes[shard] != null;

@@ -70,7 +70,7 @@ public class AbstractRangeIteratorTest extends SaiRandomizedTest
 
     final RangeIterator buildConcat(RangeIterator... ranges)
     {
-        return RangeConcatIterator.<PrimaryKey>builder().add(Arrays.asList(ranges)).build();
+        return RangeConcatIterator.builder(ranges.length).add(Arrays.asList(ranges)).build();
     }
 
     final RangeIterator buildConcat(long[]... ranges)
