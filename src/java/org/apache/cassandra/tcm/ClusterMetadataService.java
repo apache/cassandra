@@ -137,8 +137,15 @@ public class ClusterMetadataService
     private final AtomicBoolean commitsPaused = new AtomicBoolean();
 
     /**
-     * Returns the state of the {@code ClusteMetadataService}.
-     * @return the state of the {@code ClusteMetadataService}.
+     * Returns the current state of the {@code ClusteMetadataService}.
+     * <p>
+     *  The state can be:
+     *  <ul>
+     *     <li>LOCAL: the node is a member of CMS</li>
+     *     <li>REMOTE: the node is not a CMS nember</li>
+     *     <li>GOSSIP: the node has not been upgraded to TCM yet</li>
+     *     <li>RESET: the node is being forced to reset the local metadata</li>
+     *   </ul>
      */
     public static State state()
     {
@@ -860,8 +867,32 @@ public class ClusterMetadataService
         }
     }
 
+    /**
+     *  A state of the {@code ClusterMetadataService} of the node. A state can be:
+     *  <ul>
+     *      <li>the node is a member of CMS</li>
+     *      <li>the node is not a CMS nember</li>
+     *      <li>the node has not been upgraded to TCM yet</li>
+     *      <li>the node is being forced to reset the local metadata</li>
+     *  </ul>
+     */
     public enum State
     {
-        LOCAL, REMOTE, GOSSIP, RESET
+        /**
+         * The node is a member of the CMS
+         */
+        LOCAL,
+        /**
+         * The node is not a member of the CMS
+         */
+        REMOTE,
+        /**
+         * The node has not been upgraded to TCM yet
+         */
+        GOSSIP,
+        /**
+         * The node is being forced to reset the local metadata
+         */
+        RESET
     }
 }
