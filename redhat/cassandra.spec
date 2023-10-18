@@ -104,6 +104,7 @@ rm -f bin/*.bat
 rm -f bin/*.orig
 rm -f bin/*.ps1
 rm -f bin/cassandra.in.sh
+rm -f bin/stop-server
 rm -f lib/sigar-bin/*winnt*  # strip segfaults on dll..
 rm -f tools/bin/*.bat
 rm -f tools/bin/cassandra.in.sh
@@ -154,7 +155,6 @@ exit 0
 %attr(755,root,root) %{_bindir}/sstableupgrade
 %attr(755,root,root) %{_bindir}/sstableutil
 %attr(755,root,root) %{_bindir}/sstableverify
-%attr(755,root,root) %{_bindir}/stop-server
 %attr(755,root,root) %{_sbindir}/cassandra
 %attr(755,root,root) /%{_sysconfdir}/rc.d/init.d/%{username}
 %{_sysconfdir}/default/%{username}
