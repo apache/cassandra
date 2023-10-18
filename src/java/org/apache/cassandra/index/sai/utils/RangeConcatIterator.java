@@ -81,10 +81,12 @@ public class RangeConcatIterator extends RangeIterator
     {
         if (currentRange == null || !currentRange.hasNext())
         {
-            if (!ranges.hasNext())
-                return endOfData();
-            currentRange = ranges.next();
-            assert currentRange.hasNext() : "Only non empty range iterators are added. Current range must not be empty.";
+            do
+            {
+                if (!ranges.hasNext())
+                    return endOfData();
+                currentRange = ranges.next();
+            } while (!currentRange.hasNext());
         }
         return currentRange.next();
     }
@@ -114,6 +116,7 @@ public class RangeConcatIterator extends RangeIterator
             this.rangeIterators = new ArrayList<>(size);
         }
 
+        @Override
         public int rangeCount()
         {
             return rangeIterators.size();
