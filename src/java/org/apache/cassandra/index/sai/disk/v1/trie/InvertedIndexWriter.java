@@ -45,10 +45,10 @@ public class InvertedIndexWriter implements Closeable
     private final PostingsWriter postingsWriter;
     private long postingsAdded;
 
-    public InvertedIndexWriter(IndexDescriptor indexDescriptor, IndexContext indexContext, boolean segmented) throws IOException
+    public InvertedIndexWriter(IndexDescriptor indexDescriptor, IndexContext indexContext) throws IOException
     {
-        this.termsDictionaryWriter = new TrieTermsDictionaryWriter(indexDescriptor, indexContext, segmented);
-        this.postingsWriter = new PostingsWriter(indexDescriptor, indexContext, segmented);
+        this.termsDictionaryWriter = new TrieTermsDictionaryWriter(indexDescriptor, indexContext);
+        this.postingsWriter = new PostingsWriter(indexDescriptor, indexContext);
     }
 
     /**

@@ -374,8 +374,7 @@ public class BKDReaderTest extends SaiRandomizedTest
                                                                  Integer.BYTES,
                                                                  Math.toIntExact(buffer.numRows()),
                                                                  buffer.numRows(),
-                                                                 new IndexWriterConfig("test", 2, 8),
-                                                                 false);
+                                                                 new IndexWriterConfig("test", 2, 8));
 
         final SegmentMetadata.ComponentMetadataMap metadata = writer.writeAll(buffer.asPointValues());
         final long bkdPosition = metadata.get(IndexComponent.KD_TREE).root;
@@ -400,8 +399,7 @@ public class BKDReaderTest extends SaiRandomizedTest
                                                                  Integer.BYTES,
                                                                  Math.toIntExact(numRows),
                                                                  numRows,
-                                                                 new IndexWriterConfig("test", 2, 8),
-                                                                 false);
+                                                                 new IndexWriterConfig("test", 2, 8));
 
         final SegmentMetadata.ComponentMetadataMap metadata = writer.writeAll(values);
         final long bkdPosition = metadata.get(IndexComponent.KD_TREE).root;

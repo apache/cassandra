@@ -100,9 +100,9 @@ public class PostingsWriter implements Closeable
     private long maxDelta;
     private long totalPostings;
 
-    public PostingsWriter(IndexDescriptor indexDescriptor, IndexContext indexContext, boolean segmented) throws IOException
+    public PostingsWriter(IndexDescriptor indexDescriptor, IndexContext indexContext) throws IOException
     {
-        this(indexDescriptor, indexContext, BLOCK_SIZE, segmented);
+        this(indexDescriptor, indexContext, BLOCK_SIZE);
     }
 
     public PostingsWriter(IndexOutput dataOutput) throws IOException
@@ -111,9 +111,9 @@ public class PostingsWriter implements Closeable
     }
 
     @VisibleForTesting
-    PostingsWriter(IndexDescriptor indexDescriptor, IndexContext indexContext, int blockSize, boolean segmented) throws IOException
+    PostingsWriter(IndexDescriptor indexDescriptor, IndexContext indexContext, int blockSize) throws IOException
     {
-        this(indexDescriptor.openPerIndexOutput(IndexComponent.POSTING_LISTS, indexContext, true, segmented), blockSize);
+        this(indexDescriptor.openPerIndexOutput(IndexComponent.POSTING_LISTS, indexContext, true), blockSize);
     }
 
     private PostingsWriter(IndexOutput dataOutput, int blockSize) throws IOException
