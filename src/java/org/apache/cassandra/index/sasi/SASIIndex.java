@@ -186,7 +186,7 @@ public class SASIIndex implements Index, INotificationConsumer
     @Override
     public void register(IndexRegistry registry)
     {
-        registry.registerIndex(this, this, () -> new SASIIndexGroup(this));
+        registry.registerIndex(this, new Group.Key(this), () -> new SASIIndexGroup(this));
     }
 
     public IndexMetadata getIndexMetadata()
