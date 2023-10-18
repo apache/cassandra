@@ -71,6 +71,8 @@ import org.apache.cassandra.service.accord.AccordSyncPropagator.Notification;
 import org.apache.cassandra.service.accord.api.AccordAgent;
 import org.apache.cassandra.service.accord.api.AccordRoutingKey.KeyspaceSplitter;
 import org.apache.cassandra.service.accord.api.AccordScheduler;
+import org.apache.cassandra.service.accord.api.AccordTopologySorter;
+import org.apache.cassandra.service.accord.api.CompositeTopologySorter;
 import org.apache.cassandra.service.accord.exceptions.ReadPreemptedException;
 import org.apache.cassandra.service.accord.exceptions.WritePreemptedException;
 import org.apache.cassandra.service.accord.txn.TxnData;
@@ -138,7 +140,17 @@ public class AccordService implements IAccordService, Shutdownable
         }
 
         @Override
-        public void startup() {}
+        public void startup()
+        {
+            try
+            {
+                AccordTopologySorter.checkSnitchSupported(DatabaseDescriptor.getEndpointSnitch());
+            }
+            catch (Throwable t)
+            {
+                logger.warn("Current snitch  is not compatable with Accord, make sure to fix the snitch before enabling Accord; {}", t.toString());
+            }
+        }
 
         @Override
         public void shutdownAndWait(long timeout, TimeUnit unit) { }
@@ -241,7 +253,8 @@ public class AccordService implements IAccordService, Shutdownable
                              agent,
                              new DefaultRandom(),
                              scheduler,
-                             SizeOfIntersectionSorter.SUPPLIER,
+                             CompositeTopologySorter.create(SizeOfIntersectionSorter.SUPPLIER,
+                                                            new AccordTopologySorter.Supplier(configService, DatabaseDescriptor.getEndpointSnitch())),
                              SimpleProgressLog::new,
                              AccordCommandStores.factory(journal),
                              configuration);
