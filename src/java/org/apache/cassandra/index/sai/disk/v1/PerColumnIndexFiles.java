@@ -67,9 +67,9 @@ public class PerColumnIndexFiles implements Closeable
         return getFile(IndexComponent.BALANCED_TREE);
     }
 
-    public FileHandle vectors()
+    public FileHandle compressedVectors()
     {
-        return getFile(IndexComponent.VECTORS);
+        return getFile(IndexComponent.COMPRESSED_VECTORS);
     }
 
     @SuppressWarnings({"resource", "RedundantSuppression"})

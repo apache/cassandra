@@ -59,8 +59,8 @@ public class DiskAnn implements AutoCloseable
         graphHandle = indexFiles.termsData();
         graph = new CachingGraphIndex(new OnDiskGraphIndex<>(RandomAccessReaderAdapter.createSupplier(graphHandle), termsMetadata.offset));
 
-        long pqSegmentOffset = componentMetadatas.get(IndexComponent.VECTORS).offset;
-        try (var pqFileHandle = indexFiles.vectors(); var reader = new RandomAccessReaderAdapter(pqFileHandle))
+        long pqSegmentOffset = componentMetadatas.get(IndexComponent.COMPRESSED_VECTORS).offset;
+        try (var pqFileHandle = indexFiles.compressedVectors(); var reader = new RandomAccessReaderAdapter(pqFileHandle))
         {
             reader.seek(pqSegmentOffset);
             var containsCompressedVectors = reader.readBoolean();
