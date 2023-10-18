@@ -42,6 +42,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MBeanWrapper;
+import org.apache.cassandra.utils.Sortable;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORE_DYNAMIC_SNITCH_SEVERITY;
 
@@ -197,10 +198,13 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
 
         // TODO: avoid copy
         replicas = subsnitch.sortedByProximity(address, replicas);
-        HashMap<InetAddressAndPort, Double> scores = this.scores; // Make sure the score don't change in the middle of the loop below
-                                                           // (which wouldn't really matter here but its cleaner that way).
-        ArrayList<Double> subsnitchOrderedScores = new ArrayList<>(replicas.size());
-        for (Replica replica : replicas)
+        return shouldSortByScore(scores, replicas) ? sortedByProximityWithScore(address, replicas) : replicas;
+    }
+
+    private <C extends Sortable<? extends Endpoint, ? extends C>> boolean shouldSortByScore(HashMap<InetAddressAndPort, Double> scores, C sortedReplicas)
+    {
+        ArrayList<Double> subsnitchOrderedScores = new ArrayList<>(sortedReplicas.size());
+        for (Endpoint replica : sortedReplicas)
         {
             Double score = scores.get(replica.endpoint());
             if (score == null)
@@ -220,12 +224,10 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
         for (Double subsnitchScore : subsnitchOrderedScores)
         {
             if (subsnitchScore > (sortedScoreIterator.next() * badnessThreshold))
-            {
-                return sortedByProximityWithScore(address, replicas);
-            }
+                return true;
         }
 
-        return replicas;
+        return false;
     }
 
     private static double defaultStore(InetAddressAndPort target)
@@ -235,6 +237,11 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
 
     // Compare endpoints given an immutable snapshot of the scores
     private int compareEndpoints(InetAddressAndPort target, Replica a1, Replica a2, Map<InetAddressAndPort, Double> scores)
+    {
+        return compareEndpoints(a1, a2, scores, (a, b) -> subsnitch.compareEndpoints(target, a, b));
+    }
+
+    private <T extends Endpoint> int compareEndpoints(T a1, T a2, Map<InetAddressAndPort, Double> scores, Comparator<T> subCompare)
     {
         Double scored1 = scores.get(a1.endpoint());
         Double scored2 = scores.get(a2.endpoint());
@@ -250,7 +257,7 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
         }
 
         if (scored1.equals(scored2))
-            return subsnitch.compareEndpoints(target, a1, a2);
+            return subCompare.compare(a1, a2);
         if (scored1 < scored2)
             return -1;
         else
@@ -437,5 +444,27 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements Lat
     public boolean validate(Set<String> datacenters, Set<String> racks)
     {
         return subsnitch.validate(datacenters, racks);
+    }
+
+    @Override
+    public boolean supportCompareByEndpoint()
+    {
+        return subsnitch.supportCompareByEndpoint();
+    }
+
+    @Override
+    public <C extends Sortable<? extends Endpoint, ? extends C>> Comparator<Endpoint> endpointComparator(InetAddressAndPort address, C addresses)
+    {
+        if (!subsnitch.supportCompareByEndpoint())
+            throw new UnsupportedOperationException();
+        assert address.equals(FBUtilities.getBroadcastAddressAndPort()); // we only know about ourself
+        Comparator<Endpoint> compare = subsnitch.endpointComparator(address, addresses);
+        if (addresses.size() < 2)
+            return compare;
+        HashMap<InetAddressAndPort, Double> scores = this.scores;
+        Comparator<Endpoint> compareWithScore = (r1, r2) -> compareEndpoints(r1, r2, scores, compare);
+        return dynamicBadnessThreshold == 0 || shouldSortByScore(scores, addresses.sorted(compare)) ?
+               compareWithScore :
+               compare;
     }
 }
