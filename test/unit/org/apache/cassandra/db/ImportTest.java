@@ -136,8 +136,9 @@ public class ImportTest extends CQLTester
     }
 
 
+    /** @deprecated See CASSANDRA-6719 */
     @Test
-    @Deprecated
+    @Deprecated(since = "4.0")
     public void refreshTest() throws Throwable
     {
         createTable("create table %s (id int primary key, d int)");

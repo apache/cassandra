@@ -5070,7 +5070,7 @@ jobs:
           cd ~/cassandra
           mkdir ~/dtest_jars
           git remote add apache https://github.com/apache/cassandra.git
-          for branch in cassandra-4.0 cassandra-4.1 cassandra-5.0 ; do
+          for branch in cassandra-4.0 cassandra-4.1 cassandra-5.0 trunk; do
             # check out the correct cassandra version:
             git remote set-branches --add apache '$branch'
             git fetch --depth 1 apache $branch

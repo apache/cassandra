@@ -66,7 +66,7 @@ public class TableStatsHolder implements StatsHolder
     }
 
     /**
-     * @returns Map<String, Object> a nested HashMap of keyspaces, their tables, and the tables' statistics.
+     * @return {@code Map<String, Object>} a nested HashMap of keyspaces, their tables, and the tables' statistics.
      */
     private Map<String, Object> convertAllToMap()
     {
@@ -98,7 +98,7 @@ public class TableStatsHolder implements StatsHolder
     }
 
     /**
-     * @returns Map<String, Object> a nested HashMap of the sorted and filtered table names and the HashMaps of their statistics.
+     * @return {@code Map<String, Object>} a nested HashMap of the sorted and filtered table names and the HashMaps of their statistics.
      */
     private Map<String, Object> convertSortedFilteredSubsetToMap()
     {

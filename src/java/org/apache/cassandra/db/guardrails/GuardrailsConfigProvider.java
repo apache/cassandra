@@ -40,9 +40,9 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.CUSTOM_GUA
 public interface GuardrailsConfigProvider
 {
     /**
-     * @deprecated CUSTOM_GUARDRAILS_CONFIG_PROVIDER_CLASS.getKey() must be used instead.
+     * @deprecated CUSTOM_GUARDRAILS_CONFIG_PROVIDER_CLASS.getKey() must be used instead. See CASSANDRA-17797
      */
-    @Deprecated
+    @Deprecated(since = "5.0")
     public static final String CUSTOM_IMPLEMENTATION_PROPERTY = CUSTOM_GUARDRAILS_CONFIG_PROVIDER_CLASS.getKey();
 
     GuardrailsConfigProvider instance = CUSTOM_GUARDRAILS_CONFIG_PROVIDER_CLASS.getString() == null ?

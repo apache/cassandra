@@ -77,6 +77,7 @@ _timeout_for() {
 }
 
 _build_all_dtest_jars() {
+
     # build the dtest-jar for the branch under test. remember to `ant clean` if you want a new dtest jar built
     dtest_jar_version=$(grep 'property\s*name=\"base.version\"' build.xml |sed -ne 's/.*value=\"\([^"]*\)\".*/\1/p')
     if [ -f "${DIST_DIR}/dtest-${dtest_jar_version}.jar" ] ; then
@@ -104,7 +105,7 @@ _build_all_dtest_jars() {
     [ "${java_version}" -eq 11 ] && export CASSANDRA_USE_JDK11=true
 
     pushd ${TMP_DIR}/cassandra-dtest-jars >/dev/null
-    for branch in cassandra-4.0 cassandra-4.1 cassandra-5.0 ; do
+    for branch in cassandra-4.0 cassandra-4.1 cassandra-5.0 trunk ; do
         git reset --hard HEAD && git clean -qxdff  || echo "failed to reset/clean ${TMP_DIR}/cassandra-dtest-jars… continuing…"
         git checkout --quiet $branch
         dtest_jar_version=$(grep 'property\s*name=\"base.version\"' build.xml |sed -ne 's/.*value=\"\([^"]*\)\".*/\1/p')

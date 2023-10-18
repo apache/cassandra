@@ -1503,8 +1503,8 @@ public class MerkleTree
      *
      * n = floor(log_2((T + I) / (L + I))
      *
-     * @param numBytes: The number of bytes to fit the tree within
-     * @param bytesPerHash: The number of bytes stored in a leaf node, for example 2 * murmur128 will be 256 bits
+     * @param numBytes The number of bytes to fit the tree within
+     * @param bytesPerHash The number of bytes stored in a leaf node, for example 2 * murmur128 will be 256 bits
      *                    or 32 bytes
      * @return the estimated depth that will fit within the provided number of bytes
      */

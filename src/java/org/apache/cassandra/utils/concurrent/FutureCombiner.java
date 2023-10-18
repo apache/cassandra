@@ -51,7 +51,7 @@ public class FutureCombiner<T> extends AsyncFuture<T>
     }
 
     /**
-     * Tracks completion; once all futures have completed, invokes {@link Listener#complete#trySuccess(Object)} with {@link Listener#onSuccess}.
+     * Tracks completion; once all futures have completed, invokes {@code Listener#complete#trySuccess(Object)} with {@link Listener#onSuccess}.
      * Never invokes failure on {@link Listener#complete}.
      */
     private static class Listener<T> extends AtomicInteger implements GenericFutureListener<io.netty.util.concurrent.Future<Object>>
@@ -82,7 +82,7 @@ public class FutureCombiner<T> extends AsyncFuture<T>
     }
 
     /**
-     * Tracks completion; once all futures have completed, invokes {@link Listener#complete#trySuccess(Object)} with {@link Listener#onSuccess}.
+     * Tracks completion; once all futures have completed, invokes {@code Listener#complete#trySuccess(Object)} with {@link Listener#onSuccess}.
      * If any future fails, immediately propagates this failure and releases associated resources.
      */
     private static class FailFastListener<T> extends Listener<T>
@@ -108,7 +108,7 @@ public class FutureCombiner<T> extends AsyncFuture<T>
     }
 
     /**
-     * Tracks completion; once all futures have completed, invokes {@link Listener#complete#trySuccess(Object)} with {@link Listener#onSuccess}.
+     * Tracks completion; once all futures have completed, invokes {@code Listener#complete#trySuccess(Object)} with {@link Listener#onSuccess}.
      * If any future fails we propagate this failure, but only once all have completed.
      */
     private static class FailSlowListener<T> extends Listener<T>

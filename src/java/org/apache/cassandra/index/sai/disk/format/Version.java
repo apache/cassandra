@@ -133,7 +133,7 @@ public class Version implements Comparable<Version>
     /**
      * SAI default filename formatter. This is the current SAI on-disk filename format
      *
-     * Format: <sstable descriptor>-SAI+<version>(+<index name>)+<component name>.db
+     * Format: {@code <sstable descriptor>-SAI+<version>(+<index name>)+<component name>.db}
      * Note: The index name is excluded for per-SSTable index files that are shared
      * across all the per-column indexes for the SSTable.
      */

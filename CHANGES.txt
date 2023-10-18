@@ -1,4 +1,8 @@
-5.0-alpha2
+5.1
+ * Add ELAPSED command to cqlsh (CASSANDRA-18861)
+ * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
+ * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
+Merged from 5.0:
  * Fix vector type to support DDM's mask_default function (CASSANDRA-18889)
  * Remove unnecessary reporter-config3 dependency (CASSANDRA-18907)
  * Remove support for empty values on the vector data type (CASSANDRA-18876)
@@ -9,6 +13,7 @@
  * Upgrade slf4j-api to 1.7.36 (CASSANDRA-18882)
  * Make the output of ON/OFF commands in cqlsh consistent (CASSANDRA-18547)
  * Do not create sstable files before registering in txn (CASSANDRA-18737)
+ * Remove wrong assertion in SSTableLoader (CASSANDRA-18840)
  * Do not log stacktrace on mismatched cache and schema version and checksum error in AutoSavingCache (CASSANDRA-18862)
  * Remove wrong assertion in SSTableLoader (CASSANDRA-18840)
  * Fix accessing java.nio.Bits.TOTAL_CAPACITY in Java17 (CASSANDRA-18848)
@@ -25,11 +30,11 @@ Merged from 4.0:
  * JMH improvements - faster build and async profiler (CASSANDRA-18871)
  * Enable 3rd party JDK installations for Debian package (CASSANDRA-18844)
 Merged from 3.11:
+ * Revert CASSANDRA-18543 (CASSANDRA-18854)
 Merged from 3.0:
- * Implement the logic in bin/stop-server (CASSANDRA-18838)
+ * Implement the logic in bin/stop-server (CASSANDRA-18838) 
  * Upgrade snappy-java to 1.1.10.4 (CASSANDRA-18878)
  * Add cqlshrc.sample and credentials.sample into Debian package (CASSANDRA-18818)
-
 
 5.0-alpha1
  * Fix rpm installations to work with jdk17 (CASSANDRA-18817)
@@ -45,6 +50,24 @@ Merged from 3.0:
  * Remove commitlog_sync_batch_window_in_ms (CASSANDRA-17161)
  * Upgrade JMH from 1.21 to 1.36 (CASSANDRA-18696)
  * Add guardrail for vector dimensions (CASSANDRA-18730)
+Merged from 4.1:
+ * Waiting indefinitely on ReceivedMessage response in StreamSession#receive() can cause deadlock (CASSANDRA-18733)
+ * Allow empty keystore_password in encryption_options (CASSANDRA-18778)
+Merged from 4.0:
+ * JMH improvements - faster build and async profiler (CASSANDRA-18871)
+Merged from 3.11:
+ * Fix NPE when using udfContext in UDF after a restart of a node (CASSANDRA-18739)
+Merged from 3.0:
+ * Add cqlshrc.sample and credentials.sample into Debian package (CASSANDRA-18818)
+ * Refactor validation logic in StorageService.rebuild (CASSANDRA-18803)
+ * Make alternation of a user type validate the same way as creation of a user type does (CASSANDRA-18585)
+ * Fix missing speculative retries in tablestats (CASSANDRA-18767)
+ * Fix Requires for Java for RPM package (CASSANDRA-18751)
+ * Fix CQLSH online help topic link (CASSANDRA-17534)
+ * Remove unused suppressions (CASSANDRA-18724)
+
+
+5.0
  * Upgraded Netty to 4.1.96, added BouncyCastle dependency (CASSANDRA-17992)
  * Fix for (unsupported) big endian unaligned architecture, eg s390x (CASSANDRA-17723)
  * CIDR filtering authorizer (CASSANDRA-18592)
@@ -221,18 +244,13 @@ Merged from 3.0:
  * Add guardrail for ALTER TABLE ADD / DROP / REMOVE column operations (CASSANDRA-17495)
  * Rename DisableFlag class to EnableFlag on guardrails (CASSANDRA-17544)
 Merged from 4.1:
- * Waiting indefinitely on ReceivedMessage response in StreamSession#receive() can cause deadlock (CASSANDRA-18733)
- * Allow empty keystore_password in encryption_options (CASSANDRA-18778)
  * Skip ColumnFamilyStore#topPartitions initialization when client or tool mode (CASSANDRA-18697)
 Merged from 4.0:
  * Partial compaction can resurrect deleted data (CASSANDRA-18507)
 Merged from 3.11:
  * Fix delayed SSTable release with unsafe_aggressive_sstable_expiration (CASSANDRA-18756)
- * Revert CASSANDRA-18543 (CASSANDRA-18854)
  * Fix NPE when using udfContext in UDF after a restart of a node (CASSANDRA-18739)
 Merged from 3.0:
- * Refactor validation logic in StorageService.rebuild (CASSANDRA-18803)
- * Make alternation of a user type validate the same way as creation of a user type does (CASSANDRA-18585)
  * CQLSH emits a warning when the server version doesn't match (CASSANDRA-18745)
  * Fix missing speculative retries in tablestats (CASSANDRA-18767)
  * Fix Requires for Java for RPM package (CASSANDRA-18751)

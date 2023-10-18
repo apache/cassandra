@@ -365,6 +365,20 @@ public class GuardrailsOptions implements GuardrailsConfig
     }
 
     @Override
+    public boolean getBulkLoadEnabled()
+    {
+        return config.bulk_load_enabled;
+    }
+
+    public void setBulkLoadEnabled(boolean enabled)
+    {
+        updatePropertyWithLogging("bulk_load_enabled",
+                                  enabled,
+                                  () -> config.bulk_load_enabled,
+                                  x -> config.bulk_load_enabled = x);
+    }
+
+    @Override
     public boolean getSecondaryIndexesEnabled()
     {
         return config.secondary_indexes_enabled;

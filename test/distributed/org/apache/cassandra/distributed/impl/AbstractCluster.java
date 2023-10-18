@@ -124,7 +124,7 @@ import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeConditio
  * All actions (reading, writing, schema changes, etc) are executed by serializing lambda/runnables,
  * transferring them to instance-specific classloaders, deserializing and running them there. Most of
  * the things can be simply captured in closure or passed through `apply` method of the wrapped serializable
- * function/callable. You can use {@link Instance#{applies|runs|consumes}OnInstance} for executing
+ * function/callable. You can use {@code Instance#{applies|runs|consumes}OnInstance} for executing
  * code on specific instance.
  *
  * Each instance has its own logger. Each instance log line will contain INSTANCE{instance_id}.

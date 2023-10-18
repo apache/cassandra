@@ -31,9 +31,9 @@ import javax.management.remote.JMXServiceURL;
 import javax.management.remote.rmi.RMIConnectorServer;
 import javax.management.remote.rmi.RMIJRMPServerImpl;
 
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 
-import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.shared.JMXUtil;
@@ -139,7 +139,8 @@ public class IsolatedJmx
 
     private void waitForJmxAvailability(Map<String, ?> env)
     {
-        try (JMXConnector ignored = JMXUtil.getJmxConnector(config, 20, env)) {
+        try (JMXConnector ignored = JMXUtil.getJmxConnector(config, 20, env))
+        {
             // Do nothing - JMXUtil now retries
         }
         catch (IOException iex)

@@ -235,7 +235,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
                 if (!rowProcessingNeeded())
                     return null;
-
+                
                 Columns statics = Columns.NONE;
                 Columns regulars = Columns.NONE;
                 for (int i=0, isize=versions.size(); i<isize; i++)

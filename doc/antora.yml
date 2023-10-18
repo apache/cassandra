@@ -1,6 +1,6 @@
 name: Cassandra
-version: '5.0'
-display_version: '5.0'
+version: 'trunk'
+display_version: 'trunk'
 prerelease: true
 asciidoc:
   attributes:

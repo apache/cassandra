@@ -39,8 +39,10 @@ import static org.apache.cassandra.locator.AbstractCloudMetadataServiceConnector
  * tuple as a datacenter and the availability zone as a rack
  *
  * This snitch is deprecated, and it is eligible for the removal in the next major release of Cassandra.
+ *
+ * @deprecated See CASSANDRA-18438
  */
-@Deprecated
+@Deprecated(since = "5.0")
 public class CloudstackSnitch extends AbstractCloudMetadataServiceSnitch
 {
     static final String ZONE_NAME_QUERY_URI = "/latest/meta-data/availability-zone";

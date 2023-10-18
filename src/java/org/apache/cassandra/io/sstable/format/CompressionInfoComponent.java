@@ -60,9 +60,9 @@ public class CompressionInfoComponent
      * The verification depends on the existence of TOC file. If absent, the verification is skipped.
      *
      * @param descriptor
-     * @param actualComponents, actual components listed from the file system.
-     * @throws CorruptSSTableException, if TOC expects compression info but not found from disk.
-     * @throws FSReadError,             if unable to read from TOC file.
+     * @param actualComponents actual components listed from the file system.
+     * @throws CorruptSSTableException if TOC expects compression info but not found from disk.
+     * @throws FSReadError             if unable to read from TOC file.
      */
     public static void verifyCompressionInfoExistenceIfApplicable(Descriptor descriptor, Set<Component> actualComponents) throws CorruptSSTableException, FSReadError
     {

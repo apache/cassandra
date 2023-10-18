@@ -27,10 +27,9 @@ from collections import defaultdict
 from cassandra.cqltypes import EMPTY
 from cassandra.util import datetime_from_timestamp
 from .displaying import colorme, get_str, FormattedValue, DEFAULT_VALUE_COLORS, NO_COLOR_MAP
-from .util import UTC
 
-unicode_controlchars_re = re.compile(r'[\x00-\x1f\x7f-\xa0]')
-controlchars_re = re.compile(r'[\x00-\x1f\x7f-\xff]')
+UNICODE_CONTROLCHARS_RE = re.compile(r'[\x00-\x1f\x7f-\xa0]')
+CONTROLCHARS_RE = re.compile(r'[\x00-\x1f\x7f-\xff]')
 
 
 def _show_control_chars(match):
@@ -84,7 +83,7 @@ def format_by_type(val, cqltype, encoding, colormap=None, addcolor=False,
 def color_text(bval, colormap, displaywidth=None):
     # note that here, we render natural backslashes as just backslashes,
     # in the same color as surrounding text, when using color. When not
-    # using color, we need to double up the backslashes so it's not
+    # using color, we need to double up the backslashes, so it's not
     # ambiguous. This introduces the unique difficulty of having different
     # display widths for the colored and non-colored versions. To avoid
     # adding the smarts to handle that in to FormattedValue, we just
@@ -121,7 +120,7 @@ class DateTimeFormat:
 class CqlType:
     """
     A class for converting a string into a cql type name that can match a formatter
-    and a list of its sub-types, if any.
+    and a list of its subtypes, if any.
     """
     pattern = re.compile('^([^<]*)<(.*)>$')  # *<*>
 
@@ -135,8 +134,8 @@ class CqlType:
 
     def get_n_sub_types(self, num):
         """
-        Return the sub-types if the requested number matches the length of the sub-types (tuples)
-        or the first sub-type times the number requested if the length of the sub-types is one (list, set),
+        Return the subtypes if the requested number matches the length of the subtypes (tuples)
+        or the first subtype times the number requested if the length of the subtypes is one (list, set),
         otherwise raise an exception
         """
         if len(self.sub_types) == num:
@@ -202,7 +201,7 @@ class CqlType:
 def format_value_default(val, colormap, **_):
     val = str(val)
     escapedval = val.replace('\\', '\\\\')
-    bval = controlchars_re.sub(_show_control_chars, escapedval)
+    bval = CONTROLCHARS_RE.sub(_show_control_chars, escapedval)
     return bval if colormap is NO_COLOR_MAP else color_text(bval, colormap)
 
 
@@ -359,7 +358,7 @@ formatter_for('timestamp')(format_value_timestamp)
 
 def strftime(time_format, seconds, microseconds=0, timezone=None):
     ret_dt = datetime_from_timestamp(seconds) + datetime.timedelta(microseconds=microseconds)
-    ret_dt = ret_dt.replace(tzinfo=UTC())
+    ret_dt = ret_dt.replace(tzinfo=datetime.timezone.utc)
     if timezone:
         ret_dt = ret_dt.astimezone(timezone)
     try:
@@ -475,7 +474,7 @@ def format_value_text(val, encoding, colormap, quote=False, **_):
     escapedval = val.replace('\\', '\\\\')
     if quote:
         escapedval = escapedval.replace("'", "''")
-    escapedval = unicode_controlchars_re.sub(_show_control_chars, escapedval)
+    escapedval = UNICODE_CONTROLCHARS_RE.sub(_show_control_chars, escapedval)
     bval = escapedval
     if quote:
         bval = "'{}'".format(bval)

@@ -297,26 +297,30 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         consistent.local.cancelSession(sessionID, force);
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-15234 */
+    @Deprecated(since = "4.1")
     public void setRepairSessionSpaceInMegabytes(int sizeInMegabytes)
     {
         DatabaseDescriptor.setRepairSessionSpaceInMiB(sizeInMegabytes);
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-15234 */
+    @Deprecated(since = "4.1")
     public int getRepairSessionSpaceInMegabytes()
     {
         return DatabaseDescriptor.getRepairSessionSpaceInMiB();
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17668 */
+    @Deprecated(since = "4.1")
     @Override
     public void setRepairSessionSpaceInMebibytes(int sizeInMebibytes)
     {
         DatabaseDescriptor.setRepairSessionSpaceInMiB(sizeInMebibytes);
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17668 */
+    @Deprecated(since = "4.1")
     @Override
     public int getRepairSessionSpaceInMebibytes()
     {

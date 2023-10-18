@@ -119,7 +119,9 @@ public class MixedModeTTLOverflowUpgradeTest extends UpgradeTestBase
         new TestCase()
                 .nodes(2)
                 .nodesToUpgradeOrdered(1, 2)
-                .upgradesToCurrentFrom(v40)
+                // all upgrades from v40 to current, excluding v50 -> v51
+                .singleUpgradeToCurrentFrom(v40)
+                .singleUpgradeToCurrentFrom(v41)
                 .setup(cluster -> {
                     cluster.schemaChange(withKeyspace("CREATE TABLE %s.t (k int PRIMARY KEY, v int)"));
 

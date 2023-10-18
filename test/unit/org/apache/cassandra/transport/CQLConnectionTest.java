@@ -31,6 +31,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.*;
 
 import com.google.common.util.concurrent.Uninterruptibles;
+
+import org.apache.cassandra.transport.ClientResourceLimits.Overload;
 import org.junit.Before;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -53,11 +55,10 @@ import org.apache.cassandra.net.*;
 import org.apache.cassandra.net.proxy.InboundProxyHandler;
 import org.apache.cassandra.service.NativeTransportService;
 import org.apache.cassandra.transport.CQLMessageHandler.MessageConsumer;
-import org.apache.cassandra.transport.ClientResourceLimits.Overload;
 import org.apache.cassandra.transport.messages.*;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.NonBlockingRateLimiter;
+import org.apache.cassandra.utils.concurrent.Condition;
 import org.awaitility.Awaitility;
 
 import static org.apache.cassandra.config.EncryptionOptions.TlsEncryptionPolicy.UNENCRYPTED;
@@ -183,7 +184,7 @@ public class CQLConnectionTest
         // after the error is first received and we race between handling the exception
         // caused by remote disconnection and checking the connection status.
 
-        Function<ByteBuf, ByteBuf> corruptor = new Function<ByteBuf, ByteBuf>()
+        Function<ByteBuf, ByteBuf> corruptor = new Function<>()
         {
             // Don't corrupt the first frame as this would fail early and bypass capacity allocation.
             // Instead, allow enough bytes to fill the first frame through untouched. Then, corrupt
@@ -771,7 +772,7 @@ public class CQLConnectionTest
                 {
                     return NO_OP_LIMITER;
                 }
-
+                
                 public void release()
                 {
                     delegate.release();

@@ -52,7 +52,8 @@ public class RMIClientSocketFactoryImpl implements RMIClientSocketFactory, Seria
 
     public void close() throws IOException
     {
-        for (Socket socket: sockets) {
+        for (Socket socket: sockets)
+        {
             try
             {
                 socket.close();

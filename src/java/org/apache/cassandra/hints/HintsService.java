@@ -248,7 +248,7 @@ public final class HintsService implements HintsServiceMBean
 
     /**
      * Get the total size in bytes of all the hints files associating with the host on disk.
-     * @param hostId, belonging host
+     * @param hostId belonging host
      * @return total file size, in bytes
      */
     public long getTotalHintsSize(UUID hostId)

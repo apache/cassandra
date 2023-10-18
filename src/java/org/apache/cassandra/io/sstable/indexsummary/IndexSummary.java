@@ -61,6 +61,8 @@ import static org.apache.cassandra.io.sstable.Downsampling.BASE_SAMPLING_LEVEL;
  *     to find the position in the Memory to start reading the actual index summary entry.
  *     (This is necessary because keys can have different lengths.)
  *  2.  A sequence of (DecoratedKey, position) pairs, where position is the offset into the actual index file.
+ *
+ *  See the serializer for the exact on disk details.
  */
 public class IndexSummary extends WrappedSharedCloseable
 {

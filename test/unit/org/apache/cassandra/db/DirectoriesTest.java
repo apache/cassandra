@@ -778,8 +778,8 @@ public class DirectoriesTest
      * Makes sure we can find the data directory when it is a symlink
      *
      * creates the following data directories:
-     * <tempdir something>/datadir1
-     * <tempdir something>/datadir11 (symlink to <tempdir something>/symlinktarget)
+     * {@code <tempdir something>/datadir1}
+     * {@code <tempdir something>/datadir11 (symlink to <tempdir something>/symlinktarget)}
      *
      * and then makes sure that we get the correct directory back.
      */
@@ -821,8 +821,8 @@ public class DirectoriesTest
      * if oldStyle is false we append the table id to the table directory
      *
      * creates the following structure
-     * <tempdir>/datadir1/<ks>/<table>
-     * <tempdir>/datadir11/<ks>/<table symlink to <tempdir>/symlinktarget>
+     * {@code <tempdir>/datadir1/<ks>/<table>}
+     * {@code <tempdir>/datadir11/<ks>/<table symlink to <tempdir>/symlinktarget>}
      *
      * and then we create a fake descriptor to a file in the table directory and make sure we get the correct
      * data directory back.

@@ -22,6 +22,8 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.guardrails.GuardrailViolatedException;
+import org.apache.cassandra.db.guardrails.Guardrails;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.streaming.messages.KeepAliveMessage;
 import org.apache.cassandra.streaming.messages.StreamMessage;
@@ -70,10 +72,23 @@ public class StreamDeserializingTask implements Runnable
                 if (session == null)
                     session = deriveSession(message);
 
-                if (logger.isDebugEnabled())
-                    logger.debug("{} Received {}", createLogTag(session, channel), message);
-
-                session.messageReceived(message);
+                if (session.getStreamOperation() == StreamOperation.BULK_LOAD)
+                {
+                    try
+                    {
+                        Guardrails.bulkLoadEnabled.ensureEnabled(null);
+                        receiveMessage(message);
+                    }
+                    catch (GuardrailViolatedException ex)
+                    {
+                        logger.warn("{} Aborting {}. Bulk load of SSTables is not allowed.", createLogTag(session, channel), message);
+                        session.abort();
+                    }
+                }
+                else
+                {
+                    receiveMessage(message);
+                }
             }
         }
         catch (Throwable t)
@@ -110,5 +125,13 @@ public class StreamDeserializingTask implements Runnable
         // in all other cases, no new control channel will be added, as the proper control channel will be already attached.
         streamSession.attachInbound(channel);
         return streamSession;
+    }
+
+    private void receiveMessage(StreamMessage message)
+    {
+        if (logger.isDebugEnabled())
+            logger.debug("{} Received {}", createLogTag(session, channel), message);
+
+        session.messageReceived(message);
     }
 }

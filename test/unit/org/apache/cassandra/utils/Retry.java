@@ -37,7 +37,7 @@ import org.apache.cassandra.concurrent.NamedThreadFactory;
 /**
  * Class for retryable actions.
  *
- * @see {@link #retryWithBackoff(int, Supplier, Predicate)}
+ * See {@link #retryWithBackoff(int, Supplier, Predicate)}
  */
 public final class Retry
 {

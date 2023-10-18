@@ -145,7 +145,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
     abstract KeyspaceMetadata apply(KeyspaceMetadata keyspace, TableMetadata table);
 
     /**
-     * ALTER TABLE [IF EXISTS] <table> ALTER <column> TYPE <newtype>;
+     * {@code ALTER TABLE [IF EXISTS] <table> ALTER <column> TYPE <newtype>;}
      *
      * No longer supported.
      */
@@ -163,7 +163,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
     }
 
     /**
-     * ALTER TABLE [IF EXISTS] <table> ALTER [IF EXISTS] <column> ( MASKED WITH <newMask> | DROP MASKED )
+     * {@code ALTER TABLE [IF EXISTS] <table> ALTER [IF EXISTS] <column> ( MASKED WITH <newMask> | DROP MASKED )}
      */
     public static class MaskColumn extends AlterTableStatement
     {
@@ -235,8 +235,8 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
     }
 
     /**
-     * ALTER TABLE [IF EXISTS] <table> ADD [IF NOT EXISTS] <column> <newtype>
-     * ALTER TABLE [IF EXISTS] <table> ADD [IF NOT EXISTS] (<column> <newtype>, <column1> <newtype1>, ... <columnn> <newtypen>)
+     * {@code ALTER TABLE [IF EXISTS] <table> ADD [IF NOT EXISTS] <column> <newtype>}
+     * {@code ALTER TABLE [IF EXISTS] <table> ADD [IF NOT EXISTS] (<column> <newtype>, <column1> <newtype1>, ... <columnn> <newtypen>)}
      */
     private static class AddColumns extends AlterTableStatement
     {
@@ -361,8 +361,8 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
     }
 
     /**
-     * ALTER TABLE [IF EXISTS] <table> DROP [IF EXISTS] <column>
-     * ALTER TABLE [IF EXISTS] <table> DROP [IF EXISTS] ( <column>, <column1>, ... <columnn>)
+     * {@code ALTER TABLE [IF EXISTS] <table> DROP [IF EXISTS] <column>}
+     * {@code ALTER TABLE [IF EXISTS] <table> DROP [IF EXISTS] ( <column>, <column1>, ... <columnn>)}
      */
     // TODO: swap UDT refs with expanded tuples on drop
     private static class DropColumns extends AlterTableStatement
@@ -433,7 +433,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
     }
 
     /**
-     * ALTER TABLE [IF EXISTS] <table> RENAME [IF EXISTS] <column> TO <column>;
+     * {@code ALTER TABLE [IF EXISTS] <table> RENAME [IF EXISTS] <column> TO <column>;}
      */
     private static class RenameColumns extends AlterTableStatement
     {
@@ -507,7 +507,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
     }
 
     /**
-     * ALTER TABLE [IF EXISTS] <table> WITH <property> = <value>
+     * {@code ALTER TABLE [IF EXISTS] <table> WITH <property> = <value>}
      */
     private static class AlterOptions extends AlterTableStatement
     {
@@ -562,7 +562,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
 
 
     /**
-     * ALTER TABLE [IF EXISTS] <table> DROP COMPACT STORAGE
+     * {@code ALTER TABLE [IF EXISTS] <table> DROP COMPACT STORAGE}
      */
     private static class DropCompactStorage extends AlterTableStatement
     {

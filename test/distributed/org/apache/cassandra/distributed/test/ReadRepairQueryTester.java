@@ -44,7 +44,7 @@ import static org.apache.cassandra.service.reads.repair.ReadRepairStrategy.NONE;
  * <p>
  * The tests are parameterized for:
  * <ul>
- *     <li><Both {@code NONE} and {@code BLOCKING} read repair stratregies/li>
+ *     <li>Both {@code NONE} and {@code BLOCKING} read repair stratregies</li>
  *     <li>Data to be repaired residing on the query coordinator or a replica</li>
  *     <li>Data to be repaired residing on memtables or flushed to sstables</li>
  * </ul>

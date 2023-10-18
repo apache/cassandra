@@ -85,7 +85,7 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
 
     /**
      * Delete the oldest hard-linked CDC commit log segment to free up space.
-     * @param bytesToFree, the minimum space to free up
+     * @param bytesToFree the minimum space to free up
      * @return total size under the CDC folder in bytes after deletion
      */
     public long deleteOldLinkedCDCCommitLogSegment(long bytesToFree)

@@ -406,14 +406,14 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource
 
     /**
      * Called when the table's metadata is updated. The memtable's metadata reference now points to the new version.
-     * This will not be called if {@link #shouldSwitch)(SCHEMA_CHANGE) returns true, as the memtable will be swapped out
+     * This will not be called if {@link #shouldSwitch } (SCHEMA_CHANGE) returns true, as the memtable will be swapped out
      * instead.
      */
     void metadataUpdated();
 
     /**
      * Called when the known ranges have been updated and owner.localRangeSplits() may return different values.
-     * This will not be called if {@link #shouldSwitch)(OWNED_RANGES_CHANGE) returns true, as the memtable will be
+     * This will not be called if {@link #shouldSwitch } (OWNED_RANGES_CHANGE) returns true, as the memtable will be
      * swapped out instead.
      */
     void localRangesUpdated();
