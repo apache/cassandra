@@ -28,11 +28,13 @@ import java.util.stream.IntStream;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
+import org.apache.cassandra.locator.Endpoint;
 import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.ReplicaCollection;
 import org.apache.cassandra.simulator.cluster.NodeLookup;
+import org.apache.cassandra.utils.Sortable;
 
 public class SimulatedSnitch extends NodeLookup
 {
@@ -72,6 +74,18 @@ public class SimulatedSnitch extends NodeLookup
         public static void setup(Function<InetSocketAddress, String> lookupDc)
         {
             LOOKUP_DC = lookupDc;
+        }
+
+        @Override
+        public boolean supportCompareByEndpoint()
+        {
+            return true;
+        }
+
+        @Override
+        public <C extends Sortable<? extends Endpoint, ? extends C>> Comparator<Endpoint> endpointComparator(InetAddressAndPort address, C addresses)
+        {
+            return Comparator.comparingInt(SimulatedSnitch::asInt);
         }
     }
 
@@ -125,7 +139,7 @@ public class SimulatedSnitch extends NodeLookup
         return Arrays.asList(nameOfDcs);
     }
 
-    private static int asInt(Replica address)
+    private static int asInt(Endpoint address)
     {
         byte[] bytes = address.endpoint().addressBytes;
         return bytes[0] | (bytes[1] << 8) | (bytes[2] << 16) | (bytes[3] << 24);

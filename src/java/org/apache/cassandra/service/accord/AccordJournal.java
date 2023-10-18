@@ -613,7 +613,7 @@ public class AccordJournal implements Shutdownable
     static
     {
         // make noise early if we forget to update our version mappings
-        Invariants.checkState(MessagingService.current_version == MessagingService.VERSION_50);
+        Invariants.checkState(MessagingService.current_version == MessagingService.VERSION_50, "Expected current version to be %d but given %d", MessagingService.VERSION_50, MessagingService.current_version);
     }
 
     private static int msVersion(int version)

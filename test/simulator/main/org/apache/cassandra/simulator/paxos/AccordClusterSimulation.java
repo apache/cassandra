@@ -63,7 +63,7 @@ class AccordClusterSimulation extends ClusterSimulation<PaxosSimulation> impleme
     AccordClusterSimulation(RandomSource random, long seed, int uniqueNum, Builder builder) throws IOException
     {
         super(random, seed, uniqueNum, builder,
-              config -> {},
+              config -> config.set("storage_compatibility_mode", "NONE"),
               (simulated, schedulers, cluster, options) -> {
                   int[] primaryKeys = primaryKeys(seed, builder.primaryKeyCount());
                   KindOfSequence.Period jitter = RandomSource.Choices.uniform(KindOfSequence.values()).choose(random)
