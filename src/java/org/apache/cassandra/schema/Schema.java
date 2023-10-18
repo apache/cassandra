@@ -331,9 +331,9 @@ public class Schema implements SchemaProvider
     /**
      * Returns all non-local keyspaces, that is, all but {@link SchemaConstants#LOCAL_SYSTEM_KEYSPACE_NAMES}
      * or virtual keyspaces.
-     * @deprecated use {@link #distributedKeyspaces()}
+     * @deprecated use {@link #distributedKeyspaces()}. See CASSANDRA-17044
      */
-    @Deprecated
+    @Deprecated(since = "4.1")
     public Keyspaces getNonSystemKeyspaces()
     {
         return distributedKeyspaces;

@@ -113,13 +113,15 @@ public class BTree
         return new Object[]{ value };
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-15510 */
+    @Deprecated(since = "4.0")
     public static <C, K extends C, V extends C> Object[] build(Collection<K> source)
     {
         return build(source, UpdateFunction.noOp());
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-15510 */
+    @Deprecated(since = "4.0")
     public static <C, K extends C, V extends C> Object[] build(Collection<K> source, UpdateFunction<K, V> updateF)
     {
         return build(BulkIterator.of(source.iterator()), source.size(), updateF);
