@@ -41,6 +41,7 @@ import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.api.IIsolatedExecutor;
 import org.apache.cassandra.distributed.impl.RowUtil;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.distributed.action.GossipHelper.withProperty;
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
@@ -125,6 +126,30 @@ public class NativeProtocolTest extends TestBaseImpl
 
             assertTrue(gossippingOnlyMember.callOnInstance((IIsolatedExecutor.SerializableCallable<Boolean>)
                                                            () -> StorageService.instance.isNativeTransportRunning()));
+        }
+    }
+
+    @Test
+    public void testBinaryReflectsRpcReadiness() throws Throwable
+    {
+        try (Cluster cluster = builder().withNodes(1)
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP, NATIVE_PROTOCOL)
+                                                                    .set("start_native_transport", "false"))
+                                        .start())
+        {
+            IInvokableInstance i = cluster.get(1);
+
+            // rpc is false when native transport is not enabled
+            assertFalse(i.callOnInstance((IIsolatedExecutor.SerializableCallable<Boolean>) () -> StorageService.instance.isNativeTransportRunning()));
+            assertFalse(i.callOnInstance((IIsolatedExecutor.SerializableCallable<Boolean>) () -> StorageService.instance.isRpcReady(FBUtilities.getBroadcastAddressAndPort())));
+
+            // but if we enable it, e.g. by nodetool enablebinary, rpc will be enabled
+            i.runOnInstance((IIsolatedExecutor.SerializableRunnable) () -> StorageService.instance.startNativeTransport());
+            assertTrue(i.callOnInstance((IIsolatedExecutor.SerializableCallable<Boolean>) () -> StorageService.instance.isRpcReady(FBUtilities.getBroadcastAddressAndPort())));
+
+            // by calling e.g. nodetool disablebinary, rpc will be set to false again
+            i.runOnInstance((IIsolatedExecutor.SerializableRunnable) () -> StorageService.instance.stopNativeTransport());
+            assertFalse(i.callOnInstance((IIsolatedExecutor.SerializableCallable<Boolean>) () -> StorageService.instance.isRpcReady(FBUtilities.getBroadcastAddressAndPort())));
         }
     }
 }
