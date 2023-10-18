@@ -22,7 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSortedSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -131,7 +131,7 @@ public class SystemKeyspaceStorage implements LogStorage
             }
 
             long period = startPeriod;
-            ImmutableList.Builder<Entry> entries = new ImmutableList.Builder<>();
+            ImmutableSortedSet.Builder<Entry> entries = ImmutableSortedSet.naturalOrder();
             while (true)
             {
                 boolean empty = true;

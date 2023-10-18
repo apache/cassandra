@@ -20,10 +20,9 @@ package org.apache.cassandra.tcm.log;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Optional;
 
-import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSortedSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,7 +49,7 @@ import org.apache.cassandra.tcm.serialization.Version;
 public class Replication
 {
     private static final Logger logger = LoggerFactory.getLogger(Replication.class);
-    public static Replication EMPTY = new Replication(ImmutableList.<Entry>builder().build());
+    public static Replication EMPTY = new Replication(ImmutableSortedSet.of());
 
     public static final Serializer serializer = new Serializer();
     public static final IVersionedSerializer<Replication> defaultMessageSerializer = new MessageSerializer(NodeVersion.CURRENT.serializationVersion());
@@ -69,32 +68,24 @@ public class Replication
     /**
      * The sorted entries that needs to be replicated.
      */
-    private final ImmutableList<Entry> entries;
-
-    public Replication(Collection<Entry> entries)
-    {
-        ImmutableList.Builder<Entry> builder = ImmutableList.builder();
-        for (Entry entry : entries)
-            builder.add(entry);
-        this.entries = builder.build();
-    }
+    private final ImmutableSortedSet<Entry> entries;
 
     public static Replication of(Entry entry)
     {
-        return new Replication(Collections.singletonList(entry));
+        return new Replication(ImmutableSortedSet.of(entry));
     }
 
     public static Replication of(Collection<Entry> entries)
     {
-        return new Replication(ImmutableList.copyOf(entries));
+        return new Replication(ImmutableSortedSet.copyOf(entries));
     }
 
-    public Replication(ImmutableList<Entry> entries)
+    public Replication(ImmutableSortedSet<Entry> entries)
     {
         this.entries = entries;
     }
 
-    public ImmutableList<Entry> entries()
+    public ImmutableSortedSet<Entry> entries()
     {
         return entries;
     }
@@ -107,7 +98,7 @@ public class Replication
      */
     public Replication retainFrom(Epoch epoch)
     {
-        ImmutableList.Builder<Entry> builder = ImmutableList.builder();
+        ImmutableSortedSet.Builder<Entry> builder = ImmutableSortedSet.naturalOrder();
         entries.stream().filter(entry -> entry.epoch.isEqualOrAfter(epoch)).forEach(builder::add);
         return new Replication(builder.build());
     }
@@ -118,13 +109,7 @@ public class Replication
      */
     public Epoch latestEpoch()
     {
-        return tail().epoch;
-    }
-
-    private Entry tail()
-    {
-        // TODO possible empty list
-        return entries.get(entries.size() - 1);
+        return entries.isEmpty() ? Epoch.EMPTY : entries.last().epoch;
     }
 
     public boolean isEmpty()
@@ -149,8 +134,8 @@ public class Replication
         return "Replication{" +
                "size=" + entries.size() +
                (entries.isEmpty() ? ""
-                                  : ", min=" + entries.get(0).epoch +
-                                    ", max=" + entries.get(entries.size() - 1).epoch) +
+                                  : ", min=" + entries.first().epoch +
+                                    ", max=" + entries.last().epoch) +
                '}';
     }
 
@@ -168,7 +153,7 @@ public class Replication
         public Replication deserialize(DataInputPlus in, Version version) throws IOException
         {
             int size = in.readInt();
-            ImmutableList.Builder<Entry> builder = ImmutableList.builder();
+            ImmutableSortedSet.Builder<Entry> builder = ImmutableSortedSet.naturalOrder();
             for(int i=0;i<size;i++)
                 builder.add(Entry.serializer.deserialize(in, version));
 

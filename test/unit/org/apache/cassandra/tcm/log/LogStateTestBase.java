@@ -21,6 +21,7 @@ package org.apache.cassandra.tcm.log;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Iterator;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -40,6 +41,7 @@ import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.fail;
 
 public abstract class LogStateTestBase
@@ -260,14 +262,12 @@ public abstract class LogStateTestBase
 
     private void assertReplication(Replication replication, long min, long max)
     {
-        int idx = 0;
+        Iterator<Entry> iter =  replication.entries().iterator();
         for (long i = min; i <= max; i++)
         {
-            Entry e = replication.entries().get(idx);
-            assertEquals(e.epoch.getEpoch(), i);
-            idx++;
+            assertEquals(iter.next().epoch.getEpoch(), i);
         }
-        assertEquals(idx, replication.entries().size());
+        assertFalse(iter.hasNext());
     }
 
 }

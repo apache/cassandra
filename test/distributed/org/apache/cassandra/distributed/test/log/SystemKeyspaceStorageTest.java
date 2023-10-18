@@ -33,6 +33,7 @@ import org.apache.cassandra.distributed.test.ExecUtil;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Sealed;
+import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.log.LogState;
 import org.apache.cassandra.tcm.FetchCMSLog;
 import org.apache.cassandra.tcm.log.Replication;
@@ -185,14 +186,16 @@ public class SystemKeyspaceStorageTest extends CoordinatorPathTestBase
         if (since.equals(allEpochs.get(allEpochs.size() - 1)))
             Assert.assertEquals(0, replication.entries().size());
         else
-            Assert.assertEquals(since.getEpoch() + 1, replication.entries().get(0).epoch.getEpoch());
+            Assert.assertEquals(since.getEpoch() + 1, replication.entries().first().epoch.getEpoch());
 
         Assert.assertEquals(allEpochs.get(allEpochs.size() - 1).getEpoch() - since.getEpoch(),
                             replication.entries().size());
-        for (int i = 0; i < replication.entries().size(); i++)
+        int i = 0;
+        for (Entry entry : replication.entries())
         {
             Assert.assertEquals(String.format("Got mismatch while replication starting with %s", since),
-                                allEpochs.get(offset + i), replication.entries().get(i).epoch);
+                                allEpochs.get(offset + i), entry.epoch);
+            i++;
         }
     }
 

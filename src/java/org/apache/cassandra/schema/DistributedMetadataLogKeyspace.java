@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSortedSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -221,7 +222,7 @@ public final class DistributedMetadataLogKeyspace
                 long lastEpoch = since.getEpoch();
 
                 long period = startPeriod;
-                ImmutableList.Builder<Entry> entries = new ImmutableList.Builder<>();
+                ImmutableSortedSet.Builder<Entry> entries = ImmutableSortedSet.naturalOrder();
 
                 while (true)
                 {
