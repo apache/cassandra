@@ -17,6 +17,10 @@
  */
 package org.apache.cassandra.locator;
 
+import java.util.Comparator;
+
+import org.apache.cassandra.utils.Sortable;
+
 /**
  * A simple endpoint snitch implementation that treats Strategy order as proximity,
  * allowing non-read-repaired reads to prefer a single endpoint, which improves
@@ -57,5 +61,17 @@ public class SimpleSnitch extends AbstractEndpointSnitch
     public boolean isWorthMergingForRangeQuery(ReplicaCollection<?> merged, ReplicaCollection<?> l1, ReplicaCollection<?> l2)
     {
         return sorter.isWorthMergingForRangeQuery(merged, l1, l2);
+    }
+
+    @Override
+    public boolean supportCompareByEndpoint()
+    {
+        return sorter.supportCompareByEndpoint();
+    }
+
+    @Override
+    public <C extends Sortable<? extends Endpoint, ? extends C>> Comparator<Endpoint> endpointComparator(InetAddressAndPort address, C addresses)
+    {
+        return sorter.endpointComparator(address, addresses);
     }
 }

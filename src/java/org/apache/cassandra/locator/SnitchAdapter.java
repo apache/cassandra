@@ -18,12 +18,14 @@
 
 package org.apache.cassandra.locator;
 
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Set;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.membership.Location;
+import org.apache.cassandra.utils.Sortable;
 
 public class SnitchAdapter implements InitialLocationProvider, NodeProximity, NodeAddressConfig
 {
@@ -80,5 +82,17 @@ public class SnitchAdapter implements InitialLocationProvider, NodeProximity, No
     public boolean preferLocalConnections()
     {
         return snitch.preferLocalConnections();
+    }
+
+    @Override
+    public boolean supportCompareByEndpoint()
+    {
+        return snitch.supportCompareByEndpoint();
+    }
+
+    @Override
+    public <C extends Sortable<? extends Endpoint, ? extends C>> Comparator<Endpoint> endpointComparator(InetAddressAndPort address, C addresses)
+    {
+        return snitch.endpointComparator(address, addresses);
     }
 }

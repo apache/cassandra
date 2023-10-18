@@ -35,6 +35,7 @@ import accord.topology.Topology;
 import accord.utils.Invariants;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.EndpointsForRange;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.DistributedSchema;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -47,7 +48,6 @@ import org.apache.cassandra.tcm.membership.Directory;
 import org.apache.cassandra.tcm.membership.NodeId;
 import org.apache.cassandra.tcm.ownership.DataPlacement;
 import org.apache.cassandra.tcm.ownership.DataPlacements;
-import org.apache.cassandra.tcm.ownership.VersionedEndpoints;
 
 public class AccordTopologyUtils
 {
@@ -56,7 +56,7 @@ public class AccordTopologyUtils
         return new Node.Id(nodeId.id());
     }
 
-    private static Shard createShard(TokenRange range, Directory directory, VersionedEndpoints.ForRange reads, VersionedEndpoints.ForRange writes)
+    private static Shard createShard(TokenRange range, Directory directory, EndpointsForRange reads, EndpointsForRange writes)
     {
         Function<InetAddressAndPort, Node.Id> endpointMapper = e -> {
             NodeId tcmId = directory.peerId(e);
@@ -106,8 +106,10 @@ public class AccordTopologyUtils
         List<Shard> shards = new ArrayList<>(ranges.size());
         for (Range<Token> range : ranges)
         {
-            VersionedEndpoints.ForRange reads = placement.reads.forRange(range);
-            VersionedEndpoints.ForRange writes = placement.reads.forRange(range);
+            // TODO (consider, low priority): flesh out how Accord and Transient Replicas work together
+            // Accord needs to be able to read the full data from a single replica, but with transient ones they may only have a hash.
+            EndpointsForRange reads = placement.reads.forRange(range).get().filter(r -> r.isFull());
+            EndpointsForRange writes = placement.writes.forRange(range).get().filter(r -> r.isFull());
 
             // TCM doesn't create wrap around ranges
             Invariants.checkArgument(!range.isWrapAround() || range.right.equals(range.right.minValue()),

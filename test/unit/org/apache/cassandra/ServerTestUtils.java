@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -44,6 +45,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.big.BigTableReader;
 import org.apache.cassandra.io.sstable.indexsummary.IndexSummarySupport;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.locator.Endpoint;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.Replica;
 import org.apache.cassandra.locator.BaseProximity;
@@ -70,6 +72,7 @@ import org.apache.cassandra.tcm.transformations.Register;
 import org.apache.cassandra.tcm.transformations.UnsafeJoin;
 import org.apache.cassandra.tcm.transformations.cms.Initialize;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Sortable;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION;
 
@@ -107,6 +110,18 @@ public final class ServerTestUtils
             public int compareEndpoints(InetAddressAndPort target, Replica a1, Replica a2)
             {
                 return 0;
+            }
+
+            @Override
+            public boolean supportCompareByEndpoint()
+            {
+                return true;
+            }
+
+            @Override
+            public <C extends Sortable<? extends Endpoint, ? extends C>> Comparator<Endpoint> endpointComparator(InetAddressAndPort address, C addresses)
+            {
+                return (a, b) -> 0;
             }
         });
     }

@@ -28,16 +28,49 @@ import java.util.stream.IntStream;
 
 import org.apache.cassandra.distributed.Cluster;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
-import org.apache.cassandra.locator.IEndpointSnitch;
-import org.apache.cassandra.locator.InetAddressAndPort;
-import org.apache.cassandra.locator.Replica;
-import org.apache.cassandra.locator.ReplicaCollection;
+import org.apache.cassandra.locator.*;
 import org.apache.cassandra.simulator.cluster.NodeLookup;
+import org.apache.cassandra.utils.Sortable;
 
 public class SimulatedSnitch extends NodeLookup
 {
+    private static class SimulatedProximity implements NodeProximity
+    {
+        @Override
+        public <C extends ReplicaCollection<? extends C>> C sortedByProximity(InetAddressAndPort address, C addresses)
+        {
+            return addresses.sorted(Comparator.comparingInt(SimulatedSnitch::asInt));
+        }
+
+        @Override
+        public int compareEndpoints(InetAddressAndPort target, Replica r1, Replica r2)
+        {
+            return Comparator.comparingInt(SimulatedSnitch::asInt).compare(r1, r2);
+        }
+
+        @Override
+        public boolean isWorthMergingForRangeQuery(ReplicaCollection<?> merged, ReplicaCollection<?> l1, ReplicaCollection<?> l2)
+        {
+            return false;
+        }
+
+        @Override
+        public boolean supportCompareByEndpoint()
+        {
+            return true;
+        }
+
+        @Override
+        public <C extends Sortable<? extends Endpoint, ? extends C>> Comparator<Endpoint> endpointComparator(InetAddressAndPort address, C addresses)
+        {
+            return Comparator.comparingInt(SimulatedSnitch::asInt);
+        }
+    }
+    
     public static class Instance implements IEndpointSnitch
     {
+        private final NodeProximity proximity = new SimulatedProximity();
+
         private static volatile Function<InetSocketAddress, String> LOOKUP_DC;
 
         public String getRack(InetAddressAndPort endpoint)
@@ -52,12 +85,12 @@ public class SimulatedSnitch extends NodeLookup
 
         public <C extends ReplicaCollection<? extends C>> C sortedByProximity(InetAddressAndPort address, C addresses)
         {
-            return addresses.sorted(Comparator.comparingInt(SimulatedSnitch::asInt));
+            return proximity.sortedByProximity(address, addresses);
         }
 
         public int compareEndpoints(InetAddressAndPort target, Replica r1, Replica r2)
         {
-            return Comparator.comparingInt(SimulatedSnitch::asInt).compare(r1, r2);
+            return proximity.compareEndpoints(target, r1, r2);
         }
 
         public void gossiperStarting()
@@ -66,7 +99,7 @@ public class SimulatedSnitch extends NodeLookup
 
         public boolean isWorthMergingForRangeQuery(ReplicaCollection<?> merged, ReplicaCollection<?> l1, ReplicaCollection<?> l2)
         {
-            return false;
+            return proximity.isWorthMergingForRangeQuery(merged, l1, l2);
         }
 
         public static void setup(Function<InetSocketAddress, String> lookupDc)
@@ -127,7 +160,7 @@ public class SimulatedSnitch extends NodeLookup
         return Arrays.asList(nameOfDcs);
     }
 
-    private static int asInt(Replica address)
+    private static int asInt(Endpoint address)
     {
         byte[] bytes = address.endpoint().addressBytes;
         return bytes[0] | (bytes[1] << 8) | (bytes[2] << 16) | (bytes[3] << 24);
