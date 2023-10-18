@@ -51,7 +51,7 @@ import static org.apache.cassandra.dht.AbstractBounds.tokenSerializer;
  * and such and what the result is WRT to transientness. Definitely avoid creating fake Replicas with misinformation
  * about endpoints, ranges, or transientness.
  */
-public final class Replica implements Comparable<Replica>
+public final class Replica implements Comparable<Replica>, Endpoint
 {
     public static final IPartitionerDependentSerializer<Replica> serializer = new Serializer();
 
@@ -105,6 +105,7 @@ public final class Replica implements Comparable<Replica>
         return (full ? "Full" : "Transient") + '(' + endpoint() + ',' + range + ')';
     }
 
+    @Override
     public final InetAddressAndPort endpoint()
     {
         return endpoint;
