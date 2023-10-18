@@ -272,7 +272,7 @@ public class PasswordAuthenticator implements IAuthenticator, AuthCache.BulkLoad
         /**
          * SASL PLAIN mechanism specifies that credentials are encoded in a
          * sequence of UTF-8 bytes, delimited by 0 (US-ASCII NUL).
-         * The form is : {code}authzId<NUL>authnId<NUL>password<NUL>{code}
+         * The form is : {@code authzId<NUL>authnId<NUL>password<NUL>}
          * authzId is optional, and in fact we don't care about it here as we'll
          * set the authzId to match the authnId (that is, there is no concept of
          * a user being authorized to act on behalf of another with this IAuthenticator).

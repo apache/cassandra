@@ -931,7 +931,8 @@ public class NodeProbe implements AutoCloseable
      * @param tag tag of snapshot to clear
      * @param keyspaces keyspaces to clear snapshots for
      */
-    @Deprecated
+    /** @deprecated See CASSANDRA-16860 */
+    @Deprecated(since = "5.0")
     public void clearSnapshot(String tag, String... keyspaces) throws IOException
     {
         clearSnapshot(Collections.emptyMap(), tag, keyspaces);
@@ -956,7 +957,8 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getSnapshotDetails(options);
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-16789 */
+    @Deprecated(since = "4.1")
     public Map<String, TabularData> getSnapshotDetails()
     {
         return getSnapshotDetails(ImmutableMap.of());
@@ -1390,7 +1392,8 @@ public class NodeProbe implements AutoCloseable
         ssProxy.setCompactionThroughputMbPerSec(value);
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17225 */
+    @Deprecated(since = "4.1")
     public int getCompactionThroughput()
     {
         return ssProxy.getCompactionThroughputMbPerSec();
@@ -1475,7 +1478,8 @@ public class NodeProbe implements AutoCloseable
         }
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17225 */
+    @Deprecated(since = "4.1")
     public int getStreamThroughput()
     {
         return ssProxy.getStreamThroughputMbitPerSec();
@@ -1486,7 +1490,8 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getStreamThroughputMbitPerSecAsDouble();
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17225 */
+    @Deprecated(since = "4.1")
     public int getInterDCStreamThroughput()
     {
         return ssProxy.getInterDCStreamThroughputMbitPerSec();
@@ -1532,7 +1537,8 @@ public class NodeProbe implements AutoCloseable
         return msProxy.getDroppedMessages();
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-6719 */
+    @Deprecated(since = "4.0")
     public void loadNewSSTables(String ksName, String cfName)
     {
         ssProxy.loadNewSSTables(ksName, cfName);

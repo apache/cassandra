@@ -98,7 +98,8 @@ public class TableMetadata implements SchemaElement
         // guarantee some tables won't have those flags (users having forgotten to use DROP COMPACT STORAGE before
         // upgrading). So we still "deserialize" those flags correctly, but otherwise prevent startup if any table
         // have them. Once we drop support for upgrading from pre-4.0, we can remove those values.
-        @Deprecated SUPER;
+        /** @deprecated See CASSANDRA-16217 */
+        @Deprecated(since = "4.0") SUPER;
 
         /*
          *  We call dense a CF for which each component of the comparator is a clustering column, i.e. no
@@ -520,7 +521,7 @@ public class TableMetadata implements SchemaElement
      *   internally (since we had to support it for this special map) and doesn't feel particularly dangerous to
      *   support. Doing so would remove this special case, but would also let user that do have an upgraded super-column
      *   table with counters to rename that weirdly name map to something more meaningful (it's not possible today
-     *   as after renaming the validation in {@link #validate)} would trigger).
+     *   as after renaming the validation in {@link #validate} would trigger).
      */
     private static boolean isSuperColumnMapColumnName(ColumnIdentifier columnName)
     {

@@ -466,7 +466,8 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             checkBindValueSet(value, "Unsupported unset value for column %s", column.name);
         }
 
-        @Deprecated
+        /** @deprecated See CASSANDRA-6377 */
+        @Deprecated(since = "3.5")
         public void validateForIndexing()
         {
             checkFalse(value.remaining() > FBUtilities.MAX_UNSIGNED_SHORT,

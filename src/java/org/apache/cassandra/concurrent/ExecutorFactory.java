@@ -152,7 +152,7 @@ public interface ExecutorFactory extends ExecutorBuilderFactory.Jmxable<Executor
      * @param interrupts flag to indicate whether to synchronize interrupts of the task execution thread
      *                   using the task's monitor this can be used to prevent interruption while performing
      *                   IO operations which forbid interrupted threads.
-     *                   See: {@link org.apache.cassandra.db.commitlog.AbstractCommitLogSegmentManager::start}
+     *                   See: {@link org.apache.cassandra.db.commitlog.AbstractCommitLogSegmentManager#start}
      * @return the new thread
      */
     Interruptible infiniteLoop(String name, Interruptible.Task task, SimulatorSafe simulatorSafe, Daemon daemon, Interrupts interrupts);

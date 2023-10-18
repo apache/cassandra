@@ -599,8 +599,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
     /**
      * This method is used to mark a node as shutdown; that is it gracefully exited on its own and told us about it
      * @param endpoint endpoint that has shut itself down
+     * @deprecated see CASSANDRA-18913
      */
-    @Deprecated(since = "5.0.0") // can remove once 4.x is not supported
+    @Deprecated(since = "5.0") // can remove once 4.x is not supported
     protected void markAsShutdown(InetAddressAndPort endpoint)
     {
         checkProperThreadForStateMutation();

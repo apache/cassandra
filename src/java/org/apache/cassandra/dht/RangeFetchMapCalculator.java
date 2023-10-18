@@ -204,7 +204,7 @@ public class RangeFetchMapCalculator
     }
 
     /**
-     *  Convert the max flow graph to Multimap<InetAddress, Range<Token>>
+     *  Convert the max flow graph to {@code Multimap<InetAddress, Range<Token>>}
      *      We iterate over all range vertices and find an edge with flow of more than zero connecting to endpoint vertex.
      * @param graph  The graph to convert
      * @param result Flow algorithm result

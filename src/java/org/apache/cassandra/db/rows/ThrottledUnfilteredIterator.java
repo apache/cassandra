@@ -29,7 +29,7 @@ import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.CloseableIterator;
 
 /**
- * A utility class to split the given {@link#UnfilteredRowIterator} into smaller chunks each
+ * A utility class to split the given {@link UnfilteredRowIterator} into smaller chunks each
  * having at most {@link #throttle} + 1 unfiltereds.
  *
  * Only the first output contains partition level info: {@link UnfilteredRowIterator#partitionLevelDeletion}

@@ -136,6 +136,14 @@
 
     <module name="RedundantImport"/>
     <module name="UnusedImports"/>
+
+    <module name="MissingDeprecated"/>
+    <module name="MatchXpath">
+      <property name="query" value="//ANNOTATION[./IDENT[@text='Deprecated']
+              and not(./ANNOTATION_MEMBER_VALUE_PAIR/IDENT[@text='since'])]"/>
+      <message key="matchxpath.match"
+               value="'Deprecated annotation must provide 'since' value."/>
+    </module>
   </module>
 
 </module>

@@ -59,7 +59,7 @@ import org.apache.cassandra.db.rows.Cell;
  *     <li>Spool is organized as open-addressing primitive hash map where odd elements are points and event elements are values.
  *     Spool can not resize => when number of collisions became bigger than threshold or size became large that <i>array_size/2</i> Spool is drained to bin</li>
  *     <li>Bin is organized as sorted arrays. It reduces garbage collection pressure and allows to find elements in log(binSize) time via binary search</li>
- *     <li>To use existing Arrays.binarySearch <i></>{point, values}</i> in bin pairs is packed in one long</li>
+ *     <li>To use existing Arrays.binarySearch <i>{point, values}</i> in bin pairs is packed in one long</li>
  * </ol>
  * <p>
  * The original algorithm is taken from following paper:
@@ -242,7 +242,7 @@ public class StreamingTombstoneHistogramBuilder
 
         /**
          *  Finds nearest points <i>p1</i> and <i>p2</i> in the collection
-         *  Replaces these two points with one weighted point <i>p3 = (p1*m1+p2*m2)/(p1+p2)
+         *  Replaces these two points with one weighted point <i>p3 = (p1*m1+p2*m2)/(p1+p2)</i>
          */
         @VisibleForTesting
         void mergeNearestPoints()

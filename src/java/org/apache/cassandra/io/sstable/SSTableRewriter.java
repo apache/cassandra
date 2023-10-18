@@ -71,7 +71,8 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
     // for testing (TODO: remove when have byteman setup)
     private boolean throwEarly, throwLate;
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-11148 */
+    @Deprecated(since = "3.4")
     public SSTableRewriter(ILifecycleTransaction transaction, long maxAge, long preemptiveOpenInterval, boolean keepOriginals)
     {
         this(transaction, maxAge, preemptiveOpenInterval, keepOriginals, false);

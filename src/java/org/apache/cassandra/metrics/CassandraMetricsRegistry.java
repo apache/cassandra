@@ -671,7 +671,7 @@ public class CassandraMetricsRegistry extends MetricRegistry
      *
      * @param now The current histogram
      * @param last The previous value of the histogram
-     * @return the difference between <i>now</> and <i>last</i>
+     * @return the difference between <i>now</i> and <i>last</i>
      */
     @VisibleForTesting
     static long[] delta(long[] now, long[] last)

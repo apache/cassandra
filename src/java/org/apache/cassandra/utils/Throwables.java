@@ -191,7 +191,7 @@ public final class Throwables
     }
 
     /**
-     * @see {@link #closeAndAddSuppressed(Throwable, Iterable)}
+     * See {@link #closeAndAddSuppressed(Throwable, Iterable)}
      */
     public static void closeAndAddSuppressed(@Nonnull Throwable t, AutoCloseable... closeables)
     {

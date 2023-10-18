@@ -86,8 +86,10 @@ public abstract class DataLimits
     {
         CQL_LIMIT,
         CQL_PAGING_LIMIT,
-        @Deprecated THRIFT_LIMIT, //Deprecated and unused in 4.0, stop publishing in 5.0, reclaim in 6.0
-        @Deprecated SUPER_COLUMN_COUNTING_LIMIT, //Deprecated and unused in 4.0, stop publishing in 5.0, reclaim in 6.0
+        /** @deprecated See CASSANDRA-16582 */
+        @Deprecated(since = "4.0") THRIFT_LIMIT, //Deprecated and unused in 4.0, stop publishing in 5.0, reclaim in 6.0
+        /** @deprecated See CASSANDRA-16582 */
+        @Deprecated(since = "4.0") SUPER_COLUMN_COUNTING_LIMIT, //Deprecated and unused in 4.0, stop publishing in 5.0, reclaim in 6.0
         CQL_GROUP_BY_LIMIT,
         CQL_GROUP_BY_PAGING_LIMIT,
     }
