@@ -20,7 +20,6 @@ package org.apache.cassandra.index.sai.disk.v1;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.List;
 
 import com.google.common.collect.ImmutableList;
@@ -36,8 +35,8 @@ import org.apache.cassandra.index.sai.SSTableContext;
 import org.apache.cassandra.index.sai.disk.SearchableIndex;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
+import org.apache.cassandra.index.sai.utils.RangeConcatIterator;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
-import org.apache.cassandra.index.sai.utils.RangeUnionIterator;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
@@ -160,33 +159,33 @@ public class V1SearchableIndex implements SearchableIndex
     }
 
     @Override
-    public List<RangeIterator> search(Expression expression,
-                                            AbstractBounds<PartitionPosition> keyRange,
-                                            QueryContext context,
-                                            boolean defer,
-                                            int limit) throws IOException
+    public RangeIterator search(Expression expression,
+                                AbstractBounds<PartitionPosition> keyRange,
+                                QueryContext context,
+                                boolean defer,
+                                int limit) throws IOException
     {
-        List<RangeIterator> iterators = new ArrayList<>();
+        RangeConcatIterator.Builder rangeConcatIteratorBuilder = RangeConcatIterator.builder(segments.size());
 
         for (Segment segment : segments)
         {
             if (segment.intersects(keyRange))
             {
-                iterators.add(segment.search(expression, keyRange, context, defer, limit));
+                rangeConcatIteratorBuilder.add(segment.search(expression, keyRange, context, defer, limit));
             }
         }
 
-        return iterators;
+        return rangeConcatIteratorBuilder.build();
     }
 
     @Override
     public RangeIterator limitToTopResults(QueryContext context, List<PrimaryKey> keys, Expression exp, int limit) throws IOException
     {
-        RangeUnionIterator.Builder unionIteratorBuilder = new RangeUnionIterator.Builder(segments.size());
+        RangeConcatIterator.Builder concatIteratorBuilder = RangeConcatIterator.builder(segments.size());
         for (Segment segment : segments)
-            unionIteratorBuilder.add(segment.limitToTopResults(context, keys, exp, limit));
+            concatIteratorBuilder.add(segment.limitToTopResults(context, keys, exp, limit));
 
-        return unionIteratorBuilder.build();
+        return concatIteratorBuilder.build();
     }
 
     @Override

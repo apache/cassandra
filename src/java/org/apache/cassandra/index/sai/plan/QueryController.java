@@ -64,7 +64,6 @@ import org.apache.cassandra.index.sai.metrics.TableQueryMetrics;
 import org.apache.cassandra.index.sai.utils.AbortedOperationException;
 import org.apache.cassandra.index.sai.utils.OrderingFilterRangeIterator;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
-import org.apache.cassandra.index.sai.utils.RangeConcatIterator;
 import org.apache.cassandra.index.sai.utils.RangeIntersectionIterator;
 import org.apache.cassandra.index.sai.utils.RangeIterator;
 import org.apache.cassandra.index.sai.utils.RangeUnionIterator;
@@ -346,9 +345,7 @@ public class QueryController
                                     {
                                         try
                                         {
-                                            List<RangeIterator> iterators = ie.index.search(ie.expression, mergeRange, queryContext, defer, getLimit());
-                                            // concat the result from multiple segments for the same index
-                                            return RangeConcatIterator.build(iterators);
+                                            return ie.index.search(ie.expression, mergeRange, queryContext, defer, getLimit());
                                         }
                                         catch (Throwable ex)
                                         {

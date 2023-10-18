@@ -138,11 +138,11 @@ public class SSTableIndex implements SegmentOrdering
         return searchableIndex.maxKey();
     }
 
-    public List<RangeIterator> search(Expression expression,
-                                      AbstractBounds<PartitionPosition> keyRange,
-                                      QueryContext context,
-                                      boolean defer,
-                                      int limit) throws IOException
+    public RangeIterator search(Expression expression,
+                                AbstractBounds<PartitionPosition> keyRange,
+                                QueryContext context,
+                                boolean defer,
+                                int limit) throws IOException
     {
         return searchableIndex.search(expression, keyRange, context, defer, limit);
     }
