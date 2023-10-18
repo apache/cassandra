@@ -26,6 +26,7 @@ Merged from 4.0:
  * Enable 3rd party JDK installations for Debian package (CASSANDRA-18844)
 Merged from 3.11:
 Merged from 3.0:
+ * Implement the logic in bin/stop-server (CASSANDRA-18838)
  * Upgrade snappy-java to 1.1.10.4 (CASSANDRA-18878)
  * Add cqlshrc.sample and credentials.sample into Debian package (CASSANDRA-18818)
 
