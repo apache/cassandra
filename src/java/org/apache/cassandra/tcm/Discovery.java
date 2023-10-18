@@ -67,6 +67,14 @@ public class Discovery
         return discover(5);
     }
 
+    /**
+     * The discovery process starts with the configured seeds - a message is sent to them asking for the list of the
+     * known CMS members. If a seed node knows about CMS members, it responds with a collection of only those nodes.
+     * Otherwise, the seed node responds with a collection of all known peers. They are accumulated as new target
+     * nodes to query for CMS members in the next round. The process completes when either:
+     * - a response containing the CMS members is received
+     * - a deadline or a specified maximum number of rounds is reached
+     */
     public DiscoveredNodes discover(int rounds)
     {
         boolean res = state.compareAndSet(State.NOT_STARTED, State.IN_PROGRESS);

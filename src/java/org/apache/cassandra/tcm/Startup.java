@@ -147,6 +147,17 @@ public class Startup
         }
     }
 
+    /**
+     * Discovers or elects CMS nodes and proceeds with the initialization.
+     * <p>
+     * First, the node tries to discover CMS members in the cluster (see {@link Discovery#discover(int)}). If no CMS
+     * members could be found, the node either tries to elect itself as a CMS member or waits for another node to
+     * do so (self-election is attempted in case the node's broadcast address/port is the lowest among the discovered
+     * peers).
+     * <p>
+     * Then, the method keeps trying to fetch the log from any of the discovered nodes until the log is fetched and
+     * some transformations are applied, which is indicated by increasing the current epoch.
+     */
     public static void initializeForDiscovery(Runnable initMessaging)
     {
         initMessaging.run();
@@ -275,20 +286,35 @@ public class Startup
     enum StartupMode
     {
         /**
-         * The node will initialize as a non-CMS node.
+         * The node will initialize as a non-CMS node. The startup mode is selected when the node was started before
+         * and has witnessed some CMS transformations.
          */
         NORMAL,
+
         /**
-         *  The node will transition from the gossip protocol to CMS.
+         * The node will transition from the gossip protocol to CMS. The startup mode is selected when the node was
+         * started before, but it has not witnessed any transformation yet.
          */
         UPGRADE,
-        VOTE,
+
         /**
-         * The node will start as the first node from the CMS
+         * Whether this node becomes a member of CMS or not is determined by the election procedure (see {@link Election}).
+         * This startup mode is selected when the node was not started before, and it does not satisfy the conditions
+         * for {@link #FIRST_CMS}.
+         */
+        VOTE,
+
+        /**
+         * The node will start as the first node from the CMS. The startup mode is selected when the node was
+         * not started before, the only seed refers to this node, and the listen address of this node is loopback.
+         * This startup mode is used for local development and CCM based clusters where the only seed configured for
+         * the first node is self loopback address.
          */
         FIRST_CMS,
+
         /**
-         * The node will use the existing {@code ClusterMetadata} provided through a file
+         * The node will use the existing {@code ClusterMetadata} provided through a file - it happens when
+         * {@link CassandraRelevantProperties.TCM_UNSAFE_BOOT_WITH_CLUSTERMETADATA} is set.
          */
         BOOT_WITH_CLUSTERMETADATA;
 
