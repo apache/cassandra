@@ -412,6 +412,11 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
             return toBytes(rawTimestampToMsb(unixMicrosToRawTimestamp(nextUnixMicros())), clockSeqAndNode);
         }
 
+        public static byte[] nextTimeUUIDAsBytes(long unixMillis)
+        {
+            return toBytes(rawTimestampToMsb(unixMicrosToRawTimestamp(nextUnixMicros())), clockSeqAndNode);
+        }
+
         // needs to return two different values for the same when.
         // we can generate at most 10k UUIDs per ms.
         private static long nextUnixMicros()

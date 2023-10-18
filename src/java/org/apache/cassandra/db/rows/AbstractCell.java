@@ -34,7 +34,8 @@ import org.slf4j.LoggerFactory;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 
-import static org.apache.cassandra.utils.TimeUUID.unixMicrosToRawTimestamp;
+import static org.apache.cassandra.utils.TimeUUID.Generator.atUnixMillisAsBytes;
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUIDAsBytes;
 
 /**
  * Base abstract class for {@code Cell} implementations.
@@ -122,9 +123,10 @@ public abstract class AbstractCell<V> extends Cell<V>
         CellPath newPath = null;
         if (path() != null) {
             ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
-            buffer.putLong(unixMicrosToRawTimestamp(newTimestamp));
-            newPath = CellPath.create(buffer);
-            logger.debug("timestamp: {}   buffer: {}    newPath: {}", newTimestamp, buffer, newPath);
+            newPath = CellPath.create(ByteBuffer.wrap(atUnixMillisAsBytes(newTimestamp/1000)));
+//            newPath = CellPath.create(buffer);
+//            newPath = CellPath.create(ByteBuffer.wrap(nextTimeUUIDAsBytes()));
+            logger.debug("timestamp: {}   buffer: {}    newPath: {}", newTimestamp, buffer.get(), newPath.get(0));
         }
         return new BufferCell(column, isTombstone() ? newTimestamp - 1 : newTimestamp, ttl(), localDeletionTime(), buffer(), newPath);
     }
@@ -136,9 +138,22 @@ public abstract class AbstractCell<V> extends Cell<V>
         CellPath newPath = null;
         if (path() != null) {
             ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
-            buffer.putLong(unixMicrosToRawTimestamp(newTimestamp));
-            newPath = CellPath.create(buffer);
-            logger.debug("timestamp: {}   buffer: {}    newPath: {}", newTimestamp, buffer, newPath);
+            newPath = CellPath.create(ByteBuffer.wrap(atUnixMillisAsBytes(newTimestamp/1000, (newTimestamp%1000)*10)));
+//            newPath = CellPath.create(buffer);
+//            newPath = CellPath.create(ByteBuffer.wrap(nextTimeUUIDAsBytes()));
+            logger.debug("timestamp: {}   buffer: {}    newPath: {}", newTimestamp, buffer.get(), newPath.get(0));
+            for (StackTraceElement[] line : Thread.getAllStackTraces().values())
+            {
+                for(StackTraceElement s : line)
+                {
+                    if(s.getClassName().endsWith(".AccordListTest"))
+                    {
+                        System.err.println(s.getClassName() +" " + Thread.currentThread().getName() + " " + newPath);
+                        //assert newPath.get(0).get()==-1;
+                    }
+
+                }
+            }
         }
 
         return new BufferCell(column, isTombstone() ? newTimestamp - 1 : newTimestamp, ttl(), localDeletionTime, buffer(), newPath);
