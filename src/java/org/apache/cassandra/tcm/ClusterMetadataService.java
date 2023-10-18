@@ -89,7 +89,7 @@ import static org.apache.cassandra.utils.Collectors3.toImmutableSet;
  * <ul>
  *     <li>gossip - the processor is used during upgrade</li>
  *     <li>local - when the node fully started and registered in CMS - that is, it is a replica which joined the ring</li>
- *     <li>remote - when the node is not a replica / didn't join the ring</li>
+ *     <li>remote - when the node is not a member of the CMS</li>
  * </ul>
  */
 public class ClusterMetadataService
