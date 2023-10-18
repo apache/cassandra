@@ -24,11 +24,13 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
+import org.apache.cassandra.utils.Sortable;
+
 /**
  * A collection like class for Replica objects. Represents both a well defined order on the contained Replica objects,
  * and efficient methods for accessing the contained Replicas, directly and as a projection onto their endpoints and ranges.
  */
-public interface ReplicaCollection<C extends ReplicaCollection<C>> extends Iterable<Replica>
+public interface ReplicaCollection<C extends ReplicaCollection<C>> extends Sortable<Replica, C>
 {
     /**
      * @return a Set of the endpoints of the contained Replicas.
