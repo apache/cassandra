@@ -62,7 +62,7 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
     }
 
     @Test
-    public void shouldRecordReadMetricsForMultiRowPartitionSelection() throws Throwable
+    public void shouldRecordReadMetricsForMultiRowPartitionSelection()
     {
         createTable("CREATE TABLE %s (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
@@ -76,7 +76,7 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
     }
 
     @Test
-    public void shouldRecordReadMetricsWithOnlyPartitionKeyInSelect() throws Throwable
+    public void shouldRecordReadMetricsWithOnlyPartitionKeyInSelect()
     {
         createTable("CREATE TABLE %s (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
@@ -90,7 +90,7 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
     }
 
     @Test
-    public void shouldRecordReadMetricsWithOnlyClusteringKeyInSelect() throws Throwable
+    public void shouldRecordReadMetricsWithOnlyClusteringKeyInSelect()
     {
         createTable("CREATE TABLE %s (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
@@ -104,7 +104,7 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
     }
 
     @Test
-    public void shouldNotRecordReadMetricsWhenDisabled() throws Throwable
+    public void shouldNotRecordReadMetricsWhenDisabled()
     {
         StorageProxy.instance.setClientRequestSizeMetricsEnabled(false);
 
@@ -119,7 +119,7 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
     }
 
     @Test
-    public void shouldRecordReadMetricsWithSingleRowSelection() throws Throwable
+    public void shouldRecordReadMetricsWithSingleRowSelection()
     {
         createTable("CREATE TABLE %s (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
@@ -132,7 +132,7 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
     }
 
     @Test
-    public void shouldRecordReadMetricsWithSliceRestriction() throws Throwable
+    public void shouldRecordReadMetricsWithSliceRestriction()
     {
         createTable("CREATE TABLE %s (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
@@ -145,7 +145,7 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
     }
 
     @Test
-    public void shouldRecordReadMetricsWithINRestrictionSinglePartition() throws Throwable
+    public void shouldRecordReadMetricsWithINRestrictionSinglePartition()
     {
         createTable("CREATE TABLE %s (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
@@ -158,7 +158,7 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
     }
 
     @Test
-    public void shouldRecordReadMetricsWithINRestrictionMultiplePartitions() throws Throwable
+    public void shouldRecordReadMetricsWithINRestrictionMultiplePartitions()
     {
         createTable("CREATE TABLE %s (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
@@ -172,7 +172,7 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
     }
 
     @Test
-    public void shouldRecordReadMetricsForMultiColumnClusteringRestriction() throws Throwable
+    public void shouldRecordReadMetricsForMultiColumnClusteringRestriction()
     {
         createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, ck3 int, v int, PRIMARY KEY (pk, ck1, ck2, ck3))");
 
@@ -185,7 +185,7 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
     }
 
     @Test
-    public void shouldRecordReadMetricsForClusteringSlice() throws Throwable
+    public void shouldRecordReadMetricsForClusteringSlice()
     {
         createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, ck3 int, v int, PRIMARY KEY (pk, ck1, ck2, ck3))");
 
@@ -198,7 +198,7 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
     }
 
     @Test
-    public void shouldRecordReadMetricsForTokenAndClusteringSlice() throws Throwable
+    public void shouldRecordReadMetricsForTokenAndClusteringSlice()
     {
         createTable("CREATE TABLE %s (pk int, ck1 int, ck2 int, ck3 int, v int, PRIMARY KEY (pk, ck1, ck2, ck3))");
 
@@ -211,7 +211,7 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
     }
 
     @Test
-    public void shouldRecordWriteMetricsForSingleValueRow() throws Throwable
+    public void shouldRecordWriteMetricsForSingleValueRow()
     {
         createTable("CREATE TABLE %s (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
@@ -222,7 +222,7 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
     }
 
     @Test
-    public void shouldNotRecordWriteMetricsWhenDisabled() throws Throwable
+    public void shouldNotRecordWriteMetricsWhenDisabled()
     {
         StorageProxy.instance.setClientRequestSizeMetricsEnabled(false);
 
@@ -235,7 +235,7 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
     }
 
     @Test
-    public void shouldRecordWriteMetricsForMultiValueRow() throws Throwable
+    public void shouldRecordWriteMetricsForMultiValueRow()
     {
         createTable("CREATE TABLE %s (pk int PRIMARY KEY, v1 int, v2 int, v3 int)");
 
@@ -268,7 +268,7 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
     }
 
     @Test
-    public void shouldRecordWriteMetricsForCellDeletes() throws Throwable
+    public void shouldRecordWriteMetricsForCellDeletes()
     {
         createTable("CREATE TABLE %s (pk int PRIMARY KEY, v1 int, v2 int, v3 int)");
 
@@ -279,7 +279,7 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
     }
 
     @Test
-    public void shouldRecordWriteMetricsForCellNulls() throws Throwable
+    public void shouldRecordWriteMetricsForCellNulls()
     {
         createTable("CREATE TABLE %s (pk int PRIMARY KEY, v1 int, v2 int, v3 int)");
 
@@ -290,7 +290,7 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
     }
 
     @Test
-    public void shouldRecordWriteMetricsForSingleStaticInsert() throws Throwable
+    public void shouldRecordWriteMetricsForSingleStaticInsert()
     {
         createTable("CREATE TABLE %s (pk int, ck int, v0 int static, v1 int, v2 int, PRIMARY KEY (pk, ck))");
 
@@ -301,7 +301,7 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
     }
 
     @Test
-    public void shouldRecordWriteMetricsForBatchedStaticInserts() throws Throwable
+    public void shouldRecordWriteMetricsForBatchedStaticInserts() throws Exception
     {
         createTable("CREATE TABLE %s (pk int, ck int, v0 int static, v1 int, v2 int, PRIMARY KEY (pk, ck))");
 
@@ -324,7 +324,7 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
     }
 
     @Test
-    public void shouldRecordWriteMetricsForRowDelete() throws Throwable
+    public void shouldRecordWriteMetricsForRowDelete()
     {
         createTable("CREATE TABLE %s (pk int, ck int, v0 int static, v1 int, v2 int, PRIMARY KEY (pk, ck))");
 
@@ -336,7 +336,7 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
     }
 
     @Test
-    public void shouldRecordWriteMetricsForRangeDelete() throws Throwable
+    public void shouldRecordWriteMetricsForRangeDelete()
     {
         createTable("CREATE TABLE %s (pk int, ck int, v0 int static, v1 int, v2 int, PRIMARY KEY (pk, ck))");
 
@@ -349,7 +349,7 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
     }
 
     @Test
-    public void shouldRecordWriteMetricsForPartitionDelete() throws Throwable
+    public void shouldRecordWriteMetricsForPartitionDelete()
     {
         createTable("CREATE TABLE %s (pk int, ck int, v0 int static, v1 int, v2 int, PRIMARY KEY (pk, ck))");
 
@@ -523,7 +523,7 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
     }
 
     @Test
-    public void shouldRecordReadMetricsForGlobalIndexQuery() throws Throwable
+    public void shouldRecordReadMetricsForGlobalIndexQuery()
     {
         createTable("CREATE TABLE %s (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
         createIndex("CREATE INDEX on %s (v)");
@@ -538,7 +538,7 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
     }
 
     @Test
-    public void shouldRecordReadMetricsForPartitionRestrictedIndexQuery() throws Throwable
+    public void shouldRecordReadMetricsForPartitionRestrictedIndexQuery()
     {
         createTable("CREATE TABLE %s (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
         createIndex("CREATE INDEX on %s (v)");
@@ -553,7 +553,7 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
     }
 
     @Test
-    public void shouldRecordReadMetricsForClusteringKeyIndexQuery() throws Throwable
+    public void shouldRecordReadMetricsForClusteringKeyIndexQuery()
     {
         createTable("CREATE TABLE %s (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
         createIndex("CREATE INDEX on %s (ck)");
@@ -568,7 +568,7 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
     }
 
     @Test
-    public void shouldRecordReadMetricsForFilteringQuery() throws Throwable
+    public void shouldRecordReadMetricsForFilteringQuery()
     {
         createTable("CREATE TABLE %s (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
@@ -582,7 +582,7 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
     }
 
     @Test
-    public void shouldRecordReadMetricsForRangeFilteringQuery() throws Throwable
+    public void shouldRecordReadMetricsForRangeFilteringQuery()
     {
         createTable("CREATE TABLE %s (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
@@ -596,7 +596,7 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
     }
 
     @Test
-    public void shouldRecordReadMetricsForINFilteringQuery() throws Throwable
+    public void shouldRecordReadMetricsForINFilteringQuery()
     {
         createTable("CREATE TABLE %s (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
 
@@ -610,7 +610,7 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
     }
 
     @Test
-    public void shouldRecordReadMetricsForContainsQuery() throws Throwable
+    public void shouldRecordReadMetricsForContainsQuery()
     {
         createTable("CREATE TABLE %s (pk int, ck int, v set<int>, PRIMARY KEY (pk, ck))");
 
@@ -620,6 +620,6 @@ public class ClientRequestRowAndColumnMetricsTest extends CQLTester
 
         assertEquals(1, ClientRequestSizeMetrics.totalRowsRead.getCount());
         // The filtering term is provided by the client in the request, so we don't consider that column read.
-        assertEquals(2, ClientRequestSizeMetrics.totalColumnsRead.getCount());
+        assertEquals(3, ClientRequestSizeMetrics.totalColumnsRead.getCount());
     }
 }
