@@ -28,18 +28,41 @@
 [ $DEBUG ] && set -x
 
 # help
-if [ "$#" -lt 1 ] || [ "$#" -gt 2 ] || [ "$1" == "-h" ]; then
+if [ "$#" -lt 1 ] || [ "$1" == "-h" ]; then
     echo ""
-    echo "Usage: run-python-dtest.sh test_type [split_chunk|test_regexp]"
+    echo "Usage: $0 [-a|-t|-c|-j|-h]"
+    echo "   -a Test target type: dtest, dtest-latest, ..."
+    echo "   -t Test name regexp to run."
+    echo "   -c Chunk to run in the form X/Y: Run chunk X from a total of Y chunks."
     echo ""
     echo "        default split_chunk is 1/1"
     exit 1
 fi
 
 # Pass in target to run, defaults to dtest
-DTEST_TARGET="${1:-dtest}"
-# Optional: pass in chunk to test, formatted as "K/N" for the Kth chunk of N chunks
-DTEST_SPLIT_CHUNK="$2"
+DTEST_TARGET="dtest"
+
+# TODO implement repeated runs, eg CASSANDRA-18942
+while getopts "a:t:c:hj:" opt; do
+  case $opt in
+    a ) DTEST_TARGET="$OPTARG"
+        ;;
+    t ) DTEST_SPLIT_CHUNK="$OPTARG"
+        ;;
+    c ) DTEST_SPLIT_CHUNK="$OPTARG"
+        ;;
+    h ) print_help
+        exit 0
+        ;;
+    j ) ;; # To avoid failing on java_version param from docker/run_tests.sh
+    \?) error 1 "Invalid option: -$OPTARG"
+        ;;
+  esac
+done
+shift $((OPTIND-1))
+if [ "$#" -ne 0 ]; then
+  error 1 "Unexpected arguments"
+fi
 
 # variables, with defaults
 [ "x${CASSANDRA_DIR}" != "x" ] || CASSANDRA_DIR="$(readlink -f $(dirname "$0")/..)"
