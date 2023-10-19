@@ -29,12 +29,11 @@ import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sai.IndexContext;
-import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
+import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableMetadata;
 
@@ -86,11 +85,11 @@ public class SSTableIndexesSystemView extends AbstractVirtualTable
     {
         SimpleDataSet dataset = new SimpleDataSet(metadata());
 
-        for (KeyspaceMetadata ks : Schema.instance.getUserKeyspaces())
+        for (String ks : Schema.instance.getUserKeyspaces())
         {
-            Keyspace keyspace = Schema.instance.getKeyspaceInstance(ks.name);
+            Keyspace keyspace = Schema.instance.getKeyspaceInstance(ks);
             if (keyspace == null)
-                throw new IllegalStateException("Unknown keyspace " + ks.name + ". This can occur if the keyspace is being dropped.");
+                throw new IllegalStateException("Unknown keyspace " + ks + ". This can occur if the keyspace is being dropped.");
 
             for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
             {
@@ -110,7 +109,7 @@ public class SSTableIndexesSystemView extends AbstractVirtualTable
                             Descriptor descriptor = sstable.descriptor;
                             AbstractBounds<Token> bounds = sstable.getBounds();
 
-                            dataset.row(ks.name, indexContext.getIndexName(), sstable.getFilename())
+                            dataset.row(ks, indexContext.getIndexName(), sstable.getFilename())
                                    .column(TABLE_NAME, descriptor.cfname)
                                    .column(COLUMN_NAME, indexContext.getColumnName())
                                    .column(FORMAT_VERSION, sstableIndex.getVersion().toString())

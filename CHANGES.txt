@@ -37,6 +37,7 @@ Merged from 3.0:
  * Upgrade snappy-java to 1.1.10.4 (CASSANDRA-18878)
  * Add cqlshrc.sample and credentials.sample into Debian package (CASSANDRA-18818)
 
+
 5.0-alpha1
  * Fix rpm installations to work with jdk17 (CASSANDRA-18817)
  * Fix Depends and Build-Depends for Java for Debian packages (CASSANDRA-18809)
@@ -52,6 +53,7 @@ Merged from 3.0:
  * Upgrade JMH from 1.21 to 1.36 (CASSANDRA-18696)
  * Add guardrail for vector dimensions (CASSANDRA-18730)
 Merged from 4.1:
+ * Fixed the inconsistency between distributedKeyspaces and distributedAndLocalKeyspaces (CASSANDRA-18747)
  * Waiting indefinitely on ReceivedMessage response in StreamSession#receive() can cause deadlock (CASSANDRA-18733)
  * Allow empty keystore_password in encryption_options (CASSANDRA-18778)
 Merged from 4.0:
