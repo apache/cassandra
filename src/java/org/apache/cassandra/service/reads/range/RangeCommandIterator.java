@@ -121,7 +121,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
     {
         try
         {
-            CassandraResourceUtilization.instance.throttle(command.metadata().keyspace, true);
+            CassandraResourceUtilization.instance.throttle(command.metadata().keyspace, true, false);
             DatabaseDescriptor.getRequestThrottler().maybeThrottleRead(command, consistencyLevel);
             while (sentQueryIterator == null || !sentQueryIterator.hasNext())
             {

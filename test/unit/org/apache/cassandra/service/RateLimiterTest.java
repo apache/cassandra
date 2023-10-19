@@ -104,13 +104,13 @@ public class RateLimiterTest extends CQLTester {
     {
         mockCassResrcUtil = spy(originalCassandraRescourceUtilization);
         CassandraResourceUtilization.instance = mockCassResrcUtil;
-        when(mockCassResrcUtil.throttleUserTraffic(eq(KEYSPACE), anyBoolean())).thenReturn(true);
+        when(mockCassResrcUtil.throttleUserTraffic(eq(KEYSPACE), anyBoolean(), anyBoolean())).thenReturn(true);
     }
 
     @After
     public void resetUserThrottle()
     {
-        verify(mockCassResrcUtil).throttleUserTraffic(eq(KEYSPACE), anyBoolean());
+        verify(mockCassResrcUtil).throttleUserTraffic(eq(KEYSPACE), anyBoolean(), anyBoolean());
         CassandraResourceUtilization.instance = originalCassandraRescourceUtilization;
     }
 
@@ -332,7 +332,7 @@ public class RateLimiterTest extends CQLTester {
         // The following function invocation is to avoid the following error during this unit test case because we mock
         // "CassandraResourceUtilization.instance" for all test cases
         // "Actually, there were zero interactions with this mock."
-        CassandraResourceUtilization.instance.throttleUserTraffic(KEYSPACE, true);
+        CassandraResourceUtilization.instance.throttleUserTraffic(KEYSPACE, true, false);
 
         Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint = new HashMap<>();
         failureReasonByEndpoint.put(InetAddressAndPort.getLocalHost(), RequestFailureReason.TRAFFIC_THROTTLED);
@@ -345,7 +345,7 @@ public class RateLimiterTest extends CQLTester {
         // The following function invocation is to avoid the following error during this unit test case because we mock
         // "CassandraResourceUtilization.instance" for all test cases
         // "Actually, there were zero interactions with this mock."
-        CassandraResourceUtilization.instance.throttleUserTraffic(KEYSPACE, true);
+        CassandraResourceUtilization.instance.throttleUserTraffic(KEYSPACE, true, false);
 
         Map<InetAddressAndPort, RequestFailureReason> failureReasonByEndpoint = new HashMap<>();
         failureReasonByEndpoint.put(InetAddressAndPort.getLocalHost(), RequestFailureReason.TIMEOUT);

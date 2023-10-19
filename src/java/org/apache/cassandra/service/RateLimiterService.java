@@ -155,4 +155,10 @@ public class RateLimiterService implements RateLimiterServiceMBean {
     {
         this.throttlingOptions.setHealthCheckFreqInSec(healthCheckPeriodInSec);
     }
+
+    @Override
+    public void setThrottleReplicaTraffic(boolean throttleReplicaTraffic)
+    {
+        this.throttlingOptions.setThrottleReplicaTraffic(throttleReplicaTraffic);
+    }
 }

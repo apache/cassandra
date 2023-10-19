@@ -265,11 +265,16 @@ public class CassandraResourceUtilization
         return sb.toString();
     }
 
-    public boolean throttleUserTraffic(String keyspaceName, boolean reads)
+    public boolean throttleUserTraffic(String keyspaceName, boolean reads, boolean replicationTraffic)
     {
         if (!throttlingOptions.isEnabled())
         {
             throttlingMetrics.disableThrottling.inc();
+            return false;
+        }
+        if (replicationTraffic && !throttlingOptions.getThrottleReplicaTraffic())
+        {
+            throttlingMetrics.disableReplicaTrafficThrottling.inc();
             return false;
         }
         KeyspaceThrottlingMetrics ksThrottlingMetrics = KeyspaceThrottlingMetricsManager.getMetrics(keyspaceName);
@@ -278,7 +283,6 @@ public class CassandraResourceUtilization
             ksThrottlingMetrics.skipKSThrottling.inc();
             return false;
         }
-
         KeyspaceMetrics metrics = Keyspace.open(keyspaceName).metric;
         if (shouldThrottle)
         {
@@ -287,9 +291,9 @@ public class CassandraResourceUtilization
         return false;
     }
 
-    public void throttle(String keyspaceName, boolean reads) throws OverloadedException
+    public void throttle(String keyspaceName, boolean reads, boolean replicationTraffic) throws OverloadedException
     {
-        if (throttleUserTraffic(keyspaceName, reads)) {
+        if (throttleUserTraffic(keyspaceName, reads, replicationTraffic)) {
             throw buildOverloadeExceptionDuetoRateLimiter();
         }
     }
