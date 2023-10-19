@@ -50,7 +50,7 @@ public class ForceSnapshotTest extends TestBaseImpl
     public void testForceSnapshot() throws IOException
     {
         try (Cluster cluster = init(builder().withNodes(3)
-                                             .withConfig(c -> c.set("unsafe_tcm_mode", "true"))
+                                             .withConfig(c -> c.set("cms.unsafe_tcm_mode", "true"))
                                              .start()))
         {
             cluster.get(2).runOnInstance(() -> {
@@ -74,8 +74,8 @@ public class ForceSnapshotTest extends TestBaseImpl
     public void testRevertToEpoch() throws IOException
     {
         try (Cluster cluster = init(builder().withNodes(3)
-                                             .withConfig(c -> c.set("metadata_snapshot_frequency", 7)
-                                                               .set("unsafe_tcm_mode", "true"))
+                                             .withConfig(c -> c.set("cms.metadata_snapshot_frequency", 7)
+                                                               .set("cms.unsafe_tcm_mode", "true"))
                                              .start()))
         {
             Map<Integer, Long> tblToEpoch = new HashMap<>();
@@ -110,8 +110,8 @@ public class ForceSnapshotTest extends TestBaseImpl
     public void testDumpLoadMetadata() throws IOException
     {
         try (Cluster cluster = init(builder().withNodes(3)
-                                             .withConfig(c -> c.set("metadata_snapshot_frequency", 7)
-                                                               .set("unsafe_tcm_mode", "true"))
+                                             .withConfig(c -> c.set("cms.metadata_snapshot_frequency", 7)
+                                                               .set("cms.unsafe_tcm_mode", "true"))
                                              .start()))
         {
             String filename = null;

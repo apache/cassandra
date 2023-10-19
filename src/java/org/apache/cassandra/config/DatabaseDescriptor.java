@@ -983,16 +983,16 @@ public class DatabaseDescriptor
 
         List<ConsistencyLevel> progressBarrierCLsArr = Arrays.asList(ALL, EACH_QUORUM, LOCAL_QUORUM, QUORUM, ONE, NODE_LOCAL);
         Set<ConsistencyLevel> progressBarrierCls = new HashSet<>(progressBarrierCLsArr);
-        if (!progressBarrierCls.contains(conf.progress_barrier_min_consistency_level))
+        if (!progressBarrierCls.contains(conf.cms.progress_barrier.min_consistency_level))
         {
-            throw new ConfigurationException(String.format("Invalid value for progress_barrier_min_consistency_level %s. Allowed values: %s",
-                                                           conf.progress_barrier_min_consistency_level, progressBarrierCLsArr));
+            throw new ConfigurationException(String.format("Invalid value for cms.progress_barrier.min_consistency_level %s. Allowed values: %s",
+                                                           conf.cms.progress_barrier.min_consistency_level, progressBarrierCLsArr));
         }
 
-        if (!progressBarrierCls.contains(conf.progress_barrier_default_consistency_level))
+        if (!progressBarrierCls.contains(conf.cms.progress_barrier.default_consistency_level))
         {
-            throw new ConfigurationException(String.format("Invalid value for.progress_barrier_default_consistency_level %s. Allowed values: %s",
-                                                           conf.progress_barrier_default_consistency_level, progressBarrierCLsArr));
+            throw new ConfigurationException(String.format("Invalid value for cms.progress_barrier.default_consistency_level %s. Allowed values: %s",
+                                                           conf.cms.progress_barrier.default_consistency_level, progressBarrierCLsArr));
         }
     }
 
@@ -4967,22 +4967,22 @@ public class DatabaseDescriptor
 
     public static int getCmsDefaultRetryMaxTries()
     {
-        return conf.cms_default_max_retries;
+        return conf.cms.default_max_retries;
     }
 
     public static void setCmsDefaultRetryMaxTries(int value)
     {
-        conf.cms_default_max_retries = value;
+        conf.cms.default_max_retries = value;
     }
 
     public static DurationSpec getDefaultRetryBackoff()
     {
-        return conf.cms_default_retry_backoff;
+        return conf.cms.default_retry_backoff;
     }
 
     public static DurationSpec getCmsAwaitTimeout()
     {
-        return conf.cms_await_timeout;
+        return conf.cms.await_timeout;
     }
 
     /**
@@ -4993,71 +4993,71 @@ public class DatabaseDescriptor
      */
     public static int getMetadataSnapshotFrequency()
     {
-        return conf.metadata_snapshot_frequency;
+        return conf.cms.metadata_snapshot_frequency;
     }
 
     public static void setMetadataSnapshotFrequency(int frequency)
     {
-        conf.metadata_snapshot_frequency = frequency;
+        conf.cms.metadata_snapshot_frequency = frequency;
     }
 
     public static ConsistencyLevel getProgressBarrierMinConsistencyLevel()
     {
-        return conf.progress_barrier_min_consistency_level;
+        return conf.cms.progress_barrier.min_consistency_level;
     }
 
     public static void setProgressBarrierMinConsistencyLevel(ConsistencyLevel newLevel)
     {
-        conf.progress_barrier_min_consistency_level = newLevel;
+        conf.cms.progress_barrier.min_consistency_level = newLevel;
     }
 
     public static boolean getLogOutOfTokenRangeRequests()
     {
-        return conf.log_out_of_token_range_requests;
+        return conf.cms.log_out_of_token_range_requests;
     }
 
     public static void setLogOutOfTokenRangeRequests(boolean enabled)
     {
-        conf.log_out_of_token_range_requests = enabled;
+        conf.cms.log_out_of_token_range_requests = enabled;
     }
 
     public static boolean getRejectOutOfTokenRangeRequests()
     {
-        return conf.reject_out_of_token_range_requests;
+        return conf.cms.reject_out_of_token_range_requests;
     }
 
     public static void setRejectOutOfTokenRangeRequests(boolean enabled)
     {
-        conf.reject_out_of_token_range_requests = enabled;
+        conf.cms.reject_out_of_token_range_requests = enabled;
     }
 
     public static ConsistencyLevel getProgressBarrierDefaultConsistencyLevel()
     {
-        return conf.progress_barrier_default_consistency_level;
+        return conf.cms.progress_barrier.default_consistency_level;
     }
 
     public static long getProgressBarrierTimeout(TimeUnit unit)
     {
-        return conf.progress_barrier_timeout.to(unit);
+        return conf.cms.progress_barrier.timeout.to(unit);
     }
 
     public static long getProgressBarrierBackoff(TimeUnit unit)
     {
-        return conf.progress_barrier_backoff.to(unit);
+        return conf.cms.progress_barrier.backoff.to(unit);
     }
 
     public static void setProgressBarrierTimeout(long timeOutInMillis)
     {
-        conf.progress_barrier_timeout = new DurationSpec.LongMillisecondsBound(timeOutInMillis);
+        conf.cms.progress_barrier.timeout = new DurationSpec.LongMillisecondsBound(timeOutInMillis);
     }
 
     public static void setProgressBarrierBackoff(long timeOutInMillis)
     {
-        conf.progress_barrier_backoff = new DurationSpec.LongMillisecondsBound(timeOutInMillis);
+        conf.cms.progress_barrier.backoff = new DurationSpec.LongMillisecondsBound(timeOutInMillis);
     }
 
     public static boolean getUnsafeTCMMode()
     {
-        return conf.unsafe_tcm_mode;
+        return conf.cms.unsafe_tcm_mode;
     }
 }

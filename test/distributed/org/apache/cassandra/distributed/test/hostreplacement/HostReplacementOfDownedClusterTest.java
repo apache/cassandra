@@ -80,8 +80,8 @@ public class HostReplacementOfDownedClusterTest extends TestBaseImpl
         TokenSupplier even = TokenSupplier.evenlyDistributedTokens(2);
         try (Cluster cluster = Cluster.build(2)
                                       .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK)
-                                                        .set("progress_barrier_timeout", "1000ms")
-                                                        .set("progress_barrier_backoff", "100ms"))
+                                                        .set("cms.progress_barrier.timeout", "1000ms")
+                                                        .set("cms.progress_barrier.backoff", "100ms"))
                                       .withTokenSupplier(node -> even.token(node == 3 ? 2 : node))
                                       .start())
         {
@@ -109,7 +109,7 @@ public class HostReplacementOfDownedClusterTest extends TestBaseImpl
             // now create a new node to replace the other node
             IInvokableInstance replacingNode = addInstance(cluster, nodeToRemove.config(),
                                                            c -> c.set("auto_bootstrap", true)
-                                                                 .set("progress_barrier_min_consistency_level", ConsistencyLevel.ONE));
+                                                                 .set("cms.progress_barrier.min_consistency_level", ConsistencyLevel.ONE));
             startHostReplacement(nodeToRemove, replacingNode, (ignore1_, ignore2_) -> {});
 
             awaitRingJoin(seed, replacingNode);
@@ -134,9 +134,9 @@ public class HostReplacementOfDownedClusterTest extends TestBaseImpl
         TokenSupplier even = TokenSupplier.evenlyDistributedTokens(numStartNodes);
         try (Cluster cluster = Cluster.build(numStartNodes)
                                       .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK)
-                                                       .set("progress_barrier_min_consistency_level", ConsistencyLevel.ONE)
-                                                        .set("progress_barrier_timeout", "1000ms")
-                                                        .set("progress_barrier_backoff", "100ms"))
+                                                       .set("cms.progress_barrier.min_consistency_level", ConsistencyLevel.ONE)
+                                                        .set("cms.progress_barrier.timeout", "1000ms")
+                                                        .set("cms.progress_barrier.backoff", "100ms"))
                                       .withTokenSupplier(node -> even.token(node == (numStartNodes + 1) ? 2 : node))
                                       .start())
         {

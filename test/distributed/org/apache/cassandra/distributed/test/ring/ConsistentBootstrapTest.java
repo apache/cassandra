@@ -77,7 +77,7 @@ public class ConsistentBootstrapTest extends FuzzTestBase
         try (Cluster cluster = builder().withNodes(3)
                                         .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(4))
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
-                                        .withConfig((config) -> config.with(Feature.NETWORK, Feature.GOSSIP).set("metadata_snapshot_frequency", 5))
+                                        .withConfig((config) -> config.with(Feature.NETWORK, Feature.GOSSIP).set("cms.metadata_snapshot_frequency", 5))
                                         .start())
         {
             IInvokableInstance cmsInstance = cluster.get(1);
@@ -145,7 +145,7 @@ public class ConsistentBootstrapTest extends FuzzTestBase
         try (Cluster cluster = builder().withNodes(3)
                                         .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(4))
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
-                                        .withConfig((config) -> config.with(Feature.NETWORK, Feature.GOSSIP).set("metadata_snapshot_frequency", 5))
+                                        .withConfig((config) -> config.with(Feature.NETWORK, Feature.GOSSIP).set("cms.metadata_snapshot_frequency", 5))
                                         .start())
         {
             IInvokableInstance cmsInstance = cluster.get(1);
@@ -184,7 +184,7 @@ public class ConsistentBootstrapTest extends FuzzTestBase
             IInstanceConfig config = cluster.newInstanceConfig()
                                             .set("auto_bootstrap", true)
                                             .set(Constants.KEY_DTEST_FULL_STARTUP, true)
-                                            .set("progress_barrier_default_consistency_level", "NODE_LOCAL");
+                                            .set("cms.progress_barrier.default_consistency_level", "NODE_LOCAL");
             IInvokableInstance newInstance = cluster.bootstrap(config);
 
             // Prime the CMS node to pause before the finish join event is committed

@@ -171,20 +171,6 @@ public class Config
 
     public volatile DurationSpec.LongMillisecondsBound stream_transfer_task_timeout = new DurationSpec.LongMillisecondsBound("12h");
 
-    public volatile DurationSpec.LongMillisecondsBound cms_await_timeout = new DurationSpec.LongMillisecondsBound("120000ms");
-    public volatile int cms_default_max_retries = 10;
-    public volatile DurationSpec.IntMillisecondsBound cms_default_retry_backoff = new DurationSpec.IntMillisecondsBound("50ms");
-
-    /**
-     * Specify how often a snapshot of the cluster metadata must be taken.
-     * <p>The frequency is express in epochs. A frequency of 100, for example, means that a snapshot will be taken every time
-     * the epoch is a multiple of 100.</p>
-     * <p>Taking a snapshot will also seal a period (e.g. cluster metadata partition). Therefore the snapshot frequency also determine the size of the
-     * {@code system.local_metadata_log} and {@code cluster_metadata.distributed_metadata_log} tables partitions.</p>
-     */
-    public volatile int metadata_snapshot_frequency = 100;
-
-
     public volatile double phi_convict_threshold = 8.0;
 
     public int concurrent_reads = 32;
@@ -1261,18 +1247,5 @@ public class Config
     // TODO Revisit MessagingService::current_version
     public StorageCompatibilityMode storage_compatibility_mode = StorageCompatibilityMode.NONE;
 
-    /**
-     * For the purposes of progress barrier we only support ALL, EACH_QUORUM, QUORUM, LOCAL_QUORUM, ANY, and ONE.
-     *
-     * We will still try all consistency levels above the lowest acceptable, and only fall back to it if we can not
-     * collect enough nodes.
-     */
-    public volatile ConsistencyLevel progress_barrier_min_consistency_level = ConsistencyLevel.EACH_QUORUM;
-    public volatile boolean log_out_of_token_range_requests = true;
-    public volatile boolean reject_out_of_token_range_requests = true;
-    public volatile ConsistencyLevel progress_barrier_default_consistency_level = ConsistencyLevel.EACH_QUORUM;
-
-    public volatile DurationSpec.LongMillisecondsBound progress_barrier_timeout = new DurationSpec.LongMillisecondsBound("3600000ms");
-    public volatile DurationSpec.LongMillisecondsBound progress_barrier_backoff = new DurationSpec.LongMillisecondsBound("1000ms");
-    public boolean unsafe_tcm_mode = false;
+    public final CMSSpec cms = new CMSSpec();
 }
