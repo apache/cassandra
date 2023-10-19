@@ -76,7 +76,7 @@ public class BootWithMetadataTest extends TestBaseImpl
             });
             cluster.get(1).shutdown().get();
 
-            start(cluster.get(1), (props) -> props.set(CassandraRelevantProperties.TCM_UNSAFE_BOOT_WITH_CLUSTERMETADATA, filename));
+            start(cluster.get(1), (props) -> props.set(CassandraRelevantProperties.CMS_UNSAFE_BOOT_WITH_CLUSTERMETADATA, filename));
 
             cluster.schemaChange(withKeyspace("create table %s.yy (id int primary key)"));
             cluster.forEach(() -> {
@@ -127,7 +127,7 @@ public class BootWithMetadataTest extends TestBaseImpl
             });
             cluster.get(1).shutdown().get();
             cluster.get(2).shutdown().get();
-            start(cluster.get(2), (props) -> props.set(CassandraRelevantProperties.TCM_UNSAFE_BOOT_WITH_CLUSTERMETADATA, filename));
+            start(cluster.get(2), (props) -> props.set(CassandraRelevantProperties.CMS_UNSAFE_BOOT_WITH_CLUSTERMETADATA, filename));
             for (int i = 2; i <= 4; i++)
                 cluster.get(i).runOnInstance(() -> {
                     assertEquals(1, ClusterMetadata.current().fullCMSMembers().size());

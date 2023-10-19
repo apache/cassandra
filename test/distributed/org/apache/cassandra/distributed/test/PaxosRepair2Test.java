@@ -111,7 +111,7 @@ public class PaxosRepair2Test extends TestBaseImpl
     static
     {
         CassandraRelevantProperties.PAXOS_USE_SELF_EXECUTION.setBoolean(false);
-        CassandraRelevantProperties.TCM_USE_ATOMIC_LONG_PROCESSOR.setBoolean(true);
+        CassandraRelevantProperties.CMS_USE_ATOMIC_LONG_PROCESSOR.setBoolean(true);
         DatabaseDescriptor.daemonInitialization();
     }
 

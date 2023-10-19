@@ -174,7 +174,7 @@ public class RepairDigestTrackingTest extends TestBaseImpl
     public void testSnapshottingOnInconsistency() throws Throwable
     {
         try (WithProperties ignore_ = new WithProperties()
-                                      .set(CassandraRelevantProperties.TCM_USE_ATOMIC_LONG_PROCESSOR, "true");
+                                      .set(CassandraRelevantProperties.CMS_USE_ATOMIC_LONG_PROCESSOR, "true");
              Cluster cluster = init(Cluster.create(2)))
         {
             cluster.get(1).runOnInstance(() -> StorageProxy.instance.enableRepairedDataTrackingForPartitionReads());
@@ -295,7 +295,7 @@ public class RepairDigestTrackingTest extends TestBaseImpl
         // Asserts that the amount of repaired data read for digest generation is consistent
         // across replicas where one has to read more repaired data to satisfy the original
         // limits of the read request.
-        try (WithProperties ignore_ = new WithProperties().set(CassandraRelevantProperties.TCM_USE_ATOMIC_LONG_PROCESSOR, "true");
+        try (WithProperties ignore_ = new WithProperties().set(CassandraRelevantProperties.CMS_USE_ATOMIC_LONG_PROCESSOR, "true");
              Cluster cluster = init(Cluster.create(2)))
         {
             setupSchema(cluster,"CREATE TABLE " + KS_TABLE + " (k INT, c INT, v1 INT, PRIMARY KEY (k,c)) " +
@@ -383,7 +383,7 @@ public class RepairDigestTrackingTest extends TestBaseImpl
     public void testLocalDataAndRemoteRequestConcurrency() throws Exception
     {
 
-        try (WithProperties ignore_ = new WithProperties().set(CassandraRelevantProperties.TCM_USE_ATOMIC_LONG_PROCESSOR, "true");
+        try (WithProperties ignore_ = new WithProperties().set(CassandraRelevantProperties.CMS_USE_ATOMIC_LONG_PROCESSOR, "true");
              Cluster cluster = init(Cluster.build(3)
                                            .withInstanceInitializer(BBHelper::install)
                                            .withConfig(config -> config.set("repaired_data_tracking_for_partition_reads_enabled", true)

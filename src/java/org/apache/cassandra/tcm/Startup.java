@@ -94,7 +94,7 @@ public class Startup
                 initializeFromGossip(wrapProcessor, initMessaging);
                 break;
             case BOOT_WITH_CLUSTERMETADATA:
-                String fileName = CassandraRelevantProperties.TCM_UNSAFE_BOOT_WITH_CLUSTERMETADATA.getString();
+                String fileName = CassandraRelevantProperties.CMS_UNSAFE_BOOT_WITH_CLUSTERMETADATA.getString();
                 logger.warn("Initializing with cluster metadata from: {}", fileName);
                 reinitializeWithClusterMetadata(fileName, wrapProcessor, initMessaging);
                 break;
@@ -256,7 +256,7 @@ public class Startup
         initMessaging.run();
         ClusterMetadataService.instance().forceSnapshot(metadata.forceEpoch(metadata.nextEpoch()));
         ClusterMetadataService.instance().sealPeriod();
-        CassandraRelevantProperties.TCM_UNSAFE_BOOT_WITH_CLUSTERMETADATA.reset();
+        CassandraRelevantProperties.CMS_UNSAFE_BOOT_WITH_CLUSTERMETADATA.reset();
         assert ClusterMetadataService.state() == LOCAL;
         assert ClusterMetadataService.instance() != initial : "Aborting startup as temporary metadata service is still active";
     }
@@ -275,9 +275,9 @@ public class Startup
 
         static StartupMode get(Set<InetAddressAndPort> seeds)
         {
-            if (CassandraRelevantProperties.TCM_UNSAFE_BOOT_WITH_CLUSTERMETADATA.isPresent())
+            if (CassandraRelevantProperties.CMS_UNSAFE_BOOT_WITH_CLUSTERMETADATA.isPresent())
             {
-                logger.warn("Booting with ClusterMetadata from file: " + CassandraRelevantProperties.TCM_UNSAFE_BOOT_WITH_CLUSTERMETADATA.getString());
+                logger.warn("Booting with ClusterMetadata from file: " + CassandraRelevantProperties.CMS_UNSAFE_BOOT_WITH_CLUSTERMETADATA.getString());
                 return BOOT_WITH_CLUSTERMETADATA;
             }
             if (seeds.isEmpty())

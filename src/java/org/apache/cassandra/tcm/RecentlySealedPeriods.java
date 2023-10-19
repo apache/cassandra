@@ -38,7 +38,7 @@ public class RecentlySealedPeriods
 {
     private static final Sealed[] EMPTY_ARRAY = new Sealed[0];
     public static final RecentlySealedPeriods EMPTY = new RecentlySealedPeriods(EMPTY_ARRAY);
-    private int maxSize = CassandraRelevantProperties.TCM_RECENTLY_SEALED_PERIOD_INDEX_SIZE.getInt();
+    private int maxSize = CassandraRelevantProperties.CMS_RECENTLY_SEALED_PERIOD_INDEX_SIZE.getInt();
     private Sealed[] recent;
 
     private RecentlySealedPeriods(Sealed first)

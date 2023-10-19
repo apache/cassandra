@@ -505,24 +505,19 @@ public enum CassandraRelevantProperties
     // TODO: not a fan of being forced to prefix these to satisfy the alphabetic ordering constraint
     //       but it makes sense to group logically related properties together
 
-    TCM_ALLOW_TRANSFORMATIONS_DURING_UPGRADES("cassandra.allow_transformations_during_upgrades", "false"),
-    /**
-     * for obtaining acknowlegement from peers to make progress in multi-step operations
-     */
-    TCM_PROGRESS_BARRIER_BACKOFF_MILLIS("cassandra.progress_barrier_backoff_ms", "1000"),
-    TCM_PROGRESS_BARRIER_TIMEOUT_MILLIS("cassandra.progress_barrier_timeout_ms", "3600000"),
+    CMS_ALLOW_TRANSFORMATIONS_DURING_UPGRADES("cassandra.cms.allow_transformations_during_upgrades", "false"),
     /**
      * size of in-memory index of max epoch -> sealed period
      */
-    TCM_RECENTLY_SEALED_PERIOD_INDEX_SIZE("cassandra.recently_sealed_period_index_size", "10"),
+    CMS_RECENTLY_SEALED_PERIOD_INDEX_SIZE("cassandra.cms.recently_sealed_period_index_size", "10"),
 
     /**
      * should replica groups in data placements be sorted to ensure the primary replica is first in the list
      */
-    TCM_SORT_REPLICA_GROUPS("cassandra.sorted_replica_groups_enabled", "true"),
-    TCM_UNSAFE_BOOT_WITH_CLUSTERMETADATA("cassandra.unsafe_boot_with_clustermetadata", null),
-    TCM_USE_ATOMIC_LONG_PROCESSOR("cassandra.test.use_atomic_long_processor", "false"),
-    TCM_USE_NO_OP_REPLICATOR("cassandra.test.use_no_op_replicator", "false"),
+    CMS_SORTED_REPLICA_GROUPS_ENABLED("cassandra.cms.sorted_replica_groups_enabled", "true"),
+    CMS_UNSAFE_BOOT_WITH_CLUSTERMETADATA("cassandra.cms.unsafe_boot_with_clustermetadata"),
+    CMS_USE_ATOMIC_LONG_PROCESSOR("cassandra.test.cms.use_atomic_long_processor", "false"),
+    CMS_USE_NO_OP_REPLICATOR("cassandra.test.cms.use_no_op_replicator", "false"),
 
     TEST_BBFAILHELPER_ENABLED("test.bbfailhelper.enabled"),
     TEST_BLOB_SHARED_SEED("cassandra.test.blob.shared.seed"),

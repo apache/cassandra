@@ -46,7 +46,7 @@ public class CASContentionTest extends CASTestBase
 
     static
     {
-        CassandraRelevantProperties.TCM_USE_ATOMIC_LONG_PROCESSOR.setBoolean(true);
+        CassandraRelevantProperties.CMS_USE_ATOMIC_LONG_PROCESSOR.setBoolean(true);
     }
 
     @BeforeClass

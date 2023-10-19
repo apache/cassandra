@@ -48,7 +48,7 @@ import org.apache.cassandra.tcm.transformations.Unregister;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.TCM_ALLOW_TRANSFORMATIONS_DURING_UPGRADES;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CMS_ALLOW_TRANSFORMATIONS_DURING_UPGRADES;
 
 public class RegisterTest extends TestBaseImpl
 {
@@ -95,7 +95,7 @@ public class RegisterTest extends TestBaseImpl
     {
         try (Cluster cluster = builder().withNodes(2)
                                         .createWithoutStarting();
-             WithProperties prop = new WithProperties().set(TCM_ALLOW_TRANSFORMATIONS_DURING_UPGRADES, "true"))
+             WithProperties prop = new WithProperties().set(CMS_ALLOW_TRANSFORMATIONS_DURING_UPGRADES, "true"))
         {
             cluster.get(1).startup();
             cluster.get(1).runOnInstance(() -> {

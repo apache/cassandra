@@ -94,14 +94,14 @@ public class BootWithMetadataTest
     {
         // sorting to preserve primary replicas requires real data in Directory
         // and DataPlacements, this test uses completely random data so disable it
-        CassandraRelevantProperties.TCM_SORT_REPLICA_GROUPS.setBoolean(false);
+        CassandraRelevantProperties.CMS_SORTED_REPLICA_GROUPS_ENABLED.setBoolean(false);
         // We will be re-intialising the ClusterMetadata and CMS, which requires
         // us to disable MBean registration. This does not happen outside of tests
         CassandraRelevantProperties.ORG_APACHE_CASSANDRA_DISABLE_MBEAN_REGISTRATION.setBoolean(true);
         // General test setup, no need to use Paxos for log commits or to replicate
         // to (non-existent) peers
-        CassandraRelevantProperties.TCM_USE_ATOMIC_LONG_PROCESSOR.setBoolean(true);
-        CassandraRelevantProperties.TCM_USE_NO_OP_REPLICATOR.setBoolean(true);
+        CassandraRelevantProperties.CMS_USE_ATOMIC_LONG_PROCESSOR.setBoolean(true);
+        CassandraRelevantProperties.CMS_USE_NO_OP_REPLICATOR.setBoolean(true);
 
         ServerTestUtils.daemonInitialization();
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
