@@ -60,6 +60,7 @@
         <cve>CVE-2022-41881</cve>
         <cve>CVE-2022-41915</cve>
         <cve>CVE-2023-34462</cve>
+        <cve>CVE-2023-44487</cve>
     </suppress>
 
     <!-- https://issues.apache.org/jira/browse/CASSANDRA-14760 -->
