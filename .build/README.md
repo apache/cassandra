@@ -75,31 +75,61 @@ Running Tests
 
 Running unit tests with docker:
 
-    .build/docker/run-tests.sh test
+    .build/docker/run-tests-enhanced.sh -a test
+    .build/docker/run-tests.sh test (deprecated)
 
 
 Running unittests without docker:
 
-    .build/run-tests.sh test
+    .build/run-tests-enhanced.sh -a test
+    .build/run-tests.sh test (deprecated)
 
 
 Running only a split of unittests, with docker:
 
-    .build/docker/run-tests.sh test 1/64
+    .build/docker/run-tests-enhanced.sh -a test -c 1/64
+    .build/docker/run-tests.sh test 1/64 (deprecated)
 
 
 Running unittests with a specific jdk with docker:
 
-    .build/docker/run-tests.sh test 1/64 11
+    .build/docker/run-tests-enhanced.sh -a test -c 1/64 -j 11
+    .build/docker/run-tests.sh test 1/64 11 (deprecated)
 
 
 Running only unit tests matching a regexp, with docker:
 
-    .build/docker/run-tests.sh test VerifyTest 11
-    .build/docker/run-tests.sh test "Compaction*Test$" 11
+    .build/docker/run-tests-enhanced.sh -a test -t VerifyTest -j 11
+    .build/docker/run-tests-enhanced.sh -a test -t "Compaction*Test$" -j 11
+    .build/docker/run-tests.sh test VerifyTest 11 (deprecated)
+    .build/docker/run-tests.sh test "Compaction*Test$" 11 (deprecated)
 
 
 Running other types of tests with docker:
+
+    .build/docker/run-tests-enhanced.sh -a test
+    .build/docker/run-tests-enhanced.sh -a stress-test
+    .build/docker/run-tests-enhanced.sh -a fqltool-test
+    .build/docker/run-tests-enhanced.sh -a microbench
+    .build/docker/run-tests-enhanced.sh -a test-cdc
+    .build/docker/run-tests-enhanced.sh -a test-compression
+    .build/docker/run-tests-enhanced.sh -a test-oa
+    .build/docker/run-tests-enhanced.sh -a test-system-keyspace-directory
+    .build/docker/run-tests-enhanced.sh -a test-tries
+    .build/docker/run-tests-enhanced.sh -a test-burn
+    .build/docker/run-tests-enhanced.sh -a long-test
+    .build/docker/run-tests-enhanced.sh -a cqlsh-test
+    .build/docker/run-tests-enhanced.sh -a jvm-dtest
+    .build/docker/run-tests-enhanced.sh -a jvm-dtest-upgrade
+    .build/docker/run-tests-enhanced.sh -a dtest
+    .build/docker/run-tests-enhanced.sh -a dtest-novnode
+    .build/docker/run-tests-enhanced.sh -a dtest-offheap
+    .build/docker/run-tests-enhanced.sh -a dtest-large
+    .build/docker/run-tests-enhanced.sh -a dtest-large-novnode
+    .build/docker/run-tests-enhanced.sh -a dtest-upgrade
+    .build/docker/run-tests-enhanced.sh -a dtest-upgrade-large
+
+Deprecated:
 
     .build/docker/run-tests.sh test
     .build/docker/run-tests.sh stress-test
@@ -123,6 +153,12 @@ Running other types of tests with docker:
     .build/docker/run-tests.sh dtest-upgrade
     .build/docker/run-tests.sh dtest-upgrade-large
 
+Repeating tests
+
+Just add the '-repeat' suffix to the test type and pass in the repeat arguments
+    
+    .build/run-tests-enhanced.sh -a jvm-dtest-repeat -e REPEATED_TESTS_COUNT=2 -e REPEATED_TESTS=BooleanTest
+    .build/docker/run-tests-enhanced.sh -a jvm-dtest-repeat -e REPEATED_TESTS_COUNT=2 -e REPEATED_TESTS=BooleanTest -j 11
 
 Running python dtests without docker:
 
