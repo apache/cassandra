@@ -228,14 +228,8 @@ public class IndexContext
 
     public void renewMemtable(Memtable renewed)
     {
-        for (Memtable memtable : liveMemtables.keySet())
-        {
-            // remove every index but the one that corresponds to the post-truncate Memtable
-            if (renewed != memtable)
-            {
-                liveMemtables.remove(memtable);
-            }
-        }
+        // remove every index but the one that corresponds to the post-truncate Memtable
+        liveMemtables.keySet().removeIf(m -> m != renewed);
     }
 
     public void discardMemtable(Memtable discarded)
