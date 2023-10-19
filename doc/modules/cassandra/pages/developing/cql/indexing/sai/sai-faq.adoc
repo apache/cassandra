@@ -99,10 +99,10 @@ See xref:cassandra:managing/tools/nodetool/toolsNodetool.html[nodetool].
 * Monitored via a combination of nodetool, CQL virtual tables, system metrics, and JMX.
 See xref:cassandra:developing/cql/indexing/sai/monitoring.adoc[Monitor SAI indexes].
 
-[[saiLimitsFaq]]
-== Are there limits on the number of SAI indexes per table, and total per cluster?
+// [[saiLimitsFaq]]
+// == Are there limits on the number of SAI indexes per table, and total per cluster?
 
-include::cassandra:partial$sai/config-limits.adoc[]
+// include::cassandra:partial$sai/config-limits.adoc[]
 
 == On which column in a database table can I base an SAI index?
 
