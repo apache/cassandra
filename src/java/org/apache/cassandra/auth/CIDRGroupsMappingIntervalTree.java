@@ -57,10 +57,10 @@ import org.apache.cassandra.cql3.CIDR;
  *
  * Example:
  * Assume below CIDRs
- * "128.10.120.2/10", ==> IP range 128.0.0.0 - 128.63.255.255, netmask 10
- * "128.20.120.2/20", ==> IP range 128.20.112.0 - 128.20.127.255, netmask 20
- * "0.0.0.0/0",       ==> IP range 0.0.0.0 - 255.255.255.255, netmask 0
- * "10.1.1.2/10"      ==> IP range 10.0.0.0 - 10.63.255.255, netmask 10
+ * {@code "128.10.120.2/10", ==> IP range 128.0.0.0 - 128.63.255.255, netmask 10}
+ * {@code "128.20.120.2/20", ==> IP range 128.20.112.0 - 128.20.127.255, netmask 20}
+ * {@code "0.0.0.0/0",       ==> IP range 0.0.0.0 - 255.255.255.255, netmask 0}
+ * {@code "10.1.1.2/10"      ==> IP range 10.0.0.0 - 10.63.255.255, netmask 10}
  *
  * Resulting interval tree looks like:
  *

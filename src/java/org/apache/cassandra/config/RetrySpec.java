@@ -101,7 +101,7 @@ public class RetrySpec
 
     /**
      * Represents how many retry attempts are allowed.  If the value is 2, this will cause 2 retries + 1 original request, for a total of 3 requests!
-     * <p/>
+     * <p>
      * To disable, set to 0.
      */
     public MaxAttempt maxAttempts = DEFAULT_MAX_ATTEMPTS; // 2 retries, 1 original request; so 3 total

@@ -52,7 +52,7 @@ import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
  * Handles small and large messages, corruption, flow control, dispatch of message processing to a suitable
  * consumer.
  *
- * # Interaction with {@link FrameDecoder}
+ * <h2>Interaction with {@link FrameDecoder}</h2>
  *
  * An {@link AbstractMessageHandler} implementation sits on top of a {@link FrameDecoder} in the Netty pipeline,
  * and is tightly coupled with it.
@@ -67,7 +67,7 @@ import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
  * frames (if {@code true} is returned) or stop until explicitly reactivated (if {@code false} is). To reactivate
  * the decoder (once notified of available resource permits), {@link FrameDecoder#reactivate()} is invoked.
  *
- * # Frames
+ * <h2>Frames</h2>
  *
  * {@link AbstractMessageHandler} operates on frames of messages, and there are several kinds of them:
  *  1. {@link IntactFrame} that are contained. As names suggest, these contain one or multiple fully contained
@@ -89,7 +89,7 @@ import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
  *  2. An uncontained frame can hold a part of one message only. It can NOT, say, contain end of one large message
  *     and a beginning of another one. All the bytes in an uncontained frame always belong to a single message.
  *
- * # Small vs large messages
+ * <h2>Small vs large messages</h2>
  *
  * A single handler is equipped to process both small and large messages, potentially interleaved, but the logic
  * differs depending on size. Small messages are deserialized in place, and then handed off to an appropriate
@@ -97,10 +97,10 @@ import static org.apache.cassandra.utils.MonotonicClock.Global.approxTime;
  * the untouched frames to the correct thread pool for the verb to be deserialized there and immediately processed.
  *
  * See {@link LargeMessage} and subclasses for concrete {@link AbstractMessageHandler} implementations for details
- * of the large-message accumulating state-machine, and {@link InboundMessageHandler.ProcessMessage} and its inheritors 
+ * of the large-message accumulating state-machine, and {@code InboundMessageHandler.ProcessMessage} and its inheritors
  * for the differences in execution.
  *
- * # Flow control (backpressure)
+ * <h2>Flow control (backpressure)</h2>
  *
  * To prevent message producers from overwhelming and bringing nodes down with more inbound messages that
  * can be processed in a timely manner, {@link AbstractMessageHandler} provides support for implementations to

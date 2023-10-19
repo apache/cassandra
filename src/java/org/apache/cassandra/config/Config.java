@@ -280,7 +280,7 @@ public class Config
     public int native_transport_max_threads = 128;
     @Replaces(oldName = "native_transport_max_frame_size_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
     public DataStorageSpec.IntMebibytesBound native_transport_max_frame_size = new DataStorageSpec.IntMebibytesBound("16MiB");
-    /** do bcrypt hashing in a limited pool to prevent cpu load spikes; note: any value < 1 will be set to 1 on init **/
+    /** do bcrypt hashing in a limited pool to prevent cpu load spikes; note: any value {@code <} 1 will be set to 1 on init **/
     public int native_transport_max_auth_threads = 4;
     public volatile long native_transport_max_concurrent_connections = -1L;
     public volatile long native_transport_max_concurrent_connections_per_ip = -1L;
@@ -705,8 +705,8 @@ public class Config
 
     /**
      * flags for enabling tracking repaired state of data during reads
-     * separate flags for range & single partition reads as single partition reads are only tracked
-     * when CL > 1 and a digest mismatch occurs. Currently, range queries don't use digests so if
+     * separate flags for range and single partition reads as single partition reads are only tracked
+     * when {@code CL > 1} and a digest mismatch occurs. Currently, range queries don't use digests so if
      * enabled for range reads, all such reads will include repaired data tracking. As this adds
      * some overhead, operators may wish to disable it whilst still enabling it for partition reads
      */

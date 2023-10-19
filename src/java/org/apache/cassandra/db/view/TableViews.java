@@ -33,6 +33,7 @@ import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadata;
@@ -133,7 +134,7 @@ public class TableViews extends AbstractCollection<View>
 
     /**
      * Calculates and pushes updates to the views replicas. The replicas are determined by
-     * {@link ViewUtils#getViewNaturalEndpoint(String, Token, Token)}.
+     * {@link ViewUtils#getViewNaturalEndpoint(AbstractReplicationStrategy, Token, Token)}.
      *
      * @param update an update on the base table represented by this object.
      * @param writeCommitLog whether we should write the commit log for the view updates.

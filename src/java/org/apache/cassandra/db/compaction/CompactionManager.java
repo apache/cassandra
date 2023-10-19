@@ -578,7 +578,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
     /**
      * Perform SSTable rewrite
 
-     * @param sstableFilter sstables for which predicate returns {@link false} will be excluded
+     * @param sstableFilter sstables for which predicate returns {@code false} will be excluded
      */
     public AllSSTableOpStatus performSSTableRewrite(final ColumnFamilyStore cfs, Predicate<SSTableReader> sstableFilter, int jobs) throws InterruptedException, ExecutionException
     {
@@ -878,7 +878,6 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
      * @param validatedForRepair SSTables containing the repaired ranges. Should be referenced before passing them.
      * @param sessionID the repair session we're anti-compacting for
      * @param isCancelled function that indicates if active anti-compaction should be canceled
-     * @throws InterruptedException
      * @throws IOException
      */
     public void performAnticompaction(ColumnFamilyStore cfs,

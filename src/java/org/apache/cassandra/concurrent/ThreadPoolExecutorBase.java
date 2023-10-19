@@ -27,10 +27,12 @@ import org.apache.cassandra.utils.concurrent.UncheckedInterruptedException;
  * should use or extend {@link ThreadPoolExecutorPlus}, or in rare exceptions this class.
  *
  * This class provides some very basic improvements:
+ * <ul>
  * <li>We are configured by {@link ThreadPoolExecutorBuilder}
  * <li>Tasks rejected due to overflow of the queue block the submitting thread rather than throwing {@link RejectedExecutionException}
  * <li>{@link RunnableFuture} rejected due to executor shutdown will be cancelled
  * <li>{@link RunnableFuture} removed by {@link #shutdownNow()} will be cancelled
+ * </ul>
  *
  * We also provide a shutdown hook for JMX registration cleanup.
  */

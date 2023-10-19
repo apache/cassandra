@@ -554,7 +554,7 @@ public enum CassandraRelevantProperties
     TEST_UNSAFE_VERBOSE_DEBUG_CLIENT_PROTOCOL("cassandra.unsafe_verbose_debug_client_protocol"),
     TEST_USE_PREPARED("cassandra.test.use_prepared", "true"),
     TEST_UTIL_ALLOW_TOOL_REINIT_FOR_TEST("org.apache.cassandra.tools.UtilALLOW_TOOL_REINIT_FOR_TEST"),
-    /** Activate write survey mode. The node not becoming an active ring member, and you must use JMX StorageService->joinRing() to finalize the ring joining. */
+    /** Activate write survey mode. The node not becoming an active ring member, and you must use JMX {@code StorageService->joinRing()} to finalize the ring joining. */
     TEST_WRITE_SURVEY("cassandra.write_survey"),
     TOLERATE_SSTABLE_SIZE("cassandra.tolerate_sstable_size"),
     TRIGGERS_DIR("cassandra.triggers_dir"),

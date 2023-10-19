@@ -48,9 +48,9 @@ public class LoadingMap<K, V>
 
     /**
      * Returns a promise for the given key or null if there is nothing associated with the key.
-     * <p/>if the promise is not fulfilled, it means that there a loading process associated with the key
-     * <p/>if the promise is fulfilled with {@code null} value, it means that there is an unloading process associated with the key
-     * <p/>if the promise is fulfilled with a failure, it means that a loading process associated with the key failed
+     * <p>if the promise is not fulfilled, it means that there a loading process associated with the key
+     * <p>if the promise is fulfilled with {@code null} value, it means that there is an unloading process associated with the key
+     * <p>if the promise is fulfilled with a failure, it means that a loading process associated with the key failed
      * but the exception was not propagated yet (a failed promise is eventually removed from the map)
      */
     @VisibleForTesting
@@ -74,15 +74,15 @@ public class LoadingMap<K, V>
      * If the value for the given key is missing, execute a load function to obtain a value and put it into the map.
      * It is guaranteed that the loading and unloading a value for a single key are executed serially. It is also
      * guaranteed that the load function is executed exactly once to load a value into the map (regardless of the concurrent attempts).
-     * <p/>
+     * <p>
      * In case there is a concurrent attempt to load a value for this key, this attempt waits until the concurrent attempt
      * is done and returns its result (if succeeded). If the concurrent attempt fails, this attempt is retried. However,
      * if this attempt fails, it is not retried and the exception is rethrown. In case there is a concurrent attempt
      * to unload a value for this key, this attempt waits until the concurrent attempt is done and retries loading.
-     * <p/>
+     * <p>
      * When the mapping function returns {@code null}, {@link NullPointerException} is thrown. When the mapping function
      * throws exception, it is rethrown by this method. In both cases nothing gets added to the map.
-     * <p/>
+     * <p>
      * It is allowed to nest loading for a different key, though nested loading for the same key results in a deadlock.
      */
     public V blockingLoadIfAbsent(K key, Supplier<? extends V> loadFunction) throws RuntimeException
@@ -139,9 +139,9 @@ public class LoadingMap<K, V>
      * If a value for the given key is present, unload function is run and the value is removed from the map.
      * Similarly to {@link #blockingLoadIfAbsent(Object, Supplier)} at-most-once semantics is guaranteed for unload
      * function.
-     * <p/>
+     * <p>
      * When unload function fails, the value is removed from the map anyway and the failure is rethrown.
-     * <p/>
+     * <p>
      * When the key was not found, the method returns {@code null}.
      *
      * @throws UnloadExecutionException when the unloading failed to complete - this is checked exception because

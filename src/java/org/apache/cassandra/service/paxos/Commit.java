@@ -397,7 +397,7 @@ public class Commit
     }
 
     /**
-     * @return testIfAfter.isAfter(testIfBefore), with non-null > null
+     * @return testIfAfter.isAfter(testIfBefore), with non-null {@code >} null
      */
     public static boolean isAfter(@Nullable Commit testIsAfter, @Nullable Commit testIsBefore)
     {
@@ -405,7 +405,7 @@ public class Commit
     }
 
     /**
-     * @return testIfAfter.isAfter(testIfBefore), with non-null > null
+     * @return testIfAfter.isAfter(testIfBefore), with non-null {@code >} null
      */
     public static boolean isAfter(@Nullable Ballot testIsAfter, @Nullable Commit testIsBefore)
     {
@@ -413,7 +413,7 @@ public class Commit
     }
 
     /**
-     * @return testIfAfter.isAfter(testIfBefore), with non-null > null
+     * @return testIfAfter.isAfter(testIfBefore), with non-null {@code >} null
      */
     public static boolean isAfter(@Nullable Commit testIsAfter, @Nullable Ballot testIsBefore)
     {
@@ -421,7 +421,7 @@ public class Commit
     }
 
     /**
-     * @return testIfAfter.isAfter(testIfBefore), with non-null > null
+     * @return testIfAfter.isAfter(testIfBefore), with non-null {@code >} null
      */
     public static boolean isAfter(@Nullable Ballot testIsAfter, @Nullable Ballot testIsBefore)
     {

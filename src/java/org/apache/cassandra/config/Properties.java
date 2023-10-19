@@ -47,7 +47,7 @@ public final class Properties
      * @param root first property in the chain
      * @param leaf last property in the chain
      * @param delimiter for joining names
-     * @return new Property which combines root -> leaf
+     * @return new Property which combines root {@code ->} leaf
      */
     public static Property andThen(Property root, Property leaf, String delimiter)
     {
@@ -61,7 +61,7 @@ public final class Properties
      *
      * @param root first property in the chain
      * @param leaf last property in the chain
-     * @return new Property which combines root -> leaf
+     * @return new Property which combines root {@code ->} leaf
      */
     public static Property andThen(Property root, Property leaf)
     {

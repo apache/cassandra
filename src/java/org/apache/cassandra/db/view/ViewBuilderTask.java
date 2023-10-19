@@ -241,7 +241,7 @@ public class ViewBuilderTask extends CompactionInfo.Holder implements Callable<L
      * implementations that consider equals all the exceptions produced by the same view build, independently of their
      * token range.
      * <p>
-     * This is used to avoid Guava's {@link Futures#allAsList(Iterable)} log spamming when multiple build tasks fail
+     * This is used to avoid Guava's {@link com.google.common.util.concurrent.Futures#allAsList(Iterable)} log spamming when multiple build tasks fail
      * due to compaction interruption.
      */
     static class StoppedException extends CompactionInterruptedException

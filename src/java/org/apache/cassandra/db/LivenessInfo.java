@@ -200,7 +200,7 @@ public class LivenessInfo implements IMeasurableMemory
      *
      * If timestamps are the same and none of them are expired livenessInfo,
      * livenessInfo with greater TTL supersedes another. It also means, if timestamps are the same,
-     * ttl superseders no-ttl. This is the same rule as {@link Conflicts#resolveRegular}
+     * ttl superseders no-ttl. This is the same rule as {@code Conflicts#resolveRegular}
      *
      * If timestamps are the same and one of them is expired livenessInfo. Expired livenessInfo
      * supersedes, ie. tombstone supersedes.

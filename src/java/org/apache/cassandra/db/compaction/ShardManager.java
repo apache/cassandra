@@ -81,7 +81,7 @@ public interface ShardManager
      *
      * Note: This does not offer a method of listing the shard boundaries it generates, just to advance to the
      * corresponding one for a given token.  The only usage for listing is currently in tests. Should a need for this
-     * arise, see {@link CompactionSimulationTest} for a possible implementation.
+     * arise, see {@code CompactionSimulationTest} for a possible implementation.
      */
     ShardTracker boundaries(int shardCount);
 

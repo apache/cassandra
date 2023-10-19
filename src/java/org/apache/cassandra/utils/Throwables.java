@@ -241,7 +241,7 @@ public final class Throwables
      *
      * @param accumulate the initial value for the exception accumulator, can be {@code null}
      * @param closeables closeables to be closed
-     * @return {@code null}, {@param accumulate} or the first exception thrown when closing the provided resources
+     * @return {@code null}, {@code accumulate} or the first exception thrown when closing the provided resources
      */
     public static Throwable close(Throwable accumulate, Iterable<? extends AutoCloseable> closeables)
     {

@@ -55,14 +55,17 @@ import static org.apache.cassandra.utils.Clock.waitUntil;
 
 /**
  * <p>A strategy for making back-off decisions for Paxos operations that fail to make progress because of other paxos operations.
- * The strategy is defined by four factors: <ul>
+ * The strategy is defined by four factors:
+ * <ul>
  * <li> {@link #min}
  * <li> {@link #max}
  * <li> {@link #minDelta}
  * <li> {@link #waitRandomizer}
  * </ul>
  *
- * <p>The first three represent time periods, and may be defined dynamically based on a simple calculation over: <ul>
+ * <p>
+ * The first three represent time periods, and may be defined dynamically based on a simple calculation over:
+ * <ul>
  * <li> {@code pX()} recent experienced latency distribution for successful operations,
  *                 e.g. {@code p50(rw)} the maximum of read and write median latencies,
  *                      {@code p999(r)} the 99.9th percentile of read latencies
@@ -71,31 +74,40 @@ import static org.apache.cassandra.utils.Clock.waitUntil;
  * </ul>
  *
  * <p>Their calculation may take any of these forms
+ * <ul>
  * <li> constant            {@code $constant$[mu]s}
  * <li> dynamic constant    {@code pX() * constant}
  * <li> dynamic linear      {@code pX() * constant * attempts}
  * <li> dynamic exponential {@code pX() * constant ^ attempts}
+ * </ul>
  *
- * <p>Furthermore, the dynamic calculations can be bounded with a min/max, like so:
- *  {@code min[mu]s <= dynamic expr <= max[mu]s}
+ * <p>
+ * Furthermore, the dynamic calculations can be bounded with a min/max, like so:
+ * {@code min[mu]s <= dynamic expr <= max[mu]s}
  *
  * e.g.
+ * <ul>
  * <li> {@code 10ms <= p50(rw)*0.66}
  * <li> {@code 10ms <= p95(rw)*1.8^attempts <= 100ms}
  * <li> {@code 5ms <= p50(rw)*0.5}
+ * </ul>
  *
- * <p>These calculations are put together to construct a range from which we draw a random number.
+ * <p>
+ * These calculations are put together to construct a range from which we draw a random number.
  * The period we wait for {@code X} will be drawn so that {@code min <= X < max}.
  *
- * <p>With the constraint that {@code max} must be {@code minDelta} greater than {@code min},
+ * <p>
+ * With the constraint that {@code max} must be {@code minDelta} greater than {@code min},
  * but no greater than its expression-defined maximum. {@code max} will be increased up until
  * this point, after which {@code min} will be decreased until this gap is imposed.
  *
- * <p>The {@link #waitRandomizer} property specifies the manner in which a random value is drawn from the range.
+ * <p>The {@link ContentionStrategy#waitRandomizer} property specifies the manner in which a random value is drawn from the range.
  * It is defined using one of the following specifiers:
+ * <ul>
  * <li> uniform
  * <li> exp($power$) or exponential($power$)
  * <li> qexp($power$) or qexponential($power$) or quantizedexponential($power$)
+ * </ul>
  *
  * The uniform specifier is self-explanatory, selecting all values in the range with equal probability.
  * The exponential specifier draws values towards the end of the range with higher probability, raising
@@ -104,7 +116,8 @@ import static org.apache.cassandra.utils.Clock.waitUntil;
  * The quantized exponential specifier partitions the range into {@code attempts} buckets, then applies the pure
  * exponential approach to draw values from [0..attempts), before drawing a uniform value from the corresponding bucket
  *
- * <p>Finally, there is also a {@link #traceAfterAttempts} property that permits initiating tracing of operations
+ * <p>
+ * Finally, there is also a {@link ContentionStrategy#traceAfterAttempts} property that permits initiating tracing of operations
  * that experience a certain minimum number of failed paxos rounds due to contention. A setting of 0 or 1 will initiate
  * a trace session after the first failed ballot.
  */

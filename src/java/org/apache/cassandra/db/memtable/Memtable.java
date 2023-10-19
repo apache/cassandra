@@ -365,7 +365,7 @@ public interface Memtable extends Comparable<Memtable>, UnfilteredSource
      */
     boolean accepts(OpOrder.Group opGroup, CommitLogPosition commitLogPosition);
 
-    /** Approximate commit log lower bound, <= getCommitLogLowerBound, used as a time stamp for ordering */
+    /** Approximate commit log lower bound, {@code <= getCommitLogLowerBound}, used as a time stamp for ordering */
     CommitLogPosition getApproximateCommitLogLowerBound();
 
     /** The commit log position at the time that this memtable was created */

@@ -88,7 +88,6 @@ public interface SSTableReadsListener
      * Handles notification that the specified SSTable has been selected during a single partition query.
      *
      * @param sstable the SSTable reader
-     * @param indexEntry the index entry
      * @param reason the reason for which the SSTable has been selected
      */
     default void onSSTableSelected(SSTableReader sstable, SelectionReason reason)

@@ -89,8 +89,8 @@ public interface ByteComparable
     }
 
     /**
-     * Returns a separator for two byte sources, i.e. something that is definitely > prevMax, and <= currMin, assuming
-     * prevMax < currMin.
+     * Returns a separator for two byte sources, i.e. something that is definitely {@code > prevMax}, and {@code <= currMin}, assuming
+     * {@code prevMax < currMin}.
      * This returns the shortest prefix of currMin that is greater than prevMax.
      */
     static ByteComparable separatorPrefix(ByteComparable prevMax, ByteComparable currMin)
@@ -99,8 +99,8 @@ public interface ByteComparable
     }
 
     /**
-     * Returns a separator for two byte comparable, i.e. something that is definitely > prevMax, and <= currMin, assuming
-     * prevMax < currMin.
+     * Returns a separator for two byte comparable, i.e. something that is definitely {@code > prevMax}, and {@code <= currMin}, assuming
+     * {@code prevMax < currMin.}
      * This is a stream of length 1 longer than the common prefix of the two streams, with last byte one higher than the
      * prevMax stream.
      */

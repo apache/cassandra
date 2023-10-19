@@ -49,7 +49,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
  * to keep in cache.
  * <p>
  * As an example, taking a sample page size fitting 4 nodes, a simple trie would be split like this:
- * <pre>
+ * <pre>{@code
  * Node 0 |
  *   -a-> | Node 1
  *        |   -s-> Node 2
@@ -61,7 +61,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
  *               |  -n-> Node 7
  *               |         -k-> Node 8 (payload 3)
  *               |                -s-> Node 9 (payload 4)
- * </pre>
+ * }</pre>
  * where lines denote page boundaries.
  * <p>
  * The process itself will start by adding "ask" which adds three nodes after the root to the stack. Adding "ass"

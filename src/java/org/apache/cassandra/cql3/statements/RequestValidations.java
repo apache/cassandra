@@ -40,10 +40,9 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  * and autoboxing may happen as well, even when the check succeeds. If the message arguments are expensive to create
  * you should use the customary form:
  *  <pre>
- *      if (value < 0.0)
+ *      if (value {@code <} 0.0)
  *          throw RequestValidations.invalidRequest("negative value: %s", toReadableText(value));
  *  </pre>
- * </p>
  */
 public final class RequestValidations
 {

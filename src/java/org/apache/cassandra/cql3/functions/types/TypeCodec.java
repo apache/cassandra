@@ -49,7 +49,7 @@ import static org.apache.cassandra.cql3.functions.types.DataType.*;
  *
  * <p>
  *
- * <h3>Serializing and deserializing</h3>
+ * <h2>Serializing and deserializing</h2>
  *
  * <p>Two methods handle the serialization and deserialization of Java types into CQL types
  * according to the native protocol specifications:

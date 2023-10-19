@@ -33,7 +33,6 @@ import java.util.Set;
  *         <li>CASSANDRA-12682: Non compressed SSTables can silently corrupt data</li>
  *         <li>CASSANDRA-9264: Non compressed SSTables are written without checksums</li>
  *     </ul>
- * </p>
  */
 public class NoopCompressor implements ICompressor
 {

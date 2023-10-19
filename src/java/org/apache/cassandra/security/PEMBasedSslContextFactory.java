@@ -39,7 +39,7 @@ import org.apache.cassandra.io.util.File;
 
 
 /**
- * SslContextFactory for the <a href="">PEM standard</a> encoded PKCS#8 private keys and X509 certificates/public-keys.
+ * SslContextFactory for the <a href="https://en.wikipedia.org/wiki/Privacy-Enhanced_Mail">PEM standard</a> encoded PKCS#8 private keys and X509 certificates/public-keys.
  * It parses the key material based on the standard defined in the <a href="https://datatracker.ietf.org/doc/html/rfc7468">RFC 7468</a>.
  * It creates <a href="https://datatracker.ietf.org/doc/html/rfc5208">PKCS# 8</a> based private key and X509 certificate(s)
  * for the public key to build the required keystore and the truststore managers that are used for the SSL context creation.

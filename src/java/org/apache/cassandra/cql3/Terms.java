@@ -198,7 +198,7 @@ public interface Terms
     /**
      * Creates a {@code Terms} containing a set of {@code Term}.
      *
-     * @param term the {@code Term}
+     * @param terms the {@code Term}
      * @return a {@code Terms} containing a set of {@code Term}.
      */
     public static Terms of(final List<Term> terms)

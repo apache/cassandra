@@ -24,9 +24,10 @@ import java.util.Map;
  * Provides a list of event types and the corresponding highest event IDs. Consumers may these IDs to determine
  * if new data is available.
  *
- * <p>Example result</p>
+ * <h2>Example result</h2>
  *
  * <table>
+ *     <caption>Example result</caption>
  *     <tr>
  *         <th>Event</th>
  *         <th>Last ID</th>

@@ -42,7 +42,7 @@ import static org.apache.cassandra.cql3.functions.types.DataType.Name.*;
  * java.lang.String}), and users can add their own. Complex codecs can also be generated on-the-fly
  * from simpler ones (more details below).
  *
- * <h3>Creating a registry </h3>
+ * <h2>Creating a registry </h2>
  * <p>
  * By default, the driver uses {@code CodecRegistry#DEFAULT_INSTANCE}, a shareable, JVM-wide
  * instance initialized with built-in codecs for all the base CQL types. The only reason to create
