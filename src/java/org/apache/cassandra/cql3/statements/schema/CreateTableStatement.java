@@ -139,7 +139,6 @@ public final class CreateTableStatement extends AlterSchemaStatement
         {
             int totalUserTables = Schema.instance.getUserKeyspaces()
                                                  .stream()
-                                                 .map(ksm -> ksm.name)
                                                  .map(Keyspace::open)
                                                  .mapToInt(keyspace -> keyspace.getColumnFamilyStores().size())
                                                  .sum();
