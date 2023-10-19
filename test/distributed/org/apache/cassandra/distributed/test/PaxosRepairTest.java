@@ -99,8 +99,8 @@ public class PaxosRepairTest extends TestBaseImpl
     static
     {
         CassandraRelevantProperties.PAXOS_USE_SELF_EXECUTION.setBoolean(false);
-        CassandraRelevantProperties.TCM_USE_ATOMIC_LONG_PROCESSOR.setBoolean(true);
-        CassandraRelevantProperties.TCM_ALLOW_TRANSFORMATIONS_DURING_UPGRADES.setBoolean(true); // for paxosRepairVersionGate
+        CassandraRelevantProperties.CMS_USE_ATOMIC_LONG_PROCESSOR.setBoolean(true);
+        CassandraRelevantProperties.CMS_ALLOW_TRANSFORMATIONS_DURING_UPGRADES.setBoolean(true); // for paxosRepairVersionGate
         DatabaseDescriptor.daemonInitialization();
     }
 

@@ -57,7 +57,7 @@ public abstract class AbstractLocalProcessor implements Processor
             if (!previous.fullCMSMembers().contains(FBUtilities.getBroadcastAddressAndPort()))
                 throw new IllegalStateException("Node is not a member of CMS anymore");
             Transformation.Result result;
-            if (!CassandraRelevantProperties.TCM_ALLOW_TRANSFORMATIONS_DURING_UPGRADES.getBoolean() &&
+            if (!CassandraRelevantProperties.CMS_ALLOW_TRANSFORMATIONS_DURING_UPGRADES.getBoolean() &&
                 !transform.allowDuringUpgrades() &&
                 previous.metadataSerializationUpgradeInProgress())
             {

@@ -63,7 +63,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
     @BeforeClass
     public static void beforeClass()
     {
-        CassandraRelevantProperties.TCM_ALLOW_TRANSFORMATIONS_DURING_UPGRADES.setBoolean(true);
+        CassandraRelevantProperties.CMS_ALLOW_TRANSFORMATIONS_DURING_UPGRADES.setBoolean(true);
         Gossiper.instance.start(0);
     }
 

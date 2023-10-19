@@ -42,7 +42,7 @@ public class CASMultiDCTest
 {
     static
     {
-        CassandraRelevantProperties.TCM_USE_ATOMIC_LONG_PROCESSOR.setBoolean(true);
+        CassandraRelevantProperties.CMS_USE_ATOMIC_LONG_PROCESSOR.setBoolean(true);
     }
 
     private static Cluster CLUSTER;

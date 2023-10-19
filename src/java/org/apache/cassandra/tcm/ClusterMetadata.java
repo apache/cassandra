@@ -591,7 +591,7 @@ public class ClusterMetadata
             {
                 modifiedKeys.add(MetadataKeys.DATA_PLACEMENTS);
                 // sort all endpoint lists to preserve primary replica
-                if (CassandraRelevantProperties.TCM_SORT_REPLICA_GROUPS.getBoolean())
+                if (CassandraRelevantProperties.CMS_SORTED_REPLICA_GROUPS_ENABLED.getBoolean())
                 {
                     PrimaryRangeComparator comparator = new PrimaryRangeComparator(tokenMap, directory);
                     placements = DataPlacements.sortReplicaGroups(placements, comparator);

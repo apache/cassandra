@@ -97,7 +97,7 @@ public class Sealed implements Comparable<Sealed>
 
     public static void initIndexFromSystemTables()
     {
-        int maxSize = CassandraRelevantProperties.TCM_RECENTLY_SEALED_PERIOD_INDEX_SIZE.getInt();
+        int maxSize = CassandraRelevantProperties.CMS_RECENTLY_SEALED_PERIOD_INDEX_SIZE.getInt();
         List<Sealed> recentlySealed = new ArrayList<>(maxSize);
         Sealed last = SystemKeyspace.getLastSealedPeriod();
         recentlySealed.add(last);

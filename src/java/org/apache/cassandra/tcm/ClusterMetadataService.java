@@ -154,7 +154,7 @@ public class ClusterMetadataService
 
     public static State state(ClusterMetadata metadata)
     {
-        if (CassandraRelevantProperties.TCM_UNSAFE_BOOT_WITH_CLUSTERMETADATA.isPresent())
+        if (CassandraRelevantProperties.CMS_UNSAFE_BOOT_WITH_CLUSTERMETADATA.isPresent())
             return RESET;
 
         if (metadata.epoch.isBefore(Epoch.EMPTY))
@@ -178,7 +178,7 @@ public class ClusterMetadataService
         this.snapshots = new MetadataSnapshots.SystemKeyspaceMetadataSnapshots();
 
         Processor localProcessor;
-        if (CassandraRelevantProperties.TCM_USE_ATOMIC_LONG_PROCESSOR.getBoolean())
+        if (CassandraRelevantProperties.CMS_USE_ATOMIC_LONG_PROCESSOR.getBoolean())
         {
             LogStorage logStorage = LogStorage.SystemKeyspace;
             log = LocalLog.sync(initial, logStorage, true, isReset);
@@ -192,7 +192,7 @@ public class ClusterMetadataService
             fetchLogHandler = new FetchCMSLog.Handler();
         }
 
-        Commit.Replicator replicator = CassandraRelevantProperties.TCM_USE_NO_OP_REPLICATOR.getBoolean()
+        Commit.Replicator replicator = CassandraRelevantProperties.CMS_USE_NO_OP_REPLICATOR.getBoolean()
                                        ? Commit.Replicator.NO_OP
                                        : new Commit.DefaultReplicator(() -> log.metadata().directory);
 

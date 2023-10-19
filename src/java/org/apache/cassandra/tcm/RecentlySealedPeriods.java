@@ -42,7 +42,7 @@ public final class RecentlySealedPeriods
     /**
      * The maximum number of sealed periods stored in memory.
      */
-    private final int maxSize = CassandraRelevantProperties.TCM_RECENTLY_SEALED_PERIOD_INDEX_SIZE.getInt();
+    private final int maxSize = CassandraRelevantProperties.CMS_RECENTLY_SEALED_PERIOD_INDEX_SIZE.getInt();
     private final NavigableMap<Epoch, Sealed> recent;
 
     private RecentlySealedPeriods(ImmutableSortedMap<Epoch, Sealed> recent)

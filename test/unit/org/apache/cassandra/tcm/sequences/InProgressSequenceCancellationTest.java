@@ -79,7 +79,7 @@ public class InProgressSequenceCancellationTest
         DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);
         // disable the sorting of replica lists as it assumes all endpoints are present in
         // the token map and this test uses randomly generated placements, so this is not true
-        CassandraRelevantProperties.TCM_SORT_REPLICA_GROUPS.setBoolean(false);
+        CassandraRelevantProperties.CMS_SORTED_REPLICA_GROUPS_ENABLED.setBoolean(false);
     }
 
     @Test
