@@ -105,6 +105,23 @@ public enum CassandraRelevantProperties
     CLOCK_GLOBAL("cassandra.clock"),
     CLOCK_MONOTONIC_APPROX("cassandra.monotonic_clock.approx"),
     CLOCK_MONOTONIC_PRECISE("cassandra.monotonic_clock.precise"),
+
+    // transactional cluster metadata relevant properties
+    CMS_ALLOW_TRANSFORMATIONS_DURING_UPGRADES("cassandra.cms.allow_transformations_during_upgrades", "false"),
+
+    /**
+     * Maximum sized of the {@code RecentlySealedPeriods} in-memory index.
+     */
+    CMS_RECENTLY_SEALED_PERIOD_INDEX_SIZE("cassandra.cms.recently_sealed_period_index_size", "10"),
+
+    /**
+     * should replica groups in data placements be sorted to ensure the primary replica is first in the list
+     */
+    CMS_SORTED_REPLICA_GROUPS_ENABLED("cassandra.cms.sorted_replica_groups_enabled", "true"),
+    CMS_UNSAFE_BOOT_WITH_CLUSTERMETADATA("cassandra.cms.unsafe_boot_with_clustermetadata"),
+    CMS_USE_ATOMIC_LONG_PROCESSOR("cassandra.test.cms.use_atomic_long_processor", "false"),
+    CMS_USE_NO_OP_REPLICATOR("cassandra.test.cms.use_no_op_replicator", "false"),
+
     COMMITLOG_ALLOW_IGNORE_SYNC_CRC("cassandra.commitlog.allow_ignore_sync_crc"),
     COMMITLOG_IGNORE_REPLAY_ERRORS("cassandra.commitlog.ignorereplayerrors"),
     COMMITLOG_MAX_OUTSTANDING_REPLAY_BYTES("cassandra.commitlog_max_outstanding_replay_bytes", convertToString(1024 * 1024 * 64)),
@@ -500,25 +517,6 @@ public enum CassandraRelevantProperties
     SYSTEM_AUTH_DEFAULT_RF("cassandra.system_auth.default_rf", "1"),
     SYSTEM_DISTRIBUTED_DEFAULT_RF("cassandra.system_distributed.default_rf", "3"),
     SYSTEM_TRACES_DEFAULT_RF("cassandra.system_traces.default_rf", "2"),
-
-    // transactional cluster metadata relevant properties
-    // TODO: not a fan of being forced to prefix these to satisfy the alphabetic ordering constraint
-    //       but it makes sense to group logically related properties together
-
-    CMS_ALLOW_TRANSFORMATIONS_DURING_UPGRADES("cassandra.cms.allow_transformations_during_upgrades", "false"),
-
-    /**
-     * Maximum sized of the {@code RecentlySealedPeriods} in-memory index.
-     */
-    CMS_RECENTLY_SEALED_PERIOD_INDEX_SIZE("cassandra.cms.recently_sealed_period_index_size", "10"),
-
-    /**
-     * should replica groups in data placements be sorted to ensure the primary replica is first in the list
-     */
-    CMS_SORTED_REPLICA_GROUPS_ENABLED("cassandra.cms.sorted_replica_groups_enabled", "true"),
-    CMS_UNSAFE_BOOT_WITH_CLUSTERMETADATA("cassandra.cms.unsafe_boot_with_clustermetadata"),
-    CMS_USE_ATOMIC_LONG_PROCESSOR("cassandra.test.cms.use_atomic_long_processor", "false"),
-    CMS_USE_NO_OP_REPLICATOR("cassandra.test.cms.use_no_op_replicator", "false"),
 
     TEST_BBFAILHELPER_ENABLED("test.bbfailhelper.enabled"),
     TEST_BLOB_SHARED_SEED("cassandra.test.blob.shared.seed"),
