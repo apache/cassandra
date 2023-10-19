@@ -61,7 +61,7 @@ public interface SingleRestriction extends Restriction
      */
     default boolean isEqualityBased()
     {
-        return isEQ() || isIN() || isContains();
+        return isEQ() || isIN();
     }
 
     public default boolean isNotNull()
