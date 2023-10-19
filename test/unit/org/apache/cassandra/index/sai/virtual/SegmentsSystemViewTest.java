@@ -134,11 +134,10 @@ public class SegmentsSystemViewTest extends SAITester
 
             // compaction to rewrite segments
             StorageService.instance.upgradeSSTables(KEYSPACE, false, new String[] { currentTable() });
-            // however many segments we create during the build we should always end up with
-            // just 1 segment with all the rows in it
-            Object[] segmentRow = row(0L, (long)num, 0L, (long)(num - 1));
-            assertRows(execute(SELECT, numericIndex), segmentRow);
-            assertRows(execute(SELECT, stringIndex), segmentRow);
+            // segment compaction is now disabled
+            int segmentCount = (int) Math.ceil(num * 1.0 / (lastValidSegmentRowId + 1));
+            assertRowCount(execute(SELECT, numericIndex), segmentCount);
+            assertRowCount(execute(SELECT, stringIndex), segmentCount);
 
             // verify index metadata length
             Map<String, Long> indexLengths = new HashMap<>();

@@ -623,6 +623,12 @@ public class Tracker
             logger.trace("{} subscribed to the data tracker.", consumer);
     }
 
+    @VisibleForTesting
+    public boolean contains(INotificationConsumer consumer)
+    {
+        return subscribers.contains(consumer);
+    }
+
     public void unsubscribe(INotificationConsumer consumer)
     {
         subscribers.remove(consumer);

@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.index.sai.metrics;
 
+import javax.management.InstanceNotFoundException;
+
 import org.junit.Before;
 import org.junit.Test;
 
@@ -24,9 +26,9 @@ import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.format.Version;
-import org.apache.cassandra.index.sai.disk.v1.InvertedIndexSearcher;
 import org.apache.cassandra.index.sai.disk.v1.V1OnDiskFormat;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 
@@ -102,8 +104,8 @@ public class IndexGroupMetricsTest extends AbstractMetricsTest
 
         // drop last index, no open index files
         dropIndex("DROP INDEX %s." + v1IndexName);
-        assertEquals(0, getOpenIndexFiles());
-        assertEquals(0, getDiskUsage());
+        assertThatThrownBy(this::getOpenIndexFiles).isInstanceOf(InstanceNotFoundException.class);
+        assertThatThrownBy(this::getDiskUsage).isInstanceOf(InstanceNotFoundException.class);
     }
 
     protected int getOpenIndexFiles()

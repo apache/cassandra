@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import com.google.common.base.Preconditions;
 import com.google.common.base.Stopwatch;
 import org.junit.After;
 import org.junit.BeforeClass;
@@ -92,11 +93,11 @@ public class SegmentFlushTest
     public void testFlushBetweenRowIds() throws Exception
     {
         // exceeds max rowId per segment
-        testFlushBetweenRowIds(0, Integer.MAX_VALUE, 1);
-        testFlushBetweenRowIds(0, Long.MAX_VALUE - 1, 1);
-        testFlushBetweenRowIds(0, SegmentBuilder.LAST_VALID_SEGMENT_ROW_ID + 1, 1);
-        testFlushBetweenRowIds(Integer.MAX_VALUE - SegmentBuilder.LAST_VALID_SEGMENT_ROW_ID - 1, Integer.MAX_VALUE - 1, 1);
-        testFlushBetweenRowIds(Long.MAX_VALUE - SegmentBuilder.LAST_VALID_SEGMENT_ROW_ID - 1, Long.MAX_VALUE - 1, 1);
+        testFlushBetweenRowIds(0, Integer.MAX_VALUE, 2);
+        testFlushBetweenRowIds(0, Long.MAX_VALUE, 2);
+        testFlushBetweenRowIds(0, SegmentBuilder.LAST_VALID_SEGMENT_ROW_ID + 1, 2);
+        testFlushBetweenRowIds(Integer.MAX_VALUE - SegmentBuilder.LAST_VALID_SEGMENT_ROW_ID - 1, Integer.MAX_VALUE, 2);
+        testFlushBetweenRowIds(Long.MAX_VALUE - SegmentBuilder.LAST_VALID_SEGMENT_ROW_ID - 1, Long.MAX_VALUE, 2);
     }
 
     @Test
@@ -152,16 +153,34 @@ public class SegmentFlushTest
 
         // verify segment metadata
         SegmentMetadata segmentMetadata = segmentMetadatas.get(0);
-        segmentRowIdOffset = 0;
+        segmentRowIdOffset = sstableRowId1;
         posting1 = 0;
-        posting2 = (int) (sstableRowId2 - segmentRowIdOffset);
+        posting2 = segments == 1 ? (int) (sstableRowId2 - segmentRowIdOffset) : 0;
         minKey = SAITester.TEST_FACTORY.createTokenOnly(key1.getToken());
-        maxKey = SAITester.TEST_FACTORY.createTokenOnly(key2.getToken());
+        DecoratedKey maxDecoratedKey = segments == 1 ? key2 : key1;
+        maxKey = SAITester.TEST_FACTORY.createTokenOnly(maxDecoratedKey.getToken());
         minTerm = term1;
-        maxTerm = term2;
-        numRows = 2;
+        maxTerm = segments == 1 ? term2 : term1;
+        numRows = segments == 1 ? 2 : 1;
         verifySegmentMetadata(segmentMetadata);
         verifyStringIndex(indexDescriptor, indexContext, segmentMetadata);
+
+        if (segments > 1)
+        {
+            Preconditions.checkState(segments == 2);
+            segmentRowIdOffset = sstableRowId2;
+            posting1 = 0;
+            posting2 = 0;
+            minKey = SAITester.TEST_FACTORY.createTokenOnly(key2.getToken());
+            maxKey = SAITester.TEST_FACTORY.createTokenOnly(key2.getToken());;
+            minTerm = term2;
+            maxTerm = term2;
+            numRows = 1;
+
+            segmentMetadata = segmentMetadatas.get(1);
+            verifySegmentMetadata(segmentMetadata);
+            verifyStringIndex(indexDescriptor, indexContext, segmentMetadata);
+        }
     }
 
     private void verifyStringIndex(IndexDescriptor indexDescriptor, IndexContext indexContext, SegmentMetadata segmentMetadata) throws IOException
