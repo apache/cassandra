@@ -522,8 +522,9 @@
       <dependency>
         <groupId>org.apache.cassandra</groupId>
         <artifactId>harry-core</artifactId>
-        <version>0.0.2-SNAPSHOT</version>
-        <scope>test</scope>
+        <version>harry-core-0.0.2-CASSANDRA-18768</version>
+        <scope>system</scope>
+        <systemPath>${test.lib}/harry-core-0.0.2-CASSANDRA-18768.jar</systemPath>
       </dependency>
       <dependency>
         <groupId>org.reflections</groupId>
