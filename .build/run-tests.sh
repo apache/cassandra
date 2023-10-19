@@ -86,7 +86,7 @@ _build_all_dtest_jars() {
         cp "${TMP_DIR}/cassandra-dtest-jars/build/dtest-${dtest_jar_version}.jar" ${DIST_DIR}/
     fi
 
-    if [ -d ${TMP_DIR}/cassandra-dtest-jars ] && [ "https://github.com/apache/cassandra.git" == "$(git -C ${TMP_DIR}/cassandra-dtest-jars remote get-url origin)" ] ; then
+    if [ -d ${TMP_DIR}/cassandra-dtest-jars/.git ] && [ "https://github.com/apache/cassandra.git" == "$(git -C ${TMP_DIR}/cassandra-dtest-jars remote get-url origin)" ] ; then
       echo "Reusing ${TMP_DIR}/cassandra-dtest-jars for past branch dtest jars"
       if [ "x" == "x${OFFLINE}" ] ; then
         until git -C ${TMP_DIR}/cassandra-dtest-jars fetch --quiet origin ; do echo "git -C ${TMP_DIR}/cassandra-dtest-jars fetch failed… trying again… " ; done
