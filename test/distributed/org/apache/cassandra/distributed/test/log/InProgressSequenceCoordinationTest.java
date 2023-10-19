@@ -58,9 +58,9 @@ public class InProgressSequenceCoordinationTest extends FuzzTestBase
     public void bootstrapProgressTest() throws Throwable
     {
         try (Cluster cluster = builder().withNodes(3)
-                                        .appendConfig(cfg -> cfg.set("progress_barrier_timeout", "5000ms")
+                                        .appendConfig(cfg -> cfg.set("cms.progress_barrier.timeout", "5000ms")
                                                                 .set("request_timeout", "1000ms")
-                                                                .set("progress_barrier_backoff", "100ms"))
+                                                                .set("cms.progress_barrier.backoff", "100ms"))
                                         .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(4))
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
                                         .start())
@@ -115,9 +115,9 @@ public class InProgressSequenceCoordinationTest extends FuzzTestBase
     {
         try (Cluster cluster = builder().withNodes(4)
                                         .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(4))
-                                        .appendConfig(cfg -> cfg.set("progress_barrier_timeout", "5000ms")
+                                        .appendConfig(cfg -> cfg.set("cms.progress_barrier.timeout", "5000ms")
                                                                 .set("request_timeout", "1000ms")
-                                                                .set("progress_barrier_backoff", "100ms"))
+                                                                .set("cms.progress_barrier.backoff", "100ms"))
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
                                         .start())
         {
@@ -183,9 +183,9 @@ public class InProgressSequenceCoordinationTest extends FuzzTestBase
     public void replacementProgressTest() throws Throwable
     {
         try (Cluster cluster = builder().withNodes(3)
-                                        .appendConfig(cfg -> cfg.set("progress_barrier_timeout", "5000ms")
+                                        .appendConfig(cfg -> cfg.set("cms.progress_barrier.timeout", "5000ms")
                                                                 .set("request_timeout", "1000ms")
-                                                                .set("progress_barrier_backoff", "100ms"))
+                                                                .set("cms.progress_barrier.backoff", "100ms"))
                                         .withTokenSupplier(TokenSupplier.evenlyDistributedTokens(4))
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
                                         .start())

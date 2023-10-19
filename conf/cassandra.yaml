@@ -2084,6 +2084,28 @@ drop_compact_storage_enabled: false
 #    excluded_keyspaces: # comma separated list of keyspaces to exclude from the check
 #    excluded_tables: # comma separated list of keyspace.table pairs to exclude from the check
 
+## Cluster management service options
+#cms:
+#  await_timeout: 120s
+#  default_max_retries: 10
+#  default_retry_backoff: 50ms
+#
+#  # Specify how often a snapshot of the cluster metadata must be taken. The frequency is expressed in epochs.
+#  # A frequency of 100, for example, means that a snapshot will be taken every time the epoch is a multiple of 100.
+#  # Taking a snapshot will also seal a period (e.g., cluster metadata partition). Therefore, the snapshot frequency also
+#  # determines the size of the system.local_metadata_log and cluster_metadata.distributed_metadata_log tables partitions.
+#  metadata_snapshot_frequency: 100
+#  log_out_of_token_range_requests: true
+#  reject_out_of_token_range_requests: true
+#
+#  unsafe_tcm_mode: false
+#  progress_barrier:
+#    # Only ALL, EACH_QUORUM, QUORUM, LOCAL_QUORUM, ANY, and ONE consistency levels are supported for the progress barrier.
+#    default_consistency_level: EACH_QUORUM
+#    min_consistency_level: EACH_QUORUM
+#    timeout: 1h
+#    backoff: 1s
+
 # This property indicates with what Cassandra major version the storage format will be compatible with.
 #
 # The chosen storage compatiblity mode will determine the versions of the written sstables, commitlogs, hints,

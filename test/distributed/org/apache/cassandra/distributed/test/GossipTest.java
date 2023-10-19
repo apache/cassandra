@@ -249,8 +249,8 @@ public class GossipTest extends TestBaseImpl
         TokenSupplier even = TokenSupplier.evenlyDistributedTokens(4, 1);
         try (Cluster cluster = Cluster.build(4)
                                       .withConfig(c -> c.with(Feature.GOSSIP, Feature.NETWORK)
-                                                        .set("progress_barrier_default_consistency_level", "ONE")
-                                                        .set("progress_barrier_min_consistency_level", "ONE"))
+                                                        .set("cms.progress_barrier.default_consistency_level", "ONE")
+                                                        .set("cms.progress_barrier.min_consistency_level", "ONE"))
                                       .withTokenSupplier(node -> even.token(node == 5 ? 4 : node))
                                       .start())
         {

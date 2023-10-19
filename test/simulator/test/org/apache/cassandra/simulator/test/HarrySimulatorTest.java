@@ -213,13 +213,13 @@ public class HarrySimulatorTest
 
                      return arr(work.toArray(new ActionSchedule.Work[0]));
                  },
-                 (config) -> config.set("cms_default_max_retries", 10)
-                                   .set("progress_barrier_min_consistency_level", ALL)
-                                   .set("progress_barrier_default_consistency_level", ALL)
-                                   .set("progress_barrier_timeout", "600000ms")
+                 (config) -> config.set("cms.default_max_retries", 10)
+                                   .set("cms.progress_barrier.min_consistency_level", ALL)
+                                   .set("cms.progress_barrier.default_consistency_level", ALL)
+                                   .set("cms.progress_barrier.timeout", "600000ms")
                                    // Backoff should be larger than read timeout, since otherwise we will simply saturate the stage with retries
-                                   .set("progress_barrier_backoff", "11000ms")
-                                   .set("cms_await_timeout", "20000ms"),
+                                   .set("cms.progress_barrier.backoff", "11000ms")
+                                   .set("cms.await_timeout", "20s"),
                  arr(),
                  (config) -> config
                              .failures(new HaltOnError())

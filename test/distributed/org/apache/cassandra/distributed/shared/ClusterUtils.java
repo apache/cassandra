@@ -280,7 +280,7 @@ public class ClusterUtils
     {
         IInstanceConfig toReplaceConf = toReplace.config();
         I inst = addInstance(cluster, toReplaceConf, c -> c.set("auto_bootstrap", true)
-                                                           .set("progress_barrier_min_consistency_level", ConsistencyLevel.ONE));
+                                                           .set("cms.progress_barrier.min_consistency_level", ConsistencyLevel.ONE));
         return startHostReplacement(toReplace, inst, fn);
 
     }

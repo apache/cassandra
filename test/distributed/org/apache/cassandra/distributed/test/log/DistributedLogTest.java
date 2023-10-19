@@ -48,7 +48,7 @@ public class DistributedLogTest extends TestBaseImpl
     {
         try (Cluster cluster = builder().withDC("DC1", 2)
                                         .withDC("DC2", 2)
-                                        .withConfig(config -> config.with(NETWORK, GOSSIP).set("metadata_snapshot_frequency", Integer.MAX_VALUE)) // test assumes that all nodes have all events, that is not true if snapshotting
+                                        .withConfig(config -> config.with(NETWORK, GOSSIP).set("cms.metadata_snapshot_frequency", Integer.MAX_VALUE)) // test assumes that all nodes have all events, that is not true if snapshotting
                                                                                                                                                   // todo; add config param to disable snapshotting
                                         .start())
         {
@@ -116,9 +116,9 @@ public class DistributedLogTest extends TestBaseImpl
 
         try (Cluster cluster = builder().withNodes(3)
                                         // test assumes that all nodes have all events, that is not true if snapshotting
-                                        .withConfig(config -> config.set("metadata_snapshot_frequency", Integer.MAX_VALUE)
-                                                                    .set("cms_await_timeout", "120000ms")
-                                                                    .set("cms_default_max_retries", 100))
+                                        .withConfig(config -> config.set("cms.metadata_snapshot_frequency", Integer.MAX_VALUE)
+                                                                    .set("cms.await_timeout", "2m")
+                                                                    .set("cms.default_max_retries", 100))
                                         // todo; add config param to disable snapshotting
                                         .start())
         {

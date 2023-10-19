@@ -58,11 +58,11 @@ public class HintedHandoffAddRemoveNodesTest extends TestBaseImpl
     {
         try (Cluster cluster = init(builder().withNodes(3)
                                              .withConfig(config -> config.set("transfer_hints_on_decommission", false)
-                                                                         .set("progress_barrier_timeout", "1000ms")
-                                                                         .set("progress_barrier_backoff", "100ms")
+                                                                         .set("cms.progress_barrier.timeout", "1000ms")
+                                                                         .set("cms.progress_barrier.backoff", "100ms")
                                                                          // Just to make test pass faster
-                                                                         .set("progress_barrier_min_consistency_level", NODE_LOCAL)
-                                                                         .set("progress_barrier_default_consistency_level", NODE_LOCAL)
+                                                                         .set("cms.progress_barrier.min_consistency_level", NODE_LOCAL)
+                                                                         .set("cms.progress_barrier.default_consistency_level", NODE_LOCAL)
                                                                          .with(GOSSIP))
                                              .start()))
         {
@@ -100,8 +100,8 @@ public class HintedHandoffAddRemoveNodesTest extends TestBaseImpl
         try (Cluster cluster = builder().withNodes(5)
                                         .withConfig(config -> config.with(NETWORK, GOSSIP, NATIVE_PROTOCOL)
                                                                     // Just to make test pass faster
-                                                                    .set("progress_barrier_min_consistency_level", NODE_LOCAL)
-                                                                    .set("progress_barrier_default_consistency_level", NODE_LOCAL))
+                                                                    .set("cms.progress_barrier.min_consistency_level", NODE_LOCAL)
+                                                                    .set("cms.progress_barrier.default_consistency_level", NODE_LOCAL))
                                         .withoutVNodes()
                                         .start())
         {
@@ -148,8 +148,8 @@ public class HintedHandoffAddRemoveNodesTest extends TestBaseImpl
                                         .withNodeIdTopology(NetworkTopology.singleDcNetworkTopology(4, "dc0", "rack0"))
                                         .withConfig(config -> config.with(NETWORK, GOSSIP, NATIVE_PROTOCOL)
                                                                     // Just to make test pass faster
-                                                                    .set("progress_barrier_min_consistency_level", NODE_LOCAL)
-                                                                    .set("progress_barrier_default_consistency_level", NODE_LOCAL))
+                                                                    .set("cms.progress_barrier.min_consistency_level", NODE_LOCAL)
+                                                                    .set("cms.progress_barrier.default_consistency_level", NODE_LOCAL))
                                         .start())
         {
             cluster.schemaChange(withKeyspace("CREATE KEYSPACE %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 2}"));
