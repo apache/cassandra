@@ -1,0 +1,6 @@
+[WARNING]
+====
+Index names are unique per keyspace.
+The index name must be a unique identifier for the index for each table within a keyspace.
+This requirement is true for both vector and non-vector indexes.
+====

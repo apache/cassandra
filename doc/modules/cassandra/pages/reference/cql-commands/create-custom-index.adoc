@@ -55,6 +55,8 @@ index_name::
 Optional identifier for index.
 If no name is specified, the default is used, `<table_name>_<column_name>_idx`.
 Enclose in quotes to use special characters or to preserve capitalization.
++
+include::cassandra:partial$index-naming.adoc[]
 
 column_name::
 The name of the table column on which the SAI index is being defined.
