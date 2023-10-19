@@ -203,13 +203,11 @@ public class TableQueryMetrics extends AbstractMetrics
             }
 
             if (queryContext.trieSegmentsHit > 0)
-            {
                 recordStringIndexCacheMetrics(queryContext);
-            } else if (queryContext.bkdSegmentsHit > 0) {
+            if (queryContext.bkdSegmentsHit > 0)
                 recordNumericIndexCacheMetrics(queryContext);
-            } else if (queryContext.hnswVectorsAccessed > 0) {
+            if (queryContext.hnswVectorsAccessed > 0)
                 recordHnswIndexMetrics(queryContext);
-            }
 
             totalQueriesCompleted.inc();
         }
