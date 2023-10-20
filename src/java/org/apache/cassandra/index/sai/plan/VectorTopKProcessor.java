@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.index.sai.plan.vector;
+package org.apache.cassandra.index.sai.plan;
 
 import java.nio.ByteBuffer;
 import java.util.Comparator;
@@ -94,7 +94,7 @@ public class VectorTopKProcessor
     public <U extends Unfiltered, R extends BaseRowIterator<U>, P extends BasePartitionIterator<R>> BasePartitionIterator<?> filter(P partitions)
     {
         // priority queue ordered by score in ascending order
-        PriorityQueue<Triple<PartitionInfo, Row, Float>> topK = new PriorityQueue<>(limit, Comparator.comparing(Triple::getRight));
+        PriorityQueue<Triple<PartitionInfo, Row, Float>> topK = new PriorityQueue<>(limit + 1, Comparator.comparing(Triple::getRight));
         // to store top-k results in primary key order
         TreeMap<PartitionInfo, TreeSet<Unfiltered>> unfilteredByPartition = new TreeMap<>(Comparator.comparing(p -> p.key));
 

@@ -51,7 +51,6 @@ import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sai.metrics.TableQueryMetrics;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
-import org.apache.cassandra.index.sai.plan.vector.VectorTopKProcessor;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.TableMetadata;
@@ -71,7 +70,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
     {
         this.command = command;
         this.queryContext = new QueryContext(command, executionQuotaMs);
-        this.queryController = QueryController.create(cfs, command, filterOperation, queryContext, tableQueryMetrics);
+        this.queryController = new QueryController(cfs, command, filterOperation, queryContext, tableQueryMetrics);
     }
 
     @Override

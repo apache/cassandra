@@ -462,6 +462,12 @@ public enum CassandraRelevantProperties
     /** Controls the maximum top-k limit for vector search */
     SAI_VECTOR_SEARCH_MAX_TOP_K("cassandra.sai.vector_search.max_top_k", "1000"),
 
+    /**
+     * Controls the maximum number of PrimaryKeys that will be read into memory at one time when ordering/limiting
+     * the results of an ANN query constrained by non-ANN predicates.
+     */
+    SAI_VECTOR_SEARCH_ORDER_CHUNK_SIZE("cassandra.sai.vector_search.order_chunk_size", "100000"),
+
     SCHEMA_PULL_INTERVAL_MS("cassandra.schema_pull_interval_ms", "60000"),
     SCHEMA_UPDATE_HANDLER_FACTORY_CLASS("cassandra.schema.update_handler_factory.class"),
     SEARCH_CONCURRENCY_FACTOR("cassandra.search_concurrency_factor", "1"),

@@ -39,6 +39,7 @@ import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.ShortType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
@@ -77,6 +78,18 @@ public class BlockBalancedTreeIndexBuilder
         public long rowIdFromPrimaryKey(PrimaryKey key)
         {
             return key.token().getLongValue();
+        }
+
+        @Override
+        public long ceiling(Token token)
+        {
+            return token.getLongValue();
+        }
+
+        @Override
+        public long floor(Token token)
+        {
+            return token.getLongValue();
         }
     };
     public static final PrimaryKeyMap.Factory TEST_PRIMARY_KEY_MAP_FACTORY = () -> TEST_PRIMARY_KEY_MAP;

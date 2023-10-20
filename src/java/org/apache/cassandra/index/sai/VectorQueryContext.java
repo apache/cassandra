@@ -76,6 +76,11 @@ public class VectorQueryContext
         return shadowedPrimaryKeys == null || !shadowedPrimaryKeys.contains(primaryKeyMap.primaryKeyFromRowId(sstableRowId));
     }
 
+    public boolean shouldInclude(PrimaryKey pk)
+    {
+        return shadowedPrimaryKeys == null || !shadowedPrimaryKeys.contains(pk);
+    }
+
     public boolean containsShadowedPrimaryKey(PrimaryKey primaryKey)
     {
         return shadowedPrimaryKeys != null && shadowedPrimaryKeys.contains(primaryKey);

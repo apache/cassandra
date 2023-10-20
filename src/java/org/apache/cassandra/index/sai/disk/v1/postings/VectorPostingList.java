@@ -18,29 +18,28 @@
 
 package org.apache.cassandra.index.sai.disk.v1.postings;
 
+import java.io.IOException;
 import java.util.PrimitiveIterator;
 
 import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.lucene.util.LongHeap;
 
 /**
- * A {@link PostingList} implementation that takes an unordered iterator of primitive {@code int} and returns
- * ordered {@code long} postings.
+ * A posting list for ANN search results. Transforms result from similarity order to rowId order.
  */
-public class ReorderingPostingList implements PostingList
+public class VectorPostingList implements PostingList
 {
     private final LongHeap segmentRowIds;
     private final int size;
+    private final int visitedCount;
 
-    public ReorderingPostingList(PrimitiveIterator.OfInt source, int estimatedSize)
+    public VectorPostingList(PrimitiveIterator.OfInt source, int limit, int visitedCount)
     {
-        segmentRowIds = new LongHeap(Math.max(estimatedSize, 1));
+        this.visitedCount = visitedCount;
+        segmentRowIds = new LongHeap(Math.max(limit, 1));
         int n = 0;
-        while (source.hasNext())
-        {
+        while (source.hasNext() && n++ < limit)
             segmentRowIds.push(source.nextInt());
-            n++;
-        }
         this.size = n;
     }
 
@@ -59,14 +58,18 @@ public class ReorderingPostingList implements PostingList
     }
 
     @Override
-    public long advance(long targetRowID)
+    public long advance(long targetRowID) throws IOException
     {
         long rowId;
         do
         {
             rowId = nextPosting();
-        }
-        while (rowId < targetRowID);
+        } while (rowId < targetRowID);
         return rowId;
+    }
+
+    public int getVisitedCount()
+    {
+        return visitedCount;
     }
 }

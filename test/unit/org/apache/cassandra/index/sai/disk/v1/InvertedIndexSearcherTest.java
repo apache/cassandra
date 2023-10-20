@@ -28,13 +28,13 @@ import com.carrotsearch.hppc.LongArrayList;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.ClusteringComparator;
-import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SAITester;
+import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.memory.MemtableTermsIterator;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
@@ -43,7 +43,6 @@ import org.apache.cassandra.index.sai.disk.v1.segment.LiteralIndexSegmentSearche
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.v1.trie.LiteralIndexWriter;
 import org.apache.cassandra.index.sai.plan.Expression;
-import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
 import org.apache.cassandra.service.StorageService;
@@ -54,7 +53,9 @@ import org.apache.cassandra.utils.bytecomparable.ByteSourceInverse;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 
@@ -77,13 +78,13 @@ public class InvertedIndexSearcherTest extends SAIRandomizedTester
         }
 
         @Override
-        public long firstRowIdForRange(AbstractBounds<PartitionPosition> range)
+        public long ceiling(Token token)
         {
             return 0;
         }
 
         @Override
-        public long lastRowIdForRange(AbstractBounds<PartitionPosition> range)
+        public long floor(Token token)
         {
             return 0;
         }
@@ -113,46 +114,53 @@ public class InvertedIndexSearcherTest extends SAIRandomizedTester
         {
             for (int t = 0; t < numTerms; ++t)
             {
-                try (PostingList results = searcher.search(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
+                try (KeyRangeIterator results = searcher.search(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
                         .add(Operator.EQ, wrap(termsEnum.get(t).left)), null, context))
                 {
+                    assertEquals(results.getMinimum(), results.getCurrent());
+                    assertTrue(results.hasNext());
+
                     for (int p = 0; p < numPostings; ++p)
                     {
                         final long expectedToken = termsEnum.get(t).right.get(p);
-                        final long actualToken = results.nextPosting();
+                        assertTrue(results.hasNext());
+                        final long actualToken = results.next().token().getLongValue();
                         assertEquals(expectedToken, actualToken);
                     }
-                    assertEquals(PostingList.END_OF_STREAM, results.nextPosting());
+                    assertFalse(results.hasNext());
                 }
 
-                try (PostingList results = searcher.search(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
+                try (KeyRangeIterator results = searcher.search(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
                         .add(Operator.EQ, wrap(termsEnum.get(t).left)), null, context))
                 {
+                    assertEquals(results.getMinimum(), results.getCurrent());
+                    assertTrue(results.hasNext());
+
                     // test skipping to the last block
-                    int idxToSkip = numPostings - 7;
+                    final int idxToSkip = numPostings - 7;
                     // tokens are equal to their corresponding row IDs
-                    long tokenToSkip = termsEnum.get(t).right.get(idxToSkip);
-                    long actualToken = results.advance(tokenToSkip);
+                    final long tokenToSkip = termsEnum.get(t).right.get(idxToSkip);
+                    results.skipTo(SAITester.TEST_FACTORY.create(new Murmur3Partitioner.LongToken(tokenToSkip)));
 
                     for (int p = idxToSkip; p < numPostings; ++p)
                     {
-                        long expectedToken = termsEnum.get(t).right.get(p);
+                        final long expectedToken = termsEnum.get(t).right.get(p);
+                        final long actualToken = results.next().token().getLongValue();
                         assertEquals(expectedToken, actualToken);
-                        actualToken = results.nextPosting();
                     }
                 }
             }
 
             // try searching for terms that weren't indexed
             final String tooLongTerm = randomSimpleString(10, 12);
-            PostingList results = searcher.search(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
+            KeyRangeIterator results = searcher.search(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
                                                   .add(Operator.EQ, UTF8Type.instance.decompose(tooLongTerm)), null, context);
-            assertEquals(PostingList.END_OF_STREAM, results.nextPosting());
+            assertFalse(results.hasNext());
 
             final String tooShortTerm = randomSimpleString(1, 2);
             results = searcher.search(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
                                       .add(Operator.EQ, UTF8Type.instance.decompose(tooShortTerm)), null, context);
-            assertEquals(PostingList.END_OF_STREAM, results.nextPosting());
+            assertFalse(results.hasNext());
         }
     }
 

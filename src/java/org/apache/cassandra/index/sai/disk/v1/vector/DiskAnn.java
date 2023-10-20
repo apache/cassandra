@@ -29,6 +29,7 @@ import io.github.jbellis.jvector.disk.CachingGraphIndex;
 import io.github.jbellis.jvector.disk.OnDiskGraphIndex;
 import io.github.jbellis.jvector.graph.GraphSearcher;
 import io.github.jbellis.jvector.graph.NeighborSimilarity;
+import io.github.jbellis.jvector.graph.SearchResult;
 import io.github.jbellis.jvector.graph.SearchResult.NodeScore;
 import io.github.jbellis.jvector.pq.CompressedVectors;
 import io.github.jbellis.jvector.util.Bits;
@@ -36,7 +37,7 @@ import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.v1.PerColumnIndexFiles;
-import org.apache.cassandra.index.sai.disk.v1.postings.ReorderingPostingList;
+import org.apache.cassandra.index.sai.disk.v1.postings.VectorPostingList;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.tracing.Tracing;
@@ -88,7 +89,7 @@ public class DiskAnn implements AutoCloseable
      * @return Row IDs associated with the topK vectors near the query
      */
     // VSTODO make this return something with a size
-    public ReorderingPostingList search(float[] queryVector, int topK, Bits acceptBits)
+    public VectorPostingList search(float[] queryVector, int topK, int limit, Bits acceptBits)
     {
         OnHeapGraph.validateIndexable(queryVector, similarityFunction);
 
@@ -112,7 +113,7 @@ public class DiskAnn implements AutoCloseable
                                      topK,
                                      ordinalsMap.ignoringDeleted(acceptBits));
         Tracing.trace("DiskANN search visited {} nodes to return {} results", result.getVisitedCount(), result.getNodes().length);
-        return annRowIdsToPostings(result.getNodes());
+        return annRowIdsToPostings(result, limit);
     }
 
     private class RowIdIterator implements PrimitiveIterator.OfInt, AutoCloseable
@@ -128,8 +129,10 @@ public class DiskAnn implements AutoCloseable
         }
 
         @Override
-        public boolean hasNext() {
-            while (!segmentRowIdIterator.hasNext() && it.hasNext()) {
+        public boolean hasNext()
+        {
+            while (!segmentRowIdIterator.hasNext() && it.hasNext())
+            {
                 try
                 {
                     var ordinal = it.next().node;
@@ -157,11 +160,11 @@ public class DiskAnn implements AutoCloseable
         }
     }
 
-    private ReorderingPostingList annRowIdsToPostings(NodeScore[] results)
+    private VectorPostingList annRowIdsToPostings(SearchResult results, int limit)
     {
-        try (var iterator = new RowIdIterator(results))
+        try (var iterator = new RowIdIterator(results.getNodes()))
         {
-            return new ReorderingPostingList(iterator, results.length);
+            return new VectorPostingList(iterator, limit, results.getVisitedCount());
         }
     }
 

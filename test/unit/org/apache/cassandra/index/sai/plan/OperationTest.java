@@ -111,25 +111,25 @@ public class OperationTest
     public void beforeTest()
     {
         ReadCommand command = PartitionRangeReadCommand.allDataRead(BACKEND.metadata(), FBUtilities.nowInSeconds());
-        controller = new StorageAttachedIndexQueryController(BACKEND,
-                                                             command,
-                                                             null,
-                                                             new QueryContext(command, DatabaseDescriptor.getRangeRpcTimeout(TimeUnit.MILLISECONDS)),
-                                                             null);
+        controller = new QueryController(BACKEND,
+                                         command,
+                                         null,
+                                         new QueryContext(command, DatabaseDescriptor.getRangeRpcTimeout(TimeUnit.MILLISECONDS)),
+                                         null);
 
         command = PartitionRangeReadCommand.allDataRead(CLUSTERING_BACKEND.metadata(), FBUtilities.nowInSeconds());
-        controllerClustering = new StorageAttachedIndexQueryController(CLUSTERING_BACKEND,
-                                                                       command,
-                                                                       null,
-                                                                       new QueryContext(command, DatabaseDescriptor.getRangeRpcTimeout(TimeUnit.MILLISECONDS)),
-                                                                       null);
+        controllerClustering = new QueryController(CLUSTERING_BACKEND,
+                                                   command,
+                                                   null,
+                                                   new QueryContext(command, DatabaseDescriptor.getRangeRpcTimeout(TimeUnit.MILLISECONDS)),
+                                                   null);
 
         command = PartitionRangeReadCommand.allDataRead(STATIC_BACKEND.metadata(), FBUtilities.nowInSeconds());
-        controllerStatic = new StorageAttachedIndexQueryController(STATIC_BACKEND,
-                                                                   command,
-                                                                   null,
-                                                                   new QueryContext(command, DatabaseDescriptor.getRangeRpcTimeout(TimeUnit.MILLISECONDS)),
-                                                                   null);
+        controllerStatic = new QueryController(STATIC_BACKEND,
+                                               command,
+                                               null,
+                                               new QueryContext(command, DatabaseDescriptor.getRangeRpcTimeout(TimeUnit.MILLISECONDS)),
+                                               null);
     }
 
     @Test

@@ -33,7 +33,6 @@ import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.metrics.TableQueryMetrics;
-import org.apache.cassandra.index.sai.plan.vector.VectorTopKProcessor;
 import org.apache.cassandra.schema.TableMetadata;
 
 public class StorageAttachedIndexQueryPlan implements Index.QueryPlan

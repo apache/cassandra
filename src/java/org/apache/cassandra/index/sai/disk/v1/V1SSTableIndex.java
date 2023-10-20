@@ -39,8 +39,7 @@ import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.iterators.KeyRangeUnionIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
-import org.apache.cassandra.index.sai.postings.PeekablePostingList;
-import org.apache.cassandra.index.sai.postings.PostingList;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
@@ -159,11 +158,11 @@ public class V1SSTableIndex extends SSTableIndex
     }
 
     @Override
-    public List<PostingList> search(Expression expression,
-                                    AbstractBounds<PartitionPosition> keyRange,
-                                    QueryContext context) throws IOException
+    public List<KeyRangeIterator> search(Expression expression,
+                                         AbstractBounds<PartitionPosition> keyRange,
+                                         QueryContext context) throws IOException
     {
-        List<PostingList> segmentIterators = new ArrayList<>();
+        List<KeyRangeIterator> segmentIterators = new ArrayList<>();
 
         for (Segment segment : segments)
         {
@@ -177,11 +176,11 @@ public class V1SSTableIndex extends SSTableIndex
     }
 
     @Override
-    public KeyRangeIterator limitToTopKResults(QueryContext context, PeekablePostingList iterator, Expression exp) throws IOException
+    public KeyRangeIterator limitToTopKResults(QueryContext context, List<PrimaryKey> primaryKeys, Expression expression) throws IOException
     {
         KeyRangeUnionIterator.Builder unionIteratorBuilder = KeyRangeUnionIterator.builder(segments.size());
         for (Segment segment : segments)
-            unionIteratorBuilder.add(segment.limitToTopKResults(context, iterator, exp));
+            unionIteratorBuilder.add(segment.limitToTopKResults(context, primaryKeys, expression));
 
         return unionIteratorBuilder.build();
     }

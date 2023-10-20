@@ -19,6 +19,7 @@ package org.apache.cassandra.index.sai.disk.v1.segment;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.List;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -33,8 +34,7 @@ import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.v1.PerColumnIndexFiles;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
-import org.apache.cassandra.index.sai.postings.PeekablePostingList;
-import org.apache.cassandra.index.sai.postings.PostingList;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.io.util.FileUtils;
 
 /**
@@ -107,15 +107,15 @@ public class Segment implements SegmentOrdering, Closeable
 
      * @return range iterator that matches given expression
      */
-    public PostingList search(Expression expression, AbstractBounds<PartitionPosition> keyRange, QueryContext context) throws IOException
+    public KeyRangeIterator search(Expression expression, AbstractBounds<PartitionPosition> keyRange, QueryContext context) throws IOException
     {
         return index.search(expression, keyRange, context);
     }
 
     @Override
-    public KeyRangeIterator limitToTopKResults(QueryContext context, PeekablePostingList iterator, Expression exp) throws IOException
+    public KeyRangeIterator limitToTopKResults(QueryContext context, List<PrimaryKey> primaryKeys, Expression expression) throws IOException
     {
-        return index.limitToTopKResults(context, iterator, exp);
+        return index.limitToTopKResults(context, primaryKeys, expression);
     }
 
     @Override

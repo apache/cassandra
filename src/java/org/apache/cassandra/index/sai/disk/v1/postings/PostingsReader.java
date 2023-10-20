@@ -38,7 +38,7 @@ import org.apache.lucene.util.packed.DirectReader;
 
 /**
  * Reads, decompresses and decodes postings lists written by {@link PostingsWriter}.
- *
+ * <p>
  * Holds exactly one posting block in memory at a time. Does binary search over skip table to find a postings block to
  * load.
  */
@@ -57,7 +57,6 @@ public class PostingsReader implements OrdinalPostingList
     private long totalPostingsRead;
     private long actualPosting;
 
-    private long currentPosition;
     private LongValues currentFoRValues;
     private long postingsDecoded = 0;
 
@@ -170,9 +169,9 @@ public class PostingsReader implements OrdinalPostingList
      * Advances to the first row ID beyond the current that is greater than or equal to the
      * target, and returns that row ID. Exhausts the iterator and returns {@link #END_OF_STREAM} if
      * the target is greater than the highest row ID.
-     *
+     * <p>
      * Does binary search over the skip table to find the next block to load into memory.
-     *
+     * <p>
      * Note: Callers must use the return value of this method before calling {@link #nextPosting()}, as calling
      * that method will return the next posting, not the one to which we have just advanced.
      *
@@ -344,7 +343,7 @@ public class PostingsReader implements OrdinalPostingList
 
         byte bitsPerValue = in.readByte();
 
-        currentPosition = in.getFilePointer();
+        long currentPosition = in.getFilePointer();
 
         if (bitsPerValue == 0)
         {

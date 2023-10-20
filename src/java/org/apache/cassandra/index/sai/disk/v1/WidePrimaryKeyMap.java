@@ -25,8 +25,7 @@ import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ClusteringComparator;
-import org.apache.cassandra.db.PartitionPosition;
-import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
@@ -144,11 +143,11 @@ public class WidePrimaryKeyMap extends SkinnyPrimaryKeyMap
     }
 
     @Override
-    public long lastRowIdForRange(AbstractBounds<PartitionPosition> range)
+    public long floor(Token token)
     {
-        if (range.right.isMinimum())
-            return Long.MAX_VALUE;
-        long rowId = tokenArray.indexOf(range.right.getToken().getLongValue());
+        if (token.isMinimum())
+            return Long.MIN_VALUE;
+        long rowId = tokenArray.indexOf(token.getLongValue());
         return rowId < 0 ? rowId : startOfNextPartition(rowId) - 1;
     }
 
