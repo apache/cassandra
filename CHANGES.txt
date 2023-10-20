@@ -3,6 +3,7 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * ClientRequestSize metrics should not treat CONTAINS restrictions as being equality-based (CASSANDRA-18896)
  * Change the checksum algorithm SAI-related files use from CRC32 to CRC32C (CASSANDRA-18836)
  * Correctly remove Index.Group from IndexRegistry (CASSANDRA-18905)
  * Fix vector type to support DDM's mask_default function (CASSANDRA-18889)
