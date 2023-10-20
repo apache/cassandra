@@ -22,6 +22,7 @@ import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import javax.annotation.Nullable;
@@ -32,6 +33,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.RepairRetrySpec;
 import org.apache.cassandra.config.RetrySpec;
+import org.apache.cassandra.metrics.RepairMetrics;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.exceptions.RepairException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
@@ -43,6 +45,7 @@ import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.Backoff;
 import org.apache.cassandra.utils.CassandraVersion;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Future;
 
@@ -72,6 +75,8 @@ public abstract class RepairMessage
     private static final Set<Verb> SUPPORTS_RETRY_WITHOUT_VERSION_CHECK = Collections.unmodifiableSet(EnumSet.of(Verb.CLEANUP_MSG));
 
     private static final Logger logger = LoggerFactory.getLogger(RepairMessage.class);
+    private static final NoSpamLogger noSpam = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
+
     @Nullable
     public final RepairJobDesc desc;
 
@@ -143,6 +148,7 @@ public abstract class RepairMessage
             public void onResponse(Message<T> msg)
             {
                 finalCallback.onResponse(msg);
+                maybeRecordRetry(true);
             }
 
             @Override
@@ -165,10 +171,30 @@ public abstract class RepairMessage
                                                          backoff.computeWaitTime(attempt), backoff.unit());
                             return;
                         }
+                        maybeRecordRetry(false);
                         finalCallback.onFailure(from, failureReason);
                         return;
                     default:
                         throw new AssertionError("Unknown error handler: " + allowed);
+                }
+            }
+
+            private void maybeRecordRetry(boolean succcess)
+            {
+                if (attempt > 0) // if greater than 0 we know a retry happened...
+                {
+                    // we don't know what the prefix kind is... so use NONE... this impacts logPrefix as it will cause us to use "repair" rather than "preview repair" which may not be correct... but close enough...
+                    String prefix = PreviewKind.NONE.logPrefix(request.parentRepairSession());
+                    RepairMetrics.retry(verb, attempt);
+                    if (succcess)
+                    {
+                        noSpam.info("{} Retry of repair verb " + verb + " was success after {} attempts", prefix, attempt);
+                    }
+                    else
+                    {
+                        noSpam.warn("{} Timeout for repair verb " + verb + "; could not complete within {} attempts", prefix, attempt);
+                        RepairMetrics.retryTimeout(verb);
+                    }
                 }
             }
 
