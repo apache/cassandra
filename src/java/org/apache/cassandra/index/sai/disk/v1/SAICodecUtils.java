@@ -21,7 +21,7 @@ package org.apache.cassandra.index.sai.disk.v1;
 import java.io.IOException;
 
 import org.apache.cassandra.index.sai.disk.format.Version;
-import org.apache.lucene.codecs.CodecUtil;
+import org.apache.cassandra.index.sai.disk.io.IndexFileUtils;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.DataInput;
@@ -30,6 +30,7 @@ import org.apache.lucene.store.IndexOutput;
 
 import static org.apache.lucene.codecs.CodecUtil.CODEC_MAGIC;
 import static org.apache.lucene.codecs.CodecUtil.FOOTER_MAGIC;
+import static org.apache.lucene.codecs.CodecUtil.footerLength;
 import static org.apache.lucene.codecs.CodecUtil.readBEInt;
 import static org.apache.lucene.codecs.CodecUtil.readBELong;
 import static org.apache.lucene.codecs.CodecUtil.writeBEInt;
@@ -53,7 +54,7 @@ public class SAICodecUtils
     {
         writeBEInt(out, FOOTER_MAGIC);
         writeBEInt(out, 0);
-        writeCRC(out);
+        writeChecksum(out);
     }
 
     public static void checkHeader(DataInput in) throws IOException
@@ -74,7 +75,7 @@ public class SAICodecUtils
     {
         validateFooter(in, false);
         long actualChecksum = in.getChecksum();
-        long expectedChecksum = readCRC(in);
+        long expectedChecksum = readChecksum(in);
         if (expectedChecksum != actualChecksum)
         {
             throw new CorruptIndexException("checksum failed (hardware problem?) : expected=" + Long.toHexString(expectedChecksum) +
@@ -99,9 +100,26 @@ public class SAICodecUtils
         input.seek(current);
     }
 
+    /**
+     * See {@link org.apache.lucene.codecs.CodecUtil#checksumEntireFile(org.apache.lucene.store.IndexInput)}.
+     * @param input IndexInput to validate.
+     * @throws IOException if a corruption is detected.
+     */
     public static void validateChecksum(IndexInput input) throws IOException
     {
-        CodecUtil.checksumEntireFile(input);
+        IndexInput clone = input.clone();
+        clone.seek(0L);
+        ChecksumIndexInput in = IndexFileUtils.getBufferedChecksumIndexInput(clone);
+
+        assert in.getFilePointer() == 0L : in.getFilePointer() + " bytes already read from this input!";
+
+        if (in.length() < (long) footerLength())
+            throw new CorruptIndexException("misplaced codec footer (file truncated?): length=" + in.length() + " but footerLength==" + footerLength(), input);
+        else
+        {
+            in.seek(in.length() - (long) footerLength());
+            checkFooter(in);
+        }
     }
 
     // Copied from Lucene PackedInts as they are not public
@@ -181,7 +199,7 @@ public class SAICodecUtils
     {
         long position = in.getFilePointer();
         long fileLength = in.length();
-        long footerLength = CodecUtil.footerLength();
+        long footerLength = footerLength();
         long footerPosition = fileLength - footerLength;
 
         if (footerPosition < 0)
@@ -204,7 +222,7 @@ public class SAICodecUtils
     private static void validateFooter(IndexInput in, boolean segmented) throws IOException
     {
         long remaining = in.length() - in.getFilePointer();
-        long expected = CodecUtil.footerLength();
+        long expected = footerLength();
 
         if (!segmented)
         {
@@ -236,31 +254,31 @@ public class SAICodecUtils
     // Copied from Lucene CodecUtil as they are not public
 
     /**
-     * Writes CRC32 value as a 64-bit long to the output.
+     * Writes checksum value as a 64-bit long to the output.
      * @throws IllegalStateException if CRC is formatted incorrectly (wrong bits set)
      * @throws IOException if an i/o error occurs
      */
-    private static void writeCRC(IndexOutput output) throws IOException
+    private static void writeChecksum(IndexOutput output) throws IOException
     {
         long value = output.getChecksum();
         if ((value & 0xFFFFFFFF00000000L) != 0)
         {
-            throw new IllegalStateException("Illegal CRC-32 checksum: " + value + " (resource=" + output + ')');
+            throw new IllegalStateException("Illegal checksum: " + value + " (resource=" + output + ')');
         }
         writeBELong(output, value);
     }
 
     /**
-     * Reads CRC32 value as a 64-bit long from the input.
+     * Reads checksum value as a 64-bit long from the input.
      * @throws CorruptIndexException if CRC is formatted incorrectly (wrong bits set)
      * @throws IOException if an i/o error occurs
      */
-    private static long readCRC(IndexInput input) throws IOException
+    private static long readChecksum(IndexInput input) throws IOException
     {
         long value = readBELong(input);
         if ((value & 0xFFFFFFFF00000000L) != 0)
         {
-            throw new CorruptIndexException("Illegal CRC-32 checksum: " + value, input);
+            throw new CorruptIndexException("Illegal checksum: " + value, input);
         }
         return value;
     }
