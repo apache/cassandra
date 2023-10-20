@@ -782,6 +782,21 @@ public class VectorTypeTest extends VectorTester
         execute("INSERT INTO %s (pk, val, vec) VALUES (3, 'match me', [1, 1])");
         execute("INSERT INTO %s (pk, val, vec) VALUES (4, 'match me', [1, 1])");
         assertRowsIgnoringOrder(execute("SELECT pk FROM %s WHERE val = 'match me' ORDER BY vec ANN OF [1,1] LIMIT 5"),
-                   row(1), row(2), row(3), row(4), row(5));
+                                row(1), row(2), row(3), row(4), row(5));
+    }
+
+    @Test
+    public void testNestedANNQuery()
+    {
+        createTable("CREATE TABLE %s (pk int, name text, body text, vals vector<float, 2>, PRIMARY KEY(pk))");
+        createIndex("CREATE CUSTOM INDEX ON %s(vals) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(name) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+        execute("INSERT INTO %s (pk, name, body, vals) VALUES (1, 'Ann', 'A lizard said bad things to the snakes', [0.1, 0.1])");
+        execute("INSERT INTO %s (pk, name, body, vals) VALUES (2, 'Bea', 'Please wear protective gear before operating the machine', [0.2, -0.3])");
+        execute("INSERT INTO %s (pk, name, body, vals) VALUES (3, 'Cal', 'My name is Slim Shady', [0.0, 0.9])");
+        execute("INSERT INTO %s (pk, name, body, vals) VALUES (4, 'Bea', 'I repeat: wear your helmet!', [0.3, -0.2])");
+        var result = execute("SELECT pk FROM %s WHERE name='Bea' OR name='Ann' ORDER BY vals ANN OF [0.3, 0.1] LIMIT 5");
+        assertRowsIgnoringOrder(result, row(1), row(2), row(4));
     }
 }

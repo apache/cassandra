@@ -433,7 +433,8 @@ public class StatementRestrictions
 
             // ORDER BY clause.
             // Some indexes can be used for ordering.
-            addOrderingRestrictions(orderings, nonPrimaryKeyRestrictionSet);
+            if (nestingLevel == 0)
+                addOrderingRestrictions(orderings, nonPrimaryKeyRestrictionSet);
 
             PartitionKeyRestrictions partitionKeyRestrictions = partitionKeyRestrictionSet.build();
             ClusteringColumnRestrictions clusteringColumnsRestrictions = clusteringColumnsRestrictionSet.build();
