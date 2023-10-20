@@ -19,7 +19,6 @@ package org.apache.cassandra.utils;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
@@ -51,7 +50,8 @@ public class NoSpamLogger
         INFO, WARN, ERROR
     }
 
-    private static interface Clock
+    @VisibleForTesting
+    public interface Clock
     {
         long nanoTime();
     }
@@ -59,9 +59,9 @@ public class NoSpamLogger
     private static Clock CLOCK = Global::nanoTime;
 
     @VisibleForTesting
-    public static void unsafeSetClock(LongSupplier nanos)
+    public static void unsafeSetClock(Clock clock)
     {
-        CLOCK = nanos::getAsLong;
+        CLOCK = clock;
     }
 
     public class NoSpamLogStatement extends AtomicLong
