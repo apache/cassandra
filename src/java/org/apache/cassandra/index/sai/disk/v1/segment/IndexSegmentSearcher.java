@@ -31,7 +31,6 @@ import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.postings.PeekablePostingList;
 import org.apache.cassandra.index.sai.postings.PostingList;
-import org.apache.cassandra.index.sai.postings.RangePostingList;
 
 /**
  * Abstract reader for individual segments of an on-disk index.
@@ -82,9 +81,9 @@ public abstract class IndexSegmentSearcher implements SegmentOrdering, Closeable
      * @param expression to filter on disk index
      * @param queryContext to track per sstable cache and per query metrics
      *
-     * @return {@link PostingList} with matches for the given expression
+     * @return {@link KeyRangeIterator} with matches for the given expression
      */
-    public abstract PostingList search(Expression expression, AbstractBounds<PartitionPosition> keyRange, QueryContext queryContext) throws IOException;
+    public abstract KeyRangeIterator search(Expression expression, AbstractBounds<PartitionPosition> keyRange, QueryContext queryContext) throws IOException;
 
     KeyRangeIterator toPrimaryKeyIterator(PostingList postingList, QueryContext queryContext) throws IOException
     {
@@ -98,13 +97,5 @@ public abstract class IndexSegmentSearcher implements SegmentOrdering, Closeable
                                                                                       PeekablePostingList.makePeekable(postingList));
 
         return new PostingListRangeIterator(indexContext, primaryKeyMapFactory.newPerSSTablePrimaryKeyMap(), searcherContext);
-    }
-
-    PostingList toRangePostingList(PostingList postingList, QueryContext queryContext)
-    {
-        if (postingList == null || postingList.size() == 0)
-            return PostingList.EMPTY;
-
-        return new RangePostingList(postingList, metadata.rowIdOffset, metadata.minSSTableRowId, metadata.maxSSTableRowId, postingList.size(), queryContext);
     }
 }

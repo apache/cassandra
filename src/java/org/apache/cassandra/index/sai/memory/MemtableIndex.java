@@ -21,6 +21,7 @@ package org.apache.cassandra.index.sai.memory;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
 
@@ -47,7 +48,7 @@ public class MemtableIndex implements MemtableOrdering
 
     public MemtableIndex(IndexContext indexContext)
     {
-        this.index = indexContext.isVector() ? new VectorMemtableIndex(indexContext) : new TrieMemoryIndex(indexContext);
+        this.index = indexContext.isVector() ? new VectorMemoryIndex(indexContext) : new TrieMemoryIndex(indexContext);
     }
 
     public long writeCount()
@@ -109,8 +110,8 @@ public class MemtableIndex implements MemtableOrdering
     }
 
     @Override
-    public KeyRangeIterator limitToTopResults(QueryContext context, KeyRangeIterator iterator, Expression exp)
+    public KeyRangeIterator limitToTopResults(List<PrimaryKey> primaryKeys, Expression expression, int limit)
     {
-        return index.limitToTopResults(context, iterator, exp);
+        return index.limitToTopResults(primaryKeys, expression, limit);
     }
 }

@@ -24,8 +24,7 @@ import java.io.IOException;
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.annotation.concurrent.ThreadSafe;
 
-import org.apache.cassandra.db.PartitionPosition;
-import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 
 /**
@@ -73,26 +72,20 @@ public interface PrimaryKeyMap extends Closeable
     long rowIdFromPrimaryKey(PrimaryKey key);
 
     /**
-     * Returns the first row ID for a given partition range
+     * Returns the first row ID for a given token or a negative value if not found
      *
-     * @param range the {@link AbstractBounds} to lookup
-     * @return the first row ID associated with the {@link AbstractBounds}
+     * @param token the {@link Token} to lookup
+     * @return the first row ID associated with the {@link Token} or a negative value
      */
-    default long firstRowIdForRange(AbstractBounds<PartitionPosition> range)
-    {
-        throw new UnsupportedOperationException();
-    }
+    long ceiling(Token token);
 
     /**
      * Returns the last row ID for a given partition range or the previous row ID if there was no match for the partition range
      *
-     * @param range the {@link AbstractBounds} to lookup
-     * @return the last row ID associated with the {@link AbstractBounds}
+     * @param token the {@link Token} to lookup
+     * @return the last row ID associated with the {@link Token}
      */
-    default long lastRowIdForRange(AbstractBounds<PartitionPosition> range)
-    {
-        throw new UnsupportedOperationException();
-    }
+    long floor(Token token);
 
     @Override
     default void close()

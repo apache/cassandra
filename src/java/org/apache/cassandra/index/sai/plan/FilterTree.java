@@ -84,7 +84,7 @@ public class FilterTree
             ColumnMetadata column = columnIterator.next();
             Row row = column.kind == Kind.STATIC ? staticRow : (Row) unfiltered;
 
-            // If there is a column with multiple expressions that can mean an OR or (in the case of map
+            // If there is a column with multiple expressions that can mean an OR, or (in the case of map
             // collections) it can mean different map indexes.
             List<Expression> filters = expressions.get(column);
 

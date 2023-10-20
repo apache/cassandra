@@ -86,7 +86,7 @@ public class VectorMemtableIndexTest extends SAITester
 
     private ColumnFamilyStore cfs;
     private IndexContext indexContext;
-    private VectorMemtableIndex memtableIndex;
+    private VectorMemoryIndex memtableIndex;
     private IPartitioner partitioner;
     private Map<DecoratedKey, Integer> keyMap;
     private Map<Integer, ByteBuffer> rowMap;
@@ -122,7 +122,7 @@ public class VectorMemtableIndexTest extends SAITester
     @Test
     public void randomQueryTest() throws Exception
     {
-        memtableIndex = new VectorMemtableIndex(indexContext);
+        memtableIndex = new VectorMemoryIndex(indexContext);
 
         for (int row = 0; row < getRandom().nextIntBetween(1000, 5000); row++)
         {

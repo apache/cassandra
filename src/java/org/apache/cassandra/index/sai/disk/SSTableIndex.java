@@ -40,7 +40,6 @@ import org.apache.cassandra.index.sai.disk.format.Version;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentOrdering;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
-import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.io.sstable.SSTableIdFactory;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 
@@ -137,9 +136,9 @@ public abstract class SSTableIndex implements SegmentOrdering
      * @return a {@link List} of {@link KeyRangeIterator}s containing the results
      * of the search
      */
-    public abstract List<PostingList> search(Expression expression,
-                                             AbstractBounds<PartitionPosition> keyRange,
-                                             QueryContext context) throws IOException;
+    public abstract List<KeyRangeIterator> search(Expression expression,
+                                                  AbstractBounds<PartitionPosition> keyRange,
+                                                  QueryContext context) throws IOException;
 
     /**
      * Populates a virtual table using the index metadata owned by the index

@@ -19,8 +19,8 @@ package org.apache.cassandra.index.sai.disk.v1.segment;
 
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
-import java.nio.ByteBuffer;
-import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import com.google.common.base.MoreObjects;
@@ -32,22 +32,29 @@ import io.github.jbellis.jvector.util.Bits;
 import io.github.jbellis.jvector.util.SparseFixedBitSet;
 import org.agrona.collections.IntArrayList;
 import org.apache.cassandra.db.PartitionPosition;
-import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.VectorQueryContext;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.v1.PerColumnIndexFiles;
-import org.apache.cassandra.index.sai.disk.v1.postings.ReorderingPostingList;
 import org.apache.cassandra.index.sai.disk.v1.vector.DiskAnn;
+import org.apache.cassandra.index.sai.disk.v1.vector.OptimizeFor;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
+import org.apache.cassandra.index.sai.iterators.KeyRangeListIterator;
+import org.apache.cassandra.index.sai.memory.VectorMemoryIndex;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.postings.IntArrayPostingList;
-import org.apache.cassandra.index.sai.postings.PeekablePostingList;
 import org.apache.cassandra.index.sai.postings.PostingList;
+import org.apache.cassandra.index.sai.utils.AtomicRatio;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.RangeUtil;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
+import org.apache.cassandra.tracing.Tracing;
+
+import static java.lang.Math.max;
+import static java.lang.Math.min;
+import static java.lang.Math.pow;
 
 /**
  * Executes ANN search against a vector graph for an individual index segment.
@@ -57,11 +64,10 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
     private static final Logger logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
     private final DiskAnn graph;
-    private final VectorType<float[]> type;
-    private final int maxBruteForceRows;
+    private final int globalBruteForceRows;
+    private final AtomicRatio actualExpectedRatio = new AtomicRatio();
     private final ThreadLocal<SparseFixedBitSet> cachedBitSets;
 
-    @SuppressWarnings("unchecked")
     VectorIndexSegmentSearcher(PrimaryKeyMap.Factory primaryKeyMapFactory,
                                PerColumnIndexFiles perIndexFiles,
                                SegmentMetadata segmentMetadata,
@@ -69,12 +75,8 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
     {
         super(primaryKeyMapFactory, perIndexFiles, segmentMetadata, indexContext);
         graph = new DiskAnn(segmentMetadata.componentMetadatas, perIndexFiles, indexContext);
-        type = (VectorType<float[]>) indexContext.getValidator();
         cachedBitSets = ThreadLocal.withInitial(() -> new SparseFixedBitSet(graph.size()));
-
-        // estimate the number of comparisons that a search would require; use brute force if we have
-        // fewer rows involved than that
-        maxBruteForceRows = (int)(indexContext.getIndexWriterConfig().getMaximumNodeConnections() * Math.log(graph.size()));
+        globalBruteForceRows = Integer.MAX_VALUE;
     }
 
     @Override
@@ -84,37 +86,33 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
     }
 
     @Override
-    public PostingList search(Expression exp, AbstractBounds<PartitionPosition> keyRange, QueryContext context) throws IOException
+    public KeyRangeIterator search(Expression exp, AbstractBounds<PartitionPosition> keyRange, QueryContext context) throws IOException
     {
-        return toRangePostingList(searchPosting(context.vectorContext(), exp, keyRange), context);
-    }
+        int limit = context.vectorContext().limit();
 
-    private PostingList searchPosting(VectorQueryContext context, Expression exp, AbstractBounds<PartitionPosition> keyRange) throws IOException
-    {
         if (logger.isTraceEnabled())
             logger.trace(indexContext.logMessage("Searching on expression '{}'..."), exp);
 
         if (exp.getOp() != Expression.IndexOperator.ANN)
             throw new IllegalArgumentException(indexContext.logMessage("Unsupported expression during ANN index query: " + exp));
 
-        BitsOrPostingList bitsOrPostingList = bitsOrPostingListForKeyRange(context, keyRange);
+        int topK = topKFor(limit);
+        BitsOrPostingList bitsOrPostingList = bitsOrPostingListForKeyRange(context.vectorContext(), keyRange, topK);
         if (bitsOrPostingList.skipANN())
-            return bitsOrPostingList.postingList();
+            return toPrimaryKeyIterator(bitsOrPostingList.postingList(), context);
 
-        ByteBuffer buffer = exp.lower.value.raw;
-        float[] queryVector = TypeUtil.decomposeVector(indexContext, buffer.duplicate());
-        return graph.search(queryVector, context.limit(), bitsOrPostingList.getBits());
+        float[] queryVector = TypeUtil.decomposeVector(indexContext, exp.lower.value.raw.duplicate());
+        var vectorPostings = graph.search(queryVector, topK, limit, bitsOrPostingList.getBits());
+        if (bitsOrPostingList.expectedNodesVisited >= 0)
+            updateExpectedNodes(vectorPostings.getVisitedCount(), bitsOrPostingList.expectedNodesVisited);
+        return toPrimaryKeyIterator(vectorPostings, context);
     }
 
     /**
      * Return bit set we need to search the graph; otherwise return posting list to bypass the graph
      */
-    private BitsOrPostingList bitsOrPostingListForKeyRange(VectorQueryContext context, AbstractBounds<PartitionPosition> keyRange) throws IOException
+    private BitsOrPostingList bitsOrPostingListForKeyRange(VectorQueryContext context, AbstractBounds<PartitionPosition> keyRange, int limit) throws IOException
     {
-        // create a bitset of ordinals corresponding to the rows in the given key range
-        SparseFixedBitSet bits = bitSetForSearch();
-        boolean hasMatches = false;
-
         try (PrimaryKeyMap primaryKeyMap = primaryKeyMapFactory.newPerSSTablePrimaryKeyMap())
         {
             // not restricted
@@ -122,8 +120,11 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
                 return new BitsOrPostingList(context.bitsetForShadowedPrimaryKeys(metadata, primaryKeyMap, graph));
 
             // it will return the next row id if given key is not found.
-            long minSSTableRowId = primaryKeyMap.firstRowIdForRange(keyRange);
-            long maxSSTableRowId = primaryKeyMap.lastRowIdForRange(keyRange);
+            long minSSTableRowId = primaryKeyMap.ceiling(keyRange.left.getToken());
+            // If we didn't find the first key, we won't find the last primary key either
+            if (minSSTableRowId < 0)
+                return new BitsOrPostingList(PostingList.EMPTY);
+            long maxSSTableRowId = primaryKeyMap.floor(keyRange.right.getToken());
 
             if (minSSTableRowId > maxSSTableRowId)
                 return new BitsOrPostingList(PostingList.EMPTY);
@@ -133,28 +134,38 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
                 return new BitsOrPostingList(context.bitsetForShadowedPrimaryKeys(metadata, primaryKeyMap, graph));
 
             minSSTableRowId = Math.max(minSSTableRowId, metadata.minSSTableRowId);
-            maxSSTableRowId = Math.min(maxSSTableRowId, metadata.maxSSTableRowId);
+            maxSSTableRowId = min(maxSSTableRowId, metadata.maxSSTableRowId);
 
-            // if num of matches are not bigger than limit, skip ANN
-            var nRows = maxSSTableRowId - minSSTableRowId + 1;
-            if (nRows <= Math.max(maxBruteForceRows, context.limit()))
+            // If num of matches are not bigger than limit, skip ANN.
+            // (nRows should not include shadowed rows, but context doesn't break those out by segment,
+            // so we will live with the inaccuracy.)
+            var nRows = Math.toIntExact(maxSSTableRowId - minSSTableRowId + 1);
+            int maxBruteForceRows = min(globalBruteForceRows, maxBruteForceRows(limit, nRows, graph.size()));
+            logger.trace("Search range covers {} rows; max brute force rows is {} for sstable index with {} nodes, LIMIT {}",
+                         nRows, maxBruteForceRows, graph.size(), limit);
+            Tracing.trace("Search range covers {} rows; max brute force rows is {} for sstable index with {} nodes, LIMIT {}",
+                          nRows, maxBruteForceRows, graph.size(), limit);
+            if (nRows <= maxBruteForceRows)
             {
                 IntArrayList postings = new IntArrayList(Math.toIntExact(nRows), -1);
                 for (long sstableRowId = minSSTableRowId; sstableRowId <= maxSSTableRowId; sstableRowId++)
                 {
                     if (context.shouldInclude(sstableRowId, primaryKeyMap))
-                        postings.addInt(Math.toIntExact(sstableRowId - metadata.rowIdOffset));
+                        postings.addInt(metadata.toSegmentRowId(sstableRowId));
                 }
                 return new BitsOrPostingList(new IntArrayPostingList(postings.toIntArray()));
             }
 
+            // create a bitset of ordinals corresponding to the rows in the given key range
+            SparseFixedBitSet bits = bitSetForSearch();
+            boolean hasMatches = false;
             try (var ordinalsView = graph.getOrdinalsView())
             {
                 for (long sstableRowId = minSSTableRowId; sstableRowId <= maxSSTableRowId; sstableRowId++)
                 {
                     if (context.shouldInclude(sstableRowId, primaryKeyMap))
                     {
-                        int segmentRowId = Math.toIntExact(sstableRowId - metadata.rowIdOffset);
+                        int segmentRowId = metadata.toSegmentRowId(sstableRowId);
                         int ordinal = ordinalsView.getOrdinalForRowId(segmentRowId);
                         if (ordinal >= 0)
                         {
@@ -168,12 +179,12 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
             {
                 throw new RuntimeException(e);
             }
+
+            if (!hasMatches)
+                return new BitsOrPostingList(PostingList.EMPTY);
+
+            return new BitsOrPostingList(bits, VectorMemoryIndex.expectedNodesVisited(limit, nRows, graph.size()));
         }
-
-        if (!hasMatches)
-            return new BitsOrPostingList(PostingList.EMPTY);
-
-        return new BitsOrPostingList(bits);
     }
 
     private SparseFixedBitSet bitSetForSearch()
@@ -184,56 +195,110 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
     }
 
     @Override
-    public KeyRangeIterator limitToTopKResults(QueryContext context, PeekablePostingList postingList, Expression exp) throws IOException
+    public KeyRangeIterator limitToTopKResults(QueryContext context, List<PrimaryKey> primaryKeys, Expression expression) throws IOException
     {
-        // the iterator represents keys from all the segments in our sstable -- we'll only pull of those that
-        // are from our own token range, so we can use row ids to order the results by vector similarity.
-        var maxSegmentRowId = Math.toIntExact(metadata.maxSSTableRowId - metadata.rowIdOffset);
-        SparseFixedBitSet bits = bitSetForSearch();
-        int[] bruteForceRows = new int[Math.max(context.vectorContext().limit(), this.maxBruteForceRows)];
-        int n = 0;
-        try (var ordinalsView = graph.getOrdinalsView(); PrimaryKeyMap primaryKeyMap = primaryKeyMapFactory.newPerSSTablePrimaryKeyMap())
+        int limit = context.vectorContext().limit();
+        // VSTODO would it be better to do a binary search to find the boundaries?
+        List<PrimaryKey> keysInRange = primaryKeys.stream()
+                                                  .dropWhile(k -> k.compareTo(metadata.minKey) < 0)
+                                                  .takeWhile(k -> k.compareTo(metadata.maxKey) <= 0)
+                                                  .collect(Collectors.toList());
+        if (keysInRange.isEmpty())
+            return KeyRangeIterator.empty();
+        int topK = topKFor(limit);
+        if (shouldUseBruteForce(topK, limit, keysInRange.size()))
+            return new KeyRangeListIterator(metadata.minKey, metadata.maxKey, keysInRange);
+
+        try (PrimaryKeyMap primaryKeyMap = primaryKeyMapFactory.newPerSSTablePrimaryKeyMap())
         {
-            while (true)
+            // the iterator represents keys from the whole table -- we'll only pull of those that
+            // are from our own token range, so we can use row ids to order the results by vector similarity.
+            var maxSegmentRowId = metadata.toSegmentRowId(metadata.maxSSTableRowId);
+            SparseFixedBitSet bits = bitSetForSearch();
+            var rowIds = new IntArrayList();
+            try (var ordinalsView = graph.getOrdinalsView())
             {
-                long sstableRowId = postingList.peek();
-                // if sstable row id has exceeded current ANN segment, stop
-                if (sstableRowId > metadata.maxSSTableRowId)
-                    break;
-
-                postingList.nextPosting();
-
-                // skip rows that are not in our segment (or more preciesely, have no vectors that were indexed)
-                if (sstableRowId < metadata.minSSTableRowId)
-                    continue;
-
-                int segmentRowId = Math.toIntExact(sstableRowId - metadata.rowIdOffset);
-                if (n < bruteForceRows.length)
-                    bruteForceRows[n] = segmentRowId;
-                n++;
-
-                int ordinal = ordinalsView.getOrdinalForRowId(segmentRowId);
-                assert ordinal <= maxSegmentRowId : "ordinal=" + ordinal + ", max=" + maxSegmentRowId; // ordinal count should be <= row count
-                if (ordinal >= 0)
+                for (PrimaryKey primaryKey : keysInRange)
                 {
-                    if (context.vectorContext().shouldInclude(sstableRowId, primaryKeyMap))
+                    long sstableRowId = primaryKeyMap.rowIdFromPrimaryKey(primaryKey);
+                    // skip rows that are not in our segment (or more preciesely, have no vectors that were indexed)
+                    // or are not in this segment (exactRowIdForPrimaryKey returns a negative value for not found)
+                    if (sstableRowId < metadata.minSSTableRowId)
+                        continue;
+
+                    // if sstable row id has exceeded current ANN segment, stop
+                    if (sstableRowId > metadata.maxSSTableRowId)
+                        break;
+
+                    int segmentRowId = metadata.toSegmentRowId(sstableRowId);
+                    rowIds.add(segmentRowId);
+                    // VSTODO now that we know the size of keys evaluated, is it worth doing the brute
+                    // force check eagerly to potentially skip the PK to sstable row id to ordinal lookup?
+                    int ordinal = ordinalsView.getOrdinalForRowId(segmentRowId);
+                    if (ordinal >= 0)
                         bits.set(ordinal);
                 }
             }
-        }
 
-        // if we have a small number of results then let TopK processor do exact NN computation
-        if (n < bruteForceRows.length)
-        {
-            var results = new ReorderingPostingList(Arrays.stream(bruteForceRows, 0, n).iterator(), n);
+            if (shouldUseBruteForce(topK, limit, rowIds.size()))
+                return toPrimaryKeyIterator(new IntArrayPostingList(rowIds.toIntArray()), context);
+
+            // else ask the index to perform a search limited to the bits we created
+            float[] queryVector = TypeUtil.decomposeVector(indexContext, expression.lower.value.raw.duplicate());
+            var results = graph.search(queryVector, topK, limit, bits);
+            updateExpectedNodes(results.getVisitedCount(), expectedNodesVisited(topK, maxSegmentRowId, graph.size()));
             return toPrimaryKeyIterator(results, context);
         }
+    }
 
-        // else ask hnsw to perform a search limited to the bits we created
-        ByteBuffer buffer = exp.lower.value.raw;
-        float[] queryVector = type.composeAsFloat(buffer);
-        var results = graph.search(queryVector, context.vectorContext().limit(), bits);
-        return toPrimaryKeyIterator(results, context);
+    /**
+     * If we are optimizing for recall, ask the index to search for more than `limit` results,
+     * which (since it will search deeper in the graph) will tend to surface slightly better
+     * candidates in the process.
+     */
+    private int topKFor(int limit)
+    {
+        // compute the factor `n` to multiply limit by to increase the number of results from the index.
+        var n = indexContext.getIndexWriterConfig().getOptimizeFor() == OptimizeFor.LATENCY
+                ? 0.979 + 4.021 * pow(limit, -0.761)  // f(1) =  5.0, f(100) = 1.1, f(1000) = 1.0
+                : 0.509 + 9.491 * pow(limit, -0.402); // f(1) = 10.0, f(100) = 2.0, f(1000) = 1.1
+        return (int) (n * limit);
+    }
+
+    private boolean shouldUseBruteForce(int topK, int limit, int numRows)
+    {
+        // if we have a small number of results then let TopK processor do exact NN computation
+        var maxBruteForceRows = min(globalBruteForceRows, maxBruteForceRows(topK, numRows, graph.size()));
+        logger.trace("SAI materialized {} rows; max brute force rows is {} for sstable index with {} nodes, LIMIT {}",
+                     numRows, maxBruteForceRows, graph.size(), limit);
+        Tracing.trace("SAI materialized {} rows; max brute force rows is {} for sstable index with {} nodes, LIMIT {}",
+                      numRows, maxBruteForceRows, graph.size(), limit);
+        return numRows <= maxBruteForceRows;
+    }
+
+    private int maxBruteForceRows(int limit, int nPermittedOrdinals, int graphSize)
+    {
+        int expectedNodes = expectedNodesVisited(limit, nPermittedOrdinals, graphSize);
+        // ANN index will do a bunch of extra work besides the full comparisons (performing PQ similarity for each edge);
+        // brute force from sstable will also do a bunch of extra work (going through trie index to look up row).
+        // VSTODO I'm not sure which one is more expensive (and it depends on things like sstable chunk cache hit ratio)
+        // so I'm leaving it as a 1:1 ratio for now.
+        return max(limit, expectedNodes);
+    }
+
+    private int expectedNodesVisited(int limit, int nPermittedOrdinals, int graphSize)
+    {
+        var observedRatio = actualExpectedRatio.getUpdateCount() >= 10 ? actualExpectedRatio.get() : 1.0;
+        return (int) (observedRatio * VectorMemoryIndex.expectedNodesVisited(limit, nPermittedOrdinals, graphSize));
+    }
+
+    private void updateExpectedNodes(int actualNodesVisited, int expectedNodesVisited)
+    {
+        assert expectedNodesVisited >= 0 : expectedNodesVisited;
+        assert actualNodesVisited >= 0 : actualNodesVisited;
+        if (actualNodesVisited >= 1000 && actualNodesVisited > 2 * expectedNodesVisited || expectedNodesVisited > 2 * actualNodesVisited)
+            logger.warn("Predicted visiting {} nodes, but actually visited {}", expectedNodesVisited, actualNodesVisited);
+        actualExpectedRatio.update(actualNodesVisited, expectedNodesVisited);
     }
 
     @Override
@@ -253,18 +318,28 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
     private static class BitsOrPostingList
     {
         private final Bits bits;
+        private final int expectedNodesVisited;
         private final PostingList postingList;
+
+        public BitsOrPostingList(@Nullable Bits bits, int expectedNodesVisited)
+        {
+            this.bits = bits;
+            this.expectedNodesVisited = expectedNodesVisited;
+            this.postingList = null;
+        }
 
         public BitsOrPostingList(@Nullable Bits bits)
         {
             this.bits = bits;
             this.postingList = null;
+            this.expectedNodesVisited = -1;
         }
 
         public BitsOrPostingList(PostingList postingList)
         {
             this.bits = null;
             this.postingList = Preconditions.checkNotNull(postingList);
+            this.expectedNodesVisited = -1;
         }
 
         @Nullable

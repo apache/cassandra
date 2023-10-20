@@ -333,7 +333,6 @@ public class OnHeapGraph<T>
         }
     }
 
-    @SuppressWarnings("SynchronizationOnLocalVariableOrMethodParameter")
     private long writePQ(SequentialWriter writer) throws IOException
     {
         // don't bother with PQ if there are fewer than 1K vectors

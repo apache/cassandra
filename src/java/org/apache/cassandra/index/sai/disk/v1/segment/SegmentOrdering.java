@@ -19,37 +19,39 @@
 package org.apache.cassandra.index.sai.disk.v1.segment;
 
 import java.io.IOException;
+import java.util.List;
 
-import org.apache.cassandra.db.ReadCommand;
-import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
-import org.apache.cassandra.index.sai.postings.PeekablePostingList;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 
 /**
- * There are two steps in ordering:
+ * A {@link SegmentOrdering} orders and limits a list of {@link PrimaryKey}s.
  * <p>
- * 1. Limit a single sstable's results to the correct keys. At this stage
- *    we put them back in primary key order to play nice with the rest of
- *    the query pipeline.
- * 2. Merge the results from multiple sstables. Now we leave them in the
- *    final, correct order.
+ * When using {@link SegmentOrdering} there are several steps to
+ * build the list of Primary Keys to be ordered and limited:
  * <p>
- * SegmentOrdering handles the first step.
- *
- * The second step is handled during post-reconciliation processing when the
- * {@link org.apache.cassandra.index.Index.QueryPlan#postProcessor(ReadCommand)} is called by
- * {@link org.apache.cassandra.db.PartitionRangeReadCommand#postReconciliationProcessing(PartitionIterator)}. If the
- * {@link org.apache.cassandra.index.Index.QueryPlan} is for a topK query then a reordering filter is returned to return
- * the partitions in the correct order.
+ * 1. Find all primary keys that match each non-ordering query predicate.
+ * 2. Union and intersect the results of step 1 to build a single {@link KeyRangeIterator}
+ *    ordered by {@link PrimaryKey}.
+ * 3. Filter out any shadowed primary keys.
+ * 4. Fan the primary keys from step 3 out to each sstable segment to order and limit each
+ *    list of primary keys.
+ * <p>
+ * SegmentOrdering handles the fourth step.
+ * <p>
+ * Note: a segment ordering is only used when a query has both ordering and non-ordering predicates.
+ * Where a query has only ordering predicates, the ordering is handled by the
+ * {@link org.apache.cassandra.index.sai.disk.SSTableIndex#search(Expression, AbstractBounds, QueryContext)}.
  */
 public interface SegmentOrdering
 {
     /**
      * Reorder, limit, and put back into original order the results from a single sstable
      */
-    default KeyRangeIterator limitToTopKResults(QueryContext context, PeekablePostingList iterator, Expression exp) throws IOException
+    default KeyRangeIterator limitToTopKResults(QueryContext queryContext, List<PrimaryKey> primaryKeys, Expression expression) throws IOException
     {
         throw new UnsupportedOperationException();
     }

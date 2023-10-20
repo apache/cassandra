@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
@@ -42,9 +41,9 @@ import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.iterators.KeyRangeUnionIterator;
+import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.Pair;
 
 public class MemtableIndexManager
 {
@@ -135,19 +134,6 @@ public class MemtableIndexManager
                                    .orElse(null);
     }
 
-    public List<Pair<Memtable, KeyRangeIterator>> iteratorsForSearch(QueryContext queryContext, Expression expression, AbstractBounds<PartitionPosition> keyRange) {
-        return liveMemtableIndexMap.entrySet()
-                                   .stream()
-                                   .map(e -> Pair.create(e.getKey(), e.getValue().search(queryContext, expression, keyRange))).collect(Collectors.toList());
-    }
-
-    public KeyRangeIterator reorderMemtable(Memtable memtable, QueryContext context, KeyRangeIterator iterator, Expression exp)
-    {
-        var index = liveMemtableIndexMap.get(memtable);
-        return index.limitToTopResults(context, iterator, exp);
-    }
-
-
     public KeyRangeIterator searchMemtableIndexes(QueryContext queryContext, Expression e, AbstractBounds<PartitionPosition> keyRange)
     {
         Collection<MemtableIndex> memtableIndexes = liveMemtableIndexMap.values();
@@ -162,6 +148,25 @@ public class MemtableIndexManager
         for (MemtableIndex memtableIndex : memtableIndexes)
         {
             builder.add(memtableIndex.search(queryContext, e, keyRange));
+        }
+
+        return builder.build();
+    }
+
+    public KeyRangeIterator limitToTopResults(QueryContext context, List<PrimaryKey> source, Expression e)
+    {
+        Collection<MemtableIndex> memtables = liveMemtableIndexMap.values();
+
+        if (memtables.isEmpty())
+        {
+            return KeyRangeIterator.empty();
+        }
+
+        KeyRangeUnionIterator.Builder builder = KeyRangeUnionIterator.builder(memtables.size());
+
+        for (MemtableIndex index : memtables)
+        {
+            builder.add(index.limitToTopResults(source, e, context.vectorContext().limit()));
         }
 
         return builder.build();

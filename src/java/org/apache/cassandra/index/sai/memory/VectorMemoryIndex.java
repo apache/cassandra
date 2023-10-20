@@ -20,8 +20,8 @@ package org.apache.cassandra.index.sai.memory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.NavigableSet;
 import java.util.PriorityQueue;
 import java.util.Set;
@@ -44,15 +44,22 @@ import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.v1.vector.OnHeapGraph;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
+import org.apache.cassandra.index.sai.iterators.KeyRangeListIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.PrimaryKeys;
 import org.apache.cassandra.index.sai.utils.RangeUtil;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
-public class VectorMemtableIndex extends MemoryIndex
+import static java.lang.Math.log;
+import static java.lang.Math.max;
+import static java.lang.Math.min;
+import static java.lang.Math.pow;
+
+public class VectorMemoryIndex extends MemoryIndex
 {
     private final OnHeapGraph<PrimaryKey> graph;
     private final LongAdder writeCount = new LongAdder();
@@ -62,7 +69,7 @@ public class VectorMemtableIndex extends MemoryIndex
 
     private final NavigableSet<PrimaryKey> primaryKeys = new ConcurrentSkipListSet<>();
 
-    public VectorMemtableIndex(IndexContext indexContext)
+    public VectorMemoryIndex(IndexContext indexContext)
     {
         super(indexContext);
         this.graph = new OnHeapGraph<>(indexContext.getValidator(), indexContext.getIndexWriterConfig());
@@ -189,31 +196,62 @@ public class VectorMemtableIndex extends MemoryIndex
     }
 
     @Override
-    public KeyRangeIterator limitToTopResults(QueryContext context, KeyRangeIterator iterator, Expression exp)
+    public KeyRangeIterator limitToTopResults(List<PrimaryKey> primaryKeys, Expression expression, int limit)
     {
-        Set<PrimaryKey> results = new HashSet<>();
-        while (iterator.hasNext())
-        {
-            var key = iterator.next();
-            if (!context.vectorContext().containsShadowedPrimaryKey(key))
-                results.add(key);
-        }
+        if (minimumKey == null)
+            // This case implies maximumKey is empty too.
+            return KeyRangeIterator.empty();
 
-        int maxBruteForceRows = Math.max(context.vectorContext().limit(), (int)(indexContext.getIndexWriterConfig().getMaximumNodeConnections() * Math.log(graph.size())));
+        List<PrimaryKey> results = primaryKeys.stream()
+                                              .dropWhile(k -> k.compareTo(minimumKey) < 0)
+                                              .takeWhile(k -> k.compareTo(maximumKey) <= 0)
+                                              .collect(Collectors.toList());
+
+        int maxBruteForceRows = maxBruteForceRows(limit, results.size(), graph.size());
+        Tracing.trace("SAI materialized {} rows; max brute force rows is {} for memtable index with {} nodes, LIMIT {}",
+                      results.size(), maxBruteForceRows, graph.size(), limit);
         if (results.size() <= maxBruteForceRows)
         {
             if (results.isEmpty())
                 return KeyRangeIterator.empty();
-            return new ReorderingRangeIterator(new PriorityQueue<>(results));
+            return new KeyRangeListIterator(minimumKey, maximumKey, results);
         }
 
-        ByteBuffer buffer = exp.lower.value.raw;
+        ByteBuffer buffer = expression.lower.value.raw;
         float[] qv = TypeUtil.decomposeVector(indexContext, buffer);
         var bits = new KeyFilteringBits(results);
-        var keyQueue = graph.search(qv, context.vectorContext().limit(), bits);
+        var keyQueue = graph.search(qv, limit, bits);
         if (keyQueue.isEmpty())
             return KeyRangeIterator.empty();
         return new ReorderingRangeIterator(keyQueue);
+    }
+
+    private int maxBruteForceRows(int limit, int nPermittedOrdinals, int graphSize)
+    {
+        int expectedNodesVisited = expectedNodesVisited(limit, nPermittedOrdinals, graphSize);
+        int expectedComparisons = indexContext.getIndexWriterConfig().getMaximumNodeConnections() * expectedNodesVisited;
+        // in-memory comparisons are cheaper than pulling a row off disk and then comparing
+        // VSTODO this is dramatically oversimplified
+        // larger dimension should increase this, because comparisons are more expensive
+        // lower chunk cache hit ratio should decrease this, because loading rows is more expensive
+        double memoryToDiskFactor = 0.25;
+        return (int) max(limit, memoryToDiskFactor * expectedComparisons);
+    }
+
+    /**
+     * All parameters must be greater than zero.  nPermittedOrdinals may be larger than graphSize.
+     */
+    public static int expectedNodesVisited(int limit, int nPermittedOrdinals, int graphSize)
+    {
+        // constants are computed by Code Interpreter based on observed comparison counts in tests
+        // https://chat.openai.com/share/2b1d7195-b4cf-4a45-8dce-1b9b2f893c75
+        var sizeRestriction = min(nPermittedOrdinals, graphSize);
+        var raw = (int) (0.7 * pow(log(graphSize), 2) *
+                         pow(graphSize, 0.33) *
+                         pow(log(limit), 2) *
+                         pow(log((double) graphSize / sizeRestriction), 2) / pow(sizeRestriction, 0.13));
+        // we will always visit at least min(limit, graphSize) nodes, and we can't visit more nodes than exist in the graph
+        return min(max(raw, min(limit, graphSize)), graphSize);
     }
 
     @Override
@@ -315,9 +353,9 @@ public class VectorMemtableIndex extends MemoryIndex
 
     private class KeyFilteringBits implements Bits
     {
-        private final Set<PrimaryKey> results;
+        private final List<PrimaryKey> results;
 
-        public KeyFilteringBits(Set<PrimaryKey> results)
+        public KeyFilteringBits(List<PrimaryKey> results)
         {
             this.results = results;
         }

@@ -19,12 +19,13 @@ package org.apache.cassandra.index.sai.disk.v1;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
+import com.google.common.collect.Iterators;
+import com.google.common.collect.Lists;
 import org.junit.Test;
 
 import org.apache.cassandra.db.marshal.DecimalType;
@@ -37,9 +38,8 @@ import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.v1.bbtree.BlockBalancedTreeIndexBuilder;
 import org.apache.cassandra.index.sai.disk.v1.segment.IndexSegmentSearcher;
+import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
-import org.apache.cassandra.index.sai.postings.PeekablePostingList;
-import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
 
 import static org.junit.Assert.assertEquals;
@@ -148,25 +148,25 @@ public class BalancedTreeIndexSearcherTest extends SAIRandomizedTester
                                                   final NumberType<T> rawType, final NumberType<?> encodedType,
                                                   final Function<Short, T> rawValueProducer) throws Exception
     {
-        try (PostingList results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
+        try (KeyRangeIterator results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
         {{
             operator = IndexOperator.EQ;
             lower = upper = new Bound(rawType.decompose(rawValueProducer.apply(EQ_TEST_LOWER_BOUND_INCLUSIVE)), encodedType, true);
         }}, null, mock(QueryContext.class)))
         {
-            PeekablePostingList peekablePostingList = PeekablePostingList.makePeekable(results);
-            assertTrue(peekablePostingList.peek() != PostingList.END_OF_STREAM);
+            assertEquals(results.getMinimum(), results.getCurrent());
+            assertTrue(results.hasNext());
 
-            assertEquals(0L, peekablePostingList.peek());
+            assertEquals(0L, results.next().token().getLongValue());
         }
 
-        try (PostingList results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
+        try (KeyRangeIterator results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
         {{
             operator = IndexOperator.EQ;
             lower = upper = new Bound(rawType.decompose(rawValueProducer.apply(EQ_TEST_UPPER_BOUND_EXCLUSIVE)), encodedType, true);
         }}, null, mock(QueryContext.class)))
         {
-            assertFalse(results.nextPosting() != PostingList.END_OF_STREAM);
+            assertFalse(results.hasNext());
             indexSearcher.close();
         }
     }
@@ -184,7 +184,7 @@ public class BalancedTreeIndexSearcherTest extends SAIRandomizedTester
                                                      final NumberType<T> rawType, final NumberType<?> encodedType,
                                                      final Function<Short, T> rawValueProducer, List<Long> expectedTokenList) throws Exception
     {
-        try (PostingList results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
+        try (KeyRangeIterator results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
         {{
             operator = IndexOperator.RANGE;
 
@@ -192,33 +192,29 @@ public class BalancedTreeIndexSearcherTest extends SAIRandomizedTester
             upper = new Bound(rawType.decompose(rawValueProducer.apply((short)7)), encodedType, true);
         }}, null, mock(QueryContext.class)))
         {
-            List<Long> actualTokenList = new ArrayList<>();
-            while (true)
-            {
-                long posting = results.nextPosting();
-                if (posting == PostingList.END_OF_STREAM)
-                    break;
-                actualTokenList.add(posting);
-            }
+            assertEquals(results.getMinimum(), results.getCurrent());
+            assertTrue(results.hasNext());
+
+            List<Long> actualTokenList = Lists.newArrayList(Iterators.transform(results, key -> key.token().getLongValue()));
             assertEquals(expectedTokenList, actualTokenList);
         }
 
-        try (PostingList results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
+        try (KeyRangeIterator results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
         {{
             operator = IndexOperator.RANGE;
             lower = new Bound(rawType.decompose(rawValueProducer.apply(RANGE_TEST_UPPER_BOUND_EXCLUSIVE)), encodedType, true);
         }}, null, mock(QueryContext.class)))
         {
-            assertTrue(results.nextPosting() == PostingList.END_OF_STREAM);
+            assertFalse(results.hasNext());
         }
 
-        try (PostingList results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
+        try (KeyRangeIterator results = indexSearcher.search(new Expression(SAITester.createIndexContext("meh", rawType))
         {{
             operator = IndexOperator.RANGE;
             upper = new Bound(rawType.decompose(rawValueProducer.apply(RANGE_TEST_LOWER_BOUND_INCLUSIVE)), encodedType, false);
         }}, null, mock(QueryContext.class)))
         {
-            assertTrue(results.nextPosting() == PostingList.END_OF_STREAM);
+            assertFalse(results.hasNext());
             indexSearcher.close();
         }
     }

@@ -25,6 +25,7 @@ import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.index.sai.disk.v1.vector.OptimizeFor;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_VECTOR_SEARCH_MAX_TOP_K;
 
@@ -47,9 +48,15 @@ public class IndexWriterConfig
                                                                 .map(Enum::name)
                                                                 .collect(Collectors.joining(", "));
 
+    public static final String OPTIMIZE_FOR = "optimize_for";
+    private static final OptimizeFor DEFAULT_OPTIMIZE_FOR = OptimizeFor.LATENCY;
+    private static final String validOptimizeFor = Arrays.stream(OptimizeFor.values())
+                                                         .map(Enum::name)
+                                                         .collect(Collectors.joining(", "));
+
     public static final int MAX_TOP_K = SAI_VECTOR_SEARCH_MAX_TOP_K.getInt();
 
-    private static final IndexWriterConfig EMPTY_CONFIG = new IndexWriterConfig(-1, -1, null);
+    private static final IndexWriterConfig EMPTY_CONFIG = new IndexWriterConfig(-1, -1, null, null);
 
     // The maximum number of outgoing connections a node can have in a graph.
     private final int maximumNodeConnections;
@@ -60,13 +67,17 @@ public class IndexWriterConfig
     // Used to determine the search to determine the topK results. The score returned is used to order the topK results.
     private final VectorSimilarityFunction similarityFunction;
 
+    private final OptimizeFor optimizeFor;
+
     public IndexWriterConfig(int maximumNodeConnections,
                              int constructionBeamWidth,
-                             VectorSimilarityFunction similarityFunction)
+                             VectorSimilarityFunction similarityFunction,
+                             OptimizeFor optimizerFor)
     {
         this.maximumNodeConnections = maximumNodeConnections;
         this.constructionBeamWidth = constructionBeamWidth;
         this.similarityFunction = similarityFunction;
+        this.optimizeFor = optimizerFor;
     }
 
     public int getMaximumNodeConnections()
@@ -84,15 +95,22 @@ public class IndexWriterConfig
         return similarityFunction;
     }
 
+    public OptimizeFor getOptimizeFor()
+    {
+        return optimizeFor;
+    }
+
     public static IndexWriterConfig fromOptions(String indexName, AbstractType<?> type, Map<String, String> options)
     {
         int maximumNodeConnections = DEFAULT_MAXIMUM_NODE_CONNECTIONS;
         int queueSize = DEFAULT_CONSTRUCTION_BEAM_WIDTH;
         VectorSimilarityFunction similarityFunction = DEFAULT_SIMILARITY_FUNCTION;
+        OptimizeFor optimizeFor = DEFAULT_OPTIMIZE_FOR;
 
         if (options.get(MAXIMUM_NODE_CONNECTIONS) != null ||
             options.get(CONSTRUCTION_BEAM_WIDTH) != null ||
-            options.get(SIMILARITY_FUNCTION) != null)
+            options.get(SIMILARITY_FUNCTION) != null ||
+            options.get(OPTIMIZE_FOR) != null)
         {
             if (!type.isVector())
                 throw new InvalidRequestException(String.format("CQL type %s cannot have vector options", type.asCQL3Type()));
@@ -143,10 +161,22 @@ public class IndexWriterConfig
                     throw new InvalidRequestException(String.format("Similarity function %s was not recognized for index %s. Valid values are: %s",
                                                                     option, indexName, validSimilarityFunctions));
                 }
-
+            }
+            if (options.containsKey(OPTIMIZE_FOR))
+            {
+                String option = options.get(OPTIMIZE_FOR).toUpperCase();
+                try
+                {
+                    optimizeFor = OptimizeFor.valueOf(option);
+                }
+                catch (IllegalArgumentException e)
+                {
+                    throw new InvalidRequestException(String.format("optimize_for '%s' was not recognized for index %s. Valid values are: %s",
+                                                                    option, indexName, validOptimizeFor));
+                }
             }
         }
-        return new IndexWriterConfig(maximumNodeConnections, queueSize, similarityFunction);
+        return new IndexWriterConfig(maximumNodeConnections, queueSize, similarityFunction, optimizeFor);
     }
 
     public static IndexWriterConfig emptyConfig()
@@ -157,9 +187,10 @@ public class IndexWriterConfig
     @Override
     public String toString()
     {
-        return String.format("IndexWriterConfig{%s=%d, %s=%d, %s=%s}",
+        return String.format("IndexWriterConfig{%s=%d, %s=%d, %s=%s, %s=%s}",
                              MAXIMUM_NODE_CONNECTIONS, maximumNodeConnections,
                              CONSTRUCTION_BEAM_WIDTH, constructionBeamWidth,
-                             SIMILARITY_FUNCTION, similarityFunction);
+                             SIMILARITY_FUNCTION, similarityFunction,
+                             OPTIMIZE_FOR, optimizeFor);
     }
 }

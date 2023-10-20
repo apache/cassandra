@@ -24,8 +24,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import javax.annotation.concurrent.ThreadSafe;
 
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.PartitionPosition;
-import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
@@ -154,20 +153,15 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
     }
 
     @Override
-    public long firstRowIdForRange(AbstractBounds<PartitionPosition> range)
+    public long ceiling(Token token)
     {
-        return range.left.isMinimum() ? Long.MIN_VALUE : tokenArray.indexOf(range.left.getToken().getLongValue());
+        return token.isMinimum() ? Long.MIN_VALUE : tokenArray.indexOf(token.getLongValue());
     }
 
     @Override
-    public long lastRowIdForRange(AbstractBounds<PartitionPosition> range)
+    public long floor(Token token)
     {
-        if (range.right.isMinimum())
-            return Long.MAX_VALUE;
-
-        long rowId = tokenArray.indexOf(range.right.getToken().getLongValue());
-
-        return (rowId == -1) ? tokenArray.length() - 1 : rowId;
+        return token.isMinimum() ? Long.MIN_VALUE : tokenArray.indexOf(token.getLongValue());
     }
 
     @Override
