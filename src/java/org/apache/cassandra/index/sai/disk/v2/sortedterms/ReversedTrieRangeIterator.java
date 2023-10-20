@@ -47,7 +47,7 @@ class ReversedTrieRangeIterator extends ReverseValueIterator<ReversedTrieRangeIt
         {
             currentNode = nextPayloadedNode();
             if (currentNode == -1)
-                return Long.MAX_VALUE;
+                return TrieTermsDictionaryReader.NOT_FOUND;
         }
 
         go(currentNode);

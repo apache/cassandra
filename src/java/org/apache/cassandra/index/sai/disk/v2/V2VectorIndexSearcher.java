@@ -155,14 +155,13 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
                 return new BitsOrPostingList(context.bitsetForShadowedPrimaryKeys(metadata, primaryKeyMap, graph));
 
             PrimaryKey firstPrimaryKey = keyFactory.createTokenOnly(keyRange.left.getToken());
-            PrimaryKey lastPrimaryKey = keyFactory.createTokenOnly(keyRange.right.getToken());
 
             // it will return the next row id if given key is not found.
             long minSSTableRowId = primaryKeyMap.ceiling(firstPrimaryKey);
             // If we didn't find the first key, we won't find the last primary key either
             if (minSSTableRowId < 0)
                 return new BitsOrPostingList(PostingList.EMPTY);
-            long maxSSTableRowId = primaryKeyMap.floor(lastPrimaryKey);
+            long maxSSTableRowId = getMaxSSTableRowId(primaryKeyMap, keyRange.right);
 
             if (minSSTableRowId > maxSSTableRowId)
                 return new BitsOrPostingList(PostingList.EMPTY);
@@ -223,6 +222,20 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
 
             return new BitsOrPostingList(bits, VectorMemtableIndex.expectedNodesVisited(limit, nRows, graph.size()));
         }
+    }
+
+    private long getMaxSSTableRowId(PrimaryKeyMap primaryKeyMap, PartitionPosition right)
+    {
+        // if the right token is the minimum token, there is no upper bound on the keyRange and
+        // we can save a lookup by using the maxSSTableRowId
+        if (right.isMinimum())
+            return metadata.maxSSTableRowId;
+
+        PrimaryKey lastPrimaryKey = keyFactory.createTokenOnly(right.getToken());
+        long max = primaryKeyMap.floor(lastPrimaryKey);
+        if (max < 0)
+            return metadata.maxSSTableRowId;
+        return max;
     }
 
     private int maxBruteForceRows(int limit, int nPermittedOrdinals, int graphSize)
