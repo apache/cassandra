@@ -396,7 +396,6 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
             return new TimeUUID(unixMillisToRawTimestamp(unixMillis, tenthsOfAMicro), clockSeqAndNode);
         }
 
-        // THIS is what we need to use...
         public static byte[] atUnixMillisAsBytes(long unixMillis)
         {
             return atUnixMillisAsBytes(unixMillis, 0);

@@ -123,18 +123,6 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
 
         public AsyncChain<Void> write(long timestamp, int nowInSeconds)
         {
-//            for (StackTraceElement[] line : Thread.getAllStackTraces().values())
-//            {
-//                for(StackTraceElement s : line)
-//                {
-//                    if(s.getClassName().endsWith(".AccordListTest"))
-//                    {
-//                        System.err.println(s.getClassName() +" " + Thread.currentThread().getName() + " " + timestamp);
-//                        assert timestamp==0;
-//                    }
-//
-//                }
-//            }
             PartitionUpdate update = new PartitionUpdate.Builder(get(), 0).updateAllTimestampAndLocalDeletionTime(timestamp, nowInSeconds).build();
             Mutation mutation = new Mutation(update);
             return AsyncChains.ofRunnable(Stage.MUTATION.executor(), mutation::apply);
@@ -369,23 +357,15 @@ public class TxnWrite extends AbstractKeySorted<TxnWrite.Update> implements Writ
     @Override
     public AsyncChain<Void> apply(Seekable key, SafeCommandStore safeStore, Timestamp executeAt, DataStore store, PartialTxn txn)
     {
-        // TODO / Henrik: The below reuses executeAt micros, but those can be same for 2 trx. Need to encde the other parts of executeAt.
         // TODO (expected, efficiency): 99.9999% of the time we can just use executeAt.hlc(), so can avoid bringing
         //  cfk into memory by retaining at all times in memory key ranges that are dirty and must use this logic;
         //  any that aren't can just use executeAt.hlc
         AccordSafeCommandsForKey cfk = ((AccordSafeCommandStore) safeStore).commandsForKey((RoutableKey) key);
-        System.out.println("lastmicros " + cfk.lastExecutedMicros());
-        System.out.println("raw " + cfk.current().rawLastExecutedHlc() + "  (NO_LAST_EXECUTED_HLC=" + -9223372036854775808L);
-        System.out.println("lastExecutedTimestamp " + cfk.current().lastExecutedTimestamp());
 
         cfk.updateLastExecutionTimestamps(executeAt, true);
 
-        System.out.println("lastmicros " + cfk.lastExecutedMicros());
-        System.out.println("raw " + cfk.current().rawLastExecutedHlc() + "  (NO_LAST_EXECUTED_HLC=" + -9223372036854775808L);
-        System.out.println("lastExecutedTimestamp " + cfk.current().lastExecutedTimestamp());
 
         long timestamp = cfk.timestampMicrosFor(executeAt, true);
-        System.out.println("timestamp " + timestamp + "    executeAt" + executeAt);
         // TODO (low priority - do we need to compute nowInSeconds, or can we just use executeAt?)
         int nowInSeconds = cfk.nowInSecondsFor(executeAt, true);
 

@@ -133,7 +133,7 @@ public abstract class AbstractCell<V> extends Cell<V>
     @Override
     public ColumnData updateAllTimestampAndLocalDeletionTime(long newTimestamp, int newLocalDeletionTime)
     {
-        long ldt = NO_DELETION_TIME; //localDeletionTime() != NO_DELETION_TIME ? newLocalDeletionTime : NO_DELETION_TIME;
+        long ldt = NO_DELETION_TIME;
         CellPath newPath = null;
         if (path() != null) {
             ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);

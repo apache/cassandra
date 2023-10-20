@@ -528,7 +528,6 @@ public abstract class Lists
                 for (ByteBuffer buffer : elements)
                 {
                     ByteBuffer uuid = ByteBuffer.wrap(params.nextTimeUUIDAsBytes());
-                    //TODO and here
                     Cell<?> cell = params.addCell(column, CellPath.create(uuid), buffer);
                     dataSize += cell.dataSize();
                 }
