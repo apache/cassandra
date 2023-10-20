@@ -17,13 +17,24 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import java.time.Duration;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinTask;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Streams;
 import org.apache.commons.lang3.ArrayUtils;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
@@ -31,13 +42,20 @@ import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.exceptions.InvalidQueryException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.SchemaElement;
+import org.apache.cassandra.db.virtual.VirtualKeyspaceRegistry;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.schema.Keyspaces;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.assertj.core.api.Assertions;
+import org.awaitility.Awaitility;
+import org.jboss.byteman.contrib.bmunit.BMRule;
+import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
 import static java.lang.String.format;
 import static org.apache.cassandra.schema.SchemaConstants.AUTH_KEYSPACE_NAME;
@@ -50,6 +68,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+@RunWith(BMUnitRunner.class)
 public class DescribeStatementTest extends CQLTester
 {
     @Test
@@ -905,6 +924,84 @@ public class DescribeStatementTest extends CQLTester
                               "    STYPE int\n" +
                               "    INITCOND 42;"));
         }
+    }
+
+    private static volatile CountDownLatch describeStatementLatch;
+
+    public static void awaitDescribeStatementLatch()
+    {
+        if (Arrays.stream(Thread.currentThread().getStackTrace()).anyMatch(ste -> ste.getClassName().equals(DescribeStatement.class.getName())))
+        {
+            describeStatementLatch.countDown();
+            try
+            {
+                assertTrue(describeStatementLatch.await(DatabaseDescriptor.getReadRpcTimeout(TimeUnit.MILLISECONDS), TimeUnit.MILLISECONDS));
+            }
+            catch (InterruptedException e)
+            {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+    @Test
+    @BMRule(name = "await describe statement latch",
+    targetClass = "Schema",
+    targetMethod = "snapshot",
+    targetLocation = "AT EXIT",
+    action = "org.apache.cassandra.cql3.statements.DescribeStatementTest.awaitDescribeStatementLatch()")
+    public void testNotReturningDuplicates() throws Throwable
+    {
+        String ks0 = createKeyspaceName();
+        String ks1 = createKeyspaceName();
+
+        // create some keyspace ks1
+        schemaChange(String.format("CREATE KEYSPACE %s WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : 1};", ks1));
+
+        // learn what would be the position of that table when querying the schema
+        List<String> keyspaces = Keyspaces.builder()
+                                          .add(Schema.instance.snapshot())
+                                          .add(VirtualKeyspaceRegistry.instance.virtualKeyspacesMetadata())
+                                          .build()
+                                          .stream()
+                                          .sorted(SchemaElement.NAME_COMPARATOR)
+                                          .map(ksm -> ksm.name)
+                                          .collect(Collectors.toList());
+        int ks1Index = keyspaces.indexOf(ks1);
+        Assertions.assertThat(ks1Index).isGreaterThanOrEqualTo(0);
+        Assertions.assertThat(ks1Index).isLessThan(keyspaces.size() - 1); // make sure it is not the last item
+
+        Duration timeout = Duration.ofMillis(DatabaseDescriptor.getReadRpcTimeout(TimeUnit.MILLISECONDS));
+
+        describeStatementLatch = new CountDownLatch(2);
+        ForkJoinTask<ResultSet> describeFuture = ForkJoinPool.commonPool().submit(() -> {
+            try
+            {
+                // page size is set so that the created keyspace will be returned as the last one on the first page,
+                // but there will be more pages to be returned
+                return executeNetWithPaging(ProtocolVersion.CURRENT, "DESCRIBE KEYSPACES", ks1Index + 1);
+            }
+            catch (Throwable e)
+            {
+                throw new RuntimeException(e);
+            }
+        });
+        // wait for the describe statement to be in progress
+        Awaitility.await().atMost(timeout).until(() -> describeStatementLatch.getCount() == 1);
+
+        // while being in progress of the describe statement, create another keyspace, lexicographically before the already created one
+        schemaChange(String.format("CREATE KEYSPACE %s WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : 1};", ks0));
+
+        // let the describe statement continue
+        describeStatementLatch.countDown();
+
+        // the paginated describe statement should complete successfully and should include the ks1 as it was created
+        // before the statement was started. Also, all keyspaces should be returned only once!
+        ResultSet describe = describeFuture.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+        List<String> names = Streams.stream(describe).map(r -> r.getString("keyspace_name")).collect(Collectors.toList());
+        Assertions.assertThat(names).contains(ks0, ks1);
+        Assertions.assertThat(names).withFailMessage("The returned keyspaces contain duplicates: %s", names).hasSize(new HashSet<>(names).size());
     }
 
     private static String allTypesTable()
