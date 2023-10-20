@@ -67,12 +67,9 @@ public class AccordListTest extends AccordTestBase
     }
 
     @Test
-    @BMRule(name = "trx1PreAcceptEntry",
-            targetClass = "accord.messages.PreAccept",
-            targetMethod = "apply",
-            targetLocation = "AT ENTRY",
-            condition = "org.apache.cassandra.distributed.test.accord.AccordListTest.midTime == 0",
-            action = "org.apache.cassandra.distributed.test.accord.AccordListTest.trx1PreAcceptEntryWait()")
+    @BMRule(name = "testListAddition",
+            targetClass = "org.apache.cassandra.db.rows.AbstractCell",
+            targetMethod = "updateAllTimestampAndLocalDeletionTime")
     public void testListAddition() throws Exception
     {
         SHARED_CLUSTER.schemaChange("CREATE TABLE " + currentTable + " (k int PRIMARY KEY, l list<int>)");
@@ -121,4 +118,59 @@ public class AccordListTest extends AccordTestBase
             SHARED_CLUSTER.filters().reset();
         }
     }
+    @Test
+    @BMRule(name = "testListAddition",
+            targetClass = "org.apache.cassandra.db.rows.AbstractCell",
+            targetMethod = "updateAllTimestampAndLocalDeletionTime")
+    public void testListAddTwo() throws Exception
+    {
+        SHARED_CLUSTER.schemaChange("CREATE TABLE " + currentTable + "Two (k int PRIMARY KEY, l list<int>)");
+        SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> AccordService.instance().setCacheSize(0)));
+
+        CountDownLatch latch = CountDownLatch.newCountDownLatch(1);
+
+        Vector<Integer> completionOrder = new Vector<>();
+        try
+        {
+            for (int i=0; i<100; i++)
+            {
+
+                ForkJoinTask<?> add1 = ForkJoinPool.commonPool().submit(() -> {
+                    latch.awaitThrowUncheckedOnInterrupt();
+                    SHARED_CLUSTER.get(1).executeInternal("BEGIN TRANSACTION " +
+                            "UPDATE " + currentTable + "Two SET l = l + [1,2] WHERE k = 1; " +
+                            "COMMIT TRANSACTION");
+                    completionOrder.add(1);
+                    completionOrder.add(2);
+                });
+
+                ForkJoinTask<?> add2 = ForkJoinPool.commonPool().submit(() -> {
+                    latch.awaitThrowUncheckedOnInterrupt();
+                    SHARED_CLUSTER.get(1).executeInternal("BEGIN TRANSACTION " +
+                            "UPDATE " + currentTable + "Two SET l = l + [3,4] WHERE k = 1; " +
+                            "COMMIT TRANSACTION");
+                    completionOrder.add(3);
+                    completionOrder.add(4);
+                });
+                latch.decrement();
+                add1.join();
+                add2.join();
+
+                String check = "BEGIN TRANSACTION\n" +
+                        "  SELECT l FROM " + currentTable + "Two WHERE k=1;\n" +
+                        "COMMIT TRANSACTION";
+
+                Object[][] result = SHARED_CLUSTER.get(1).executeInternal(check);
+                logger.debug("insertionOrder from SELECT: {}", result);
+                List<Integer> insertionOrder = (List<Integer>) result[0][0];
+
+                assertArrayEquals(completionOrder.toArray(), insertionOrder.toArray());
+            }
+        }
+        finally
+        {
+            SHARED_CLUSTER.filters().reset();
+        }
+    }
+
 }

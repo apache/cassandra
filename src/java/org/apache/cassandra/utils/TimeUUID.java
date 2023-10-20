@@ -412,14 +412,28 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
             return toBytes(rawTimestampToMsb(unixMicrosToRawTimestamp(nextUnixMicros())), clockSeqAndNode);
         }
 
-        public static byte[] nextTimeUUIDAsBytes(long unixMillis)
+        public static byte[] nextTimeUUIDAsBytes(long unixMicrosAtLeast)
         {
-            return toBytes(rawTimestampToMsb(unixMicrosToRawTimestamp(nextUnixMicros())), clockSeqAndNode);
+            long useThisUnixMicros = unixMicrosAtLeast;
+            if(unixMicrosAtLeast>lastMicros.get())
+            {
+                lastMicros.set(unixMicrosAtLeast+1);
+            }
+            else
+            {
+                useThisUnixMicros = lastMicros.getAndIncrement();
+            }
+            return toBytes(rawTimestampToMsb(unixMicrosToRawTimestamp(useThisUnixMicros)), clockSeqAndNode);
         }
 
         // needs to return two different values for the same when.
         // we can generate at most 10k UUIDs per ms.
         private static long nextUnixMicros()
+        {
+            return nextUnixMicros(lastMicros.get());
+
+        }
+        private static long nextUnixMicros(long old)
         {
             long newLastMicros;
             while (true)

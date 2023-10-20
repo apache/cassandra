@@ -123,9 +123,8 @@ public abstract class AbstractCell<V> extends Cell<V>
         CellPath newPath = null;
         if (path() != null) {
             ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
-            newPath = CellPath.create(ByteBuffer.wrap(atUnixMillisAsBytes(newTimestamp/1000)));
-//            newPath = CellPath.create(buffer);
-//            newPath = CellPath.create(ByteBuffer.wrap(nextTimeUUIDAsBytes()));
+            byte[] newUUID = nextTimeUUIDAsBytes(newTimestamp);
+            newPath = CellPath.create(ByteBuffer.wrap(newUUID));
             logger.debug("timestamp: {}   buffer: {}    newPath: {}", newTimestamp, buffer.get(), newPath.get(0));
         }
         return new BufferCell(column, isTombstone() ? newTimestamp - 1 : newTimestamp, ttl(), localDeletionTime(), buffer(), newPath);
@@ -134,29 +133,16 @@ public abstract class AbstractCell<V> extends Cell<V>
     @Override
     public ColumnData updateAllTimestampAndLocalDeletionTime(long newTimestamp, int newLocalDeletionTime)
     {
-        long localDeletionTime = localDeletionTime() != NO_DELETION_TIME ? newLocalDeletionTime : NO_DELETION_TIME;
+        long ldt = NO_DELETION_TIME; //localDeletionTime() != NO_DELETION_TIME ? newLocalDeletionTime : NO_DELETION_TIME;
         CellPath newPath = null;
         if (path() != null) {
             ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
-            newPath = CellPath.create(ByteBuffer.wrap(atUnixMillisAsBytes(newTimestamp/1000, (newTimestamp%1000)*10)));
-//            newPath = CellPath.create(buffer);
-//            newPath = CellPath.create(ByteBuffer.wrap(nextTimeUUIDAsBytes()));
-            logger.debug("timestamp: {}   buffer: {}    newPath: {}", newTimestamp, buffer.get(), newPath.get(0));
-            for (StackTraceElement[] line : Thread.getAllStackTraces().values())
-            {
-                for(StackTraceElement s : line)
-                {
-                    if(s.getClassName().endsWith(".AccordListTest"))
-                    {
-                        System.err.println(s.getClassName() +" " + Thread.currentThread().getName() + " " + newPath);
-                        //assert newPath.get(0).get()==-1;
-                    }
-
-                }
-            }
+            byte[] newUUID = nextTimeUUIDAsBytes(newTimestamp);
+            newPath = CellPath.create(ByteBuffer.wrap(newUUID));
+            logger.debug("timestamp: {}   buffer: {}    newPath: {}    newLocalDeletionTime: {}", newTimestamp, buffer.get(), newPath.get(0), newLocalDeletionTime);
         }
 
-        return new BufferCell(column, isTombstone() ? newTimestamp - 1 : newTimestamp, ttl(), localDeletionTime, buffer(), newPath);
+        return new BufferCell(column, isTombstone() ? newTimestamp - 1 : newTimestamp, ttl(), ldt, buffer(), newPath);
     }
 
     public int dataSize()
