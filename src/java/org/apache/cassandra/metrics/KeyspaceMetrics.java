@@ -81,6 +81,10 @@ public class KeyspaceMetrics
     public final Histogram sstablesPerReadHistogram;
     /** Tombstones scanned in queries on this Keyspace */
     public final Histogram tombstoneScannedHistogram;
+
+    /** Shadowed keys scan metrics **/
+    public final Histogram shadowedKeysScannedHistogram;
+    public final Histogram shadowedKeysLoopsHistogram;
     /** Live cells scanned in queries on this Keyspace */
     public final Histogram liveScannedHistogram;
     /** Column update time delta on this Keyspace */
@@ -214,6 +218,8 @@ public class KeyspaceMetrics
         // create histograms for TableMetrics to replicate updates to
         sstablesPerReadHistogram = createKeyspaceHistogram("SSTablesPerReadHistogram", true);
         tombstoneScannedHistogram = createKeyspaceHistogram("TombstoneScannedHistogram", false);
+        shadowedKeysScannedHistogram = createKeyspaceHistogram("ShadowedKeysScannedHistogram", false);
+        shadowedKeysLoopsHistogram = createKeyspaceHistogram("ShadowedKeysLoopsHistogram", false);
         liveScannedHistogram = createKeyspaceHistogram("LiveScannedHistogram", false);
         colUpdateTimeDeltaHistogram = createKeyspaceHistogram("ColUpdateTimeDeltaHistogram", false);
         viewLockAcquireTime = createKeyspaceTimer("ViewLockAcquireTime");
