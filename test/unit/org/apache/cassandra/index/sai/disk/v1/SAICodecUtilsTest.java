@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.index.sai.disk.v1;
 
+import org.apache.lucene.store.ChecksumIndexInput;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -26,7 +27,6 @@ import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
 import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
 import org.apache.cassandra.io.util.File;
 import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.store.BufferedChecksumIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.mockito.Mockito;
@@ -109,7 +109,7 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
         }
 
         try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file);
-             BufferedChecksumIndexInput checksumIndexInput = new BufferedChecksumIndexInput(input))
+             ChecksumIndexInput checksumIndexInput = IndexFileUtils.getBufferedChecksumIndexInput(input))
         {
             SAICodecUtils.checkHeader(checksumIndexInput);
             for (int value = 0; value < numBytes; value++)
@@ -130,7 +130,7 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
         }
 
         try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file);
-             BufferedChecksumIndexInput checksumIndexInput = new BufferedChecksumIndexInput(input))
+             ChecksumIndexInput checksumIndexInput = IndexFileUtils.getBufferedChecksumIndexInput(input))
         {
             SAICodecUtils.checkHeader(checksumIndexInput);
             for (int value = 0; value < numBytes; value++)
@@ -155,7 +155,7 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
         }
 
         try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file);
-             BufferedChecksumIndexInput checksumIndexInput = new BufferedChecksumIndexInput(input))
+             ChecksumIndexInput checksumIndexInput = IndexFileUtils.getBufferedChecksumIndexInput(input))
         {
             SAICodecUtils.checkHeader(checksumIndexInput);
             for (int value = 0; value < numBytes; value++)
@@ -182,7 +182,7 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
         }
 
         try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file);
-             BufferedChecksumIndexInput checksumIndexInput = new BufferedChecksumIndexInput(input))
+             ChecksumIndexInput checksumIndexInput = IndexFileUtils.getBufferedChecksumIndexInput(input))
         {
             SAICodecUtils.checkHeader(checksumIndexInput);
             for (int value = 0; value < numBytes; value++)
@@ -209,7 +209,7 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
         }
 
         try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file);
-             BufferedChecksumIndexInput checksumIndexInput = new BufferedChecksumIndexInput(input))
+             ChecksumIndexInput checksumIndexInput = IndexFileUtils.getBufferedChecksumIndexInput(input))
         {
             SAICodecUtils.checkHeader(checksumIndexInput);
             for (int value = 0; value < numBytes; value++)
@@ -236,7 +236,7 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
         }
 
         try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file);
-             BufferedChecksumIndexInput checksumIndexInput = new BufferedChecksumIndexInput(input))
+             ChecksumIndexInput checksumIndexInput = IndexFileUtils.getBufferedChecksumIndexInput(input))
         {
             SAICodecUtils.checkHeader(checksumIndexInput);
             for (int value = 0; value < numBytes; value++)
@@ -263,14 +263,14 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
         }
 
         try (IndexInput input = IndexFileUtils.instance.openBlockingInput(file);
-             BufferedChecksumIndexInput checksumIndexInput = new BufferedChecksumIndexInput(input))
+             ChecksumIndexInput checksumIndexInput = IndexFileUtils.getBufferedChecksumIndexInput(input))
         {
             SAICodecUtils.checkHeader(checksumIndexInput);
             for (int value = 0; value < numBytes; value++)
                 checksumIndexInput.readByte();
             assertThatThrownBy(() -> SAICodecUtils.checkFooter(checksumIndexInput))
             .isInstanceOf(CorruptIndexException.class)
-            .hasMessageContaining("Illegal CRC-32 checksum: -4294967296 ");
+            .hasMessageContaining("Illegal checksum: -4294967296 ");
         }
     }
 
@@ -338,7 +338,7 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
                 input.readByte();
             assertThatThrownBy(() -> SAICodecUtils.validateChecksum(input))
             .isInstanceOf(CorruptIndexException.class)
-            .hasMessageContaining("Illegal CRC-32 checksum: -4294967296 ");
+            .hasMessageContaining("Illegal checksum: -4294967296 ");
         }
     }
 
@@ -350,7 +350,7 @@ public class SAICodecUtilsTest extends SAIRandomizedTester
         when(indexOutput.getChecksum()).thenReturn(0xFFFFFFFF00000000L);
         assertThatThrownBy(() -> SAICodecUtils.writeFooter(indexOutput))
         .isInstanceOf(IllegalStateException.class)
-        .hasMessageContaining("Illegal CRC-32 checksum: -4294967296 ");
+        .hasMessageContaining("Illegal checksum: -4294967296 ");
     }
 
     @Test

@@ -20,7 +20,9 @@ package org.apache.cassandra.index.sai.disk.io;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.zip.CRC32;
+import java.util.function.Supplier;
+import java.util.zip.CRC32C;
+import java.util.zip.Checksum;
 
 import com.google.common.annotations.VisibleForTesting;
 
@@ -31,6 +33,7 @@ import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.io.util.SequentialWriterOption;
+import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.IndexInput;
 
 public class IndexFileUtils
@@ -44,6 +47,7 @@ public class IndexFileUtils
                                                                                              .build();
 
     public static final IndexFileUtils instance = new IndexFileUtils(DEFAULT_WRITER_OPTION);
+    private static final Supplier<Checksum> CHECKSUM_FACTORY = CRC32C::new;
 
     private final SequentialWriterOption writerOption;
 
@@ -75,9 +79,20 @@ public class IndexFileUtils
         return IndexInputReader.create(randomReader, fileHandle::close);
     }
 
+    public static ChecksumIndexInput getBufferedChecksumIndexInput(IndexInput indexInput)
+    {
+        return new BufferedChecksumIndexInput(indexInput, CHECKSUM_FACTORY.get());
+    }
+
+    /**
+     * The SequentialWriter that calculates checksum of the data written to the file. This writer extends
+     * {@link SequentialWriter} to add the checksumming functionality and typically is used together
+     * with {@link IndexOutputWriter}. This, in turn, is used in conjunction with {@link BufferedChecksumIndexInput}
+     * to verify the checksum of the data read from the file, so they must share the same checksum algorithm.
+     */
     static class ChecksummingWriter extends SequentialWriter
     {
-        private final CRC32 checksum = new CRC32();
+        private final Checksum checksum = CHECKSUM_FACTORY.get();
 
         ChecksummingWriter(File file, SequentialWriterOption writerOption)
         {
