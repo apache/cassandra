@@ -147,8 +147,8 @@ public abstract class RepairMessage
             @Override
             public void onResponse(Message<T> msg)
             {
-                finalCallback.onResponse(msg);
                 maybeRecordRetry(true);
+                finalCallback.onResponse(msg);
             }
 
             @Override
