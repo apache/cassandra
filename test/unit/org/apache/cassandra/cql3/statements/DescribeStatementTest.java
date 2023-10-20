@@ -17,21 +17,27 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import java.time.Duration;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinTask;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-
+import com.google.common.collect.Streams;
 import org.apache.commons.lang3.ArrayUtils;
-
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.exceptions.InvalidQueryException;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.dht.Token;
@@ -41,13 +47,23 @@ import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.ProtocolVersion;
+import org.apache.cassandra.utils.concurrent.CountDownLatch;
+import org.awaitility.Awaitility;
+import org.jboss.byteman.contrib.bmunit.BMRule;
+import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
 import static java.lang.String.format;
-import static org.apache.cassandra.schema.SchemaConstants.*;
+import static org.apache.cassandra.schema.SchemaConstants.AUTH_KEYSPACE_NAME;
+import static org.apache.cassandra.schema.SchemaConstants.DISTRIBUTED_KEYSPACE_NAME;
+import static org.apache.cassandra.schema.SchemaConstants.SCHEMA_KEYSPACE_NAME;
+import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
+import static org.apache.cassandra.schema.SchemaConstants.TRACE_KEYSPACE_NAME;
+import static org.apache.cassandra.schema.SchemaConstants.VIRTUAL_SCHEMA;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+@RunWith(BMUnitRunner.class)
 public class DescribeStatementTest extends CQLTester
 {
     @Test
@@ -375,6 +391,55 @@ public class DescribeStatementTest extends CQLTester
         {
             execute("DROP KEYSPACE IF EXISTS test");
         }
+    }
+
+    private static volatile CountDownLatch describeStatementLatch;
+
+    public static void awaitDescribeStatementLatch()
+    {
+        if (Arrays.stream(Thread.currentThread().getStackTrace()).anyMatch(ste -> ste.getClassName().equals(DescribeStatement.class.getName())))
+        {
+            describeStatementLatch.decrement();
+            describeStatementLatch.awaitThrowUncheckedOnInterrupt();
+        }
+    }
+
+    @Test
+    @BMRule(name = "await describe statement latch",
+    targetClass = "Schema",
+    targetMethod = "getVersion",
+    targetLocation = "AT EXIT",
+    action = "org.apache.cassandra.cql3.statements.DescribeStatementTest.awaitDescribeStatementLatch()")
+    public void testNotReturningPartiallyAppliedSchema() throws Throwable
+    {
+        Duration timeout = Duration.ofMillis(DatabaseDescriptor.getReadRpcTimeout(TimeUnit.MILLISECONDS));
+
+        describeStatementLatch = CountDownLatch.newCountDownLatch(2);
+        ForkJoinTask<ResultSet> describeFuture = ForkJoinPool.commonPool().submit(() -> {
+            try
+            {
+                return executeNetWithPaging(ProtocolVersion.CURRENT, "DESCRIBE KEYSPACES", 1);
+            }
+            catch (Throwable e)
+            {
+                throw new RuntimeException(e);
+            }
+        });
+        // wait for the describe statement to be in progress
+        Awaitility.await().atMost(timeout).until(() -> describeStatementLatch.count() == 1);
+
+        // at this point, the describe statement got the schema version and is about to get the keyspaces
+        // we will now create a keyspace, release the lock, and let the describe statement continue
+        String ks = createKeyspace("CREATE KEYSPACE %s WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : 1};");
+        describeStatementLatch.decrement();
+
+        // the paginated describe statement should complete successfully and should include the new keyspace even though
+        // the keyspace was created after the describe statement started; this proves that when the describe statement
+        // finds itself in a situation where the schema being changed, it will wait for completion before actually
+        // starting execution; otherwise we would get an exception
+        ResultSet describe = describeFuture.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+        Set<String> names = Streams.stream(describe).map(r -> r.getString("keyspace_name")).collect(Collectors.toSet());
+        assertTrue(names.contains(ks));
     }
 
     private void testDescribeTable(String keyspace, String table, Object[]... rows) throws Throwable
