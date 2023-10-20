@@ -307,9 +307,9 @@ class TestCqlshOutput(BaseTestCase):
         # same query should show up as empty in cql 3
         self.assertQueriesGiveColoredOutput((
             (q, """
-             num | asciicol | bigintcol | blobcol | booleancol | decimalcol | doublecol | durationcol | floatcol | intcol | smallintcol | textcol | timestampcol | tinyintcol | uuidcol | varcharcol | varintcol
-             RRR   MMMMMMMM   MMMMMMMMM   MMMMMMM   MMMMMMMMMM   MMMMMMMMMM   MMMMMMMMM   MMMMMMMMMMM   MMMMMMMM   MMMMMM   MMMMMMMMMMM   MMMMMMM   MMMMMMMMMMMM   MMMMMMMMMM   MMMMMMM   MMMMMMMMMM   MMMMMMMMM
-            -----+----------+-----------+---------+------------+------------+-----------+-------------+----------+--------+-------------+---------+--------------+------------+---------+------------+-----------
+             num | asciicol | bigintcol | blobcol | booleancol | decimalcol | doublecol | durationcol | floatcol | intcol | listcol | mapcol | setcol | smallintcol | textcol | timestampcol | tinyintcol | uuidcol | varcharcol | varintcol | vectorcol
+             RRR   MMMMMMMM   MMMMMMMMM   MMMMMMM   MMMMMMMMMM   MMMMMMMMMM   MMMMMMMMM   MMMMMMMMMMM   MMMMMMMM   MMMMMM   MMMMMMM   MMMMMM   MMMMMM   MMMMMMMMMMM   MMMMMMM   MMMMMMMMMMMM   MMMMMMMMMM   MMMMMMM   MMMMMMMMMM   MMMMMMMMM   MMMMMMMMM
+            -----+----------+-----------+---------+------------+------------+-----------+-------------+----------+--------+---------+--------+--------+-------------+---------+--------------+------------+---------+------------+-----------+-----------
 
 
             (0 rows)
@@ -675,7 +675,11 @@ class TestCqlshOutput(BaseTestCase):
                 tinyintcol tinyint,
                 uuidcol uuid,
                 varcharcol text,
-                varintcol varint
+                varintcol varint,
+                vectorcol vector<float, 3>,
+                listcol list<text>,
+                mapcol map<text, int>,
+                setcol set<text>
             ) WITH additional_write_policy = '99p'
                 AND allow_auto_snapshot = true
                 AND bloom_filter_fp_chance = 0.01
