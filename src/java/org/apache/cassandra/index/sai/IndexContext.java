@@ -686,12 +686,9 @@ public class IndexContext
     /**
      * Returns true if index segments should be compacted into one segment after building the index.
      *
-     * By default, this option is set to true. A user is able to override this by setting
-     * <code>enable_segment_compaction</code> to false in the index options.
+     * By default, this option is set to false. A user is able to override this by setting
+     * <code>enable_segment_compaction</code> to true in the index options.
      * This is an expert-only option.
-     * Disabling compaction improves performance of writes at the expense of significantly reducing performance
-     * of read queries. A user should never turn compaction off on a production system
-     * unless diagnosing a performance issue.
      */
     public boolean isSegmentCompactionEnabled()
     {
