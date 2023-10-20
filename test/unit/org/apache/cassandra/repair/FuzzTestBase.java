@@ -133,6 +133,7 @@ import org.apache.cassandra.utils.Generators;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.MerkleTrees;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
@@ -650,6 +651,8 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             Stage.ANTI_ENTROPY.unsafeSetExecutor(orderedExecutor);
             Stage.INTERNAL_RESPONSE.unsafeSetExecutor(unorderedScheduled);
             Mockito.when(failureDetector.isAlive(Mockito.any())).thenReturn(true);
+            NoSpamLogger.unsafeSetClock(globalExecutor::nanoTime);
+
             int numNodes = rs.nextInt(3, 10);
             List<String> dcs = Gens.lists(IDENTIFIER_GEN).unique().ofSizeBetween(1, Math.min(10, numNodes)).next(rs);
             Map<InetAddressAndPort, Node> nodes = Maps.newHashMapWithExpectedSize(numNodes);

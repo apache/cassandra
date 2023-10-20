@@ -19,6 +19,7 @@ package org.apache.cassandra.utils;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
@@ -50,20 +51,13 @@ public class NoSpamLogger
         INFO, WARN, ERROR
     }
 
-    @VisibleForTesting
-    static interface Clock
-    {
-        long nanoTime();
-    }
+    private static LongSupplier NANO_TIME = Global::nanoTime;
 
     @VisibleForTesting
-    static Clock CLOCK = new Clock()
+    public static void unsafeSetClock(LongSupplier nanos)
     {
-        public long nanoTime()
-        {
-            return Global.nanoTime();
-        }
-    };
+        NANO_TIME = nanos;
+    }
 
     public class NoSpamLogStatement extends AtomicLong
     {
@@ -123,7 +117,7 @@ public class NoSpamLogger
 
         public boolean info(Object... objects)
         {
-            return NoSpamLogStatement.this.info(CLOCK.nanoTime(), objects);
+            return NoSpamLogStatement.this.info(NANO_TIME.getAsLong(), objects);
         }
 
         public boolean warn(long nowNanos, Object... objects)
@@ -133,7 +127,7 @@ public class NoSpamLogger
 
         public boolean warn(Object... objects)
         {
-            return NoSpamLogStatement.this.warn(CLOCK.nanoTime(), objects);
+            return NoSpamLogStatement.this.warn(NANO_TIME.getAsLong(), objects);
         }
 
         public boolean error(long nowNanos, Object... objects)
@@ -143,7 +137,7 @@ public class NoSpamLogger
 
         public boolean error(Object... objects)
         {
-            return NoSpamLogStatement.this.error(CLOCK.nanoTime(), objects);
+            return NoSpamLogStatement.this.error(NANO_TIME.getAsLong(), objects);
         }
     }
 
@@ -170,12 +164,12 @@ public class NoSpamLogger
 
     public static boolean log(Logger logger, Level level, long minInterval, TimeUnit unit, String message, Object... objects)
     {
-        return log(logger, level, message, minInterval, unit, CLOCK.nanoTime(), message, objects);
+        return log(logger, level, message, minInterval, unit, NANO_TIME.getAsLong(), message, objects);
     }
 
     public static boolean log(Logger logger, Level level, String key, long minInterval, TimeUnit unit, String message, Object... objects)
     {
-        return log(logger, level, key, minInterval, unit, CLOCK.nanoTime(), message, objects);
+        return log(logger, level, key, minInterval, unit, NANO_TIME.getAsLong(), message, objects);
     }
 
     public static boolean log(Logger logger, Level level, String key, long minInterval, TimeUnit unit, long nowNanos, String message, Object... objects)
@@ -187,12 +181,12 @@ public class NoSpamLogger
 
     public static boolean log(Logger logger, Level level, long minInterval, TimeUnit unit, String message, Supplier<Object[]> objects)
     {
-        return log(logger, level, message, minInterval, unit, CLOCK.nanoTime(), message, objects);
+        return log(logger, level, message, minInterval, unit, NANO_TIME.getAsLong(), message, objects);
     }
 
     public static boolean log(Logger logger, Level level, String key, long minInterval, TimeUnit unit, String message, Supplier<Object[]> objects)
     {
-        return log(logger, level, key, minInterval, unit, CLOCK.nanoTime(), message, objects);
+        return log(logger, level, key, minInterval, unit, NANO_TIME.getAsLong(), message, objects);
     }
 
     public static boolean log(Logger logger, Level level, String key, long minInterval, TimeUnit unit, long nowNanos, String message, Supplier<Object[]> objects)
@@ -225,7 +219,7 @@ public class NoSpamLogger
 
     public boolean info(String s, Object... objects)
     {
-        return NoSpamLogger.this.info(CLOCK.nanoTime(), s, objects);
+        return NoSpamLogger.this.info(NANO_TIME.getAsLong(), s, objects);
     }
 
     public boolean warn(long nowNanos, String s, Object... objects)
@@ -235,7 +229,7 @@ public class NoSpamLogger
 
     public boolean warn(String s, Object... objects)
     {
-        return NoSpamLogger.this.warn(CLOCK.nanoTime(), s, objects);
+        return NoSpamLogger.this.warn(NANO_TIME.getAsLong(), s, objects);
     }
 
     public boolean error(long nowNanos, String s, Object... objects)
@@ -245,7 +239,7 @@ public class NoSpamLogger
 
     public boolean error(String s, Object... objects)
     {
-        return NoSpamLogger.this.error(CLOCK.nanoTime(), s, objects);
+        return NoSpamLogger.this.error(NANO_TIME.getAsLong(), s, objects);
     }
 
     public boolean log(Level l, String s, long nowNanos, Object... objects)
