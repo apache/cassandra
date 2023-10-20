@@ -101,11 +101,11 @@ public class QueryMetricsTest extends AbstractMetricsTest
 
         // Even if we drop the last index on the table, we should finally fail to find table-level metrics:
         dropIndex(String.format("DROP INDEX %s." + index, keyspace));
-        assertThatThrownBy(() -> getTableQueryMetrics(keyspace, table, "TotalIndexCount")).isInstanceOf(InstanceNotFoundException.class);
+        assertThatThrownBy(() -> getTableQueryMetrics(keyspace, table, "TotalIndexCount")).hasRootCauseInstanceOf(InstanceNotFoundException.class);
 
         // When the whole table is dropped, we should finally fail to find table-level metrics:
         dropTable(String.format("DROP TABLE %s." + table, keyspace));
-        assertThatThrownBy(() -> getTableQueryMetrics(keyspace, table, "TotalQueriesCompleted")).hasCauseInstanceOf(InstanceNotFoundException.class);
+        assertThatThrownBy(() -> getTableQueryMetrics(keyspace, table, "TotalQueriesCompleted")).hasRootCauseInstanceOf(InstanceNotFoundException.class);
     }
 
     @Test

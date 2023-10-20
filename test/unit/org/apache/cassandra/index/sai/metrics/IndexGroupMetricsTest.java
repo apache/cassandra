@@ -104,8 +104,8 @@ public class IndexGroupMetricsTest extends AbstractMetricsTest
 
         // drop last index, no open index files
         dropIndex("DROP INDEX %s." + v1IndexName);
-        assertThatThrownBy(this::getOpenIndexFiles).isInstanceOf(InstanceNotFoundException.class);
-        assertThatThrownBy(this::getDiskUsage).isInstanceOf(InstanceNotFoundException.class);
+        assertThatThrownBy(this::getOpenIndexFiles).hasRootCauseInstanceOf(InstanceNotFoundException.class);
+        assertThatThrownBy(this::getDiskUsage).hasRootCauseInstanceOf(InstanceNotFoundException.class);
     }
 
     protected int getOpenIndexFiles()
