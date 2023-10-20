@@ -156,7 +156,7 @@ Density levelling permits a much wider variety of splitting options including on
 be kept close to a selected target, and also allows UCS to understand the levelling structure of STCS (where size grows
 with each level) as well as LCS (where token share shrinks with each level).
 
-## Sharding
+## Basic sharding scheme
 
 Once density levelling is in place, we have a range of choices for splitting sstables. One is to simply split
 when a certain output size is reached (like LCS), forming non-overlapping sstable runs instead of individual
@@ -213,6 +213,66 @@ local token space, thus 4 for the 1/4 span that the compaction covers. Assuming 
 deletions, the resulting sstables will be of size 75 MiB, token share 1/16 and density 1200 MiB.
 
 This sharding mechanism is independent of the compaction specification.
+
+## Full sharding scheme
+
+This sharding scheme easily admits extensions. In particular, when the size of the data set is expected to grow very
+large, to avoid having to pre-specify a high enough target size to avoid problems with per-sstable overhead, we can
+apply an "sstable growth" parameter, which determines what part of the density growth should be assigned to increased
+SSTable size, reducing the growth of the number of shards (and hence non-overlapping sstables).
+
+Additionally, to allow for a mode of operation with a fixed number of shards, and splitting conditional on reaching
+a minimum size, we provide for a "minimum sstable size" that reduces the base shard count whenever that would result
+in sstables smaller than the provided minimum.
+
+Generally, the user can specify four sharding parameters:
+
+- base shard count $b$
+- target sstable size $t$
+- minimum sstable size $m$
+- sstable growth component $\lambda$
+
+The number of shards $S$ for a given density $d$ is then calculated as
+
+$$
+S =
+\begin{cases}
+1
+    & \text{if } d < m \\
+min(2^{\left\lfloor \log_2 \frac d m \right\rfloor}, x)
+    & \text{if } d < mb \text{, where } x \text{ is the largest power of 2 divisor of } b \\
+b
+    & \text{if } d < tb \\
+2^{\left\lfloor (1-\lambda) \cdot \log_2 \left( {\frac d t \cdot \frac 1 b}\right)\right\rceil} \cdot b
+    & \text{otherwise}
+\end{cases}
+$$
+
+Some useful combinations of these parameters:
+
+- The basic scheme above uses a sstable growth $\lambda=0$, and a minimum sstable size $m=0$. The graph below
+  illustrates it for base shard count $b=4$ and target sstable size $t=1\mathrm{GB}$:
+
+![Graph with lambda 0](unified/shards_graph_lambda_0.svg)
+
+- Using $\lambda = 0.5$ makes the strategy grow the shard count and sstable size evenly. When the density
+  quadruples, both the shard count and the expected sstable size for that density band will double. The example
+  below uses $b=8$, $t=1\mathrm{GB}$ and also applies a minimal size $m=100\mathrm{MB}$:
+
+![Graph with lambda 0.5](unified/shards_graph_lambda_0_5.svg)
+
+- Similarly, $\lambda = 1/3$ makes the sstable growth the cubic root of the density growth, i.e. the sstable size
+  grows with the square root of the growth of the shard count. The graph below uses $b=1$ and $t = 1\mathrm{GB}$
+  (note: when $b=1$ the minimal size has no effect):
+
+![Graph with lambda 0.33](unified/shards_graph_lambda_0_33.svg)
+
+- A growth component of 1 constructs a hierarchy with exactly $b$ shards at every level. Combined with a minumum
+  sstable size, this defines a mode of operation where we use a pre-specified
+  number of shards, but split only after reaching a minimum size. Illustrated below for $b=10$ and $m=100\mathrm{MB}$
+  (note: the target sstable size is irrelevant when $\lambda=1$):
+
+![Graph with lambda 1](unified/shards_graph_lambda_1.svg)
 
 ## Choosing sstables to compact
 
@@ -363,6 +423,23 @@ UCS accepts these compaction strategy parameters:
   minimum compaction concurrency for the lowest levels. A low number would result in larger L0 sstables but may limit
   the overall maximum write throughput (as every piece of data has to go through L0).  
   The default value is 4 (1 for system tables, or when multiple data locations are defined).
+* **sstable_growth** The sstable growth component $\lambda$, applied as a factor in the shard exponent calculation.
+  This is a number between 0 and 1 that controls what part of the density growth should apply to individual sstable
+  size and what part should increase the number of shards. Using a value of 1 has the effect of fixing the shard
+  count to the base value. Using 0.5 makes the shard count and sstable size grow with the square root of the density
+  growth.
+  This is useful to decrease the sheer number of sstables that will be created for very large data sets. For
+  example, without growth correction a data set of 10TiB with 1GiB target size would result in over 10k sstables,
+  which may present as too much overhead both as on-heap memory used by per-sstable structures as well as time to look
+  for intersecting sstables and tracking overlapping sets during compaction. Applying $\lambda=0.5$
+  in this scenario (with base count 4) will reduce the potential number of sstables to ~160 of ~64GiB, which is still
+  manageable both as memory overhead and individual compaction duration and space overhead. The balance between the
+  two can be further tweaked by increasing $\lambda$ to get fewer but bigger sstables on the top level, and decreasing
+  it to favour a higher count of smaller sstables. The default value is 0, corresponding to a fixed sstable target size.
+* **min_sstable_size** The minimum sstable size $m$, applicable when the base shard count will result is sstables
+  that are considered too small. If set, the strategy will split the space into fewer than the base count shards, to
+  make the estimated sstables size at least as large as this value.
+  The default value is 0, which disables this feature.
 * **expired_sstable_check_frequency_seconds**. Determines how often to check for expired SSTables.  
   The default value is 10 minutes.
 
