@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.NavigableSet;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import org.apache.cassandra.db.PartitionPosition;
@@ -71,26 +70,21 @@ public class QueryViewBuilder
     protected QueryView build()
     {
         Set<SSTableIndex> referencedIndexes = new HashSet<>();
-        AtomicBoolean failed = new AtomicBoolean();
         while (true)
         {
             referencedIndexes.clear();
-            failed.set(false);
+            boolean failed = false;
 
             Collection<Pair<Expression, Collection<SSTableIndex>>> view = getQueryView(expressions);
-            view.stream()
-                .flatMap(pair -> pair.right.stream())
-                .forEach(index ->
-                         {
-                             if (referencedIndexes.contains(index))
-                                 return;
-                             if (index.reference())
-                                 referencedIndexes.add(index);
-                             else
-                                 failed.set(true);
-                         });
+            for (SSTableIndex index : view.stream().map(pair -> pair.right).flatMap(Collection::stream).collect(Collectors.toList()))
+            {
+                if (index.reference())
+                    referencedIndexes.add(index);
+                else
+                    failed = true;
+            }
 
-            if (failed.get())
+            if (failed)
                 referencedIndexes.forEach(SSTableIndex::release);
             else
                 return new QueryView(view, referencedIndexes);
