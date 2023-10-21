@@ -43,4 +43,20 @@ public interface GossiperMBean
      * the first is the gossip tokens, the second tokenMetadata).
      */
     public Map<String, List<String>> compareGossipAndTokenMetadata();
+
+    public boolean getGossipServiceCacheMismatchComparisonEnabled();
+
+    public void setGossipServiceCacheMismatchComparisonEnabled(boolean enabled);
+
+    public Long getGossipServiceCacheMismatchComparisonIntervalInSec();
+
+    public void setGossipServiceCacheMismatchComparisonIntervalInSec(Long intervalInSec);
+
+    public boolean getGossipServiceCacheMismatchFixEnabled();
+
+    public void setGossipServiceCacheMismatchFixEnabled(boolean enabled);
+
+    public int getGossipServiceCacheMismatchFixConvictionThreshold();
+
+    public void setGossipServiceCacheMismatchFixConvictionThreshold(int convictionThreshold);
 }

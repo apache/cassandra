@@ -176,6 +176,7 @@ Merged from 3.0:
  * Remove unused suppressions (CASSANDRA-18724)
 
 Unreleased
+ * [SO-25494] Detect token-ownership mismatch (CASSANDRA-18758)
  * [SO-25501] Fix coordinator range metrics in storage proxy in 4.0
  * [SO-24989] Emit large partition reads and writes size at table level
  * [SO-22817] Emit result set size on CQL SELECT queries from client

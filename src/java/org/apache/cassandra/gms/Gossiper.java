@@ -63,6 +63,7 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.metrics.GossipMetrics;
 import org.apache.cassandra.net.RequestCallback;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
@@ -193,6 +194,15 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     private volatile boolean upgradeInProgressPossible = true;
     private volatile boolean hasNodeWithUnknownVersion = false;
 
+    private long lastGossipAndServiceCacheCheckedTimeInMs = System.currentTimeMillis();
+    public Map<InetAddressAndPort, Long> gossipAndServiceCacheMismatchOccurredTracker = new HashMap<>();
+
+    private volatile boolean gossipServiceCacheMismatchComparisonEnabled;
+    private volatile long gossipServiceCacheMismatchComparisonIntervalInSec;
+    private volatile boolean gossipServiceCacheMismatchFixEnabled;
+    private volatile int gossipServiceCacheMismatchFixConvictionThreshold;
+
+
     public void clearUnsafe()
     {
         unreachableEndpoints.clear();
@@ -202,6 +212,14 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         endpointStateMap.clear();
         endpointShadowStateMap.clear();
         seedsInShadowRound.clear();
+    }
+
+    public void setup()
+    {
+        this.setGossipServiceCacheMismatchComparisonEnabled(DatabaseDescriptor.getCompareGossipAndStorageServiceCache());
+        this.setGossipServiceCacheMismatchComparisonIntervalInSec(DatabaseDescriptor.getGossipAndStorageServiceCacheComparisonIntervalInSec());
+        this.setGossipServiceCacheMismatchFixEnabled(DatabaseDescriptor.shouldFixGossipAndStorageServiceCacheMismatch());
+        this.setGossipServiceCacheMismatchFixConvictionThreshold(DatabaseDescriptor.gossipAndStorageServiceCacheMismatchConvictionThreshold());
     }
 
     // returns true when the node does not know the existence of other nodes.
@@ -334,6 +352,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 final List<GossipDigest> gDigests = new ArrayList<>();
 
                 Gossiper.instance.makeGossipDigest(gDigests);
+                Gossiper.instance.gossipAndServicecacheMismatchDetectionAndResolution();
 
                 if (gDigests.size() > 0)
                 {
@@ -378,6 +397,78 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             {
                 taskLock.unlock();
             }
+        }
+    }
+
+    /**
+     * Checks the Gossip and service cache Token ownership. Optionally, in case of a mismatch, it will fix the inconsistencies.
+     */
+    void gossipAndServicecacheMismatchDetectionAndResolution()
+    {
+        try
+        {
+            if (this.getGossipServiceCacheMismatchComparisonEnabled() &&
+                TimeUnit.MILLISECONDS.toSeconds(System.currentTimeMillis() - lastGossipAndServiceCacheCheckedTimeInMs) >= this.getGossipServiceCacheMismatchComparisonIntervalInSec())
+            {
+                GossipMetrics.gossipAndStorageServiceCacheCompare.inc();
+                lastGossipAndServiceCacheCheckedTimeInMs = System.currentTimeMillis();
+                // local epstate will be part of endpointStateMap
+                List<InetAddressAndPort> endpoints = new ArrayList<>(endpointStateMap.keySet());
+                int matchingEndpoints = 0;
+                int nonMatchingEndpoints = 0;
+                int nonNormalEndpoints = 0;
+                for (InetAddressAndPort endpoint : endpoints)
+                {
+                    EndpointState ep = endpointStateMap.get(endpoint);
+                    // check the status only for NORMAL nodes
+                    if (ep.isNormalState())
+                    {
+                        Collection<Token> tokensFromStorageServiceCache = StorageService.instance.getTokenMetadata().getTokens(endpoint);
+                        Collection<Token> tokensFromGossipCache = StorageService.instance.getTokensFor(endpoint);
+                        List<Token> c1 = new ArrayList<>(tokensFromStorageServiceCache);
+                        List<Token> c2 = new ArrayList<>(tokensFromGossipCache);
+                        Collections.sort(c1);
+                        Collections.sort(c2);
+                        if (!c1.equals(c2))
+                        {
+                            nonMatchingEndpoints++;
+                            GossipMetrics.gossipAndStorageServiceCacheMismatch.inc();
+                            gossipAndServiceCacheMismatchOccurredTracker.put(endpoint, gossipAndServiceCacheMismatchOccurredTracker.getOrDefault(endpoint, 0L) + 1);
+                            logger.warn("Gossip and storage service cache token mismatch for endpoint {}. tokensFromStorageServiceCache: {}, tokensFromGossipCache: {}",
+                                        endpoint, tokensFromStorageServiceCache, tokensFromGossipCache);
+                            if (this.getGossipServiceCacheMismatchFixEnabled() && gossipAndServiceCacheMismatchOccurredTracker.get(endpoint) >= this.getGossipServiceCacheMismatchFixConvictionThreshold())
+                            {
+                                GossipMetrics.gossipAndStorageServiceCacheRepair.inc();
+                                // use the Gossip's token cache as the source of truth and override the Storage service cache
+                                StorageService.instance.tokenMetadata.updateNormalTokens(tokensFromGossipCache, endpoint);
+                                logger.warn("Repair Gossip and storage service cache due to token mismatch for endpoint {}. tokensFromStorageServiceCache: {}, tokensFromGossipCache: {}",
+                                            endpoint, tokensFromStorageServiceCache, tokensFromGossipCache);
+                            }
+                        }
+                        else
+                        {
+                            matchingEndpoints++;
+                            gossipAndServiceCacheMismatchOccurredTracker.put(endpoint, 0L);
+                        }
+                    }
+                    else
+                    {
+                        nonNormalEndpoints++;
+                    }
+                }
+                if (nonMatchingEndpoints == 0)
+                {
+                    // clear the cache to remove the IP addresses that are no longer part of the cluster
+                    gossipAndServiceCacheMismatchOccurredTracker.clear();
+                }
+                logger.info("Gossip and service cache details matchingEndpoints: {}, nonMatchingEndpoints: {}, nonNormalEndpoints: {}", matchingEndpoints, nonMatchingEndpoints, nonNormalEndpoints);
+            }
+        }
+        catch (Throwable e)
+        {
+            // do not throw an exception intentionally, as this function behaves as an add-on
+            GossipMetrics.gossipAndStorageServiceCacheError.inc();
+            logger.warn("Error while comparing the Gossip and Storage Service caches {}", e);
         }
     }
 
@@ -2310,6 +2401,54 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
 
         return results;
+    }
+
+    @Override
+    public boolean getGossipServiceCacheMismatchComparisonEnabled()
+    {
+        return gossipServiceCacheMismatchComparisonEnabled;
+    }
+
+    @Override
+    public void setGossipServiceCacheMismatchComparisonEnabled(boolean enabled)
+    {
+        this.gossipServiceCacheMismatchComparisonEnabled = enabled;
+    }
+
+    @Override
+    public Long getGossipServiceCacheMismatchComparisonIntervalInSec()
+    {
+        return gossipServiceCacheMismatchComparisonIntervalInSec;
+    }
+
+    @Override
+    public void setGossipServiceCacheMismatchComparisonIntervalInSec(Long intervalInSec)
+    {
+        this.gossipServiceCacheMismatchComparisonIntervalInSec = intervalInSec;
+    }
+
+    @Override
+    public boolean getGossipServiceCacheMismatchFixEnabled()
+    {
+        return gossipServiceCacheMismatchFixEnabled;
+    }
+
+    @Override
+    public void setGossipServiceCacheMismatchFixEnabled(boolean enabled)
+    {
+        this.gossipServiceCacheMismatchFixEnabled = enabled;
+    }
+
+    @Override
+    public int getGossipServiceCacheMismatchFixConvictionThreshold()
+    {
+        return gossipServiceCacheMismatchFixConvictionThreshold;
+    }
+
+    @Override
+    public void setGossipServiceCacheMismatchFixConvictionThreshold(int convictionThreshold)
+    {
+        this.gossipServiceCacheMismatchFixConvictionThreshold = convictionThreshold;
     }
 
     @Nullable

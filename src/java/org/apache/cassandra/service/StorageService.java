@@ -312,7 +312,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     /* This abstraction maintains the token/endpoint metadata information */
-    private TokenMetadata tokenMetadata = new TokenMetadata();
+    public TokenMetadata tokenMetadata = new TokenMetadata();
 
     public volatile VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(tokenMetadata.partitioner);
 
@@ -1385,6 +1385,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         doBadQuerySetup();
 
         doAutoRepairSetup();
+
+        doGossipServiceCacheMismatchSetup();
     }
 
     @VisibleForTesting
@@ -1459,6 +1461,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         AutoRepairService.instance.setAutoRepairStatus(DatabaseDescriptor.isAutoRepairEnabled());
         logger.info("AutoRepair setup complete!");
+    }
+
+    private void doGossipServiceCacheMismatchSetup()
+    {
+        if (DatabaseDescriptor.getCompareGossipAndStorageServiceCache())
+        {
+            logger.info("Enable GossipAndStorageServiceCache mechanism");
+            Gossiper.instance.setup();
+        }
     }
 
     @VisibleForTesting
@@ -3100,7 +3111,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
     }
 
-    private void updateTokenMetadata(InetAddressAndPort endpoint, Iterable<Token> tokens)
+    public void updateTokenMetadata(InetAddressAndPort endpoint, Iterable<Token> tokens)
     {
         updateTokenMetadata(endpoint, tokens, new HashSet<>());
     }

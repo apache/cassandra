@@ -2494,6 +2494,46 @@ public class NodeProbe implements AutoCloseable
     {
         return ssProxy.getAuthEnforcementFlag();
     }
+
+    public boolean getGossipServiceCacheMismatchComparisonEnabled()
+    {
+        return gossProxy.getGossipServiceCacheMismatchComparisonEnabled();
+    }
+
+    public void setGossipServiceCacheMismatchComparisonEnabled(boolean enabled)
+    {
+        gossProxy.setGossipServiceCacheMismatchComparisonEnabled(enabled);
+    }
+
+    public Long getGossipServiceCacheMismatchComparisonIntervalInSec()
+    {
+       return gossProxy.getGossipServiceCacheMismatchComparisonIntervalInSec();
+    }
+
+    public void setGossipServiceCacheMismatchComparisonIntervalInSec(Long intervalInSec)
+    {
+        gossProxy.setGossipServiceCacheMismatchComparisonIntervalInSec(intervalInSec);
+    }
+
+    public boolean getGossipServiceCacheMismatchFixEnabled()
+    {
+        return gossProxy.getGossipServiceCacheMismatchFixEnabled();
+    }
+
+    public void setGossipServiceCacheMismatchFixEnabled(boolean enabled)
+    {
+        gossProxy.setGossipServiceCacheMismatchFixEnabled(enabled);
+    }
+
+    public int getGossipServiceCacheMismatchFixConvictionThreshold()
+    {
+        return gossProxy.getGossipServiceCacheMismatchFixConvictionThreshold();
+    }
+
+    public void setGossipServiceCacheMismatchFixConvictionThreshold(int convictionThreshold)
+    {
+        gossProxy.setGossipServiceCacheMismatchFixConvictionThreshold(convictionThreshold);
+    }
 }
 
 class ColumnFamilyStoreMBeanIterator implements Iterator<Map.Entry<String, ColumnFamilyStoreMBean>>
