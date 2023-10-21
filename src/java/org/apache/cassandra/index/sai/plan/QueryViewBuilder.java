@@ -78,6 +78,8 @@ public class QueryViewBuilder
             Collection<Pair<Expression, Collection<SSTableIndex>>> view = getQueryView(expressions);
             for (SSTableIndex index : view.stream().map(pair -> pair.right).flatMap(Collection::stream).collect(Collectors.toList()))
             {
+                if (index.isReleased())
+                    throw new IllegalStateException("Attempting to reference index in query view that has already been released");
                 if (index.reference())
                     referencedIndexes.add(index);
                 else
