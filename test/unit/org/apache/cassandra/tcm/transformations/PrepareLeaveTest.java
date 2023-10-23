@@ -109,7 +109,7 @@ public class PrepareLeaveTest
                                                      dummyPlacementProvider,
                                                      LeaveStreams.Kind.UNBOOTSTRAP);
 
-        return prepareLeave.execute(metadata).isSuccess();
+        return prepareLeave.execute(metadata, false).isSuccess();
     }
 
     private ClusterMetadata prepMetadata(Keyspaces kss, int countDc1, int countDc2) throws UnknownHostException

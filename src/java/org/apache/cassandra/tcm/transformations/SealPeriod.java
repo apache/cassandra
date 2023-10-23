@@ -56,7 +56,7 @@ public class SealPeriod implements Transformation
     }
 
     @Override
-    public Result execute(ClusterMetadata prev)
+    public Result execute(ClusterMetadata prev, boolean isReplay)
     {
         if (prev.lastInPeriod)
             return new Rejected(INVALID, "Have just sealed this period");

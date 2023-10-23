@@ -67,7 +67,7 @@ public class Initialize extends ForceSnapshot
         return Kind.INITIALIZE_CMS;
     }
 
-    public Result execute(ClusterMetadata prev)
+    public Result execute(ClusterMetadata prev, boolean isReplay)
     {
         ClusterMetadata next = baseState;
         DistributedSchema initialSchema = new DistributedSchema(setUpDistributedSystemKeyspaces(next));

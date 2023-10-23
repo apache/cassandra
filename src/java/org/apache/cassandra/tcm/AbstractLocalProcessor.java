@@ -65,7 +65,7 @@ public abstract class AbstractLocalProcessor implements Processor
             }
             else
             {
-                result = transform.execute(previous);
+                result = transform.execute(previous, false);
             }
             // If we got a rejection, it could be that _we_ are not aware of the highest epoch.
             // Just try to catch up to the latest distributed state.

@@ -56,7 +56,7 @@ public class StartAddToCMS extends BaseMembershipTransformation
         return Kind.START_ADD_TO_CMS;
     }
 
-    public Result execute(ClusterMetadata prev)
+    public Result execute(ClusterMetadata prev, boolean isReplay)
     {
         NodeId nodeId = prev.directory.peerId(endpoint);
         InProgressSequence<?> sequence = prev.inProgressSequences.get(nodeId);

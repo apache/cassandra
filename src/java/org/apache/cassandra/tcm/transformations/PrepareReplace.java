@@ -82,7 +82,7 @@ public class PrepareReplace implements Transformation
     }
 
     @Override
-    public Result execute(ClusterMetadata prev)
+    public Result execute(ClusterMetadata prev, boolean isReplay)
     {
         if (prev.directory.peerState(replaced) != NodeState.JOINED)
             return new Rejected(INVALID, String.format("Rejecting this plan as the replaced node %s is in state %s", replaced, prev.directory.peerState(replaced)));

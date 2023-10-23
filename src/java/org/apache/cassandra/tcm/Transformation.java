@@ -49,7 +49,16 @@ public interface Transformation
 
     Kind kind();
 
-    Result execute(ClusterMetadata metadata);
+    /**
+     * Execute the transformation. The transformation should be pure.
+     *
+     * @param metadata the current cluster metadata on which to execute the transformation
+     * @param isReplay whether this is a replay of a previously executed transformation; if true, its execution
+     *                 should to try to validate it against the current configuration, Guardrails, or anything
+     *                 else which comes from outside the transformation itself and the current cluster metadata
+     * @return the result of the execution
+     */
+    Result execute(ClusterMetadata metadata, boolean isReplay);
 
     default boolean allowDuringUpgrades()
     {
@@ -269,7 +278,7 @@ public interface Transformation
             return delegate.kind();
         }
 
-        public Result execute(ClusterMetadata clusterMetadata)
+        public Result execute(ClusterMetadata clusterMetadata, boolean isReplay)
         {
             return result;
         }

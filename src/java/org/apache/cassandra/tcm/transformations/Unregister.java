@@ -54,7 +54,7 @@ public class Unregister implements Transformation
     }
 
     @Override
-    public Result execute(ClusterMetadata prev)
+    public Result execute(ClusterMetadata prev, boolean isReplay)
     {
         if (!prev.directory.peerIds().contains(nodeId))
             return new Rejected(INVALID, String.format("Can not unregsiter %s since it is not present in the directory.", nodeId));

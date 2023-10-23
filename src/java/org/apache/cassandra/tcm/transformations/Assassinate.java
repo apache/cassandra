@@ -60,9 +60,9 @@ public class Assassinate extends PrepareLeave
     }
 
     @Override
-    public Result execute(ClusterMetadata prev)
+    public Result execute(ClusterMetadata prev, boolean isReplay)
     {
-        Result result = super.execute(prev);
+        Result result = super.execute(prev, isReplay);
         if (result.isRejected())
             return result;
 
@@ -75,15 +75,15 @@ public class Assassinate extends PrepareLeave
 
         ImmutableSet.Builder<MetadataKey> modifiedKeys = ImmutableSet.builder();
 
-        success = plan.startLeave.execute(metadata).success();
+        success = plan.startLeave.execute(metadata, false).success();
         metadata = success.metadata.forceEpoch(prev.epoch);
         modifiedKeys.addAll(success.affectedMetadata);
 
-        success = plan.midLeave.execute(metadata).success();
+        success = plan.midLeave.execute(metadata, false).success();
         metadata = success.metadata.forceEpoch(prev.epoch);
         modifiedKeys.addAll(success.affectedMetadata);
 
-        success = plan.finishLeave.execute(metadata).success();
+        success = plan.finishLeave.execute(metadata, false).success();
         metadata = success.metadata;
         modifiedKeys.addAll(success.affectedMetadata);
 

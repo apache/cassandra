@@ -84,7 +84,7 @@ public class PrepareLeave implements Transformation
     }
 
     @Override
-    public Result execute(ClusterMetadata prev)
+    public Result execute(ClusterMetadata prev, boolean isReplay)
     {
         if (prev.isCMSMember(prev.directory.endpoint(leaving)))
             return new Rejected(INVALID, String.format("Rejecting this plan as the node %s is still a part of CMS.", leaving));

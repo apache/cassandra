@@ -58,7 +58,7 @@ public class StubClusterMetadataService extends ClusterMetadataService
     @Override
     public <T1> T1 commit(Transformation transform, CommitSuccessHandler<T1> onSuccess, CommitRejectionHandler<T1> onFailure)
     {
-        Transformation.Result result = transform.execute(metadata);
+        Transformation.Result result = transform.execute(metadata, false);
         if (result.isSuccess())
         {
             metadata = result.success().metadata;

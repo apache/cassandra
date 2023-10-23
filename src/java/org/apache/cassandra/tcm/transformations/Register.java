@@ -70,7 +70,7 @@ public class Register implements Transformation
     }
 
     @Override
-    public Result execute(ClusterMetadata prev)
+    public Result execute(ClusterMetadata prev, boolean isReplay)
     {
         for (Map.Entry<NodeId, NodeAddresses> entry : prev.directory.addresses.entrySet())
         {

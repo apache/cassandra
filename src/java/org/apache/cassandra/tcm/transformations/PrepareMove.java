@@ -82,7 +82,7 @@ public class PrepareMove implements Transformation
         return Kind.PREPARE_MOVE;
     }
 
-    public Result execute(ClusterMetadata prev)
+    public Result execute(ClusterMetadata prev, boolean isReplay)
     {
         if (prev.directory.peerState(nodeId) != NodeState.JOINED)
             return new Rejected(INVALID, String.format("Rejecting this plan as the node %s is in state %s", nodeId, prev.directory.peerState(nodeId)));

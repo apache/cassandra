@@ -82,7 +82,7 @@ public class AlterSchema implements Transformation
     }
 
     @Override
-    public final Result execute(ClusterMetadata prev)
+    public final Result execute(ClusterMetadata prev, boolean isReplay)
     {
         Keyspaces newKeyspaces;
         try
@@ -94,10 +94,11 @@ public class AlterSchema implements Transformation
             // If the coordinator is a CMS member, then this method will be called as part of committing to the metadata
             // log. In this case, there is a connected client and associated ClientState, so to avoid duplicate warnings
             // pause capture and resume after in applying the schema change.
-            schemaTransformation.enterExecution();
+            if (!isReplay)
+                schemaTransformation.enterExecution();
 
             // Guard against an invalid SchemaTransformation supplying a TableMetadata with a future epoch
-            newKeyspaces = schemaTransformation.apply(prev, false);
+            newKeyspaces = schemaTransformation.apply(prev, isReplay);
             newKeyspaces.forEach(ksm -> {
                ksm.tables.forEach(tm -> {
                    if (tm.epoch.isAfter(prev.nextEpoch()))
@@ -132,7 +133,8 @@ public class AlterSchema implements Transformation
         }
         finally
         {
-            schemaTransformation.exitExecution();
+            if (!isReplay)
+                schemaTransformation.exitExecution();
         }
 
         Keyspaces.KeyspacesDiff diff = Keyspaces.diff(prev.schema.getKeyspaces(), newKeyspaces);

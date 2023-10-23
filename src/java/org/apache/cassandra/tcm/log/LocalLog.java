@@ -324,10 +324,10 @@ public abstract class LocalLog implements Closeable
                 try
                 {
                     Transformation.Result transformed;
-
+                    boolean isReplay = false;
                     try
                     {
-                        transformed = pendingEntry.transform.execute(prev);
+                        transformed = pendingEntry.transform.execute(prev, isReplay);
                     }
                     catch (Throwable t)
                     {
@@ -350,7 +350,8 @@ public abstract class LocalLog implements Closeable
 
                     persistence.append(transformed.success().metadata.period, pendingEntry.maybeUnwrapExecuted());
 
-                    notifyPreCommit(prev, next, isSnapshot);
+                    if (!isReplay)
+                        notifyPreCommit(prev, next, isSnapshot);
 
                     if (committed.compareAndSet(prev, next))
                     {
@@ -366,7 +367,8 @@ public abstract class LocalLog implements Closeable
                                                                       next.epoch, prev.epoch, metadata().epoch));
                     }
 
-                    notifyPostCommit(prev, next, isSnapshot);
+                    if (!isReplay)
+                        notifyPostCommit(prev, next, isSnapshot);
                 }
                 catch (StopProcessingException t)
                 {

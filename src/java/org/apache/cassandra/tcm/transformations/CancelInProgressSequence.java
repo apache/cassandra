@@ -50,7 +50,7 @@ public class CancelInProgressSequence implements Transformation
     }
 
     @Override
-    public Result execute(ClusterMetadata prev)
+    public Result execute(ClusterMetadata prev, boolean isReplay)
     {
         InProgressSequence<?> sequence = prev.inProgressSequences.get(nodeId);
         if (null == sequence)
