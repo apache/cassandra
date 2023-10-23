@@ -300,6 +300,7 @@ public class RangeCommandIterator extends AbstractIterator<RowIterator> implemen
             // is not a representative metric of replica performance.
             long latency = nanoTime() - requestTime.startedAtNanos();
             rangeMetrics.addNano(latency);
+            StorageProxyMetricsManager.getMetrics(command.metadata().keyspace, consistencyLevel).rangeMetrics.addNano(latency);
             Keyspace.openAndGetStore(command.metadata()).metric.coordinatorScanLatency.update(latency, TimeUnit.NANOSECONDS);
         }
     }
