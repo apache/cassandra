@@ -192,8 +192,8 @@ public class MemtableIndexWriter implements PerColumnIndexWriter
                                                        rowMapping.maxSSTableRowId,
                                                        rowMapping.minKey,
                                                        rowMapping.maxKey,
-                                                       ByteBufferUtil.bytes(0), // VSTODO by pass min max terms for vectors
-                                                       ByteBufferUtil.bytes(0), // VSTODO by pass min max terms for vectors
+                                                       ByteBufferUtil.bytes(0),
+                                                       ByteBufferUtil.bytes(0),
                                                        metadataMap);
 
         try (MetadataWriter writer = new MetadataWriter(indexDescriptor.openPerIndexOutput(IndexComponent.META, indexContext)))

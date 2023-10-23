@@ -71,7 +71,8 @@ public class KeyRangeOrderingIterator extends KeyRangeIterator
                 if (previousIterator != null)
                     FileUtils.closeQuietly(previousIterator);
                 // nextIterator might not have any rows due to shadowed primary keys
-            } while (!nextIterator.hasNext());
+            }
+            while (!nextIterator.hasNext());
         }
         return nextIterator.next();
     }
@@ -83,7 +84,8 @@ public class KeyRangeOrderingIterator extends KeyRangeIterator
         nextIterator.skipTo(nextToken);
     }
 
-    public void close() {
+    public void close()
+    {
         FileUtils.closeQuietly(input);
         FileUtils.closeQuietly(nextIterator);
     }

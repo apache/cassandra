@@ -219,6 +219,32 @@ public class QueryController
         return builder;
     }
 
+    /**
+     * Returns whether this query is not selecting the {@link PrimaryKey}.
+     * The query does not select the key if both of the following statements are false:
+     *  1. The table associated with the query is not using clustering keys
+     *  2. The clustering index filter for the command wants the row.
+     * <p>
+     *  Item 2 is important in paged queries where the {@link org.apache.cassandra.db.filter.ClusteringIndexSliceFilter} for
+     *  subsequent paged queries may not select rows that are returned by the index
+     *  search because that is initially partition based.
+     *
+     * @param key The {@link PrimaryKey} to be tested
+     * @return true if the key is not selected by the query
+     */
+    public boolean doesNotSelect(PrimaryKey key)
+    {
+        return key.kind() == PrimaryKey.Kind.WIDE && !command.clusteringIndexFilter(key.partitionKey()).selects(key.clustering());
+    }
+
+    /**
+     * Used to release all resources and record metrics when query finishes.
+     */
+    public void finish()
+    {
+        if (tableQueryMetrics != null) tableQueryMetrics.record(queryContext);
+    }
+    
     // This is an ANN only query
     public KeyRangeIterator getTopKRows(RowFilter.Expression expression)
     {
@@ -294,24 +320,6 @@ public class QueryController
     }
 
     /**
-     * Returns whether this query is not selecting the {@link PrimaryKey}.
-     * The query does not select the key if both of the following statements are false:
-     *  1. The table associated with the query is not using clustering keys
-     *  2. The clustering index filter for the command wants the row.
-     * <p>
-     *  Item 2 is important in paged queries where the {@link org.apache.cassandra.db.filter.ClusteringIndexSliceFilter} for
-     *  subsequent paged queries may not select rows that are returned by the index
-     *  search because that is initially partition based.
-     *
-     * @param key The {@link PrimaryKey} to be tested
-     * @return true if the key is not selected by the query
-     */
-    public boolean doesNotSelect(PrimaryKey key)
-    {
-        return key.kind() == PrimaryKey.Kind.WIDE && !command.clusteringIndexFilter(key.partitionKey()).selects(key.clustering());
-    }
-
-    /**
      * Create row id iterator from different indexes' on-disk searcher of the same sstable
      */
     private KeyRangeIterator createRowIdIterator(Pair<Expression, Collection<SSTableIndex>> indexExpression)
@@ -352,14 +360,6 @@ public class QueryController
         else
             return new ClusteringIndexNamesFilter(FBUtilities.singleton(key.clustering(), cfs.metadata().comparator),
                                                   clusteringIndexFilter.isReversed());
-    }
-
-    /**
-     * Used to release all resources and record metrics when query finishes.
-     */
-    public void finish()
-    {
-        if (tableQueryMetrics != null) tableQueryMetrics.record(queryContext);
     }
 
     /**

@@ -332,11 +332,8 @@ public class VectorMemoryIndex extends MemoryIndex
         // VSTODO maybe we can abuse "current" to avoid having to pop and re-add the last skipped key
         protected void performSkipTo(PrimaryKey nextKey)
         {
-            PrimaryKey lastSkipped = null;
             while (!keyQueue.isEmpty() && keyQueue.peek().compareTo(nextKey) < 0)
-                lastSkipped = keyQueue.poll();
-            if (lastSkipped != null)
-                keyQueue.add(lastSkipped);
+                keyQueue.poll();
         }
 
         @Override
