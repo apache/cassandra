@@ -37,14 +37,17 @@ public interface SchemaTransformation
     /**
      * Apply a statement transformation to a schema snapshot.
      * <p>
-     * Implementing methods should be side-effect free (outside of throwing exceptions if the transformation cannot
+     * Implementing methods should be side-effect-free (outside of throwing exceptions if the transformation cannot
      * be successfully applied to the provided schema).
      *
      * @param metadata Cluster metadata representing the current state, including the DistributedSchema with the
      *                 Keyspaces to base the transformation on
+     * @param isReplay whether the transformation is being replayed on a node which already applied that transformation
+     *                 before it was restarted; when true, the transformation should be pure, which means that the
+     *                 result should depend only on the provided metadata and not on the current state of the node
      * @return Keyspaces transformed by the statement
      */
-    Keyspaces apply(ClusterMetadata metadata);
+    Keyspaces apply(ClusterMetadata metadata, boolean isReplay);
 
     default String cql()
     {
@@ -68,17 +71,25 @@ public interface SchemaTransformation
      *   </li>
      * </ul>
      * At the moment, not all SchemaTransformation are entirely free of side effects, because both client warnings and
-     * guardrails are tightly coupled to the ST implementations and they do produce side effects. Ideally, ClientWarn
+     * guardrails are tightly coupled to the ST implementations, and they do produce side effects. Ideally, ClientWarn
      * and Guardrails can be reworked to decouple them from ClientState and threadlocals. In the meantime, we can hint
-     * to them that SchemaTransformation::apply is being called in the context of AlterSchema::execute and so they
+     * to them that SchemaTransformation::apply is being called in the context of AlterSchema::execute, and so they
      * should not produce their side effects. The default impl is a no-op, but AlterSchemaStatement which has access to
      * a ClientState, is able to pause both warnings and guardrails.
+     * <p/>
+     * This method will not be called if the transformation is being replayed on a node which already applied that
+     * transformation before the node was restarted. Therefore, all non side-effects-free operations like Guardrails,
+     * configuration based checks or setting-up client warnings should happen there instead of apply() (as stated above)
      * @see org.apache.cassandra.cql3.statements.schema.AlterSchemaStatement#enterExecution()
      */
     default void enterExecution()
     {
     }
 
+    /**
+     * This method will not be called if the transformation is being replayed on a node which already applied that
+     * transformation before the node was restarted.
+     */
     default void exitExecution()
     {
     }

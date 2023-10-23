@@ -57,7 +57,7 @@ public final class CreateKeyspaceStatement extends AlterSchemaStatement
         this.ifNotExists = ifNotExists;
     }
 
-    public Keyspaces apply(ClusterMetadata metadata)
+    public Keyspaces apply(ClusterMetadata metadata, boolean isReplay)
     {
         attrs.validate();
 

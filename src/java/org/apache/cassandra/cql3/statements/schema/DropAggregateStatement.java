@@ -65,7 +65,7 @@ public final class DropAggregateStatement extends AlterSchemaStatement
         this.ifExists = ifExists;
     }
 
-    public Keyspaces apply(ClusterMetadata metadata)
+    public Keyspaces apply(ClusterMetadata metadata, boolean isReplay)
     {
         String name =
             argumentsSpeficied

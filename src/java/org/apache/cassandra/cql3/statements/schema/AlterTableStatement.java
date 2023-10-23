@@ -100,7 +100,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         this.state = state;
     }
 
-    public Keyspaces apply(ClusterMetadata metadata)
+    public Keyspaces apply(ClusterMetadata metadata, boolean isReplay)
     {
         Keyspaces schema = metadata.schema.getKeyspaces();
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);

@@ -76,7 +76,7 @@ public final class CreateTypeStatement extends AlterSchemaStatement
         }
     }
 
-    public Keyspaces apply(ClusterMetadata metadata)
+    public Keyspaces apply(ClusterMetadata metadata, boolean isReplay)
     {
         Keyspaces schema = metadata.schema.getKeyspaces();
         KeyspaceMetadata keyspace = schema.getNullable(keyspaceName);

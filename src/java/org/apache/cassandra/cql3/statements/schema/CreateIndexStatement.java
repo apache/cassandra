@@ -114,7 +114,7 @@ public final class CreateIndexStatement extends AlterSchemaStatement
     }
 
     @Override
-    public Keyspaces apply(ClusterMetadata metadata)
+    public Keyspaces apply(ClusterMetadata metadata, boolean isReplay)
     {
         attrs.validate();
 

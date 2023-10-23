@@ -522,7 +522,7 @@ public class SchemaChangesTest
 
         SchemaTransformation transformation = SchemaTransformations.updateSystemKeyspace(keyspace, 0);
         Keyspaces before = Keyspaces.none();
-        Keyspaces after = transformation.apply(ClusterMetadataTestHelper.minimalForTesting(before));
+        Keyspaces after = transformation.apply(ClusterMetadataTestHelper.minimalForTesting(before), false);
         Keyspaces.KeyspacesDiff diff = Keyspaces.diff(before, after);
 
         assertTrue(diff.altered.isEmpty());
@@ -538,7 +538,7 @@ public class SchemaChangesTest
 
         SchemaTransformation transformation = SchemaTransformations.updateSystemKeyspace(keyspace, 0);
         Keyspaces before = Keyspaces.of(keyspace);
-        Keyspaces after = transformation.apply(ClusterMetadataTestHelper.minimalForTesting(before));
+        Keyspaces after = transformation.apply(ClusterMetadataTestHelper.minimalForTesting(before), false);
         Keyspaces.KeyspacesDiff diff = Keyspaces.diff(before, after);
 
         assertTrue(diff.isEmpty());
@@ -555,7 +555,7 @@ public class SchemaChangesTest
 
         SchemaTransformation transformation = SchemaTransformations.updateSystemKeyspace(keyspace1, 1);
         Keyspaces before = Keyspaces.of(keyspace0);
-        Keyspaces after = transformation.apply(ClusterMetadataTestHelper.minimalForTesting(before));
+        Keyspaces after = transformation.apply(ClusterMetadataTestHelper.minimalForTesting(before), false);
         Keyspaces.KeyspacesDiff diff = Keyspaces.diff(before, after);
 
         assertTrue(diff.created.isEmpty());

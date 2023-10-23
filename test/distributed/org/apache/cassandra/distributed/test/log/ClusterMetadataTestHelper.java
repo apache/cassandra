@@ -834,7 +834,7 @@ public class ClusterMetadataTestHelper
     {
         try
         {
-            SchemaTransformation transformation = (cm) -> cm.schema.getKeyspaces().withAddedOrUpdated(keyspace);
+            SchemaTransformation transformation = (cm, isReplay) -> cm.schema.getKeyspaces().withAddedOrUpdated(keyspace);
             commit(new AlterSchema(transformation, Schema.instance));
         }
         catch (Exception e)

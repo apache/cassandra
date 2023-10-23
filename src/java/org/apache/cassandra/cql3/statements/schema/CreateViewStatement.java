@@ -112,7 +112,7 @@ public final class CreateViewStatement extends AlterSchemaStatement
     }
 
     @Override
-    public Keyspaces apply(ClusterMetadata metadata)
+    public Keyspaces apply(ClusterMetadata metadata, boolean isReplay)
     {
         if (!DatabaseDescriptor.getMaterializedViewsEnabled())
             throw ire("Materialized views are disabled. Enable in cassandra.yaml to use.");

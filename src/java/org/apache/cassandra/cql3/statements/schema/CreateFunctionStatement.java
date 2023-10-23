@@ -83,7 +83,7 @@ public final class CreateFunctionStatement extends AlterSchemaStatement
     }
 
     // TODO: replace affected aggregates !!
-    public Keyspaces apply(ClusterMetadata metadata)
+    public Keyspaces apply(ClusterMetadata metadata, boolean isReplay)
     {
         if (ifNotExists && orReplace)
             throw ire("Cannot use both 'OR REPLACE' and 'IF NOT EXISTS' directives");
