@@ -31,6 +31,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Range;
 import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,6 +42,8 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.schema.ReplicationParams;
+import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.Transformation;
@@ -53,13 +56,12 @@ import org.apache.cassandra.tcm.listeners.MetadataSnapshotListener;
 import org.apache.cassandra.tcm.listeners.PlacementsChangeListener;
 import org.apache.cassandra.tcm.listeners.SchemaListener;
 import org.apache.cassandra.tcm.listeners.UpgradeMigrationListener;
-import org.apache.cassandra.tcm.transformations.cms.PreInitialize;
 import org.apache.cassandra.tcm.transformations.ForceSnapshot;
-import org.apache.cassandra.schema.ReplicationParams;
-import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.tcm.transformations.cms.PreInitialize;
 import org.apache.cassandra.utils.Closeable;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
 
@@ -101,6 +103,15 @@ public abstract class LocalLog implements Closeable
     protected final Set<LogListener> listeners;
     protected final Set<ChangeListener> changeListeners;
     protected final Set<ChangeListener.Async> asyncChangeListeners;
+
+    /**
+     * This is set when replaying the persisted log is requested. Storing the information about the replay range allows
+     * to skip application of the transformations from the log. Note that those transformations were already applied
+     * before the node was shutdown (otherwise they wouldn't be persisted). The cluster metadata stored in this pair is
+     * used as a base for the replayed transformations. When the log is ultimately replayed, the pre-commit and
+     * post-commit actions are called only once, and the base metadata is passed as the "before" argument.
+     */
+    protected final AtomicReference<Pair<ClusterMetadata, Range<Epoch>>> replay = new AtomicReference<>();
 
     private LocalLog(LogStorage persistence, ClusterMetadata initial, boolean addListeners, boolean isReset)
     {
@@ -318,16 +329,31 @@ public abstract class LocalLog implements Closeable
             // ForceSnapshot + Bootstrap entries can "jump" epoch
             boolean isPreInit = pendingEntry.transform.kind() == Transformation.Kind.PRE_INITIALIZE_CMS;
             boolean isSnapshot = pendingEntry.transform.kind() == Transformation.Kind.FORCE_SNAPSHOT;
+
+            Pair<ClusterMetadata, Range<Epoch>> replay = this.replay.get();
+            boolean isReplaying = false;
+            if (replay != null)
+            {
+                if (replay.right.contains(pendingEntry.epoch)) {
+                    isReplaying = true;
+                    if (replay.left == null)
+                    {
+                        replay = Pair.create(prev, replay.right);
+                        this.replay.set(replay);
+                    }
+                }
+            }
+
             if (pendingEntry.epoch.isDirectlyAfter(prev.epoch)
                 || ((isPreInit || isSnapshot) && pendingEntry.epoch.isAfter(prev.epoch)))
             {
                 try
                 {
                     Transformation.Result transformed;
-                    boolean isReplay = false;
+
                     try
                     {
-                        transformed = pendingEntry.transform.execute(prev, isReplay);
+                        transformed = pendingEntry.transform.execute(prev, isReplaying);
                     }
                     catch (Throwable t)
                     {
@@ -348,10 +374,18 @@ public abstract class LocalLog implements Closeable
                     String.format("Epoch %s for %s can either force snapshot, or immediately follow %s",
                                   next.epoch, pendingEntry.transform, prev.epoch);
 
-                    persistence.append(transformed.success().metadata.period, pendingEntry.maybeUnwrapExecuted());
+                    if (!isReplaying)
+                        // we do not need to persist transformation from the replay range because they were already
+                        // persisted before
+                        persistence.append(transformed.success().metadata.period, pendingEntry.maybeUnwrapExecuted());
 
-                    if (!isReplay)
-                        notifyPreCommit(prev, next, isSnapshot);
+                    boolean isReplayEnd = isReplaying && replay.right.upperEndpoint().isEqualOrBefore(next.epoch);
+
+                    if (!isReplaying || isReplayEnd)
+                        // pre commit actions are called either when we are not replaying (during a normal operation),
+                        // or when we are replaying and have reached the end of the replay range - in that case, we
+                        // call pre commit actions for the whole replay range
+                        notifyPreCommit(isReplayEnd ? replay.left : prev, next, isSnapshot);
 
                     if (committed.compareAndSet(prev, next))
                     {
@@ -367,8 +401,11 @@ public abstract class LocalLog implements Closeable
                                                                       next.epoch, prev.epoch, metadata().epoch));
                     }
 
-                    if (!isReplay)
-                        notifyPostCommit(prev, next, isSnapshot);
+                    if (!isReplaying || isReplayEnd)
+                        // post commit actions are called either when we are not replaying (during a normal operation),
+                        // or when we are replaying and have reached the end of the replay range - in that case, we
+                        // call post commit actions for the whole replay range
+                        notifyPostCommit(isReplayEnd ? replay.left : prev, next, isSnapshot);
                 }
                 catch (StopProcessingException t)
                 {
@@ -407,6 +444,11 @@ public abstract class LocalLog implements Closeable
     public Epoch replayPersisted()
     {
         LogState state = persistence.getLogState(metadata().epoch);
+        if (!state.transformations.isEmpty())
+        {
+            if (!replay.compareAndSet(null, Pair.create(null, Range.closed(state.transformations.entries().get(0).epoch, state.latestEpoch()))))
+                throw new IllegalStateException("Already replayed");
+        }
         append(state);
         return waitForHighestConsecutive().epoch;
     }
