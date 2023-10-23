@@ -307,14 +307,15 @@ public final class StatementRestrictions
                 if (partitionKeyRestrictions.needFiltering(table))
                     throw invalidRequest(StatementRestrictions.ANN_REQUIRES_INDEXED_FILTERING_MESSAGE);
                 // We do not allow ANN query filtering using non-indexed columns
-                var nonAnnColumns = Streams.stream(nonPrimaryKeyRestrictions).filter(r -> !r.isANN()).map(r -> r.getFirstColumn()).collect(Collectors.toList());
+                var nonAnnColumns = Streams.stream(nonPrimaryKeyRestrictions)
+                                           .filter(r -> !r.isANN())
+                                           .map(Restriction::getFirstColumn)
+                                           .collect(Collectors.toList());
                 var clusteringColumns = clusteringColumnsRestrictions.getColumnDefinitions();
                 if (!nonAnnColumns.isEmpty() || !clusteringColumns.isEmpty())
                 {
                     var nonIndexedColumns = Stream.concat(nonAnnColumns.stream(), clusteringColumns.stream())
-                                                  .filter(c -> indexRegistry == null || indexRegistry.listIndexes()
-                                                                                                     .stream()
-                                                                                                     .noneMatch(i -> i.dependsOn(c)))
+                                                  .filter(c -> indexRegistry.listIndexes().stream().noneMatch(i -> i.dependsOn(c)))
                                                   .collect(Collectors.toList());
                     if (!nonIndexedColumns.isEmpty())
                         throw invalidRequest(StatementRestrictions.ANN_REQUIRES_INDEXED_FILTERING_MESSAGE);

@@ -117,10 +117,10 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     public static final String TOPK_PARTITION_LIMIT_ERROR = "Top-K queries do not support per-partition limits";
     public static final String TOPK_AGGREGATION_ERROR = "Top-K queries can not be run with aggregation";
     public static final String TOPK_CONSISTENCY_LEVEL_WARNING = "Top-K queries can only be run with consistency level ONE " +
-                                                                "/ LOCAL_ONE / NODE_LOCAL. Consistency level %s was used. " +
-                                                                "Downgrading to consistency level %s.";
+                                                                "/ LOCAL_ONE / NODE_LOCAL. Consistency level %s was requested. " +
+                                                                "Downgrading the consistency level to %s.";
     public static final String TOPK_PAGE_SIZE_WARNING = "Top-K queries do not support paging and the page size is set to %d, " +
-                                                        "which is less than LIMIT %d. The page size has been set to %d to match the LIMIT.";
+                                                        "which is less than LIMIT %d. The page size has been set to %<d to match the LIMIT.";
 
     public final VariableSpecifications bindVariables;
     public final TableMetadata table;
@@ -306,7 +306,8 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                        String.format(TOPK_CONSISTENCY_LEVEL_ERROR, options.getConsistency()));
 
             if (options.getConsistency() != ConsistencyLevel.ONE &&
-                options.getConsistency() != ConsistencyLevel.LOCAL_ONE)
+                options.getConsistency() != ConsistencyLevel.LOCAL_ONE &&
+                options.getConsistency() != ConsistencyLevel.NODE_LOCAL)
             {
                 ConsistencyLevel supplied = options.getConsistency();
                 ConsistencyLevel downgrade = supplied.isDatacenterLocal() ? ConsistencyLevel.LOCAL_ONE : ConsistencyLevel.ONE;
@@ -326,7 +327,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                 pageSize = limit.count();
                 limit = getDataLimits(userLimit, userPerPartitionLimit, pageSize, aggregationSpec);
                 options = QueryOptions.withPageSize(options, pageSize);
-                ClientWarn.instance.warn(String.format(TOPK_PAGE_SIZE_WARNING, oldPageSize, limit.count(), limit.count()));
+                ClientWarn.instance.warn(String.format(TOPK_PAGE_SIZE_WARNING, oldPageSize, limit.count()));
             }
         }
 
@@ -1158,7 +1159,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
 
         Comparator<List<ByteBuffer>> comparator = orderingComparator.prepareFor(table, getRowFilter(options), options);
         if (comparator != null)
-            Collections.sort(cqlRows.rows, comparator);
+            cqlRows.rows.sort(comparator);
     }
 
     public static class RawStatement extends QualifiedStatement

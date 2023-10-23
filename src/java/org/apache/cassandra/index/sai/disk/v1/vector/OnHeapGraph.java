@@ -25,10 +25,9 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.PriorityQueue;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 
@@ -67,7 +66,7 @@ public class OnHeapGraph<T>
     private final GraphIndexBuilder<float[]> builder;
     private final VectorType<?> vectorType;
     private final VectorSimilarityFunction similarityFunction;
-    private final Map<float[], VectorPostings<T>> postingsMap;
+    private final ConcurrentMap<float[], VectorPostings<T>> postingsMap;
     private final NonBlockingHashMapLong<VectorPostings<T>> postingsByOrdinal;
     private final AtomicInteger nextOrdinal = new AtomicInteger();
     private volatile boolean hasDeletions;
@@ -149,36 +148,45 @@ public class OnHeapGraph<T>
             validateIndexable(vector, similarityFunction);
         }
 
-        var bytesUsed = new AtomicLong();
-        var newVector = new AtomicBoolean();
+        var bytesUsed = 0L;
+        VectorPostings<T> postings = postingsMap.get(vector);
         // if the vector is already in the graph, all that happens is that the postings list is updated
         // otherwise, we add the vector in this order:
-        // 1. to the vectorValues
-        // 2. to the postingsMap
+        // 1. to the postingsMap
+        // 2. to the vectorValues
         // 3. to the graph
         // This way, concurrent searches of the graph won't see the vector until it's visible
         // in the other structures as well.
-        var postings = postingsMap.computeIfAbsent(vector, v -> {
-            var bytes = RamEstimation.concurrentHashMapRamUsed(1); // the new posting Map entry
-            var ordinal = nextOrdinal.getAndIncrement();
-            bytes += (vectorValues instanceof ConcurrentVectorValues)
-                     ? ((ConcurrentVectorValues) vectorValues).add(ordinal, vector)
-                     : ((CompactionVectorValues) vectorValues).add(ordinal, term);
-            bytes += VectorPostings.emptyBytesUsed();
-            bytesUsed.addAndGet(bytes);
-            newVector.set(true);
-            var vp = new VectorPostings<T>(ordinal);
-            postingsByOrdinal.put(ordinal, vp);
-            return vp;
-        });
-        if (postings.add(key))
+        if (postings == null)
         {
-            bytesUsed.addAndGet(VectorPostings.bytesPerPosting());
-            if (newVector.get()) {
-                bytesUsed.addAndGet(builder.addGraphNode(postings.getOrdinal(), vectorValues));
+            postings = new VectorPostings<>(key);
+            // since we are using ConcurrentSkipListMap, it is NOT correct to use computeIfAbsent here
+            if (postingsMap.putIfAbsent(vector, postings) == null)
+            {
+                // we won the race to add the new entry; assign it an ordinal and add to the other structures
+                var ordinal = nextOrdinal.getAndIncrement();
+                postings.setOrdinal(ordinal);
+                bytesUsed += RamEstimation.concurrentHashMapRamUsed(1); // the new posting Map entry
+                bytesUsed += (vectorValues instanceof ConcurrentVectorValues)
+                             ? ((ConcurrentVectorValues) vectorValues).add(ordinal, vector)
+                             : ((CompactionVectorValues) vectorValues).add(ordinal, term);
+                bytesUsed += VectorPostings.emptyBytesUsed() + VectorPostings.bytesPerPosting();
+                postingsByOrdinal.put(ordinal, postings);
+                bytesUsed += builder.addGraphNode(ordinal, vectorValues);
+                return bytesUsed;
+            }
+            else
+            {
+                postings = postingsMap.get(vector);
             }
         }
-        return bytesUsed.get();
+        // postings list already exists, just add the new key (if it's not already in the list)
+        if (postings.add(key))
+        {
+            bytesUsed += VectorPostings.bytesPerPosting();
+        }
+
+        return bytesUsed;
     }
 
     // copied out of a Lucene PR -- hopefully committed soon
@@ -347,19 +355,22 @@ public class OnHeapGraph<T>
         logger.debug("Computing PQ for {} vectors", vectorValues.size());
         // limit the PQ computation and encoding to one index at a time -- goal during flush is to
         // evict from memory ASAP so better to do the PQ build (in parallel) one at a time
+        ProductQuantization pq;
+        byte[][] encoded;
         synchronized (OnHeapGraph.class)
         {
             // train PQ and encode
-            var pq = ProductQuantization.compute(vectorValues, M, false);
+            pq = ProductQuantization.compute(vectorValues, M, false);
             assert !vectorValues.isValueShared();
-            var encoded = IntStream.range(0, vectorValues.size()).parallel()
-                          .mapToObj(i -> pq.encode(vectorValues.vectorValue(i)))
-                                   .toArray(byte[][]::new);
-            var cv = new CompressedVectors(pq, encoded);
-            // save
-            cv.write(writer);
-            return writer.position();
+            encoded = IntStream.range(0, vectorValues.size())
+                               .parallel()
+                               .mapToObj(i -> pq.encode(vectorValues.vectorValue(i)))
+                               .toArray(byte[][]::new);
         }
+        var cv = new CompressedVectors(pq, encoded);
+        // save
+        cv.write(writer);
+        return writer.position();
     }
 
     public enum InvalidVectorBehavior

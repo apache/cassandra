@@ -88,7 +88,6 @@ public class DiskAnn implements AutoCloseable
     /**
      * @return Row IDs associated with the topK vectors near the query
      */
-    // VSTODO make this return something with a size
     public VectorPostingList search(float[] queryVector, int topK, int limit, Bits acceptBits)
     {
         OnHeapGraph.validateIndexable(queryVector, similarityFunction);
