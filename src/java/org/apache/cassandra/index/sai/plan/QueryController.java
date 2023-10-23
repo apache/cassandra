@@ -244,7 +244,7 @@ public class QueryController
     {
         if (tableQueryMetrics != null) tableQueryMetrics.record(queryContext);
     }
-    
+
     // This is an ANN only query
     public KeyRangeIterator getTopKRows(RowFilter.Expression expression)
     {
