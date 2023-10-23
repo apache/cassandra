@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-
 import javax.annotation.Nullable;
 
 import com.google.common.base.Splitter;
@@ -100,6 +99,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         this.state = state;
     }
 
+    @Override
     public Keyspaces apply(ClusterMetadata metadata, boolean isReplay)
     {
         Keyspaces schema = metadata.schema.getKeyspaces();
@@ -119,14 +119,16 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         if (table.isView())
             throw ire("Cannot use ALTER TABLE on a materialized view; use ALTER MATERIALIZED VIEW instead");
 
-        return schema.withAddedOrUpdated(apply(metadata.nextEpoch(), keyspace, table));
+        return schema.withAddedOrUpdated(apply(metadata.nextEpoch(), keyspace, table, isReplay));
     }
 
+    @Override
     SchemaChange schemaChangeEvent(KeyspacesDiff diff)
     {
         return new SchemaChange(Change.UPDATED, Target.TABLE, keyspaceName, tableName);
     }
 
+    @Override
     public void authorize(ClientState client)
     {
         client.ensureTablePermission(keyspaceName, tableName, Permission.ALTER);
@@ -138,12 +140,13 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         return new AuditLogContext(AuditLogEntryType.ALTER_TABLE, keyspaceName, tableName);
     }
 
+    @Override
     public String toString()
     {
         return format("%s (%s, %s)", getClass().getSimpleName(), keyspaceName, tableName);
     }
 
-    abstract KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table);
+    abstract KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, boolean isReplay);
 
     /**
      * ALTER TABLE [IF EXISTS] <table> ALTER <column> TYPE <newtype>;
@@ -157,7 +160,8 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             super(keyspaceName, tableName, ifTableExists);
         }
 
-        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table)
+        @Override
+        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, boolean isReplay)
         {
             throw ire("Altering column types is no longer supported");
         }
@@ -197,7 +201,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         }
 
         @Override
-        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table)
+        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, boolean isReplay)
         {
             ColumnMetadata column = table.getColumn(columnName);
 
@@ -275,14 +279,18 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             newColumns.forEach(c -> c.type.validate(state, "Column " + c.name));
         }
 
-        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table)
+        @Override
+        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, boolean isReplay)
         {
-            Guardrails.alterTableEnabled.ensureEnabled("ALTER TABLE changing columns", state);
+            if (!isReplay)
+                Guardrails.alterTableEnabled.ensureEnabled("ALTER TABLE changing columns", state);
+
             TableMetadata.Builder tableBuilder = table.unbuild().epoch(epoch);
             Views.Builder viewsBuilder = keyspace.views.unbuild();
             newColumns.forEach(c -> addColumn(keyspace, table, c, ifColumnNotExists, tableBuilder, viewsBuilder));
 
-            Guardrails.columnsPerTable.guard(tableBuilder.numColumns(), tableName, false, state);
+            if (!isReplay)
+                Guardrails.columnsPerTable.guard(tableBuilder.numColumns(), tableName, false, state);
 
             TableMetadata tableMetadata = tableBuilder.build();
             tableMetadata.validate();
@@ -380,15 +388,18 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             this.timestamp = timestamp;
         }
 
-        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table)
+        @Override
+        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, boolean isReplay)
         {
-            Guardrails.alterTableEnabled.ensureEnabled("ALTER TABLE changing columns", state);
+            if (!isReplay)
+                Guardrails.alterTableEnabled.ensureEnabled("ALTER TABLE changing columns", state);
+
             TableMetadata.Builder builder = table.unbuild();
-            removedColumns.forEach(c -> dropColumn(keyspace, table, c, ifColumnExists, builder));
+            removedColumns.forEach(c -> dropColumn(keyspace, table, c, ifColumnExists, builder, isReplay));
             return keyspace.withSwapped(keyspace.tables.withSwapped(builder.build()));
         }
 
-        private void dropColumn(KeyspaceMetadata keyspace, TableMetadata table, ColumnIdentifier column, boolean ifExists, TableMetadata.Builder builder)
+        private void dropColumn(KeyspaceMetadata keyspace, TableMetadata table, ColumnIdentifier column, boolean ifExists, TableMetadata.Builder builder, boolean isReplay)
         {
             ColumnMetadata currentColumn = table.getColumn(column);
             if (null == currentColumn) {
@@ -409,12 +420,15 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                 throw ire("Cannot drop non-frozen column %s of user type %s", column, currentColumn.type.asCQL3Type());
 
             // TODO: some day try and find a way to not rely on Keyspace/IndexManager/Index to find dependent indexes
-            Set<IndexMetadata> dependentIndexes = Keyspace.openAndGetStore(table).indexManager.getDependentIndexes(currentColumn);
-            if (!dependentIndexes.isEmpty())
+            if (!isReplay)
             {
-                throw ire("Cannot drop column %s because it has dependent secondary indexes (%s)",
-                          currentColumn,
-                          join(", ", transform(dependentIndexes, i -> i.name)));
+                Set<IndexMetadata> dependentIndexes = Keyspace.openAndGetStore(table).indexManager.getDependentIndexes(currentColumn);
+                if (!dependentIndexes.isEmpty())
+                {
+                    throw ire("Cannot drop column %s because it has dependent secondary indexes (%s)",
+                              currentColumn,
+                              join(", ", transform(dependentIndexes, i -> i.name)));
+                }
             }
 
             if (!isEmpty(keyspace.views.forTable(table.id)))
@@ -448,12 +462,15 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             this.ifColumnsExists = ifColumnsExists;
         }
 
-        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table)
+        @Override
+        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, boolean isReplay)
         {
-            Guardrails.alterTableEnabled.ensureEnabled("ALTER TABLE changing columns", state);
+            if (!isReplay)
+                Guardrails.alterTableEnabled.ensureEnabled("ALTER TABLE changing columns", state);
+
             TableMetadata.Builder tableBuilder = table.unbuild().epoch(epoch);
             Views.Builder viewsBuilder = keyspace.views.unbuild();
-            renamedColumns.forEach((o, n) -> renameColumn(keyspace, table, o, n, ifColumnsExists, tableBuilder, viewsBuilder));
+            renamedColumns.forEach((o, n) -> renameColumn(keyspace, table, o, n, ifColumnsExists, tableBuilder, viewsBuilder, isReplay));
 
             return keyspace.withSwapped(keyspace.tables.withSwapped(tableBuilder.build()))
                            .withSwapped(viewsBuilder.build());
@@ -465,7 +482,8 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                                   ColumnIdentifier newName,
                                   boolean ifColumnsExists,
                                   TableMetadata.Builder tableBuilder,
-                                  Views.Builder viewsBuilder)
+                                  Views.Builder viewsBuilder,
+                                  boolean isReplay)
         {
             ColumnMetadata column = table.getExistingColumn(oldName);
             if (null == column)
@@ -487,12 +505,15 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             }
 
             // TODO: some day try and find a way to not rely on Keyspace/IndexManager/Index to find dependent indexes
-            Set<IndexMetadata> dependentIndexes = Keyspace.openAndGetStore(table).indexManager.getDependentIndexes(column);
-            if (!dependentIndexes.isEmpty())
+            if (!isReplay)
             {
-                throw ire("Can't rename column %s because it has dependent secondary indexes (%s)",
-                          oldName,
-                          join(", ", transform(dependentIndexes, i -> i.name)));
+                Set<IndexMetadata> dependentIndexes = Keyspace.openAndGetStore(table).indexManager.getDependentIndexes(column);
+                if (!dependentIndexes.isEmpty())
+                {
+                    throw ire("Can't rename column %s because it has dependent secondary indexes (%s)",
+                              oldName,
+                              join(", ", transform(dependentIndexes, i -> i.name)));
+                }
             }
 
             for (ViewMetadata view : keyspace.views.forTable(table.id))
@@ -532,7 +553,8 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             validateDefaultTimeToLive(attrs.asNewTableParams());
         }
 
-        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table)
+        @Override
+        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, boolean isReplay)
         {
             attrs.validate();
 
@@ -556,13 +578,13 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                 throw ire("read_repair must be set to 'NONE' for transiently replicated keyspaces");
             }
 
-            if (!params.compression.isEnabled())
-                Guardrails.uncompressedTablesEnabled.ensureEnabled(state);
+            if (!isReplay)
+                if (!params.compression.isEnabled())
+                    Guardrails.uncompressedTablesEnabled.ensureEnabled(state);
 
             return keyspace.withSwapped(keyspace.tables.withSwapped(table.withSwapped(params)));
         }
     }
-
 
     /**
      * ALTER TABLE [IF EXISTS] <table> DROP COMPACT STORAGE
@@ -576,15 +598,18 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
             super(keyspaceName, tableName, ifTableExists);
         }
 
-        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table)
+        @Override
+        public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, boolean isReplay)
         {
-            if (!DatabaseDescriptor.enableDropCompactStorage())
-                throw new InvalidRequestException("DROP COMPACT STORAGE is disabled. Enable in cassandra.yaml to use.");
+            if (!isReplay)
+                if (!DatabaseDescriptor.enableDropCompactStorage())
+                    throw new InvalidRequestException("DROP COMPACT STORAGE is disabled. Enable in cassandra.yaml to use.");
 
             if (!table.isCompactTable())
                 throw AlterTableStatement.ire("Cannot DROP COMPACT STORAGE on table without COMPACT STORAGE");
 
-            validateCanDropCompactStorage();
+            if (!isReplay)
+                validateCanDropCompactStorage();
 
             Set<Flag> flags = table.isCounter()
                             ? ImmutableSet.of(Flag.COMPOUND, Flag.COUNTER)
