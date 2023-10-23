@@ -1150,7 +1150,9 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
     }
 
     /**
-     * Orders results when multiple keys are selected (using IN)
+     * Orders results when multiple keys are selected (using IN).
+     * <p>
+     * In the case of ANN ordering the rows are first ordered in index column order and then by primary key.
      */
     private void orderResults(ResultSet cqlRows, QueryOptions options)
     {
