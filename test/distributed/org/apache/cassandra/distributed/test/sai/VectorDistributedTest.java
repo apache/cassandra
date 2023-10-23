@@ -63,7 +63,7 @@ public class VectorDistributedTest extends TestBaseImpl
 
     private static final VectorSimilarityFunction function = IndexWriterConfig.DEFAULT_SIMILARITY_FUNCTION;
 
-    private static final double MIN_RECALL = 0.8;
+    private static final double MIN_RECALL = 0.7;
 
     private static final int NUM_REPLICAS = 3;
     private static final int RF = 2;

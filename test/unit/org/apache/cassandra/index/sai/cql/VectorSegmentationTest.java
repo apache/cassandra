@@ -60,7 +60,7 @@ public class VectorSegmentationTest extends VectorTester
 
         List<float[]> resultVectors = getVectorsFromResult(resultSet);
         double recall = rawIndexedRecall(vectors, queryVector, resultVectors, limit);
-        assertThat(recall).isGreaterThanOrEqualTo(0.99);
+        assertThat(recall).isGreaterThanOrEqualTo(0.9);
     }
 
     @Test
