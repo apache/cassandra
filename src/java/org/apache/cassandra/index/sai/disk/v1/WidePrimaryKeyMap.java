@@ -146,9 +146,9 @@ public class WidePrimaryKeyMap extends SkinnyPrimaryKeyMap
     public long floor(Token token)
     {
         if (token.isMinimum())
-            return Long.MIN_VALUE;
+            return Long.MAX_VALUE;
         long rowId = tokenArray.indexOf(token.getLongValue());
-        return rowId < 0 ? rowId : startOfNextPartition(rowId) - 1;
+        return rowId < 0 ? tokenArray.length() - 1 : startOfNextPartition(rowId) - 1;
     }
 
     @Override

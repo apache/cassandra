@@ -155,13 +155,17 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
     @Override
     public long ceiling(Token token)
     {
-        return token.isMinimum() ? Long.MIN_VALUE : tokenArray.indexOf(token.getLongValue());
+        return tokenArray.indexOf(token.getLongValue());
     }
 
     @Override
     public long floor(Token token)
     {
-        return token.isMinimum() ? Long.MIN_VALUE : tokenArray.indexOf(token.getLongValue());
+        if (token.isMinimum())
+            return Long.MAX_VALUE;
+
+        long rowId = tokenArray.indexOf(token.getLongValue());
+        return rowId < 0 ? tokenArray.length() - 1 : rowId;
     }
 
     @Override
