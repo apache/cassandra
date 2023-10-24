@@ -61,6 +61,8 @@ public abstract class RepairMessage
     private enum ErrorHandling { NONE, TIMEOUT, RETRY }
     private static final CassandraVersion SUPPORTS_RETRY = new CassandraVersion("5.0.0-alpha2.SNAPSHOT");
     private static final Map<Verb, CassandraVersion> VERB_TIMEOUT_VERSIONS;
+    public static final Set<Verb> ALLOWS_RETRY;
+    private static final Set<Verb> SUPPORTS_RETRY_WITHOUT_VERSION_CHECK = Collections.unmodifiableSet(EnumSet.of(Verb.CLEANUP_MSG));
 
     static
     {
@@ -71,8 +73,17 @@ public abstract class RepairMessage
         map.put(Verb.VALIDATION_RSP, SUPPORTS_RETRY);
         map.put(Verb.SYNC_RSP, SUPPORTS_RETRY);
         VERB_TIMEOUT_VERSIONS = Collections.unmodifiableMap(map);
+
+        EnumSet<Verb> allowsRetry = EnumSet.noneOf(Verb.class);
+        allowsRetry.add(Verb.PREPARE_MSG);
+        allowsRetry.add(Verb.VALIDATION_REQ);
+        allowsRetry.add(Verb.VALIDATION_RSP);
+        allowsRetry.add(Verb.SYNC_REQ);
+        allowsRetry.add(Verb.SYNC_RSP);
+        allowsRetry.add(Verb.SNAPSHOT_MSG);
+        allowsRetry.add(Verb.CLEANUP_MSG);
+        ALLOWS_RETRY = Collections.unmodifiableSet(allowsRetry);
     }
-    private static final Set<Verb> SUPPORTS_RETRY_WITHOUT_VERSION_CHECK = Collections.unmodifiableSet(EnumSet.of(Verb.CLEANUP_MSG));
 
     private static final Logger logger = LoggerFactory.getLogger(RepairMessage.class);
     private static final NoSpamLogger noSpam = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
@@ -142,6 +153,8 @@ public abstract class RepairMessage
 
     private static <T> void sendMessageWithRetries(SharedContext ctx, Backoff backoff, Supplier<Boolean> allowRetry, RepairMessage request, Verb verb, InetAddressAndPort endpoint, RequestCallback<T> finalCallback, int attempt)
     {
+        if (!ALLOWS_RETRY.contains(verb))
+            throw new AssertionError("Repair verb " + verb + " does not support retry, but a request to send with retry was given!");
         RequestCallback<T> callback = new RequestCallback<>()
         {
             @Override

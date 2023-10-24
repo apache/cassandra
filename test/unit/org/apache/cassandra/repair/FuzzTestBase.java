@@ -101,6 +101,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallback;
+import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.repair.messages.ValidationResponse;
 import org.apache.cassandra.repair.state.Completable;
@@ -320,17 +321,13 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             @Override
             public Set<Faults> apply(Cluster.Node node, Message<?> message)
             {
+                if (RepairMessage.ALLOWS_RETRY.contains(message.verb()))
+                {
+                    allowDrop.add(message.id());
+                    return Faults.DROPPED;
+                }
                 switch (message.verb())
                 {
-                    case PREPARE_MSG:
-                    case VALIDATION_REQ:
-                    case VALIDATION_RSP:
-                    case SYNC_REQ:
-                    case SYNC_RSP:
-                    case SNAPSHOT_MSG:
-                    case CLEANUP_MSG:
-                        allowDrop.add(message.id());
-                        return Faults.DROPPED;
                     // these messages are not resilent to ephemeral issues
                     case PREPARE_CONSISTENT_REQ:
                     case PREPARE_CONSISTENT_RSP:
@@ -338,7 +335,6 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                     case FINALIZE_PROMISE_MSG:
                     case FINALIZE_COMMIT_MSG:
                     case FAILED_SESSION_MSG:
-
                         noFaults.add(message.id());
                         return Faults.NONE;
                     default:
