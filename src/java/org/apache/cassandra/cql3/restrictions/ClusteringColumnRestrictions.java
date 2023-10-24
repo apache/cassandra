@@ -102,7 +102,7 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
             if (hasIN() && Guardrails.inSelectCartesianProduct.enabled(state))
                 Guardrails.inSelectCartesianProduct.guard(builder.buildSize(), "clustering key", false, state);
 
-            if (builder.buildSize() == 0)
+            if (builder.buildIsEmpty())
                 break;
         }
         return builder.build();
@@ -120,7 +120,7 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
 
             r.appendBoundTo(builder, bound, options);
 
-            if (builder.buildSize() == 0)
+            if (builder.buildIsEmpty())
                 return BTreeSet.empty(comparator);
 
             // We allow slice restriction only on the last clustering column restricted by the query.

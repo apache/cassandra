@@ -95,7 +95,7 @@ final class PartitionKeySingleRestrictionSet extends RestrictionSetWrapper imple
             if (hasIN() && Guardrails.inSelectCartesianProduct.enabled(state))
                 Guardrails.inSelectCartesianProduct.guard(builder.buildSize(), "partition key", false, state);
 
-            if (builder.buildSize() == 0)
+            if (builder.buildIsEmpty())
                 break;
         }
         return toByteBuffers(builder.build());
@@ -108,7 +108,7 @@ final class PartitionKeySingleRestrictionSet extends RestrictionSetWrapper imple
         for (SingleRestriction r : restrictions)
         {
             r.appendBoundTo(builder, bound, options);
-            if (builder.buildSize() == 0)
+            if (builder.buildIsEmpty())
                 return Collections.emptyList();
         }
         return toByteBuffers(builder.buildBound(bound.isStart()));

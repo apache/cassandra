@@ -212,6 +212,14 @@ public class MultiCBuilder
     }
 
     /**
+     * Returns <code>true</code> if the current number of build results is zero.
+     */
+    public boolean buildIsEmpty()
+    {
+        return elements.isEmpty();
+    }
+
+    /**
      * Checks if some elements can still be added to the clusterings.
      *
      * @return <code>true</code> if it is possible to add more elements to the clusterings, <code>false</code> otherwise.
