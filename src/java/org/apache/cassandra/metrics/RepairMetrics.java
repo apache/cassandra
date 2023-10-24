@@ -25,6 +25,7 @@ import java.util.Map;
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Histogram;
 import org.apache.cassandra.net.Verb;
+import org.apache.cassandra.repair.messages.RepairMessage;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
@@ -39,20 +40,22 @@ public class RepairMetrics
 
     public static void init()
     {
-        // noop
+        for (Verb verb : RepairMessage.ALLOWS_RETRY)
+        {
+            retriesByVerb.put(verb, Metrics.histogram(DefaultNameFactory.createMetricName(TYPE_NAME, "Retries-" + verb.name(), null), false));
+            retryTimeoutByVerb.put(verb, Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "RetryTimeout-" + verb.name(), null)));
+        }
     }
 
     public static void retry(Verb verb, int attempt)
     {
         retries.update(attempt);
-        Histogram histo = retriesByVerb.computeIfAbsent(verb, ignore -> Metrics.histogram(DefaultNameFactory.createMetricName(TYPE_NAME, "Retries-" + verb.name(), null), false));
-        histo.update(attempt);
+        retriesByVerb.get(verb).update(attempt);
     }
 
     public static void retryTimeout(Verb verb)
     {
         retryTimeout.inc();
-        Counter counter = retryTimeoutByVerb.computeIfAbsent(verb, ignore -> Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "RetryTimeout-" + verb.name(), null)));
-        counter.inc();
+        retryTimeoutByVerb.get(verb).inc();
     }
 }
