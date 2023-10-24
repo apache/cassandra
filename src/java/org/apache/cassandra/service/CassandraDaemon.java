@@ -550,10 +550,7 @@ public class CassandraDaemon
     {
         String nativeFlag = System.getProperty("cassandra.start_native_transport");
         if ((nativeFlag != null && Boolean.parseBoolean(nativeFlag)) || (nativeFlag == null && DatabaseDescriptor.startNativeTransport()))
-        {
             startNativeTransport();
-            StorageService.instance.setRpcReady(true);
-        }
         else
             logger.info("Not starting native transport as requested. Use JMX (StorageService->startNativeTransport()) or nodetool (enablebinary) to start it");
 
@@ -713,13 +710,22 @@ public class CassandraDaemon
         if (nativeTransportService == null)
             throw new IllegalStateException("setup() must be called first for CassandraDaemon");
 
+        // this iterates over a collection of servers and returns true if one of them is started
+        boolean alreadyRunning = nativeTransportService.isRunning();
+
+        // this might in practice start all servers which are not started yet
         nativeTransportService.start();
+
+        // interact with gossip only in case if no server was started before to signal they are started now
+        if (!alreadyRunning)
+            StorageService.instance.setRpcReady(true);
     }
 
     public void stopNativeTransport()
     {
         if (nativeTransportService != null)
         {
+            StorageService.instance.setRpcReady(false);
             nativeTransportService.stop();
         }
     }
