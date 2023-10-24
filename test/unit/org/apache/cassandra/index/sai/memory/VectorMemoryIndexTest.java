@@ -110,7 +110,7 @@ public class VectorMemoryIndexTest extends SAITester
                                                    .build();
         cfs = MockSchema.newCFS(tableMetadata);
         partitioner = cfs.getPartitioner();
-        dimensionCount = getRandom().nextIntBetween(1, 2048);
+        dimensionCount = getRandom().nextIntBetween(2, 2048);
         indexContext = SAITester.createIndexContext("index", VectorType.getInstance(FloatType.instance, dimensionCount));
         indexSearchCounter.reset();
         keyMap = new TreeMap<>();

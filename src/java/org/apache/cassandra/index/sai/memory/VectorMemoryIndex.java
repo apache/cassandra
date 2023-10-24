@@ -178,7 +178,9 @@ public class VectorMemoryIndex extends MemoryIndex
             if (resultKeys.isEmpty())
                 return KeyRangeIterator.empty();
 
-            int bruteForceRows = (int)(indexContext.getIndexWriterConfig().getMaximumNodeConnections() * Math.log(graph.size()));
+            int bruteForceRows = maxBruteForceRows(vectorQueryContext.limit(), resultKeys.size(), graph.size());
+            Tracing.trace("Search range covers {} rows; max brute force rows is {} for memtable index with {} nodes, LIMIT {}",
+                          resultKeys.size(), bruteForceRows, graph.size(), vectorQueryContext.limit());
             if (resultKeys.size() < Math.max(vectorQueryContext.limit(), bruteForceRows))
                 return new ReorderingRangeIterator(new PriorityQueue<>(resultKeys));
             else
