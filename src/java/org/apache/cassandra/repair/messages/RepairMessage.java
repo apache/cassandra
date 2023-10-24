@@ -194,20 +194,19 @@ public abstract class RepairMessage
 
             private void maybeRecordRetry(boolean succcess)
             {
-                if (attempt > 0) // if greater than 0 we know a retry happened...
+                if (attempt <= 0)
+                    return;
+                // we don't know what the prefix kind is... so use NONE... this impacts logPrefix as it will cause us to use "repair" rather than "preview repair" which may not be correct... but close enough...
+                String prefix = PreviewKind.NONE.logPrefix(request.parentRepairSession());
+                RepairMetrics.retry(verb, attempt);
+                if (succcess)
                 {
-                    // we don't know what the prefix kind is... so use NONE... this impacts logPrefix as it will cause us to use "repair" rather than "preview repair" which may not be correct... but close enough...
-                    String prefix = PreviewKind.NONE.logPrefix(request.parentRepairSession());
-                    RepairMetrics.retry(verb, attempt);
-                    if (succcess)
-                    {
-                        noSpam.info("{} Retry of repair verb " + verb + " was success after {} attempts", prefix, attempt);
-                    }
-                    else
-                    {
-                        noSpam.warn("{} Timeout for repair verb " + verb + "; could not complete within {} attempts", prefix, attempt);
-                        RepairMetrics.retryTimeout(verb);
-                    }
+                    noSpam.info("{} Retry of repair verb " + verb + " was success after {} attempts", prefix, attempt);
+                }
+                else
+                {
+                    noSpam.warn("{} Timeout for repair verb " + verb + "; could not complete within {} attempts", prefix, attempt);
+                    RepairMetrics.retryTimeout(verb);
                 }
             }
 
