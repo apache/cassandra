@@ -69,7 +69,7 @@ public class VectorPostings<T>
     }
 
     /**
-     * Compute the rowIds corresponding to the <T> keys in this postings list.
+     * Compute the rowIds corresponding to the {@code <T>} keys in this postings list.
      */
     public void computeRowIds(Function<T, Integer> postingTransformer)
     {
@@ -88,7 +88,7 @@ public class VectorPostings<T>
     }
 
     /**
-     * @return rowIds corresponding to the <T> keys in this postings list.
+     * @return rowIds corresponding to the {@code <T>} keys in this postings list.
      * Must be called after computeRowIds.
      */
     public IntArrayList getRowIds()
