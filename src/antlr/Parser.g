@@ -1796,11 +1796,11 @@ relation[WhereClause.Builder clauses]
       | K_NOT K_IN
           ( '(' ')'
               { $clauses.add(MultiColumnRelation.createNotInRelation(ids, new ArrayList<Tuples.Literal>())); }
-          | tupleInMarker=inMarkerForTuple /* (a, b, c) IN ? */
+          | tupleInMarker=inMarkerForTuple /* (a, b, c) NOT IN ? */
               { $clauses.add(MultiColumnRelation.createSingleMarkerNotInRelation(ids, tupleInMarker)); }
-          | literals=tupleOfTupleLiterals /* (a, b, c) IN ((1, 2, 3), (4, 5, 6), ...) */
+          | literals=tupleOfTupleLiterals /* (a, b, c) NOT IN ((1, 2, 3), (4, 5, 6), ...) */
               { $clauses.add(MultiColumnRelation.createNotInRelation(ids, literals)); }
-          | markers=tupleOfMarkersForTuples /* (a, b, c) IN (?, ?, ...) */
+          | markers=tupleOfMarkersForTuples /* (a, b, c) NOT IN (?, ?, ...) */
               { $clauses.add(MultiColumnRelation.createNotInRelation(ids, markers)); }
           )
       | type=relationType literal=tupleLiteral /* (a, b, c) > (1, 2, 3) or (a, b, c) > (?, ?, ?) */
