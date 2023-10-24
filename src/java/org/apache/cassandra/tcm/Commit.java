@@ -45,6 +45,10 @@ import org.apache.cassandra.utils.vint.VIntCoding;
 
 import static org.apache.cassandra.tcm.ClusterMetadataService.State.*;
 
+/**
+ * Commit request send by a {@code RemoteProcessor} from a non-CMS node.
+ *
+ */
 public class Commit
 {
     private static final Logger logger = LoggerFactory.getLogger(Commit.class);
@@ -300,6 +304,10 @@ public class Commit
         return new Handler(processor, replicator, messagingService, () -> LOCAL);
     }
 
+    /**
+     * Handler in charge of performing the commit to the distributed log. If the node is not a CMS member the query
+     * will be rejected with a {@code NotCMSException}.
+     */
     static class Handler implements IVerbHandler<Commit>
     {
         private final Processor processor;
@@ -342,6 +350,11 @@ public class Commit
             }
         }
 
+        /**
+         * Checks that the node is part of the CMS.
+         * @throws NotCMSException if the node is not member of the CMS.
+         * @throws IllegalStateException if the state is an unexpected one.
+         */
         private void checkCMSState()
         {
             switch (cmsStateSupplier.get())

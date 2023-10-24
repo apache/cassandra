@@ -85,6 +85,8 @@ public class Startup
                 initMessaging.run();
                 break;
             case VOTE:
+                // Usual case. The node will initialize itself as a non-CMS node and will attempt to discover an existing CMS service or,
+                // failing that, will participate in a vote to establish a new one with other discovered participants.
                 logger.info("Initializing for discovery");
                 initializeAsNonCmsNode(wrapProcessor);
                 initializeForDiscovery(initMessaging);
@@ -300,7 +302,7 @@ public class Startup
         /**
          * Whether this node becomes a member of CMS or not is determined by the election procedure (see {@link Election}).
          * This startup mode is selected when the node was not started before, and it does not satisfy the conditions
-         * for {@link #FIRST_CMS}.
+         * for {@link #FIRST_CMS}. {@code VOTE} is usually the default startup mode.
          */
         VOTE,
 
@@ -314,7 +316,7 @@ public class Startup
 
         /**
          * The node will use the existing {@code ClusterMetadata} provided through a file - it happens when
-         * {@link CassandraRelevantProperties.TCM_UNSAFE_BOOT_WITH_CLUSTERMETADATA} is set.
+         * {@link CassandraRelevantProperties#TCM_UNSAFE_BOOT_WITH_CLUSTERMETADATA} is set.
          */
         BOOT_WITH_CLUSTERMETADATA;
 

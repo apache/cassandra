@@ -178,9 +178,17 @@ public class Entry implements Comparable<Entry>
         }
     }
 
+    /**
+     * {@code Entry.ID} supplier that generate IDs from the node address (encoded on the 4 most significant bytes) and
+     * from a counter initialized from the clock current time in millis and incremented on request (encoded on the 4 least significant bytes).
+     */
     public static class DefaultEntryIdGen implements Supplier<Id>
     {
         private final AtomicLong counter = new AtomicLong(Clock.Global.currentTimeMillis() & 0x00000000ffffffffL);
+
+        /**
+         * The address component of the generated IDs.
+         */
         private final long addrComponent;
 
         public DefaultEntryIdGen()
@@ -198,6 +206,7 @@ public class Entry implements Comparable<Entry>
             this.addrComponent = addrComponent << Integer.SIZE;
         }
 
+        @Override
         public Id get()
         {
             return new Id(addrComponent | counter.getAndIncrement());
