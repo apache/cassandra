@@ -201,7 +201,7 @@ public abstract class RepairMessage
                 RepairMetrics.retry(verb, attempt);
                 if (succcess)
                 {
-                    noSpam.info("{} Retry of repair verb " + verb + " was success after {} attempts", prefix, attempt);
+                    noSpam.info("{} Retry of repair verb " + verb + " was successful after {} attempts", prefix, attempt);
                 }
                 else
                 {
