@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3.statements.schema;
 
+import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -26,6 +27,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import com.google.common.base.Splitter;
@@ -34,6 +36,10 @@ import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.datastax.driver.core.querybuilder.QueryBuilder;
+import com.datastax.driver.core.schemabuilder.Alter;
+import com.datastax.driver.core.schemabuilder.SchemaBuilder;
+import com.datastax.driver.core.schemabuilder.SchemaStatement;
 import org.apache.cassandra.audit.AuditLogContext;
 import org.apache.cassandra.audit.AuditLogEntryType;
 import org.apache.cassandra.auth.Permission;
@@ -75,12 +81,13 @@ import static com.google.common.collect.Iterables.isEmpty;
 import static com.google.common.collect.Iterables.transform;
 import static java.lang.String.format;
 import static java.lang.String.join;
+import static org.apache.cassandra.cql3.ColumnIdentifier.maybeQuote;
 import static org.apache.cassandra.schema.TableMetadata.Flag;
 
 public abstract class AlterTableStatement extends AlterSchemaStatement
 {
     protected final String tableName;
-    private final boolean ifExists;
+    protected final boolean ifExists;
     protected ClientState state;
 
     public AlterTableStatement(String keyspaceName, String tableName, boolean ifExists)
@@ -389,6 +396,17 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         }
 
         @Override
+        public String cql()
+        {
+            return String.format("ALTER TABLE %s %s.%s DROP %s (%s) USING TIMESTAMP %s",
+                                 ifExists ? "IF EXISTS" : "",
+                                 maybeQuote(keyspaceName), maybeQuote(tableName),
+                                 ifColumnExists ? "IF EXISTS" : "",
+                                 removedColumns.stream().map(ColumnIdentifier::toCQLString).collect(Collectors.joining(", ")),
+                                 timestamp);
+        }
+
+        @Override
         public KeyspaceMetadata apply(Epoch epoch, KeyspaceMetadata keyspace, TableMetadata table, boolean isReplay)
         {
             if (!isReplay)
@@ -435,16 +453,9 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                 throw ire("Cannot drop column %s on base table %s with materialized views", currentColumn, table.name);
 
             builder.removeRegularOrStaticColumn(column);
-            builder.recordColumnDrop(currentColumn, getTimestamp());
+            builder.recordColumnDrop(currentColumn, timestamp);
         }
 
-        /**
-         * @return timestamp from query, otherwise return current time in micros
-         */
-        private long getTimestamp()
-        {
-            return timestamp == null ? ClientState.getTimestamp() : timestamp;
-        }
     }
 
     /**
@@ -736,6 +747,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
         {
             String keyspaceName = name.hasKeyspace() ? name.getKeyspace() : state.getKeyspace();
             String tableName = name.getName();
+            timestamp = timestamp != null ? timestamp : ClientState.getTimestamp();
 
             switch (kind)
             {
