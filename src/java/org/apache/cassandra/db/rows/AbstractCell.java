@@ -121,10 +121,9 @@ public abstract class AbstractCell<V> extends Cell<V>
     {
         CellPath newPath = null;
         if (path() != null) {
-            ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
             byte[] newUUID = nextTimeUUIDAsBytes(newTimestamp);
             newPath = CellPath.create(ByteBuffer.wrap(newUUID));
-            logger.debug("timestamp: {}   buffer: {}    newPath: {}", newTimestamp, buffer.get(), newPath.get(0));
+            logger.debug("timestamp: {}    newPath: {}", newTimestamp, newPath.get(0));
         }
         return new BufferCell(column, isTombstone() ? newTimestamp - 1 : newTimestamp, ttl(), localDeletionTime(), buffer(), newPath);
     }
@@ -132,16 +131,32 @@ public abstract class AbstractCell<V> extends Cell<V>
     @Override
     public ColumnData updateAllTimestampAndLocalDeletionTime(long newTimestamp, int newLocalDeletionTime)
     {
-        long ldt = NO_DELETION_TIME;
+        // Fun fact: The two parameters are actually redundant: One is a function of the other.
+        // ...of course, the whole business of deriving the legacy timestamps from Accord executeAt is a bridge to the past anyway.
+        assert newTimestamp/1000000 == newLocalDeletionTime;
+
+        final long newts = isTombstone() ? newTimestamp - 1 : newTimestamp;
+        final long localDeletionTime = localDeletionTime() != NO_DELETION_TIME ? newLocalDeletionTime : NO_DELETION_TIME;
+
+        // In addition to updating the timestamps for each row and partition, it turns out the elements of a ListType
+        // are keyed with a TimeUUID, which is based on the Cassandra timestamp. We want these to now also adhere to
+        // the accord executeAt timestamps, so that they are ordered the same as the transactions that wrote them.
+        // As an example, if a set of accord transactions all append an element to a list, then the order of the elements
+        // in the list should map to the order that the transactions were executed in.
         CellPath newPath = null;
         if (path() != null) {
-            ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
+            // We need to use a next*() function, so that we get a new timestamp for each ListType element, in case
+            // one transaction would write several list elements. (Including writing into more than one list<> column
+            // within the same write.)
             byte[] newUUID = nextTimeUUIDAsBytes(newTimestamp);
             newPath = CellPath.create(ByteBuffer.wrap(newUUID));
-            logger.debug("timestamp: {}   buffer: {}    newPath: {}    newLocalDeletionTime: {}", newTimestamp, buffer.get(), newPath.get(0), newLocalDeletionTime);
+
+
+            logger.debug("timestamp: {} {}  newPath: {}    newLocalDeletionTime: {} {}",
+                    newTimestamp, newts, newPath.get(0), newLocalDeletionTime, localDeletionTime);
         }
 
-        return new BufferCell(column, isTombstone() ? newTimestamp - 1 : newTimestamp, ttl(), ldt, buffer(), newPath);
+        return new BufferCell(column, newts, ttl(), localDeletionTime, buffer(), newPath);
     }
 
     public int dataSize()
