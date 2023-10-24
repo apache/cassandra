@@ -210,17 +210,17 @@ class TestCqlshCompletion(CqlshCompletionCase):
 
         self.trycompletions(
             'INSERT INTO twenty_rows_composite_table (a, b, c) VALUES (',
-            ['<value for a (text)>'],
+            choices=['<value for a (text)>'],
             split_completed_lines=False)
 
         self.trycompletions(
             "INSERT INTO twenty_rows_composite_table (a, b, c) VALUES ('",
-            ['<value for a (text)>'],
+            choices=['<value for a (text)>'],
             split_completed_lines=False)
 
         self.trycompletions(
             "INSERT INTO twenty_rows_composite_table (a, b, c) VALUES ( 'eggs",
-            ['<value for a (text)>'],
+            choices=['<value for a (text)>'],
             split_completed_lines=False)
 
         self.trycompletions(
@@ -230,7 +230,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions(
             ("INSERT INTO twenty_rows_composite_table (a, b, c) "
              "VALUES ( 'eggs',"),
-            ['<value for b (text)>'],
+            choices=['<value for b (text)>'],
             split_completed_lines=False)
 
         self.trycompletions(
@@ -322,6 +322,22 @@ class TestCqlshCompletion(CqlshCompletionCase):
             ("INSERT INTO twenty_rows_composite_table (a, b, c) "
              "VALUES ( 'eggs', 'sausage', 'spam') USING TTL 0 AND TIMESTAMP 0 AND "),
             choices=[])
+
+        self.trycompletions(
+            ("INSERT INTO has_all_types (num, setcol) VALUES (0, "),
+            immediate="{ ")
+
+        self.trycompletions(
+            ("INSERT INTO has_all_types (num, mapcol) VALUES (0, "),
+            immediate="{ ")
+
+        self.trycompletions(
+            ("INSERT INTO has_all_types (num, listcol) VALUES (0, "),
+            immediate="[ ")
+
+        self.trycompletions(
+            ("INSERT INTO has_all_types (num, vectorcol) VALUES (0, "),
+            immediate="[ ")
 
     def test_complete_in_update(self):
         self.trycompletions("UPD", immediate="ATE ")
@@ -630,6 +646,18 @@ class TestCqlshCompletion(CqlshCompletionCase):
                             immediate='RIMARY KEY ')
         self.trycompletions(prefix + ' new_table (col_a int PRIMARY KEY ',
                             choices=[')', ','])
+
+        self.trycompletions(prefix + ' new_table (col_a v',
+                            choices=['varchar', 'varint', 'vector'])
+        self.trycompletions(prefix + ' new_table (col_a ve',
+                            immediate='ctor ')
+        self.trycompletions(prefix + ' new_table (col_a vector<',
+                            choices=['address', 'boolean', 'duration', 'list'],
+                            other_choices_ok=True)
+        self.trycompletions(prefix + ' new_table (col_a vector<float, ',
+                            choices=['<wholenumber>'])
+        self.trycompletions(prefix + ' new_table (col_a vector<float, 2 ',
+                            immediate='>')
 
         self.trycompletions(prefix + ' new_table (col_a int PRIMARY KEY,',
                             choices=['<identifier>', '<quotedName>'])
