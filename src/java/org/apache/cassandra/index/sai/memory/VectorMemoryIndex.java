@@ -136,7 +136,8 @@ public class VectorMemoryIndex extends MemoryIndex
         return bytesUsed;
     }
 
-    private void updateKeyBounds(PrimaryKey primaryKey) {
+    private void updateKeyBounds(PrimaryKey primaryKey)
+    {
         if (minimumKey == null)
             minimumKey = primaryKey;
         else if (primaryKey.compareTo(minimumKey) < 0)

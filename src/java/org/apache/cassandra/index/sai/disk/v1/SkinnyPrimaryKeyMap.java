@@ -165,7 +165,7 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
             return Long.MAX_VALUE;
 
         long rowId = tokenArray.indexOf(token.getLongValue());
-        return rowId < 0 ? tokenArray.length() - 1 : rowId;
+        return rowId < 0 ? rowId : rowId;
     }
 
     @Override
