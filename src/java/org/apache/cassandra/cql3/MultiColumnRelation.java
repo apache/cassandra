@@ -219,7 +219,13 @@ public class MultiColumnRelation extends Relation
     }
 
     @Override
-    protected Restriction newContainsRestriction(TableMetadata table, VariableSpecifications boundNames, boolean isKey, boolean isNot)
+    protected Restriction newContainsRestriction(TableMetadata table, VariableSpecifications boundNames, boolean isKey)
+    {
+        throw invalidRequest("%s cannot be used for multi-column relations", operator());
+    }
+
+    @Override
+    protected Restriction newNotContainsRestriction(TableMetadata table, VariableSpecifications boundNames, boolean isKey)
     {
         throw invalidRequest("%s cannot be used for multi-column relations", operator());
     }

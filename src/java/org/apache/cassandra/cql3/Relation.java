@@ -189,10 +189,10 @@ public abstract class Relation
             case GT: return newSliceRestriction(table, boundNames, Bound.START, false);
             case IN: return newINRestriction(table, boundNames);
             case NOT_IN: return newNotINRestriction(table, boundNames);
-            case CONTAINS: return newContainsRestriction(table, boundNames, false, false);
-            case CONTAINS_KEY: return newContainsRestriction(table, boundNames, true, false);
-            case NOT_CONTAINS: return newContainsRestriction(table, boundNames, false, true);
-            case NOT_CONTAINS_KEY: return newContainsRestriction(table, boundNames, true, true);
+            case CONTAINS: return newContainsRestriction(table, boundNames, false);
+            case CONTAINS_KEY: return newContainsRestriction(table, boundNames, true);
+            case NOT_CONTAINS: return newNotContainsRestriction(table, boundNames, false);
+            case NOT_CONTAINS_KEY: return newNotContainsRestriction(table, boundNames, true);
             case IS_NOT: return newIsNotRestriction(table, boundNames);
             case LIKE_PREFIX:
             case LIKE_SUFFIX:
@@ -270,7 +270,18 @@ public abstract class Relation
      * @return a new Contains <code>Restriction</code> instance
      * @throws InvalidRequestException if the <code>Relation</code> is not valid
      */
-    protected abstract Restriction newContainsRestriction(TableMetadata table, VariableSpecifications boundNames, boolean isKey, boolean isNot);
+    protected abstract Restriction newContainsRestriction(TableMetadata table, VariableSpecifications boundNames, boolean isKey);
+
+    /**
+     * Creates a new Contains restriction instance representing a NOT CONTAINS operation.
+     *
+     * @param table the table meta data
+     * @param boundNames the variables specification where to collect the bind variables
+     * @param isKey <code>true</code> if the restriction to create is a CONTAINS KEY
+     * @return a new Contains <code>Restriction</code> instance
+     * @throws InvalidRequestException if the <code>Relation</code> is not valid
+     */
+    protected abstract Restriction newNotContainsRestriction(TableMetadata table, VariableSpecifications boundNames, boolean isKey);
 
     protected abstract Restriction newIsNotRestriction(TableMetadata table, VariableSpecifications boundNames);
 

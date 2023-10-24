@@ -276,12 +276,21 @@ public final class SingleColumnRelation extends Relation
     @Override
     protected Restriction newContainsRestriction(TableMetadata table,
                                                  VariableSpecifications boundNames,
-                                                 boolean isKey,
-                                                 boolean isNot) throws InvalidRequestException
+                                                 boolean isKey) throws InvalidRequestException
     {
         ColumnMetadata columnDef = table.getExistingColumn(entity);
         Term term = toTerm(toReceivers(columnDef), value, table.keyspace, boundNames);
-        return new SingleColumnRestriction.ContainsRestriction(columnDef, term, isKey, isNot);
+        return new SingleColumnRestriction.ContainsRestriction(columnDef, term, isKey, false);
+    }
+
+    @Override
+    protected Restriction newNotContainsRestriction(TableMetadata table,
+                                                 VariableSpecifications boundNames,
+                                                 boolean isKey) throws InvalidRequestException
+    {
+        ColumnMetadata columnDef = table.getExistingColumn(entity);
+        Term term = toTerm(toReceivers(columnDef), value, table.keyspace, boundNames);
+        return new SingleColumnRestriction.ContainsRestriction(columnDef, term, isKey, true);
     }
 
     @Override
