@@ -161,7 +161,12 @@ public class VectorMemtableIndex implements MemtableIndex
         float[] qv = expr.lower.value.vector;
 
         Bits bits = null;
-        if (!RangeUtil.coversFullRing(keyRange))
+        if (RangeUtil.coversFullRing(keyRange))
+        {
+            // partition/range deletion won't trigger index update, so we have to filter shadow primary keys in memtable index
+            bits = queryContext.bitsetForShadowedPrimaryKeys(graph);
+        }
+        else
         {
             // if left bound is MIN_BOUND or KEY_BOUND, we need to include all token-only PrimaryKeys with same token
             boolean leftInclusive = keyRange.left.kind() != PartitionPosition.Kind.MAX_BOUND;
@@ -189,11 +194,6 @@ public class VectorMemtableIndex implements MemtableIndex
                 return new ReorderingRangeIterator(new PriorityQueue<>(resultKeys));
             else
                 bits = new KeyRangeFilteringBits(keyRange, queryContext.bitsetForShadowedPrimaryKeys(graph));
-        }
-        else
-        {
-            // partition/range deletion won't trigger index update, so we have to filter shadow primary keys in memtable index
-            bits = queryContext.bitsetForShadowedPrimaryKeys(graph);
         }
 
         var keyQueue = graph.search(qv, limit, bits);
