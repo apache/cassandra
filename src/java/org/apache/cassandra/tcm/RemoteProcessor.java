@@ -71,7 +71,6 @@ public final class RemoteProcessor implements Processor
     }
 
     @Override
-    @SuppressWarnings("resource")
     public Commit.Result commit(Entry.Id entryId, Transformation transform, Epoch lastKnown, Retry.Deadline retryPolicy)
     {
         // Replay everything in-flight before attempting a commit
@@ -264,13 +263,11 @@ public final class RemoteProcessor implements Processor
         private final Deque<InetAddressAndPort> candidates;
         private final boolean checkLive;
 
-        @SuppressWarnings("resource")
         public CandidateIterator(Collection<InetAddressAndPort> initialContacts)
         {
             this(initialContacts, true);
         }
 
-        @SuppressWarnings("resource")
         public CandidateIterator(Collection<InetAddressAndPort> initialContacts, boolean checkLive)
         {
             this.candidates = new ConcurrentLinkedDeque<>(initialContacts);

@@ -35,7 +35,7 @@ import static org.apache.cassandra.tcm.transformations.cms.EntireRange.affectedR
 
 public class FinishAddToCMS extends BaseMembershipTransformation
 {
-    public static final AsymmetricMetadataSerializer<Transformation, FinishAddToCMS> serializer = new SerializerBase<FinishAddToCMS>()
+    public static final AsymmetricMetadataSerializer<Transformation, FinishAddToCMS> serializer = new SerializerBase<>()
     {
         public FinishAddToCMS createTransformation(InetAddressAndPort addr)
         {

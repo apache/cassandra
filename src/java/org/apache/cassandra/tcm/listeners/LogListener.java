@@ -23,7 +23,7 @@ import org.apache.cassandra.tcm.log.Entry;
 
 /**
  * Invoked each time the log is updated
- *
+ * <p>
  * Not guaranteed to see all transformations
  */
 public interface LogListener

@@ -53,7 +53,7 @@ public class Period
 
     /**
      * Last resort fallback to find where in the log table (either local or distributed) we can find a
-     * given epoch. If the current ClusterMetadata.period > Period.FIRST (as should be the case normally),
+     * given epoch. If the current {@code ClusterMetadata.period} > {@code Period.FIRST} (as should be the case normally),
      * we start there and walk backwards through the log table. Otherwise, we walk forwards.
      * Note, this method is only used (and should only be used) as a last resort in case the local index of
      * max epoch to period (in system.metadata_sealed_periods) is not available.

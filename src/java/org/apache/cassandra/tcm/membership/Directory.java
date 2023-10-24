@@ -680,7 +680,7 @@ public class Directory implements MetadataValue<Directory>
 
     /**
      * returns true if this directory is functionally equivalent to the given one
-     *
+     * <p>
      * does not check equality of lastModified
      */
     @VisibleForTesting

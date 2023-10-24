@@ -66,9 +66,9 @@ public abstract class Retry
     }
 
     /**
-     * Determines whether the retry strategy has reached the maximum retry attempts or has surpassed the deadline.
+     * Determines whether the retry strategy has reached the maximum retry attempts.
      *
-     * @return {@code true} if the maximum retry attempts are reached or the deadline has been surpassed; {@code false} otherwise.
+     * @return {@code true} if the maximum retry attempts are reached; {@code false} otherwise.
      */
     public boolean reachedMax()
     {
@@ -244,6 +244,11 @@ public abstract class Retry
             };
         }
 
+        /**
+         * Determines whether the retry strategy has reached the maximum retry attempts or has surpassed the deadline.
+         *
+         * @return {@code true} if the maximum retry attempts are reached or the deadline has been surpassed; {@code false} otherwise.
+         */
         @Override
         public boolean reachedMax()
         {

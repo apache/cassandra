@@ -102,7 +102,7 @@ public final class RecentlySealedPeriods
      * the max in a sealed period, we would start with the period following
      * that. If the target epoch is equal to or after the max in the latest
      * sealed period, assume that the period following that has yet to be sealed.
-     * @param epoch
+     * @param epoch the target epoch
      * @return
      */
     public Sealed lookupPeriodForReplication(Epoch epoch)

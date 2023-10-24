@@ -37,21 +37,17 @@ import static org.apache.cassandra.tcm.transformations.cms.EntireRange.affectedR
 
 public class Initialize extends ForceSnapshot
 {
-    public static final AsymmetricMetadataSerializer<Transformation, Initialize> serializer = new AsymmetricMetadataSerializer<Transformation, Initialize>()
-    {
-        public void serialize(Transformation t, DataOutputPlus out, Version version) throws IOException
-        {
+    public static final AsymmetricMetadataSerializer<Transformation, Initialize> serializer = new AsymmetricMetadataSerializer<>() {
+        public void serialize(Transformation t, DataOutputPlus out, Version version) throws IOException {
             Initialize initialize = (Initialize) t;
             ClusterMetadata.serializer.serialize(initialize.baseState, out, version);
         }
 
-        public Initialize deserialize(DataInputPlus in, Version version) throws IOException
-        {
+        public Initialize deserialize(DataInputPlus in, Version version) throws IOException {
             return new Initialize(ClusterMetadata.serializer.deserialize(in, version));
         }
 
-        public long serializedSize(Transformation t, Version version)
-        {
+        public long serializedSize(Transformation t, Version version) {
             Initialize initialize = (Initialize) t;
             return ClusterMetadata.serializer.serializedSize(initialize.baseState, version);
         }

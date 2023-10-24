@@ -24,7 +24,7 @@ public interface LogStorage extends LogReader
 {
     /**
      * Appends the log entry to the period
-     * @param period the period to which the log entry belong
+     * @param period the period to which the log entry belongs
      * @param entry the log entry
      */
     void append(long period, Entry entry);
@@ -35,7 +35,7 @@ public interface LogStorage extends LogReader
     /**
      * We are using system keyspace even on CMS nodes (at least for now) since otherwise it is tricky
      * to implement replay from the log, given the distributed metadata log table is created not
-     * during startup, but is initialized as a distributed table. We can, in theory, add an ability
+     * during startup, but it is initialized as a distributed table. We can, in theory, add an ability
      * to have distributed _system_ tables to avoid this duplication, but this doesn't seem to be
      * a priority now, especially given there's nothing that prevents us from truncating the log
      * table up to the last snapshot at any given time.

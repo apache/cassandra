@@ -95,7 +95,7 @@ public abstract class LocalLog implements Closeable
     /**
      * Custom comparator for pending entries. In general, we would like entries in the pending set to be ordered by epoch,
      * from smallest to highest, so that `#first()` call would return the smallest entry.
-     *
+     * <p>
      * However, snapshots should be applied out of order, and snapshots with higher epoch should be applied before snapshots
      * with a lower epoch in cases when there are multiple snapshots present.
      */
@@ -312,12 +312,12 @@ public abstract class LocalLog implements Closeable
 
     /**
      * Called by implementations of {@link #processPending()}.
-     *
+     * <p>
      * Implementations have to guarantee there can be no more than one caller of {@link #processPendingInternal()}
      * at a time, as we are making calls to pre- and post- commit hooks. In other words, this method should be called
      * _exclusively_ from the implementation, outside of it there's no way to ensure mutual exclusion without
      * additional guards.
-     *
+     * <p>
      * Please note that we are using a custom comparator for pending entries, which ensures that FORCE_SNAPSHOT entries
      * are going to be prioritised over other entry kinds. After application of the snapshot entry, any entry with epoch
      * lower than the one that snapshot has enacted, are simply going to be dropped. The rest of entries (i.e. ones
@@ -576,7 +576,6 @@ public abstract class LocalLog implements Closeable
             }
         }
 
-        @SuppressWarnings({ "unchecked", "rawtypes" })
         class AsyncRunnable implements Interruptible.Task
         {
             private final AtomicReference<Condition> subscriber;

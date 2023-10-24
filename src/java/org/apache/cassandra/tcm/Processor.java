@@ -53,7 +53,7 @@ public interface Processor
      * Fetches log from CMS up to the highest currently known epoch.
      * <p>
      * After fetching, all items _at least_ up to returned epoch will be visible.
-     *
+     * <p>
      * This method deliberately does not necessitate passing an epoch, since it guarantees catching up to the _latest_
      * epoch. Users that require catching up to _at least_ some epoch need to guard this call with a check of whether
      * local epoch is already at that point.
@@ -62,7 +62,7 @@ public interface Processor
     {
         return fetchLogAndWait(null); // wait for the highest possible epoch
     }
-;
+
     default ClusterMetadata fetchLogAndWait(Epoch waitFor)
     {
         return fetchLogAndWait(waitFor,

@@ -180,7 +180,7 @@ public class Election
     }
 
     /**
-     * Sends the specified message to specified nodes and wait for the responses.
+     * Sends the specified message to specified nodes and waits for the responses.
      *
      * @param messaging the messaging service to use to send the message to the different nodes
      * @param sendTo the nodes to which the message must be sent
@@ -194,7 +194,7 @@ public class Election
     {
         Accumulator<Pair<InetAddressAndPort, RSP>> responses = new Accumulator<>(sendTo.size());
         CountDownLatch cdl = CountDownLatch.newCountDownLatch(sendTo.size());
-        RequestCallback<RSP> callback = new RequestCallbackWithFailure<RSP>()
+        RequestCallback<RSP> callback = new RequestCallbackWithFailure<>()
         {
             @Override
             public void onResponse(Message<RSP> msg)

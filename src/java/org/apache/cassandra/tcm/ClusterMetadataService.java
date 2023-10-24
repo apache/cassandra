@@ -82,9 +82,9 @@ import static org.apache.cassandra.utils.Clock.Global.nanoTime;
 import static org.apache.cassandra.utils.Collectors3.toImmutableSet;
 
 /**
- * the entry point to TCM. It is responsible for transforming cluster metadata consistently in the cluster.
+ * The entry point to TCM. It is responsible for transforming cluster metadata consistently in the cluster.
  * Transformation is performed by the current {@link Processor}.
- *
+ * <p>
  * There are 3 processors availabe that are used depending on the node state:
  * <ul>
  *     <li>gossip - the processor is used during upgrade</li>
@@ -606,7 +606,7 @@ public class ClusterMetadataService
     }
 
     /**
-     * Fetches log entries from directly from CMS, at least to the specified epoch.
+     * Fetches log entries directly from CMS, at least to the specified epoch.
      * <p>
      * This operation is blocking and also waits for all retrieved log entries to be
      * enacted, so on return all transformations to ClusterMetadata will be visible.
@@ -796,7 +796,7 @@ public class ClusterMetadataService
         return commitsPaused.get();
     }
     /**
-     * Switchable implementation that allow us to go between local and remote implementation whenever we need it.
+     * Switchable implementation that allows us to go between local and remote implementation whenever we need it.
      * When the node becomes a member of CMS, it switches back to being a regular member of a cluster, and all
      * the CMS handlers get disabled.
      */

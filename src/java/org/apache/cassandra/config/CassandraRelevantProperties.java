@@ -513,7 +513,7 @@ public enum CassandraRelevantProperties
     TCM_PROGRESS_BARRIER_TIMEOUT_MILLIS("cassandra.progress_barrier_timeout_ms", "3600000"),
 
     /**
-     * Maximum sized of the {@code RecentlySealedPeriods} in-memory index.
+     * Maximum size of the {@code RecentlySealedPeriods} in-memory index.
      */
     TCM_RECENTLY_SEALED_PERIOD_INDEX_SIZE("cassandra.recently_sealed_period_index_size", "10"),
 
