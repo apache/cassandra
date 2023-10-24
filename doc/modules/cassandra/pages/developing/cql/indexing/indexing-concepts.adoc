@@ -1,0 +1,44 @@
+= Indexing concepts
+:description: How to query data from tables using indexes.
+:y: &#10003;
+:n: &#65794;
+
+The data stored in CQL tables can be queried by a variety of methods.
+The main method uses the partition key defined for a table, and is called primary indexing.
+Often, however, a query must use another column of a table to select the rows desired, and secondary indexing is required.
+Secondary indexing use fast, efficient lookup of data that matches a given condition.
+After any index is created, data can be queried using that index.
+
+{product} has the following types of indexing available:
+
+[cols="1,^1",options=header]
+|===
+| Indexing type 
+| Versions
+
+a| xref:developing/cql/ddl.adoc#primary-key[Primary indexing]
+| All
+
+a| xref:developing/cql/indexing/sai/sai-overview.adoc[Storage-attached indexing (SAI)]
+| 5.0
+
+a| xref:developing/cql/indexing/2i/2i-overview.adoc[Secondary indexing (2i)]
+| All
+|===
+
+== Primary indexing
+
+The primary index is the partition key in {product}. The storage engine of {product} uses the partition key to store rows of data, and the most efficient and fast lookup of data matches the partition key.
+
+== Storage-attached indexing (SAI)
+
+SAI uses indexes for non-partition columns, and attaches the indexing information to the SSTables that store the rows of data.
+The indexes are located on the same node as the SSTable, and are updated when the SSTable is updated.
+SAI is the most appropriate indexing method for most use cases.
+
+== Secondary indexing (2i)
+
+Secondary indexing is the original built-in indexing written for {product}.
+These indexes are all local indexes, stored in a hidden table on each node of a {product} cluster, separate from the table that contains the values being indexed.
+The index must be read from the node.
+This indexing method is only recommended when used in conjunction with a partition key.

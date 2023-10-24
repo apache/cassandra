@@ -96,7 +96,10 @@
 
 ** xref:reference/index.adoc[]
 *** xref:reference/cql-commands/alter-table.adoc[]
+*** xref:reference/cql-commands/create-index.adoc[]
+*** xref:reference/cql-commands/create-custom-index.adoc[]
 *** xref:reference/cql-commands/create-table.adoc[]
+*** xref:reference/cql-commands/drop-index.adoc[]
 *** xref:reference/cql-commands/drop-table.adoc[]
 
 ** xref:master@_:ROOT:development/index.adoc[Development]
