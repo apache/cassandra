@@ -219,7 +219,7 @@ public abstract class Relation
      *
      * @param table the table meta data
      * @param boundNames the variables specification where to collect the bind variables
-     * @return a new EQ restriction instance.
+     * @return a new NEQ restriction instance.
      * @throws InvalidRequestException if the relation cannot be converted into an NEQ restriction.
      */
     protected abstract Restriction newNEQRestriction(TableMetadata table, VariableSpecifications boundNames);
