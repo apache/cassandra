@@ -38,6 +38,15 @@ public class VectorInvalidQueryTest extends SAITester
     }
 
     @Test
+    public void cannotIndex1DWithCosine()
+    {
+        createTable("CREATE TABLE %s (pk int, v vector<float, 1>, PRIMARY KEY(pk))");
+        assertThatThrownBy(() -> createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex' WITH OPTIONS = {'similarity_function' : 'cosine'}"))
+                .isInstanceOf(InvalidRequestException.class)
+                .hasMessage("Cosine similarity is not supported for single-dimension vectors");
+    }
+
+    @Test
     public void cannotQueryEmptyVectorColumn() throws Throwable
     {
         createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");

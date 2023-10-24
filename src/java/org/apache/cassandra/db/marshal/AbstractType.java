@@ -453,8 +453,8 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     }
 
     /**
-     * The length of values for this type if all values are of fixed length, -1 otherwise. This has an impact on
-     * serialization.
+     * The length of values for this type, in bytes, if all values are of fixed length, -1 otherwise.
+     * This has an impact on serialization.
      * <lu>
      *  <li> see {@link #writeValue} </li>
      *  <li> see {@link #read} </li>
