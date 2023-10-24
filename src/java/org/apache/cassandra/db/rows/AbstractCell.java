@@ -34,7 +34,6 @@ import org.slf4j.LoggerFactory;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 
-import static org.apache.cassandra.utils.TimeUUID.Generator.atUnixMillisAsBytes;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUIDAsBytes;
 
 /**
