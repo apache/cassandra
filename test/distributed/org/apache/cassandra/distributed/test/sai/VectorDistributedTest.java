@@ -37,6 +37,7 @@ import org.junit.Rule;
 import org.junit.Test;
 
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -81,7 +82,10 @@ public class VectorDistributedTest extends TestBaseImpl
         cluster = Cluster.build(NUM_REPLICAS)
                          .withTokenCount(1) // VSTODO in-jvm-test in CC branch doesn't support multiple tokens
                          .withDataDirCount(1) // VSTODO vector memtable flush doesn't support multiple directories yet
-                         .withConfig(config -> config.with(GOSSIP).with(NETWORK))
+                         .withConfig(config -> config.with(GOSSIP)
+                                                     .with(NETWORK)
+                                                     .set("memtable_allocation_type", Config.MemtableAllocationType.offheap_objects)
+                                                     .set("memtable_heap_space", "20MiB"))
                          .start();
 
         cluster.schemaChange(withKeyspace(String.format(CREATE_KEYSPACE, RF)));
