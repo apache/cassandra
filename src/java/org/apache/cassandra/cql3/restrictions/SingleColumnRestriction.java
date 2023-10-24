@@ -409,12 +409,12 @@ public abstract class SingleColumnRestriction implements SingleRestriction
     {
         private final List<Term> values = new ArrayList<>(); // for CONTAINS
         private final List<Term> negativeValues = new ArrayList<>(); // for NOT_CONTAINS
-        private List<Term> keys = new ArrayList<>(); // for CONTAINS_KEY
+        private final List<Term> keys = new ArrayList<>(); // for CONTAINS_KEY
         private final List<Term> negativeKeys = new ArrayList<>(); // for NOT_CONTAINS_KEY
-        private List<Term> entryKeys = new ArrayList<>(); // for map[key] = value
+        private final List<Term> entryKeys = new ArrayList<>(); // for map[key] = value
         private final List<Term> entryValues = new ArrayList<>(); // for map[key] = value
-        private List<Term> negativeEntryKeys = new ArrayList<>(); // for map[key] != value
-        private List<Term> negativeEntryValues = new ArrayList<>(); // for map[key] != value
+        private final List<Term> negativeEntryKeys = new ArrayList<>(); // for map[key] != value
+        private final List<Term> negativeEntryValues = new ArrayList<>(); // for map[key] != value
 
         public ContainsRestriction(ColumnMetadata columnDef, Term t, boolean isKey, boolean isNot)
         {
@@ -448,6 +448,11 @@ public abstract class SingleColumnRestriction implements SingleRestriction
                 entryKeys.add(mapKey);
                 entryValues.add(mapValue);
             }
+        }
+
+        private ContainsRestriction(ColumnMetadata columnDef)
+        {
+            super(columnDef);
         }
 
         @Override
@@ -656,11 +661,6 @@ public abstract class SingleColumnRestriction implements SingleRestriction
             to.negativeEntryKeys.addAll(from.negativeEntryKeys);
             to.negativeEntryValues.addAll(from.negativeEntryValues);
 
-        }
-
-        private ContainsRestriction(ColumnMetadata columnDef)
-        {
-            super(columnDef);
         }
     }
 
