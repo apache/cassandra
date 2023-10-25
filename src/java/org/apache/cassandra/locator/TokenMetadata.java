@@ -349,13 +349,6 @@ public class TokenMetadata
         }
     }
 
-    /** @deprecated See CASSANDRA-4121 */
-    @Deprecated(since = "1.2.0")
-    public void addBootstrapToken(Token token, InetAddressAndPort endpoint)
-    {
-        addBootstrapTokens(Collections.singleton(token), endpoint);
-    }
-
     public void addBootstrapTokens(Collection<Token> tokens, InetAddressAndPort endpoint)
     {
         addBootstrapTokens(tokens, endpoint, null);
@@ -610,13 +603,6 @@ public class TokenMetadata
         {
             lock.readLock().unlock();
         }
-    }
-
-    /** @deprecated See CASSANDRA-4121 */
-    @Deprecated(since = "1.2.0")
-    public Token getToken(InetAddressAndPort endpoint)
-    {
-        return getTokens(endpoint).iterator().next();
     }
 
     public boolean isMember(InetAddressAndPort endpoint)
