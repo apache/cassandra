@@ -439,7 +439,6 @@ hints_compression:
   class_name: "java.lang.String"
   parameters: "java.util.Map"
 native_transport_max_auth_threads: "java.lang.Integer"
-commitlog_periodic_queue_size: "java.lang.Integer"
 force_new_prepared_statement_behaviour: "java.lang.Boolean"
 back_pressure_enabled: "java.lang.Boolean"
 materialized_views_per_table_warn_threshold: "java.lang.Integer"

@@ -407,10 +407,6 @@ public class Config
     @Replaces(oldName = "cdc_free_space_check_interval_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
     public DurationSpec.IntMillisecondsBound cdc_free_space_check_interval = new DurationSpec.IntMillisecondsBound("250ms");
 
-    /** @deprecated See CASSANDRA-3578 */
-    @Deprecated(since = "2.1.3")
-    public int commitlog_periodic_queue_size = -1;
-
     public String endpoint_snitch;
     public boolean dynamic_snitch = true;
     @Replaces(oldName = "dynamic_snitch_update_interval_in_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
