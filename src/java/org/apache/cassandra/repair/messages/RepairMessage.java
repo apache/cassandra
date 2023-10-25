@@ -65,7 +65,7 @@ public abstract class RepairMessage
     private static final Map<Verb, CassandraVersion> VERB_TIMEOUT_VERSIONS;
     public static final Set<Verb> ALLOWS_RETRY;
     private static final Set<Verb> SUPPORTS_RETRY_WITHOUT_VERSION_CHECK = Collections.unmodifiableSet(EnumSet.of(Verb.CLEANUP_MSG));
-    public static final RequestCallback<Object> NO_OP_CALLBACK = new RequestCallback<>()
+    public static final RequestCallback<Object> NOOP_CALLBACK = new RequestCallback<>()
     {
         @Override
         public void onResponse(Message<Object> msg)
@@ -151,7 +151,7 @@ public abstract class RepairMessage
 
     public static void sendMessageWithRetries(SharedContext ctx, RepairMessage request, Verb verb, InetAddressAndPort endpoint)
     {
-        sendMessageWithRetries(ctx, backoff(ctx, verb), always(), request, verb, endpoint, NO_OP_CALLBACK, 0);
+        sendMessageWithRetries(ctx, backoff(ctx, verb), always(), request, verb, endpoint, NOOP_CALLBACK, 0);
     }
 
     @VisibleForTesting

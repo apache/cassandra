@@ -67,7 +67,7 @@ public class RepairMessageTest
         SharedContext ctx = ctx();
         MessageDelivery messaging = ctx.messaging();
 
-        sendMessageWithRetries(ctx, backoff(1), always(), new CleanupMessage(SESSION), Verb.PREPARE_MSG, ADDRESS, RepairMessage.NO_OP_CALLBACK, 0);
+        sendMessageWithRetries(ctx, backoff(1), always(), new CleanupMessage(SESSION), Verb.PREPARE_MSG, ADDRESS, RepairMessage.NOOP_CALLBACK, 0);
         callback(messaging).onResponse(Message.out(Verb.PREPARE_MSG, new CleanupMessage(SESSION)));
         Mockito.verifyNoInteractions(messaging);
 
@@ -83,7 +83,7 @@ public class RepairMessageTest
         SharedContext ctx = ctx();
         MessageDelivery messaging = ctx.messaging();
 
-        sendMessageWithRetries(ctx, backoff(1), always(), new CleanupMessage(SESSION), Verb.PREPARE_MSG, ADDRESS, RepairMessage.NO_OP_CALLBACK, 0);
+        sendMessageWithRetries(ctx, backoff(1), always(), new CleanupMessage(SESSION), Verb.PREPARE_MSG, ADDRESS, RepairMessage.NOOP_CALLBACK, 0);
         callback(messaging).onFailure(ADDRESS, RequestFailureReason.UNKNOWN);
         Mockito.verifyNoInteractions(messaging);
 
@@ -99,7 +99,7 @@ public class RepairMessageTest
         SharedContext ctx = ctx();
         MessageDelivery messaging = ctx.messaging();
 
-        sendMessageWithRetries(ctx, backoff(1), always(), new CleanupMessage(SESSION), Verb.PREPARE_MSG, ADDRESS, RepairMessage.NO_OP_CALLBACK, 0);
+        sendMessageWithRetries(ctx, backoff(1), always(), new CleanupMessage(SESSION), Verb.PREPARE_MSG, ADDRESS, RepairMessage.NOOP_CALLBACK, 0);
         callback(messaging).onFailure(ADDRESS, RequestFailureReason.TIMEOUT);
         callback(messaging).onResponse(Message.out(Verb.PREPARE_MSG, new CleanupMessage(SESSION)));
         Mockito.verifyNoInteractions(messaging);
@@ -116,7 +116,7 @@ public class RepairMessageTest
         SharedContext ctx = ctx();
         MessageDelivery messaging = ctx.messaging();
 
-        sendMessageWithRetries(ctx, backoff(1), always(), new CleanupMessage(SESSION), Verb.PREPARE_MSG, ADDRESS, RepairMessage.NO_OP_CALLBACK, 0);
+        sendMessageWithRetries(ctx, backoff(1), always(), new CleanupMessage(SESSION), Verb.PREPARE_MSG, ADDRESS, RepairMessage.NOOP_CALLBACK, 0);
         callback(messaging).onFailure(ADDRESS, RequestFailureReason.TIMEOUT);
         callback(messaging).onFailure(ADDRESS, RequestFailureReason.TIMEOUT);
         Mockito.verifyNoInteractions(messaging);
@@ -133,7 +133,7 @@ public class RepairMessageTest
         SharedContext ctx = ctx();
         MessageDelivery messaging = ctx.messaging();
 
-        sendMessageWithRetries(ctx, backoff(1), always(), new CleanupMessage(SESSION), Verb.PREPARE_MSG, ADDRESS, RepairMessage.NO_OP_CALLBACK, 0);
+        sendMessageWithRetries(ctx, backoff(1), always(), new CleanupMessage(SESSION), Verb.PREPARE_MSG, ADDRESS, RepairMessage.NOOP_CALLBACK, 0);
         callback(messaging).onFailure(ADDRESS, RequestFailureReason.TIMEOUT);
         callback(messaging).onFailure(ADDRESS, RequestFailureReason.UNKNOWN);
         Mockito.verifyNoInteractions(messaging);
