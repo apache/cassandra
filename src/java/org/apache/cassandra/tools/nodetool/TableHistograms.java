@@ -37,6 +37,7 @@ import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 import org.apache.cassandra.utils.EstimatedHistogram;
 
+import org.apache.cassandra.utils.Pair;
 import org.apache.commons.lang3.ArrayUtils;
 
 @Command(name = "tablehistograms", description = "Print statistic histograms for a given table")
@@ -60,20 +61,23 @@ public class TableHistograms extends NodeToolCmd
             allTables.put(entry.getKey(), entry.getValue().getTableName());
         }
 
-        if (args.size() == 2)
+        if (args.size() == 2 && args.stream().noneMatch(arg -> arg.contains(".")))
         {
             tablesList.put(args.get(0), args.get(1));
         }
         else if (args.size() == 1)
         {
-            String[] input = args.get(0).split("\\.");
-            checkArgument(input.length == 2, "tablehistograms requires keyspace and table name arguments");
-            tablesList.put(input[0], input[1]);
+            Pair<String, String> ksTbPair = parseTheKsTbPair(args.get(0));
+            tablesList.put(ksTbPair.left, ksTbPair.right);
         }
-        else
+        else if (args.size() == 0)
         {
             // use all tables
             tablesList = allTables;
+        }
+        else
+        {
+            throw new IllegalArgumentException("tablehistograms requires <keyspace> <table> or <keyspace.table> format argument.");
         }
 
         // verify that all tables to list exist
@@ -86,7 +90,7 @@ public class TableHistograms extends NodeToolCmd
             }
         }
 
-        for (String keyspace : tablesList.keys())
+        for (String keyspace : tablesList.keys().elementSet())
         {
             for (String table : tablesList.get(keyspace))
             {
@@ -170,5 +174,12 @@ public class TableHistograms extends NodeToolCmd
                 out.println();
             }
         }
+    }
+
+    private Pair<String, String> parseTheKsTbPair(String ksAndTb)
+    {
+        String[] input = args.get(0).split("\\.");
+        checkArgument(input.length == 2, "tablehistograms requires keyspace and table name arguments");
+        return Pair.create(input[0], input[1]);
     }
 }
