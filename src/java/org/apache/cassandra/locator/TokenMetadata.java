@@ -349,13 +349,6 @@ public class TokenMetadata
         }
     }
 
-    /** @deprecated See CASSANDRA-4121 */
-    @Deprecated(since = "1.2.0")
-    public void addBootstrapToken(Token token, InetAddressAndPort endpoint)
-    {
-        addBootstrapTokens(Collections.singleton(token), endpoint);
-    }
-
     public void addBootstrapTokens(Collection<Token> tokens, InetAddressAndPort endpoint)
     {
         addBootstrapTokens(tokens, endpoint, null);
@@ -612,13 +605,6 @@ public class TokenMetadata
         }
     }
 
-    /** @deprecated See CASSANDRA-4121 */
-    @Deprecated(since = "1.2.0")
-    public Token getToken(InetAddressAndPort endpoint)
-    {
-        return getTokens(endpoint).iterator().next();
-    }
-
     public boolean isMember(InetAddressAndPort endpoint)
     {
         assert endpoint != null;
@@ -792,13 +778,6 @@ public class TokenMetadata
         for (Token right : tokens)
             ranges.add(new Range<>(getPredecessor(right), right));
         return ranges;
-    }
-
-    /** @deprecated See CASSANDRA-4121 */
-    @Deprecated(since = "1.2.0")
-    public Range<Token> getPrimaryRangeFor(Token right)
-    {
-        return getPrimaryRangesFor(Arrays.asList(right)).iterator().next();
     }
 
     public ArrayList<Token> sortedTokens()
