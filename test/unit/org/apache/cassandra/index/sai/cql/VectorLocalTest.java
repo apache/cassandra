@@ -328,6 +328,91 @@ public class VectorLocalTest extends VectorTester
         }
     }
 
+    @Test
+    public void rangeRestrictedWidePartitionTest()
+    {
+        createTable(String.format("CREATE TABLE %%s (pk int, ck int, str_val text, val vector<float, %d>, PRIMARY KEY(pk, ck ))", word2vec.dimension()));
+        createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
+
+        int vectorCount = getRandom().nextIntBetween(500, 1000);
+
+        int pk = 0;
+        int ck = 0;
+        Multimap<Long, float[]> vectorsByToken = ArrayListMultimap.create();
+        for (int index = 0; index < vectorCount; index++)
+        {
+            String word = word2vec.word(index);
+            float[] vector = word2vec.vector(word);
+            vectorsByToken.put(Murmur3Partitioner.instance.getToken(Int32Type.instance.decompose(pk)).getLongValue(), vector);
+            execute("INSERT INTO %s (pk, ck, str_val, val) VALUES (?, ?, ?, " + vectorString(vector) + " )", pk, ck++, word);
+            if (ck == 10)
+            {
+                ck = 0;
+                pk++;
+            }
+        }
+
+        // query memtable index
+        for (int executionCount = 0; executionCount < 50; executionCount++)
+        {
+            int key1 = getRandom().nextIntBetween(1, vectorCount * 2);
+            long token1 = Murmur3Partitioner.instance.getToken(Int32Type.instance.decompose(key1)).getLongValue();
+            int key2 = getRandom().nextIntBetween(1, vectorCount * 2);
+            long token2 = Murmur3Partitioner.instance.getToken(Int32Type.instance.decompose(key2)).getLongValue();
+
+            long minToken = Math.min(token1, token2);
+            long maxToken = Math.max(token1, token2);
+            List<float[]> expected = vectorsByToken.entries().stream()
+                                                   .filter(e -> e.getKey() >= minToken && e.getKey() <= maxToken)
+                                                   .map(Map.Entry::getValue)
+                                                   .collect(Collectors.toList());
+
+            float[] queryVector = word2vec.vector(word2vec.word(getRandom().nextIntBetween(0, vectorCount - 1)));
+
+            List<float[]> resultVectors = searchWithRange(queryVector, minToken, maxToken, expected.size());
+            assertDescendingScore(queryVector, resultVectors);
+
+            if (expected.isEmpty())
+                assertThat(resultVectors).isEmpty();
+            else
+            {
+                double recall = recallMatch(expected, resultVectors, expected.size());
+                assertThat(recall).isGreaterThanOrEqualTo(0.8);
+            }
+        }
+
+        flush();
+
+        // query on-disk index with existing key:
+        for (int executionCount = 0; executionCount < 50; executionCount++)
+        {
+            int key1 = getRandom().nextIntBetween(1, vectorCount * 2);
+            long token1 = Murmur3Partitioner.instance.getToken(Int32Type.instance.decompose(key1)).getLongValue();
+            int key2 = getRandom().nextIntBetween(1, vectorCount * 2);
+            long token2 = Murmur3Partitioner.instance.getToken(Int32Type.instance.decompose(key2)).getLongValue();
+
+            long minToken = Math.min(token1, token2);
+            long maxToken = Math.max(token1, token2);
+            List<float[]> expected = vectorsByToken.entries().stream()
+                                                   .filter(e -> e.getKey() >= minToken && e.getKey() <= maxToken)
+                                                   .map(Map.Entry::getValue)
+                                                   .collect(Collectors.toList());
+
+            float[] queryVector = word2vec.vector(word2vec.word(getRandom().nextIntBetween(0, vectorCount - 1)));
+
+            List<float[]> resultVectors = searchWithRange(queryVector, minToken, maxToken, expected.size());
+            assertDescendingScore(queryVector, resultVectors);
+
+            if (expected.isEmpty())
+                assertThat(resultVectors).isEmpty();
+            else
+            {
+                double recall = recallMatch(expected, resultVectors, expected.size());
+                assertThat(recall).isGreaterThanOrEqualTo(0.8);
+            }
+        }
+    }
+
     // test retrieval of multiple rows that have the same vector value
     @Test
     public void multipleSegmentsMultiplePostingsTest()
