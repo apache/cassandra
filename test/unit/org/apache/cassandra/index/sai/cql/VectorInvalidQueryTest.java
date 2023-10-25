@@ -133,7 +133,7 @@ public class VectorInvalidQueryTest extends SAITester
         createTable("CREATE TABLE %s (pk int, ck int, val vector<float, 3>, PRIMARY KEY(pk, ck))");
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
 
-        assertInvalidMessage("ANN ordering does not support secondary ordering",
+        assertInvalidMessage("ANN ordering does not support any other ordering",
                              "SELECT * FROM %s ORDER BY val ann of [2.5, 3.5, 4.5], ck ASC LIMIT 2");
     }
 

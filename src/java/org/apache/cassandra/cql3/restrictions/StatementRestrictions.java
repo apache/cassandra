@@ -560,7 +560,7 @@ public final class StatementRestrictions
         else if (annOrderings.size() == 1)
         {
             if (orderings.size() > 1)
-                throw new InvalidRequestException("ANN ordering does not support secondary ordering");
+                throw new InvalidRequestException("ANN ordering does not support any other ordering");
             Ordering annOrdering = annOrderings.get(0);
             if (annOrdering.direction != Ordering.Direction.ASC)
                 throw new InvalidRequestException("Descending ANN ordering is not supported");
