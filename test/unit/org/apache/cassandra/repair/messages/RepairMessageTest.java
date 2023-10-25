@@ -35,6 +35,7 @@ import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.utils.Backoff;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
+import org.assertj.core.api.Assertions;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
@@ -182,6 +183,8 @@ public class RepairMessageTest
 
         Mockito.verify(messaging).sendWithCallback(messageCapture.capture(), endpointCapture.capture(), callbackCapture.capture());
         Mockito.clearInvocations(messaging);
+
+        Assertions.assertThat(endpointCapture.getValue()).isEqualTo(ADDRESS);
 
         return callbackCapture.getValue();
     }
