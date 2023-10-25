@@ -39,18 +39,23 @@ public class RepairMetrics
     public static final Map<Verb, Histogram> retriesByVerb;
     public static final Counter retryTimeout = Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "RetryTimeout", null));
     public static final Map<Verb, Counter> retryTimeoutByVerb;
+    public static final Counter retryFailure = Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "RetryFailure", null));
+    public static final Map<Verb, Counter> retryFailureByVerb;
 
     static
     {
         Map<Verb, Histogram> retries = new EnumMap<>(Verb.class);
         Map<Verb, Counter> timeout = new EnumMap<>(Verb.class);
+        Map<Verb, Counter> failure = new EnumMap<>(Verb.class);
         for (Verb verb : RepairMessage.ALLOWS_RETRY)
         {
             retries.put(verb, Metrics.histogram(DefaultNameFactory.createMetricName(TYPE_NAME, "Retries-" + verb.name(), null), false));
             timeout.put(verb, Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "RetryTimeout-" + verb.name(), null)));
+            failure.put(verb, Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "RetryFailure-" + verb.name(), null)));
         }
         retriesByVerb = Collections.unmodifiableMap(retries);
         retryTimeoutByVerb = Collections.unmodifiableMap(timeout);
+        retryFailureByVerb = Collections.unmodifiableMap(failure);
     }
 
     public static void init()
@@ -62,10 +67,12 @@ public class RepairMetrics
     public static void unsafeReset()
     {
         reset(previewFailures);
-        reset(retryTimeout);
-        retryTimeoutByVerb.values().forEach(RepairMetrics::reset);
         reset(retries);
         retriesByVerb.values().forEach(RepairMetrics::reset);
+        reset(retryTimeout);
+        retryTimeoutByVerb.values().forEach(RepairMetrics::reset);
+        reset(retryFailure);
+        retryFailureByVerb.values().forEach(RepairMetrics::reset);
     }
 
     private static void reset(Histogram retries)
@@ -88,5 +95,11 @@ public class RepairMetrics
     {
         retryTimeout.inc();
         retryTimeoutByVerb.get(verb).inc();
+    }
+
+    public static void retryFailure(Verb verb)
+    {
+        retryFailure.inc();
+        retryFailureByVerb.get(verb).inc();
     }
 }

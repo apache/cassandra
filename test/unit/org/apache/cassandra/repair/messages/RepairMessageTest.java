@@ -44,8 +44,6 @@ import static org.apache.cassandra.repair.messages.RepairMessage.always;
 import static org.apache.cassandra.repair.messages.RepairMessage.sendMessageWithRetries;
 import static org.apache.cassandra.test.asserts.ExtendedAssertions.assertThat;
 
-// Tests may use verb / message pairs that do not make sense... that is due to the fact that the message sending logic does not validate this and delegates such validation to messaging, which is mocked within the class...
-// By using messages with simpler state it makes the test easier to read, even though the verb -> message mapping is incorrect.
 public class RepairMessageTest
 {
     private static final TimeUUID SESSION = new TimeUUID(0, 0);
@@ -53,6 +51,12 @@ public class RepairMessageTest
     private static final Answer REJECT_ALL = ignore -> {
         throw new UnsupportedOperationException();
     };
+    private static final int[] attempts = {1, 2, 10};
+    // Tests may use verb / message pairs that do not make sense... that is due to the fact that the message sending logic does not validate this and delegates such validation to messaging, which is mocked within the class...
+    // By using messages with simpler state it makes the test easier to read, even though the verb -> message mapping is incorrect.
+    private static final Verb VERB = Verb.PREPARE_MSG;
+    private static final RepairMessage PAYLOAD = new CleanupMessage(SESSION);
+    public static final int[] NO_RETRY_ATTEMPTS = { 0 };
 
     static
     {
@@ -69,84 +73,73 @@ public class RepairMessageTest
     @Test
     public void noRetries()
     {
-        SharedContext ctx = ctx();
-        MessageDelivery messaging = ctx.messaging();
-
-        sendMessageWithRetries(ctx, backoff(1), always(), new CleanupMessage(SESSION), Verb.PREPARE_MSG, ADDRESS, RepairMessage.NOOP_CALLBACK, 0);
-        callback(messaging).onResponse(Message.out(Verb.PREPARE_MSG, new CleanupMessage(SESSION)));
-        Mockito.verifyNoInteractions(messaging);
-
-        assertThat(RepairMetrics.retries).isEmpty();
-        assertThat(RepairMetrics.retriesByVerb.get(Verb.PREPARE_MSG)).isEmpty();
-        assertThat(RepairMetrics.retryTimeout).isEmpty();
-        assertThat(RepairMetrics.retryTimeoutByVerb.get(Verb.PREPARE_MSG)).isEmpty();
+        test(NO_RETRY_ATTEMPTS, (ignore, callback) -> {
+            callback.onResponse(Message.out(VERB, PAYLOAD));
+            assertNoRetries();
+        });
     }
 
     @Test
     public void noRetriesRequestFailed()
     {
-        SharedContext ctx = ctx();
-        MessageDelivery messaging = ctx.messaging();
-
-        sendMessageWithRetries(ctx, backoff(1), always(), new CleanupMessage(SESSION), Verb.PREPARE_MSG, ADDRESS, RepairMessage.NOOP_CALLBACK, 0);
-        callback(messaging).onFailure(ADDRESS, RequestFailureReason.UNKNOWN);
-        Mockito.verifyNoInteractions(messaging);
-
-        assertThat(RepairMetrics.retries).isEmpty();
-        assertThat(RepairMetrics.retriesByVerb.get(Verb.PREPARE_MSG)).isEmpty();
-        assertThat(RepairMetrics.retryTimeout).isEmpty();
-        assertThat(RepairMetrics.retryTimeoutByVerb.get(Verb.PREPARE_MSG)).isEmpty();
+        test(NO_RETRY_ATTEMPTS, ((ignore, callback) -> {
+            callback.onFailure(ADDRESS, RequestFailureReason.UNKNOWN);
+            assertNoRetries();
+        }));
     }
 
     @Test
     public void retryWithSuccess()
     {
-        SharedContext ctx = ctx();
-        MessageDelivery messaging = ctx.messaging();
-
-        sendMessageWithRetries(ctx, backoff(1), always(), new CleanupMessage(SESSION), Verb.PREPARE_MSG, ADDRESS, RepairMessage.NOOP_CALLBACK, 0);
-        callback(messaging).onFailure(ADDRESS, RequestFailureReason.TIMEOUT);
-        callback(messaging).onResponse(Message.out(Verb.PREPARE_MSG, new CleanupMessage(SESSION)));
-        Mockito.verifyNoInteractions(messaging);
-
-        assertThat(RepairMetrics.retries).hasCount(1);
-        assertThat(RepairMetrics.retriesByVerb.get(Verb.PREPARE_MSG)).hasCount(1);
-        assertThat(RepairMetrics.retryTimeout).isEmpty();
-        assertThat(RepairMetrics.retryTimeoutByVerb.get(Verb.PREPARE_MSG)).isEmpty();
+        test((maxAttempts, callback) -> {
+            callback.onResponse(Message.out(VERB, PAYLOAD));
+            assertMetrics(maxAttempts, false, false);
+        });
     }
 
     @Test
     public void retryWithTimeout()
     {
-        SharedContext ctx = ctx();
-        MessageDelivery messaging = ctx.messaging();
-
-        sendMessageWithRetries(ctx, backoff(1), always(), new CleanupMessage(SESSION), Verb.PREPARE_MSG, ADDRESS, RepairMessage.NOOP_CALLBACK, 0);
-        callback(messaging).onFailure(ADDRESS, RequestFailureReason.TIMEOUT);
-        callback(messaging).onFailure(ADDRESS, RequestFailureReason.TIMEOUT);
-        Mockito.verifyNoInteractions(messaging);
-
-        assertThat(RepairMetrics.retries).hasCount(1);
-        assertThat(RepairMetrics.retriesByVerb.get(Verb.PREPARE_MSG)).hasCount(1);
-        assertThat(RepairMetrics.retryTimeout).hasCount(1);
-        assertThat(RepairMetrics.retryTimeoutByVerb.get(Verb.PREPARE_MSG)).hasCount(1);
+        test((maxAttempts, callback) -> {
+            callback.onFailure(ADDRESS, RequestFailureReason.TIMEOUT);
+            assertMetrics(maxAttempts, true, false);
+        });
     }
 
     @Test
     public void retryWithFailure()
     {
-        SharedContext ctx = ctx();
-        MessageDelivery messaging = ctx.messaging();
+        test((maxAttempts, callback) -> {
+            callback.onFailure(ADDRESS, RequestFailureReason.UNKNOWN);
+            assertMetrics(maxAttempts, false, true);
+        });
+    }
 
-        sendMessageWithRetries(ctx, backoff(1), always(), new CleanupMessage(SESSION), Verb.PREPARE_MSG, ADDRESS, RepairMessage.NOOP_CALLBACK, 0);
-        callback(messaging).onFailure(ADDRESS, RequestFailureReason.TIMEOUT);
-        callback(messaging).onFailure(ADDRESS, RequestFailureReason.UNKNOWN);
-        Mockito.verifyNoInteractions(messaging);
+    private void assertNoRetries()
+    {
+        assertMetrics(0, false, false);
+    }
 
-        assertThat(RepairMetrics.retries).hasCount(1);
-        assertThat(RepairMetrics.retriesByVerb.get(Verb.PREPARE_MSG)).hasCount(1);
-        assertThat(RepairMetrics.retryTimeout).isEmpty();
-        assertThat(RepairMetrics.retryTimeoutByVerb.get(Verb.PREPARE_MSG)).isEmpty();
+    private void assertMetrics(long attempts, boolean timeout, boolean failure)
+    {
+        if (attempts == 0)
+        {
+            assertThat(RepairMetrics.retries).isEmpty();
+            assertThat(RepairMetrics.retriesByVerb.get(VERB)).isEmpty();
+            assertThat(RepairMetrics.retryTimeout).isEmpty();
+            assertThat(RepairMetrics.retryTimeoutByVerb.get(VERB)).isEmpty();
+            assertThat(RepairMetrics.retryFailure).isEmpty();
+            assertThat(RepairMetrics.retryFailureByVerb.get(VERB)).isEmpty();
+        }
+        else
+        {
+            assertThat(RepairMetrics.retries).hasCount(1).hasMax(attempts);
+            assertThat(RepairMetrics.retriesByVerb.get(VERB)).hasCount(1).hasMax(attempts);
+            assertThat(RepairMetrics.retryTimeout).hasCount(timeout ? 1 : 0);
+            assertThat(RepairMetrics.retryTimeoutByVerb.get(VERB)).hasCount(timeout ? 1 : 0);
+            assertThat(RepairMetrics.retryFailure).hasCount(failure ? 1 : 0);
+            assertThat(RepairMetrics.retryFailureByVerb.get(VERB)).hasCount(failure ? 1 : 0);
+        }
     }
 
     private static Backoff backoff(int maxAttempts)
@@ -187,5 +180,32 @@ public class RepairMessageTest
         Assertions.assertThat(endpointCapture.getValue()).isEqualTo(ADDRESS);
 
         return callbackCapture.getValue();
+    }
+
+    private interface TestCase
+    {
+        void test(int maxAttempts, RequestCallback<RepairMessage> callback);
+    }
+
+    private void test(TestCase fn)
+    {
+        test(attempts, fn);
+    }
+
+    private void test(int[] attempts, TestCase fn)
+    {
+        SharedContext ctx = ctx();
+        MessageDelivery messaging = ctx.messaging();
+
+        for (int maxAttempts : attempts)
+        {
+            before();
+
+            sendMessageWithRetries(ctx, backoff(maxAttempts), always(), PAYLOAD, VERB, ADDRESS, RepairMessage.NOOP_CALLBACK, 0);
+            for (int i = 0; i < maxAttempts; i++)
+                callback(messaging).onFailure(ADDRESS, RequestFailureReason.TIMEOUT);
+            fn.test(maxAttempts, callback(messaging));
+            Mockito.verifyNoInteractions(messaging);
+        }
     }
 }

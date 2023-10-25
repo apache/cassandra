@@ -212,6 +212,11 @@ public abstract class RepairMessage
                     noSpam.warn("{} Timeout for repair verb " + verb + "; could not complete within {} attempts", prefix, attempt);
                     RepairMetrics.retryTimeout(verb);
                 }
+                else
+                {
+                    noSpam.warn("{} Failure for repair verb " + verb + "; could not complete within {} attempts", prefix, attempt);
+                    RepairMetrics.retryFailure(verb);
+                }
             }
 
             @Override

@@ -18,34 +18,67 @@
 
 package org.apache.cassandra.test.asserts;
 
+import com.codahale.metrics.Counter;
 import com.codahale.metrics.Counting;
+import com.codahale.metrics.Histogram;
+import com.codahale.metrics.Snapshot;
 import org.assertj.core.api.AbstractObjectAssert;
 
 public class ExtendedAssertions
 {
-    public static CountingAssert assertThat(Counting counter)
+    public static CounterAssert assertThat(Counter counter)
     {
-        return new CountingAssert(counter);
+        return new CounterAssert(counter);
     }
 
-    public static class CountingAssert extends AbstractObjectAssert<CountingAssert, Counting>
+    public static HistogramAssert assertThat(Histogram histogram)
     {
-        public CountingAssert(Counting histogram)
+        return new HistogramAssert(histogram);
+    }
+
+    public static abstract class CountingAssert<T extends Counting, Self extends CountingAssert<T, Self>> extends AbstractObjectAssert<Self, T>
+    {
+        protected CountingAssert(T t, Class<?> selfType)
         {
-            super(histogram, CountingAssert.class);
+            super(t, selfType);
         }
 
-        public CountingAssert hasCount(int expected)
+        public Self hasCount(int expected)
         {
             isNotNull();
             if (actual.getCount() != expected)
                 throw failure("%s count was %d, but expected %d", actual.getClass().getSimpleName(), actual.getCount(), expected);
-            return this;
+            return (Self) this;
         }
 
-        public CountingAssert isEmpty()
+        public Self isEmpty()
         {
             return hasCount(0);
+        }
+    }
+
+    public static class CounterAssert extends CountingAssert<Counter, CounterAssert>
+    {
+        public CounterAssert(Counter counter)
+        {
+            super(counter, CounterAssert.class);
+        }
+    }
+
+    public static class HistogramAssert extends CountingAssert<Histogram, HistogramAssert>
+    {
+        public HistogramAssert(Histogram histogram)
+        {
+            super(histogram, HistogramAssert.class);
+        }
+
+        public HistogramAssert hasMax(long expected)
+        {
+            isNotNull();
+            Snapshot snapshot = actual.getSnapshot();
+            if (snapshot.getMax() != expected)
+                throw failure("Expected max %d but given %d", expected, actual.getCount());
+            return this;
         }
     }
 }
