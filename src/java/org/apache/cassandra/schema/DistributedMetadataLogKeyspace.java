@@ -243,7 +243,8 @@ public final class DistributedMetadataLogKeyspace
                         Transformation.Kind kind = Transformation.Kind.valueOf(row.getString("kind"));
                         long entryId = row.getLong("entry_id");
                         Transformation transform = kind.fromVersionedBytes(row.getBlob("transformation"));
-                        entries.add(new Entry(new Entry.Id(entryId), epoch, transform));
+                        long timestampMicros = row.getLong("timestamp_micros");
+                        entries.add(new Entry(new Entry.Id(entryId), epoch, transform, timestampMicros));
 
                         lastEpoch = currentEpoch;
                         empty = false;

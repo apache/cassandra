@@ -32,6 +32,7 @@ import org.apache.cassandra.tcm.log.Entry;
 import org.apache.cassandra.tcm.Epoch;
 import org.apache.cassandra.tcm.transformations.CustomTransformation;
 
+import static org.apache.cassandra.utils.Clock.Global.nextUnixMicros;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -60,7 +61,8 @@ public class RequestCurrentEpochTest extends FuzzTestBase
                                       .log()
                                       .append(new Entry(Entry.Id.NONE,
                                                         newEpoch,
-                                                        CustomTransformation.make("DANGER")));
+                                                        CustomTransformation.make("DANGER"),
+                                                        nextUnixMicros()));
                 try
                 {
                     ClusterMetadataService.instance().awaitAtLeast(newEpoch);

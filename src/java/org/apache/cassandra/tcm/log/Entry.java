@@ -34,6 +34,8 @@ import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.utils.Clock.Global.nextUnixMicros;
+
 public class Entry implements Comparable<Entry>
 {
     public static final Serializer serializer = new Serializer();
@@ -41,18 +43,25 @@ public class Entry implements Comparable<Entry>
     public final Id id;
     public final Epoch epoch;
     public final Transformation transform;
+    public final long timestampMicros;
 
-    public Entry(Id id, Epoch epoch, Transformation transform)
+    public Entry(Id id, Epoch epoch, Transformation transform, long timestampMicros)
     {
         this.id = id;
         this.epoch = epoch;
         this.transform = transform;
+        this.timestampMicros = timestampMicros;
+    }
+
+    Entry(Id id, Epoch epoch, Transformation transform)
+    {
+        this(id, epoch, transform, nextUnixMicros());
     }
 
     public Entry maybeUnwrapExecuted()
     {
         if (transform instanceof Transformation.Executed)
-            return new Entry(id, epoch, ((Transformation.Executed) transform).original());
+            return new Entry(id, epoch, ((Transformation.Executed) transform).original(), timestampMicros);
 
         return this;
     }
@@ -83,6 +92,7 @@ public class Entry implements Comparable<Entry>
                "id=" + id +
                ", epoch=" + epoch +
                ", transform=" + transform +
+               ", timestampMicros=" + timestampMicros +
                '}';
     }
 
@@ -93,6 +103,7 @@ public class Entry implements Comparable<Entry>
             Id.serializer.serialize(t.id, out, version);
             Epoch.serializer.serialize(t.epoch, out, version);
             Transformation.serializer.serialize(t.transform, out, version);
+            out.writeLong(t.timestampMicros);
         }
 
         public Entry deserialize(DataInputPlus in, Version version) throws IOException
@@ -100,14 +111,16 @@ public class Entry implements Comparable<Entry>
             Id entryId = Id.serializer.deserialize(in, version);
             Epoch epoch = Epoch.serializer.deserialize(in, version);
             Transformation transform = Transformation.serializer.deserialize(in, version);
-            return new Entry(entryId, epoch, transform);
+            long timestampMicros = in.readLong();
+            return new Entry(entryId, epoch, transform, timestampMicros);
         }
 
         public long serializedSize(Entry t, Version version)
         {
             return Id.serializer.serializedSize(t.id, version) +
                    Epoch.serializer.serializedSize(t.epoch, version) +
-                   Transformation.serializer.serializedSize(t.transform, version);
+                   Transformation.serializer.serializedSize(t.transform, version) +
+                   TypeSizes.LONG_SIZE;
         }
     }
     public static class Id

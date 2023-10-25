@@ -54,19 +54,22 @@ public abstract class AbstractLocalProcessor implements Processor
     {
         while (!retryPolicy.reachedMax())
         {
-            ClusterMetadata previous = log.waitForHighestConsecutive();
-            if (!previous.fullCMSMembers().contains(FBUtilities.getBroadcastAddressAndPort()))
+            long timestampMicros = -1;
+            log.waitForHighestConsecutive();
+            LocalLog.CommittedValue prevCommitted = log.committedValue();
+            if (!prevCommitted.metadata.fullCMSMembers().contains(FBUtilities.getBroadcastAddressAndPort()))
                 throw new IllegalStateException("Node is not a member of CMS anymore");
             Transformation.Result result;
             if (!CassandraRelevantProperties.TCM_ALLOW_TRANSFORMATIONS_DURING_UPGRADES.getBoolean() &&
                 !transform.allowDuringUpgrades() &&
-                previous.metadataSerializationUpgradeInProgress())
+                prevCommitted.metadata.metadataSerializationUpgradeInProgress())
             {
                 result = new Transformation.Rejected(ExceptionCode.INVALID, "Upgrade in progress, can't commit " + transform);
             }
             else
             {
-                result = transform.execute(previous);
+                while ((timestampMicros = nextUnixMicros()) <= prevCommitted.timestampMicros);
+                result = transform.execute(prevCommitted.metadata);
             }
             // If we got a rejection, it could be that _we_ are not aware of the highest epoch.
             // Just try to catch up to the latest distributed state.
@@ -75,7 +78,7 @@ public abstract class AbstractLocalProcessor implements Processor
                 ClusterMetadata replayed = fetchLogAndWait(null, retryPolicy);
 
                 // Retry if replay has changed the epoch, return rejection otherwise.
-                if (!replayed.epoch.isAfter(previous.epoch))
+                if (!replayed.epoch.isAfter(prevCommitted.metadata.epoch))
                     return new Commit.Result.Failure(result.rejected().code, result.rejected().reason, true);
 
                 continue;
@@ -86,19 +89,19 @@ public abstract class AbstractLocalProcessor implements Processor
                 Epoch nextEpoch = result.success().metadata.epoch;
                 // If metadata applies, try committing it to the log
                 boolean applied = tryCommitOne(entryId, transform,
-                                               previous.epoch, nextEpoch,
-                                               previous.period, previous.nextPeriod(),
-                                               result.success().metadata.lastInPeriod, nextUnixMicros());
+                                               prevCommitted.metadata.epoch, nextEpoch,
+                                               prevCommitted.metadata.period, prevCommitted.metadata.nextPeriod(),
+                                               result.success().metadata.lastInPeriod, timestampMicros);
 
                 // Application here semantially means "succeeded in committing to the distributed log".
                 if (applied)
                 {
                     logger.info("Committed {}. New epoch is {}", transform, nextEpoch);
-                    log.append(new Entry(entryId, nextEpoch, new Transformation.Executed(transform, result)));
+                    log.append(new Entry(entryId, nextEpoch, new Transformation.Executed(transform, result), timestampMicros));
                     log.awaitAtLeast(nextEpoch);
 
                     return new Commit.Result.Success(result.success().metadata.epoch,
-                                                     toReplication(result.success(), entryId, lastKnown, transform));
+                                                     toReplication(result.success(), entryId, lastKnown, transform, timestampMicros));
                 }
                 else
                 {
@@ -119,11 +122,11 @@ public abstract class AbstractLocalProcessor implements Processor
                                                                      TimeUnit.NANOSECONDS.toMillis(retryPolicy.remainingNanos())), false);
     }
 
-    private Replication toReplication(Transformation.Success success, Entry.Id entryId, Epoch lastKnown, Transformation transform)
+    private Replication toReplication(Transformation.Success success, Entry.Id entryId, Epoch lastKnown, Transformation transform, long timestampMicros)
     {
         Replication replication;
         if (lastKnown == null || lastKnown.isDirectlyBefore(success.metadata.epoch))
-            replication = Replication.of(new Entry(entryId, success.metadata.epoch, transform));
+            replication = Replication.of(new Entry(entryId, success.metadata.epoch, transform, timestampMicros));
         else
             replication = log.getCommittedEntries(lastKnown);
 

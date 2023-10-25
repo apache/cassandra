@@ -38,7 +38,6 @@ import org.apache.cassandra.tcm.Transformation;
 
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 import static org.apache.cassandra.db.SystemKeyspace.LocalMetadataLog;
-import static org.apache.cassandra.utils.Clock.Global.nextUnixMicros;
 
 public class SystemKeyspaceStorage implements LogStorage
 {
@@ -77,7 +76,7 @@ public class SystemKeyspaceStorage implements LogStorage
             String query = String.format("INSERT INTO %s.%s (period, epoch, current_epoch, entry_id, transformation, kind, timestamp_micros) VALUES (?,?,?,?,?,?,?)",
                                          SchemaConstants.SYSTEM_KEYSPACE_NAME, NAME);
             executeInternal(query, period, entry.epoch.getEpoch(), entry.epoch.getEpoch(),
-                            entry.id.entryId, serializedTransformation, entry.transform.kind().toString(), nextUnixMicros());
+                            entry.id.entryId, serializedTransformation, entry.transform.kind().toString(), entry.timestampMicros);
             // todo; should probably not flush every time, but it simplifies tests
             Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(NAME).forceBlockingFlush(ColumnFamilyStore.FlushReason.INTERNALLY_FORCED);
         }
@@ -143,7 +142,7 @@ public class SystemKeyspaceStorage implements LogStorage
                     Transformation transform = kind.fromVersionedBytes(transformationBlob);
                     kind.fromVersionedBytes(transformationBlob);
                     long timestampMicros = row.getLong("timestamp_micros");
-                    entries.add(new Entry(new Entry.Id(entryId), epoch, transform));
+                    entries.add(new Entry(new Entry.Id(entryId), epoch, transform, timestampMicros));
                     empty = false;
                 }
 

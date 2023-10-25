@@ -22,8 +22,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.StringJoiner;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -69,6 +71,7 @@ import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.Interrupts.UN
 import static org.apache.cassandra.concurrent.InfiniteLoopExecutor.SimulatorSafe.SAFE;
 import static org.apache.cassandra.tcm.Epoch.EMPTY;
 import static org.apache.cassandra.tcm.Epoch.FIRST;
+import static org.apache.cassandra.utils.Clock.Global.nextUnixMicros;
 import static org.apache.cassandra.utils.concurrent.WaitQueue.newWaitQueue;
 
 // TODO metrics for contention/buffer size/etc
@@ -76,7 +79,43 @@ public abstract class LocalLog implements Closeable
 {
     private static final Logger logger = LoggerFactory.getLogger(LocalLog.class);
 
-    protected final AtomicReference<ClusterMetadata> committed;
+    public final static class CommittedValue
+    {
+        public final ClusterMetadata metadata;
+        public final long timestampMicros;
+
+        public CommittedValue(ClusterMetadata metadata, long timestampMicros)
+        {
+            this.metadata = metadata;
+            this.timestampMicros = timestampMicros;
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            CommittedValue that = (CommittedValue) o;
+            return timestampMicros == that.timestampMicros && Objects.equals(metadata, that.metadata);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(metadata, timestampMicros);
+        }
+
+        @Override
+        public String toString()
+        {
+            return new StringJoiner(", ", CommittedValue.class.getSimpleName() + "[", "]")
+                   .add("metadata=" + metadata)
+                   .add("timestampMicros=" + timestampMicros)
+                   .toString();
+        }
+    }
+
+    protected final AtomicReference<CommittedValue> committed;
 
     /**
      * Custom comparator for pending entries. In general, we would like entries in the pending set to be ordered by epoch,
@@ -105,7 +144,7 @@ public abstract class LocalLog implements Closeable
     private LocalLog(LogStorage persistence, ClusterMetadata initial, boolean addListeners, boolean isReset)
     {
         assert initial.epoch.is(EMPTY) || initial.epoch.is(Epoch.UPGRADE_STARTUP) || isReset;
-        committed = new AtomicReference<>(initial);
+        committed = new AtomicReference<>(new CommittedValue(initial, 0L));
         this.persistence = persistence;
         listeners = Sets.newConcurrentHashSet();
         changeListeners = Sets.newConcurrentHashSet();
@@ -119,12 +158,17 @@ public abstract class LocalLog implements Closeable
         ClusterMetadata metadata = metadata();
         assert metadata.epoch.isBefore(FIRST) : String.format("Metadata epoch %s should be before first", metadata.epoch);
         Transformation transform = PreInitialize.withFirstCMS(addr);
-        append(new Entry(Entry.Id.NONE, FIRST, transform));
+        append(new Entry(Entry.Id.NONE, FIRST, transform, nextUnixMicros()));
         waitForHighestConsecutive();
         assert metadata().epoch.is(Epoch.FIRST) : ClusterMetadata.current().epoch + " " + ClusterMetadata.current().placements.get(ReplicationParams.meta());
     }
 
     public ClusterMetadata metadata()
+    {
+        return committed.get().metadata;
+    }
+
+    public CommittedValue committedValue()
     {
         return committed.get();
     }
@@ -134,7 +178,11 @@ public abstract class LocalLog implements Closeable
         if (!(expected.epoch.isEqualOrBefore(Epoch.UPGRADE_GOSSIP) && updated.epoch.is(Epoch.UPGRADE_GOSSIP)))
             throw new IllegalStateException(String.format("Illegal epochs for setting from gossip; expected: %s, updated: %s",
                                                           expected.epoch, updated.epoch));
-        return committed.compareAndSet(expected, updated);
+        CommittedValue cur = committed.get();
+        if (cur.metadata.equals(expected))
+            return committed.compareAndSet(cur, new CommittedValue(updated, nextUnixMicros()));
+        else
+            return false;
     }
 
     public void unsafeSetCommittedFromGossip(ClusterMetadata updated)
@@ -142,7 +190,7 @@ public abstract class LocalLog implements Closeable
         if (!updated.epoch.is(Epoch.UPGRADE_GOSSIP))
             throw new IllegalStateException(String.format("Illegal epoch for setting from gossip; updated: %s",
                                                           updated.epoch));
-        committed.set(updated);
+        committed.set(new CommittedValue(updated, nextUnixMicros()));
     }
 
     public int pendingBufferSize()
@@ -181,7 +229,7 @@ public abstract class LocalLog implements Closeable
 
     public boolean hasGaps()
     {
-        Epoch start = committed.get().epoch;
+        Epoch start = committed.get().metadata.epoch;
         for (Entry entry : pending)
         {
             if (!entry.epoch.isDirectlyAfter(start))
@@ -248,7 +296,7 @@ public abstract class LocalLog implements Closeable
 
             // Create a synthetic "force snapshot" transformation to instruct the log to pick up given metadata
             ForceSnapshot transformation = new ForceSnapshot(logState.baseState);
-            Entry newEntry = new Entry(Entry.Id.NONE, epoch, transformation);
+            Entry newEntry = new Entry(Entry.Id.NONE, epoch, transformation, -1);
             pending.add(newEntry);
         }
 
@@ -314,12 +362,16 @@ public abstract class LocalLog implements Closeable
             if (pendingEntry == null)
                 return;
 
-            ClusterMetadata prev = committed.get();
+            CommittedValue prevCommitted = committed.get();
             // ForceSnapshot + Bootstrap entries can "jump" epoch
             boolean isPreInit = pendingEntry.transform.kind() == Transformation.Kind.PRE_INITIALIZE_CMS;
             boolean isSnapshot = pendingEntry.transform.kind() == Transformation.Kind.FORCE_SNAPSHOT;
-            if (pendingEntry.epoch.isDirectlyAfter(prev.epoch)
-                || ((isPreInit || isSnapshot) && pendingEntry.epoch.isAfter(prev.epoch)))
+
+            // for ForceSnapshot transformations, we take the timestamp of the last transformation that was applied
+            long commitTimestampMicros = isSnapshot ? prevCommitted.timestampMicros : pendingEntry.timestampMicros;
+
+            if (pendingEntry.epoch.isDirectlyAfter(prevCommitted.metadata.epoch)
+                || ((isPreInit || isSnapshot) && pendingEntry.epoch.isAfter(prevCommitted.metadata.epoch)))
             {
                 try
                 {
@@ -327,32 +379,32 @@ public abstract class LocalLog implements Closeable
 
                     try
                     {
-                        transformed = pendingEntry.transform.execute(prev);
+                        transformed = pendingEntry.transform.execute(prevCommitted.metadata);
                     }
                     catch (Throwable t)
                     {
-                        logger.error(String.format("Caught an exception while processing entry %s. This can mean that this node is configured differently from CMS.", prev), t);
+                        logger.error(String.format("Caught an exception while processing entry %s. This can mean that this node is configured differently from CMS.", prevCommitted), t);
                         throw new StopProcessingException(t);
                     }
 
                     if (!transformed.isSuccess())
                     {
-                        logger.error("Error while processing entry {}. Transformation returned result of {}. This can mean that this node is configured differently from CMS.", prev, transformed.rejected());
+                        logger.error("Error while processing entry {}. Transformation returned result of {}. This can mean that this node is configured differently from CMS.", prevCommitted, transformed.rejected());
                         throw new StopProcessingException();
                     }
 
                     ClusterMetadata next = transformed.success().metadata;
                     assert pendingEntry.epoch.is(next.epoch) :
                     String.format("Entry epoch %s does not match metadata epoch %s", pendingEntry.epoch, next.epoch);
-                    assert next.epoch.isDirectlyAfter(prev.epoch) || isSnapshot || pendingEntry.transform.kind() == Transformation.Kind.PRE_INITIALIZE_CMS :
+                    assert next.epoch.isDirectlyAfter(prevCommitted.metadata.epoch) || isSnapshot || pendingEntry.transform.kind() == Transformation.Kind.PRE_INITIALIZE_CMS :
                     String.format("Epoch %s for %s can either force snapshot, or immediately follow %s",
-                                  next.epoch, pendingEntry.transform, prev.epoch);
+                                  next.epoch, pendingEntry.transform, prevCommitted.metadata.epoch);
 
                     persistence.append(transformed.success().metadata.period, pendingEntry.maybeUnwrapExecuted());
 
-                    notifyPreCommit(prev, next, isSnapshot);
+                    notifyPreCommit(prevCommitted.metadata, next, isSnapshot);
 
-                    if (committed.compareAndSet(prev, next))
+                    if (committed.compareAndSet(prevCommitted, new CommittedValue(next, commitTimestampMicros)))
                     {
                         logger.info("Enacted {}. New tail is {}", pendingEntry.transform, next.epoch);
                         maybeNotifyListeners(pendingEntry, transformed);
@@ -363,10 +415,10 @@ public abstract class LocalLog implements Closeable
                         // we might have made an erroneous extra initialization of keyspaces by now, and, unless we
                         // throw here, we may in addition call to `afterCommit`.
                         throw new IllegalStateException(String.format("CAS conflict while trying to commit entry with seq %s, old version tail: %s current version tail: %s",
-                                                                      next.epoch, prev.epoch, metadata().epoch));
+                                                                      next.epoch, prevCommitted.metadata.epoch, metadata().epoch));
                     }
 
-                    notifyPostCommit(prev, next, isSnapshot);
+                    notifyPostCommit(prevCommitted.metadata, next, isSnapshot);
                 }
                 catch (StopProcessingException t)
                 {
@@ -386,7 +438,7 @@ public abstract class LocalLog implements Closeable
             else if (!pendingEntry.epoch.isAfter(metadata().epoch))
             {
                 logger.debug(String.format("An already appended entry %s discovered in the pending buffer, ignoring. Max consecutive: %s",
-                                           pendingEntry.epoch, prev.epoch));
+                                           pendingEntry.epoch, prevCommitted.metadata.epoch));
                 pending.remove(pendingEntry);
             }
             else
@@ -394,7 +446,7 @@ public abstract class LocalLog implements Closeable
                 Entry tmp = pending.first();
                 if (tmp.epoch.is(pendingEntry.epoch))
                 {
-                    logger.debug("Smallest entry is non-consecutive {} to {}", pendingEntry.epoch, prev.epoch);
+                    logger.debug("Smallest entry is non-consecutive {} to {}", pendingEntry.epoch, prevCommitted.metadata.epoch);
                     // if this one was not consecutive, subsequent won't be either
                     return;
                 }
@@ -472,7 +524,7 @@ public abstract class LocalLog implements Closeable
         @Override
         public ClusterMetadata awaitAtLeast(Epoch epoch) throws InterruptedException, TimeoutException
         {
-            ClusterMetadata lastSeen = committed.get();
+            ClusterMetadata lastSeen = committed.get().metadata;
             return lastSeen.epoch.compareTo(epoch) >= 0
                    ? lastSeen
                    : new AwaitCommit(epoch).get();
