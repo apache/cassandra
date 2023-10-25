@@ -47,6 +47,7 @@ import static org.apache.cassandra.db.SystemKeyspace.SEALED_PERIODS_TABLE_NAME;
 import static org.apache.cassandra.schema.DistributedMetadataLogKeyspace.TABLE_NAME;
 import static org.apache.cassandra.schema.SchemaConstants.METADATA_KEYSPACE_NAME;
 import static org.apache.cassandra.schema.SchemaConstants.SYSTEM_KEYSPACE_NAME;
+import static org.apache.cassandra.utils.Clock.Global.nextUnixMicros;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(Parameterized.class)
@@ -95,12 +96,13 @@ public class DistributedLogStateTest extends LogStateTestBase
             {
                 nextEpoch = currentEpoch.nextEpoch();
                 boolean applied = DistributedMetadataLogKeyspace.tryCommit(new Entry.Id(currentEpoch.getEpoch()),
-                                                                   CustomTransformation.make((int) currentEpoch.getEpoch()),
-                                                                   currentEpoch,
-                                                                   nextEpoch,
-                                                                   period,
-                                                                   nextPeriod,
-                                                                   false);
+                                                                           CustomTransformation.make((int) currentEpoch.getEpoch()),
+                                                                           currentEpoch,
+                                                                           nextEpoch,
+                                                                           period,
+                                                                           nextPeriod,
+                                                                           false,
+                                                                           nextUnixMicros());
                 assertTrue(applied);
                 currentEpoch = nextEpoch;
                 period = nextPeriod;
@@ -116,7 +118,8 @@ public class DistributedLogStateTest extends LogStateTestBase
                                                                    nextEpoch,
                                                                    period,
                                                                    period,
-                                                                   true);
+                                                                   true,
+                                                                   nextUnixMicros());
                 assertTrue(applied);
                 // after appending a SealPeriod, move to a new partition
                 Sealed.recordSealedPeriod(period, nextEpoch);

@@ -32,6 +32,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import static org.apache.cassandra.exceptions.ExceptionCode.SERVER_ERROR;
+import static org.apache.cassandra.utils.Clock.Global.nextUnixMicros;
 
 public abstract class AbstractLocalProcessor implements Processor
 {
@@ -87,7 +88,7 @@ public abstract class AbstractLocalProcessor implements Processor
                 boolean applied = tryCommitOne(entryId, transform,
                                                previous.epoch, nextEpoch,
                                                previous.period, previous.nextPeriod(),
-                                               result.success().metadata.lastInPeriod);
+                                               result.success().metadata.lastInPeriod, nextUnixMicros());
 
                 // Application here semantially means "succeeded in committing to the distributed log".
                 if (applied)
@@ -134,5 +135,5 @@ public abstract class AbstractLocalProcessor implements Processor
     public abstract ClusterMetadata fetchLogAndWait(Epoch waitFor, Retry.Deadline retryPolicy);
     protected abstract boolean tryCommitOne(Entry.Id entryId, Transformation transform,
                                             Epoch previousEpoch, Epoch nextEpoch,
-                                            long previousPeriod, long nextPeriod, boolean sealPeriod);
+                                            long previousPeriod, long nextPeriod, boolean sealPeriod, long timestampMicros);
 }

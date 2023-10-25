@@ -65,9 +65,9 @@ public class PaxosBackedProcessor extends AbstractLocalProcessor
     @Override
     protected boolean tryCommitOne(Entry.Id entryId, Transformation transform,
                                    Epoch previousEpoch, Epoch nextEpoch,
-                                   long previousPeriod, long nextPeriod, boolean sealPeriod)
+                                   long previousPeriod, long nextPeriod, boolean sealPeriod, long timestampMicros)
     {
-        return tryCommit(entryId, transform, previousEpoch, nextEpoch, previousPeriod, nextPeriod, sealPeriod);
+        return tryCommit(entryId, transform, previousEpoch, nextEpoch, previousPeriod, nextPeriod, sealPeriod, timestampMicros);
     }
 
     @Override

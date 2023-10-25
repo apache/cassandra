@@ -47,6 +47,7 @@ import org.apache.cassandra.tcm.transformations.cms.PreInitialize;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import static org.apache.cassandra.tcm.Epoch.FIRST;
+import static org.apache.cassandra.utils.Clock.Global.nextUnixMicros;
 
 public final class DistributedMetadataLogKeyspace
 {
@@ -73,6 +74,7 @@ public final class DistributedMetadataLogKeyspace
                                                + "entry_id bigint,"
                                                + "transformation blob,"
                                                + "kind text,"
+                                               + "timestamp_micros bigint,"
                                                + "PRIMARY KEY (period, epoch))";
 
     public static final TableMetadata Log =
@@ -85,12 +87,14 @@ public final class DistributedMetadataLogKeyspace
     {
         try
         {
-            String init = String.format("INSERT INTO %s.%s (period, epoch, current_epoch, transformation, kind, entry_id, sealed) " +
-                                        "VALUES(?, ?, ?, ?, ?, ?, false) " +
+            String init = String.format("INSERT INTO %s.%s (period, epoch, current_epoch, transformation, kind, entry_id, sealed, timestamp_micros) " +
+                                        "VALUES(?, ?, ?, ?, ?, ?, false, ?) " +
                                         "IF NOT EXISTS", SchemaConstants.METADATA_KEYSPACE_NAME, TABLE_NAME);
             UntypedResultSet result = QueryProcessor.execute(init, ConsistencyLevel.QUORUM,
                                                              Period.FIRST, FIRST.getEpoch(), FIRST.getEpoch(),
-                                                             Transformation.Kind.PRE_INITIALIZE_CMS.toVersionedBytes(PreInitialize.blank()), Transformation.Kind.PRE_INITIALIZE_CMS.toString(), Entry.Id.NONE.entryId);
+                                                             Transformation.Kind.PRE_INITIALIZE_CMS.toVersionedBytes(PreInitialize.blank()),
+                                                             Transformation.Kind.PRE_INITIALIZE_CMS.toString(), Entry.Id.NONE.entryId,
+                                                             nextUnixMicros());
 
             return result.one().getBoolean("[applied]");
         }
@@ -112,7 +116,8 @@ public final class DistributedMetadataLogKeyspace
                                     Epoch nextEpoch,
                                     long previousPeriod,
                                     long nextPeriod,
-                                    boolean sealCurrentPeriod)
+                                    boolean sealCurrentPeriod,
+                                    long timestampMicros)
     {
         try
         {
@@ -125,17 +130,17 @@ public final class DistributedMetadataLogKeyspace
             UntypedResultSet result;
             if (previousPeriod + 1 == nextPeriod || ClusterMetadataService.state() == ClusterMetadataService.State.RESET)
             {
-                String query = String.format("INSERT INTO %s.%s (period, epoch, current_epoch, entry_id, transformation, kind, sealed) " +
-                                             "VALUES (?, ?, ?, ?, ?, ?, false) " +
+                String query = String.format("INSERT INTO %s.%s (period, epoch, current_epoch, entry_id, transformation, kind, sealed, timestamp_micros) " +
+                                             "VALUES (?, ?, ?, ?, ?, ?, false, ?) " +
                                              "IF NOT EXISTS;",
                                              SchemaConstants.METADATA_KEYSPACE_NAME, TABLE_NAME);
                 result = QueryProcessor.execute(query, ConsistencyLevel.QUORUM,
-                                                nextPeriod, nextEpoch.getEpoch(), nextEpoch.getEpoch(), entryId.entryId, serializedEvent, transform.kind().toString());
+                                                nextPeriod, nextEpoch.getEpoch(), nextEpoch.getEpoch(), entryId.entryId, serializedEvent, transform.kind().toString(), timestampMicros);
             }
             else
             {
                 assert previousPeriod == nextPeriod;
-                String query = String.format("UPDATE %s.%s SET current_epoch = ?, sealed = ?, entry_id = ?, transformation = ?, kind = ? " +
+                String query = String.format("UPDATE %s.%s SET current_epoch = ?, sealed = ?, entry_id = ?, transformation = ?, kind = ?, timestamp_micros = ? " +
                                              "WHERE period = ? AND epoch = ? " +
                                              "IF current_epoch = ? and sealed = false;",
                                              SchemaConstants.METADATA_KEYSPACE_NAME, TABLE_NAME);
@@ -143,7 +148,7 @@ public final class DistributedMetadataLogKeyspace
                 result = QueryProcessor.execute(query,
                                                 ConsistencyLevel.QUORUM,
                                                 nextEpoch.getEpoch(), sealCurrentPeriod,
-                                                entryId.entryId, serializedEvent, transform.kind().toString(),
+                                                entryId.entryId, serializedEvent, transform.kind().toString(), timestampMicros,
                                                 previousPeriod, nextEpoch.getEpoch(), previousEpoch.getEpoch());
             }
 
@@ -226,7 +231,7 @@ public final class DistributedMetadataLogKeyspace
                 while (true)
                 {
                     boolean empty = true;
-                    UntypedResultSet resultSet = execute(String.format("SELECT current_epoch, period, epoch, kind, transformation, entry_id, sealed FROM %s.%s WHERE period = ? AND epoch > ?",
+                    UntypedResultSet resultSet = execute(String.format("SELECT current_epoch, period, epoch, kind, transformation, entry_id, sealed, timestamp_micros FROM %s.%s WHERE period = ? AND epoch > ?",
                                                                        SchemaConstants.METADATA_KEYSPACE_NAME, TABLE_NAME),
                                                          consistencyLevel, period, since.getEpoch());
 

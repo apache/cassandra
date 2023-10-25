@@ -61,7 +61,7 @@ public class AtomicLongBackedProcessor extends AbstractLocalProcessor
     @Override
     protected boolean tryCommitOne(Entry.Id entryId, Transformation transform,
                                    Epoch previousEpoch, Epoch nextEpoch,
-                                   long previousPeriod, long nextPeriod, boolean sealPeriod)
+                                   long previousPeriod, long nextPeriod, boolean sealPeriod, long timestampMicros)
     {
         if (epochHolder.get() == 0)
         {
