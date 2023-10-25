@@ -60,7 +60,7 @@ public class VectorDistributedTest extends TestBaseImpl
 
     private static final String CREATE_KEYSPACE = "CREATE KEYSPACE %%s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': %d}";
     private static final String CREATE_TABLE = "CREATE TABLE %%s (pk int primary key, val vector<float, %d>)";
-    private static final String CREATE_INDEX = "CREATE CUSTOM INDEX ON %%s(%s) USING 'StorageAttachedIndex'";
+    private static final String CREATE_INDEX = "CREATE INDEX ON %%s(%s) USING 'sai' WITH OPTIONS={'optimize_for':'recall'}";
 
     private static final VectorSimilarityFunction function = IndexWriterConfig.DEFAULT_SIMILARITY_FUNCTION;
 
