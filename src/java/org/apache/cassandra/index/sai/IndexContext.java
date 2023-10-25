@@ -181,11 +181,6 @@ public class IndexContext
         return TypeUtil.isNonFrozenCollection(columnMetadata.type);
     }
 
-    public boolean isCollection()
-    {
-        return columnMetadata.type.isCollection();
-    }
-
     public boolean isFrozen()
     {
         return TypeUtil.isFrozen(columnMetadata.type);
