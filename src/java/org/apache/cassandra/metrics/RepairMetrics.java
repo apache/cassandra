@@ -22,6 +22,8 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Histogram;
 import org.apache.cassandra.net.Verb;
@@ -33,18 +35,47 @@ public class RepairMetrics
 {
     public static final String TYPE_NAME = "Repair";
     public static final Counter previewFailures = Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "PreviewFailures", null));
-    private static final Histogram retries = Metrics.histogram(DefaultNameFactory.createMetricName(TYPE_NAME, "Retries", null), false);
-    private static final Map<Verb, Histogram> retriesByVerb = Collections.synchronizedMap(new EnumMap<>(Verb.class));
-    private static final Counter retryTimeout = Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "RetryTimeout", null));
-    private static final Map<Verb, Counter> retryTimeoutByVerb = Collections.synchronizedMap(new EnumMap<>(Verb.class));
+    public static final Histogram retries = Metrics.histogram(DefaultNameFactory.createMetricName(TYPE_NAME, "Retries", null), false);
+    public static final Map<Verb, Histogram> retriesByVerb;
+    public static final Counter retryTimeout = Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "RetryTimeout", null));
+    public static final Map<Verb, Counter> retryTimeoutByVerb;
+
+    static
+    {
+        Map<Verb, Histogram> retries = new EnumMap<>(Verb.class);
+        Map<Verb, Counter> timeout = new EnumMap<>(Verb.class);
+        for (Verb verb : RepairMessage.ALLOWS_RETRY)
+        {
+            retries.put(verb, Metrics.histogram(DefaultNameFactory.createMetricName(TYPE_NAME, "Retries-" + verb.name(), null), false));
+            timeout.put(verb, Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "RetryTimeout-" + verb.name(), null)));
+        }
+        retriesByVerb = Collections.unmodifiableMap(retries);
+        retryTimeoutByVerb = Collections.unmodifiableMap(timeout);
+    }
 
     public static void init()
     {
-        for (Verb verb : RepairMessage.ALLOWS_RETRY)
-        {
-            retriesByVerb.put(verb, Metrics.histogram(DefaultNameFactory.createMetricName(TYPE_NAME, "Retries-" + verb.name(), null), false));
-            retryTimeoutByVerb.put(verb, Metrics.counter(DefaultNameFactory.createMetricName(TYPE_NAME, "RetryTimeout-" + verb.name(), null)));
-        }
+        // noop
+    }
+
+    @VisibleForTesting
+    public static void unsafeReset()
+    {
+        reset(previewFailures);
+        reset(retryTimeout);
+        retryTimeoutByVerb.values().forEach(RepairMetrics::reset);
+        reset(retries);
+        retriesByVerb.values().forEach(RepairMetrics::reset);
+    }
+
+    private static void reset(Histogram retries)
+    {
+        ((ClearableHistogram) retries).clear();
+    }
+
+    private static void reset(Counter counter)
+    {
+        counter.dec(counter.getCount());
     }
 
     public static void retry(Verb verb, int attempt)

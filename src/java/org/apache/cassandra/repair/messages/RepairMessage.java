@@ -27,6 +27,7 @@ import java.util.function.Supplier;
 
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -59,10 +60,23 @@ import static org.apache.cassandra.net.MessageFlag.CALL_BACK_ON_FAILURE;
 public abstract class RepairMessage
 {
     private enum ErrorHandling { NONE, TIMEOUT, RETRY }
-    private static final CassandraVersion SUPPORTS_RETRY = new CassandraVersion("5.0.0-alpha2.SNAPSHOT");
+    @VisibleForTesting
+    static final CassandraVersion SUPPORTS_RETRY = new CassandraVersion("5.0.0-alpha2.SNAPSHOT");
     private static final Map<Verb, CassandraVersion> VERB_TIMEOUT_VERSIONS;
     public static final Set<Verb> ALLOWS_RETRY;
     private static final Set<Verb> SUPPORTS_RETRY_WITHOUT_VERSION_CHECK = Collections.unmodifiableSet(EnumSet.of(Verb.CLEANUP_MSG));
+    public static final RequestCallback<Object> NO_OP_CALLBACK = new RequestCallback<>()
+    {
+        @Override
+        public void onResponse(Message<Object> msg)
+        {
+        }
+
+        @Override
+        public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+        {
+        }
+    };
 
     static
     {
@@ -120,7 +134,7 @@ public abstract class RepairMessage
         return () -> !f.isDone();
     }
 
-    private static Supplier<Boolean> always()
+    public static Supplier<Boolean> always()
     {
         return () -> true;
     }
@@ -137,21 +151,11 @@ public abstract class RepairMessage
 
     public static void sendMessageWithRetries(SharedContext ctx, RepairMessage request, Verb verb, InetAddressAndPort endpoint)
     {
-        sendMessageWithRetries(ctx, backoff(ctx, verb), always(), request, verb, endpoint, new RequestCallback<>()
-        {
-            @Override
-            public void onResponse(Message<Object> msg)
-            {
-            }
-
-            @Override
-            public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
-            {
-            }
-        }, 0);
+        sendMessageWithRetries(ctx, backoff(ctx, verb), always(), request, verb, endpoint, NO_OP_CALLBACK, 0);
     }
 
-    private static <T> void sendMessageWithRetries(SharedContext ctx, Backoff backoff, Supplier<Boolean> allowRetry, RepairMessage request, Verb verb, InetAddressAndPort endpoint, RequestCallback<T> finalCallback, int attempt)
+    @VisibleForTesting
+    static <T> void sendMessageWithRetries(SharedContext ctx, Backoff backoff, Supplier<Boolean> allowRetry, RepairMessage request, Verb verb, InetAddressAndPort endpoint, RequestCallback<T> finalCallback, int attempt)
     {
         if (!ALLOWS_RETRY.contains(verb))
             throw new AssertionError("Repair verb " + verb + " does not support retry, but a request to send with retry was given!");
@@ -160,7 +164,7 @@ public abstract class RepairMessage
             @Override
             public void onResponse(Message<T> msg)
             {
-                maybeRecordRetry(true);
+                maybeRecordRetry(null);
                 finalCallback.onResponse(msg);
             }
 
@@ -184,7 +188,7 @@ public abstract class RepairMessage
                                                          backoff.computeWaitTime(attempt), backoff.unit());
                             return;
                         }
-                        maybeRecordRetry(false);
+                        maybeRecordRetry(failureReason);
                         finalCallback.onFailure(from, failureReason);
                         return;
                     default:
@@ -192,18 +196,18 @@ public abstract class RepairMessage
                 }
             }
 
-            private void maybeRecordRetry(boolean succcess)
+            private void maybeRecordRetry(@Nullable RequestFailureReason reason)
             {
                 if (attempt <= 0)
                     return;
                 // we don't know what the prefix kind is... so use NONE... this impacts logPrefix as it will cause us to use "repair" rather than "preview repair" which may not be correct... but close enough...
                 String prefix = PreviewKind.NONE.logPrefix(request.parentRepairSession());
                 RepairMetrics.retry(verb, attempt);
-                if (succcess)
+                if (reason == null)
                 {
                     noSpam.info("{} Retry of repair verb " + verb + " was successful after {} attempts", prefix, attempt);
                 }
-                else
+                else if (reason == RequestFailureReason.TIMEOUT)
                 {
                     noSpam.warn("{} Timeout for repair verb " + verb + "; could not complete within {} attempts", prefix, attempt);
                     RepairMetrics.retryTimeout(verb);
