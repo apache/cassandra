@@ -25,7 +25,7 @@ import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.lucene.util.LongHeap;
 
 /**
- * A posting list for ANN search results. Transforms result from similarity order to rowId order.
+ * A {@link PostingList} for ANN search results. Transforms result from similarity order to row ID order.
  */
 public class VectorPostingList implements PostingList
 {

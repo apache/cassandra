@@ -57,15 +57,10 @@ import org.apache.cassandra.utils.Pair;
  * Processor that scans all rows from given partitions and selects rows with top-k scores based on vector indexes.
  * <p>
  * This processor performs the following steps:
- * - collect rows with score into PriorityQueue that sorts rows based on score. If there are multiple vector indexes,
+ * - collect rows with score into {@link PriorityQueue} that sorts rows based on score. If there are multiple vector indexes,
  *   the final score is the sum of all vector index scores.
  * - remove rows with the lowest scores from PQ if PQ size exceeds limit
  * - return rows from PQ in primary key order to client
- * <p>
- * Note that recall will be lower with paging, because:
- * - page size is used as limit
- * - for the first query, coordinator returns global top page-size rows within entire ring
- * - for the subsequent queries, coordinators returns global top page-size rows withom range from last-returned-row to max token
  */
 public class VectorTopKProcessor
 {

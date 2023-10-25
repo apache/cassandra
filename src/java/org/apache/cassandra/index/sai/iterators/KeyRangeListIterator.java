@@ -34,6 +34,7 @@ public class KeyRangeListIterator extends KeyRangeIterator
 
     /**
      * Create a new {@link KeyRangeListIterator} that iterates over the provided list of keys.
+     *
      * @param minimumKey the minimum key for the provided list of keys
      * @param maximumKey the maximum key for the provided list of keys
      * @param keys the list of keys to iterate over

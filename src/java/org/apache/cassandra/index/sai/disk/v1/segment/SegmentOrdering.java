@@ -43,7 +43,7 @@ import org.apache.cassandra.index.sai.utils.PrimaryKey;
  * SegmentOrdering handles the fourth step.
  * <p>
  * Note: a segment ordering is only used when a query has both ordering and non-ordering predicates.
- * Where a query has only ordering predicates, the ordering is handled by the
+ * Where a query has only ordering predicates, the ordering is handled by
  * {@link org.apache.cassandra.index.sai.disk.SSTableIndex#search(Expression, AbstractBounds, QueryContext)}.
  */
 public interface SegmentOrdering

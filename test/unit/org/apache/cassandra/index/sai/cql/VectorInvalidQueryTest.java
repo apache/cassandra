@@ -71,6 +71,15 @@ public class VectorInvalidQueryTest extends SAITester
     }
 
     @Test
+    public void cannotIndex1DWithCosine()
+    {
+        createTable("CREATE TABLE %s (pk int, v vector<float, 1>, PRIMARY KEY(pk))");
+        assertThatThrownBy(() -> createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex' WITH OPTIONS = {'similarity_function' : 'cosine'}"))
+        .isInstanceOf(InvalidRequestException.class)
+        .hasRootCauseMessage(StorageAttachedIndex.VECTOR_1_DIMENSION_COSINE_ERROR);
+    }
+
+    @Test
     public void cannotInsertWrongNumberOfDimensions()
     {
         createTable("CREATE TABLE %s (pk int, str_val text, val vector<float, 3>, PRIMARY KEY(pk))");
@@ -186,7 +195,7 @@ public class VectorInvalidQueryTest extends SAITester
     public void mustHaveLimitSpecifiedAndWithinMaxAllowed()
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v vector<float, 1>)");
-        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex' WITH OPTIONS = {'similarity_function' : 'euclidean'}");
 
         assertThatThrownBy(() -> executeNet("SELECT * FROM %s WHERE k = 1 ORDER BY v ANN OF [0]"))
         .isInstanceOf(InvalidQueryException.class).hasMessage(SelectStatement.TOPK_LIMIT_ERROR);
@@ -221,7 +230,7 @@ public class VectorInvalidQueryTest extends SAITester
     public void cannotHaveAggregationOnANNQuery()
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v vector<float, 1>, c int)");
-        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex' WITH OPTIONS = {'similarity_function' : 'euclidean'}");
 
         execute("INSERT INTO %s (k, v, c) VALUES (1, [4], 1)");
         execute("INSERT INTO %s (k, v, c) VALUES (2, [3], 10)");
@@ -236,7 +245,7 @@ public class VectorInvalidQueryTest extends SAITester
     public void multipleVectorColumnsInQueryFailCorrectlyTest() throws Throwable
     {
         createTable("CREATE TABLE %s (k int PRIMARY KEY, v1 vector<float, 1>, v2 vector<float, 1>)");
-        createIndex("CREATE CUSTOM INDEX ON %s(v1) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(v1) USING 'StorageAttachedIndex' WITH OPTIONS = {'similarity_function' : 'euclidean'}");
 
         execute("INSERT INTO %s (k, v1, v2) VALUES (1, [1], [2])");
 
@@ -263,7 +272,7 @@ public class VectorInvalidQueryTest extends SAITester
     public void cannotPostFilterOnNonIndexedColumnWithAnnOrdering() throws Throwable
     {
         createTable("CREATE TABLE %s (pk1 int, pk2 int, ck1 int, ck2 int, v vector<float, 1>, c int, primary key ((pk1, pk2), ck1, ck2))");
-        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex' WITH OPTIONS = {'similarity_function' : 'euclidean'}");
 
         execute("INSERT INTO %s (pk1, pk2, ck1, ck2, v, c) VALUES (1, 1, 1, 1, [4], 1)");
         execute("INSERT INTO %s (pk1, pk2, ck1, ck2, v, c) VALUES (2, 2, 1, 1, [3], 10)");
@@ -296,7 +305,7 @@ public class VectorInvalidQueryTest extends SAITester
     public void cannotHavePerPartitionLimitWithAnnOrdering()
     {
         createTable("CREATE TABLE %s (k int, c int, v vector<float, 1>, PRIMARY KEY(k, c))");
-        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex' WITH OPTIONS = {'similarity_function' : 'euclidean'}");
 
         execute("INSERT INTO %s (k, c, v) VALUES (1, 1, [1])");
         execute("INSERT INTO %s (k, c, v) VALUES (1, 2, [2])");
@@ -319,7 +328,7 @@ public class VectorInvalidQueryTest extends SAITester
     public void canOnlyExecuteWithCorrectConsistencyLevel()
     {
         createTable("CREATE TABLE %s (k int, c int, v vector<float, 1>, PRIMARY KEY(k, c))");
-        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex'");
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex' WITH OPTIONS = {'similarity_function' : 'euclidean'}");
 
         execute("INSERT INTO %s (k, c, v) VALUES (1, 1, [1])");
         execute("INSERT INTO %s (k, c, v) VALUES (1, 2, [2])");
