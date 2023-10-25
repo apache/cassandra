@@ -232,7 +232,6 @@ public class MultiClusteringBuilder
         return new MultiClusteringBuilder(comparator);
     }
 
-
     protected void checkUpdateable()
     {
         if (!hasRemaining() || built)
@@ -250,7 +249,6 @@ public class MultiClusteringBuilder
     {
         return comparator.size() - columns.size();
     }
-
 
     /**
      * Checks if the clusterings contains null elements.
@@ -299,7 +297,6 @@ public class MultiClusteringBuilder
     {
         return remainingCount() > 0;
     }
-
 
     /**
      * Extends each clustering with the given element(s).
