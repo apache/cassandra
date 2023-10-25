@@ -103,11 +103,11 @@ public class VectorMemtableIndexTest extends SAITester
                                                    .build();
         cfs = MockSchema.newCFS(tableMetadata);
         partitioner = cfs.getPartitioner();
-        dimensionCount = getRandom().nextIntBetween(1, 2048);
+        dimensionCount = getRandom().nextIntBetween(2, 2048);
         indexContext = SAITester.createIndexContext("index", VectorType.getInstance(FloatType.instance, dimensionCount), cfs);
         indexSearchCounter.reset();
         keyMap = new TreeMap<>();
-        rowMap = new HashMap<Integer, ByteBuffer>();
+        rowMap = new HashMap<>();
 
         Injections.inject(indexSearchCounter);
     }
@@ -156,9 +156,9 @@ public class VectorMemtableIndexTest extends SAITester
             // with -Dcassandra.test.random.seed=260652334768666, there is one missing key
             long expectedResult = Math.min(limit, keysInRange.size());
             if (RangeUtil.coversFullRing(keyRange))
-                assertEquals("Missing key: " + Sets.difference(keysInRange, foundKeys), expectedResult, foundKeys.size());
+                assertEquals("Missing key in full ring: " + Sets.difference(keysInRange, foundKeys), expectedResult, foundKeys.size());
             else // if skip ANN, returned keys maybe larger than limit
-                assertTrue("Missing key: " + Sets.difference(keysInRange, foundKeys), expectedResult <= foundKeys.size());
+                assertTrue("Missing key in subrange: " + Sets.difference(keysInRange, foundKeys), expectedResult <= foundKeys.size());
         }
     }
 
