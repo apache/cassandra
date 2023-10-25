@@ -476,6 +476,7 @@ public final class SystemKeyspace
               + "entry_id bigint,"
               + "transformation blob,"
               + "kind text,"
+              + "timestamp_micros bigint,"
               + "PRIMARY KEY (period, epoch))")
         .compaction(CompactionParams.twcs(ImmutableMap.of("compaction_window_unit","DAYS",
                                                           "compaction_window_size","1")))
