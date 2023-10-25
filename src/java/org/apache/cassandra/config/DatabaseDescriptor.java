@@ -550,9 +550,6 @@ public class DatabaseDescriptor
         if (conf.concurrent_counter_writes < 2)
             throw new ConfigurationException("concurrent_counter_writes must be at least 2, but was " + conf.concurrent_counter_writes, false);
 
-        if (conf.concurrent_replicates != null)
-            logger.warn("concurrent_replicates has been deprecated and should be removed from cassandra.yaml");
-
         if (conf.networking_cache_size == null)
             conf.networking_cache_size = new DataStorageSpec.IntMebibytesBound(Math.min(128, (int) (Runtime.getRuntime().maxMemory() / (16 * 1048576))));
 

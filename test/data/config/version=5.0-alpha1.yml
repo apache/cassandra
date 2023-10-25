@@ -343,7 +343,6 @@ authenticator:
 internode_socket_receive_buffer_size: "org.apache.cassandra.config.DataStorageSpec.IntBytesBound"
 allow_insecure_udfs: "java.lang.Boolean"
 internode_application_receive_queue_capacity: "org.apache.cassandra.config.DataStorageSpec.IntBytesBound"
-concurrent_replicates: "java.lang.Integer"
 user_defined_functions_enabled: "java.lang.Boolean"
 user_defined_functions_threads_enabled: "java.lang.Boolean"
 streaming_slow_events_log_timeout: "org.apache.cassandra.config.DurationSpec.IntSecondsBound"

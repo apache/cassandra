@@ -179,10 +179,6 @@ public class Config
     public int concurrent_materialized_view_writes = 32;
     public int available_processors = -1;
 
-    /** @deprecated See CASSANDRA-6504 */
-    @Deprecated(since = "2.1")
-    public Integer concurrent_replicates = null;
-
     public int memtable_flush_writers = 0;
     @Replaces(oldName = "memtable_heap_space_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
     public DataStorageSpec.IntMebibytesBound memtable_heap_space;
