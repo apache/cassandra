@@ -28,7 +28,7 @@ import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 
 /**
- * Iterates keys in the PrimaryKeyMap of an SSTable.
+ * Iterates keys in the {@link PrimaryKeyMap} of a SSTable.
  * Iterating keys in the primary key map is faster than reading them from the SSTable data component
  * because we don't deserialize all the other columns except the primary key columns.
  * The primary key map components are also likely much smaller than the whole SSTable data component.
