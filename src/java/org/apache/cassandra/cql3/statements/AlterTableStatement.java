@@ -71,7 +71,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
     public final CQL3Type.Raw validator;
     public final ColumnIdentifier.Raw rawColumnName;
     private final TableAttributes attrs;
-    private final Map<ColumnIdentifier.Raw, ColumnIdentifier> renames;
+    private final Map<ColumnIdentifier.Raw, ColumnIdentifier.Raw> renames;
     private final boolean isStatic; // Only for ALTER ADD
     private final Long deleteTimestamp;
 
@@ -80,7 +80,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                                ColumnIdentifier.Raw columnName,
                                CQL3Type.Raw validator,
                                TableAttributes attrs,
-                               Map<ColumnIdentifier.Raw, ColumnIdentifier> renames,
+                               Map<ColumnIdentifier.Raw, ColumnIdentifier.Raw> renames,
                                boolean isStatic,
                                Long deleteTimestamp)
     {
@@ -328,10 +328,10 @@ public class AlterTableStatement extends SchemaAlteringStatement
             case RENAME:
                 cfm = meta.copy();
 
-                for (Map.Entry<ColumnIdentifier.Raw, ColumnIdentifier> entry : renames.entrySet())
+                for (Map.Entry<ColumnIdentifier.Raw, ColumnIdentifier.Raw> entry : renames.entrySet())
                 {
                     ColumnIdentifier from = entry.getKey().prepare(cfm);
-                    ColumnIdentifier to = entry.getValue();
+                    ColumnIdentifier to = entry.getValue().prepare(cfm);
 
                     cfm.renameColumn(from, to);
 
@@ -342,7 +342,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
 
                         ViewDefinition viewCopy = view.copy();
                         ColumnIdentifier viewFrom = entry.getKey().prepare(viewCopy.metadata);
-                        ColumnIdentifier viewTo = entry.getValue();
+                        ColumnIdentifier viewTo = entry.getValue().prepare(viewCopy.metadata);
                         viewCopy.renameColumn(viewFrom, viewTo);
 
                         if (viewUpdates == null)

@@ -816,7 +816,7 @@ alterTableStatement returns [AlterTableStatement expr]
     @init {
         AlterTableStatement.Type type = null;
         TableAttributes attrs = new TableAttributes();
-        Map<ColumnIdentifier.Raw, ColumnIdentifier> renames = new HashMap<ColumnIdentifier.Raw, ColumnIdentifier>();
+        Map<ColumnIdentifier.Raw, ColumnIdentifier.Raw> renames = new HashMap<ColumnIdentifier.Raw, ColumnIdentifier.Raw>();
         boolean isStatic = false;
         Long dropTimestamp = null;
     }
@@ -829,8 +829,8 @@ alterTableStatement returns [AlterTableStatement expr]
           | K_DROP  K_COMPACT K_STORAGE                     { type = AlterTableStatement.Type.DROP_COMPACT_STORAGE; }
           | K_WITH  properties[attrs]                       { type = AlterTableStatement.Type.OPTS; }
           | K_RENAME                                        { type = AlterTableStatement.Type.RENAME; }
-               id1=cident K_TO toId1=ident { renames.put(id1, toId1); }
-               ( K_AND idn=cident K_TO toIdn=ident { renames.put(idn, toIdn); } )*
+               id1=cident K_TO toId1=cident { renames.put(id1, toId1); }
+               ( K_AND idn=cident K_TO toIdn=cident { renames.put(idn, toIdn); } )*
           )
     {
         $expr = new AlterTableStatement(cf, type, id, v, attrs, renames, isStatic, dropTimestamp);
