@@ -613,10 +613,6 @@ public class DatabaseDescriptor
         checkValidForByteConversion(conf.column_index_cache_size, "column_index_cache_size");
         checkValidForByteConversion(conf.batch_size_warn_threshold, "batch_size_warn_threshold");
 
-        if (conf.native_transport_max_negotiable_protocol_version != null)
-            logger.warn("The configuration option native_transport_max_negotiable_protocol_version has been deprecated " +
-                        "and should be removed from cassandra.yaml as it has no longer has any effect.");
-
         // if data dirs, commitlog dir, or saved caches dir are set in cassandra.yaml, use that.  Otherwise,
         // use -Dcassandra.storagedir (set in cassandra-env.sh) as the parent dir for data/, commitlog/, and saved_caches/
         if (conf.commitlog_directory == null)

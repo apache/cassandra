@@ -297,10 +297,6 @@ public class Config
     @Replaces(oldName = "native_transport_receive_queue_capacity_in_bytes", converter = Converters.BYTES_DATASTORAGE, deprecated = true)
     public DataStorageSpec.IntBytesBound native_transport_receive_queue_capacity = new DataStorageSpec.IntBytesBound("1MiB");
 
-    /** @deprecated See CASSANDRA-5529 */
-    @Deprecated(since = "1.2.6")
-    public Integer native_transport_max_negotiable_protocol_version = null;
-
     /**
      * Max size of values in SSTables, in MebiBytes.
      * Default is the same as the native protocol frame limit: 256MiB.
