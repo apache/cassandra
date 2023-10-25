@@ -63,7 +63,7 @@ public class PostingsTest extends SaiRandomizedTest
         final ArrayPostingList expectedPostingList = new ArrayPostingList(new int[]{ 10, 20, 30, 40, 50, 60 });
 
         long postingPointer;
-        try (PostingsWriter writer = new PostingsWriter(indexDescriptor, indexContext, blockSize, false))
+        try (PostingsWriter writer = new PostingsWriter(indexDescriptor, indexContext, blockSize))
         {
             postingPointer = writer.write(expectedPostingList);
             writer.complete();
@@ -116,7 +116,7 @@ public class PostingsTest extends SaiRandomizedTest
         final ArrayPostingList[] expected = new ArrayPostingList[numPostingLists];
         final long[] postingPointers = new long[numPostingLists];
 
-        try (PostingsWriter writer = new PostingsWriter(indexDescriptor, indexContext, blockSize, false))
+        try (PostingsWriter writer = new PostingsWriter(indexDescriptor, indexContext, blockSize))
         {
             for (int i = 0; i < numPostingLists; ++i)
             {
@@ -182,7 +182,7 @@ public class PostingsTest extends SaiRandomizedTest
         final ArrayPostingList expected = new ArrayPostingList(postings);
 
         long fp;
-        try (PostingsWriter writer = new PostingsWriter(indexDescriptor, indexContext, blockSize, false))
+        try (PostingsWriter writer = new PostingsWriter(indexDescriptor, indexContext, blockSize))
         {
             fp = writer.write(expected);
             writer.complete();
@@ -223,7 +223,7 @@ public class PostingsTest extends SaiRandomizedTest
         final ArrayPostingList expected = new ArrayPostingList(postings);
 
         long fp;
-        try (PostingsWriter writer = new PostingsWriter(indexDescriptor, indexContext, blockSize, false))
+        try (PostingsWriter writer = new PostingsWriter(indexDescriptor, indexContext, blockSize))
         {
             fp = writer.write(expected);
             writer.complete();
@@ -249,7 +249,7 @@ public class PostingsTest extends SaiRandomizedTest
     @Test
     public void testNullPostingList() throws IOException
     {
-        try (PostingsWriter writer = new PostingsWriter(indexDescriptor, indexContext, false))
+        try (PostingsWriter writer = new PostingsWriter(indexDescriptor, indexContext))
         {
             expectedException.expect(IllegalArgumentException.class);
             writer.write(null);
@@ -260,7 +260,7 @@ public class PostingsTest extends SaiRandomizedTest
     @Test
     public void testEmptyPostingList() throws IOException
     {
-        try (PostingsWriter writer = new PostingsWriter(indexDescriptor, indexContext, false))
+        try (PostingsWriter writer = new PostingsWriter(indexDescriptor, indexContext))
         {
             expectedException.expect(IllegalArgumentException.class);
             writer.write(new ArrayPostingList(new int[0]));
@@ -270,7 +270,7 @@ public class PostingsTest extends SaiRandomizedTest
     @Test
     public void testNonAscendingPostingList() throws IOException
     {
-        try (PostingsWriter writer = new PostingsWriter(indexDescriptor, indexContext, false))
+        try (PostingsWriter writer = new PostingsWriter(indexDescriptor, indexContext))
         {
             expectedException.expect(IllegalArgumentException.class);
             writer.write(new ArrayPostingList(new int[]{ 1, 0 }));

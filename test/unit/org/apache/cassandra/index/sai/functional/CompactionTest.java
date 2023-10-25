@@ -24,6 +24,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.UUID;
 
+import javax.management.InstanceNotFoundException;
+
 import com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Test;
@@ -43,6 +45,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.disk.v1.SSTableIndexWriter;
+import org.apache.cassandra.index.sai.metrics.AbstractMetricsTest;
 import org.apache.cassandra.inject.ActionBuilder;
 import org.apache.cassandra.inject.Expression;
 import org.apache.cassandra.inject.Injection;
@@ -61,12 +64,11 @@ import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.Refs;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public class CompactionTest extends SAITester
+public class CompactionTest extends AbstractMetricsTest
 {
     @Test
     public void testAntiCompaction() throws Throwable
@@ -339,10 +341,9 @@ public class CompactionTest extends SAITester
         }
 
         // verify index group metrics are cleared.
-        assertEquals(0, getOpenIndexFiles());
-        assertEquals(0, getDiskUsage());
+        assertThatThrownBy(this::getOpenIndexFiles).hasRootCauseInstanceOf(InstanceNotFoundException.class);
+        assertThatThrownBy(this::getDiskUsage).hasRootCauseInstanceOf(InstanceNotFoundException.class);
 
-        // verify indexes are dropped
         // verify indexes are dropped
         assertThatThrownBy(() -> executeNet("SELECT id1 FROM %s WHERE v1>=0"))
                 .isInstanceOf(InvalidQueryException.class)
@@ -350,5 +351,15 @@ public class CompactionTest extends SAITester
         assertThatThrownBy(() -> executeNet("SELECT id1 FROM %s WHERE v2='0'"))
                 .isInstanceOf(InvalidQueryException.class)
                 .hasMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE);
+    }
+
+    protected int getOpenIndexFiles()
+    {
+        return (int) getMetricValue(objectNameNoIndex("OpenIndexFiles", KEYSPACE, currentTable(), "IndexGroupMetrics"));
+    }
+
+    protected long getDiskUsage()
+    {
+        return (long) getMetricValue(objectNameNoIndex("DiskUsedBytes", KEYSPACE, currentTable(), "IndexGroupMetrics"));
     }
 }

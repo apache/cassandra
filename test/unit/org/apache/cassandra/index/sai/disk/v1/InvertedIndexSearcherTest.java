@@ -154,7 +154,7 @@ public class InvertedIndexSearcherTest extends SaiRandomizedTest
         final IndexContext indexContext = SAITester.createIndexContext(index, UTF8Type.instance);
 
         SegmentMetadata.ComponentMetadataMap indexMetas;
-        try (InvertedIndexWriter writer = new InvertedIndexWriter(indexDescriptor, indexContext, false))
+        try (InvertedIndexWriter writer = new InvertedIndexWriter(indexDescriptor, indexContext))
         {
             indexMetas = writer.writeAll(new MemtableTermsIterator(null, null, termsEnum.iterator()));
         }
@@ -169,7 +169,7 @@ public class InvertedIndexSearcherTest extends SaiRandomizedTest
                                                                     wrap(termsEnum.get(terms - 1).left),
                                                                     indexMetas);
 
-        try (PerIndexFiles indexFiles = new PerIndexFiles(indexDescriptor, indexContext, false))
+        try (PerIndexFiles indexFiles = new PerIndexFiles(indexDescriptor, indexContext))
         {
             SSTableContext sstableContext = mock(SSTableContext.class);
             when(sstableContext.primaryKeyMapFactory()).thenReturn(KDTreeIndexBuilder.TEST_PRIMARY_KEY_MAP_FACTORY);

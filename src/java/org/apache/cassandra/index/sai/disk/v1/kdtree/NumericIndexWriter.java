@@ -54,7 +54,6 @@ public class NumericIndexWriter implements Closeable
     private final IndexDescriptor indexDescriptor;
     private final IndexContext indexContext;
     private final int bytesPerDim;
-    private final boolean segmented;
 
     private final IndexWriterConfig config;
 
@@ -67,10 +66,9 @@ public class NumericIndexWriter implements Closeable
                               int bytesPerDim,
                               long maxSegmentRowId,
                               long numRows,
-                              IndexWriterConfig config,
-                              boolean segmented) throws IOException
+                              IndexWriterConfig config) throws IOException
     {
-        this(indexDescriptor, indexContext, MAX_POINTS_IN_LEAF_NODE, bytesPerDim, maxSegmentRowId, numRows, config, segmented);
+        this(indexDescriptor, indexContext, MAX_POINTS_IN_LEAF_NODE, bytesPerDim, maxSegmentRowId, numRows, config);
     }
 
     public NumericIndexWriter(IndexDescriptor indexDescriptor,
@@ -79,8 +77,7 @@ public class NumericIndexWriter implements Closeable
                               int bytesPerDim,
                               long maxSegmentRowId,
                               long numRows,
-                              IndexWriterConfig config,
-                              boolean segmented) throws IOException
+                              IndexWriterConfig config) throws IOException
     {
         checkArgument(maxSegmentRowId >= 0,
                       "[%s] maxRowId must be non-negative value, but got %s",
@@ -101,7 +98,6 @@ public class NumericIndexWriter implements Closeable
                                     BKDWriter.DEFAULT_MAX_MB_SORT_IN_HEAP,
                                     numRows,
                                     true, null);
-        this.segmented = segmented;
     }
 
     @Override
@@ -155,7 +151,7 @@ public class NumericIndexWriter implements Closeable
 
         final LeafCallback leafCallback = new LeafCallback();
 
-        try (IndexOutput bkdOutput = indexDescriptor.openPerIndexOutput(IndexComponent.KD_TREE, indexContext, true, segmented))
+        try (IndexOutput bkdOutput = indexDescriptor.openPerIndexOutput(IndexComponent.KD_TREE, indexContext, true))
         {
             // The SSTable kd-tree component file is opened in append mode, so our offset is the current file pointer.
             final long bkdOffset = bkdOutput.getFilePointer();
@@ -179,8 +175,8 @@ public class NumericIndexWriter implements Closeable
             components.put(IndexComponent.KD_TREE, bkdPosition, bkdOffset, bkdLength, attributes);
         }
 
-        try (TraversingBKDReader reader = new TraversingBKDReader(indexDescriptor.createPerIndexFileHandle(IndexComponent.KD_TREE, indexContext, segmented), bkdPosition);
-             IndexOutput postingsOutput = indexDescriptor.openPerIndexOutput(IndexComponent.KD_TREE_POSTING_LISTS, indexContext, true, segmented))
+        try (TraversingBKDReader reader = new TraversingBKDReader(indexDescriptor.createPerIndexFileHandle(IndexComponent.KD_TREE, indexContext), bkdPosition);
+             IndexOutput postingsOutput = indexDescriptor.openPerIndexOutput(IndexComponent.KD_TREE_POSTING_LISTS, indexContext, true))
         {
             final long postingsOffset = postingsOutput.getFilePointer();
 

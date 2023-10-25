@@ -262,8 +262,7 @@ public class KDTreeSegmentMergerTest extends SAITester
                                                                      Integer.BYTES,
                                                                      maxSegmentRowId,
                                                                      totalRows,
-                                                                     IndexWriterConfig.defaultConfig("test"),
-                                                                     false))
+                                                                     IndexWriterConfig.defaultConfig("test")))
         {
             SegmentMetadata.ComponentMetadataMap metadata = indexWriter.writeAll(merger);
             final long bkdPosition = metadata.get(IndexComponent.KD_TREE).root;
@@ -314,8 +313,7 @@ public class KDTreeSegmentMergerTest extends SAITester
                                                                  Integer.BYTES,
                                                                  maxSegmentRowId,
                                                                  buffer.numRows(),
-                                                                 IndexWriterConfig.defaultConfig("test"),
-                                                                 false);
+                                                                 IndexWriterConfig.defaultConfig("test"));
 
         final SegmentMetadata.ComponentMetadataMap metadata = writer.writeAll(buffer.asPointValues());
         final long bkdPosition = metadata.get(IndexComponent.KD_TREE).root;

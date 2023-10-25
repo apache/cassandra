@@ -29,8 +29,8 @@ import org.apache.lucene.store.IndexOutput;
 
 public class NumericValuesWriter implements Closeable
 {
-    public static final int MONOTONIC_BLOCK_SIZE = 16384;
-    public static final int BLOCK_SIZE = 128;
+    public static final int MONOTONIC_BLOCK_SIZE = Integer.getInteger("dse.sai.numeric_values.monotonic_block_size", 16384);
+    public static final int BLOCK_SIZE = Integer.getInteger("dse.sai.numeric_values.block_size", 128);
 
     private final IndexOutput output;
     private final AbstractBlockPackedWriter writer;

@@ -115,11 +115,11 @@ public class QueryInfoTrackerTest extends CQLTester
     }
 
     @Test
-    public void testReadQueryTracingWithStaticRowsClusteringColumnsAndRegularRows()
+    public void testReadQueryTracingWithStaticRows()
     {
         int keys = 4;
         int clustering = 3;
-        String table = KEYSPACE + ".qit_read_static_clustering_regular";
+        String table = KEYSPACE + ".qit_read_static";
         session.execute("CREATE TABLE " + table + "(k int, c int, v int, sv int static, PRIMARY KEY (k, c))");
         for (int k = 0; k < keys; k++)
         {
@@ -135,6 +135,14 @@ public class QueryInfoTrackerTest extends CQLTester
         assertEquals(1 + clustering, tracker.readRows.get());
         assertEquals(1, tracker.readPartitions.get());
         assertEquals(1, tracker.replicaPlans.get());
+
+        // trigger failure when processing onRow(), query should succeed
+        tracker.failOnRowsRead = true;
+        session.execute("SELECT * FROM " + table + " WHERE k = ?", 0);
+        assertEquals(2, tracker.reads.get());
+        assertEquals(1 + clustering, tracker.readRows.get()); // not changed
+        assertEquals(2, tracker.readPartitions.get());
+        assertEquals(2, tracker.replicaPlans.get());
     }
 
     @Test
@@ -422,6 +430,8 @@ public class QueryInfoTrackerTest extends CQLTester
         public final AtomicInteger errorLwts = new AtomicInteger();
         private final String keyspace;
 
+        public volatile boolean failOnRowsRead = false;
+
         public TestQueryInfoTracker(String keyspace)
         {
             this.keyspace = keyspace;
@@ -541,6 +551,9 @@ public class QueryInfoTrackerTest extends CQLTester
             @Override
             public void onRow(Row row)
             {
+                if (failOnRowsRead)
+                    throw new RuntimeException("test failure");
+
                 readRows.incrementAndGet();
             }
 

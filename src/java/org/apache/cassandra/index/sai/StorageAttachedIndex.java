@@ -187,6 +187,7 @@ public class StorageAttachedIndex implements Index
     private static final Set<String> VALID_OPTIONS = ImmutableSet.of(NonTokenizingOptions.CASE_SENSITIVE,
                                                                      NonTokenizingOptions.NORMALIZE,
                                                                      NonTokenizingOptions.ASCII,
+                                                                     // For now, we leave this for backward compatibility even though it's not used
                                                                      IndexContext.ENABLE_SEGMENT_COMPACTION_OPTION_NAME,
                                                                      IndexTarget.TARGET_OPTION_NAME,
                                                                      IndexTarget.CUSTOM_INDEX_OPTION_NAME,
@@ -336,7 +337,13 @@ public class StorageAttachedIndex implements Index
     public void register(IndexRegistry registry)
     {
         // index will be available for writes
-        registry.registerIndex(this, StorageAttachedIndexGroup.class, () -> new StorageAttachedIndexGroup(baseCfs));
+        registry.registerIndex(this, StorageAttachedIndexGroup.GROUP_KEY, () -> new StorageAttachedIndexGroup(baseCfs));
+    }
+
+    @Override
+    public void unregister(IndexRegistry registry)
+    {
+        registry.unregisterIndex(this, StorageAttachedIndexGroup.GROUP_KEY);
     }
 
     @Override

@@ -152,16 +152,6 @@ public class SSTableIndexWriter implements PerIndexWriter
                              indexDescriptor.descriptor, FBUtilities.prettyPrintMemory(bytesAllocated), FBUtilities.prettyPrintMemory(globalBytesUsed));
             }
 
-            if (this.indexContext.isSegmentCompactionEnabled())
-            {
-                compactSegments();
-                elapsed = stopwatch.elapsed(TimeUnit.MILLISECONDS);
-                logger.debug(indexContext.logMessage("Completed index compaction for SSTable {}. Duration: {} ms. Total elapsed: {} ms"),
-                             indexDescriptor.descriptor,
-                             elapsed - start,
-                             elapsed);
-            }
-
             writeSegmentsMetadata();
             indexDescriptor.createComponentOnDisk(IndexComponent.COLUMN_COMPLETION_MARKER, indexContext);
         }
@@ -325,30 +315,6 @@ public class SSTableIndexWriter implements PerIndexWriter
             indexContext.getIndexMetrics().segmentFlushErrors.inc();
 
             throw t;
-        }
-    }
-
-    private void compactSegments() throws IOException
-    {
-        if (segments.isEmpty())
-            return;
-
-        PrimaryKey minKey = segments.get(0).minKey;
-        PrimaryKey maxKey = segments.get(segments.size() - 1).maxKey;
-
-        try (SegmentMerger segmentMerger = SegmentMerger.newSegmentMerger(indexContext.isLiteral());
-             PerIndexFiles perIndexFiles = new PerIndexFiles(indexDescriptor, indexContext, true))
-        {
-            for (final SegmentMetadata segment : segments)
-            {
-                segmentMerger.addSegment(indexContext, segment, perIndexFiles);
-            }
-            segments.clear();
-            segments.add(segmentMerger.merge(indexDescriptor, indexContext, minKey, maxKey, maxSSTableRowId));
-        }
-        finally
-        {
-            indexDescriptor.deletePerIndexTemporaryComponents(indexContext);
         }
     }
 

@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import com.google.common.base.Preconditions;
 import com.google.common.base.Stopwatch;
 import org.junit.After;
 import org.junit.BeforeClass;
@@ -93,7 +94,7 @@ public class SegmentFlushTest
     {
         // exceeds max rowId per segment
         testFlushBetweenRowIds(0, Integer.MAX_VALUE, 2);
-        testFlushBetweenRowIds(0, Long.MAX_VALUE - 1, 2);
+        testFlushBetweenRowIds(0, Long.MAX_VALUE, 2);
         testFlushBetweenRowIds(0, SegmentBuilder.LAST_VALID_SEGMENT_ROW_ID + 1, 2);
         testFlushBetweenRowIds(Integer.MAX_VALUE - SegmentBuilder.LAST_VALID_SEGMENT_ROW_ID - 1, Integer.MAX_VALUE, 2);
         testFlushBetweenRowIds(Long.MAX_VALUE - SegmentBuilder.LAST_VALID_SEGMENT_ROW_ID - 1, Long.MAX_VALUE, 2);
@@ -150,27 +151,28 @@ public class SegmentFlushTest
         List<SegmentMetadata> segmentMetadatas = SegmentMetadata.load(source, indexDescriptor.primaryKeyFactory);
         assertEquals(segments, segmentMetadatas.size());
 
-        // verify 1st segment metadata: if there are 2 segments, key2 will be in second segment
+        // verify segment metadata
         SegmentMetadata segmentMetadata = segmentMetadatas.get(0);
-        segmentRowIdOffset = sstableRowId1; // segmentRowIdOffset is the first sstable row id
+        segmentRowIdOffset = sstableRowId1;
         minSegmentRowId = 0;
         maxSegmentRowId = segments == 1 ? (int) (sstableRowId2 - segmentRowIdOffset) : 0;
         minKey = SAITester.TEST_FACTORY.createTokenOnly(key1.getToken());
-        maxKey = SAITester.TEST_FACTORY.createTokenOnly(segments == 1 ? key2.getToken() : key1.getToken());
+        DecoratedKey maxDecoratedKey = segments == 1 ? key2 : key1;
+        maxKey = SAITester.TEST_FACTORY.createTokenOnly(maxDecoratedKey.getToken());
         minTerm = term1;
         maxTerm = segments == 1 ? term2 : term1;
         numRowsPerSegment = segments == 1 ? 2 : 1;
         verifySegmentMetadata(segmentMetadata);
         verifyStringIndex(indexDescriptor, indexContext, segmentMetadata);
 
-        // verify 2nd segment
         if (segments > 1)
         {
+            Preconditions.checkState(segments == 2);
             segmentRowIdOffset = sstableRowId2;
             minSegmentRowId = 0;
             maxSegmentRowId = 0;
             minKey = SAITester.TEST_FACTORY.createTokenOnly(key2.getToken());
-            maxKey = SAITester.TEST_FACTORY.createTokenOnly(key2.getToken());
+            maxKey = SAITester.TEST_FACTORY.createTokenOnly(key2.getToken());;
             minTerm = term2;
             maxTerm = term2;
             numRowsPerSegment = 1;

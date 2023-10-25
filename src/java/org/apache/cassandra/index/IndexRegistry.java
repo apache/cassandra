@@ -25,7 +25,6 @@ import java.util.Collections;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
-import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -34,13 +33,11 @@ import javax.annotation.Nullable;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.memtable.Memtable;
-import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.transactions.IndexTransaction;
@@ -67,7 +64,12 @@ public interface IndexRegistry
     public static final IndexRegistry EMPTY = new IndexRegistry()
     {
         @Override
-        public void registerIndex(Index index, Object groupKey, Supplier<Index.Group> groupSupplier)
+        public void registerIndex(Index index, Index.Group.Key groupKey, Supplier<Index.Group> groupSupplier)
+        {
+        }
+
+        @Override
+        public void unregisterIndex(Index index, Index.Group.Key groupKey)
         {
         }
 
@@ -248,11 +250,11 @@ public interface IndexRegistry
             }
         };
 
-        public void registerIndex(Index index, Object groupKey, Supplier<Index.Group> groupSupplier)
+        public void registerIndex(Index index, Index.Group.Key groupKey, Supplier<Index.Group> groupSupplier)
         {
         }
 
-        public void unregisterIndex(Index index)
+        public void unregisterIndex(Index index, Index.Group.Key groupKey)
         {
         }
 
@@ -285,9 +287,10 @@ public interface IndexRegistry
 
     default void registerIndex(Index index)
     {
-        registerIndex(index, index, () -> new SingletonIndexGroup(index));
+        registerIndex(index, new Index.Group.Key(index), () -> new SingletonIndexGroup());
     }
-    public void registerIndex(Index index, Object groupKey, Supplier<Index.Group> groupSupplier);
+    void registerIndex(Index index, Index.Group.Key groupKey, Supplier<Index.Group> groupSupplier);
+    void unregisterIndex(Index index, Index.Group.Key groupKey);
     Collection<Index.Group> listIndexGroups();
 
     Index getIndex(IndexMetadata indexMetadata);

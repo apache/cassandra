@@ -65,7 +65,7 @@ public class TrieTermsDictionaryTest extends SaiRandomizedTest
     private void doTestExactMatch() throws Exception
     {
         long fp;
-        try (TrieTermsDictionaryWriter writer = new TrieTermsDictionaryWriter(indexDescriptor, indexContext, false))
+        try (TrieTermsDictionaryWriter writer = new TrieTermsDictionaryWriter(indexDescriptor, indexContext))
         {
             writer.add(asByteComparable("ab"), 0);
             writer.add(asByteComparable("abb"), 1);
@@ -93,7 +93,7 @@ public class TrieTermsDictionaryTest extends SaiRandomizedTest
         final List<ByteComparable> byteComparables = generateSortedByteComparables();
 
         long fp;
-        try (TrieTermsDictionaryWriter writer = new TrieTermsDictionaryWriter(indexDescriptor, indexContext, false))
+        try (TrieTermsDictionaryWriter writer = new TrieTermsDictionaryWriter(indexDescriptor, indexContext))
         {
             for (int i = 0; i < byteComparables.size(); ++i)
             {
@@ -126,7 +126,7 @@ public class TrieTermsDictionaryTest extends SaiRandomizedTest
         final List<ByteComparable> byteComparables = generateSortedByteComparables();
 
         long fp;
-        try (TrieTermsDictionaryWriter writer = new TrieTermsDictionaryWriter(indexDescriptor, indexContext, false))
+        try (TrieTermsDictionaryWriter writer = new TrieTermsDictionaryWriter(indexDescriptor, indexContext))
         {
             for (int i = 0; i < byteComparables.size(); ++i)
             {

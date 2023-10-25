@@ -138,8 +138,7 @@ public class KDTreeIndexBuilder
                                                                 TypeUtil.fixedSizeOf(type),
                                                                 maxSegmentRowId,
                                                                 size,
-                                                                IndexWriterConfig.defaultConfig("test"),
-                                                                false))
+                                                                IndexWriterConfig.defaultConfig("test")))
         {
             final SegmentMetadata.ComponentMetadataMap indexMetas = writer.writeAll(pointValues);
             metadata = new SegmentMetadata(0,
@@ -154,7 +153,7 @@ public class KDTreeIndexBuilder
                                            indexMetas);
         }
 
-        try (PerIndexFiles indexFiles = new PerIndexFiles(indexDescriptor, SAITester.createIndexContext("test", Int32Type.instance), false))
+        try (PerIndexFiles indexFiles = new PerIndexFiles(indexDescriptor, SAITester.createIndexContext("test", Int32Type.instance)))
         {
             SSTableContext sstableContext = mock(SSTableContext.class);
             when(sstableContext.primaryKeyMapFactory()).thenReturn(KDTreeIndexBuilder.TEST_PRIMARY_KEY_MAP_FACTORY);

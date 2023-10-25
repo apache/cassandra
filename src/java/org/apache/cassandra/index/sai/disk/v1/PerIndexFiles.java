@@ -35,7 +35,7 @@ public class PerIndexFiles implements Closeable
     private final IndexDescriptor indexDescriptor;
     private final IndexContext indexContext;
 
-    public PerIndexFiles(IndexDescriptor indexDescriptor, IndexContext indexContext, boolean temporary)
+    public PerIndexFiles(IndexDescriptor indexDescriptor, IndexContext indexContext)
     {
         this.indexDescriptor = indexDescriptor;
         this.indexContext = indexContext;
@@ -43,7 +43,7 @@ public class PerIndexFiles implements Closeable
         {
             if (component == IndexComponent.META || component == IndexComponent.COLUMN_COMPLETION_MARKER)
                 continue;
-            files.put(component, indexDescriptor.createPerIndexFileHandle(component, indexContext, temporary));
+            files.put(component, indexDescriptor.createPerIndexFileHandle(component, indexContext));
         }
     }
 

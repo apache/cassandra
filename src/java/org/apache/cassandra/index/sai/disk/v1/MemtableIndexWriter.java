@@ -146,7 +146,7 @@ public class MemtableIndexWriter implements PerIndexWriter
 
         if (TypeUtil.isLiteral(termComparator))
         {
-            try (InvertedIndexWriter writer = new InvertedIndexWriter(indexDescriptor, indexContext, false))
+            try (InvertedIndexWriter writer = new InvertedIndexWriter(indexDescriptor, indexContext))
             {
                 indexMetas = writer.writeAll(terms);
                 numRows = writer.getPostingsCount();
@@ -160,8 +160,7 @@ public class MemtableIndexWriter implements PerIndexWriter
                                                                     maxSegmentRowId,
                                                                     // Due to stale entries in IndexMemtable, we may have more indexed rows than num of rowIds.
                                                                     Integer.MAX_VALUE,
-                                                                    indexContext.getIndexWriterConfig(),
-                                                                    false))
+                                                                    indexContext.getIndexWriterConfig()))
             {
                 indexMetas = writer.writeAll(ImmutableOneDimPointValues.fromTermEnum(terms, termComparator));
                 numRows = writer.getPointCount();

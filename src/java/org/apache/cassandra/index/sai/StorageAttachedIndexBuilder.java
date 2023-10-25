@@ -273,15 +273,14 @@ public class StorageAttachedIndexBuilder extends SecondaryIndexBuilder
     }
 
     /**
-     * if the per sstable index files are already created, not need to write it again, unless found corrupted on rebuild
+     * if the per sstable index files are already created, not need to write it again, unless it's full rebuild.
      * if not created, try to acquire a lock, so only one builder will generate per sstable index files
      */
     private CountDownLatch shouldWritePerSSTableFiles(SSTableReader sstable)
     {
         // if per-table files are incomplete or checksum failed during full rebuild.
         IndexDescriptor indexDescriptor = IndexDescriptor.create(sstable);
-        if (!indexDescriptor.isPerSSTableBuildComplete() ||
-            (isFullRebuild && !indexDescriptor.validatePerSSTableComponentsChecksum()))
+        if (!indexDescriptor.isPerSSTableBuildComplete() || isFullRebuild)
         {
             CountDownLatch latch = new CountDownLatch(1);
             if (inProgress.putIfAbsent(sstable, latch) == null)

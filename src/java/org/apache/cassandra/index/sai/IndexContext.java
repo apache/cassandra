@@ -112,8 +112,6 @@ public class IndexContext
     private final AbstractAnalyzer.AnalyzerFactory queryAnalyzerFactory;
     private final PrimaryKey.Factory primaryKeyFactory;
 
-    private final boolean segmentCompactionEnabled;
-
     public IndexContext(@Nonnull String keyspace,
                         @Nonnull String table,
                         @Nonnull AbstractType<?> partitionKeyType,
@@ -149,7 +147,6 @@ public class IndexContext
             this.queryAnalyzerFactory = AbstractAnalyzer.hasQueryAnalyzer(config.options)
                                         ? AbstractAnalyzer.fromOptionsQueryAnalyzer(getValidator(), config.options)
                                         : this.analyzerFactory;
-            this.segmentCompactionEnabled = Boolean.parseBoolean(config.options.getOrDefault(ENABLE_SEGMENT_COMPACTION_OPTION_NAME, "false"));
         }
         else
         {
@@ -157,7 +154,6 @@ public class IndexContext
             this.isAnalyzed = AbstractAnalyzer.isAnalyzed(Collections.EMPTY_MAP);
             this.analyzerFactory = AbstractAnalyzer.fromOptions(getValidator(), Collections.EMPTY_MAP);
             this.queryAnalyzerFactory = this.analyzerFactory;
-            this.segmentCompactionEnabled = true;
         }
 
         logger.debug(logMessage("Initialized index context with index writer config: {}"), indexWriterConfig);
@@ -255,14 +251,8 @@ public class IndexContext
 
     public void renewMemtable(Memtable renewed)
     {
-        for (Memtable memtable : liveMemtables.keySet())
-        {
-            // remove every index but the one that corresponds to the post-truncate Memtable
-            if (renewed != memtable)
-            {
-                liveMemtables.remove(memtable);
-            }
-        }
+        // remove every index but the one that corresponds to the post-truncate Memtable
+        liveMemtables.keySet().removeIf(m -> m != renewed);
     }
 
     public void discardMemtable(Memtable discarded)
@@ -681,17 +671,5 @@ public class IndexContext
         IndexFeatureSet.Accumulator accumulator = new IndexFeatureSet.Accumulator();
         getView().getIndexes().stream().map(SSTableIndex::indexFeatureSet).forEach(set -> accumulator.accumulate(set));
         return accumulator.complete();
-    }
-
-    /**
-     * Returns true if index segments should be compacted into one segment after building the index.
-     *
-     * By default, this option is set to false. A user is able to override this by setting
-     * <code>enable_segment_compaction</code> to true in the index options.
-     * This is an expert-only option.
-     */
-    public boolean isSegmentCompactionEnabled()
-    {
-        return this.segmentCompactionEnabled;
     }
 }

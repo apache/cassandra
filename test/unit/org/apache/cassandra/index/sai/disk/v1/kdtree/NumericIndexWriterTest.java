@@ -91,8 +91,7 @@ public class NumericIndexWriterTest extends SaiRandomizedTest
                                                                 indexContext,
                                                                 Integer.BYTES,
                                                                 docCount, docCount,
-                                                                IndexWriterConfig.defaultConfig("test"),
-                                                                false))
+                                                                IndexWriterConfig.defaultConfig("test")))
         {
             indexMetas = writer.writeAll(pointValues);
         }
@@ -144,7 +143,7 @@ public class NumericIndexWriterTest extends SaiRandomizedTest
                                                                 indexContext,
                                                                 TypeUtil.fixedSizeOf(Int32Type.instance),
                                                                 maxSegmentRowId, maxSegmentRowId,
-                                                                IndexWriterConfig.defaultConfig("test"), false))
+                                                                IndexWriterConfig.defaultConfig("test")))
         {
             indexMetas = writer.writeAll(pointValues);
         }
