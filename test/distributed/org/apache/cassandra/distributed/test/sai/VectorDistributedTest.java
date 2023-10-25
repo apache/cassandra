@@ -80,8 +80,8 @@ public class VectorDistributedTest extends TestBaseImpl
     public static void setupCluster() throws Exception
     {
         cluster = Cluster.build(NUM_REPLICAS)
-                         .withTokenCount(1) // VSTODO in-jvm-test in CC branch doesn't support multiple tokens
-                         .withDataDirCount(1) // VSTODO vector memtable flush doesn't support multiple directories yet
+                         .withTokenCount(1)
+                         .withDataDirCount(1) // VSTODO Vector memtable flush doesn't support multiple directories yet
                          .withConfig(config -> config.with(GOSSIP)
                                                      .with(NETWORK)
                                                      .set("memtable_allocation_type", Config.MemtableAllocationType.offheap_objects)

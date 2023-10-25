@@ -72,18 +72,20 @@ public interface PrimaryKeyMap extends Closeable
     long rowIdFromPrimaryKey(PrimaryKey key);
 
     /**
-     * Returns the first row ID for a given token or a negative value if not found
+     * Returns the first row ID of the nearest {@link Token} greater than or equal to the given {@link Token},
+     * or a negative value if not found
      *
      * @param token the {@link Token} to lookup
-     * @return the first row ID associated with the {@link Token} or a negative value
+     * @return the ceiling row ID associated with the {@link Token} or a negative value
      */
     long ceiling(Token token);
 
     /**
-     * Returns the last row ID for a given partition range or the previous row ID if there was no match for the partition range
+     * Returns the last row ID of the nearest {@link Token} less than or equal to the given {@link Token},
+     * or a negative value if the {@link Token} is at its minimum value
      *
      * @param token the {@link Token} to lookup
-     * @return the last row ID associated with the {@link Token}
+     * @return the floor row ID associated with the {@link Token}
      */
     long floor(Token token);
 

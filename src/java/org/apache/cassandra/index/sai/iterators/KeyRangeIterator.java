@@ -45,7 +45,9 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
 
     public KeyRangeIterator(KeyRangeIterator range)
     {
-        this(range == null ? null : range.min, range == null ? null : range.max, range == null ? -1 : range.count);
+        this(range == null ? null : range.min,
+             range == null ? null : range.max,
+             range == null ? -1 : range.count);
     }
 
     public KeyRangeIterator(PrimaryKey min, PrimaryKey max, long count)

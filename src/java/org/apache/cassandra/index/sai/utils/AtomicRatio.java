@@ -21,6 +21,14 @@ package org.apache.cassandra.index.sai.utils;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * AtomicRatio provides thread safe operations to maintain a {@link Ratio} of a numerator and denominator.
+ * The ratio can be updated atomically by multiple threads calling the {@link #update(long, long)} method.
+ * The current ratio value can be retrieved via the {@link #get} method.
+ * <p>
+ * The class also provides a thread safe {@link #updateCount} that maintains the number of times the {@link Ratio}
+ * has been updated. This can be used to determine whether the {@link Ratio} is useful based on the number of updates.
+ */
 public class AtomicRatio
 {
     private final AtomicReference<Ratio> ratio = new AtomicReference<>(new Ratio(0, 0));

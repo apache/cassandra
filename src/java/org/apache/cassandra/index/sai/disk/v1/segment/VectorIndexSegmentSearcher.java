@@ -54,7 +54,6 @@ import org.apache.cassandra.tracing.Tracing;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
-import static java.lang.Math.pow;
 
 /**
  * Executes ANN search against a vector graph for an individual index segment.
@@ -67,6 +66,7 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
     private final int globalBruteForceRows;
     private final AtomicRatio actualExpectedRatio = new AtomicRatio();
     private final ThreadLocal<SparseFixedBitSet> cachedBitSets;
+    private final OptimizeFor optimizeFor;
 
     VectorIndexSegmentSearcher(PrimaryKeyMap.Factory primaryKeyMapFactory,
                                PerColumnIndexFiles perIndexFiles,
@@ -77,6 +77,7 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
         graph = new DiskAnn(segmentMetadata.componentMetadatas, perIndexFiles, indexContext);
         cachedBitSets = ThreadLocal.withInitial(() -> new SparseFixedBitSet(graph.size()));
         globalBruteForceRows = Integer.MAX_VALUE;
+        optimizeFor = indexContext.getIndexWriterConfig().getOptimizeFor();
     }
 
     @Override
@@ -96,7 +97,7 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
         if (exp.getOp() != Expression.IndexOperator.ANN)
             throw new IllegalArgumentException(indexContext.logMessage("Unsupported expression during ANN index query: " + exp));
 
-        int topK = topKFor(limit);
+        int topK = optimizeFor.topKFor(limit);
         BitsOrPostingList bitsOrPostingList = bitsOrPostingListForKeyRange(context.vectorContext(), keyRange, topK);
         if (bitsOrPostingList.skipANN())
             return toPrimaryKeyIterator(bitsOrPostingList.postingList(), context);
@@ -218,7 +219,7 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
                                                   .collect(Collectors.toList());
         if (keysInRange.isEmpty())
             return KeyRangeIterator.empty();
-        int topK = topKFor(limit);
+        int topK = optimizeFor.topKFor(limit);
         if (shouldUseBruteForce(topK, limit, keysInRange.size()))
             return new KeyRangeListIterator(metadata.minKey, metadata.maxKey, keysInRange);
 
@@ -262,20 +263,6 @@ public class VectorIndexSegmentSearcher extends IndexSegmentSearcher
             updateExpectedNodes(results.getVisitedCount(), expectedNodesVisited(topK, maxSegmentRowId, graph.size()));
             return toPrimaryKeyIterator(results, context);
         }
-    }
-
-    /**
-     * If we are optimizing for recall, ask the index to search for more than `limit` results,
-     * which (since it will search deeper in the graph) will tend to surface slightly better
-     * candidates in the process.
-     */
-    private int topKFor(int limit)
-    {
-        // compute the factor `n` to multiply limit by to increase the number of results from the index.
-        var n = indexContext.getIndexWriterConfig().getOptimizeFor() == OptimizeFor.LATENCY
-                ? 0.979 + 4.021 * pow(limit, -0.761)  // f(1) =  5.0, f(100) = 1.1, f(1000) = 1.0
-                : 0.509 + 9.491 * pow(limit, -0.402); // f(1) = 10.0, f(100) = 2.0, f(1000) = 1.1
-        return (int) (n * limit);
     }
 
     private boolean shouldUseBruteForce(int topK, int limit, int numRows)

@@ -118,10 +118,11 @@ public class StorageAttachedIndex implements Index
                                                       " * PER PARTITION LIMIT clauses.\n" +
                                                       " * GROUP BY clauses.\n" +
                                                       " * Aggregation functions.\n" +
-                                                      " * Filters on columns without a SAI index.\n" +
-                                                      "Most of these limitations are planned to be removed in future versions.";
+                                                      " * Filters on columns without a SAI index.";
 
     public static final String VECTOR_NON_FLOAT_ERROR = "SAI ANN indexes are only allowed on vector columns with float elements";
+    public static final String VECTOR_1_DIMENSION_COSINE_ERROR = "Cosine similarity is not supported for single-dimension vectors";
+    public static final String VECTOR_MULTIPLE_DATA_DIRECTORY_ERROR = "SAI ANN indexes are not allowed on multiple data directories";
 
     @VisibleForTesting
     public static final String ANALYSIS_ON_KEY_COLUMNS_MESSAGE = "Analysis options are not supported on primary key columns, but found ";
@@ -273,7 +274,15 @@ public class StorageAttachedIndex implements Index
             throw new InvalidRequestException("Cannot create more than one storage-attached index on the same column: " + target.left);
         }
 
+        Map<String, String> analysisOptions = AbstractAnalyzer.getAnalyzerOptions(options);
+        if (target.left.isPrimaryKeyColumn() && !analysisOptions.isEmpty())
+        {
+            throw new InvalidRequestException(ANALYSIS_ON_KEY_COLUMNS_MESSAGE + new CqlBuilder().append(analysisOptions));
+        }
+
         AbstractType<?> type = TypeUtil.cellValueType(target.left, target.right);
+        AbstractAnalyzer.fromOptions(type, analysisOptions);
+        IndexWriterConfig config = IndexWriterConfig.fromOptions(null, type, options);
 
         // If we are indexing map entries we need to validate the subtypes
         if (TypeUtil.isComposite(type))
@@ -290,19 +299,19 @@ public class StorageAttachedIndex implements Index
         }
         else if (type.isVector())
         {
-            if (!(((VectorType<?>)type).elementType instanceof FloatType))
+            VectorType<?> vectorType = (VectorType<?>) type;
+
+            if (!(vectorType.elementType instanceof FloatType))
                 throw new InvalidRequestException(VECTOR_NON_FLOAT_ERROR);
+
+            if (vectorType.dimension == 1 && config.getSimilarityFunction() == VectorSimilarityFunction.COSINE)
+                throw new InvalidRequestException(VECTOR_1_DIMENSION_COSINE_ERROR);
+
+            if (DatabaseDescriptor.getRawConfig().data_file_directories.length > 1)
+                throw new InvalidRequestException(VECTOR_MULTIPLE_DATA_DIRECTORY_ERROR);
 
             ClientWarn.instance.warn(VECTOR_USAGE_WARNING);
         }
-
-        Map<String, String> analysisOptions = AbstractAnalyzer.getAnalyzerOptions(options);
-        if (target.left.isPrimaryKeyColumn() && !analysisOptions.isEmpty())
-        {
-            throw new InvalidRequestException(ANALYSIS_ON_KEY_COLUMNS_MESSAGE + new CqlBuilder().append(analysisOptions));
-        }
-        AbstractAnalyzer.fromOptions(type, analysisOptions);
-        IndexWriterConfig.fromOptions(null, type, options);
 
         return Collections.emptyMap();
     }

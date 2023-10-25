@@ -18,10 +18,32 @@
 
 package org.apache.cassandra.index.sai.disk.v1.vector;
 
+import java.util.function.Function;
+
+import static java.lang.Math.pow;
+
+/**
+ * Allows the vector index searches to be optimised for latency or recall. This is used by the
+ * {@link org.apache.cassandra.index.sai.disk.v1.segment.VectorIndexSegmentSearcher} to determine how many results to ask the graph
+ * to search for. If we are optimising for {@link #RECALL} we ask for more than the requested limit which
+ * (since it will search deeper in the graph) will tend to surface slightly better results.
+ */
 public enum OptimizeFor
 {
-    LATENCY,
-    RECALL;
+    LATENCY(limit -> 0.979 + 4.021 * pow(limit, -0.761)), // f(1) =  5.0, f(100) = 1.1, f(1000) = 1.0
+    RECALL(limit -> 0.509 + 9.491 * pow(limit, -0.402));  // f(1) = 10.0, f(100) = 2.0, f(1000) = 1.1
+
+    private final Function<Integer, Double> limitMultiplier;
+
+    OptimizeFor(Function<Integer, Double> limitMultiplier)
+    {
+        this.limitMultiplier = limitMultiplier;
+    }
+
+    public int topKFor(int limit)
+    {
+        return (int)(limitMultiplier.apply(limit) * limit);
+    }
 
     public static OptimizeFor fromString(String value)
     {

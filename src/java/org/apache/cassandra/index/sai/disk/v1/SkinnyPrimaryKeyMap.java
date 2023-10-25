@@ -162,7 +162,7 @@ public class SkinnyPrimaryKeyMap implements PrimaryKeyMap
     public long floor(Token token)
     {
         if (token.isMinimum())
-            return Long.MAX_VALUE;
+            return Long.MIN_VALUE;
 
         long rowId = tokenArray.indexOf(token.getLongValue());
         return rowId < 0 ? rowId : rowId;
