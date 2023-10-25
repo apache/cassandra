@@ -253,7 +253,6 @@ public class CollectionIndexingTest extends SAITester
             put(1, "v1");
             put(2, "v3");
         }});
-
     }
 
     @SuppressWarnings("SameParameterValue")
