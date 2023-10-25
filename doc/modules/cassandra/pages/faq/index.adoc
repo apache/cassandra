@@ -62,7 +62,7 @@ making sure that each node will generate a random token on the next
 restart.
 
 [[change-replication-factor]]
-== Can I change the replication factor (a a keyspace) on a live cluster?
+== Can I change the replication factor (a keyspace) on a live cluster?
 
 Yes, but it will require running a full repair (or cleanup) to change
 the replica count of existing data:
