@@ -100,8 +100,8 @@ public class MemtableKeyRangeIterator extends KeyRangeIterator
             if (!nextKey.hasEmptyClustering() && rowIterator.partitionKey().equals(nextKey.partitionKey()))
             {
                 Slice slice = Slice.make(nextKey.clustering(), Clustering.EMPTY);
-                Slices slices = Slices.with(this.memtable.metadata().comparator, slice);
-                this.rowIterator = memtable.rowIterator(nextKey.partitionKey(), slices, this.columns, false, null);
+                Slices slices = Slices.with(memtable.metadata().comparator, slice);
+                rowIterator = memtable.rowIterator(nextKey.partitionKey(), slices, columns, false, null);
             }
         }
     }
