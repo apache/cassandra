@@ -37,6 +37,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+import org.mockito.stubbing.Answer;
 
 import static org.apache.cassandra.repair.messages.RepairMessage.always;
 import static org.apache.cassandra.repair.messages.RepairMessage.sendMessageWithRetries;
@@ -48,6 +49,9 @@ public class RepairMessageTest
 {
     private static final TimeUUID SESSION = new TimeUUID(0, 0);
     private static final InetAddressAndPort ADDRESS = FBUtilities.getBroadcastAddressAndPort();
+    private static final Answer REJECT_ALL = ignore -> {
+        throw new UnsupportedOperationException();
+    };
 
     static
     {
@@ -151,23 +155,22 @@ public class RepairMessageTest
 
     private static SharedContext ctx()
     {
-        SharedContext ctx = Mockito.mock(SharedContext.class);
-        MessageDelivery messaging = Mockito.mock(MessageDelivery.class);
-        IGossiper gossiper = Mockito.mock(IGossiper.class);
-        Mockito.when(gossiper.getReleaseVersion(Mockito.any())).thenReturn(RepairMessage.SUPPORTS_RETRY);
-        ScheduledExecutorPlus executor = Mockito.mock(ScheduledExecutorPlus.class, ignore -> {
-            // detects if any other API is called
-            throw new UnsupportedOperationException();
-        });
+        SharedContext ctx = Mockito.mock(SharedContext.class, REJECT_ALL);
+        MessageDelivery messaging = Mockito.mock(MessageDelivery.class, REJECT_ALL);
+        // allow the single method under test
+        Mockito.doNothing().when(messaging).sendWithCallback(Mockito.any(), Mockito.any(), Mockito.any());
+        IGossiper gossiper = Mockito.mock(IGossiper.class, REJECT_ALL);
+        Mockito.doReturn(RepairMessage.SUPPORTS_RETRY).when(gossiper).getReleaseVersion(Mockito.any());
+        ScheduledExecutorPlus executor = Mockito.mock(ScheduledExecutorPlus.class, REJECT_ALL);
         Mockito.doAnswer(invocationOnMock -> {
             Runnable fn = invocationOnMock.getArgument(0);
             fn.run();
             return null;
         }).when(executor).schedule(Mockito.<Runnable>any(), Mockito.anyLong(), Mockito.any());
 
-        Mockito.when(ctx.messaging()).thenReturn(messaging);
-        Mockito.when(ctx.gossiper()).thenReturn(gossiper);
-        Mockito.when(ctx.optionalTasks()).thenReturn(executor);
+        Mockito.doReturn(messaging).when(ctx).messaging();
+        Mockito.doReturn(gossiper).when(ctx).gossiper();
+        Mockito.doReturn(executor).when(ctx).optionalTasks();
         return ctx;
     }
 
