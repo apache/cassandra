@@ -347,9 +347,6 @@ public class CassandraOnHeapGraph<T>
 
     private long writePQ(SequentialWriter writer) throws IOException
     {
-        // VSTODO ideally we should make this dynamic based on observed performance
-        // currently this is hardcoded so that ada002 1536-dimension vectors get quantized harder
-        int M = vectorValues.dimension() <= 1024 ? max(1, vectorValues.dimension() / 4) : vectorValues.dimension() / 8;
         // don't bother with PQ if there are fewer than 1K vectors
         writer.writeBoolean(vectorValues.size() >= 1024);
         if (vectorValues.size() < 1024)
@@ -358,22 +355,69 @@ public class CassandraOnHeapGraph<T>
             return writer.position();
         }
 
-        logger.debug("Computing PQ for {} vectors", vectorValues.size());
+        int bytesPerVector = getBytesPerVector(vectorValues.dimension());
+        logger.debug("Computing PQ for {} vectors at {} bytes per vector (originally {}-D)",
+                     vectorValues.size(), bytesPerVector, vectorValues.dimension());
+
+        // train PQ and encode
+        ProductQuantization pq;
+        byte[][] encoded;
         // limit the PQ computation and encoding to one index at a time -- goal during flush is to
         // evict from memory ASAP so better to do the PQ build (in parallel) one at a time
         synchronized (CassandraOnHeapGraph.class)
         {
-            // train PQ and encode
-            var pq = ProductQuantization.compute(vectorValues, M, false);
+            pq = ProductQuantization.compute(vectorValues, bytesPerVector, false);
             assert !vectorValues.isValueShared();
-            var encoded = IntStream.range(0, vectorValues.size()).parallel()
-                          .mapToObj(i -> pq.encode(vectorValues.vectorValue(i)))
-                          .toArray(byte[][]::new);
-            var cv = new CompressedVectors(pq, encoded);
-            // save
-            cv.write(writer);
-            return writer.position();
+            encoded = IntStream.range(0, vectorValues.size()).parallel()
+                    .mapToObj(i -> pq.encode(vectorValues.vectorValue(i)))
+                    .toArray(byte[][]::new);
         }
+
+        // save (outside the synchronized block, this is io-bound not CPU)
+        var cv = new CompressedVectors(pq, encoded);
+        cv.write(writer);
+        return writer.position();
+    }
+
+    /**
+     * Compute bytes per vector for PQ using piecewise linear interpolation.
+     *
+     * @param dimension Dimension of the original vector
+     * @return Approximate number of bytes after compression
+     */
+    private int getBytesPerVector(int dimension) {
+        // the idea here is that higher dimensions compress well, but not so well that we should use fewer bits
+        // than a lower-dimension vector, which is what you could get with cutoff points to switch between (e.g.)
+        // D*0.5 and D*0.25.  Thus, the following ensures that bytes per vector is strictly increasing with D.
+        if (dimension <= 32) {
+            // We are compressing from 4-byte floats to single-byte codebook indexes,
+            // so this represents compression of 4x
+            // * GloVe-25 needs 25 BPV to achieve good recall
+            return dimension;
+        }
+        if (dimension <= 64) {
+            // * GloVe-50 performs fine at 25
+            return 32;
+        }
+        if (dimension <= 200) {
+            // * GloVe-100 and -200 perform well at 50 and 100 BPV, respectively
+            return (int) (dimension * 0.5);
+        }
+        if (dimension <= 400) {
+            // * NYTimes-256 actually performs fine at 64 BPV but we'll be conservative
+            //   since we don't want BPV to decrease
+            return 100;
+        }
+        if (dimension <= 768) {
+            // allow BPV to increase linearly up to 192
+            return (int) (dimension * 0.25);
+        }
+        if (dimension <= 1536) {
+            // * ada002 vectors have good recall even at 192 BPV = compression of 32x
+            return 192;
+        }
+        // We have not tested recall with larger vectors than this, let's let it increase linearly
+        return (int) (dimension * 0.125);
     }
 
     public long ramBytesUsed()
