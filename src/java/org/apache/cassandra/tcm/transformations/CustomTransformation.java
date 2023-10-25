@@ -32,6 +32,8 @@ import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.sequences.LockedRanges;
 
+import static org.apache.cassandra.utils.Clock.Global.nextUnixMicros;
+
 public class CustomTransformation implements Transformation
 {
     public static Serializer serializer = new Serializer();
@@ -108,9 +110,9 @@ public class CustomTransformation implements Transformation
         return Kind.CUSTOM;
     }
 
-    public Result execute(ClusterMetadata prev)
+    public Result execute(ClusterMetadata prev, long timestampMicros)
     {
-        return child.execute(prev);
+        return child.execute(prev, timestampMicros);
     }
 
     public String toString()
@@ -170,7 +172,7 @@ public class CustomTransformation implements Transformation
             return Kind.CUSTOM;
         }
 
-        public Result execute(ClusterMetadata prev)
+        public Result execute(ClusterMetadata prev, long timestampMicros)
         {
             StringValue value = StringValue.create(str);
             return success(prev.transformer().with(METADATA_KEY, value), LockedRanges.AffectedRanges.EMPTY);
@@ -228,7 +230,7 @@ public class CustomTransformation implements Transformation
             return Kind.CUSTOM;
         }
 
-        public Result execute(ClusterMetadata prev)
+        public Result execute(ClusterMetadata prev, long timestampMicros)
         {
             IntValue value = IntValue.create(v);
             return success(prev.transformer().with(METADATA_KEY, value), LockedRanges.AffectedRanges.EMPTY);

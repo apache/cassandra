@@ -58,7 +58,7 @@ public class RemoveFromCMS extends BaseMembershipTransformation
         return Kind.REMOVE_FROM_CMS;
     }
 
-    public Result execute(ClusterMetadata prev)
+    public Result execute(ClusterMetadata prev, long timestampMicros)
     {
         ClusterMetadata.Transformer transformer = prev.transformer();
         if (!prev.fullCMSMembers().contains(endpoint))

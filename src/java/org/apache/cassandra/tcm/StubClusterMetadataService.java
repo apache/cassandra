@@ -24,6 +24,8 @@ import org.apache.cassandra.tcm.log.LocalLog;
 import org.apache.cassandra.tcm.log.LogStorage;
 import org.apache.cassandra.tcm.ownership.UniformRangePlacement;
 
+import static org.apache.cassandra.utils.Clock.Global.nextUnixMicros;
+
 public class StubClusterMetadataService extends ClusterMetadataService
 {
 
@@ -58,7 +60,7 @@ public class StubClusterMetadataService extends ClusterMetadataService
     @Override
     public <T1> T1 commit(Transformation transform, CommitSuccessHandler<T1> onSuccess, CommitRejectionHandler<T1> onFailure)
     {
-        Transformation.Result result = transform.execute(metadata);
+        Transformation.Result result = transform.execute(metadata, nextUnixMicros());
         if (result.isSuccess())
         {
             metadata = result.success().metadata;

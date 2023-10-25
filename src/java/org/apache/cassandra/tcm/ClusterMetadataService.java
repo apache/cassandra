@@ -454,7 +454,7 @@ public class ClusterMetadataService
         ClusterMetadata toApply = state.baseState;
         for (Entry entry : state.transformations.entries())
         {
-            Transformation.Result res = entry.transform.execute(toApply);
+            Transformation.Result res = entry.transform.execute(toApply, entry.timestampMicros);
             assert res.isSuccess();
             toApply = res.success().metadata;
         }

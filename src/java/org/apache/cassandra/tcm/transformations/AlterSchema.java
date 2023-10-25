@@ -82,7 +82,7 @@ public class AlterSchema implements Transformation
     }
 
     @Override
-    public final Result execute(ClusterMetadata prev)
+    public final Result execute(ClusterMetadata prev, long timestampMicros)
     {
         Keyspaces newKeyspaces;
         try

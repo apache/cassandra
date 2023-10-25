@@ -69,7 +69,7 @@ public abstract class AbstractLocalProcessor implements Processor
             else
             {
                 while ((timestampMicros = nextUnixMicros()) <= prevCommitted.timestampMicros);
-                result = transform.execute(prevCommitted.metadata);
+                result = transform.execute(prevCommitted.metadata, timestampMicros);
             }
             // If we got a rejection, it could be that _we_ are not aware of the highest epoch.
             // Just try to catch up to the latest distributed state.

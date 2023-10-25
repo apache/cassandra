@@ -108,7 +108,7 @@ public class CMSTestBase
             ClusterMetadataService.setInstance(service);
             log.bootstrap(FBUtilities.getBroadcastAddressAndPort());
             service.commit(new Initialize(ClusterMetadata.current()) {
-                public Result execute(ClusterMetadata prev)
+                public Result execute(ClusterMetadata prev, long timestampMicros)
                 {
                     ClusterMetadata next = baseState;
                     DistributedSchema initialSchema = new DistributedSchema(prev.schema.getKeyspaces());

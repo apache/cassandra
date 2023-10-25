@@ -61,7 +61,7 @@ public abstract class ApplyPlacementDeltas implements Transformation
     }
 
     @Override
-    public final Result execute(ClusterMetadata prev)
+    public final Result execute(ClusterMetadata prev, long timestampMicros)
     {
         if (!prev.inProgressSequences.contains(nodeId()))
             return new Rejected(ExceptionCode.INVALID, "Can't find an in-progress sequence for this operation");

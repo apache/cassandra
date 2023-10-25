@@ -68,7 +68,7 @@ public class PreInitialize implements Transformation
         return Kind.PRE_INITIALIZE_CMS;
     }
 
-    public Result execute(ClusterMetadata metadata)
+    public Result execute(ClusterMetadata metadata, long timestampMicros)
     {
         assert metadata.epoch.isBefore(Epoch.FIRST);
         assert metadata.period == Period.EMPTY;

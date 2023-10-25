@@ -58,7 +58,7 @@ public class FinishAddToCMS extends BaseMembershipTransformation
         return replica;
     }
 
-    public Result execute(ClusterMetadata prev)
+    public Result execute(ClusterMetadata prev, long timestampMicros)
     {
         InProgressSequences sequences = prev.inProgressSequences;
         NodeId targetNode = prev.directory.peerId(replica.endpoint());

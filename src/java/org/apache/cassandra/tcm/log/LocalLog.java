@@ -379,7 +379,7 @@ public abstract class LocalLog implements Closeable
 
                     try
                     {
-                        transformed = pendingEntry.transform.execute(prevCommitted.metadata);
+                        transformed = pendingEntry.transform.execute(prevCommitted.metadata, commitTimestampMicros);
                     }
                     catch (Throwable t)
                     {

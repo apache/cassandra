@@ -129,7 +129,7 @@ public class LogListenerNotificationTest
         }
 
         @Override
-        public Result execute(ClusterMetadata prev)
+        public Result execute(ClusterMetadata prev, long timestampMicros)
         {
             return new Success(prev.transformer()
                                    .with(CustomTransformation.PokeInt.METADATA_KEY, IntValue.create(v))

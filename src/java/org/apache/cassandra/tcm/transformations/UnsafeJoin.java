@@ -67,9 +67,9 @@ public class UnsafeJoin extends PrepareJoin
     }
 
     @Override
-    public Result execute(ClusterMetadata prev)
+    public Result execute(ClusterMetadata prev, long timestampMicros)
     {
-        Result result = super.execute(prev);
+        Result result = super.execute(prev, timestampMicros);
         if (result.isRejected())
             return result;
 
@@ -82,15 +82,15 @@ public class UnsafeJoin extends PrepareJoin
 
         ImmutableSet.Builder<MetadataKey> modifiedKeys = ImmutableSet.builder();
 
-        success = plan.startJoin.execute(metadata).success();
+        success = plan.startJoin.execute(metadata, timestampMicros).success();
         metadata = success.metadata.forceEpoch(prev.epoch);
         modifiedKeys.addAll(success.affectedMetadata);
 
-        success = plan.midJoin.execute(metadata).success();
+        success = plan.midJoin.execute(metadata, timestampMicros).success();
         metadata = success.metadata.forceEpoch(prev.epoch);
         modifiedKeys.addAll(success.affectedMetadata);
 
-        success = plan.finishJoin.execute(metadata).success();
+        success = plan.finishJoin.execute(metadata, timestampMicros).success();
         metadata = success.metadata;
         modifiedKeys.addAll(success.affectedMetadata);
 

@@ -61,7 +61,7 @@ public class Startup implements Transformation
     }
 
     @Override
-    public Result execute(ClusterMetadata prev)
+    public Result execute(ClusterMetadata prev, long timestampMicros)
     {
         ClusterMetadata.Transformer next = prev.transformer();
         if (!prev.directory.addresses.get(nodeId).equals(addresses))

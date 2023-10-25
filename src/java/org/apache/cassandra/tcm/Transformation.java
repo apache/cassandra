@@ -49,7 +49,15 @@ public interface Transformation
 
     Kind kind();
 
-    Result execute(ClusterMetadata metadata);
+    /**
+     * Execute the transformation on the given metadata. The transformation should be pure (implying side-effects-free).
+     *
+     * @param metadata        the metadata to transform
+     * @param timestampMicros the timestamp of the transformation in microseconds - it guaranteed that all previous
+     *                        transformations have a lower timestamp and all future transformations have a higher timestamp
+     * @return the result of the transformation
+     */
+    Result execute(ClusterMetadata metadata, long timestampMicros);
 
     default boolean allowDuringUpgrades()
     {
@@ -269,7 +277,7 @@ public interface Transformation
             return delegate.kind();
         }
 
-        public Result execute(ClusterMetadata clusterMetadata)
+        public Result execute(ClusterMetadata clusterMetadata, long timestampMicros)
         {
             return result;
         }

@@ -54,6 +54,7 @@ import org.apache.cassandra.tcm.ownership.PlacementTransitionPlan;
 import org.apache.cassandra.tcm.sequences.LeaveStreams;
 
 import static org.apache.cassandra.distributed.test.log.ClusterMetadataTestHelper.addr;
+import static org.apache.cassandra.utils.Clock.Global.nextUnixMicros;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -109,7 +110,7 @@ public class PrepareLeaveTest
                                                      dummyPlacementProvider,
                                                      LeaveStreams.Kind.UNBOOTSTRAP);
 
-        return prepareLeave.execute(metadata).isSuccess();
+        return prepareLeave.execute(metadata, nextUnixMicros()).isSuccess();
     }
 
     private ClusterMetadata prepMetadata(Keyspaces kss, int countDc1, int countDc2) throws UnknownHostException

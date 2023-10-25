@@ -130,7 +130,7 @@ public class PrepareJoin implements Transformation
     private static final Set<NodeState> ALLOWED_STATES = ImmutableSet.of(NodeState.REGISTERED, NodeState.LEFT);
 
     @Override
-    public Result execute(ClusterMetadata prev)
+    public Result execute(ClusterMetadata prev, long timestampMicros)
     {
         if (!ALLOWED_STATES.contains(prev.directory.peerState(nodeId)))
             return new Rejected(INVALID, String.format("Rejecting this plan as the node %s is in state %s",
