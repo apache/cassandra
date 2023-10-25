@@ -31,13 +31,6 @@ import com.google.common.collect.Sets;
  */
 public enum Permission
 {
-    /** @deprecated See CASSANDRA-4874 */
-    @Deprecated(since = "1.2.0")
-    READ,
-    /** @deprecated See CASSANDRA-4874 */
-    @Deprecated(since = "1.2.0")
-    WRITE,
-
     // schema and role management
     // CREATE, ALTER and DROP permissions granted on an appropriate DataResource are required for
     // CREATE KEYSPACE and CREATE TABLE.
