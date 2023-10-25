@@ -211,13 +211,6 @@ public interface StorageServiceMBean extends NotificationEmitter
     public String getLocalHostId();
 
     /**
-     * {@link StorageServiceMBean#getEndpointToHostId}
-     * @deprecated See CASSANDRA-10382
-     */
-    @Deprecated(since = "2.1.10")
-    public Map<String, String> getHostIdMap();
-
-    /**
      * Retrieve the mapping of endpoint to host ID.
      * @deprecated See CASSANDRA-7544
      */
