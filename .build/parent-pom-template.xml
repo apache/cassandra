@@ -993,15 +993,9 @@
         <scope>provided</scope>
       </dependency>
       <dependency>
-        <groupId>org.fusesource</groupId>
-        <artifactId>sigar</artifactId>
-        <version>1.6.4</version>
-        <exclusions>
-          <exclusion>
-            <artifactId>log4j</artifactId>
-            <groupId>log4j</groupId>
-          </exclusion>
-        </exclusions>
+        <groupId>com.github.oshi</groupId>
+        <artifactId>oshi-core</artifactId>
+        <version>6.4.6</version>
       </dependency>
       <dependency>
         <groupId>com.carrotsearch</groupId>

@@ -204,8 +204,6 @@
                 <files dir="${build.lib}" layout="{artifactId}-{version}-{classifier}.{extension}" scopes="compile,!provide,!system"/>
             </resolve>
         </retry>
-        <mkdir dir="${local.repository}/org/apache/cassandra/deps/sigar-bin"/>
-        <mkdir dir="${build.lib}/sigar-bin"/>
         <mkdir dir="${build.lib}/x86_64"/>
         <mkdir dir="${build.lib}/aarch64"/> <!-- uname -m on arm prints aarch64 instead of aarch_64 -->
 
@@ -238,28 +236,6 @@
             <file file="${local.repository}/org/apache/cassandra/deps/pure_sasl-0.6.2-py2-none-any.zip"/>
             <file file="${local.repository}/org/apache/cassandra/deps/wcwidth-0.2.5-py2.py3-none-any.zip"/>
         </copy>
-        <copy todir="${build.lib}/sigar-bin/" quiet="true">
-            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-amd64-freebsd-6.so"/>
-            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-amd64-linux.so"/>
-            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-amd64-solaris.so"/>
-            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-ia64-hpux-11.sl"/>
-            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-ia64-linux.so"/>
-            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-pa-hpux-11.sl"/>
-            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-ppc-aix-5.so"/>
-            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-ppc-linux.so"/>
-            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-ppc64-aix-5.so"/>
-            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-ppc64-linux.so"/>
-            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-ppc64le-linux.so"/>
-            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-s390x-linux.so"/>
-            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-sparc-solaris.so"/>
-            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-sparc64-solaris.so"/>
-            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-universal-macosx.dylib"/>
-            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-universal64-macosx.dylib"/>
-            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-x86-freebsd-5.so"/>
-            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-x86-freebsd-6.so"/>
-            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-x86-linux.so"/>
-            <file file="${local.repository}/org/apache/cassandra/deps/sigar-bin/libsigar-x86-solaris.so"/>
-        </copy>
 
         <!-- as resolver will copy all dependencies into lib dir, and we are copying jars to lib/{x86_64|aarch64} as well, we would have duplicities -->
         <delete file="${build.lib}/AmazonCorrettoCryptoProvider-2.2.0-linux-x86_64.jar" failonerror="false"/>
@@ -278,28 +254,6 @@
 
         <!-- apache/cassandra/lib -->
         <get src="${lib.download.base.url}/lib/geomet-0.1.0.zip" dest="${local.repository}/org/apache/cassandra/deps/geomet-0.1.0.zip" usetimestamp="true" quiet="true" skipexisting="true"/>
-        <get dest="${local.repository}/org/apache/cassandra/deps/sigar-bin/" quiet="true" usetimestamp="true" skipexisting="true">
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-amd64-freebsd-6.so"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-amd64-linux.so"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-amd64-solaris.so"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-ia64-hpux-11.sl"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-ia64-linux.so"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-pa-hpux-11.sl"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-ppc-aix-5.so"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-ppc-linux.so"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-ppc64-aix-5.so"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-ppc64-linux.so"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-ppc64le-linux.so"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-s390x-linux.so"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-sparc-solaris.so"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-sparc64-solaris.so"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-universal-macosx.dylib"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-universal64-macosx.dylib"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-x86-freebsd-5.so"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-x86-freebsd-6.so"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-x86-linux.so"/>
-            <url url="${lib.download.base.url}/lib/sigar-bin/libsigar-x86-solaris.so"/>
-        </get>
     </target>
 
 </project>
