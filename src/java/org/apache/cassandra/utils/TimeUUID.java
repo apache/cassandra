@@ -36,7 +36,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -57,6 +56,7 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_
 import static org.apache.cassandra.config.CassandraRelevantProperties.DETERMINISM_UNSAFE_UUID_NODE;
 import static org.apache.cassandra.utils.ByteBufferUtil.EMPTY_BYTE_BUFFER;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
+import static org.apache.cassandra.utils.Clock.Global.nextUnixMicros;
 import static org.apache.cassandra.utils.Shared.Recursive.INTERFACES;
 
 @Shared(inner = INTERFACES)
@@ -369,8 +369,6 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
     {
         private static final long clockSeqAndNode = makeClockSeqAndNode();
 
-        private static final AtomicLong lastMicros = new AtomicLong();
-
         public static TimeUUID nextTimeUUID()
         {
             return atUnixMicrosWithLsb(nextUnixMicros(), clockSeqAndNode);
@@ -404,35 +402,6 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
         public static byte[] nextTimeUUIDAsBytes()
         {
             return toBytes(rawTimestampToMsb(unixMicrosToRawTimestamp(nextUnixMicros())), clockSeqAndNode);
-        }
-
-        // needs to return two different values for the same when.
-        // we can generate at most 10k UUIDs per ms.
-        private static long nextUnixMicros()
-        {
-            long newLastMicros;
-            while (true)
-            {
-                //Generate a candidate value for new lastNanos
-                newLastMicros = currentTimeMillis() * 1000;
-                long originalLastNanos = lastMicros.get();
-                if (newLastMicros > originalLastNanos)
-                {
-                    //Slow path once per millisecond do a CAS
-                    if (lastMicros.compareAndSet(originalLastNanos, newLastMicros))
-                    {
-                        break;
-                    }
-                }
-                else
-                {
-                    //Fast path do an atomic increment
-                    //Or when falling behind this will move time forward past the clock if necessary
-                    newLastMicros = lastMicros.incrementAndGet();
-                    break;
-                }
-            }
-            return newLastMicros;
         }
 
         private static long makeClockSeqAndNode()

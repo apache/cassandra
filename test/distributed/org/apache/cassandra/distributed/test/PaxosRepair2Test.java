@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
@@ -444,6 +445,7 @@ public class PaxosRepair2Test extends TestBaseImpl
 
     public static class OffsettableClock implements Clock
     {
+        AtomicLong lastMicros = new AtomicLong(0);
         private static volatile long offsetMillis = 0;
         public long nanoTime()
         {
@@ -453,6 +455,11 @@ public class PaxosRepair2Test extends TestBaseImpl
         public long currentTimeMillis()
         {
             return System.currentTimeMillis() + offsetMillis; // checkstyle: permit system clock
+        }
+
+        public long nextUnixMicros()
+        {
+            return Clock.nextUnixMicros(this,lastMicros);
         }
     }
 

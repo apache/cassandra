@@ -1236,6 +1236,13 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             return delegate.currentTimeMillis();
         }
 
+        @Override
+        public long nextUnixMicros()
+        {
+            checkAccess();
+            return delegate.nextUnixMicros();
+        }
+
         private enum Access
         {MAIN_THREAD_ONLY, REJECT, IGNORE}
 

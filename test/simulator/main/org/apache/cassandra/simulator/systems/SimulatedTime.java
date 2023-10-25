@@ -160,11 +160,13 @@ public class SimulatedTime
         public MonotonicClockTranslation translate()  { return check().translate(); }
         public boolean isAfter(long instant)  { return check().isAfter(instant); }
         public boolean isAfter(long now, long instant)  { return check().isAfter(now, instant); }
+        public long nextUnixMicros() { return check().nextUnixMicros(); }
     }
 
     @PerClassLoader
     public static class Global implements Clock, MonotonicClock
     {
+
         private static LocalTime current;
 
         public long nanoTime()
@@ -205,6 +207,12 @@ public class SimulatedTime
         public boolean isAfter(long now, long instant)
         {
             return current.isAfter(now, instant);
+        }
+
+        @Override
+        public long nextUnixMicros()
+        {
+            return current.nextUnixMicros();
         }
 
         public static long relativeToGlobalNanos(long relativeNanos)
@@ -291,6 +299,12 @@ public class SimulatedTime
         public long currentTimeMillis()
         {
             return NANOSECONDS.toMillis(nanoTime()) + millisEpoch;
+        }
+
+        @Override
+        public long nextUnixMicros()
+        {
+            return NANOSECONDS.toMicros(nanoTime()) + MILLISECONDS.toMicros(millisEpoch);
         }
 
         @Override

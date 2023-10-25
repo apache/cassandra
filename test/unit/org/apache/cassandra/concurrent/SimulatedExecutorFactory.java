@@ -115,6 +115,11 @@ public class SimulatedExecutorFactory implements ExecutorFactory, Clock
         return TimeUnit.NANOSECONDS.toMillis(startTimeNanos + nanoTime());
     }
 
+    @Override
+    public long nextUnixMicros()
+    {
+        return NANOSECONDS.toMicros(startTimeNanos + nanoTime());
+    }
 
     @Override
     public ExecutorBuilder<? extends SequentialExecutorPlus> configureSequential(String name)

@@ -18,6 +18,7 @@
 package org.apache.cassandra.utils;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.slf4j.Logger;
 
@@ -107,10 +108,17 @@ public interface Clock
         {
             return instance.currentTimeMillis();
         }
+
+        public static long nextUnixMicros()
+        {
+            return instance.nextUnixMicros();
+        }
     }
 
     public static class Default implements Clock
     {
+        private final AtomicLong lastMicros = new AtomicLong();
+
         /**
          * {@link System#nanoTime()}
          */
@@ -125,6 +133,14 @@ public interface Clock
         public long currentTimeMillis()
         {
             return System.currentTimeMillis(); // checkstyle: permit system clock
+        }
+
+        /**
+         * Returns a monotonically increasing time in microseconds.
+         */
+        public long nextUnixMicros()
+        {
+            return Clock.nextUnixMicros(this, lastMicros);
         }
     }
 
@@ -141,6 +157,39 @@ public interface Clock
     public default long nowInSeconds()
     {
         return currentTimeMillis() / 1000L;
+    }
+
+    /**
+     * Returns a timestamp in microseconds. It should never return the same value twice even if called at the same
+     * time from mulitple threads (up to 1000 calls per millisecond).
+     */
+    long nextUnixMicros();
+
+    static long nextUnixMicros(Clock clock, AtomicLong lastMicros)
+    {
+        long newLastMicros;
+        while (true)
+        {
+            //Generate a candidate value for new lastNanos
+            newLastMicros = clock.currentTimeMillis() * 1000;
+            long originalLastNanos = lastMicros.get();
+            if (newLastMicros > originalLastNanos)
+            {
+                //Slow path once per millisecond do a CAS
+                if (lastMicros.compareAndSet(originalLastNanos, newLastMicros))
+                {
+                    break;
+                }
+            }
+            else
+            {
+                //Fast path do an atomic increment
+                //Or when falling behind this will move time forward past the clock if necessary
+                newLastMicros = lastMicros.incrementAndGet();
+                break;
+            }
+        }
+        return newLastMicros;
     }
 
     @Intercept
