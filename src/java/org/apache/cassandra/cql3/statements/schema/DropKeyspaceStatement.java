@@ -40,7 +40,7 @@ public final class DropKeyspaceStatement extends AlterSchemaStatement
     }
 
     @Override
-    public Keyspaces apply(ClusterMetadata metadata)
+    public Keyspaces apply(ClusterMetadata metadata, long timestampMicros)
     {
         Guardrails.dropKeyspaceEnabled.ensureEnabled(state);
 

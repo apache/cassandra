@@ -52,6 +52,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import static org.apache.cassandra.Util.throwAssert;
 import static org.apache.cassandra.cql3.CQLTester.assertRows;
 import static org.apache.cassandra.cql3.CQLTester.row;
+import static org.apache.cassandra.utils.Clock.Global.nextUnixMicros;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -522,7 +523,7 @@ public class SchemaChangesTest
 
         SchemaTransformation transformation = SchemaTransformations.updateSystemKeyspace(keyspace, 0);
         Keyspaces before = Keyspaces.none();
-        Keyspaces after = transformation.apply(ClusterMetadataTestHelper.minimalForTesting(before));
+        Keyspaces after = transformation.apply(ClusterMetadataTestHelper.minimalForTesting(before), nextUnixMicros());
         Keyspaces.KeyspacesDiff diff = Keyspaces.diff(before, after);
 
         assertTrue(diff.altered.isEmpty());
@@ -538,7 +539,7 @@ public class SchemaChangesTest
 
         SchemaTransformation transformation = SchemaTransformations.updateSystemKeyspace(keyspace, 0);
         Keyspaces before = Keyspaces.of(keyspace);
-        Keyspaces after = transformation.apply(ClusterMetadataTestHelper.minimalForTesting(before));
+        Keyspaces after = transformation.apply(ClusterMetadataTestHelper.minimalForTesting(before), nextUnixMicros());
         Keyspaces.KeyspacesDiff diff = Keyspaces.diff(before, after);
 
         assertTrue(diff.isEmpty());
@@ -555,7 +556,7 @@ public class SchemaChangesTest
 
         SchemaTransformation transformation = SchemaTransformations.updateSystemKeyspace(keyspace1, 1);
         Keyspaces before = Keyspaces.of(keyspace0);
-        Keyspaces after = transformation.apply(ClusterMetadataTestHelper.minimalForTesting(before));
+        Keyspaces after = transformation.apply(ClusterMetadataTestHelper.minimalForTesting(before), nextUnixMicros());
         Keyspaces.KeyspacesDiff diff = Keyspaces.diff(before, after);
 
         assertTrue(diff.created.isEmpty());

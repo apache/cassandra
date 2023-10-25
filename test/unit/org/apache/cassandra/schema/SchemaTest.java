@@ -61,7 +61,7 @@ public class SchemaTest
         Tables tables = Tables.of(TableMetadata.minimal(KS_ONE, "modified1"),
                                   TableMetadata.minimal(KS_ONE, "modified2"));
         KeyspaceMetadata ksm = KeyspaceMetadata.create(KS_ONE, KeyspaceParams.simple(1), tables);
-        applyAndAssertTableMetadata((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm), true);
+        applyAndAssertTableMetadata((metadata, timestampMicros) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm), true);
     }
 
     @Test
@@ -69,12 +69,12 @@ public class SchemaTest
     {
         // Create an empty keyspace
         KeyspaceMetadata ksm = KeyspaceMetadata.create(KS_ONE, KeyspaceParams.simple(1));
-        Schema.instance.submit((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm));
+        Schema.instance.submit((metadata, timestampMicros) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm));
 
         // Add two tables and verify that the resultant table metadata has the correct epoch
         Tables tables = Tables.of(TableMetadata.minimal(KS_ONE, "modified1"), TableMetadata.minimal(KS_ONE, "modified2"));
         KeyspaceMetadata updated = ksm.withSwapped(tables);
-        applyAndAssertTableMetadata((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(updated), true);
+        applyAndAssertTableMetadata((metadata, timestampMicros) -> metadata.schema.getKeyspaces().withAddedOrUpdated(updated), true);
     }
 
     @Test
@@ -82,12 +82,12 @@ public class SchemaTest
     {
         Tables tables = Tables.of(TableMetadata.minimal(KS_ONE, "unmodified"));
         KeyspaceMetadata ksm = KeyspaceMetadata.create(KS_ONE, KeyspaceParams.simple(1), tables);
-        Schema.instance.submit((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm));
+        Schema.instance.submit((metadata, timestampMicros) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm));
 
         // Add a second table and assert that its table metadata has the latest epoch, but that the
         // metadata of the other table stays unmodified
         KeyspaceMetadata updated = ksm.withSwapped(tables.with(TableMetadata.minimal(KS_ONE, "modified1")));
-        applyAndAssertTableMetadata((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(updated));
+        applyAndAssertTableMetadata((metadata, timestampMicros) -> metadata.schema.getKeyspaces().withAddedOrUpdated(updated));
     }
 
     @Test
@@ -95,7 +95,7 @@ public class SchemaTest
     {
         Tables tables = Tables.of(TableMetadata.minimal(KS_ONE, "unmodified"));
         KeyspaceMetadata ksm = KeyspaceMetadata.create(KS_ONE, KeyspaceParams.simple(1), tables);
-        Schema.instance.submit((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm));
+        Schema.instance.submit((metadata, timestampMicros) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm));
 
         applyAndAssertTableMetadata(cql(KS_ONE, "CREATE TABLE %s.modified (k int PRIMARY KEY)"));
     }
@@ -105,16 +105,16 @@ public class SchemaTest
     {
         KeyspaceMetadata ksm1 = KeyspaceMetadata.create(KS_ONE, KeyspaceParams.simple(1));
         KeyspaceMetadata ksm2 = KeyspaceMetadata.create(KS_TWO, KeyspaceParams.simple(1));
-        Schema.instance.submit((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm1).withAddedOrUpdated(ksm2));
+        Schema.instance.submit((metadata, timestampMicros) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm1).withAddedOrUpdated(ksm2));
 
         // Add two tables in each ks and verify that the resultant table metadata has the correct epoch
         Tables tables1 = Tables.of(TableMetadata.minimal(KS_ONE, "modified1"), TableMetadata.minimal(KS_ONE, "modified2"));
         KeyspaceMetadata updated1 = ksm1.withSwapped(tables1);
         Tables tables2 = Tables.of(TableMetadata.minimal(KS_TWO, "modified1"), TableMetadata.minimal(KS_TWO, "modified2"));
         KeyspaceMetadata updated2 = ksm2.withSwapped(tables2);
-        applyAndAssertTableMetadata((metadata) -> metadata.schema.getKeyspaces()
-                                                                         .withAddedOrUpdated(updated1)
-                                                                         .withAddedOrUpdated(updated2),
+        applyAndAssertTableMetadata((metadata, timestampMicros) -> metadata.schema.getKeyspaces()
+                                                                                  .withAddedOrUpdated(updated1)
+                                                                                  .withAddedOrUpdated(updated2),
                                     true);
     }
 
@@ -124,14 +124,14 @@ public class SchemaTest
     {
         KeyspaceMetadata ksm1 = KeyspaceMetadata.create(KS_ONE, KeyspaceParams.simple(1));
         KeyspaceMetadata ksm2 = KeyspaceMetadata.create(KS_TWO, KeyspaceParams.simple(1));
-        Schema.instance.submit((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm1).withAddedOrUpdated(ksm2));
+        Schema.instance.submit((metadata, timestampMicros) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm1).withAddedOrUpdated(ksm2));
 
         // Add two tables in each ks and verify that the resultant table metadata has the correct epoch
         Tables tables1 = Tables.of(TableMetadata.minimal(KS_ONE, "unmodified1"), TableMetadata.minimal(KS_ONE, "unmodified2"));
         KeyspaceMetadata updated1 = ksm1.withSwapped(tables1);
         Tables tables2 = Tables.of(TableMetadata.minimal(KS_TWO, "unmodified1"), TableMetadata.minimal(KS_TWO, "unmodified2"));
         KeyspaceMetadata updated2 = ksm2.withSwapped(tables2);
-        Schema.instance.submit((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(updated1).withAddedOrUpdated(updated2));
+        Schema.instance.submit((metadata, timestampMicros) -> metadata.schema.getKeyspaces().withAddedOrUpdated(updated1).withAddedOrUpdated(updated2));
 
         // Add a third table in one ks and assert that its table metadata has the latest epoch, but that the
         // metadata of the all other tables stays unmodified

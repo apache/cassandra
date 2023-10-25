@@ -41,7 +41,7 @@ public class SchemaTestUtil
         logger.info("Create new Keyspace: {}", ksm);
         Schema.instance.submit(new SchemaTransformation()
         {
-            public Keyspaces apply(ClusterMetadata metadata)
+            public Keyspaces apply(ClusterMetadata metadata, long timestampMicros)
             {
                 return metadata.schema.getKeyspaces().withAddedOrUpdated(ksm);
             }
@@ -70,7 +70,7 @@ public class SchemaTestUtil
             throw new AlreadyExistsException(cfm.keyspace, cfm.name);
 
         logger.info("Create new table: {}", cfm);
-        Schema.instance.submit((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm.withSwapped(ksm.tables.with(cfm))));
+        Schema.instance.submit((metadata, timestampMicros) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm.withSwapped(ksm.tables.with(cfm))));
     }
 
     static void announceKeyspaceUpdate(KeyspaceMetadata ksm)
@@ -82,7 +82,7 @@ public class SchemaTestUtil
             throw new ConfigurationException(String.format("Cannot update non existing keyspace '%s'.", ksm.name));
 
         logger.info("Update Keyspace '{}' From {} To {}", ksm.name, oldKsm, ksm);
-        Schema.instance.submit((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm));
+        Schema.instance.submit((metadata, timestampMicros) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm));
     }
 
     public static void announceTableUpdate(TableMetadata updated)
@@ -97,7 +97,7 @@ public class SchemaTestUtil
         updated.validateCompatibility(current);
 
         logger.info("Update table '{}/{}' From {} To {}", current.keyspace, current.name, current, updated);
-        Schema.instance.submit((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm.withSwapped(ksm.tables.withSwapped(updated))));
+        Schema.instance.submit((metadata, timestampMicros) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm.withSwapped(ksm.tables.withSwapped(updated))));
     }
 
     static void announceKeyspaceDrop(String ksName)
@@ -107,12 +107,12 @@ public class SchemaTestUtil
             throw new ConfigurationException(String.format("Cannot drop non existing keyspace '%s'.", ksName));
 
         logger.info("Drop Keyspace '{}'", oldKsm.name);
-        Schema.instance.submit((metadata) -> metadata.schema.getKeyspaces().without(ksName));
+        Schema.instance.submit((metadata, timestampMicros) -> metadata.schema.getKeyspaces().without(ksName));
     }
 
     public static SchemaTransformation dropTable(String ksName, String cfName)
     {
-        return (metadata) -> {
+        return (metadata, timestampMicros) -> {
             Keyspaces schema = metadata.schema.getKeyspaces();
             KeyspaceMetadata ksm = schema.getNullable(ksName);
             TableMetadata tm = ksm != null ? ksm.getTableOrViewNullable(cfName) : null;
@@ -131,17 +131,17 @@ public class SchemaTestUtil
 
     public static void addOrUpdateKeyspace(KeyspaceMetadata ksm)
     {
-        Schema.instance.submit((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm));
+        Schema.instance.submit((metadata, timestampMicros) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm));
     }
 
     @Deprecated // TODO remove this
     public static void addOrUpdateKeyspace(KeyspaceMetadata ksm, boolean locally)
     {
-        Schema.instance.submit((metadata) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm));
+        Schema.instance.submit((metadata, timestampMicros) -> metadata.schema.getKeyspaces().withAddedOrUpdated(ksm));
     }
 
     public static void dropKeyspaceIfExist(String ksName, boolean locally)
     {
-        Schema.instance.submit((metadata) -> metadata.schema.getKeyspaces().without(Collections.singletonList(ksName)));
+        Schema.instance.submit((metadata, timestampMicros) -> metadata.schema.getKeyspaces().without(Collections.singletonList(ksName)));
     }
 }

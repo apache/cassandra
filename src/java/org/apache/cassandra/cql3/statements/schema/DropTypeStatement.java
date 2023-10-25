@@ -57,7 +57,7 @@ public final class DropTypeStatement extends AlterSchemaStatement
 
     // TODO: expand types into tuples in all dropped columns of all tables
     @Override
-    public Keyspaces apply(ClusterMetadata metadata)
+    public Keyspaces apply(ClusterMetadata metadata, long timestampMicros)
     {
         ByteBuffer name = bytes(typeName);
 

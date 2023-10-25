@@ -67,7 +67,7 @@ public final class DropFunctionStatement extends AlterSchemaStatement
     }
 
     @Override
-    public Keyspaces apply(ClusterMetadata metadata)
+    public Keyspaces apply(ClusterMetadata metadata, long timestampMicros)
     {
         String name =
             argumentsSpeficied

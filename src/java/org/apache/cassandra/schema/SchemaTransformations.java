@@ -54,7 +54,7 @@ public class SchemaTransformations
      */
     public static SchemaTransformation addKeyspace(KeyspaceMetadata keyspace, boolean ignoreIfExists)
     {
-        return (metadata) ->
+        return (metadata, timestampMicros) ->
         {
             Keyspaces schema = metadata.schema.getKeyspaces();
             KeyspaceMetadata existing = schema.getNullable(keyspace.name);
@@ -81,7 +81,7 @@ public class SchemaTransformations
      */
     public static SchemaTransformation addTable(TableMetadata table, boolean ignoreIfExists)
     {
-        return (metadata) ->
+        return (metadata, timestampMicros) ->
         {
             Keyspaces schema = metadata.schema.getKeyspaces();
             KeyspaceMetadata keyspace = schema.getNullable(table.keyspace);
@@ -104,7 +104,7 @@ public class SchemaTransformations
 
     public static SchemaTransformation addTypes(Types toAdd, boolean ignoreIfExists)
     {
-        return (metadata) ->
+        return (metadata, timestampMicros) ->
         {
             Keyspaces schema = metadata.schema.getKeyspaces();
             if (toAdd.isEmpty())
@@ -143,7 +143,7 @@ public class SchemaTransformations
      */
     public static SchemaTransformation addView(ViewMetadata view, boolean ignoreIfExists)
     {
-        return (metadata) ->
+        return (metadata, timestampMicros) ->
         {
             Keyspaces schema = metadata.schema.getKeyspaces();
             KeyspaceMetadata keyspace = schema.getNullable(view.keyspace());
@@ -185,7 +185,7 @@ public class SchemaTransformations
             }
 
             @Override
-            public Keyspaces apply(ClusterMetadata metadata)
+            public Keyspaces apply(ClusterMetadata metadata, long timestampMicros)
             {
                 Keyspaces schema = metadata.schema.getKeyspaces();
                 KeyspaceMetadata updatedKeyspace = keyspace;

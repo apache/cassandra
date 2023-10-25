@@ -38,6 +38,8 @@ import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.transport.Event.SchemaChange;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
+import static org.apache.cassandra.utils.Clock.Global.nextUnixMicros;
+
 abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspaceCqlStatement, SchemaTransformation
 {
     protected final String keyspaceName; // name of the keyspace affected by the statement
@@ -155,7 +157,7 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
         // submission to the CMS, but it can't guarantee that the statement can be applied as-is on every node in the
         // cluster, as config can be heterogenous falling back to safe defaults may occur on some nodes.
         ClusterMetadata metadata = ClusterMetadata.current();
-        apply(metadata);
+        apply(metadata, nextUnixMicros());
 
         ClusterMetadata result = Schema.instance.submit(this);
 

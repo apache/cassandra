@@ -40,11 +40,14 @@ public interface SchemaTransformation
      * Implementing methods should be side-effect free (outside of throwing exceptions if the transformation cannot
      * be successfully applied to the provided schema).
      *
-     * @param metadata Cluster metadata representing the current state, including the DistributedSchema with the
-     *                 Keyspaces to base the transformation on
+     * @param metadata        Cluster metadata representing the current state, including the DistributedSchema with the
+     *                        Keyspaces to base the transformation on
+     * @param timestampMicros The commit timestamp of the transformation - it is guaranteed that this timestamp is
+     *                        greater than the timestamp of any previous transformation, and that it is lower than
+     *                        the timestamp of any future transformation applied to the schema.
      * @return Keyspaces transformed by the statement
      */
-    Keyspaces apply(ClusterMetadata metadata);
+    Keyspaces apply(ClusterMetadata metadata, long timestampMicros);
 
     default String cql()
     {

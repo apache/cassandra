@@ -97,7 +97,7 @@ public class AlterSchema implements Transformation
             schemaTransformation.enterExecution();
 
             // Guard against an invalid SchemaTransformation supplying a TableMetadata with a future epoch
-            newKeyspaces = schemaTransformation.apply(prev);
+            newKeyspaces = schemaTransformation.apply(prev, timestampMicros);
             newKeyspaces.forEach(ksm -> {
                ksm.tables.forEach(tm -> {
                    if (tm.epoch.isAfter(prev.nextEpoch()))
