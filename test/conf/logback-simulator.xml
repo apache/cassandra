@@ -43,7 +43,7 @@
   <logger name="org.apache.cassandra.net.Message" level="ERROR"/>
   <logger name="org.reflections.Reflections" level="ERROR"/>
   <logger name="org.apache.hadoop" level="WARN"/>
-  <logger name="org.apache.cassandra.utils.SigarLibrary" level="ERROR"/>
+  <logger name="org.apache.cassandra.utils.SystemInfo" level="ERROR"/>
   <logger name="org.apache.cassandra.utils.FBUtilities" level="ERROR"/>
   <logger name="org.apache.cassandra.config.DatabaseDescriptor" level="ERROR"/>
   <logger name="org.apache.cassandra.service.StartupChecks" level="ERROR"/>

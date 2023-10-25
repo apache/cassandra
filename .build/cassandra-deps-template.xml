@@ -244,8 +244,8 @@
     <!-- end of chronicle-queue -->
 
     <dependency>
-      <groupId>org.fusesource</groupId>
-      <artifactId>sigar</artifactId>
+      <groupId>com.github.oshi</groupId>
+      <artifactId>oshi-core</artifactId>
     </dependency>
     <dependency>
       <groupId>org.eclipse.jdt</groupId>

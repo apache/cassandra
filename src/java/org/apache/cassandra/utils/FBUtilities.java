@@ -47,7 +47,6 @@ import java.util.Map;
 import java.util.NavigableSet;
 import java.util.Optional;
 import java.util.Properties;
-import java.util.Scanner;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -138,7 +137,7 @@ public class FBUtilities
 
     private static int availableProcessors = CASSANDRA_AVAILABLE_PROCESSORS.getInt(DatabaseDescriptor.getAvailableProcessors());
 
-    private static volatile Supplier<Semver> kernelVersionSupplier = Suppliers.memoize(FBUtilities::getKernelVersionFromUname);
+    private static volatile Supplier<SystemInfo> systemInfoSupplier = Suppliers.memoize(SystemInfo::new);
 
     public static void setAvailableProcessors(int value)
     {
@@ -146,9 +145,9 @@ public class FBUtilities
     }
 
     @VisibleForTesting
-    public static void setKernelVersionSupplier(Supplier<Semver> supplier)
+    public static void setSystemInfoSupplier(Supplier<SystemInfo> supplier)
     {
-        kernelVersionSupplier = supplier;
+        systemInfoSupplier = supplier;
     }
 
     public static int getAvailableProcessors()
@@ -1449,50 +1448,11 @@ public class FBUtilities
 
     public static Semver getKernelVersion()
     {
-        return kernelVersionSupplier.get();
+        return systemInfoSupplier.get().getKernelVersion();
     }
 
-    @VisibleForTesting
-    static Semver getKernelVersionFromUname()
+    public static SystemInfo getSystemInfo()
     {
-        // TODO rewrite this method with Oshi when it is eventually included in the project
-        if (!isLinux)
-            return null;
-
-        try
-        {
-            String output = exec(Map.of(), Duration.ofSeconds(5), 1024, 1024, "uname", "-r");
-
-            if (output.isEmpty())
-                throw new RuntimeException("Error while trying to get kernel version, 'uname -r' returned empty output");
-
-            return parseKernelVersion(output);
-        }
-        catch (IOException | TimeoutException e)
-        {
-            throw new RuntimeException("Error while trying to get kernel version", e);
-        }
-        catch (InterruptedException e)
-        {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException(e);
-        }
-    }
-
-    @VisibleForTesting
-    static Semver parseKernelVersion(String versionString)
-    {
-        Preconditions.checkNotNull(versionString, "kernel version cannot be null");
-        try (Scanner scanner = new Scanner(versionString))
-        {
-            while (scanner.hasNextLine())
-            {
-                String version = scanner.nextLine().trim();
-                if (version.isEmpty())
-                    continue;
-                return new Semver(version, Semver.SemverType.LOOSE);
-            }
-        }
-        throw new IllegalArgumentException("Error while trying to parse kernel version - no version found");
+        return systemInfoSupplier.get();
     }
 }

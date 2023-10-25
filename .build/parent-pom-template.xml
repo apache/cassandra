@@ -993,13 +993,21 @@
         <scope>provided</scope>
       </dependency>
       <dependency>
-        <groupId>org.fusesource</groupId>
-        <artifactId>sigar</artifactId>
-        <version>1.6.4</version>
+        <groupId>com.github.oshi</groupId>
+        <artifactId>oshi-core</artifactId>
+        <version>6.4.8</version>
         <exclusions>
           <exclusion>
-            <artifactId>log4j</artifactId>
-            <groupId>log4j</groupId>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-bom</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-parent</artifactId>
           </exclusion>
         </exclusions>
       </dependency>

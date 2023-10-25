@@ -149,7 +149,6 @@
                                           -Dcassandra.logdir=$PROJECT_DIR$/data/logs
                                           -Dcassandra.reads.thresholds.coordinator.defensive_checks_enabled=true
                                           -Dcassandra.storagedir=$PROJECT_DIR$/data
-                                          -Djava.library.path=$PROJECT_DIR$/lib/sigar-bin
                                           -Dlogback.configurationFile=file://$PROJECT_DIR$/conf/logback.xml
                                           -XX:HeapDumpPath=build/test
                                           -ea" />
@@ -194,7 +193,6 @@
                                           -Dcassandra.tolerate_sstable_size=true
                                           -Dcassandra.use_nix_recursive_delete=true
                                           -Dinvalid-legacy-sstable-root=$PROJECT_DIR$/test/data/invalid-legacy-sstables
-                                          -Djava.library.path=$PROJECT_DIR$/lib/sigar-bin
                                           -Dlegacy-sstable-root=$PROJECT_DIR$/test/data/legacy-sstables
                                           -Dlogback.configurationFile=file://$PROJECT_DIR$/test/conf/logback-test.xml
                                           -Dmigration-sstable-root=$PROJECT_DIR$/test/data/migration-sstables
@@ -231,7 +229,6 @@
                                           -Dcassandra.reads.thresholds.coordinator.defensive_checks_enabled=true
                                           -Dcassandra.storagedir=$PROJECT_DIR$/data
                                           -Dcassandra.triggers_dir=$PROJECT_DIR$/conf/triggers
-                                          -Djava.library.path=$PROJECT_DIR$/lib/sigar-bin
                                           -Dlogback.configurationFile=file://$PROJECT_DIR$/conf/logback.xml
                                           -XX:HeapDumpPath=build/test
                                           -Xmx1G

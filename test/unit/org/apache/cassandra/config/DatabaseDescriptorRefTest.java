@@ -276,6 +276,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.utils.CloseableIterator",
     "org.apache.cassandra.utils.FBUtilities",
     "org.apache.cassandra.utils.FBUtilities$1",
+    "org.apache.cassandra.utils.SystemInfo",
     "org.apache.cassandra.utils.Pair",
     "org.apache.cassandra.utils.binlog.BinLogOptions",
     "org.apache.cassandra.utils.concurrent.RefCounted",
