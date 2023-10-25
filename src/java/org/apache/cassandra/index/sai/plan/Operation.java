@@ -41,9 +41,7 @@ public class Operation
 {
     public enum BooleanOperator
     {
-        AND((a, b) -> a & b),
-        AND_NOT((a, b) -> a & !b);
-
+        AND((a, b) -> a & b);
         private final BiFunction<Boolean, Boolean, Boolean> func;
 
         BooleanOperator(BiFunction<Boolean, Boolean, Boolean> func)
