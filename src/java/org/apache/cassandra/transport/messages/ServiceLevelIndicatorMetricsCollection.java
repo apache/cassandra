@@ -19,12 +19,12 @@
 package org.apache.cassandra.transport.messages;
 
 import org.apache.cassandra.exceptions.RequestExecutionException;
-import org.apache.cassandra.metrics.TransportMetrics;
+import org.apache.cassandra.metrics.ServiceLevelIndicatorMetrics;
 import org.apache.cassandra.transport.ServerError;
 
 // We are not speifically collecting metrics for the following exceptions: PROTOCOL_ERROR (0x000A),
 // BAD_CREDENTIALS (0x0100) and all 2xx errors, because those errors can only be user errors.
-public class ExceptionMetricsCollection
+public class ServiceLevelIndicatorMetricsCollection
 {
     public static void collectMetrics(Exception ex) {
         if (ex instanceof RequestExecutionException)
@@ -32,57 +32,57 @@ public class ExceptionMetricsCollection
             switch (((RequestExecutionException) ex).code())
             {
                 case CDC_WRITE_FAILURE:
-                    TransportMetrics.cdcWriteFailureExceptionCount.inc();
+                    ServiceLevelIndicatorMetrics.cdcWriteFailureExceptionMetrics.mark();
                     break;
 
                 case WRITE_TIMEOUT:
-                    TransportMetrics.writeTimeoutExceptionCount.inc();
+                    ServiceLevelIndicatorMetrics.writeTimeoutExceptionMetrics.mark();
                     break;
 
                 case CAS_WRITE_UNKNOWN:
-                    TransportMetrics.casWriteUnknownExceptionCount.inc();
+                    ServiceLevelIndicatorMetrics.casWriteUnknownExceptionMetrics.mark();
                     break;
 
                 case FUNCTION_FAILURE:
-                    TransportMetrics.functionFailureExceptionCount.inc();
+                    ServiceLevelIndicatorMetrics.functionFailureExceptionMetrics.mark();
                     break;
 
                 case IS_BOOTSTRAPPING:
-                    TransportMetrics.isBootstrappingExceptionCount.inc();
+                    ServiceLevelIndicatorMetrics.isBootstrappingExceptionMetrics.mark();
                     break;
 
                 case OVERLOADED:
-                    TransportMetrics.overloadedExceptionCount.inc();
+                    ServiceLevelIndicatorMetrics.overloadedExceptionMetrics.mark();
                     break;
 
                 case READ_FAILURE:
-                    TransportMetrics.readFailureExceptionCount.inc();
+                    ServiceLevelIndicatorMetrics.readFailureExceptionMetrics.mark();
                     break;
 
                 case READ_TIMEOUT:
-                    TransportMetrics.readTimeoutExceptionCount.inc();
+                    ServiceLevelIndicatorMetrics.readTimeoutExceptionMetrics.mark();
                     break;
 
                 case TRUNCATE_ERROR:
-                    TransportMetrics.truncateErrorExceptionCount.inc();
+                    ServiceLevelIndicatorMetrics.truncateErrorExceptionMetrics.mark();
                     break;
 
                 case UNAVAILABLE:
-                    TransportMetrics.unavailableExceptionCount.inc();
+                    ServiceLevelIndicatorMetrics.unavailableExceptionMetrics.mark();
                     break;
 
                 case WRITE_FAILURE:
-                    TransportMetrics.writeFailureExceptionCount.inc();
+                    ServiceLevelIndicatorMetrics.writeFailureExceptionMetrics.mark();
                     break;
 
                 default:
-                    TransportMetrics.otherExceptionCount.inc();
+                    ServiceLevelIndicatorMetrics.otherExceptionMetrics.mark();
                     break;
             }
         } else if (ex instanceof ServerError) {
-            TransportMetrics.serverErrorExceptionCount.inc();
+            ServiceLevelIndicatorMetrics.serverErrorExceptionMetrics.mark();
         } else {
-            TransportMetrics.otherExceptionCount.inc();
+            ServiceLevelIndicatorMetrics.otherExceptionMetrics.mark();
         }
     }
 }

@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.transport;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -47,13 +46,13 @@ import org.apache.cassandra.exceptions.TruncateException;
 import org.apache.cassandra.exceptions.UnavailableException;
 import org.apache.cassandra.exceptions.WriteFailureException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
-import org.apache.cassandra.metrics.TransportMetrics;
+import org.apache.cassandra.metrics.ServiceLevelIndicatorMetrics;
 import org.apache.cassandra.transport.messages.BatchMessage;
-import org.apache.cassandra.transport.messages.ExceptionMetricsCollection;
 import org.apache.cassandra.transport.messages.ExecuteMessage;
 import org.apache.cassandra.transport.messages.PrepareMessage;
 import org.apache.cassandra.transport.messages.QueryMessage;
 import org.apache.cassandra.transport.messages.ResultMessage;
+import org.apache.cassandra.transport.messages.ServiceLevelIndicatorMetricsCollection;
 
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -67,72 +66,71 @@ import static org.junit.Assert.assertTrue;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
-public class TransportExceptionMetricsTest extends CQLTester
+public class ServiceLevelIndicatorMetricsTest extends CQLTester
 {
-    private static final Logger logger = LoggerFactory.getLogger(TransportExceptionMetricsTest.class);
     private SimpleClient client = null;
 
     @Test
     public void testCollectMetrics()
     {
-        long cdcWriteFailureExceptionCount = TransportMetrics.cdcWriteFailureExceptionCount.getCount();
-        long writeTimeoutExceptionCount = TransportMetrics.writeTimeoutExceptionCount.getCount();
-        long casWriteUnknownExceptionCount = TransportMetrics.casWriteUnknownExceptionCount.getCount();
-        long functionFailureExceptionCount = TransportMetrics.functionFailureExceptionCount.getCount();
-        long isBootstrappingExceptionCount = TransportMetrics.isBootstrappingExceptionCount.getCount();
-        long overloadedExceptionCount = TransportMetrics.overloadedExceptionCount.getCount();
-        long readFailureExceptionCount = TransportMetrics.readFailureExceptionCount.getCount();
-        long readTimeoutExceptionCount = TransportMetrics.readTimeoutExceptionCount.getCount();
-        long truncateErrorExceptionCount = TransportMetrics.truncateErrorExceptionCount.getCount();
-        long unavailableExceptionCount = TransportMetrics.unavailableExceptionCount.getCount();
-        long writeFailureExceptionCount = TransportMetrics.writeFailureExceptionCount.getCount();
-        long serverErrorExceptionCount = TransportMetrics.serverErrorExceptionCount.getCount();
-        long otherExceptionCount = TransportMetrics.otherExceptionCount.getCount();
+        long cdcWriteFailureExceptionCount = ServiceLevelIndicatorMetrics.cdcWriteFailureExceptionMetrics.getCount();
+        long writeTimeoutExceptionCount = ServiceLevelIndicatorMetrics.writeTimeoutExceptionMetrics.getCount();
+        long casWriteUnknownExceptionCount = ServiceLevelIndicatorMetrics.casWriteUnknownExceptionMetrics.getCount();
+        long functionFailureExceptionCount = ServiceLevelIndicatorMetrics.functionFailureExceptionMetrics.getCount();
+        long isBootstrappingExceptionCount = ServiceLevelIndicatorMetrics.isBootstrappingExceptionMetrics.getCount();
+        long overloadedExceptionCount = ServiceLevelIndicatorMetrics.overloadedExceptionMetrics.getCount();
+        long readFailureExceptionCount = ServiceLevelIndicatorMetrics.readFailureExceptionMetrics.getCount();
+        long readTimeoutExceptionCount = ServiceLevelIndicatorMetrics.readTimeoutExceptionMetrics.getCount();
+        long truncateErrorExceptionCount = ServiceLevelIndicatorMetrics.truncateErrorExceptionMetrics.getCount();
+        long unavailableExceptionCount = ServiceLevelIndicatorMetrics.unavailableExceptionMetrics.getCount();
+        long writeFailureExceptionCount = ServiceLevelIndicatorMetrics.writeFailureExceptionMetrics.getCount();
+        long serverErrorExceptionCount = ServiceLevelIndicatorMetrics.serverErrorExceptionMetrics.getCount();
+        long otherExceptionCount = ServiceLevelIndicatorMetrics.otherExceptionMetrics.getCount();
 
-        ExceptionMetricsCollection.collectMetrics(new CDCWriteException("CDC write error"));
-        assertEquals(TransportMetrics.cdcWriteFailureExceptionCount.getCount(), cdcWriteFailureExceptionCount + 1);
+        ServiceLevelIndicatorMetricsCollection.collectMetrics(new CDCWriteException("CDC write error"));
+        assertEquals(ServiceLevelIndicatorMetrics.cdcWriteFailureExceptionMetrics.getCount(), cdcWriteFailureExceptionCount + 1);
 
-        ExceptionMetricsCollection.collectMetrics(
+        ServiceLevelIndicatorMetricsCollection.collectMetrics(
           new WriteTimeoutException(WriteType.CAS, ConsistencyLevel.LOCAL_QUORUM, 0, 2));
-        assertEquals(TransportMetrics.writeTimeoutExceptionCount.getCount(), writeTimeoutExceptionCount + 1);
+        assertEquals(ServiceLevelIndicatorMetrics.writeTimeoutExceptionMetrics.getCount(), writeTimeoutExceptionCount + 1);
 
-        ExceptionMetricsCollection.collectMetrics(
+        ServiceLevelIndicatorMetricsCollection.collectMetrics(
           new CasWriteUnknownResultException(ConsistencyLevel.LOCAL_QUORUM, 0, 2));
-        assertEquals(TransportMetrics.casWriteUnknownExceptionCount.getCount(), casWriteUnknownExceptionCount + 1);
+        assertEquals(ServiceLevelIndicatorMetrics.casWriteUnknownExceptionMetrics.getCount(), casWriteUnknownExceptionCount + 1);
 
-        ExceptionMetricsCollection.collectMetrics(new FunctionExecutionException(
+        ServiceLevelIndicatorMetricsCollection.collectMetrics(new FunctionExecutionException(
         new FunctionName("dummy", "dummy"), new ArrayList<String>(), "failed"));
-        assertEquals(TransportMetrics.functionFailureExceptionCount.getCount(), functionFailureExceptionCount + 1);
+        assertEquals(ServiceLevelIndicatorMetrics.functionFailureExceptionMetrics.getCount(), functionFailureExceptionCount + 1);
 
-        ExceptionMetricsCollection.collectMetrics(new IsBootstrappingException());
-        assertEquals(TransportMetrics.isBootstrappingExceptionCount.getCount(), isBootstrappingExceptionCount + 1);
+        ServiceLevelIndicatorMetricsCollection.collectMetrics(new IsBootstrappingException());
+        assertEquals(ServiceLevelIndicatorMetrics.isBootstrappingExceptionMetrics.getCount(), isBootstrappingExceptionCount + 1);
 
-        ExceptionMetricsCollection.collectMetrics(new OverloadedException("overloaded"));
-        assertEquals(TransportMetrics.overloadedExceptionCount.getCount(), overloadedExceptionCount + 1);
+        ServiceLevelIndicatorMetricsCollection.collectMetrics(new OverloadedException("overloaded"));
+        assertEquals(ServiceLevelIndicatorMetrics.overloadedExceptionMetrics.getCount(), overloadedExceptionCount + 1);
 
-        ExceptionMetricsCollection.collectMetrics(new ReadFailureException(
+        ServiceLevelIndicatorMetricsCollection.collectMetrics(new ReadFailureException(
         ConsistencyLevel.LOCAL_QUORUM, 0, 2, true, new HashMap<>()));
-        assertEquals(TransportMetrics.readFailureExceptionCount.getCount(), readFailureExceptionCount + 1);
+        assertEquals(ServiceLevelIndicatorMetrics.readFailureExceptionMetrics.getCount(), readFailureExceptionCount + 1);
 
-        ExceptionMetricsCollection.collectMetrics(new ReadTimeoutException(ConsistencyLevel.LOCAL_QUORUM, 0, 2, true));
-        assertEquals(TransportMetrics.readTimeoutExceptionCount.getCount(), readTimeoutExceptionCount + 1);
+        ServiceLevelIndicatorMetricsCollection.collectMetrics(new ReadTimeoutException(ConsistencyLevel.LOCAL_QUORUM, 0, 2, true));
+        assertEquals(ServiceLevelIndicatorMetrics.readTimeoutExceptionMetrics.getCount(), readTimeoutExceptionCount + 1);
 
-        ExceptionMetricsCollection.collectMetrics(new TruncateException("truncte error"));
-        assertEquals(TransportMetrics.truncateErrorExceptionCount.getCount(), truncateErrorExceptionCount + 1);
+        ServiceLevelIndicatorMetricsCollection.collectMetrics(new TruncateException("truncte error"));
+        assertEquals(ServiceLevelIndicatorMetrics.truncateErrorExceptionMetrics.getCount(), truncateErrorExceptionCount + 1);
 
-        ExceptionMetricsCollection.collectMetrics(
+        ServiceLevelIndicatorMetricsCollection.collectMetrics(
           new UnavailableException("unavailable", ConsistencyLevel.LOCAL_QUORUM, 2, 1));
-        assertEquals(TransportMetrics.unavailableExceptionCount.getCount(), unavailableExceptionCount + 1);
+        assertEquals(ServiceLevelIndicatorMetrics.unavailableExceptionMetrics.getCount(), unavailableExceptionCount + 1);
 
-        ExceptionMetricsCollection.collectMetrics(new WriteFailureException(
+        ServiceLevelIndicatorMetricsCollection.collectMetrics(new WriteFailureException(
         ConsistencyLevel.LOCAL_QUORUM, 0, 2, WriteType.CAS, new HashMap<>()));
-        assertEquals(TransportMetrics.writeFailureExceptionCount.getCount(), writeFailureExceptionCount + 1);
+        assertEquals(ServiceLevelIndicatorMetrics.writeFailureExceptionMetrics.getCount(), writeFailureExceptionCount + 1);
 
-        ExceptionMetricsCollection.collectMetrics(new ServerError("server error"));
-        assertEquals(TransportMetrics.serverErrorExceptionCount.getCount(), serverErrorExceptionCount + 1);
+        ServiceLevelIndicatorMetricsCollection.collectMetrics(new ServerError("server error"));
+        assertEquals(ServiceLevelIndicatorMetrics.serverErrorExceptionMetrics.getCount(), serverErrorExceptionCount + 1);
 
-        ExceptionMetricsCollection.collectMetrics(new Exception("dummy exception"));
-        assertEquals(TransportMetrics.otherExceptionCount.getCount(), otherExceptionCount + 1);
+        ServiceLevelIndicatorMetricsCollection.collectMetrics(new Exception("dummy exception"));
+        assertEquals(ServiceLevelIndicatorMetrics.otherExceptionMetrics.getCount(), otherExceptionCount + 1);
     }
 
     @Test
@@ -154,7 +152,7 @@ public class TransportExceptionMetricsTest extends CQLTester
                                         QueryOptions.DEFAULT));
 
         // Exception in the path of QueryMessage
-        long beforeTestValue = TransportMetrics.unavailableExceptionCount.getCount();
+        long beforeTestValue = ServiceLevelIndicatorMetrics.unavailableExceptionMetrics.getCount();
         try
         {
            client.execute(new QueryMessage("SELECT * FROM " + KEYSPACE + ".table1",
@@ -165,11 +163,11 @@ public class TransportExceptionMetricsTest extends CQLTester
         {
             assertTrue(ex.getCause() instanceof UnavailableException);
             Assert.assertEquals("UnavailableExceptionCount should be incremented by 1",
-                                TransportMetrics.unavailableExceptionCount.getCount(), beforeTestValue+1);
+                                ServiceLevelIndicatorMetrics.unavailableExceptionMetrics.getCount(), beforeTestValue+1);
         }
 
         // Exception in the path of BatchMessage
-        beforeTestValue = TransportMetrics.unavailableExceptionCount.getCount();
+        beforeTestValue = ServiceLevelIndicatorMetrics.unavailableExceptionMetrics.getCount();
         try
         {
             BatchMessage batchMessage = new BatchMessage(BatchStatement.Type.UNLOGGED,
@@ -184,11 +182,11 @@ public class TransportExceptionMetricsTest extends CQLTester
         {
             assertTrue(ex.getCause() instanceof UnavailableException);
             Assert.assertEquals("UnavailableExceptionCount should be incremented by 1",
-                                TransportMetrics.unavailableExceptionCount.getCount(), beforeTestValue+1);
+                                ServiceLevelIndicatorMetrics.unavailableExceptionMetrics.getCount(), beforeTestValue+1);
         }
 
         // Exception in the path of ExecuteMessage
-        beforeTestValue = TransportMetrics.otherExceptionCount.getCount();
+        beforeTestValue = ServiceLevelIndicatorMetrics.otherExceptionMetrics.getCount();
         try
         {
             PrepareMessage prepareMessage = new PrepareMessage("SELECT * FROM table1", KEYSPACE);
@@ -201,7 +199,7 @@ public class TransportExceptionMetricsTest extends CQLTester
         catch (Exception ex)
         {
             Assert.assertEquals("OtherExceptionCount should be incremented by 1",
-                                TransportMetrics.otherExceptionCount.getCount(), beforeTestValue+1);
+                                ServiceLevelIndicatorMetrics.otherExceptionMetrics.getCount(), beforeTestValue+1);
         }
     }
 
