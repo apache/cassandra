@@ -271,11 +271,6 @@ JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.password.file=/etc/cassandra/
 #MX4J_ADDRESS="127.0.0.1"
 #MX4J_PORT="8081"
 
-# Cassandra uses SIGAR to capture OS metrics CASSANDRA-7838
-# for SIGAR we have to set the java.library.path
-# to the location of the native libraries.
-JVM_OPTS="$JVM_OPTS -Djava.library.path=$CASSANDRA_HOME/lib/sigar-bin"
-
 if [ "x$MX4J_ADDRESS" != "x" ]; then
     if [[ "$MX4J_ADDRESS" == \-Dmx4jaddress* ]]; then
         # Backward compatible with the older style #13578

@@ -59,9 +59,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.OrderPreservingPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 
-import static org.apache.cassandra.utils.FBUtilities.parseKernelVersion;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
@@ -407,20 +405,6 @@ public class FBUtilitiesTest
         Assert.assertEquals("0.00", FBUtilities.prettyPrintAverage(0.00));
         Assert.assertEquals("NaN", FBUtilities.prettyPrintAverage(Double.NaN));
         Assert.assertEquals("Infinity", FBUtilities.prettyPrintAverage(Double.POSITIVE_INFINITY));
-    }
-
-    @Test
-    public void testParseKernelVersion()
-    {
-        assertThat(parseKernelVersion("4.4.0-21-generic").toString()).isEqualTo("4.4.0-21-generic");
-        assertThat(parseKernelVersion("4.4.0-pre21-generic").toString()).isEqualTo("4.4.0-pre21-generic");
-        assertThat(parseKernelVersion("4.4-pre21-generic").toString()).isEqualTo("4.4-pre21-generic");
-        assertThat(parseKernelVersion("4.4.0-21-generic\n").toString()).isEqualTo("4.4.0-21-generic");
-        assertThat(parseKernelVersion("\n4.4.0-21-generic\n").toString()).isEqualTo("4.4.0-21-generic");
-        assertThat(parseKernelVersion("\n 4.4.0-21-generic \n").toString()).isEqualTo("4.4.0-21-generic");
-
-        assertThatExceptionOfType(IllegalArgumentException.class).isThrownBy(() -> parseKernelVersion("\n \n"))
-                                                                 .withMessageContaining("no version found");
     }
 
     @Test

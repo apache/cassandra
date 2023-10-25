@@ -41,7 +41,7 @@ import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.api.IInvokableInstance;
 import org.apache.cassandra.distributed.shared.JMXUtil;
 import org.apache.cassandra.io.util.File;
-import org.apache.cassandra.utils.SigarLibrary;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.distributed.api.Feature.GOSSIP;
 import static org.apache.cassandra.distributed.api.Feature.JMX;
@@ -91,8 +91,7 @@ public class ResourceLeakTest extends TestBaseImpl
      */
     private static Long getProcessId()
     {
-        // Once Java 9 is ready the process API should provide a better way to get the process ID.
-        long pid = SigarLibrary.instance.getPid();
+        long pid = FBUtilities.getSystemInfo().getPid();
 
         if (pid >= 0)
             return Long.valueOf(pid);

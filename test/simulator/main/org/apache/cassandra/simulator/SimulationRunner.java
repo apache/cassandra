@@ -74,7 +74,6 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.PAXOS_REPA
 import static org.apache.cassandra.config.CassandraRelevantProperties.RING_DELAY;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SHUTDOWN_ANNOUNCE_DELAY_IN_MS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.SYSTEM_AUTH_DEFAULT_RF;
-import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_IGNORE_SIGAR;
 import static org.apache.cassandra.config.CassandraRelevantProperties.DISABLE_GOSSIP_ENDPOINT_REMOVAL;
 import static org.apache.cassandra.config.CassandraRelevantProperties.TEST_JVM_DTEST_DISABLE_SSL;
 import static org.apache.cassandra.simulator.debug.Reconcile.reconcileWith;
@@ -121,7 +120,6 @@ public class SimulationRunner
         DISABLE_SSTABLE_ACTIVITY_TRACKING.setBoolean(false);
         DETERMINISM_SSTABLE_COMPRESSION_DEFAULT.setBoolean(false); // compression causes variation in file size for e.g. UUIDs, IP addresses, random file paths
         CONSISTENT_DIRECTORY_LISTINGS.setBoolean(true);
-        TEST_IGNORE_SIGAR.setBoolean(true);
         SYSTEM_AUTH_DEFAULT_RF.setInt(3);
         DISABLE_GOSSIP_ENDPOINT_REMOVAL.setBoolean(true);
         MEMTABLE_OVERHEAD_SIZE.setInt(100);

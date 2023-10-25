@@ -103,7 +103,6 @@ sed -i 's/^# hints_directory:/hints_directory:/' conf/cassandra.yaml
 rm -f bin/stop-server
 rm -f bin/*.orig
 rm -f bin/cassandra.in.sh
-rm -f lib/sigar-bin/*winnt*  # strip segfaults on dll..
 rm -f tools/bin/cassandra.in.sh
 
 # copy default configs
