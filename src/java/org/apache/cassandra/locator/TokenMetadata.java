@@ -780,13 +780,6 @@ public class TokenMetadata
         return ranges;
     }
 
-    /** @deprecated See CASSANDRA-4121 */
-    @Deprecated(since = "1.2.0")
-    public Range<Token> getPrimaryRangeFor(Token right)
-    {
-        return getPrimaryRangesFor(Arrays.asList(right)).iterator().next();
-    }
-
     public ArrayList<Token> sortedTokens()
     {
         return sortedTokens;
