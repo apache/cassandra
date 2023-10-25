@@ -65,7 +65,7 @@ public class IndexSearchResultIterator extends KeyRangeIterator
     {
         KeyRangeIterator keyIterator = buildKeyIterator(expression, sstableIndexes, keyRange, queryContext);
 
-        // For NOT CONTAINS or NOT CONTAINS KEY it is not enought to just return the primary keys
+        // For NOT CONTAINS or NOT CONTAINS KEY it is not enough to just return the primary keys
         // for values not matching the value being queried.
         //
         // keys k such that row(k) not contains v =
