@@ -50,8 +50,6 @@ public class MemtableKeyRangeIterator extends KeyRangeIterator
     private final ColumnFilter columns;
     private UnfilteredPartitionIterator partitionIterator;
     private UnfilteredRowIterator rowIterator;
-
-
     private MemtableKeyRangeIterator(Memtable memtable,
                                      PrimaryKey.Factory pkFactory,
                                      AbstractBounds<PartitionPosition> keyRange)
