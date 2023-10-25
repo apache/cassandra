@@ -180,10 +180,10 @@ public interface ValueAccessor<V>
     void write(V value, ByteBuffer out);
 
     /**
-     * copy the {@param size} bytes from the {@param src} value, starting at the offset {@param srcOffset} into
-     * the {@param dst} value, starting at the offset {@param dstOffset}, using the accessor {@param dstAccessor}
+     * copy the {@code size} bytes from the {@code src} value, starting at the offset {@code srcOffset} into
+     * the {@code dst} value, starting at the offset {@code dstOffset}, using the accessor {@code dstAccessor}
      * @param <V2> the destination value type
-     * @return the number of bytes copied ({@param size})
+     * @return the number of bytes copied ({@code size})
      */
     <V2> int copyTo(V src, int srcOffset, V2 dst, ValueAccessor<V2> dstAccessor, int dstOffset, int size);
 
@@ -198,13 +198,13 @@ public interface ValueAccessor<V>
     int copyByteBufferTo(ByteBuffer src, int srcOffset, V dst, int dstOffset, int size);
 
     /**
-     * updates {@param digest} with {@param size} bytes from the contents of {@param value} starting
-     * at offset {@param offset}
+     * updates {@code digest} with {@code size} bytes from the contents of {@code value} starting
+     * at offset {@code offset}
      */
     void digest(V value, int offset, int size, Digest digest);
 
     /**
-     * updates {@param digest} with te contents of {@param value}
+     * updates {@code digest} with the contents of {@code value}
      */
     default void digest(V value, Digest digest)
     {
@@ -212,16 +212,16 @@ public interface ValueAccessor<V>
     }
 
     /**
-     * Reads a value of {@param length} bytes from {@param in}
+     * Reads a value of {@code length} bytes from {@code in}
      */
     V read(DataInputPlus in, int length) throws IOException;
 
     /**
-     * Returns a value with the contents of {@param input} from {@param offset} to {@param length}.
+     * Returns a value with the contents of {@code input} from {@code offset} to {@code length}.
      *
      * Depending on the accessor implementation, this method may:
-     *  * allocate a new {@param <V>} object of {@param length}, and copy data into it
-     *  * return a view of {@param input} where changes to one will be reflected in the other
+     *  * allocate a new {@code <V>} object of {@code length}, and copy data into it
+     *  * return a view of {@code input} where changes to one will be reflected in the other
      */
     V slice(V input, int offset, int length);
 
@@ -236,18 +236,18 @@ public interface ValueAccessor<V>
     }
 
     /**
-     * lexicographically compare {@param left} to {@param right}
+     * lexicographically compare {@code left} to {@code right}
      * @param <VR> backing type of
      */
     <VR> int compare(V left, VR right, ValueAccessor<VR> accessorR);
 
     /**
-     * compare a byte array on the left with a {@param <V>} on the right}
+     * compare a byte array on the left with a {@code <V>} on the right}
      */
     int compareByteArrayTo(byte[] left, V right);
 
     /**
-     * compare a byte buffer on the left with a {@param <V>} on the right}
+     * compare a byte buffer on the left with a {@code <V>} on the right}
      */
     int compareByteBufferTo(ByteBuffer left, V right);
 
@@ -264,7 +264,7 @@ public interface ValueAccessor<V>
     }
 
     /**
-     * returns a ByteBuffer with the contents of {@param value}
+     * returns a ByteBuffer with the contents of {@code value}
      *
      * Depending on the accessor implementation, this method may:
      *  * allocate a new ByteBuffer and copy data into it
@@ -273,7 +273,7 @@ public interface ValueAccessor<V>
     ByteBuffer toBuffer(V value);
 
     /**
-     * returns a byte[] with the contents of {@param value}
+     * returns a byte[] with the contents of {@code value}
      *
      * Depending on the accessor implementation, this method may:
      *  * allocate a new byte[] object and copy data into it
@@ -282,12 +282,12 @@ public interface ValueAccessor<V>
     byte[] toArray(V value);
 
     /**
-     * returns a byte[] with {@param length} bytes copied from the contents of {@param value}
-     * starting at offset {@param offset}.
+     * returns a byte[] with {@code length} bytes copied from the contents of {@code value}
+     * starting at offset {@code offset}.
      *
      * Depending on the accessor implementation, this method may:
      *  * allocate a new byte[] object and copy data into it
-     *  * return the value, if the backing type is byte[], offset is 0 and {@param length} == size(value)
+     *  * return the value, if the backing type is byte[], offset is 0 and {@code length} == size(value)
      */
     byte[] toArray(V value, int offset, int length);
     String toString(V value, Charset charset) throws CharacterCodingException;
@@ -299,7 +299,7 @@ public interface ValueAccessor<V>
 
     String toHex(V value);
 
-    /** returns a boolean from offset {@param offset} */
+    /** returns a boolean from offset {@code offset} */
     default boolean getBoolean(V value, int offset)
     {
         return getByte(value, offset) != 0;
@@ -307,17 +307,17 @@ public interface ValueAccessor<V>
 
     /** returns a byte from offset 0 */
     byte toByte(V value);
-    /** returns a byte from offset {@param offset} */
+    /** returns a byte from offset {@code offset} */
     byte getByte(V value, int offset);
     /** returns a short from offset 0 */
     short toShort(V value);
-    /** returns a short from offset {@param offset} */
+    /** returns a short from offset {@code offset} */
     short getShort(V value, int offset);
-    /** returns an unsigned short from offset {@param offset} */
+    /** returns an unsigned short from offset {@code offset} */
     int getUnsignedShort(V value, int offset);
     /** returns an int from offset 0 */
     int toInt(V value);
-    /** returns an int from offset {@param offset} */
+    /** returns an int from offset {@code offset} */
     int getInt(V value, int offset);
 
     default long getUnsignedVInt(V value, int offset)
@@ -344,7 +344,7 @@ public interface ValueAccessor<V>
     double getDouble(V value, int offset);
     /** returns a long from offset 0 */
     long toLong(V value);
-    /** returns a long from offset {@param offset} */
+    /** returns a long from offset {@code offset} */
     long getLong(V value, int offset);
     /** returns a float from offset 0 */
     float toFloat(V value);
@@ -362,32 +362,32 @@ public interface ValueAccessor<V>
     Ballot toBallot(V value);
 
     /**
-     * writes the byte value {@param value} to {@param dst} at offset {@param offset}
-     * @return the number of bytes written to {@param value}
+     * writes the byte value {@code value} to {@code dst} at offset {@code offset}
+     * @return the number of bytes written to {@code value}
      */
     int putByte(V dst, int offset, byte value);
 
     /**
-     * writes the short value {@param value} to {@param dst} at offset {@param offset}
-     * @return the number of bytes written to {@param value}
+     * writes the short value {@code value} to {@code dst} at offset {@code offset}
+     * @return the number of bytes written to {@code value}
      */
     int putShort(V dst, int offset, short value);
 
     /**
-     * writes the int value {@param value} to {@param dst} at offset {@param offset}
-     * @return the number of bytes written to {@param value}
+     * writes the int value {@code value} to {@code dst} at offset {@code offset}
+     * @return the number of bytes written to {@code value}
      */
     int putInt(V dst, int offset, int value);
 
     /**
-     * writes the long value {@param value} to {@param dst} at offset {@param offset}
-     * @return the number of bytes written to {@param value}
+     * writes the long value {@code value} to {@code dst} at offset {@code offset}
+     * @return the number of bytes written to {@code value}
      */
     int putLong(V dst, int offset, long value);
 
     /**
-     * writes the float value {@param value} to {@param dst} at offset {@param offset}
-     * @return the number of bytes written to {@param value}
+     * writes the float value {@code value} to {@code dst} at offset {@code offset}
+     * @return the number of bytes written to {@code value}
      */
     int putFloat(V dst, int offset, float value);
 
@@ -425,61 +425,61 @@ public interface ValueAccessor<V>
     V empty();
 
     /**
-     * return a value containing the {@param bytes}
+     * return a value containing the {@code bytes}
      *
      * Caller should assume that modifying the returned value
-     * will also modify the contents of {@param bytes}
+     * will also modify the contents of {@code bytes}
      */
     V valueOf(byte[] bytes);
 
     /**
-     * return a value containing the {@param bytes}
+     * return a value containing the {@code bytes}
      *
-     * {@param src} and the returned value may share a common byte array instance, so caller should
-     * assume that modifying the returned value will also modify the contents of {@param src}
+     * {@code src} and the returned value may share a common byte array instance, so caller should
+     * assume that modifying the returned value will also modify the contents of {@code src}
      */
     V valueOf(ByteBuffer bytes);
 
     /** return a value containing the bytes for the given string and charset */
     V valueOf(String s, Charset charset);
 
-    /** return a value with the bytes from {@param v}*/
+    /** return a value with the bytes from {@code v}*/
     V valueOf(UUID v);
-    /** return a value with the bytes from {@param v}*/
+    /** return a value with the bytes from {@code v}*/
     V valueOf(boolean v);
-    /** return a value with the bytes from {@param v}*/
+    /** return a value with the bytes from {@code v}*/
     V valueOf(byte v);
-    /** return a value with the bytes from {@param v}*/
+    /** return a value with the bytes from {@code v}*/
     V valueOf(short v);
-    /** return a value with the bytes from {@param v}*/
+    /** return a value with the bytes from {@code v}*/
     V valueOf(int v);
-    /** return a value with the bytes from {@param v}*/
+    /** return a value with the bytes from {@code v}*/
     V valueOf(long v);
-    /** return a value with the bytes from {@param v}*/
+    /** return a value with the bytes from {@code v}*/
     V valueOf(float v);
-    /** return a value with the bytes from {@param v}*/
+    /** return a value with the bytes from {@code v}*/
     V valueOf(double v);
 
     /**
-     * Convert the data in {@param src} to {@param <V>}
+     * Convert the data in {@code src} to {@code <V>}
      *
-     * {@param src} and the returned value may share a common byte array instance, so caller should
-     * assume that modifying the returned value will also modify the contents of {@param src}
+     * {@code src} and the returned value may share a common byte array instance, so caller should
+     * assume that modifying the returned value will also modify the contents of {@code src}
      */
     <V2> V convert(V2 src, ValueAccessor<V2> accessor);
 
     /**
-     * Allocate and return a {@param <V>} instance of {@param size} bytes on the heap.
+     * Allocate and return a {@code <V>} instance of {@code size} bytes on the heap.
      */
     V allocate(int size);
 
     /**
-     * returns the {@link ValueAccessor.ObjectFactory} for the backing type {@param <V>}
+     * returns the {@link ValueAccessor.ObjectFactory} for the backing type {@code <V>}
      */
     ObjectFactory<V> factory();
 
     /**
-     * lexicographically compare {@param left} to {@param right}
+     * lexicographically compare {@code left} to {@code right}
      */
     public static <L, R> int compare(L left, ValueAccessor<L> leftAccessor, R right, ValueAccessor<R> rightAccessor)
     {

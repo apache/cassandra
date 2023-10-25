@@ -23,10 +23,10 @@ import java.nio.ByteBuffer;
 
 /**
  * Reads keys from an SSTable.
- * <p/>
+ * <p>
  * It is specific to SSTable format how the keys are read but in general the assumption is that it will read all the
  * keys in the order as they are placed in data file.
- * <p/>
+ * <p>
  * After creating it, it should be at the first key. Unless the SSTable is empty, {@link #key()},
  * {@link #keyPositionForSecondaryIndex()} and {@link #dataPosition()} should return approriate values. If there is
  * no data, {@link #isExhausted()} returns {@code true}. In order to move to the next key, {@link #advance()} should be

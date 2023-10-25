@@ -222,8 +222,8 @@ public interface ByteSource
     }
 
     /**
-     * Returns a separator for two byte sources, i.e. something that is definitely > prevMax, and <= currMin, assuming
-     * prevMax < currMin.
+     * Returns a separator for two byte sources, i.e. something that is definitely {@code > prevMax}, and {@code <= currMin}, assuming
+     * {@code prevMax < currMin}.
      * This returns the shortest prefix of currMin that is greater than prevMax.
      */
     public static ByteSource separatorPrefix(ByteSource prevMax, ByteSource currMin)
@@ -232,8 +232,8 @@ public interface ByteSource
     }
 
     /**
-     * Returns a separator for two byte sources, i.e. something that is definitely > prevMax, and <= currMin, assuming
-     * prevMax < currMin.
+     * Returns a separator for two byte sources, i.e. something that is definitely {@code > prevMax}, and {@code <= currMin}, assuming
+     * {@code prevMax < currMin}.
      * This is a source of length 1 longer than the common prefix of the two sources, with last byte one higher than the
      * prevMax source.
      */
@@ -471,7 +471,7 @@ public interface ByteSource
     }
 
     /**
-     * Fixed length signed number encoding. Inverts first bit (so that neg < pos), then just posts all bytes from the
+     * Fixed length signed number encoding. Inverts first bit (so that {@code neg < pos}), then just posts all bytes from the
      * buffer. Assumes buffer is of correct length.
      */
     static class SignedFixedLengthNumber<V> implements ByteSource
@@ -706,7 +706,7 @@ public interface ByteSource
      * If {@code useCurr == true} the last byte of the returned stream comes from {@code currMin} and is the first
      * byte which is greater than byte on the corresponding position of {@code prevMax}.
      * Otherwise, the last byte of the returned stream comes from {@code prevMax} and is incremented by one, still
-     * guaranteeing that it is <= than the byte on the corresponding position of {@code currMin}.
+     * guaranteeing that it is {@code <=} than the byte on the corresponding position of {@code currMin}.
      */
     static class Separator implements ByteSource
     {

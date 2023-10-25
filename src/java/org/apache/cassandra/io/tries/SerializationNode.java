@@ -48,7 +48,7 @@ public interface SerializationNode<VALUE>
 
     /**
      * Returns the furthest distance that needs to be written to store this node, i.e.
-     *   min(serializedPositionDelta(i, nodePosition) for 0 <= i < childCount())
+     *   {@code min(serializedPositionDelta(i, nodePosition) for 0 <= i < childCount())}
      * Given separately as the loop above can be inefficient (e.g. when children are not yet written).
      */
     long maxPositionDelta(long nodePosition);

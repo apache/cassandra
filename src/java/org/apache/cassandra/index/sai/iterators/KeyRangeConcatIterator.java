@@ -33,8 +33,8 @@ import org.apache.cassandra.io.util.FileUtils;
  * {@link org.apache.cassandra.index.sai.plan.StorageAttachedIndexSearcher}
  * as results from multiple SSTable indexes and their respective segments are consumed.
  *
- * ex. (1, 2, 3) + (3, 3, 4, 5) -> (1, 2, 3, 3, 3, 4, 5)
- * ex. (1, 2, 2, 3) + (3, 4, 4, 6, 6, 7) -> (1, 2, 2, 3, 3, 4, 4, 6, 6, 7)
+ * {@code ex. (1, 2, 3) + (3, 3, 4, 5) -> (1, 2, 3, 3, 3, 4, 5)}
+ * {@code ex. (1, 2, 2, 3) + (3, 4, 4, 6, 6, 7) -> (1, 2, 2, 3, 3, 4, 4, 6, 6, 7)}
  *
  * TODO Investigate removing the use of PriorityQueue from this class <a href="https://issues.apache.org/jira/browse/CASSANDRA-18165">CASSANDRA-18165</a>
  */

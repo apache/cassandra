@@ -41,7 +41,7 @@ public class CassandraUInt
      * 
      * @param value A long between 0 and 2<sup>32</sup>-1 inclusive
      * @return an unsigned integer representation of the long
-     * @throws IllegalArgumentException if value '< 0' or '>= 2<sup>32</sup>'
+     * @throws IllegalArgumentException if value {@code '< 0' or '>= 2<sup>32</sup>'}
      */
     public static int fromLong(long value)
     {
@@ -74,7 +74,7 @@ public class CassandraUInt
     /**
      * Compare 2 Uints
      *
-     * @return < 0 if x is less than y. > 0 if x is greater than y. Zero if they are equal
+     * @return less than 0 if x is less than y. Greater than 0 if x is greater than y. Zero if they are equal
      */
     public static int compare(int x, int y)
     {

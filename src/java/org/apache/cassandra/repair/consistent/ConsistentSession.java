@@ -53,15 +53,15 @@ import org.apache.cassandra.utils.TimeUUID;
 /**
  * Base class for consistent Local and Coordinator sessions
  *
- * <p/>
+ * <p>
  * There are 4 stages to a consistent incremental repair.
  *
- * <h1>Repair prepare</h1>
+ * <h2>Repair prepare</h2>
  *  First, the normal {@link ActiveRepairService#prepareForRepair(TimeUUID, InetAddressAndPort, Set, RepairOption, boolean, List)} stuff
  *  happens, which sends out {@link PrepareMessage} and creates a {@link ActiveRepairService.ParentRepairSession}
  *  on the coordinator and each of the neighbors.
  *
- * <h1>Consistent prepare</h1>
+ * <h2>Consistent prepare</h2>
  *  The consistent prepare step promotes the parent repair session to a consistent session, and isolates the sstables
  *  being repaired from  other sstables. First, the coordinator sends a {@link PrepareConsistentRequest} message to each repair
  *  participant (including itself). When received, the node creates a {@link LocalSession} instance, sets it's state to
@@ -69,59 +69,59 @@ import org.apache.cassandra.utils.TimeUUID;
  *  being repaired from the rest of the table data. When the preparation completes, the session state is set to
  *  {@code PREPARED}, and a {@link PrepareConsistentResponse} is sent to the coordinator indicating success or failure.
  *  If the pending anti-compaction fails, the local session state is set to {@code FAILED}.
- *  <p/>
+ *  <p>
  *  (see {@link LocalSessions#handlePrepareMessage(InetAddressAndPort, PrepareConsistentRequest)}
- *  <p/>
+ *  <p>
  *  Once the coordinator recieves positive {@code PrepareConsistentResponse} messages from all the participants, the
  *  coordinator begins the normal repair process.
- *  <p/>
+ *  <p>
  *  (see {@link CoordinatorSession#handlePrepareResponse(InetAddressAndPort, boolean)}
  *
- * <h1>Repair</h1>
+ * <h2>Repair</h2>
  *  The coordinator runs the normal data repair process against the sstables segregated in the previous step. When a
  *  node recieves a {@link ValidationRequest}, it sets it's local session state to {@code REPAIRING}.
- *  <p/>
+ *  <p>
  *
  *  If all of the RepairSessions complete successfully, the coordinator begins the {@code Finalization} process. Otherwise,
  *  it begins the {@code Failure} process.
  *
- * <h1>Finalization</h1>
+ * <h2>Finalization</h2>
  *  The finalization step finishes the session and promotes the sstables to repaired. The coordinator begins by sending
  *  {@link FinalizePropose} messages to each of the participants. Each participant will set it's state to {@code FINALIZE_PROMISED}
  *  and respond with a {@link FinalizePromise} message. Once the coordinator has received promise messages from all participants,
  *  it will send a {@link FinalizeCommit} message to all of them, ending the coordinator session. When a node receives the
  *  {@code FinalizeCommit} message, it will set it's sessions state to {@code FINALIZED}, completing the {@code LocalSession}.
- *  <p/>
+ *  <p>
  *
  *  For the sake of simplicity, finalization does not immediately mark pending repair sstables repaired because of potential
  *  conflicts with in progress compactions. The sstables will be marked repaired as part of the normal compaction process.
- *  <p/>
+ *  <p>
  *
  *  On the coordinator side, see {@link CoordinatorSession#finalizePropose()}, {@link CoordinatorSession#handleFinalizePromise(InetAddressAndPort, boolean)},
- *  & {@link CoordinatorSession#finalizeCommit()}
- *  <p/>
+ *  and {@link CoordinatorSession#finalizeCommit()}
+ *  <p>
  *
  *  On the local session side, see {@link LocalSessions#handleFinalizeProposeMessage(InetAddressAndPort, FinalizePropose)}
- *  & {@link LocalSessions#handleFinalizeCommitMessage(InetAddressAndPort, FinalizeCommit)}
+ *  and {@link LocalSessions#handleFinalizeCommitMessage(InetAddressAndPort, FinalizeCommit)}
  *
- * <h1>Failure</h1>
+ * <h2>Failure</h2>
  *  If there are any failures or problems during the process above, the session will be failed. When a session is failed,
  *  the coordinator will send {@link FailSession} messages to each of the participants. In some cases (basically those not
  *  including Validation and Sync) errors are reported back to the coordinator by the local session, at which point, it
  *  will send {@code FailSession} messages out.
- *  <p/>
+ *  <p>
  *  Just as with finalization, sstables aren't immediately moved back to unrepaired, but will be demoted as part of the
  *  normal compaction process.
  *
- *  <p/>
- *  See {@link LocalSessions#failSession(UUID, boolean)} and {@link CoordinatorSession#fail()}
+ *  <p>
+ *  See {@code LocalSessions#failSession(UUID, boolean)} and {@link CoordinatorSession#fail()}
  *
- * <h1>Failure Recovery & Session Cleanup</h1>
+ * <h2>Failure Recovery and Session Cleanup</h2>
  *  There are a few scenarios where sessions can get stuck. If a node fails mid session, or it misses a {@code FailSession}
  *  or {@code FinalizeCommit} message, it will never finish. To address this, there is a cleanup task that runs every
  *  10 minutes that attempts to complete idle sessions.
  *
- *  <p/>
+ *  <p>
  *  If a session is not completed (not {@code FINALIZED} or {@code FAILED}) and there's been no activity on the session for
  *  over an hour, the cleanup task will attempt to finish the session by learning the session state of the other participants.
  *  To do this, it sends a {@link StatusRequest} message to the other session participants. The participants respond with a
@@ -131,16 +131,16 @@ import org.apache.cassandra.utils.TimeUUID;
  *  it's received {@code FinalizePromise} messages from <i>all</i> participants, this is safe.
  *
  *
- *  <p/>
+ *  <p>
  *  If a session is not completed, and hasn't had any activity for over a day, the session is auto-failed.
  *
- *  <p/>
+ *  <p>
  *  Once a session has been completed for over 2 days, it's deleted.
  *
- *  <p/>
+ *  <p>
  *  Operators can also manually fail sessions with {@code nodetool repair_admin --cancel}
  *
- *  <p/>
+ *  <p>
  *  See {@link LocalSessions#cleanup()} and {@link RepairAdmin}
  *
  */

@@ -28,7 +28,7 @@ import java.util.*;
  */
 
 /**
- * <h3>PATRICIA {@link Trie}</h3>
+ * <h2>PATRICIA {@link Trie}</h2>
  *
  * <i>Practical Algorithm to Retrieve Information Coded in Alphanumeric</i>
  *

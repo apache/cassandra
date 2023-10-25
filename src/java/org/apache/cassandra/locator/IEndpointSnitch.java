@@ -67,7 +67,7 @@ public interface IEndpointSnitch
     }
 
     /**
-     * returns a new <tt>List</tt> sorted by proximity to the given endpoint
+     * returns a new {@code List} sorted by proximity to the given endpoint
      */
     public <C extends ReplicaCollection<? extends C>> C sortedByProximity(final InetAddressAndPort address, C addresses);
 

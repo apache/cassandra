@@ -157,21 +157,21 @@ public final class IntegerType extends NumberType<BigInteger>
 
     /**
      * Constructs a byte-comparable representation of the number.
-     *
+     * <p>
      * In the current format we represent it:
      *    directly as varint, if the length is 6 or smaller (the encoding has non-00/FF first byte)
      *    {@code <signbyte><length as unsigned integer - 7><7 or more bytes>}, otherwise
      * where {@code <signbyte>} is 00 for negative numbers and FF for positive ones, and the length's bytes are inverted if
      * the number is negative (so that longer length sorts smaller).
-     *
+     * <p>
      * Because we present the sign separately, we don't need to include 0x00 prefix for positive integers whose first
-     * byte is >= 0x80 or 0xFF prefix for negative integers whose first byte is < 0x80. Note that we do this before
+     * byte is {@code >= 0x80} or 0xFF prefix for negative integers whose first byte is {@code < 0x80}. Note that we do this before
      * taking the length for the purposes of choosing between varint and full-form encoding.
-     *
+     * <p>
      * The representations are prefix-free, because the choice between varint and full-form encoding is determined by
      * the first byte where varints are properly ordered between full-form negative and full-form positive, varint
      * encoding is prefix-free, and full-form representations of different length always have length bytes that differ.
-     *
+     * <p>
      * Examples:
      *    -1            as 7F
      *    0             as 80
@@ -182,7 +182,7 @@ public final class IntegerType extends NumberType<BigInteger>
      *    2^32          as F900000000
      *    2^56-1        as FEFFFFFFFFFFFFFF
      *    2^56          as FF000100000000000000
-     *
+     * <p>
      * See {@link #asComparableBytesLegacy} for description of the legacy format.
      */
     @Override

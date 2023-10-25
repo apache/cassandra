@@ -1164,7 +1164,7 @@ public interface StorageServiceMBean extends NotificationEmitter
     public double getRangeTombstoneResizeListGrowthFactor();
 
     /**
-     * Returns a map of schema version -> list of endpoints reporting that version that we need schema updates for
+     * Returns a map of schema version {@code ->} list of endpoints reporting that version that we need schema updates for
      * @deprecated See CASSANDRA-17668
      */
     @Deprecated(since = "4.0")

@@ -57,7 +57,7 @@ import org.apache.cassandra.db.rows.Cell;
  *     <li>Spool: big map that saves from excessively merging of small bin. This map can contains up to maxSpoolSize points and accumulate weight from same points.
  *     For example, if spoolSize=100, binSize=10 and there are only 50 different points. it will be only 40 merges regardless how many points will be added.</li>
  *     <li>Spool is organized as open-addressing primitive hash map where odd elements are points and event elements are values.
- *     Spool can not resize => when number of collisions became bigger than threshold or size became large that <i>array_size/2</i> Spool is drained to bin</li>
+ *     Spool can not resize {@code =>} when number of collisions became bigger than threshold or size became large that <i>array_size/2</i> Spool is drained to bin</li>
  *     <li>Bin is organized as sorted arrays. It reduces garbage collection pressure and allows to find elements in log(binSize) time via binary search</li>
  *     <li>To use existing Arrays.binarySearch <i>{point, values}</i> in bin pairs is packed in one long</li>
  * </ol>
@@ -97,7 +97,7 @@ public class StreamingTombstoneHistogramBuilder
     }
 
     /**
-     * Adds new point {@param point} with value {@param value} to this histogram.
+     * Adds new point {@code point} with value {@code value} to this histogram.
      */
     public void update(long point, int value)
     {

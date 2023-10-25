@@ -243,7 +243,7 @@ public interface IRoleManager extends AuthCache.BulkLoader<RoleResource, Set<Rol
     /**
      * Returns all the authorized identities from the identity_to_role table
      *
-     * @return Map of identity -> roles
+     * @return Map of identity {@code ->} roles
      */
     default Map<String, String> authorizedIdentities()
     {

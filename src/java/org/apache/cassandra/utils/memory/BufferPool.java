@@ -65,7 +65,7 @@ import static org.apache.cassandra.utils.memory.MemoryUtil.isExactlyDirect;
 /**
  * A pool of ByteBuffers that can be recycled to reduce system direct memory fragmentation and improve buffer allocation
  * performance.
- * <p/>
+ * <p>
  *
  * Each {@link BufferPool} instance has one {@link GlobalPool} which allocates two kinds of chunks:
  * <ul>
@@ -87,7 +87,7 @@ import static org.apache.cassandra.utils.memory.MemoryUtil.isExactlyDirect;
  * partially freed chunks where some buffers are not released, eg. held by {@link org.apache.cassandra.cache.ChunkCache}.
  * Partially freed chunks are used to improve cache utilization and have lower priority compared to fully freed chunks.
  *
- * <p/>
+ * <p>
  *
  * {@link LocalPool} is a thread local pool to serve buffer allocation requests. There are two kinds of local pool:
  * <ul>
@@ -109,7 +109,7 @@ import static org.apache.cassandra.utils.memory.MemoryUtil.isExactlyDirect;
  *
  * Note: even though partially freed chunks improves cache utilization when chunk cache holds outstanding buffer for
  * arbitrary period, there is still fragmentation in the partially freed chunk because of non-uniform allocation size.
- * <p/>
+ * <p>
  *
  * The lifecycle of a normal Chunk:
  * <pre>

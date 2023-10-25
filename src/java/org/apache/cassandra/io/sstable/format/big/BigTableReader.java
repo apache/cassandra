@@ -489,7 +489,7 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
     }
 
     /**
-     * Returns whether the number of entries in the IndexSummary > 2.  At full sampling, this is approximately
+     * Returns whether the number of entries in the {@code IndexSummary > 2}.  At full sampling, this is approximately
      * 1/INDEX_INTERVALth of the keys in this SSTable.
      */
     @Override

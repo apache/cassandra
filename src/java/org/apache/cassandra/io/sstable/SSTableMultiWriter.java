@@ -32,7 +32,6 @@ public interface SSTableMultiWriter extends Transactional
     /**
      * Writes a partition in an implementation specific way
      * @param partition the partition to append
-     * @return true if the partition was written, false otherwise
      */
     void append(UnfilteredRowIterator partition);
 

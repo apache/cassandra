@@ -39,22 +39,30 @@ import static org.apache.cassandra.utils.Shared.Scope.SIMULATION;
  * Entry point for configuring and creating new executors.
  *
  * Supports quick and easy construction of default-configured executors via
+ * <ul>
  * <li>{@link #sequential(String)}
  * <li>{@link #pooled(String, int)}
  * <li>{@link #scheduled(String)}
  * <li>{@link #scheduled(boolean, String)}
  * <li>{@link #scheduled(boolean, String, int)}
+ * </ul>
  *
  * Supports custom configuration of executors via
+ * <ul>
  * <li>{@link #configureSequential(String)}
  * <li>{@link #configurePooled(String, int)}
+ * </ul>
  *
  * Supports any of the above with added JMX registration via sub-factories
+ * <ul>
  * <li>{@link #withJmx(String)}
  * <li>{@link #withJmxInternal()}
+ * </ul>
  *
  * Supports any of the above with the resultant executor propagating {@link ExecutorLocals} via sub-factory
+ * <ul>
  * <li>{@link #localAware()}
+ * </ul>
  *
  * Supports shared executors via sub-factory {@code localAware().withJMX()}
  * using {@link LocalAwareSubFactoryWithJMX#shared(String, int, ExecutorPlus.MaximumPoolSizeListener)}

@@ -45,7 +45,7 @@ import org.apache.cassandra.utils.Throwables;
  *   <li> add {@link IndexSegmentSearcherContext#segmentRowIdOffset} to obtain the sstable row id </li>
  *   <li> produce a {@link PrimaryKey} from {@link PrimaryKeyMap#primaryKeyFromRowId(long)} which is used
  *       to avoid fetching duplicated keys due to partition-level indexing on wide partition schema.
- *       <br/>
+ *       <br>
  *       Note: in order to reduce disk access in multi-index query, partition keys will only be fetched for intersected tokens
  *       in {@link org.apache.cassandra.index.sai.plan.StorageAttachedIndexSearcher}.
  *  </li>

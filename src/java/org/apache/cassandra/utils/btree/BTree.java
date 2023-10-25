@@ -743,7 +743,7 @@ public class BTree
     /**
      * Honours result semantics of {@link Arrays#binarySearch}, as though it were performed on the tree flattened into an array
      *
-     * @return index of item in tree, or <tt>(-(<i>insertion point</i>) - 1)</tt> if not present
+     * @return index of item in tree, or {@code (-(<i>insertion point</i>) - 1)} if not present
      */
     public static <V> int findIndex(Object[] node, Comparator<? super V> comparator, V find)
     {
@@ -1379,7 +1379,7 @@ public class BTree
     }
 
     /**
-     * tree index => index of key wrt all items in the tree laid out serially
+     * tree index {@code =>} index of key wrt all items in the tree laid out serially
      * <p>
      * This version of the method permits requesting out-of-bounds indexes, -1 and size
      *

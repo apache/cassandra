@@ -77,9 +77,11 @@ public interface ExecutorBuilder<E extends ExecutorService>
     /**
      * Set the {@link RejectedExecutionHandler} for the executor built by this factory.
      * By default this is executor-specific, either:
+     * <ul>
      * <li> {@link ThreadPoolExecutorBase#blockingExecutionHandler}
      * <li> {@link ScheduledThreadPoolExecutorPlus#rejectedExecutionHandler}
      * <li> and maybe wrapped by {@link ThreadPoolExecutorJMXAdapter#rejectedExecutionHandler}
+     * </ul>
      */
     ExecutorBuilder<E> withRejectedExecutionHandler(RejectedExecutionHandler rejectedExecutionHandler);
 

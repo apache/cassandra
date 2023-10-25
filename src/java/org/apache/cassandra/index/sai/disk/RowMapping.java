@@ -89,13 +89,13 @@ public class RowMapping
     }
 
     /**
-     * Link the term -> {@link PrimaryKeys} mappings from a provided {@link MemtableIndex} to
-     * the {@link PrimaryKey} -> row ID mappings maintained here in {@link #rowMapping} to produce
+     * Link the term {@code ->} {@link PrimaryKeys} mappings from a provided {@link MemtableIndex} to
+     * the {@link PrimaryKey} {@code ->} row ID mappings maintained here in {@link #rowMapping} to produce
      * mappings of terms to their postings lists.
      *
      * @param index a Memtable-attached column index
      *
-     * @return an iterator of term -> postings list {@link Pair}s
+     * @return an iterator of term {@code ->} postings list {@link Pair}s
      */
     public Iterator<Pair<ByteComparable, LongArrayList>> merge(MemtableIndex index)
     {

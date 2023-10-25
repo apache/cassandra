@@ -50,7 +50,7 @@ import java.util.stream.Stream;
  * to be explicit about what you're checking the container for, or removing from it.
  *
  * TODO: there's nothing about this collection that's unique to Replicas, and the implementation
- *       could make a useful general purpose immutable list<->set
+ *       could make a useful general purpose immutable list and set
  */
 public abstract class AbstractReplicaCollection<C extends AbstractReplicaCollection<C>> implements ReplicaCollection<C>
 {

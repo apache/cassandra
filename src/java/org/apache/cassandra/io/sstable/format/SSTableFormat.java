@@ -202,7 +202,7 @@ public interface SSTableFormat<R extends SSTableReader, W extends SSTableWriter>
 
         /**
          * Returns an instance of the sstable format configured with the provided options.
-         * <p/>
+         * <p>
          * The method is expected to validate the options, and throw
          * {@link org.apache.cassandra.exceptions.ConfigurationException} if the validation fails.
          *

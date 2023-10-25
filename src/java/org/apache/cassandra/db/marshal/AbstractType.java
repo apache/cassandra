@@ -480,12 +480,12 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
     /**
      * The length of values for this type if all values are of fixed length, -1 otherwise. This has an impact on
      * serialization.
-     * <lu>
+     * <ul>
      *  <li> see {@link #writeValue} </li>
      *  <li> see {@link #read} </li>
      *  <li> see {@link #writtenLength} </li>
      *  <li> see {@link #skipValue} </li>
-     * </lu>
+     * </ul>
      */
     public int valueLengthIfFixed()
     {
@@ -506,7 +506,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
      * Defines if the type allows an empty set of bytes ({@code new byte[0]}) as valid input.  The {@link #validate(Object, ValueAccessor)}
      * and {@link #compose(Object, ValueAccessor)} methods must allow empty bytes when this returns true, and must reject empty bytes
      * when this is false.
-     * <p/>
+     * <p>
      * As of this writing, the main user of this API is for testing to know what types allow empty values and what types don't,
      * so that the data that gets generated understands when {@link ByteBufferUtil#EMPTY_BYTE_BUFFER} is allowed as valid data.
      */

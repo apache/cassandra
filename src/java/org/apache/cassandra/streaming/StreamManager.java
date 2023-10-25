@@ -79,7 +79,7 @@ public class StreamManager implements StreamManagerMBean
      * Get streaming rate limiter for entire SSTable operations.
      * When {@code entire_sstable_stream_throughput_outbound}
      * is less than or equal ot {@code 0}, this returns rate limiter with the
-     * rate of {@link Double.MAX_VALUE} bytes per second.
+     * rate of {@link Double#MAX_VALUE} bytes per second.
      * Rate unit is bytes per sec.
      *
      * @param peer the peer location

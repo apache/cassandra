@@ -49,8 +49,8 @@ public class Overlaps
      *                         and the items are non-empty.
      * @param startsAfter      Predicate determining if its left argument's start if fully after the right argument's end.
      *                         This will only be used with arguments where left's start is known to be after right's start.
-     *                         It is up to the caller if this is a strict comparison -- strict (>) for end-inclusive spans
-     *                         and non-strict (>=) for end-exclusive.
+     *                         It is up to the caller if this is a strict comparison -- strict ({@code >}) for end-inclusive spans
+     *                         and non-strict ({@code >=}) for end-exclusive.
      * @param startsComparator Comparator of items' starting positions.
      * @param endsComparator   Comparator of items' ending positions.
      * @return List of overlap sets.

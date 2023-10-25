@@ -85,7 +85,7 @@ public abstract class TrieNode
     abstract public int payloadPosition(ByteBuffer src, int position);
 
     /**
-     * Returns search index for the given byte in the node. If exact match is present, this is >= 0, otherwise as in
+     * Returns search index for the given byte in the node. If exact match is present, this is {@code >= 0}, otherwise as in
      * binary search.
      */
     abstract public int search(ByteBuffer src, int position, int transitionByte);       // returns as binarySearch
@@ -99,7 +99,7 @@ public abstract class TrieNode
      * Returns the byte value for this child index, or Integer.MAX_VALUE if there are no transitions with this index or
      * higher to permit listing the children without needing to call transitionRange.
      *
-     * @param childIndex must be >= 0, though it is allowed to pass a value greater than {@code transitionRange - 1}
+     * @param childIndex must be {@code >= 0}, though it is allowed to pass a value greater than {@code transitionRange - 1}
      */
     abstract public int transitionByte(ByteBuffer src, int position, int childIndex);
 
@@ -119,8 +119,8 @@ public abstract class TrieNode
      * base for any offset calculations.
      *
      * @param positionLong although it seems to be obvious, this argument must be "real", that is, each child must have
-     *                     the calculated absolute position >= 0, otherwise the behaviour of this method is undefined
-     * @param childIndex   must be >= 0 and < {@link #transitionRange(ByteBuffer, int)} - note that this is not validated
+     *                     the calculated absolute position {@code >= 0}, otherwise the behaviour of this method is undefined
+     * @param childIndex   must be {@code >= 0} and {@code <} {@link #transitionRange(ByteBuffer, int)} - note that this is not validated
      *                     and behaviour of this method is undefined for values outside of that range
      */
     public long transition(ByteBuffer src, int position, long positionLong, int childIndex)
