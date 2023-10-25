@@ -37,7 +37,6 @@ import org.apache.cassandra.db.DiskBoundaries;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.compaction.UnifiedCompactionStrategy;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Overlaps;
@@ -209,6 +208,7 @@ public class ControllerTest
         options.putIfAbsent(Controller.TARGET_SSTABLE_SIZE_OPTION, FBUtilities.prettyPrintMemory(100 << 20));
         options.put(Controller.MIN_SSTABLE_SIZE_OPTION, "0B");
         options.put(Controller.SSTABLE_GROWTH_OPTION, "0.0");
+        Controller.validateOptions(options);
         Controller controller = Controller.fromOptions(cfs, options);
 
         // Easy ones
@@ -544,25 +544,13 @@ public class ControllerTest
         Controller controller = Controller.fromOptions(cfs, options);
         assertEquals(Controller.DEFAULT_BASE_SHARD_COUNT, controller.baseShardCount);
 
-        String prevKS = keyspaceName;
-        try
-        {
-            keyspaceName = SchemaConstants.SYSTEM_KEYSPACE_NAME;
-            controller = controller.fromOptions(cfs, options);
-            assertEquals(1, controller.baseShardCount);
-        }
-        finally
-        {
-            keyspaceName = prevKS;
-        }
-
         PartitionPosition min = Util.testPartitioner().getMinimumToken().minKeyBound();
         diskBoundaries = new DiskBoundaries(cfs, null, ImmutableList.of(min, min, min), 0, 0);
-        controller = controller.fromOptions(cfs, options);
-        assertEquals(1, controller.baseShardCount);
+        controller = Controller.fromOptions(cfs, options);
+        assertEquals(4, controller.baseShardCount);
 
         diskBoundaries = new DiskBoundaries(cfs, null, ImmutableList.of(min), 0, 0);
-        controller = controller.fromOptions(cfs, options);
+        controller = Controller.fromOptions(cfs, options);
         assertEquals(Controller.DEFAULT_BASE_SHARD_COUNT, controller.baseShardCount);
     }
 }

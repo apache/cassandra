@@ -33,7 +33,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.UnifiedCompactionStrategy;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.utils.Overlaps;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MonotonicClock;
@@ -93,18 +92,20 @@ public class Controller
      * applied as an exponent in the number of split points. In other words, the given value applies as a negative
      * exponent in the calculation of the number of split points.
      * <p>
-     * Using 0 (the default) applies no correction to the number of split points, resulting in SSTables close to the
+     * Using 0 applies no correction to the number of split points, resulting in SSTables close to the
      * target size. Setting this number to 1 will make UCS never split beyong the base shard count. Using 0.5 will
      * make the number of split points a square root of the required number for the target SSTable size, making
-     * the number of split points and the size of SSTables grow in lockstep as the density grows.
+     * the number of split points and the size of SSTables grow in lockstep as the density grows. Using
+     * 0.333 (the default) makes the sstable growth the cubic root of the density growth, i.e. the sstable size
+     * grows with the square root of the growth of the shard count.
      * <p>
      * For example, given a data size of 1TiB on the top density level and 1GiB target size with base shard count of 1,
-     * growth 0 would result in 1024 SSTables of ~1GiB each, 0.5 would yield 32 SSTables of ~32GiB each, and 1 would
-     * yield 1 SSTable of 1TiB.
+     * growth 0 would result in 1024 SSTables of ~1GiB each, 0.333 would result in 128 SSTables of ~8 GiB each,
+     * 0.5 would yield 32 SSTables of ~32GiB each, and 1 would yield 1 SSTable of 1TiB.
      * <p>
      * Note that this correction only applies after the base shard count is reached, so for the above example with
-     * base count of 4, the number of SSTables will be 4 (~256GiB each) for a growth value of 1, and 64 (~16GiB each)
-     * for 0.5.
+     * base count of 4, the number of SSTables will be 4 (~256GiB each) for a growth value of 1, 128 (~8GiB each) for
+     * a growth value of 0.333, and 64 (~16GiB each) for a growth value of 0.5.
      */
     static final String SSTABLE_GROWTH_OPTION = "sstable_growth";
     private static final double DEFAULT_SSTABLE_GROWTH = CassandraRelevantProperties.UCS_SSTABLE_GROWTH.getDouble();
@@ -274,7 +275,7 @@ public class Controller
                 // Make it a power of two, rounding down so that sstables are greater in size than the min.
                 // Setting the bottom bit to 1 ensures the result is at least 1.
                 // If baseShardCount is not a power of 2, split only to powers of two that are divisors of baseShardCount so boundaries match higher levels
-                shards = Math.min(Integer.highestOneBit((int) count | 1), 1 << Integer.numberOfTrailingZeros(baseShardCount));
+                shards = Math.min(Integer.highestOneBit((int) count | 1), baseShardCount & -baseShardCount);
                 if (logger.isDebugEnabled())
                     logger.debug("Shard count {} for density {}, {} times min size {}",
                                  shards,
@@ -424,11 +425,7 @@ public class Controller
         }
         else
         {
-            if (SchemaConstants.isSystemKeyspace(cfs.getKeyspaceName())
-                || (cfs.getDiskBoundaries().positions != null && cfs.getDiskBoundaries().positions.size() > 1))
-                baseShardCount = 1;
-            else
-                baseShardCount = DEFAULT_BASE_SHARD_COUNT;
+            baseShardCount = DEFAULT_BASE_SHARD_COUNT;
         }
 
         long targetSStableSize = options.containsKey(TARGET_SSTABLE_SIZE_OPTION)
@@ -599,7 +596,7 @@ public class Controller
             try
             {
                 long sizeInBytes = FBUtilities.parseHumanReadableBytes(s);
-                if (sizeInBytes <= 0)
+                if (sizeInBytes < 0)
                     throw new ConfigurationException(String.format("Invalid configuration, %s should be positive: %s",
                                                                    MIN_SSTABLE_SIZE_OPTION,
                                                                    s));
