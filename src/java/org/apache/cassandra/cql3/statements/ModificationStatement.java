@@ -380,7 +380,7 @@ public abstract class ModificationStatement implements CQLStatement.SingleKeyspa
     throws InvalidRequestException
     {
         if (appliesOnlyToStaticColumns() && !restrictions.hasClusteringColumnsRestrictions())
-            return FBUtilities.singleton(CBuilder.STATIC_BUILDER.build(), metadata().comparator);
+            return FBUtilities.singleton(ClusteringBuilder.STATIC_BUILDER.build(), metadata().comparator);
 
         return restrictions.getClusteringColumns(options, state);
     }

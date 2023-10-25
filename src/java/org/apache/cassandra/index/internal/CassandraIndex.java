@@ -106,9 +106,9 @@ public abstract class CassandraIndex implements Index
      * @param path from the base data being indexed
      * @return a clustering prefix to be used to insert into the index table
      */
-    protected abstract <T> CBuilder buildIndexClusteringPrefix(ByteBuffer partitionKey,
-                                                           ClusteringPrefix<T> prefix,
-                                                           CellPath path);
+    protected abstract <T> ClusteringBuilder buildIndexClusteringPrefix(ByteBuffer partitionKey,
+                                                                        ClusteringPrefix<T> prefix,
+                                                                        CellPath path);
 
     /**
      * Used at search time to convert a row in the index table into a simple struct containing the values required

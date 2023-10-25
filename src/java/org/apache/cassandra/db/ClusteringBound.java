@@ -111,7 +111,7 @@ public interface ClusteringBound<V> extends ClusteringBoundOrBoundary<V>
 
     static ClusteringBound<?> create(ClusteringComparator comparator, boolean isStart, boolean isInclusive, Object... values)
     {
-        CBuilder builder = CBuilder.create(comparator);
+        ClusteringBuilder builder = ClusteringBuilder.create(comparator);
         for (Object val : values)
         {
             if (val instanceof ByteBuffer)

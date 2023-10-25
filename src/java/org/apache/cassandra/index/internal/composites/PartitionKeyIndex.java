@@ -64,11 +64,11 @@ public class PartitionKeyIndex extends CassandraIndex
         return components[indexedColumn.position()];
     }
 
-    public <T> CBuilder buildIndexClusteringPrefix(ByteBuffer partitionKey,
-                                                   ClusteringPrefix<T> prefix,
-                                                   CellPath path)
+    public <T> ClusteringBuilder buildIndexClusteringPrefix(ByteBuffer partitionKey,
+                                                            ClusteringPrefix<T> prefix,
+                                                            CellPath path)
     {
-        CBuilder builder = CBuilder.create(getIndexComparator());
+        ClusteringBuilder builder = ClusteringBuilder.create(getIndexComparator());
         builder.add(partitionKey);
         for (int i = 0; i < prefix.size(); i++)
             builder.add(prefix.get(i), prefix.accessor());
@@ -79,7 +79,7 @@ public class PartitionKeyIndex extends CassandraIndex
     {
         int ckCount = baseCfs.metadata().clusteringColumns().size();
         Clustering<?> clustering = indexEntry.clustering();
-        CBuilder builder = CBuilder.create(baseCfs.getComparator());
+        ClusteringBuilder builder = ClusteringBuilder.create(baseCfs.getComparator());
         for (int i = 0; i < ckCount; i++)
             builder.add(clustering, i + 1);
 

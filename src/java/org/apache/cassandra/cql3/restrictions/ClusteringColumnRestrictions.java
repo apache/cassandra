@@ -94,7 +94,7 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
 
     public NavigableSet<Clustering<?>> valuesAsClustering(QueryOptions options, ClientState state) throws InvalidRequestException
     {
-        MultiCBuilder builder = MultiCBuilder.create(comparator);
+        MultiClusteringBuilder builder = MultiClusteringBuilder.create(comparator);
         for (SingleRestriction r : restrictions)
         {
             r.appendTo(builder, options);
@@ -110,7 +110,7 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
 
     public NavigableSet<ClusteringBound<?>> boundsAsClustering(Bound bound, QueryOptions options) throws InvalidRequestException
     {
-        MultiCBuilder builder = MultiCBuilder.create(comparator);
+        MultiClusteringBuilder builder = MultiClusteringBuilder.create(comparator);
         int keyPosition = 0;
 
         for (SingleRestriction r : restrictions)

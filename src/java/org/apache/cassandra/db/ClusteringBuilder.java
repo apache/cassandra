@@ -28,9 +28,9 @@ import org.apache.cassandra.db.marshal.ValueAccessor;
 /**
  * Allows to build ClusteringPrefixes, either Clustering or ClusteringBound.
  */
-public abstract class CBuilder
+public abstract class ClusteringBuilder
 {
-    public static CBuilder STATIC_BUILDER = new CBuilder()
+    public static ClusteringBuilder STATIC_BUILDER = new ClusteringBuilder()
     {
         public int count()
         {
@@ -47,12 +47,12 @@ public abstract class CBuilder
             throw new UnsupportedOperationException();
         }
 
-        public <T> CBuilder add(T value, ValueAccessor<T> accessor)
+        public <T> ClusteringBuilder add(T value, ValueAccessor<T> accessor)
         {
             throw new UnsupportedOperationException();
         }
 
-        public CBuilder add(Object value)
+        public ClusteringBuilder add(Object value)
         {
             throw new UnsupportedOperationException();
         }
@@ -78,7 +78,7 @@ public abstract class CBuilder
         }
     };
 
-    public static CBuilder create(ClusteringComparator comparator)
+    public static ClusteringBuilder create(ClusteringComparator comparator)
     {
         return new ArrayBackedBuilder(comparator);
     }
@@ -86,22 +86,22 @@ public abstract class CBuilder
     public abstract int count();
     public abstract int remainingCount();
     public abstract ClusteringComparator comparator();
-    public final CBuilder add(ByteBuffer value)
+    public final ClusteringBuilder add(ByteBuffer value)
     {
         return add(value, ByteBufferAccessor.instance);
     }
-    public final <V> CBuilder add(ClusteringPrefix<V> prefix, int i)
+    public final <V> ClusteringBuilder add(ClusteringPrefix<V> prefix, int i)
     {
         return add(prefix.get(i), prefix.accessor());
     }
-    public abstract <V> CBuilder add(V value, ValueAccessor<V> accessor);
-    public abstract CBuilder add(Object value);
+    public abstract <V> ClusteringBuilder add(V value, ValueAccessor<V> accessor);
+    public abstract ClusteringBuilder add(Object value);
     public abstract Clustering<?> build();
     public abstract ClusteringBound<?> buildBound(boolean isStart, boolean isInclusive);
     public abstract Clustering<?> buildWith(List<ByteBuffer> newValues);
     public abstract ClusteringBound<?> buildBoundWith(List<ByteBuffer> newValues, boolean isStart, boolean isInclusive);
 
-    private static class ArrayBackedBuilder extends CBuilder
+    private static class ArrayBackedBuilder extends ClusteringBuilder
     {
         private final ClusteringComparator type;
         private final ByteBuffer[] values;
@@ -129,7 +129,7 @@ public abstract class CBuilder
             return type;
         }
 
-        public <V> CBuilder add(V value, ValueAccessor<V> accessor)
+        public <V> ClusteringBuilder add(V value, ValueAccessor<V> accessor)
         {
             if (isDone())
                 throw new IllegalStateException();
@@ -137,7 +137,7 @@ public abstract class CBuilder
             return this;
         }
 
-        public CBuilder add(Object value)
+        public ClusteringBuilder add(Object value)
         {
             return add(((AbstractType)type.subtype(size)).decompose(value));
         }

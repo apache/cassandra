@@ -121,7 +121,7 @@ public class ClusteringComparator implements Comparator<Clusterable>
         if (values.length != size())
             throw new IllegalArgumentException(String.format("Invalid number of components, expecting %d but got %d", size(), values.length));
 
-        CBuilder builder = CBuilder.create(this);
+        ClusteringBuilder builder = ClusteringBuilder.create(this);
         for (Object val : values)
         {
             if (val instanceof ByteBuffer)
