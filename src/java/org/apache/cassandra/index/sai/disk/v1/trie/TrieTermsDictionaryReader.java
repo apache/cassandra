@@ -95,6 +95,45 @@ public class TrieTermsDictionaryReader extends Walker<TrieTermsDictionaryReader>
         return getCurrentPayload();
     }
 
+    /**
+     * Returns the position associated with the least term greater than or equal to the given key, or
+     * a negative value if there is no such term.
+     * @param key the prefix to traverse in the trie
+     * @return a position, if found, or a negative value if there is no such position
+     */
+    public long ceiling(ByteComparable key)
+    {
+        int b = followWithGreater(key);
+        // We use initialResult to save a call to getCurrentPayload(). This happens when the current node
+        // is equal to the key we're looking for.
+        long initialResult;
+        if (b != ByteSource.END_OF_STREAM || (initialResult = getCurrentPayload()) == NOT_FOUND)
+        {
+            if (greaterBranch == -1)
+                return NOT_FOUND;
+            goMin(greaterBranch);
+            return getCurrentPayload();
+        }
+        return initialResult;
+    }
+
+    /**
+     * Returns the position associated with the greatest term less than or equal to the given key, or
+     * a negative value if there is no such term.
+     * @param key the prefix to traverse in the trie
+     * @return a position, if found, or a negative value if there is no such position
+     */
+    public long floor(ByteComparable key)
+    {
+        Long result = prefixAndNeighbours(key, TrieTermsDictionaryReader::getPayload);
+        if (result != null && result != NOT_FOUND)
+            return result;
+        if (lesserBranch == -1)
+            return NOT_FOUND;
+        goMax(lesserBranch);
+        return getCurrentPayload();
+    }
+
     public Iterator<Pair<ByteComparable, Long>> iterator()
     {
         return new AbstractIterator<Pair<ByteComparable, Long>>()
@@ -198,7 +237,12 @@ public class TrieTermsDictionaryReader extends Walker<TrieTermsDictionaryReader>
 
     private long getCurrentPayload()
     {
-        return getPayload(buf, payloadPosition(), payloadFlags());
+        return getPayload(payloadPosition(), payloadFlags());
+    }
+
+    private long getPayload(int payloadPos, int bits)
+    {
+        return getPayload(buf, payloadPos, bits);
     }
 
     private long getPayload(ByteBuffer contents, int payloadPos, int bytes)

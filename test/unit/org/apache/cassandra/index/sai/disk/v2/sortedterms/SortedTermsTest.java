@@ -141,7 +141,7 @@ public class SortedTermsTest extends SaiRandomizedTest
         writeTerms(descriptor, terms);
 
         // iterate on terms ascending
-        withSortedTermsReader(descriptor, reader ->
+        withSortedTermsCursor(descriptor, reader ->
         {
             for (int x = 0; x < terms.size(); x++)
             {
@@ -151,7 +151,7 @@ public class SortedTermsTest extends SaiRandomizedTest
         });
 
         // iterate on terms descending
-        withSortedTermsReader(descriptor, reader ->
+        withSortedTermsCursor(descriptor, reader ->
         {
             for (int x = terms.size() - 1; x >= 0; x--)
             {
@@ -161,7 +161,7 @@ public class SortedTermsTest extends SaiRandomizedTest
         });
 
         // iterate randomly
-        withSortedTermsReader(descriptor, reader ->
+        withSortedTermsCursor(descriptor, reader ->
         {
             for (int x = 0; x < terms.size(); x++)
             {
@@ -185,7 +185,7 @@ public class SortedTermsTest extends SaiRandomizedTest
 
         var countEndOfData = new AtomicInteger();
         // iterate on terms ascending
-        withSortedTermsReader(descriptor, reader ->
+        withSortedTermsCursor(descriptor, reader ->
         {
             for (int x = 0; x < termsMaxPrefixNoMatch.size(); x++)
             {
@@ -215,7 +215,7 @@ public class SortedTermsTest extends SaiRandomizedTest
         writeTerms(descriptor, termsMinPrefix, termsMaxPrefix, valuesPerPrefix, true);
 
         // iterate on terms ascending
-        withSortedTermsReader(descriptor, reader ->
+        withSortedTermsCursor(descriptor, reader ->
         {
             for (int x = 0; x < termsMaxPrefix.size(); x++)
             {
@@ -417,8 +417,8 @@ public class SortedTermsTest extends SaiRandomizedTest
         void accept(T t) throws IOException;
     }
 
-    private void withSortedTermsReader(IndexDescriptor indexDescriptor,
-                                       ThrowingConsumer<SortedTermsReader> testCode) throws IOException
+    private void withSortedTermsCursor(IndexDescriptor indexDescriptor,
+                                       ThrowingConsumer<SortedTermsReader.Cursor> testCode) throws IOException
     {
         MetadataSource metadataSource = MetadataSource.loadGroupMetadata(indexDescriptor);
         NumericValuesMeta blockPointersMeta = new NumericValuesMeta(metadataSource.get(indexDescriptor.componentName(IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS)));
@@ -428,20 +428,11 @@ public class SortedTermsTest extends SaiRandomizedTest
              FileHandle blockOffsets = indexDescriptor.createPerSSTableFileHandle(IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS))
         {
             SortedTermsReader reader = new SortedTermsReader(termsData, blockOffsets, trieHandle, sortedTermsMeta, blockPointersMeta);
-            testCode.accept(reader);
-        }
-    }
-
-    private void withSortedTermsCursor(IndexDescriptor descriptor,
-                                       ThrowingConsumer<SortedTermsReader.Cursor> testCode) throws IOException
-    {
-        withSortedTermsReader(descriptor, reader ->
-        {
             try (SortedTermsReader.Cursor cursor = reader.openCursor())
             {
                 testCode.accept(cursor);
             }
-        });
+        }
     }
 
     private boolean validateComponent(IndexDescriptor indexDescriptor, IndexComponent indexComponent, boolean checksum)
