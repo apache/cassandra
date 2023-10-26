@@ -233,7 +233,7 @@ public abstract class RepairMessage
                 }
                 else
                 {
-                    noSpam.warn("{} Failure for repair verb " + verb + "; could not complete within {} attempts", prefix, attempt);
+                    noSpam.warn("{} {} failure for repair verb " + verb + "; could not complete within {} attempts", prefix, reason, attempt);
                     RepairMetrics.retryFailure(verb);
                 }
             }
