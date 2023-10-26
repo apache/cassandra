@@ -1,4 +1,5 @@
 5.0-alpha2
+ * Fix schema loading of UDTs inside vectors inside UDTs (CASSANDRA-18964)
  * Add cqlsh autocompletion for the vector data type (CASSANDRA-18946)
  * Fix nodetool tablehistograms output to avoid printing repeated information and ensure at most two arguments (CASSANDRA-18955)
  * Change the checksum algorithm SAI-related files use from CRC32 to CRC32C (CASSANDRA-18836)
