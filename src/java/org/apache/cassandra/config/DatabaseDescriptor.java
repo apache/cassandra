@@ -513,21 +513,30 @@ public class DatabaseDescriptor
 
         // Only mmap & Direct-I/O access modes are supported. Standard access mode is preassumed if Compressed or Encrypted segment is used.
         // This ensures default behavior is unchanged.
-        if  (conf.commitlog_disk_access_mode_for_write != Config.DiskAccessMode.mmap
-             && conf.commitlog_disk_access_mode_for_write != Config.DiskAccessMode.direct)
+        if  (conf.commitlog_disk_access_mode != Config.DiskAccessMode.auto
+             && conf.commitlog_disk_access_mode != Config.DiskAccessMode.legacy
+             && conf.commitlog_disk_access_mode != Config.DiskAccessMode.direct)
         {
-            throw new ConfigurationException(String.format("Commitlog access mode '%s' is not supported. Supported modes are '%s' and '%s'", conf.commitlog_disk_access_mode_for_write,
-                                                                              Config.DiskAccessMode.mmap, Config.DiskAccessMode.direct));
-        } else {
-            Config.DiskAccessMode current_disk_access_mode = conf.commitlog_disk_access_mode_for_write;
+            throw new ConfigurationException(String.format("Commitlog access mode '%s' is not supported. Supported modes are '%s', '%s' and '%s'",
+                                                            conf.commitlog_disk_access_mode, Config.DiskAccessMode.auto,
+                                                            Config.DiskAccessMode.legacy, Config.DiskAccessMode.direct));
+        }
+        else
+        {
+            Config.DiskAccessMode current_disk_access_mode = conf.commitlog_disk_access_mode;
+
+            if (current_disk_access_mode == Config.DiskAccessMode.auto)
+            {
+                current_disk_access_mode = conf.disk_optimization_strategy == Config.DiskOptimizationStrategy.ssd ? Config.DiskAccessMode.direct
+                                                                                                                    : Config.DiskAccessMode.legacy;
+                // This is necessary for other functions to get the new mode determined through auto.
+                conf.commitlog_disk_access_mode = current_disk_access_mode;
+                logger.info("DiskAccessMode 'auto' determined to be '{}' for Commitlog disk", current_disk_access_mode);
+            }
 
             if (getCommitLogCompression() != null || (getEncryptionContext() != null && getEncryptionContext().isEnabled()))
             {
-                if (current_disk_access_mode == Config.DiskAccessMode.mmap)
-                {
-                    current_disk_access_mode = Config.DiskAccessMode.standard;
-                }
-                else if (current_disk_access_mode == Config.DiskAccessMode.direct)
+                if (current_disk_access_mode == Config.DiskAccessMode.direct)
                 {
                     // Compressed and Encrypted segments are not yet supported with Direct-I/O feature.
                     throw new ConfigurationException("Direct I/O does not support Compressed or Encrypted segment yet.");
@@ -549,6 +558,10 @@ public class DatabaseDescriptor
             conf.disk_access_mode = Config.DiskAccessMode.standard;
             indexAccessMode = Config.DiskAccessMode.mmap;
             logger.info("DiskAccessMode is {}, indexAccessMode is {}", conf.disk_access_mode, indexAccessMode);
+        }
+        else if (conf.disk_access_mode == Config.DiskAccessMode.direct || conf.disk_access_mode == Config.DiskAccessMode.legacy)
+        {
+            throw new ConfigurationException(String.format("DiskAccessMode '%s' and '%s' are not supported", Config.DiskAccessMode.direct, Config.DiskAccessMode.legacy));
         }
         else
         {
@@ -2673,7 +2686,7 @@ public class DatabaseDescriptor
      */
     public static Config.DiskAccessMode getCommitLogDiskAccessMode()
     {
-        return conf.commitlog_disk_access_mode_for_write;
+        return conf.commitlog_disk_access_mode;
     }
 
     public static boolean isCommitLogUsingDirectIO()
@@ -2683,7 +2696,7 @@ public class DatabaseDescriptor
 
     public static void setCommitLogDiskAccessMode(Config.DiskAccessMode new_mode)
     {
-        conf.commitlog_disk_access_mode_for_write = new_mode;
+        conf.commitlog_disk_access_mode = new_mode;
     }
 
     public static String getSavedCachesLocation()

@@ -82,8 +82,8 @@ public class DirectIOSegment extends CommitLogSegment
         ByteBuffer alignedBuffer = original.alignedSlice(minimumAllowedAlign);
         assert alignedBuffer.limit() >= segmentSize : String.format("Bytebuffer slicing failed to get required buffer size (required=%d,current size=%d", segmentSize, alignedBuffer.limit());
 
-        assert alignedBuffer.alignmentOffset(0, minimumAllowedAlign) == 0 : "Index 0 should be aligned to 4K page size";
-        assert alignedBuffer.alignmentOffset(alignedBuffer.limit(), minimumAllowedAlign) == 0 : "Limit should be aligned to 4K page size" ;
+        assert alignedBuffer.alignmentOffset(0, minimumAllowedAlign) == 0 : String.format("Index 0 should be aligned to %d page size.", minimumAllowedAlign);
+        assert alignedBuffer.alignmentOffset(alignedBuffer.limit(), minimumAllowedAlign) == 0 : String.format("Limit should be aligned to %d page size", minimumAllowedAlign);
 
         return alignedBuffer;
     }
@@ -116,7 +116,7 @@ public class DirectIOSegment extends CommitLogSegment
             ByteBuffer duplicate = buffer.duplicate();
 
             // Aligned file position if not aligned to start of 4K page.
-            if (filePosition % minimumAllowedAlign != 0 )
+            if (filePosition % minimumAllowedAlign != 0)
             {
                 filePosition = filePosition & ~(minimumAllowedAlign -1);
                 channel.position(filePosition);
@@ -126,7 +126,7 @@ public class DirectIOSegment extends CommitLogSegment
             int flushSizeInBytes = nextMarker;
 
             // Align last byte to end of 4K page.
-            if (flushSizeInBytes % minimumAllowedAlign !=0)
+            if (flushSizeInBytes % minimumAllowedAlign != 0)
                 flushSizeInBytes = (flushSizeInBytes + minimumAllowedAlign) & ~(minimumAllowedAlign -1);
 
             duplicate.limit(flushSizeInBytes);
@@ -136,7 +136,8 @@ public class DirectIOSegment extends CommitLogSegment
             // Direct I/O always writes flushes in block size and writes more than the flush size.
             // File size on disk will always multiple of page size and taking this into account
             // helps testcases to pass.
-            if (flushSizeInBytes > lastWritten) {
+            if (flushSizeInBytes > lastWritten)
+            {
                 manager.addSize(flushSizeInBytes - lastWritten);
                 lastWritten = flushSizeInBytes;
             }
