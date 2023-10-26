@@ -3,6 +3,7 @@
  * Revert CASSANDRA-18543 (CASSANDRA-18854)
  * Fix NPE when using udfContext in UDF after a restart of a node (CASSANDRA-18739)
 Merged from 3.0:
+ * Suppress CVE-2023-44487 (CASSANDRA-18943)
  * Fix nodetool enable/disablebinary to correctly set rpc readiness in gossip (CASSANDRA-18935)
  * Implement the logic in bin/stop-server (CASSANDRA-18838) 
  * Upgrade snappy-java to 1.1.10.4 (CASSANDRA-18878)
