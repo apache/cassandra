@@ -631,9 +631,6 @@ If the `enabled` option is set to `false`, no other options must be specified.
 | `chunk_length_in_kb` | 64 | On disk SSTables are compressed by block (to allow random reads).
 This option defines the size (in KB) of said block. See xref:cassandra:developing/cql/ddl.adoc#chunk_note[note] for further information.
 
-| `crc_check_chance` | 1.0 | Determines how likely Cassandra is to verify the checksum on each
-compression chunk during reads.
-
 | `compression_level` | 3 | Compression level. Only applicable for `ZstdCompressor`.
 Accepts values between `-131072` and `22`.
 |===
