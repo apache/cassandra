@@ -119,14 +119,16 @@ public class JMXCompatabilityTest extends CQLTester
                                                    ".*keyspace=system,(scope|table|columnfamily)=hints.*",
                                                    ".*keyspace=system,(scope|table|columnfamily)=batchlog.*");
         List<String> excludeAttributes = newArrayList("RPCServerRunning", // removed in CASSANDRA-11115
-                                                      "MaxNativeProtocolVersion");
+                                                      "MaxNativeProtocolVersion",
+                                                      "HostIdMap"); // removed in CASSANDRA-18938
         List<String> excludeOperations = newArrayList("startRPCServer", "stopRPCServer", // removed in CASSANDRA-11115
                                                       // nodetool apis that were changed,
                                                       "decommission", // -> decommission(boolean)
                                                       "forceRepairAsync", // -> repairAsync
                                                       "forceRepairRangeAsync", // -> repairAsync
                                                       "beginLocalSampling", // -> beginLocalSampling(p1: java.lang.String, p2: int, p3: int): void
-                                                      "finishLocalSampling" // -> finishLocalSampling(p1: java.lang.String, p2: int): java.util.List
+                                                      "finishLocalSampling", // -> finishLocalSampling(p1: java.lang.String, p2: int): java.util.List
+                                                      "scrub" // removed in CASSANDRA-18938
         );
 
         if (BtiFormat.isSelected())
@@ -157,14 +159,16 @@ public class JMXCompatabilityTest extends CQLTester
         );
         List<String> excludeAttributes = newArrayList("RPCServerRunning", // removed in CASSANDRA-11115
                                                       "MaxNativeProtocolVersion",
-                                                      "StreamingSocketTimeout");
+                                                      "StreamingSocketTimeout",
+                                                      "HostIdMap"); // removed in CASSANDRA-18938;
         List<String> excludeOperations = newArrayList("startRPCServer", "stopRPCServer", // removed in CASSANDRA-11115
                                                       // nodetool apis that were changed,
                                                       "decommission", // -> decommission(boolean)
                                                       "forceRepairAsync", // -> repairAsync
                                                       "forceRepairRangeAsync", // -> repairAsync
                                                       "beginLocalSampling", // -> beginLocalSampling(p1: java.lang.String, p2: int, p3: int): void
-                                                      "finishLocalSampling" // -> finishLocalSampling(p1: java.lang.String, p2: int): java.util.List
+                                                      "finishLocalSampling", // -> finishLocalSampling(p1: java.lang.String, p2: int): java.util.List
+                                                      "scrub" // removed in CASSANDRA-18938
         );
 
         if (BtiFormat.isSelected())
@@ -181,8 +185,8 @@ public class JMXCompatabilityTest extends CQLTester
     {
         List<String> excludeObjects = newArrayList("org.apache.cassandra.metrics:type=BufferPool,name=(Misses|Size)" // removed in CASSANDRA-18313
                 );
-        List<String> excludeAttributes = newArrayList();
-        List<String> excludeOperations = newArrayList();
+        List<String> excludeAttributes = newArrayList("HostIdMap"); // removed in CASSANDRA-18938
+        List<String> excludeOperations = newArrayList("scrub"); // removed in CASSANDRA-18938
 
         if (BtiFormat.isSelected())
         {
@@ -198,8 +202,8 @@ public class JMXCompatabilityTest extends CQLTester
     {
         List<String> excludeObjects = newArrayList("org.apache.cassandra.metrics:type=BufferPool,name=(Misses|Size)" // removed in CASSANDRA-18313
         );
-        List<String> excludeAttributes = newArrayList();
-        List<String> excludeOperations = newArrayList();
+        List<String> excludeAttributes = newArrayList("HostIdMap"); // removed in CASSANDRA-18938
+        List<String> excludeOperations = newArrayList("scrub"); // removed in CASSANDRA-18938
 
         if (BtiFormat.isSelected())
         {
