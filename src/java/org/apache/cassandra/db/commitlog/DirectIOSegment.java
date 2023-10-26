@@ -36,7 +36,7 @@ public class DirectIOSegment extends CommitLogSegment
     static int minimumAllowedAlign;
 
     // Needed to track number of bytes written to disk in multiple of page size.
-    int lastWritten = 0;
+    long lastWritten = 0;
 
     /**
      * Constructs a new segment file.
@@ -76,11 +76,11 @@ public class DirectIOSegment extends CommitLogSegment
             }
         }
 
-        int cl_size = DatabaseDescriptor.getCommitLogSegmentSize();
-        original = ByteBuffer.allocateDirect(cl_size + minimumAllowedAlign);
+        int segmentSize = DatabaseDescriptor.getCommitLogSegmentSize();
+        original = ByteBuffer.allocateDirect(segmentSize + minimumAllowedAlign);
 
         ByteBuffer alignedBuffer = original.alignedSlice(minimumAllowedAlign);
-        assert alignedBuffer.limit() >= cl_size : String.format("Bytebuffer slicing failed to get required buffer size (required=%d,current size=%d", cl_size, alignedBuffer.limit());
+        assert alignedBuffer.limit() >= segmentSize : String.format("Bytebuffer slicing failed to get required buffer size (required=%d,current size=%d", segmentSize, alignedBuffer.limit());
 
         assert alignedBuffer.alignmentOffset(0, minimumAllowedAlign) == 0 : "Index 0 should be aligned to 4K page size";
         assert alignedBuffer.alignmentOffset(alignedBuffer.limit(), minimumAllowedAlign) == 0 : "Limit should be aligned to 4K page size" ;
@@ -112,9 +112,8 @@ public class DirectIOSegment extends CommitLogSegment
         {
             // lastSyncedOffset is synced to disk. Align lastSyncedOffset to start of 4K page
             // and nextMarker to end of 4K page to avoid write errors.
-            long filePosition = lastSyncedOffset;
+            int filePosition = lastSyncedOffset;
             ByteBuffer duplicate = buffer.duplicate();
-            long file_old_position = channel.position();
 
             // Aligned file position if not aligned to start of 4K page.
             if (filePosition % minimumAllowedAlign != 0 )
@@ -122,7 +121,7 @@ public class DirectIOSegment extends CommitLogSegment
                 filePosition = filePosition & ~(minimumAllowedAlign -1);
                 channel.position(filePosition);
             }
-            duplicate.position((int)filePosition);
+            duplicate.position(filePosition);
 
             int flushSizeInBytes = nextMarker;
 
@@ -139,7 +138,7 @@ public class DirectIOSegment extends CommitLogSegment
             // helps testcases to pass.
             if (flushSizeInBytes > lastWritten) {
                 manager.addSize(flushSizeInBytes - lastWritten);
-                lastWritten = (int)flushSizeInBytes;
+                lastWritten = flushSizeInBytes;
             }
         }
         catch (IOException e)
@@ -151,7 +150,7 @@ public class DirectIOSegment extends CommitLogSegment
     @Override
     public long onDiskSize()
     {
-        return lastWritten ;
+        return lastWritten;
     }
 
     @Override

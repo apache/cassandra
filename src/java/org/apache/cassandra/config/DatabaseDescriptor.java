@@ -511,6 +511,32 @@ public class DatabaseDescriptor
             logger.debug("Syncing log with a period of {}", conf.commitlog_sync_period.toString());
         }
 
+        // Only mmap & Direct-I/O access modes are supported. Standard access mode is preassumed if Compressed or Encrypted segment is used.
+        // This ensures default behavior is unchanged.
+        if  (conf.commitlog_disk_access_mode_for_write != Config.DiskAccessMode.mmap
+             && conf.commitlog_disk_access_mode_for_write != Config.DiskAccessMode.direct)
+        {
+            throw new ConfigurationException(String.format("Commitlog access mode '%s' is not supported. Supported modes are '%s' and '%s'", conf.commitlog_disk_access_mode_for_write,
+                                                                              Config.DiskAccessMode.mmap, Config.DiskAccessMode.direct));
+        } else {
+            Config.DiskAccessMode current_disk_access_mode = conf.commitlog_disk_access_mode_for_write;
+
+            if (getCommitLogCompression() != null || (getEncryptionContext() != null && getEncryptionContext().isEnabled()))
+            {
+                if (current_disk_access_mode == Config.DiskAccessMode.mmap)
+                {
+                    current_disk_access_mode = Config.DiskAccessMode.standard;
+                }
+                else if (current_disk_access_mode == Config.DiskAccessMode.direct)
+                {
+                    // Compressed and Encrypted segments are not yet supported with Direct-I/O feature.
+                    throw new ConfigurationException("Direct I/O does not support Compressed or Encrypted segment yet.");
+                }
+            }
+
+            logger.info("Commitlog disk using '{}' access mode for write and '{}' mode for replay.", current_disk_access_mode, Config.DiskAccessMode.standard);
+        }
+
         /* evaluate the DiskAccessMode Config directive, which also affects indexAccessMode selection */
         if (conf.disk_access_mode == Config.DiskAccessMode.auto)
         {
@@ -2652,19 +2678,19 @@ public class DatabaseDescriptor
     /**
      * Return commitlog disk access mode.
      */
-    public static Config.CommitLogDiskAccessMode getCommitLogDiskAccessMode()
+    public static Config.DiskAccessMode getCommitLogDiskAccessMode()
     {
-        return conf.commitlog_disk_access_mode;
+        return conf.commitlog_disk_access_mode_for_write;
     }
 
     public static boolean isCommitLogUsingDirectIO()
     {
-        return getCommitLogDiskAccessMode() == Config.CommitLogDiskAccessMode.direct_io;
+        return getCommitLogDiskAccessMode() == Config.DiskAccessMode.direct;
     }
 
-    public static void setCommitLogDiskAccessMode(Config.CommitLogDiskAccessMode new_mode)
+    public static void setCommitLogDiskAccessMode(Config.DiskAccessMode new_mode)
     {
-        conf.commitlog_disk_access_mode = new_mode;
+        conf.commitlog_disk_access_mode_for_write = new_mode;
     }
 
     public static String getSavedCachesLocation()

@@ -589,9 +589,14 @@ commitlog_segment_size: 32MiB
 #     parameters:
 #         -
 
-# Configure commitlog disk access mode preferred order:direct_io, mmap, standard.
-# Default access mode is mmap. Direct I/O uses minimum page size to flush to disk.
-commitlog_disk_access_mode : mmap
+# CommitLog segments can use mmap (default) and direct (new) I/O modes to flush
+# the data to disk. Direct I/O is a new feature that minimizes cache effects by
+# using user space buffers. This helps in transferring data from/to disk at high
+# speed. Java enabled support for Direct-I/O feature from version 10 onwards.
+#   Refer: https://bugs.openjdk.org/browse/JDK-8164900
+# Direct-I/O is not enabled yet for compressed and encrypted based segments and
+# for replay (reading) commitlog files.
+commitlog_disk_access_mode_for_write: mmap
 
 # Compression to apply to SSTables as they flush for compressed tables.
 # Note that tables without compression enabled do not respect this flag.
