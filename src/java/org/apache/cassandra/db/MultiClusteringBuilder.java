@@ -118,9 +118,9 @@ public class MultiClusteringBuilder
             POINT, INCL_START, EXCL_START, INCL_END, EXCL_END
         }
 
-        public static ClusteringElements BOTTOM = new ClusteringElements(Collections.emptyList(), Kind.INCL_START);
-        public static ClusteringElements TOP = new ClusteringElements(Collections.emptyList(), Kind.INCL_END);
-        public static ClusteringElements ROOT = new ClusteringElements(Collections.emptyList(), Kind.POINT);
+        public static final ClusteringElements BOTTOM = new ClusteringElements(Collections.emptyList(), Kind.INCL_START);
+        public static final ClusteringElements TOP = new ClusteringElements(Collections.emptyList(), Kind.INCL_END);
+        public static final ClusteringElements ROOT = new ClusteringElements(Collections.emptyList(), Kind.POINT);
 
         final List<ByteBuffer> values;
         final Kind kind;
