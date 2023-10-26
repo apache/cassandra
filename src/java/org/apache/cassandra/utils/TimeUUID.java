@@ -51,6 +51,34 @@ import static org.apache.cassandra.utils.ByteBufferUtil.EMPTY_BYTE_BUFFER;
 import static org.apache.cassandra.utils.Clock.Global.currentTimeMillis;
 import static org.apache.cassandra.utils.Shared.Recursive.INTERFACES;
 
+/**
+ * UUID with Timestamp as a major component.
+ *
+ * A TimeUUID is a 16 bytes, pseudo-unique value, typically represented as a pari of longs: `msb` and `lsb`.
+ * Or rather, to emphasize that the first part is a timestamp, the internal representation is (uuidTimestamp, lsb).
+ *
+ * The uuidTimestamp part is a long, representing tenths of a microsecond (ie 100 nanosecond ticks) since
+ * 00:00:00.000 15 Oct 1582 (UUID_EPOCH_UNIX_MILLIS). The conversion between the msb parts of a UUID and TimeUUID is:
+ *
+ *      UUID = [0][TimeUUID bytes 1-0] [TimeUUID bytes 3-2] [TimeUUID bytes 8-5]
+ *              ^ = first bit of byte 1 is zero for UUID and 1 for TimeUUID.
+ *
+ *  See #msbToRawTimestamp for more details.
+ *
+ *  The `lsb` part consists of a unique 14 bit SecureRandom() sequence, followed by 6 bytes hashed from the IP addresses
+ *  of this node.
+ *
+ *      lsb = [variant, 2 bits][SecureRandom sequence, 14 bits][hash of ip addresses of this node, 6 bytes]
+ *
+ * The first section consists of constructor methods that return TimeUUID values that represent the input parameters.
+ * These are named `at*()` and `from*()`.
+ *
+ * The `Generator` class contains static methods to generate *new* TimeUUID values. These are named `next*()`.
+ *
+ * In other words, the at*() and from*() methods return a TimeUUID object that represents the given parameters, but
+ * calling these methods will not alter the internal state of anything. On the other hand the `next*()` methods will
+ * advance the SecureRandom() "clock" sequence for the purpose of returning a new unique value each time.
+ */
 @Shared(inner = INTERFACES)
 public class TimeUUID implements Serializable, Comparable<TimeUUID>
 {
@@ -79,6 +107,7 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
 
     final long uuidTimestamp, lsb;
 
+    ///// Constructors /////
     public TimeUUID(long uuidTimestamp, long lsb)
     {
         // we don't validate that this is a true TIMEUUID to avoid problems with historical mixing of UUID with TimeUUID
@@ -133,6 +162,7 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
         return new TimeUUID(msbToRawTimestamp(msb), lsb);
     }
 
+    // Serialization methods
     public static TimeUUID deserialize(ByteBuffer buffer)
     {
         return deserialize(buffer, buffer.position());
@@ -156,6 +186,7 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
         out.writeLong(lsb());
     }
 
+    // Return as various data types
     public ByteBuffer toBytes()
     {
         return ByteBuffer.wrap(toBytes(msb(), lsb()));
@@ -200,6 +231,7 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
         return rawTimestampToUnixMicros(uuidTimestamp);
     }
 
+    ///// Return components (msb, lsb) /////
     /**
      * The UUID-format timestamp, i.e. 10x micros-resolution, as of UUIDGen.UUID_EPOCH_UNIX_MILLIS
      * The tenths of a microsecond are used to store a flag value.
@@ -219,6 +251,7 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
         return lsb;
     }
 
+    ///// Conversions between `msb` and verious timestamp formats
     public static long rawTimestampToUnixMicros(long rawTimestamp)
     {
         return (rawTimestamp / 10) + UUID_EPOCH_UNIX_MILLIS * 1000;
@@ -251,6 +284,7 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
                | (rawTimestamp << 32);
     }
 
+    ///// Standard Java Object methods /////
     @Override
     public int hashCode()
     {
@@ -418,7 +452,7 @@ public class TimeUUID implements Serializable, Comparable<TimeUUID>
         }
 
         // needs to return two different values for the same when.
-        // we can generate at most 10k UUIDs per ms.
+        // we can generate at most 10k UUIDs per ms. (1 / 100 ns)
         private static long nextUnixMicros()
         {
             return nextUnixMicros(lastMicros.get());
