@@ -20,6 +20,8 @@ package org.apache.cassandra.io.util;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Supplier;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
@@ -34,24 +36,27 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
 {
     final CompressionMetadata metadata;
     final int maxCompressedLength;
+    final Supplier<Double> crcCheckChanceSupplier;
 
-    protected CompressedChunkReader(ChannelProxy channel, CompressionMetadata metadata)
+    protected CompressedChunkReader(ChannelProxy channel, CompressionMetadata metadata, Supplier<Double> crcCheckChanceSupplier)
     {
         super(channel, metadata.dataLength);
         this.metadata = metadata;
         this.maxCompressedLength = metadata.maxCompressedLength();
+        this.crcCheckChanceSupplier = crcCheckChanceSupplier;
         assert Integer.bitCount(metadata.chunkLength()) == 1; //must be a power of two
     }
 
     @VisibleForTesting
     public double getCrcCheckChance()
     {
-        return metadata.parameters.getCrcCheckChance();
+        return crcCheckChanceSupplier.get();
     }
 
     boolean shouldCheckCrc()
     {
-        return metadata.parameters.shouldCheckCrc();
+        double checkChance = getCrcCheckChance();
+        return checkChance >= 1d || (checkChance > 0d && checkChance > ThreadLocalRandom.current().nextDouble());
     }
 
     @Override
@@ -88,9 +93,9 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
         // we read the raw compressed bytes into this buffer, then uncompressed them into the provided one.
         private final ThreadLocalByteBufferHolder bufferHolder;
 
-        public Standard(ChannelProxy channel, CompressionMetadata metadata)
+        public Standard(ChannelProxy channel, CompressionMetadata metadata, Supplier<Double> crcCheckChanceSupplier)
         {
-            super(channel, metadata);
+            super(channel, metadata, crcCheckChanceSupplier);
             bufferHolder = new ThreadLocalByteBufferHolder(metadata.compressor().preferredBufferType());
         }
 
@@ -172,9 +177,9 @@ public abstract class CompressedChunkReader extends AbstractReaderFileProxy impl
     {
         protected final MmappedRegions regions;
 
-        public Mmap(ChannelProxy channel, CompressionMetadata metadata, MmappedRegions regions)
+        public Mmap(ChannelProxy channel, CompressionMetadata metadata, MmappedRegions regions, Supplier<Double> crcCheckChanceSupplier)
         {
-            super(channel, metadata);
+            super(channel, metadata, crcCheckChanceSupplier);
             this.regions = regions;
         }
 

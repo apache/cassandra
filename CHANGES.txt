@@ -1,4 +1,5 @@
 5.0-alpha2
+ * Remove crc_check_chance from CompressionParams (CASSANDRA-18872)
  * Fix schema loading of UDTs inside vectors inside UDTs (CASSANDRA-18964)
  * Add cqlsh autocompletion for the vector data type (CASSANDRA-18946)
  * Fix nodetool tablehistograms output to avoid printing repeated information and ensure at most two arguments (CASSANDRA-18955)
