@@ -23,16 +23,12 @@ import java.lang.reflect.Method;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ThreadLocalRandom;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.commons.lang3.builder.HashCodeBuilder;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.ParameterizedClass;
@@ -48,10 +44,6 @@ import static java.lang.String.format;
 
 public final class CompressionParams
 {
-    private static final Logger logger = LoggerFactory.getLogger(CompressionParams.class);
-
-    private static volatile boolean hasLoggedCrcCheckChanceWarning;
-
     public static final int DEFAULT_CHUNK_LENGTH = 1024 * 16;
     public static final double DEFAULT_MIN_COMPRESS_RATIO = 0.0;        // Since pre-4.0 versions do not understand the
                                                                         // new compression parameter we can't use a
@@ -78,20 +70,11 @@ public final class CompressionParams
                                                                        DEFAULT_MIN_COMPRESS_RATIO,
                                                                        Collections.emptyMap());
 
-    private static final String CRC_CHECK_CHANCE_WARNING = "The option crc_check_chance was deprecated as a compression option. " +
-                                                           "You should specify it as a top-level table option instead";
-
-    /** @deprecated See CASSANDRA-9839 */
-    @Deprecated(since = "3.0") public static final String CRC_CHECK_CHANCE = "crc_check_chance";
-
     private final ICompressor sstableCompressor;
     private final int chunkLength;
     private final int maxCompressedLength;  // In content we store max length to avoid rounding errors causing compress/decompress mismatch.
     private final double minCompressRatio;  // In configuration we store min ratio, the input parameter.
     private final ImmutableMap<String, String> otherOptions; // Unrecognized options, can be used by the compressor
-
-    // TODO: deprecated, should now be carefully removed. Doesn't affect schema code as it isn't included in equals() and hashCode()
-    private volatile double crcCheckChance = 1.0;
 
     public static CompressionParams fromMap(Map<String, String> opts)
     {
@@ -287,16 +270,6 @@ public final class CompressionParams
             if (!compressionOptions.isEmpty())
                 throw new ConfigurationException("Unknown compression options (" + compressionOptions.keySet() + ") since no compression class found");
             return null;
-        }
-
-        if (compressionOptions.containsKey(CRC_CHECK_CHANCE))
-        {
-            if (!hasLoggedCrcCheckChanceWarning)
-            {
-                logger.warn(CRC_CHECK_CHANCE_WARNING);
-                hasLoggedCrcCheckChanceWarning = true;
-            }
-            compressionOptions.remove(CRC_CHECK_CHANCE);
         }
 
         try
@@ -498,23 +471,6 @@ public final class CompressionParams
     public String chunkLengthInKB()
     {
         return String.valueOf(chunkLength() / 1024);
-    }
-
-    public void setCrcCheckChance(double crcCheckChance)
-    {
-        this.crcCheckChance = crcCheckChance;
-    }
-
-    public double getCrcCheckChance()
-    {
-        return crcCheckChance;
-    }
-
-    public boolean shouldCheckCrc()
-    {
-        double checkChance = getCrcCheckChance();
-        return checkChance >= 1d ||
-               (checkChance > 0d && checkChance > ThreadLocalRandom.current().nextDouble());
     }
 
     @Override
