@@ -86,11 +86,14 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, I 
     private DecoratedKey lastWrittenKey;
     private DataPosition dataMark;
     private long lastEarlyOpenLength;
+    private final Supplier<Double> crcCheckChanceSupplier;
 
     public SortedTableWriter(Builder<P, I, ?, ?> builder, LifecycleNewTracker lifecycleNewTracker, SSTable.Owner owner)
     {
         super(builder, lifecycleNewTracker, owner);
 
+        TableMetadataRef ref = builder.getTableMetadataRef();
+        crcCheckChanceSupplier = () -> ref.getLocal().params.crcCheckChance;
         SequentialWriter dataWriter = null;
         I indexWriter = null;
         P partitionWriter = null;
@@ -351,6 +354,7 @@ public abstract class SortedTableWriter<P extends SortedTablePartitionWriter, I 
                                       .withChunkCache(chunkCache)
                                       .withCompressionMetadata(compressionMetadata)
                                       .bufferSize(dataBufferSize)
+                                      .withCrcCheckChance(crcCheckChanceSupplier)
                                       .withLengthOverride(lengthOverride)
                                       .complete();
         }

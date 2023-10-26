@@ -579,6 +579,14 @@ link:#compressionOptions[below].
 
 |`caching` |_map_ |_see below_ |Caching options, see
 link:#cachingOptions[below].
+
+|`crc_check_chance` |simple|1.0|This option defines the probability with which checksums
+should be checked during reads to detect bit rot and prevent the propagation of corruption
+to other replicas. The default value is 1 to apply a checksum every time a data chunk is read.
+Set to 0 to disable checksum checking and to 0.5 for instance to check every other read.
+
+Due to technical limitations we only currently apply this for compressed files.
+If compression is not enabled on the table, no checksums will be verified.
 |===
 
 [[compactionOptions]]
@@ -684,14 +692,6 @@ constant]. | | |
 compressed by block (to allow random reads). This defines the size (in
 KB) of said block. Bigger values may improve the compression rate, but
 increases the minimum size of data to be read from disk for a read
-
-|`crc_check_chance` |1.0 |When compression is enabled, each compressed
-block includes a checksum of that block for the purpose of detecting
-disk bitrot and avoiding the propagation of corruption to other replica.
-This option defines the probability with which those checksums are
-checked during read. By default they are always checked. Set to 0 to
-disable checksum checking and to 0.5 for instance to check them every
-other read | | |
 |===
 
 [[cachingOptions]]
