@@ -121,7 +121,7 @@ public class SimulationRunner
         DISABLE_SSTABLE_ACTIVITY_TRACKING.setBoolean(false);
         DETERMINISM_SSTABLE_COMPRESSION_DEFAULT.setBoolean(false); // compression causes variation in file size for e.g. UUIDs, IP addresses, random file paths
         CONSISTENT_DIRECTORY_LISTINGS.setBoolean(true);
-        TEST_IGNORE_SIGAR.setBoolean(true);
+        TEST_IGNORE_PROCESS_ENVIRONMENT_CHECK.setBoolean(true);
         SYSTEM_AUTH_DEFAULT_RF.setInt(3);
         DISABLE_GOSSIP_ENDPOINT_REMOVAL.setBoolean(true);
         MEMTABLE_OVERHEAD_SIZE.setInt(100);

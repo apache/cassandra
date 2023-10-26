@@ -72,7 +72,6 @@ public class SystemInfo
     }
 
     /**
-     *
      * @return The name of the current platform. (e.g. Linux)
      */
     public String platform()
@@ -83,7 +82,7 @@ public class SystemInfo
     /**
      * Gets the maximum number of processes the user can create.
      * Note: if not on a Linux system this always return the
-     * @{code DEFAULT_MAX_PROCESSES} value.
+     *
      * @return The maximum number of processes.
      * @see #DEFAULT_MAX_PROCESSES
      */
@@ -109,7 +108,12 @@ public class SystemInfo
                         return "unlimited".equals(limit) ? INFINITY : Long.parseLong(limit);
                     }
                 }
-                logger.error("'Max processes' not found in " + path);
+
+                /* return the default value for non-Linux systems.
+                 * can not return 0 as we know there is at least 1 process (this one) and
+                 * -1 historically represents infinity.
+                 */
+                return DEFAULT_MAX_PROCESSES;
             }
             catch (Throwable t)
             {
@@ -117,7 +121,7 @@ public class SystemInfo
             }
         }
 
-        /* return the default value for non-Linux systems or when parsing fails.
+        /* return the default value for non-Linux systems.
          * can not return 0 as we know there is at least 1 process (this one) and
          * -1 historically represents infinity.
          */
