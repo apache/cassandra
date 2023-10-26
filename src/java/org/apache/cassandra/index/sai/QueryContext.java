@@ -76,6 +76,7 @@ public class QueryContext
     public int hnswVectorsAccessed;
     public int hnswVectorCacheHits;
 
+    public int shadowedKeysLoopCount = 0;
     private TreeSet<PrimaryKey> shadowedPrimaryKeys; // allocate when needed
 
     @VisibleForTesting
@@ -107,6 +108,11 @@ public class QueryContext
             queryTimeouts++;
             throw new AbortedOperationException();
         }
+    }
+
+    public void incShadowedKeysLoopCount()
+    {
+        shadowedKeysLoopCount++;
     }
 
     public void recordShadowedPrimaryKey(PrimaryKey primaryKey)

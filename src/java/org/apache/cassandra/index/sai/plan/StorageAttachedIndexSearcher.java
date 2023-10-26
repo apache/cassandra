@@ -119,14 +119,20 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         // First time to find out there are shadowed keys, second time to find out there are no more shadow keys.
         int loopsCount = 1;
         final long startShadowedKeysCount = queryContext.getShadowedPrimaryKeys().size();
+        final var exactLimit = controller.getExactLimit();
         while (true)
         {
+            queryContext.incShadowedKeysLoopCount();
             long lastShadowedKeysCount = queryContext.getShadowedPrimaryKeys().size();
+            final var softLimit = controller.currentSoftLimitEstimate();
             ResultRetriever result = queryIndexes.get();
-            UnfilteredPartitionIterator topK = (UnfilteredPartitionIterator) new VectorTopKProcessor(command).filter(result);
+            UnfilteredPartitionIterator topK = (UnfilteredPartitionIterator)new VectorTopKProcessor(command).filter(result);
 
             long currentShadowedKeysCount = queryContext.getShadowedPrimaryKeys().size();
-            if (lastShadowedKeysCount == currentShadowedKeysCount)
+            long newShadowedKeysCount = currentShadowedKeysCount - lastShadowedKeysCount;
+            // Stop if no new shadowed keys found
+            // or if we already tried to search beyond the limit for more than the limit + count of new shadowed keys
+            if (newShadowedKeysCount == 0 || exactLimit <= softLimit - newShadowedKeysCount)
             {
                 cfs.metric.incShadowedKeys(loopsCount, currentShadowedKeysCount - startShadowedKeysCount);
                 if (loopsCount > 1)
@@ -134,7 +140,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
                 return topK;
             }
             loopsCount++;
-            Tracing.trace("Found {} new shadowed keys, rerunning query (loop {})", currentShadowedKeysCount - lastShadowedKeysCount, loopsCount);
+            Tracing.trace("Found {} new shadowed keys, rerunning query (loop {})", newShadowedKeysCount, loopsCount);
         }
     }
 
