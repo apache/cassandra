@@ -95,7 +95,7 @@ public abstract class CommitLogStressTest
     private CommitLogPosition discardedPos;
     private long totalBytesWritten = 0;
 
-    public CommitLogStressTest(ParameterizedClass commitLogCompression, EncryptionContext encryptionContext, Config.CommitLogDiskAccessMode accessMode)
+    public CommitLogStressTest(ParameterizedClass commitLogCompression, EncryptionContext encryptionContext, Config.DiskAccessMode accessMode)
     {
         DatabaseDescriptor.setCommitLogCompression(commitLogCompression);
         DatabaseDescriptor.setEncryptionContext(encryptionContext);
@@ -143,14 +143,13 @@ public abstract class CommitLogStressTest
     @Parameters()
     public static Collection<Object[]> buildParameterizedVariants()
     {
-        //{null, EncryptionContextGenerator.createDisabledContext(), Config.CommitLogDiskAccessMode.direct_io}}); // No compression, no encryption
         return Arrays.asList(new Object[][]{
-        {null, EncryptionContextGenerator.createDisabledContext(), Config.CommitLogDiskAccessMode.mmap}, // No compression, no encryption, mmap
-        {null, EncryptionContextGenerator.createDisabledContext(), Config.CommitLogDiskAccessMode.direct_io}, // Direct-IO
-        {null, EncryptionContextGenerator.createContext(true), Config.CommitLogDiskAccessMode.standard},
-        { new ParameterizedClass(LZ4Compressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext(), Config.CommitLogDiskAccessMode.standard},
-        { new ParameterizedClass(SnappyCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext(), Config.CommitLogDiskAccessMode.standard},
-        { new ParameterizedClass(DeflateCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext(), Config.CommitLogDiskAccessMode.standard}});
+        {null, EncryptionContextGenerator.createDisabledContext(), Config.DiskAccessMode.mmap}, // No compression, no encryption, mmap
+        {null, EncryptionContextGenerator.createDisabledContext(), Config.DiskAccessMode.direct}, // Use Direct-I/O (non-buffered) feature.
+        {null, EncryptionContextGenerator.createContext(true), Config.DiskAccessMode.mmap},
+        { new ParameterizedClass(LZ4Compressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext(), Config.DiskAccessMode.mmap},
+        { new ParameterizedClass(SnappyCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext(), Config.DiskAccessMode.mmap},
+        { new ParameterizedClass(DeflateCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext(), Config.DiskAccessMode.mmap}});
     }
 
     @Test

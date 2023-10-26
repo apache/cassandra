@@ -29,7 +29,7 @@ import org.apache.cassandra.security.EncryptionContext;
 @RunWith(Parameterized.class)
 public class BatchCommitLogStressTest extends CommitLogStressTest
 {
-    public BatchCommitLogStressTest(ParameterizedClass commitLogCompression, EncryptionContext encryptionContext, Config.CommitLogDiskAccessMode accessMode)
+    public BatchCommitLogStressTest(ParameterizedClass commitLogCompression, EncryptionContext encryptionContext, Config.DiskAccessMode accessMode)
     {
         super(commitLogCompression, encryptionContext, accessMode);
         DatabaseDescriptor.setCommitLogSync(Config.CommitLogSync.batch);
