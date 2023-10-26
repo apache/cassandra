@@ -277,7 +277,7 @@ public abstract class Relation
      *
      * @param table the table meta data
      * @param boundNames the variables specification where to collect the bind variables
-     * @param isKey <code>true</code> if the restriction to create is a CONTAINS KEY
+     * @param isKey <code>true</code> if the restriction to create is a NOT CONTAINS KEY
      * @return a new Contains <code>Restriction</code> instance
      * @throws InvalidRequestException if the <code>Relation</code> is not valid
      */

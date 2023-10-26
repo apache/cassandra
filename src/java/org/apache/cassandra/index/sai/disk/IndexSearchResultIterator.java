@@ -28,7 +28,6 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.exceptions.QueryCancelledException;
 import org.apache.cassandra.index.sai.QueryContext;
-import org.apache.cassandra.index.sai.iterators.KeyRangeAntiJoinIterator;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.iterators.KeyRangeUnionIterator;
@@ -63,30 +62,9 @@ public class IndexSearchResultIterator extends KeyRangeIterator
                                                   AbstractBounds<PartitionPosition> keyRange,
                                                   QueryContext queryContext)
     {
-        KeyRangeIterator keyIterator = buildKeyIterator(expression, sstableIndexes, keyRange, queryContext);
-
-        // For NOT CONTAINS or NOT CONTAINS KEY it is not enough to just return the primary keys
-        // for values not matching the value being queried.
-        //
-        // keys k such that row(k) not contains v =
-        // (keys k such that row(k) contains x != v || row(k) empty) \ (keys k such that row(k) contains v)
-        //
-        if (expression.getOp() == Expression.IndexOperator.NOT_CONTAINS_KEY
-            || expression.getOp() == Expression.IndexOperator.NOT_CONTAINS_VALUE)
-        {
-            Expression negExpression = expression.negated();
-            KeyRangeIterator negIterator = buildKeyIterator(negExpression, sstableIndexes, keyRange, queryContext);
-            keyIterator = KeyRangeAntiJoinIterator.create(keyIterator, negIterator);
-        }
-
-        return new IndexSearchResultIterator(keyIterator, sstableIndexes, queryContext);
-    }
-
-    private static KeyRangeIterator buildKeyIterator(Expression expression, Collection<SSTableIndex> sstableIndexes, AbstractBounds<PartitionPosition> keyRange, QueryContext queryContext)
-    {
         List<KeyRangeIterator> subIterators = new ArrayList<>(1 + sstableIndexes.size());
 
-        KeyRangeIterator memtableIterator = expression.context.getMemtableIndexManager().searchMemtableIndexes(expression, keyRange);
+        KeyRangeIterator memtableIterator = expression.context.getMemtableIndexManager().search(expression, keyRange);
         if (memtableIterator != null)
             subIterators.add(memtableIterator);
 
@@ -114,7 +92,8 @@ public class IndexSearchResultIterator extends KeyRangeIterator
             }
         }
 
-        return KeyRangeUnionIterator.build(subIterators);
+        KeyRangeIterator keyIterator = KeyRangeUnionIterator.build(subIterators);
+        return new IndexSearchResultIterator(keyIterator, sstableIndexes, queryContext);
     }
 
     protected PrimaryKey computeNext()

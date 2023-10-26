@@ -43,6 +43,7 @@ public class AllowFilteringTest extends SAITester
         test("SELECT * FROM %s WHERE c1=0", false);
         test("SELECT * FROM %s WHERE c1>0", false);
         test("SELECT * FROM %s WHERE c1>0 AND c1<1", false);
+        test("SELECT * FROM %s WHERE c1!=0", false);
 
         // with additional simple filtering restrictions
         test("SELECT * FROM %s WHERE c1=0 AND k1=0", true);

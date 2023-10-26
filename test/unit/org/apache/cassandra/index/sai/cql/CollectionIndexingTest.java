@@ -241,6 +241,23 @@ public class CollectionIndexingTest extends SAITester
         assertUnsupportedIndexOperator(0, "SELECT * FROM %s WHERE value[1] != 'v1'");
     }
 
+    @Test
+    public void notContainsShouldReturnUpdatedRows() throws Throwable
+    {
+        createTable("CREATE TABLE %s(id int PRIMARY KEY, text_map map<text, text>)");
+        createIndex("CREATE CUSTOM INDEX ON %s(values(text_map)) USING 'StorageAttachedIndex'");
+        execute("INSERT INTO %s(id, text_map) values (1, {'k1':'v1'})");
+        flush();
+        // This update overwrites 'v1', so now the map does not contain 'v1' and the row should be returned
+        // by the NOT CONTAINS 'v1' query. We purposefuly make this update after flush, so it ends up in a separate
+        // index than the original row.
+        execute("INSERT INTO %s(id, text_map) values (1, {'k2':'v2'})");
+
+        beforeAndAfterFlush(() -> {
+            assertRows(execute("SELECT id FROM %s WHERE text_map NOT CONTAINS 'v1'"), row(1));
+        });
+    }
+
     private void createPopulatedMap(String createIndex)
     {
         createTable("CREATE TABLE %s (pk int primary key, value map<int, text>)");
