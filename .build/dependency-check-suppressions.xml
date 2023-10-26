@@ -35,6 +35,13 @@
         <cve>CVE-2021-4235</cve>
         <cve>CVE-2017-18640</cve>
     </suppress>
+
+    <!-- https://issues.apache.org/jira/browse/CASSANDRA-18943 -->
+    <suppress>
+        <packageUrl regex="true">^pkg:maven/io\.netty/netty\-.*@.*$</packageUrl>
+        <cve>CVE-2023-44487</cve>
+    </suppress>
+
     <!-- https://issues.apache.org/jira/browse/CASSANDRA-17966 -->
     <suppress>
         <packageUrl regex="true">^pkg:maven/com\.fasterxml\.jackson\.core/jackson\-databind@.*$</packageUrl>
