@@ -138,7 +138,7 @@ public class StartupChecks
                                                                       checkJMXProperties,
                                                                       inspectJvmOptions,
                                                                       checkNativeLibraryInitialization,
-                                                                      checkProcessEnvironment,
+                                                                      initSigarLibrary,
                                                                       checkMaxMapCount,
                                                                       checkReadAheadKbSetting,
                                                                       checkDataDirs,
@@ -417,7 +417,7 @@ public class StartupChecks
         }
     };
 
-    public static final StartupCheck checkProcessEnvironment = new StartupCheck()
+    public static final StartupCheck initSigarLibrary = new StartupCheck()
     {
         @Override
         public void execute(StartupChecksOptions options)
@@ -428,7 +428,13 @@ public class StartupChecks
             Optional<String> degradations = new SystemInfo().isDegraded();
 
             if (degradations.isPresent())
-                logger.warn("Cassandra server running in degraded mode. " + degradations.get());
+            {
+                String message = "Cassandra server running in degraded mode. " + degradations.get();
+                if (CassandraRelevantProperties.TEST_IGNORE_PROCESS_ENVIRONMENT_CHECK.getBoolean())
+                    logger.warn(message);
+                else
+                    logger.info(message);
+            }
             else
                 logger.info("Checked OS settings and found them configured for optimal performance.");
         }

@@ -567,11 +567,7 @@ public enum CassandraRelevantProperties
      * can be also done manually for that particular case: {@code flush(SchemaConstants.SCHEMA_KEYSPACE_NAME);}. */
     TEST_FLUSH_LOCAL_SCHEMA_CHANGES("cassandra.test.flush_local_schema_changes", "true"),
     TEST_HARRY_SWITCH_AFTER("cassandra.test.harry.progression.switch-after", "1"),
-    /**
-     * @deprecated use SystemInfo to retrieve relevant info
-     */
-    @Deprecated(since="5.0")
-    TEST_IGNORE_SIGAR("cassandra.test.ignore_sigar"),
+    TEST_IGNORE_PROCESS_ENVIRONMENT_CHECK("cassandra.test.ignore_process_environment_check"),
     TEST_INVALID_LEGACY_SSTABLE_ROOT("invalid-legacy-sstable-root"),
     TEST_JVM_DTEST_DISABLE_SSL("cassandra.test.disable_ssl"),
     TEST_JVM_SHUTDOWN_MESSAGING_GRACEFULLY("cassandra.test.messagingService.gracefulShutdown", "false"),
