@@ -144,12 +144,12 @@ public abstract class CommitLogStressTest
     public static Collection<Object[]> buildParameterizedVariants()
     {
         return Arrays.asList(new Object[][]{
-        {null, EncryptionContextGenerator.createDisabledContext(), Config.DiskAccessMode.mmap}, // No compression, no encryption, mmap
+        {null, EncryptionContextGenerator.createDisabledContext(), Config.DiskAccessMode.legacy}, // No compression, no encryption, legacy
         {null, EncryptionContextGenerator.createDisabledContext(), Config.DiskAccessMode.direct}, // Use Direct-I/O (non-buffered) feature.
-        {null, EncryptionContextGenerator.createContext(true), Config.DiskAccessMode.mmap},
-        { new ParameterizedClass(LZ4Compressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext(), Config.DiskAccessMode.mmap},
-        { new ParameterizedClass(SnappyCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext(), Config.DiskAccessMode.mmap},
-        { new ParameterizedClass(DeflateCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext(), Config.DiskAccessMode.mmap}});
+        {null, EncryptionContextGenerator.createContext(true), Config.DiskAccessMode.legacy},
+        { new ParameterizedClass(LZ4Compressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext(), Config.DiskAccessMode.legacy},
+        { new ParameterizedClass(SnappyCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext(), Config.DiskAccessMode.legacy},
+        { new ParameterizedClass(DeflateCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext(), Config.DiskAccessMode.legacy}});
     }
 
     @Test
@@ -194,7 +194,7 @@ public abstract class CommitLogStressTest
     }
 
     private void testLog(CommitLog commitLog) throws IOException, InterruptedException {
-        System.out.format("\nTesting commit log size %.0fmb, compressor: %s, encryption enabled: %b, Direct I/O enabled: %b, sync %s%s%s\n",
+        System.out.format("\nTesting commit log size %.0fmb, compressor: %s, encryption enabled: %b, direct I/O enabled: %b, sync %s%s%s\n",
                            mb(DatabaseDescriptor.getCommitLogSegmentSize()),
                            commitLog.configuration.getCompressorName(),
                            commitLog.configuration.useEncryption(),
