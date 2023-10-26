@@ -34,6 +34,7 @@ import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.transport.ProtocolVersion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.assertj.core.api.Assertions;
@@ -186,6 +187,22 @@ public class CQLVectorTest extends CQLTester.InMemory
         assertInvalidThrowMessage("Unexpected 2 extraneous bytes after vector<text, 2> value",
                                   InvalidRequestException.class,
                                   "INSERT INTO %s (pk, value) VALUES (0, ?)", vector("a", "b", "c"));
+    }
+
+    @Test
+    public void sandwichBetweenUDTs()
+    {
+        schemaChange("CREATE TYPE cql_test_keyspace.b (y int);");
+        schemaChange("CREATE TYPE cql_test_keyspace.a (z vector<frozen<b>, 2>);");
+
+        // make sure types can be loaded back; see https://issues.apache.org/jira/browse/CASSANDRA-18964
+        SchemaKeyspace.fetchNonSystemKeyspaces();
+
+        createTable("CREATE TABLE %s (pk int primary key, value a)");
+
+        execute("INSERT INTO %s (pk, value) VALUES (0, {z: [{y:1}, {y:2}]})");
+        assertRows(execute("SELECT * FROM %s"),
+                   row(0, userType("z", vector(userType("y", 1), userType("y", 2)))));
     }
 
     @Test

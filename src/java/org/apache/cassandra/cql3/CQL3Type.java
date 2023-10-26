@@ -900,6 +900,12 @@ public interface CQL3Type
             }
 
             @Override
+            public boolean referencesUserType(String name)
+            {
+                return element.referencesUserType(name);
+            }
+
+            @Override
             public boolean supportsFreezing()
             {
                 return true;
