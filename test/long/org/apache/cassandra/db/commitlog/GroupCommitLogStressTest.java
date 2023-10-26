@@ -29,7 +29,7 @@ import org.apache.cassandra.security.EncryptionContext;
 @RunWith(Parameterized.class)
 public class GroupCommitLogStressTest extends CommitLogStressTest
 {
-    public GroupCommitLogStressTest(ParameterizedClass commitLogCompression, EncryptionContext encryptionContext, Config.CommitLogDiskAccessMode accessMode)
+    public GroupCommitLogStressTest(ParameterizedClass commitLogCompression, EncryptionContext encryptionContext, Config.DiskAccessMode accessMode)
     {
         super(commitLogCompression, encryptionContext, accessMode);
         DatabaseDescriptor.setCommitLogSync(Config.CommitLogSync.group);

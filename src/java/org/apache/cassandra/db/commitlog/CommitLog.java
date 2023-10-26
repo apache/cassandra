@@ -131,25 +131,6 @@ public class CommitLog implements CommitLogMBean
 
         // register metrics
         metrics.attach(executor, segmentManager);
-
-        String diskMode = " ";
-
-        switch (DatabaseDescriptor.getCommitLogDiskAccessMode())
-        {
-            case standard:
-                diskMode = "Standard (buffered)";
-                break;
-            case mmap:
-                diskMode = "MMap(memory mmaped)";
-                break;
-            case direct_io:
-                diskMode = "Direct (non-buffered)";
-                break;
-            default:
-                throw new IllegalArgumentException("Unknown commitlog disk access mode type: " + DatabaseDescriptor.getCommitLogDiskAccessMode());
-        }
-
-	logger.info("Using " + diskMode + " I/O for CommitLog files.");
     }
 
     /**
@@ -634,7 +615,7 @@ public class CommitLog implements CommitLogMBean
         /**
          * Flag used to shows user configured Direct-IO status.
          */
-        private final Config.CommitLogDiskAccessMode diskAccessMode;
+        private final Config.DiskAccessMode diskAccessMode;
 
         /**
          * The compressor class.
@@ -652,7 +633,7 @@ public class CommitLog implements CommitLogMBean
         private EncryptionContext encryptionContext;
 
         public Configuration(ParameterizedClass compressorClass, EncryptionContext encryptionContext,
-                             Config.CommitLogDiskAccessMode diskAccessMode)
+                             Config.DiskAccessMode diskAccessMode)
         {
             this.compressorClass = compressorClass;
             this.compressor = compressorClass != null ? CompressionParams.createCompressor(compressorClass) : null;
@@ -720,25 +701,16 @@ public class CommitLog implements CommitLogMBean
          */
         public boolean isDirectIOEnabled()
         {
-            return diskAccessMode == Config.CommitLogDiskAccessMode.direct_io;
-        }
-
-        /**
-         * Returns MMAP used for CommitLog IO.
-         * @return MMAP used for CommitLog IO
-         */
-        public boolean isMMAPEnabled()
-        {
-            return diskAccessMode == Config.CommitLogDiskAccessMode.mmap;
+            return diskAccessMode == Config.DiskAccessMode.direct;
         }
 
         /**
          * Returns Standard or buffered I/O used for CommitLog IO.
          * @return Standard or buffered I/O used for CommitLog IO
          */
-        public boolean isBufferedIOEnabled()
+        public boolean isStandardModeEnable()
         {
-            return diskAccessMode == Config.CommitLogDiskAccessMode.standard;
+            return diskAccessMode == Config.DiskAccessMode.standard;
         }
     }
 }
