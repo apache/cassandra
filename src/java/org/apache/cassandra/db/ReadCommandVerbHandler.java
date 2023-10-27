@@ -120,6 +120,13 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
         MessagingService.instance().send(reply, message.from());
     }
 
+    public Replica getReplica(ReadCommand command, Token token)
+    {
+        return Keyspace.open(command.metadata().keyspace)
+                                  .getReplicationStrategy()
+                                  .getLocalReplicaFor(token);
+    }
+
     private void validateTransientStatus(Message<ReadCommand> message)
     {
         ReadCommand command = message.payload;
@@ -132,12 +139,10 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
         else
             token = ((PartitionRangeReadCommand) command).dataRange().keyRange().right.getToken();
 
-        Replica replica = Keyspace.open(command.metadata().keyspace)
-                                  .getReplicationStrategy()
-                                  .getLocalReplicaFor(token);
-
+        Replica replica = getReplica(command, token);
         if (replica == null)
         {
+            MessagingService.instance().metrics.unownedTokenRangeRead.inc();
             logger.warn("Received a read request from {} for a range that is not owned by the current replica {}.",
                         message.from(),
                         command);

@@ -176,6 +176,7 @@ Merged from 3.0:
  * Remove unused suppressions (CASSANDRA-18724)
 
 Unreleased
+ * [SO-25494] A metric for Unowned token range read request received
  * [SO-24439] Add MaxSSTableSize and MaxSSTableDuration metrics and propagate them together with local read/write ratio to tablestats (CASSANDRA-18283)
  * [SO-25548] Change SLI exception metrics from counters to meters
  * [SO-25494] Detect token-ownership mismatch (CASSANDRA-18758)

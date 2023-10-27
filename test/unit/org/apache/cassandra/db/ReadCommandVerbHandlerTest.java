@@ -46,8 +46,11 @@ import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.net.Verb.*;
 import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 public class ReadCommandVerbHandlerTest
 {
@@ -87,6 +90,7 @@ public class ReadCommandVerbHandlerTest
         MessagingService.instance().inboundSink.add((message) -> false);
 
         handler = new ReadCommandVerbHandler();
+        MessagingService.instance().metrics.unownedTokenRangeRead.dec(MessagingService.instance().metrics.unownedTokenRangeRead.getCount());
     }
 
     @Test
@@ -118,6 +122,7 @@ public class ReadCommandVerbHandlerTest
     @Test
     public void dontSetRepairedDataTrackingFlagIfHeadersEmpty()
     {
+        assertEquals(0, MessagingService.instance().metrics.unownedTokenRangeRead.getCount());
         TrackingSinglePartitionReadCommand command = new TrackingSinglePartitionReadCommand(metadata);
         assertFalse(command.isTrackingRepairedData());
         handler.doVerb(Message.builder(READ_REQ, (ReadCommand) command)
@@ -125,6 +130,7 @@ public class ReadCommandVerbHandlerTest
                               .from(peer())
                               .build());
         assertFalse(command.isTrackingRepairedData());
+        assertEquals(0, MessagingService.instance().metrics.unownedTokenRangeRead.getCount());
     }
 
     @Test (expected = InvalidRequestException.class)
@@ -135,6 +141,20 @@ public class ReadCommandVerbHandlerTest
                               .from(peer())
                               .withId(messageId())
                               .build());
+    }
+
+    @Test
+    public void unownedTokenRangeRead()
+    {
+        assertEquals(0, MessagingService.instance().metrics.unownedTokenRangeRead.getCount());
+        TrackingSinglePartitionReadCommand command = new TrackingSinglePartitionReadCommand(metadata);
+        ReadCommandVerbHandler mockHandler = spy(handler);
+        when(mockHandler.getReplica(command, KEY.getToken())).thenReturn(null);
+        mockHandler.doVerb(Message.builder(READ_REQ, (ReadCommand) command)
+                               .withId(messageId())
+                               .from(peer())
+                               .build());
+        assertEquals(1, MessagingService.instance().metrics.unownedTokenRangeRead.getCount());
     }
 
     private static int messageId()

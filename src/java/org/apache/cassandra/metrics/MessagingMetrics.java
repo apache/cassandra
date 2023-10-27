@@ -29,6 +29,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.codahale.metrics.Counter;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
 
@@ -96,6 +97,7 @@ public class MessagingMetrics implements InboundMessageHandlers.GlobalMetricCall
     private final Timer allLatency;
     public final ConcurrentHashMap<String, DCLatencyRecorder> dcLatency;
     public final EnumMap<Verb, Timer> internalLatency;
+    public final Counter unownedTokenRangeRead;
 
     // total dropped message counts for server lifetime
     private final Map<Verb, DroppedForVerb> droppedMessages = new EnumMap<>(Verb.class);
@@ -109,6 +111,7 @@ public class MessagingMetrics implements InboundMessageHandlers.GlobalMetricCall
             internalLatency.put(verb, Metrics.timer(factory.createMetricName(verb + "-WaitLatency")));
         for (Verb verb : Verb.values())
             droppedMessages.put(verb, new DroppedForVerb(verb));
+        unownedTokenRangeRead = Metrics.counter(factory.createMetricName("UnownedTokenRangeRead"));
     }
 
     public DCLatencyRecorder internodeLatencyRecorder(InetAddressAndPort from)
