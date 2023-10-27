@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3.statements.schema;
 
+import java.util.Optional;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableSet;
@@ -46,6 +47,7 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
     // TODO: not sure if this is going to stay the same, or will be replaced by more efficient serialization/sanitation means
     // or just `toString` for every statement
     private String cql;
+    private long executionTimestamp = -1;
 
     protected AlterSchemaStatement(String keyspaceName)
     {
@@ -55,6 +57,11 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
     public void setCql(String cql)
     {
         this.cql = cql;
+    }
+
+    public void setExecutionTimestamp(long executionTimestamp)
+    {
+        this.executionTimestamp = executionTimestamp;
     }
 
     @Override
@@ -101,6 +108,12 @@ abstract public class AlterSchemaStatement implements CQLStatement.SingleKeyspac
     public String keyspace()
     {
         return keyspaceName;
+    }
+
+    @Override
+    public Optional<Long> fixedTimestampMicros()
+    {
+        return executionTimestamp == Long.MIN_VALUE ? Optional.empty() : Optional.of(executionTimestamp);
     }
 
     public ResultMessage executeLocally(QueryState state, QueryOptions options)

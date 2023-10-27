@@ -41,9 +41,11 @@ import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.locator.LocalStrategy;
+import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.tcm.ClusterMetadata;
 import org.apache.cassandra.tcm.ClusterMetadataService;
 import org.apache.cassandra.tcm.transformations.AlterSchema;
+import org.apache.cassandra.utils.Clock;
 
 import static com.google.common.collect.Iterables.size;
 import static org.apache.cassandra.config.DatabaseDescriptor.isDaemonInitialized;

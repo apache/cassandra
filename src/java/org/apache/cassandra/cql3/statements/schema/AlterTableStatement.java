@@ -455,7 +455,7 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
                 throw ire("Cannot drop column %s on base table %s with materialized views", currentColumn, table.name);
 
             builder.removeRegularOrStaticColumn(column);
-            builder.recordColumnDrop(currentColumn, getTimestamp());
+            builder.recordColumnDrop(currentColumn, fixedTimestampMicros().orElse(getTimestamp()));
         }
 
         /**
