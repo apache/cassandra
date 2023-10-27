@@ -118,10 +118,8 @@ public class SASICQLTest extends CQLTester
         }
         catch (RuntimeException e)
         {
-            Throwable cause = e.getCause();
-            Assert.assertNotNull(cause);
-            Assert.assertTrue(cause instanceof InvalidRequestException);
-            Assert.assertTrue(cause.getMessage().contains("SASI indexes are disabled"));
+            Assert.assertTrue(e instanceof InvalidRequestException);
+            Assert.assertTrue(e.getMessage().contains("SASI indexes are disabled"));
         }
         finally
         {

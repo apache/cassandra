@@ -1024,8 +1024,8 @@ public class UFTest extends CQLTester
                                        "RETURNS int " +
                                        "LANGUAGE JAVA\n" +
                                        "AS 'return val;'");
-            }).hasRootCauseInstanceOf(InvalidRequestException.class)
-              .hasRootCauseMessage("Function name '%s' is invalid", funcName);
+            }).isInstanceOf(InvalidRequestException.class)
+              .hasMessageContaining("Function name '%s' is invalid", funcName);
         }
     }
 }

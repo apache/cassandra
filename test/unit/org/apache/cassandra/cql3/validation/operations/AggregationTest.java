@@ -2245,8 +2245,8 @@ public class AggregationTest extends CQLTester
                                         " SFUNC func\n" +
                                         " STYPE map<text,bigint>\n" +
                                         " INITCOND { };");
-            }).hasRootCauseInstanceOf(InvalidRequestException.class)
-              .hasRootCauseMessage("Aggregate name '%s' is invalid", funcName);
+            }).isInstanceOf(InvalidRequestException.class)
+              .hasMessageContaining("Aggregate name '%s' is invalid", funcName);
         }
     }
 }
