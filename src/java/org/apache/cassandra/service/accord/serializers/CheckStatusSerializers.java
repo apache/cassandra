@@ -224,6 +224,7 @@ public class CheckStatusSerializers
 
                     return createOk(map, maxKnowledgeStatus, maxStatus, promised, accepted, executeAt,
                                     isCoordinating, durability, route, homeKey, partialTxn, committedDeps, writes, result);
+
             }
         }
 
