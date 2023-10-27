@@ -474,7 +474,14 @@ public abstract class AlterTableStatement extends AlterSchemaStatement
          */
         private long getTimestamp()
         {
-            return timestamp == null ? ClientState.getTimestamp() : timestamp;
+            // Prior to Metadata serialization V5, the execution timestamp was not included in AlterSchema
+            // serializations. Instead, the current time (from ClientState::getTimestamp) was used, making
+            // DROP COLUMN non-idempotent and causing potenial data loss as described in CASSANDRA-18961.
+            // This was fixed before release by serialization V5, but we include a dangerous backwards
+            // compatibility option here or so that we can still apply pre-V5 serialized transformations
+            // (which would only exist in clusters running pre-release versions of Cassandra). Once all peers
+            // are running a V5 compatible version, ClientState::getTimestamp will never be used.
+            return timestamp == null ? fixedTimestampMicros().orElseGet(ClientState::getTimestamp) : timestamp;
         }
     }
 

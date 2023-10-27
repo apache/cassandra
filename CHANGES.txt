@@ -1,4 +1,5 @@
 5.1
+ * Include column drop timestamp in alter table transformation (CASSANDRA-18961)
  * Make JMX SSL configurable in cassandra.yaml (CASSANDRA-18508)
  * Fix cqlsh CAPTURE command to save query results without trace details when TRACING is ON (CASSANDRA-19105)
  * Optionally prevent tombstone purging during repair (CASSANDRA-20071)

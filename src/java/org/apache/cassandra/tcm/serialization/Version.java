@@ -46,6 +46,10 @@ public enum Version
      * - Serialize allowAutoSnapshot and incrementalBackups when serializing TableParams
      */
     V4(4),
+    /**
+     * - AlterSchema includes execution timestamp
+     */
+    V5(5),
 
     UNKNOWN(Integer.MAX_VALUE);
 
