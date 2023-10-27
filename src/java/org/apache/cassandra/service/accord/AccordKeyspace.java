@@ -25,7 +25,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
@@ -35,10 +34,12 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedMap;
 import com.google.common.collect.Iterables;
@@ -47,8 +48,11 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import accord.api.Key;
 import accord.impl.CommandTimeseries;
 import accord.impl.CommandsForKey;
+import accord.impl.CommandsForKeyUpdater;
+import accord.impl.TimestampsForKey;
 import accord.local.Command;
 import accord.local.Command.WaitingOn;
 import accord.local.CommandStore;
@@ -149,8 +153,9 @@ import org.apache.cassandra.service.accord.serializers.ListenerSerializers;
 import org.apache.cassandra.service.accord.serializers.TopologySerializers;
 import org.apache.cassandra.service.accord.serializers.WaitingOnSerializer;
 import org.apache.cassandra.utils.Clock;
-import org.apache.cassandra.utils.Throwables;
+import org.apache.cassandra.utils.MonotonicClock;
 import org.apache.cassandra.utils.btree.BTree;
+import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.bytecomparable.ByteComparable;
 
 import static accord.utils.Invariants.checkArgument;
@@ -170,7 +175,9 @@ public class AccordKeyspace
     private static final Logger logger = LoggerFactory.getLogger(AccordKeyspace.class);
 
     public static final String COMMANDS = "commands";
-    public static final String COMMANDS_FOR_KEY = "commands_for_key";
+    public static final String TIMESTAMPS_FOR_KEY = "timestamps_for_key";
+    public static final String DEPS_COMMANDS_FOR_KEY = "deps_commands_for_key";
+    public static final String ALL_COMMANDS_FOR_KEY = "all_commands_for_key";
     public static final String TOPOLOGIES = "topologies";
     public static final String EPOCH_METADATA = "epoch_metadata";
     public static final String COMMAND_STORE_METADATA = "command_store_metadata";
@@ -181,28 +188,6 @@ public class AccordKeyspace
     private static final String KEY_TUPLE = KEY_TYPE.asCQL3Type().toString();
 
     private static final ClusteringIndexFilter FULL_PARTITION = new ClusteringIndexSliceFilter(Slices.ALL, false);
-
-    public enum SeriesKind
-    {
-        BY_ID(CommandsForKey::byId),
-        BY_EXECUTE_AT(CommandsForKey::byExecuteAt);
-
-        private final Function<CommandsForKey, CommandTimeseries<?>> getSeries;
-
-        SeriesKind(Function<CommandsForKey, CommandTimeseries<?>> getSeries)
-        {
-            this.getSeries = getSeries;
-        }
-
-        ImmutableSortedMap<Timestamp, ByteBuffer> getValues(CommandsForKey cfk)
-        {
-            if (cfk == null)
-                return ImmutableSortedMap.of();
-
-            CommandTimeseries<?> series = getSeries.apply(cfk);
-            return (ImmutableSortedMap<Timestamp, ByteBuffer>) series.commands;
-        }
-    }
 
     private enum TokenType
     {
@@ -420,81 +405,50 @@ public class AccordKeyspace
         }
     }
 
-    private static final TableMetadata CommandsForKeys =
-        parse(COMMANDS_FOR_KEY,
-              "accord commands per key",
+    private static final TableMetadata TimestampsForKeys =
+        parse(TIMESTAMPS_FOR_KEY,
+              "accord timestamps per key",
               "CREATE TABLE %s ("
               + "store_id int, "
               + "key_token blob, " // can't use "token" as this is restricted word in CQL
               + format("key %s, ", KEY_TUPLE)
-              + format("max_timestamp %s static, ", TIMESTAMP_TUPLE)
-              + format("last_executed_timestamp %s static, ", TIMESTAMP_TUPLE)
-              + "last_executed_micros bigint static, "
-              + format("last_write_timestamp %s static, ", TIMESTAMP_TUPLE)
-              + "series int, "
-              + format("timestamp %s, ", TIMESTAMP_TUPLE)
-              + "data blob, "
-              + "PRIMARY KEY((store_id, key_token, key), series, timestamp)"
+              + format("max_timestamp %s, ", TIMESTAMP_TUPLE)
+              + format("last_executed_timestamp %s, ", TIMESTAMP_TUPLE)
+              + "last_executed_micros bigint, "
+              + format("last_write_timestamp %s, ", TIMESTAMP_TUPLE)
+              + "PRIMARY KEY((store_id, key_token, key))"
               + ')')
         .partitioner(new LocalPartitioner(CompositeType.getInstance(Int32Type.instance, BytesType.instance, KEY_TYPE)))
         .build();
 
-    public static class CommandsForKeyColumns
+    public static class TimestampsForKeyColumns
     {
-        static final ClusteringComparator keyComparator = CommandsForKeys.partitionKeyAsClusteringComparator();
-        static final CompositeType partitionKeyType = (CompositeType) CommandsForKeys.partitionKeyType;
-        static final ColumnFilter allColumns = ColumnFilter.all(CommandsForKeys);
-        static final ColumnMetadata store_id = getColumn(CommandsForKeys, "store_id");
-        static final ColumnMetadata key_token = getColumn(CommandsForKeys, "key_token");
-        static final ColumnMetadata key = getColumn(CommandsForKeys, "key");
-        static final ColumnMetadata timestamp = getColumn(CommandsForKeys, "timestamp");
-        public static final ColumnMetadata max_timestamp = getColumn(CommandsForKeys, "max_timestamp");
-        public static final ColumnMetadata last_executed_timestamp = getColumn(CommandsForKeys, "last_executed_timestamp");
-        public static final ColumnMetadata last_executed_micros = getColumn(CommandsForKeys, "last_executed_micros");
-        public static final ColumnMetadata last_write_timestamp = getColumn(CommandsForKeys, "last_write_timestamp");
+        static final ClusteringComparator keyComparator = TimestampsForKeys.partitionKeyAsClusteringComparator();
+        static final CompositeType partitionKeyType = (CompositeType) TimestampsForKeys.partitionKeyType;
+        static final ColumnFilter allColumns = ColumnFilter.all(TimestampsForKeys);
+        static final ColumnMetadata store_id = getColumn(TimestampsForKeys, "store_id");
+        static final ColumnMetadata key_token = getColumn(TimestampsForKeys, "key_token");
+        static final ColumnMetadata key = getColumn(TimestampsForKeys, "key");
+        public static final ColumnMetadata max_timestamp = getColumn(TimestampsForKeys, "max_timestamp");
+        public static final ColumnMetadata last_executed_timestamp = getColumn(TimestampsForKeys, "last_executed_timestamp");
+        public static final ColumnMetadata last_executed_micros = getColumn(TimestampsForKeys, "last_executed_micros");
+        public static final ColumnMetadata last_write_timestamp = getColumn(TimestampsForKeys, "last_write_timestamp");
 
-        static final ColumnMetadata data = getColumn(CommandsForKeys, "data");
+        static final Columns columns = Columns.from(Lists.newArrayList(max_timestamp, last_executed_timestamp, last_executed_micros, last_write_timestamp));
 
-        // Ordered by columnn name because it will be used to construct btree leaf arrays
-        static final ColumnMetadata[] static_columns_metadata = new ColumnMetadata[] { last_executed_micros, last_executed_timestamp, last_write_timestamp, max_timestamp };
-
-        static final Columns statics = Columns.from(Lists.newArrayList(max_timestamp, last_executed_timestamp, last_executed_micros, last_write_timestamp));
-        static final Columns regulars = Columns.from(Lists.newArrayList(data));
-        private static final RegularAndStaticColumns all = new RegularAndStaticColumns(statics, regulars);
-        private static final RegularAndStaticColumns justStatic = new RegularAndStaticColumns(statics, Columns.NONE);
-        private static final RegularAndStaticColumns justRegular = new RegularAndStaticColumns(Columns.NONE, regulars);
-
-        static boolean hasStaticChanges(CommandsForKey original, CommandsForKey current)
+        static ByteBuffer makePartitionKey(int storeId, Key key)
         {
-            return valueModified(CommandsForKey::max, original, current)
-                   || valueModified(CommandsForKey::lastExecutedTimestamp, original, current)
-                   || valueModified(CommandsForKey::lastWriteTimestamp, original, current)
-                   || valueModified(CommandsForKey::rawLastExecutedHlc, original, current);
+            PartitionKey pk = (PartitionKey) key;
+            return keyComparator.make(storeId, serializeToken(pk.token()), serializeKey(pk)).serializeAsPartitionKey();
         }
 
-        private static boolean hasRegularChanges(CommandsForKey original, CommandsForKey current)
+        static ByteBuffer makePartitionKey(int storeId, TimestampsForKey timestamps)
         {
-            return valueModified(CommandsForKey::byId, original, current)
-                   || valueModified(CommandsForKey::byExecuteAt, original, current);
-        }
-
-        static RegularAndStaticColumns columnsFor(CommandsForKey original, CommandsForKey current)
-        {
-            boolean hasStaticChanges = hasStaticChanges(original, current);
-            boolean hasRegularChanges = hasRegularChanges(original, current);
-
-            if (hasStaticChanges && hasRegularChanges)
-                return all;
-            else if (hasStaticChanges)
-                return justStatic;
-            else if (hasRegularChanges)
-                return justRegular;
-            else
-                throw new IllegalArgumentException("No Static or Regular columns changed for CFK " + current.key());
+            return makePartitionKey(storeId, timestamps.key());
         }
     }
 
-    public static class CommandsForKeyRows extends CommandsForKeyColumns
+    public static class TimestampsForKeyRows extends TimestampsForKeyColumns
     {
         public static ByteBuffer[] splitPartitionKey(DecoratedKey key)
         {
@@ -504,6 +458,11 @@ public class AccordKeyspace
         public static int getStoreId(ByteBuffer[] partitionKeyComponents)
         {
             return Int32Type.instance.compose(partitionKeyComponents[store_id.position()]);
+        }
+
+        public static PartitionKey getKey(ByteBuffer[] partitionKeyComponents)
+        {
+            return deserializeKey(partitionKeyComponents[key.position()]);
         }
 
         @Nullable
@@ -532,17 +491,6 @@ public class AccordKeyspace
             return cell.accessor().getLong(cell.value(), 0);
         }
 
-        public static PartitionKey getKey(ByteBuffer[] partitionKeyComponents)
-        {
-            return deserializeKey(partitionKeyComponents[key.position()]);
-        }
-
-        @Nullable
-        public static Timestamp getTimestamp(Row row)
-        {
-            return deserializeTimestampOrNull(row.clustering().bufferAt(CommandsForKeyColumns.timestamp.position()), Timestamp::fromBits);
-        }
-
         @Nullable
         public static Timestamp getLastWriteTimestamp(Row row)
         {
@@ -552,12 +500,12 @@ public class AccordKeyspace
             return deserializeTimestampOrNull(cell.value(), cell.accessor(), Timestamp::fromBits);
         }
 
-        public static Row truncateStaticRow(long nowInSec, Row row, Cell lastExecuteMicrosCell, Cell lastExecuteCell, Cell lastWriteCell, Cell maxTimestampCell)
+        public static Row truncateTimestampsForKeyRow(long nowInSec, Row row, Cell lastExecuteMicrosCell, Cell lastExecuteCell, Cell lastWriteCell, Cell maxTimestampCell)
         {
-            checkArgument(lastExecuteMicrosCell == null || lastExecuteMicrosCell.column() == CommandsForKeyColumns.last_executed_micros);
-            checkArgument(lastExecuteCell == null || lastExecuteCell.column() == CommandsForKeyColumns.last_executed_timestamp);
-            checkArgument(lastWriteCell == null || lastWriteCell.column() == CommandsForKeyColumns.last_write_timestamp);
-            checkArgument(maxTimestampCell == null || maxTimestampCell.column() == CommandsForKeyColumns.max_timestamp);
+            checkArgument(lastExecuteMicrosCell == null || lastExecuteMicrosCell.column() == last_executed_micros);
+            checkArgument(lastExecuteCell == null || lastExecuteCell.column() == last_executed_timestamp);
+            checkArgument(lastWriteCell == null || lastWriteCell.column() == last_write_timestamp);
+            checkArgument(maxTimestampCell == null || maxTimestampCell.column() == max_timestamp);
 
             long timestamp = row.primaryKeyLivenessInfo().timestamp();
 
@@ -571,8 +519,7 @@ public class AccordKeyspace
             if (maxTimestampCell != null)
                 colCount++;
 
-            ColumnMetadata[] fields = CommandsForKeyColumns.static_columns_metadata;
-            checkState(fields.length >= colCount, "CommandsForKeyColumns.static_columns_metadata should include all the columns");
+            checkState(columns.size() >= colCount, "CommandsForKeyColumns.static_columns_metadata should include all the columns");
             Object[] newLeaf = BTree.unsafeAllocateNonEmptyLeaf(colCount);
             int colIndex = 0;
 
@@ -589,6 +536,79 @@ public class AccordKeyspace
                                    Deletion.LIVE, newLeaf);
         }
     }
+
+    private static final TableMetadata DepsCommandsForKeys = commandsForKeysTable(DEPS_COMMANDS_FOR_KEY);
+    private static final TableMetadata AllCommandsForKeys = commandsForKeysTable(ALL_COMMANDS_FOR_KEY);
+
+    private static TableMetadata commandsForKeysTable(String tableName)
+    {
+        return parse(tableName,
+              "accord commands per key",
+              "CREATE TABLE %s ("
+              + "store_id int, "
+              + "key_token blob, " // can't use "token" as this is restricted word in CQL
+              + format("key %s, ", KEY_TUPLE)
+              + format("timestamp %s, ", TIMESTAMP_TUPLE)
+              + "data blob, "
+              + "PRIMARY KEY((store_id, key_token, key), timestamp)"
+              + ')')
+        .partitioner(new LocalPartitioner(CompositeType.getInstance(Int32Type.instance, BytesType.instance, KEY_TYPE)))
+        .build();
+    }
+
+    public static class CommandsForKeyAccessor
+    {
+        final TableMetadata table;
+        final ClusteringComparator keyComparator;
+        final CompositeType partitionKeyType;
+        final ColumnFilter allColumns;
+        final ColumnMetadata store_id;
+        final ColumnMetadata key_token;
+        final ColumnMetadata key;
+        final ColumnMetadata timestamp;
+
+        final ColumnMetadata data;
+
+        final RegularAndStaticColumns columns;
+
+        public CommandsForKeyAccessor(TableMetadata table)
+        {
+            this.table = table;
+            this.keyComparator = table.partitionKeyAsClusteringComparator();
+            this.partitionKeyType = (CompositeType) table.partitionKeyType;
+            this.allColumns = ColumnFilter.all(table);
+            this.store_id = getColumn(table, "store_id");
+            this.key_token = getColumn(table, "key_token");
+            this.key = getColumn(table, "key");
+            this.timestamp = getColumn(table, "timestamp");
+            this.data = getColumn(table, "data");
+            this.columns = new RegularAndStaticColumns(Columns.NONE, Columns.from(Lists.newArrayList(data)));
+        }
+
+        public ByteBuffer[] splitPartitionKey(DecoratedKey key)
+        {
+            return partitionKeyType.split(key.getKey());
+        }
+
+        public int getStoreId(ByteBuffer[] partitionKeyComponents)
+        {
+            return Int32Type.instance.compose(partitionKeyComponents[store_id.position()]);
+        }
+
+        public PartitionKey getKey(ByteBuffer[] partitionKeyComponents)
+        {
+            return deserializeKey(partitionKeyComponents[key.position()]);
+        }
+
+        @Nullable
+        public Timestamp getTimestamp(Row row)
+        {
+            return deserializeTimestampOrNull(row.clustering().bufferAt(timestamp.position()), Timestamp::fromBits);
+        }
+    }
+
+    public static final CommandsForKeyAccessor DepsCommandsForKeysAccessor = new CommandsForKeyAccessor(DepsCommandsForKeys);
+    public static final CommandsForKeyAccessor AllCommandsForKeysAccessor = new CommandsForKeyAccessor(AllCommandsForKeys);
 
     private static final TableMetadata Topologies =
         parse(TOPOLOGIES,
@@ -647,7 +667,7 @@ public class AccordKeyspace
 
     private static Tables tables()
     {
-        return Tables.of(Commands, CommandsForKeys, Topologies, EpochMetadata, CommandStoreMetadata);
+        return Tables.of(Commands, TimestampsForKeys, DepsCommandsForKeys, AllCommandsForKeys, Topologies, EpochMetadata, CommandStoreMetadata);
     }
 
     private static <T> ByteBuffer serialize(T obj, LocalVersionedSerializer<T> serializer) throws IOException
@@ -870,6 +890,14 @@ public class AccordKeyspace
         return Timestamp.fromBits(accessor.getLong(split[0], 0), accessor.getLong(split[1], 0), new Node.Id(accessor.getInt(split[2], 0)));
     }
 
+    public static <V, T extends Timestamp> T deserializeTimestampOrDefault(V value, ValueAccessor<V> accessor, TimestampFactory<T> factory, T defaultVal)
+    {
+        if (value == null || accessor.isEmpty(value))
+            return defaultVal;
+        V[] split = TIMESTAMP_TYPE.split(accessor, value);
+        return factory.create(accessor.getLong(split[0], 0), accessor.getLong(split[1], 0), new Node.Id(accessor.getInt(split[2], 0)));
+    }
+
     public static <V, T extends Timestamp> T deserializeTimestampOrNull(V value, ValueAccessor<V> accessor, TimestampFactory<T> factory)
     {
         if (value == null || accessor.isEmpty(value))
@@ -881,6 +909,11 @@ public class AccordKeyspace
     private static <T extends Timestamp> T deserializeTimestampOrNull(UntypedResultSet.Row row, String name, TimestampFactory<T> factory)
     {
         return deserializeTimestampOrNull(row.getBlob(name), factory);
+    }
+
+    private static <T extends Timestamp> T deserializeTimestampOrDefault(UntypedResultSet.Row row, String name, TimestampFactory<T> factory, T defaultVal)
+    {
+        return deserializeTimestampOrDefault(row.getBlob(name), ByteBufferAccessor.instance, factory, defaultVal);
     }
 
     private static ByteBuffer bytesOrNull(Row row, ColumnMetadata column)
@@ -1092,14 +1125,14 @@ public class AccordKeyspace
             this.start = start;
             this.end = end;
 
-            String selection = selection(CommandsForKeys, requiredColumns, COLUMNS_FOR_ITERATION);
+            String selection = selection(TimestampsForKeys, requiredColumns, COLUMNS_FOR_ITERATION);
             this.cqlFirst = format("SELECT DISTINCT %s\n" +
                                           "FROM %s\n" +
                                           "WHERE store_id = ?\n" +
                                           (startInclusive ? "  AND key_token >= ?\n" : "  AND key_token > ?\n") +
                                           (endInclusive ? "  AND key_token <= ?\n" : "  AND key_token < ?\n") +
                                           "ALLOW FILTERING",
-                                          selection, CommandsForKeys);
+                                          selection, TimestampsForKeys);
             this.cqlContinue = format("SELECT DISTINCT %s\n" +
                                              "FROM %s\n" +
                                              "WHERE store_id = ?\n" +
@@ -1107,7 +1140,7 @@ public class AccordKeyspace
                                              "  AND key > ?\n" +
                                              (endInclusive ? "  AND key_token <= ?\n" : "  AND key_token < ?\n") +
                                              "ALLOW FILTERING",
-                                             selection, CommandsForKeys);
+                                             selection, TimestampsForKeys);
         }
 
         @Override
@@ -1272,117 +1305,188 @@ public class AccordKeyspace
         return deserializeKey(row.getBytes("key"));
     }
 
-    private static void addSeriesMutations(ImmutableSortedMap<Timestamp, ByteBuffer> prev,
-                                           ImmutableSortedMap<Timestamp, ByteBuffer> value,
-                                           SeriesKind kind,
-                                           PartitionUpdate.Builder partitionBuilder,
-                                           Row.Builder rowBuilder,
-                                           LivenessInfo livenessInfo,
-                                           int nowInSeconds)
-    {
-        if (prev == value)
-            return;
-
-        long timestampMicros = livenessInfo.timestamp();
-        Set<Timestamp> deletions = Sets.difference(prev.keySet(), value.keySet());
-
-        Row.Deletion deletion = !deletions.isEmpty() ?
-                                Row.Deletion.regular(DeletionTime.build(timestampMicros, nowInSeconds)) :
-                                null;
-        ByteBuffer ordinalBytes = bytes(kind.ordinal());
-        value.forEach((timestamp, bytes) -> {
-            if (bytes.equals(prev.get(timestamp)))
-                return;
-            rowBuilder.newRow(Clustering.make(ordinalBytes, serializeTimestamp(timestamp)));
-            rowBuilder.addCell(live(CommandsForKeyColumns.data, timestampMicros, bytes));
-            rowBuilder.addPrimaryKeyLivenessInfo(livenessInfo);
-            partitionBuilder.add(rowBuilder.build());
-        });
-        deletions.forEach(timestamp -> {
-            rowBuilder.newRow(Clustering.make(ordinalBytes, serializeTimestamp(timestamp)));
-            rowBuilder.addRowDeletion(deletion);
-            partitionBuilder.add(rowBuilder.build());
-        });
-    }
-
-    private static void addSeriesMutations(CommandsForKey original,
-                                           CommandsForKey cfk,
-                                           SeriesKind kind,
-                                           PartitionUpdate.Builder partitionBuilder,
-                                           Row.Builder rowBuilder,
-                                           LivenessInfo livenessInfo,
-                                           int nowInSeconds)
-    {
-        addSeriesMutations(kind.getValues(original), kind.getValues(cfk), kind, partitionBuilder, rowBuilder, livenessInfo, nowInSeconds);
-    }
-
-    private static DecoratedKey makeKey(int storeId, PartitionKey key)
-    {
-        Token token = key.token();
-        ByteBuffer pk = CommandsForKeyColumns.keyComparator.make(storeId,
-                                                                 serializeToken(token),
-                                                                 serializeKey(key)).serializeAsPartitionKey();
-        return CommandsForKeys.partitioner.decorateKey(pk);
-    }
-
-    private static DecoratedKey makeKey(int storeId, CommandsForKey cfk)
-    {
-        return makeKey(storeId, (PartitionKey) cfk.key());
-    }
-
-    public static Mutation getCommandsForKeyMutation(AccordCommandStore commandStore, AccordSafeCommandsForKey liveCfk, long timestampMicros)
-    {
-        return getCommandsForKeyMutation(commandStore.id(), liveCfk.original(), liveCfk.current(), timestampMicros);
-    }
-
-    public static Mutation getCommandsForKeyMutation(int storeId, CommandsForKey original, CommandsForKey cfk, long timestampMicros)
+    public static Mutation getTimestampsForKeyMutation(int storeId, TimestampsForKey original, TimestampsForKey current, long timestampMicros)
     {
         try
         {
-            Invariants.checkArgument(original != cfk);
+            Invariants.checkArgument(original != current);
             // TODO: convert to byte arrays
             ValueAccessor<ByteBuffer> accessor = ByteBufferAccessor.instance;
 
+            Row.Builder builder = BTreeRow.unsortedBuilder();
+            builder.newRow(Clustering.EMPTY);
             int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(timestampMicros);
             LivenessInfo livenessInfo = LivenessInfo.create(timestampMicros, nowInSeconds);
+            builder.addPrimaryKeyLivenessInfo(livenessInfo);
+            addCellIfModified(TimestampsForKeyColumns.max_timestamp, TimestampsForKey::max, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, current);
+            addCellIfModified(TimestampsForKeyColumns.last_executed_timestamp, TimestampsForKey::lastExecutedTimestamp, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, current);
+            addCellIfModified(TimestampsForKeyColumns.last_executed_micros, TimestampsForKey::rawLastExecutedHlc, accessor::valueOf, builder, timestampMicros, nowInSeconds, original, current);
+            addCellIfModified(TimestampsForKeyColumns.last_write_timestamp, TimestampsForKey::lastWriteTimestamp, AccordKeyspace::serializeTimestamp, builder, timestampMicros, nowInSeconds, original, current);
 
-            boolean hasStaticChanges = CommandsForKeyColumns.hasStaticChanges(original, cfk);
-            int expectedRows = (hasStaticChanges ? 1 : 0)
-                               + estimateMapChanges(c -> c.byId().commands, original, cfk)
-                               + estimateMapChanges(c -> c.byExecuteAt().commands, original, cfk);
-
-            PartitionUpdate.Builder partitionBuilder = new PartitionUpdate.Builder(CommandsForKeys,
-                                                                                   makeKey(storeId, cfk),
-                                                                                   CommandsForKeyColumns.columnsFor(original, cfk),
-                                                                                   expectedRows);
-
-            Row.Builder rowBuilder = BTreeRow.unsortedBuilder();
-
-            if (hasStaticChanges)
-            {
-                rowBuilder.newRow(Clustering.STATIC_CLUSTERING);
-                addCellIfModified(CommandsForKeyColumns.max_timestamp, CommandsForKey::max, AccordKeyspace::serializeTimestamp, rowBuilder, timestampMicros, nowInSeconds, original, cfk);
-                addCellIfModified(CommandsForKeyColumns.last_executed_timestamp, CommandsForKey::lastExecutedTimestamp, AccordKeyspace::serializeTimestamp, rowBuilder, timestampMicros, nowInSeconds, original, cfk);
-                addCellIfModified(CommandsForKeyColumns.last_executed_micros, CommandsForKey::rawLastExecutedHlc, accessor::valueOf, rowBuilder, timestampMicros, nowInSeconds, original, cfk);
-                addCellIfModified(CommandsForKeyColumns.last_write_timestamp, CommandsForKey::lastWriteTimestamp, AccordKeyspace::serializeTimestamp, rowBuilder, timestampMicros, nowInSeconds, original, cfk);
-                rowBuilder.addPrimaryKeyLivenessInfo(livenessInfo);
-                Row row = rowBuilder.build();
-                if (!row.isEmpty())
-                    partitionBuilder.add(row);
-            }
-
-            addSeriesMutations(original, cfk, SeriesKind.BY_ID, partitionBuilder, rowBuilder, livenessInfo, nowInSeconds);
-            addSeriesMutations(original, cfk, SeriesKind.BY_EXECUTE_AT, partitionBuilder, rowBuilder, livenessInfo, nowInSeconds);
-
-            PartitionUpdate update = partitionBuilder.build();
-            if (update.isEmpty())
+            Row row = builder.build();
+            if (row.isEmpty())
                 return null;
+
+            ByteBuffer key = TimestampsForKeyColumns.makePartitionKey(storeId, current.key());
+            PartitionUpdate update = PartitionUpdate.singleRowUpdate(TimestampsForKeys, key, row);
             return new Mutation(update);
         }
         catch (IOException e)
         {
             throw new RuntimeException(e);
         }
+    }
+
+    public static Mutation getTimestampsForKeyMutation(AccordCommandStore commandStore, AccordSafeTimestampsForKey liveTimestamps, long timestampMicros)
+    {
+        return getTimestampsForKeyMutation(commandStore.id(), liveTimestamps.original(), liveTimestamps.current(), timestampMicros);
+    }
+
+    public static UntypedResultSet loadTimestampsForKeyRow(CommandStore commandStore, PartitionKey key)
+    {
+        String cql = "SELECT * FROM %s.%s " +
+                     "WHERE store_id = ? " +
+                     "AND key_token = ? " +
+                     "AND key=(?, ?)";
+
+        return executeInternal(format(cql, ACCORD_KEYSPACE_NAME, TIMESTAMPS_FOR_KEY),
+                               commandStore.id(),
+                               serializeToken(key.token()),
+                               key.tableId().asUUID(), key.partitionKey().getKey());
+    }
+
+    public static TimestampsForKey loadTimestampsForKey(AccordCommandStore commandStore, PartitionKey key)
+    {
+        commandStore.checkNotInStoreThread();
+        return unsafeLoadTimestampsForKey(commandStore, key);
+    }
+
+    public static TimestampsForKey unsafeLoadTimestampsForKey(AccordCommandStore commandStore, PartitionKey key)
+    {
+
+        UntypedResultSet rows = loadTimestampsForKeyRow(commandStore, key);
+
+        if (rows.isEmpty())
+        {
+            return null;
+        }
+
+        UntypedResultSet.Row row = rows.one();
+        checkState(deserializeKey(row).equals(key));
+
+        Timestamp max = deserializeTimestampOrDefault(row, "max_timestamp", Timestamp::fromBits, Timestamp.NONE);
+        Timestamp lastExecutedTimestamp = deserializeTimestampOrDefault(row, "last_executed_timestamp", Timestamp::fromBits, Timestamp.NONE);
+        long lastExecutedMicros = row.has("last_executed_micros") ? row.getLong("last_executed_micros") : 0;
+        Timestamp lastWriteTimestamp = deserializeTimestampOrDefault(row, "last_write_timestamp", Timestamp::fromBits, Timestamp.NONE);
+
+        return TimestampsForKey.SerializerSupport.create(key, max, lastExecutedTimestamp, lastExecutedMicros, lastWriteTimestamp);
+    }
+
+    private static <T extends Timestamp> void addSeriesMutations(CommandsForKeyAccessor accessor,
+                                                                 CommandTimeseries.Update<T, ByteBuffer> update,
+                                                                 PartitionUpdate.Builder partitionBuilder,
+                                                                 Row.Builder rowBuilder,
+                                                                 LivenessInfo livenessInfo,
+                                                                 long timestampMicros,
+                                                                 Row.Deletion deletion,
+                                                                 Predicate<T> predicate)
+    {
+        if (update.isEmpty())
+            return;
+
+        update.forEachWrite((timestamp, bytes) -> {
+            if (!predicate.test(timestamp))
+                return;
+            rowBuilder.newRow(Clustering.make(serializeTimestamp(timestamp)));
+            rowBuilder.addCell(live(accessor.data, timestampMicros, bytes));
+            rowBuilder.addPrimaryKeyLivenessInfo(livenessInfo);
+            partitionBuilder.add(rowBuilder.build());
+        });
+        update.forEachDelete(timestamp -> {
+            if (!predicate.test(timestamp))
+                return;
+            rowBuilder.newRow(Clustering.make(serializeTimestamp(timestamp)));
+            rowBuilder.addRowDeletion(deletion);
+            partitionBuilder.add(rowBuilder.build());
+        });
+    }
+
+    private static <T extends Timestamp> void addSeriesMutations(CommandsForKeyAccessor accessor,
+                                                                 CommandTimeseries.Update<T, ByteBuffer> common,
+                                                                 CommandTimeseries.Update<T, ByteBuffer> update,
+                                                                 PartitionUpdate.Builder partitionBuilder,
+                                                                 Row.Builder rowBuilder,
+                                                                 LivenessInfo livenessInfo,
+                                                                 int nowInSeconds)
+    {
+
+        long timestampMicros = livenessInfo.timestamp();
+
+        Row.Deletion deletion = common.numDeletes() + update.numDeletes() > 0 ?
+                                Row.Deletion.regular(DeletionTime.build(timestampMicros, nowInSeconds)) :
+                                null;
+
+        addSeriesMutations(accessor, common, partitionBuilder, rowBuilder, livenessInfo, timestampMicros, deletion, ts -> !update.contains(ts));
+        addSeriesMutations(accessor, update, partitionBuilder, rowBuilder, livenessInfo, timestampMicros, deletion, ts -> true);
+    }
+
+    private static DecoratedKey makeKey(CommandsForKeyAccessor accessor, int storeId, PartitionKey key)
+    {
+        Token token = key.token();
+        ByteBuffer pk = accessor.keyComparator.make(storeId,
+                                                    serializeToken(token),
+                                                    serializeKey(key)).serializeAsPartitionKey();
+        return accessor.table.partitioner.decorateKey(pk);
+    }
+
+    private static PartitionUpdate getCommandsForKeyPartitionUpdate(CommandsForKeyAccessor accessor, int storeId, PartitionKey key, CommandsForKeyUpdater<ByteBuffer> common, CommandsForKeyUpdater<ByteBuffer> update, long timestampMicros)
+    {
+
+        int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(timestampMicros);
+        LivenessInfo livenessInfo = LivenessInfo.create(timestampMicros, nowInSeconds);
+
+        int expectedRows = common.totalChanges() + update.totalChanges();
+
+        PartitionUpdate.Builder partitionBuilder = new PartitionUpdate.Builder(accessor.table,
+                                                                               makeKey(accessor, storeId, key),
+                                                                               accessor.columns,
+                                                                               expectedRows);
+
+        Row.Builder rowBuilder = BTreeRow.unsortedBuilder();
+
+        addSeriesMutations(accessor, common.commands(), update.commands(), partitionBuilder, rowBuilder, livenessInfo, nowInSeconds);
+
+        PartitionUpdate partitionUpdate = partitionBuilder.build();
+        if (partitionUpdate.isEmpty())
+            return null;
+        return partitionUpdate;
+    }
+
+    public static Mutation getCommandsForKeyMutation(int storeId, CommandsForKeyUpdate update, long timestampMicros)
+    {
+        PartitionUpdate depsUpdate = getCommandsForKeyPartitionUpdate(DepsCommandsForKeysAccessor,
+                                                                      storeId,
+                                                                      update.key(),
+                                                                      update.common(),
+                                                                      update.deps(),
+                                                                      timestampMicros);
+        PartitionUpdate allUpdate = getCommandsForKeyPartitionUpdate(AllCommandsForKeysAccessor,
+                                                                     storeId,
+                                                                     update.key(),
+                                                                     update.common(),
+                                                                     update.all(),
+                                                                     timestampMicros);
+
+        if (depsUpdate == null && allUpdate == null)
+            return null;
+        if (depsUpdate == null)
+            return new Mutation(allUpdate);
+        else if (allUpdate == null)
+            return new Mutation(depsUpdate);
+
+        return new Mutation(ACCORD_KEYSPACE_NAME, depsUpdate.partitionKey(),
+                            ImmutableMap.of(depsUpdate.metadata().id, depsUpdate, allUpdate.metadata().id, allUpdate),
+                            MonotonicClock.Global.approxTime.now(), false);
     }
 
     private static <T> ByteBuffer cellValue(Cell<T> cell)
@@ -1402,32 +1506,35 @@ public class AccordKeyspace
         return clustering.accessor().toBuffer(clustering.get(idx));
     }
 
-    public static SinglePartitionReadCommand getCommandsForKeyRead(int storeId, PartitionKey key, long nowInSeconds)
+    private static SinglePartitionReadCommand getCommandsForKeyRead(CommandsForKeyAccessor accessor, int storeId, PartitionKey key, long nowInSeconds)
     {
-        return SinglePartitionReadCommand.create(CommandsForKeys, nowInSeconds,
-                                                 CommandsForKeyColumns.allColumns,
+        return SinglePartitionReadCommand.create(accessor.table, nowInSeconds,
+                                                 accessor.allColumns,
                                                  RowFilter.NONE,
                                                  DataLimits.NONE,
-                                                 makeKey(storeId, key),
+                                                 makeKey(accessor, storeId, key),
                                                  FULL_PARTITION);
     }
 
-    public static CommandsForKey loadCommandsForKey(AccordCommandStore commandStore, PartitionKey key)
+    public static SinglePartitionReadCommand getDepsCommandsForKeyRead(int storeId, PartitionKey key, int nowInSeconds)
     {
-        commandStore.checkNotInStoreThread();
-        return unsafeLoadCommandsForKey(commandStore, key);
+        return getCommandsForKeyRead(DepsCommandsForKeysAccessor, storeId, key, nowInSeconds);
     }
 
-    static CommandsForKey unsafeLoadCommandsForKey(AccordCommandStore commandStore, PartitionKey key)
+    public static SinglePartitionReadCommand getAllCommandsForKeyRead(int storeId, PartitionKey key, int nowInSeconds)
+    {
+        return getCommandsForKeyRead(AllCommandsForKeysAccessor, storeId, key, nowInSeconds);
+    }
+
+    static CommandsForKey unsafeLoadCommandsForKey(CommandsForKeyAccessor accessor, AccordCommandStore commandStore, PartitionKey key)
     {
         long timestampMicros = TimeUnit.MILLISECONDS.toMicros(Clock.Global.currentTimeMillis());
         int nowInSeconds = (int) TimeUnit.MICROSECONDS.toSeconds(timestampMicros);
 
-        SinglePartitionReadCommand command = getCommandsForKeyRead(commandStore.id(), key, nowInSeconds);
+        SinglePartitionReadCommand command = getCommandsForKeyRead(accessor, commandStore.id(), key, nowInSeconds);
 
-        EnumMap<SeriesKind, ImmutableSortedMap.Builder<Timestamp, ByteBuffer>> seriesMaps = new EnumMap<>(SeriesKind.class);
-        for (SeriesKind kind : SeriesKind.values())
-            seriesMaps.put(kind, new ImmutableSortedMap.Builder<>(Comparator.naturalOrder()));
+
+        ImmutableSortedMap.Builder<Timestamp, ByteBuffer> commands = new ImmutableSortedMap.Builder<>(Comparator.naturalOrder());
 
         try (ReadExecutionController controller = command.executionController();
              FilteredPartitions partitions = FilteredPartitions.filter(command.executeLocally(controller), nowInSeconds))
@@ -1437,48 +1544,50 @@ public class AccordKeyspace
                 return null;
             }
 
-            Timestamp max = Timestamp.NONE;
-            Timestamp lastExecutedTimestamp = Timestamp.NONE;
-            long lastExecutedMicros = 0;
-            Timestamp lastWriteTimestamp = Timestamp.NONE;
-
             try (RowIterator partition = partitions.next())
             {
-                // empty static row will be interpreted as all null cells which will cause everything to be initialized
-                Row staticRow = partition.staticRow();
-                max = deserializeTimestampOrDefault(staticRow, CommandsForKeyColumns.max_timestamp, Timestamp::fromBits, max);
-                lastExecutedTimestamp = deserializeTimestampOrDefault(staticRow, CommandsForKeyColumns.last_executed_timestamp, Timestamp::fromBits, lastExecutedTimestamp);
-
-                ByteBuffer microsBytes = bytesOrNull(staticRow, CommandsForKeyColumns.last_executed_micros);
-                if (microsBytes != null)
-                    lastExecutedMicros = microsBytes.getLong(microsBytes.position());
-
-                lastWriteTimestamp = deserializeTimestampOrDefault(staticRow, CommandsForKeyColumns.last_write_timestamp, Timestamp::fromBits, lastWriteTimestamp);
-
                 while (partition.hasNext())
                 {
                     Row row = partition.next();
                     Clustering<?> clustering = row.clustering();
-                    int ordinal = Int32Type.instance.compose(clusteringValue(clustering, 0));
-                    Timestamp timestamp = deserializeTimestampOrNull(clusteringValue(clustering, 1), Timestamp::fromBits);
-                    ByteBuffer data = cellValue(row, CommandsForKeyColumns.data);
+                    Timestamp timestamp = deserializeTimestampOrNull(clusteringValue(clustering, 0), Timestamp::fromBits);
+                    ByteBuffer data = cellValue(row, accessor.data);
                     if (data == null)
                         continue;
-                    seriesMaps.get(SeriesKind.values()[ordinal]).put(timestamp, data);
+                    commands.put(timestamp, data);
                 }
             }
             checkState(!partitions.hasNext());
 
-            return CommandsForKey.SerializerSupport.create(key, max, lastExecutedTimestamp, lastExecutedMicros, lastWriteTimestamp,
-                                                           CommandsForKeySerializer.loader,
-                                                           seriesMaps.get(SeriesKind.BY_ID).build(),
-                                                           seriesMaps.get(SeriesKind.BY_EXECUTE_AT).build());
+            return CommandsForKey.SerializerSupport.create(key, CommandsForKeySerializer.loader, commands.build());
         }
         catch (Throwable t)
         {
             logger.error("Exception loading AccordCommandsForKey " + key, t);
             throw t;
         }
+    }
+
+    public static CommandsForKey unsafeLoadDepsCommandsForKey(AccordCommandStore commandStore, PartitionKey key)
+    {
+        return unsafeLoadCommandsForKey(DepsCommandsForKeysAccessor, commandStore, key);
+    }
+
+    public static CommandsForKey unsafeLoadAllCommandsForKey(AccordCommandStore commandStore, PartitionKey key)
+    {
+        return unsafeLoadCommandsForKey(AllCommandsForKeysAccessor, commandStore, key);
+    }
+
+    public static CommandsForKey loadDepsCommandsForKey(AccordCommandStore commandStore, PartitionKey key)
+    {
+        commandStore.checkNotInStoreThread();
+        return unsafeLoadCommandsForKey(DepsCommandsForKeysAccessor, commandStore, key);
+    }
+
+    public static CommandsForKey loadAllCommandsForKey(AccordCommandStore commandStore, PartitionKey key)
+    {
+        commandStore.checkNotInStoreThread();
+        return unsafeLoadCommandsForKey(AllCommandsForKeysAccessor, commandStore, key);
     }
 
     public static class EpochDiskState

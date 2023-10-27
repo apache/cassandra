@@ -164,7 +164,7 @@ public class AccordMessageSink implements MessageSink
             for (MessageType type : Iterables.concat(AccordMessageType.values, MessageType.values))
             {
                 // Any request can receive a generic failure response
-                if (type == MessageType.FAILURE_RSP)
+                if (type == MessageType.FAILURE_RSP || type.isLocal())
                     continue;
 
                 if (mapping.containsKey(type))
