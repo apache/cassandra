@@ -34,6 +34,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import accord.api.RoutingKey;
+import accord.local.KeyHistory;
 import accord.local.PreLoadContext;
 import accord.primitives.Range;
 import accord.primitives.Ranges;
@@ -71,14 +72,16 @@ public class AsyncLoader
 
     private final Iterable<TxnId> txnIds;
     private final Seekables<?, ?> keysOrRanges;
+    private final KeyHistory keyHistory;
 
     protected AsyncResult<?> readResult;
 
-    public AsyncLoader(AccordCommandStore commandStore, Iterable<TxnId> txnIds, Seekables<?, ?> keysOrRanges)
+    public AsyncLoader(AccordCommandStore commandStore, Iterable<TxnId> txnIds, Seekables<?, ?> keysOrRanges, KeyHistory keyHistory)
     {
         this.commandStore = commandStore;
         this.txnIds = txnIds;
         this.keysOrRanges = keysOrRanges;
+        this.keyHistory = keyHistory;
     }
 
     protected static Iterable<TxnId> txnIds(PreLoadContext context)
@@ -90,34 +93,51 @@ public class AsyncLoader
         return Iterables.concat(Collections.singleton(primaryid), additionalIds);
     }
 
+    private static <K, V, S extends AccordSafeState<K, V>> void referenceAndAssembleReadsForKey(K key,
+                                                                                                Map<K, S> context,
+                                                                                                AccordStateCache.Instance<K, V, S> cache,
+                                                                                                List<AsyncChain<?>> listenChains)
+    {
+        S safeRef = cache.acquire(key);
+        context.put(key, safeRef);
+        AccordCachingState.Status status = safeRef.globalStatus(); // globalStatus() completes
+        switch (status)
+        {
+            default: throw new IllegalStateException("Unhandled global state: " + status);
+            case LOADING:
+                listenChains.add(safeRef.loading());
+                break;
+            case SAVING:
+                // make sure we work with a completed state that supports get() and set()
+                listenChains.add(safeRef.saving());
+                break;
+            case LOADED:
+            case MODIFIED:
+            case FAILED_TO_SAVE:
+                break;
+            case FAILED_TO_LOAD:
+                throw new RuntimeException(safeRef.failure());
+        }
+    }
+
+    private void referenceAndAssembleReadsForKey(RoutableKey key,
+                                                 AsyncOperation.Context context,
+                                                 List<AsyncChain<?>> listenChains)
+    {
+        referenceAndAssembleReadsForKey(key, context.timestampsForKey, commandStore.timestampsForKeyCache(), listenChains);
+        if (keyHistory == KeyHistory.DEPS)
+            referenceAndAssembleReadsForKey(key, context.depsCommandsForKeys, commandStore.depsCommandsForKeyCache(), listenChains);
+        if (keyHistory == KeyHistory.ALL)
+            referenceAndAssembleReadsForKey(key, context.allCommandsForKeys, commandStore.allCommandsForKeyCache(), listenChains);
+        referenceAndAssembleReadsForKey(key, context.updatesForKeys, commandStore.updatesForKeyCache(), listenChains);
+    }
+
     private <K, V, S extends AccordSafeState<K, V>> void referenceAndAssembleReads(Iterable<? extends K> keys,
                                                                                    Map<K, S> context,
                                                                                    AccordStateCache.Instance<K, V, S> cache,
                                                                                    List<AsyncChain<?>> listenChains)
     {
-        for (K key : keys)
-        {
-            S safeRef = cache.acquire(key);
-            context.put(key, safeRef);
-            AccordCachingState.Status status = safeRef.globalStatus(); // globalStatus() completes
-            switch (status)
-            {
-                default: throw new IllegalStateException("Unhandled global state: " + status);
-                case LOADING:
-                    listenChains.add(safeRef.loading());
-                    break;
-                case SAVING:
-                    // make sure we work with a completed state that supports get() and set()
-                    listenChains.add(safeRef.saving());
-                    break;
-                case LOADED:
-                case MODIFIED:
-                case FAILED_TO_SAVE:
-                    break;
-                case FAILED_TO_LOAD:
-                    throw new RuntimeException(safeRef.failure());
-            }
-        }
+        keys.forEach(key -> referenceAndAssembleReadsForKey(key, context, cache, listenChains));
     }
 
     private AsyncResult<?> referenceAndDispatchReads(AsyncOperation.Context context)
@@ -131,7 +151,7 @@ public class AsyncLoader
             case Key:
                 // cast to Keys fails...
                 Iterable<RoutableKey> keys = (Iterable<RoutableKey>) keysOrRanges;
-                referenceAndAssembleReads(keys, context.commandsForKeys, commandStore.commandsForKeyCache(), chains);
+                keys.forEach(key -> referenceAndAssembleReadsForKey(key, context, chains));
                 break;
             case Range:
                 chains.add(referenceAndDispatchReadsForRange(context));
@@ -151,7 +171,7 @@ public class AsyncLoader
             if (keys.isEmpty())
                 return AsyncChains.success(null);
             List<AsyncChain<?>> chains = new ArrayList<>();
-            referenceAndAssembleReads(keys, context.commandsForKeys, commandStore.commandsForKeyCache(), chains);
+            keys.forEach(key -> referenceAndAssembleReadsForKey(key, context, chains));
             return chains.isEmpty() ? AsyncChains.success(null) : AsyncChains.reduce(chains, (a, b) -> null);
         }, commandStore);
     }
@@ -168,7 +188,7 @@ public class AsyncLoader
 
     private AsyncChain<Set<PartitionKey>> findOverlappingKeys(Range range)
     {
-        Set<PartitionKey> cached = commandStore.commandsForKeyCache().stream()
+        Set<PartitionKey> cached = commandStore.depsCommandsForKeyCache().stream()
                                                .map(n -> (PartitionKey) n.key())
                                                .filter(range::contains)
                                                .collect(Collectors.toSet());

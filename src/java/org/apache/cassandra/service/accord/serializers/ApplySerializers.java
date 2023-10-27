@@ -29,6 +29,7 @@ import accord.primitives.Seekables;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.primitives.Writes;
+import accord.utils.Invariants;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -37,12 +38,32 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 
 public class ApplySerializers
 {
+    private static final IVersionedSerializer<Apply.Kind> kind = new IVersionedSerializer<Apply.Kind>()
+    {
+        public void serialize(Apply.Kind kind, DataOutputPlus out, int version) throws IOException
+        {
+            Invariants.checkArgument(kind == Apply.Kind.Maximal || kind == Apply.Kind.Minimal);
+            out.writeBoolean(kind == Apply.Kind.Maximal);
+        }
+
+        public Apply.Kind deserialize(DataInputPlus in, int version) throws IOException
+        {
+            return in.readBoolean() ? Apply.Kind.Maximal : Apply.Kind.Minimal;
+        }
+
+        public long serializedSize(Apply.Kind t, int version)
+        {
+            return TypeSizes.BOOL_SIZE;
+        }
+    };
+
+//    public static final IVersionedSerializer<Apply> request = new TxnRequestSerializer<Apply>()
     public abstract static class ApplySerializer<A extends Apply> extends TxnRequestSerializer<A>
     {
         @Override
         public void serializeBody(A apply, DataOutputPlus out, int version) throws IOException
         {
-            out.writeBoolean(apply.kind == Apply.Kind.Maximal);
+            kind.serialize(apply.kind, out, version);
             KeySerializers.seekables.serialize(apply.keys(), out, version);
             CommandSerializers.timestamp.serialize(apply.executeAt, out, version);
             DepsSerializer.partialDeps.serialize(apply.deps, out, version);
@@ -57,7 +78,7 @@ public class ApplySerializers
         public A deserializeBody(DataInputPlus in, int version, TxnId txnId, PartialRoute<?> scope, long waitForEpoch) throws IOException
         {
             return deserializeApply(txnId, scope, waitForEpoch,
-                                    in.readBoolean() ? Apply.Kind.Maximal : Apply.Kind.Minimal,
+                                    kind.deserialize(in, version),
                                     KeySerializers.seekables.deserialize(in, version),
                                     CommandSerializers.timestamp.deserialize(in, version),
                                     DepsSerializer.partialDeps.deserialize(in, version),
@@ -69,7 +90,7 @@ public class ApplySerializers
         @Override
         public long serializedBodySize(A apply, int version)
         {
-            return TypeSizes.BOOL_SIZE
+            return   kind.serializedSize(apply.kind, version)
                    + KeySerializers.seekables.serializedSize(apply.keys(), version)
                    + CommandSerializers.timestamp.serializedSize(apply.executeAt, version)
                    + DepsSerializer.partialDeps.serializedSize(apply.deps, version)

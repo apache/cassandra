@@ -139,15 +139,20 @@ public class AccordTestUtils
         return new CommandsForKey(key, CommandsForKeySerializer.loader);
     }
 
-    public static <K, V> AccordCachingState<K, V> loaded(K key, V value)
+    public static <K, V> AccordCachingState<K, V> loaded(K key, V value, int index)
     {
-        AccordCachingState<K, V> global = new AccordCachingState<>(key);
+        AccordCachingState<K, V> global = new AccordCachingState<>(key, index);
         global.load(ImmediateExecutor.INSTANCE, k -> {
             Assert.assertEquals(key, k);
             return value;
         });
         Assert.assertEquals(AccordCachingState.Status.LOADED, global.status());
         return global;
+    }
+
+    public static <K, V> AccordCachingState<K, V> loaded(K key, V value)
+    {
+        return loaded(key, value, 0);
     }
 
     public static AccordSafeCommand safeCommand(Command command)
