@@ -18,82 +18,79 @@
 
 package org.apache.cassandra.service.accord;
 
-import java.util.Objects;
+import java.nio.ByteBuffer;
 
 import com.google.common.annotations.VisibleForTesting;
 
 import accord.api.Key;
-import accord.impl.CommandsForKey;
 import accord.impl.SafeCommandsForKey;
 import accord.primitives.RoutableKey;
+import accord.utils.async.AsyncChain;
+import org.apache.cassandra.service.accord.api.PartitionKey;
+import org.apache.cassandra.service.accord.serializers.CommandsForKeySerializer;
 
-public class AccordSafeCommandsForKey extends SafeCommandsForKey implements AccordSafeState<RoutableKey, CommandsForKey>
+public class AccordSafeCommandsForKeyUpdate extends SafeCommandsForKey.Update<CommandsForKeyUpdate, ByteBuffer> implements AccordSafeState<RoutableKey, CommandsForKeyUpdate>
 {
     private boolean invalidated;
-    private final AccordCachingState<RoutableKey, CommandsForKey> global;
-    private CommandsForKey original;
-    private CommandsForKey current;
+    private final AccordCachingState<RoutableKey, CommandsForKeyUpdate> global;
+    private CommandsForKeyUpdate original;
+    private CommandsForKeyUpdate current;
 
-    public AccordSafeCommandsForKey(AccordCachingState<RoutableKey, CommandsForKey> global)
+    public AccordSafeCommandsForKeyUpdate(AccordCachingState<RoutableKey, CommandsForKeyUpdate> global)
     {
-        super((Key) global.key());
+        super((Key) global.key(), CommandsForKeySerializer.loader);
         this.global = global;
         this.original = null;
         this.current = null;
     }
 
     @Override
-    public boolean equals(Object o)
+    public void initialize()
     {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        AccordSafeCommandsForKey that = (AccordSafeCommandsForKey) o;
-        return Objects.equals(original, that.original) && Objects.equals(current, that.current);
+        set(CommandsForKeyUpdate.empty((PartitionKey) key()));
     }
 
     @Override
-    public int hashCode()
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public String toString()
-    {
-        return "AccordSafeCommandsForKey{" +
-               "invalidated=" + invalidated +
-               ", global=" + global +
-               ", original=" + original +
-               ", current=" + current +
-               '}';
-    }
-
-    @Override
-    public AccordCachingState<RoutableKey, CommandsForKey> global()
+    public AccordCachingState<RoutableKey, CommandsForKeyUpdate> global()
     {
         checkNotInvalidated();
         return global;
     }
 
     @Override
-    public CommandsForKey current()
+    public CommandsForKeyUpdate current()
     {
         checkNotInvalidated();
         return current;
     }
 
+    public AsyncChain<?> loading()
+    {
+        throw new IllegalStateException("Updates aren't loaded");
+    }
+
     @Override
     @VisibleForTesting
-    public void set(CommandsForKey cfk)
+    public void set(CommandsForKeyUpdate cfk)
     {
         checkNotInvalidated();
         this.current = cfk;
     }
 
-    public CommandsForKey original()
+    public CommandsForKeyUpdate original()
     {
         checkNotInvalidated();
         return original;
+    }
+
+    public CommandsForKeyUpdate setUpdates()
+    {
+        CommandsForKeyUpdate next = new CommandsForKeyUpdate((PartitionKey) key(),
+                                                             deps().toImmutable(),
+                                                             all().toImmutable(),
+                                                             common().toImmutable());
+        set(next);
+        return next;
     }
 
     @Override
@@ -108,7 +105,7 @@ public class AccordSafeCommandsForKey extends SafeCommandsForKey implements Acco
     public void postExecute()
     {
         checkNotInvalidated();
-        // updates are applied directly by CommandsForKeyUpdate
+        global.set(current);
     }
 
     @Override

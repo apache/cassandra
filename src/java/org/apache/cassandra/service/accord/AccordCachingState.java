@@ -22,11 +22,13 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.ToLongFunction;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
 import accord.local.Command.TransientListener;
 import accord.local.Listeners;
 import accord.utils.IntrusiveLinkedListNode;
+import accord.utils.Invariants;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncResults.RunnableResult;
 import org.apache.cassandra.concurrent.ExecutorPlus;
@@ -47,13 +49,24 @@ import static org.apache.cassandra.service.accord.AccordCachingState.Status.UNIN
  */
 public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
 {
-    static final long EMPTY_SIZE = ObjectSizes.measure(new AccordCachingState<>(null, null));
+    static final long EMPTY_SIZE = ObjectSizes.measure(new AccordCachingState<>(null, 0, null));
+
+    public interface Factory<K, V>
+    {
+        AccordCachingState<K, V> create(K key, int index);
+    }
+
+    static <K, V> Factory<K, V> defaultFactory()
+    {
+        return AccordCachingState::new;
+    }
 
     private final K key;
     private State<K, V> state;
 
     int references = 0;
     int lastQueriedEstimatedSizeOnHeap = 0;
+    final byte index;
     private boolean shouldUpdateSize;
 
     /**
@@ -61,16 +74,20 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
      */
     private Listeners<TransientListener> transientListeners;
 
-    public AccordCachingState(K key)
+    AccordCachingState(K key, int index)
     {
         this.key = key;
+        Invariants.checkArgument(index >= 0 && index <= Byte.MAX_VALUE);
+        this.index = (byte) index;
         //noinspection unchecked
         this.state = (State<K, V>) Uninitialized.instance;
     }
 
-    AccordCachingState(K key, State<K, V> state)
+    private AccordCachingState(K key, int index, State<K, V> state)
     {
         this.key = key;
+        Invariants.checkArgument(index >= 0 && index <= Byte.MAX_VALUE);
+        this.index = (byte) index;
         this.state = state;
     }
 
@@ -102,6 +119,11 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
     public boolean isComplete()
     {
         return status().isComplete();
+    }
+
+    public boolean canEvict()
+    {
+        return true;
     }
 
     int estimatedSizeOnHeap(ToLongFunction<V> estimator)
@@ -179,12 +201,23 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
         return loading;
     }
 
-    private State<K, V> state(State<K, V> next)
+    public void initialize(V value)
+    {
+        state(state.initialize(value));
+    }
+
+    protected State<K, V> state(State<K, V> next)
     {
         State<K, V> prev = state;
         if (prev != next)
             shouldUpdateSize = true;
         return state = next;
+    }
+
+    @VisibleForTesting
+    protected State<K, V> state()
+    {
+        return state;
     }
 
     public AsyncChain<V> loading()
@@ -209,7 +242,8 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
      * Submits a save runnable to the specified executor. When the runnable
      * has completed, the state save will have either completed or failed.
      */
-    void save(ExecutorPlus executor, BiFunction<?, ?, Runnable> saveFunction)
+    @VisibleForTesting
+    public void save(ExecutorPlus executor, BiFunction<?, ?, Runnable> saveFunction)
     {
         @SuppressWarnings("unchecked")
         State<K, V> savingOrLoaded = state.save((BiFunction<V, V, Runnable>) saveFunction);
@@ -300,6 +334,11 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
             throw illegalState(this, "load(key, loadFunction)");
         }
 
+        default Loaded<K, V> initialize(V value)
+        {
+            throw illegalState(this, "initialize(value)");
+        }
+
         default RunnableResult<V> loading()
         {
             throw illegalState(this, "loading()");
@@ -371,6 +410,11 @@ public class AccordCachingState<K, V> extends IntrusiveLinkedListNode
         public Loading<K, V> load(K key, Function<K, V> loadFunction)
         {
             return new Loading<>(() -> loadFunction.apply(key));
+        }
+
+        public Loaded<K, V> initialize(V value)
+        {
+            return new Loaded<>(value);
         }
 
         @Override

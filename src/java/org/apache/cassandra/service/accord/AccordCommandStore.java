@@ -27,7 +27,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -43,8 +42,10 @@ import accord.api.Agent;
 import accord.api.DataStore;
 import accord.api.Key;
 import accord.api.ProgressLog;
-import accord.impl.CommandTimeseriesHolder;
 import accord.impl.CommandsForKey;
+import accord.impl.DomainCommands;
+import accord.impl.DomainTimestamps;
+import accord.impl.TimestampsForKey;
 import accord.local.Command;
 import accord.local.CommandStore;
 import accord.local.DurableBefore;
@@ -69,6 +70,7 @@ import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.utils.Invariants;
 import accord.utils.ReducingRangeMap;
+import accord.utils.TriFunction;
 import accord.utils.async.AsyncChain;
 import accord.utils.async.AsyncChains;
 import accord.utils.async.Observable;
@@ -112,9 +114,13 @@ public class AccordCommandStore extends CommandStore implements CacheSize
     private final AccordJournal journal;
     private final ExecutorService executor;
     private final ExecutionOrder executionOrder;
+    private final AccordCommandsForKeys keyCoordinator;
     private final AccordStateCache stateCache;
     private final AccordStateCache.Instance<TxnId, Command, AccordSafeCommand> commandCache;
-    private final AccordStateCache.Instance<RoutableKey, CommandsForKey, AccordSafeCommandsForKey> commandsForKeyCache;
+    private final AccordStateCache.Instance<RoutableKey, TimestampsForKey, AccordSafeTimestampsForKey> timestampsForKeyCache;
+    private final AccordStateCache.Instance<RoutableKey, CommandsForKey, AccordSafeCommandsForKey> depsCommandsForKeyCache;
+    private final AccordStateCache.Instance<RoutableKey, CommandsForKey, AccordSafeCommandsForKey> allCommandsForKeyCache;
+    private final AccordStateCache.Instance<RoutableKey, CommandsForKeyUpdate, AccordSafeCommandsForKeyUpdate> updatesForKeyCache;
     private AsyncOperation<?> currentOperation = null;
     private AccordSafeCommandStore current = null;
     private long lastSystemTimestampMicros = Long.MIN_VALUE;
@@ -147,26 +153,56 @@ public class AccordCommandStore extends CommandStore implements CacheSize
         super(id, time, agent, dataStore, progressLogFactory, epochUpdateHolder);
         this.journal = journal;
         loggingId = String.format("[%s]", id);
+        keyCoordinator = new AccordCommandsForKeys(this);
         executor = executorFactory().sequential(CommandStore.class.getSimpleName() + '[' + id + ']');
         executionOrder = new ExecutionOrder();
         threadId = getThreadId(executor);
         stateCache = new AccordStateCache(loadExecutor, saveExecutor, 8 << 20, cacheMetrics);
         commandCache =
             stateCache.instance(TxnId.class,
-                                TxnId.class,
+                                AccordSafeCommand.class,
                                 AccordSafeCommand::new,
                                 this::loadCommand,
                                 this::saveCommand,
                                 this::validateCommand,
                                 AccordObjectSizes::command);
-        commandsForKeyCache =
+        timestampsForKeyCache =
             stateCache.instance(RoutableKey.class,
-                                PartitionKey.class,
+                                AccordSafeTimestampsForKey.class,
+                                AccordSafeTimestampsForKey::new,
+                                this::loadTimestampsForKey,
+                                this::saveTimestampsForKey,
+                                this::validateTimestampsForKey,
+                                AccordObjectSizes::timestampsForKey);
+        depsCommandsForKeyCache =
+            stateCache.instance(RoutableKey.class,
+                                AccordSafeCommandsForKey.class,
                                 AccordSafeCommandsForKey::new,
-                                this::loadCommandsForKey,
+                                this::loadDepsCommandsForKey,
                                 this::saveCommandsForKey,
-                                this::validateCommandsForKey,
-                                AccordObjectSizes::commandsForKey);
+                                this::validateDepsCommandsForKey,
+                                AccordObjectSizes::commandsForKey,
+                                keyCoordinator::createDepsCommandsNode);
+        allCommandsForKeyCache =
+            stateCache.instance(RoutableKey.class,
+                                AccordSafeCommandsForKey.class,
+                                AccordSafeCommandsForKey::new,
+                                this::loadAllCommandsForKey,
+                                this::saveCommandsForKey,
+                                this::validateAllCommandsForKey,
+                                AccordObjectSizes::commandsForKey,
+                                keyCoordinator::createDepsCommandsNode);
+        updatesForKeyCache =
+            stateCache.instance(RoutableKey.class,
+                                AccordSafeCommandsForKeyUpdate.class,
+                                AccordSafeCommandsForKeyUpdate::new,
+                                this::loadCommandsForKeyUpdate,
+                                this::saveCommandsForKeyUpdate,
+                                (key, evicting) -> true,
+                                CommandsForKeyUpdate::estimatedSizeOnHeap,
+                                keyCoordinator::createUpdatesNode);
+
+//>>>>>>> 701eeff2b4 (deps pruning integration)
         AccordKeyspace.loadCommandStoreMetadata(id, ((rejectBefore, durableBefore, redundantBefore, bootstrapBeganAt, safeToRead) -> {
             executor.submit(() -> {
                 if (rejectBefore != null)
@@ -181,6 +217,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                     super.setSafeToRead(safeToRead);
             });
         }));
+
         executor.execute(() -> CommandStore.register(this));
         executor.execute(this::loadRangesToCommands);
     }
@@ -299,9 +336,24 @@ public class AccordCommandStore extends CommandStore implements CacheSize
         return commandCache;
     }
 
-    public AccordStateCache.Instance<RoutableKey, CommandsForKey, AccordSafeCommandsForKey> commandsForKeyCache()
+    public AccordStateCache.Instance<RoutableKey, TimestampsForKey, AccordSafeTimestampsForKey> timestampsForKeyCache()
     {
-        return commandsForKeyCache;
+        return timestampsForKeyCache;
+    }
+
+    public AccordStateCache.Instance<RoutableKey, CommandsForKey, AccordSafeCommandsForKey> depsCommandsForKeyCache()
+    {
+        return depsCommandsForKeyCache;
+    }
+
+    public AccordStateCache.Instance<RoutableKey, CommandsForKey, AccordSafeCommandsForKey> allCommandsForKeyCache()
+    {
+        return allCommandsForKeyCache;
+    }
+
+    public AccordStateCache.Instance<RoutableKey, CommandsForKeyUpdate, AccordSafeCommandsForKeyUpdate> updatesForKeyCache()
+    {
+        return updatesForKeyCache;
     }
 
     Command loadCommand(TxnId txnId)
@@ -322,22 +374,63 @@ public class AccordCommandStore extends CommandStore implements CacheSize
         return (evicting == null && reloaded == null) || (evicting != null && reloaded != null && reloaded.isEqualOrFuller(evicting));
     }
 
-    CommandsForKey loadCommandsForKey(RoutableKey key)
+    boolean validateTimestampsForKey(RoutableKey key, TimestampsForKey evicting)
     {
-        return AccordKeyspace.loadCommandsForKey(this, (PartitionKey) key);
+        TimestampsForKey reloaded = AccordKeyspace.unsafeLoadTimestampsForKey(this, (PartitionKey) key);
+        return Objects.equals(evicting, reloaded);
+
+    }
+
+    TimestampsForKey loadTimestampsForKey(RoutableKey key)
+    {
+        return AccordKeyspace.loadTimestampsForKey(this, (PartitionKey) key);
+    }
+
+    CommandsForKey loadDepsCommandsForKey(RoutableKey key)
+    {
+        return AccordKeyspace.loadDepsCommandsForKey(this, (PartitionKey) key);
+    }
+
+    CommandsForKey loadAllCommandsForKey(RoutableKey key)
+    {
+        return AccordKeyspace.loadAllCommandsForKey(this, (PartitionKey) key);
+    }
+
+    CommandsForKeyUpdate loadCommandsForKeyUpdate(RoutableKey key)
+    {
+        throw new IllegalStateException();
+    }
+
+    boolean validateDepsCommandsForKey(RoutableKey key, CommandsForKey evicting)
+    {
+        CommandsForKey reloaded = AccordKeyspace.loadDepsCommandsForKey(this, (PartitionKey) key);
+        return Objects.equals(evicting, reloaded);
+    }
+
+    boolean validateAllCommandsForKey(RoutableKey key, CommandsForKey evicting)
+    {
+        CommandsForKey reloaded = AccordKeyspace.loadAllCommandsForKey(this, (PartitionKey) key);
+        return Objects.equals(evicting, reloaded);
     }
 
     @Nullable
     private Runnable saveCommandsForKey(CommandsForKey before, CommandsForKey after)
     {
-        Mutation mutation = AccordKeyspace.getCommandsForKeyMutation(id, before, after, nextSystemTimestampMicros());
+        throw new IllegalStateException();
+    }
+
+    @Nullable
+    private Runnable saveTimestampsForKey(TimestampsForKey before, TimestampsForKey after)
+    {
+        Mutation mutation = AccordKeyspace.getTimestampsForKeyMutation(id, before, after, nextSystemTimestampMicros());
         return null != mutation ? mutation::apply : null;
     }
 
-    boolean validateCommandsForKey(RoutableKey key, CommandsForKey evicting)
+    @Nullable
+    private Runnable saveCommandsForKeyUpdate(CommandsForKeyUpdate before, CommandsForKeyUpdate after)
     {
-        CommandsForKey reloaded = AccordKeyspace.unsafeLoadCommandsForKey(this, (PartitionKey) key);
-        return Objects.equals(evicting, reloaded);
+        Mutation mutation = AccordKeyspace.getCommandsForKeyMutation(id, after, nextSystemTimestampMicros());
+        return null != mutation ? mutation::apply : null;
     }
 
     @VisibleForTesting
@@ -431,12 +524,16 @@ public class AccordCommandStore extends CommandStore implements CacheSize
 
     public AccordSafeCommandStore beginOperation(PreLoadContext preLoadContext,
                                                  Map<TxnId, AccordSafeCommand> commands,
-                                                 NavigableMap<RoutableKey, AccordSafeCommandsForKey> commandsForKeys)
+                                                 NavigableMap<RoutableKey, AccordSafeTimestampsForKey> timestampsForKeys,
+                                                 NavigableMap<RoutableKey, AccordSafeCommandsForKey> depsCommandsForKeys,
+                                                 NavigableMap<RoutableKey, AccordSafeCommandsForKey> allCommandsForKeys,
+                                                 NavigableMap<RoutableKey, AccordSafeCommandsForKeyUpdate> updatesForKeys)
     {
         Invariants.checkState(current == null);
         commands.values().forEach(AccordSafeState::preExecute);
-        commandsForKeys.values().forEach(AccordSafeState::preExecute);
-        current = new AccordSafeCommandStore(preLoadContext, commands, commandsForKeys, this);
+        depsCommandsForKeys.values().forEach(AccordSafeState::preExecute);
+        timestampsForKeys.values().forEach(AccordSafeState::preExecute);
+        current = new AccordSafeCommandStore(preLoadContext, commands, timestampsForKeys, depsCommandsForKeys, allCommandsForKeys, updatesForKeys, this);
         return current;
     }
 
@@ -452,7 +549,7 @@ public class AccordCommandStore extends CommandStore implements CacheSize
         current = null;
     }
 
-    <O> O mapReduceForRange(Routables<?> keysOrRanges, Ranges slice, BiFunction<CommandTimeseriesHolder, O, O> map, O accumulate, Predicate<? super O> terminate)
+    <O> O mapReduceForRange(Routables<?> keysOrRanges, Ranges slice, TriFunction<DomainTimestamps, DomainCommands, O, O> map, O accumulate, Predicate<? super O> terminate)
     {
         keysOrRanges = keysOrRanges.slice(slice, Routables.Slice.Minimal);
         switch (keysOrRanges.domain())
@@ -460,9 +557,9 @@ public class AccordCommandStore extends CommandStore implements CacheSize
             case Key:
             {
                 AbstractKeys<Key> keys = (AbstractKeys<Key>) keysOrRanges;
-                for (CommandTimeseriesHolder summary : commandsForRanges.search(keys))
+                for (CommandsForRanges.DomainInfo summary : commandsForRanges.search(keys))
                 {
-                    accumulate = map.apply(summary, accumulate);
+                    accumulate = map.apply(summary, summary, accumulate);
                     if (terminate.test(accumulate))
                         return accumulate;
                 }
@@ -473,10 +570,10 @@ public class AccordCommandStore extends CommandStore implements CacheSize
                 AbstractRanges ranges = (AbstractRanges) keysOrRanges;
                 for (Range range : ranges)
                 {
-                    CommandTimeseriesHolder summary = commandsForRanges.search(range);
+                    CommandsForRanges.DomainInfo summary = commandsForRanges.search(range);
                     if (summary == null)
                         continue;
-                    accumulate = map.apply(summary, accumulate);
+                    accumulate = map.apply(summary, summary, accumulate);
                     if (terminate.test(accumulate))
                         return accumulate;
                 }

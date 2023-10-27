@@ -68,6 +68,7 @@ import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.transform.FilteredPartitions;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.accord.AccordCachingState;
 import org.apache.cassandra.service.accord.AccordCommandStore;
@@ -111,8 +112,10 @@ public class AsyncOperationTest
     @Before
     public void before()
     {
-        QueryProcessor.executeInternal("TRUNCATE system_accord.commands");
-        QueryProcessor.executeInternal("TRUNCATE system_accord.commands_for_key");
+        QueryProcessor.executeInternal(String.format("TRUNCATE %s.%s", SchemaConstants.ACCORD_KEYSPACE_NAME, AccordKeyspace.COMMANDS));
+        QueryProcessor.executeInternal(String.format("TRUNCATE %s.%s", SchemaConstants.ACCORD_KEYSPACE_NAME, AccordKeyspace.TIMESTAMPS_FOR_KEY));
+        QueryProcessor.executeInternal(String.format("TRUNCATE %s.%s", SchemaConstants.ACCORD_KEYSPACE_NAME, AccordKeyspace.DEPS_COMMANDS_FOR_KEY));
+        QueryProcessor.executeInternal(String.format("TRUNCATE %s.%s", SchemaConstants.ACCORD_KEYSPACE_NAME, AccordKeyspace.ALL_COMMANDS_FOR_KEY));
     }
 
     /**
@@ -146,12 +149,12 @@ public class AsyncOperationTest
         PartitionKey key = (PartitionKey) Iterables.getOnlyElement(txn.keys());
 
         getUninterruptibly(commandStore.execute(contextFor(key), instance -> {
-            SafeCommandsForKey cfk = ((AccordSafeCommandStore) instance).maybeCommandsForKey(key);
+            SafeCommandsForKey cfk = ((AccordSafeCommandStore) instance).maybeDepsCommandsForKey(key);
             Assert.assertNull(cfk);
         }));
 
         long nowInSeconds = FBUtilities.nowInSeconds();
-        SinglePartitionReadCommand command = AccordKeyspace.getCommandsForKeyRead(commandStore.id(), key, nowInSeconds);
+        SinglePartitionReadCommand command = AccordKeyspace.getDepsCommandsForKeyRead(commandStore.id(), key, (int) nowInSeconds);
         try(ReadExecutionController controller = command.executionController();
             FilteredPartitions partitions = FilteredPartitions.filter(command.executeLocally(controller), nowInSeconds))
         {
@@ -277,7 +280,7 @@ public class AsyncOperationTest
             @Override
             AsyncLoader createAsyncLoader(AccordCommandStore commandStore, PreLoadContext preLoadContext)
             {
-                return new AsyncLoader(commandStore, txnIds(preLoadContext), preLoadContext.keys())
+                return new AsyncLoader(commandStore, txnIds(preLoadContext), preLoadContext.keys(), preLoadContext.keyHistory())
                 {
                     @Override
                     void state(State state)
@@ -422,7 +425,7 @@ public class AsyncOperationTest
         try
         {
             //TODO this is due to bad typing for Instance, it doesn't use ? extends RoutableKey
-            assertNoReferences(commandStore.commandsForKeyCache(), (Iterable<RoutableKey>) (Iterable<?>) keys);
+            assertNoReferences(commandStore.depsCommandsForKeyCache(), (Iterable<RoutableKey>) (Iterable<?>) keys);
         }
         catch (AssertionError e)
         {
@@ -464,7 +467,7 @@ public class AsyncOperationTest
     {
         awaitDone(commandStore.commandCache(), ids);
         //TODO this is due to bad typing for Instance, it doesn't use ? extends RoutableKey
-        awaitDone(commandStore.commandsForKeyCache(), (Iterable<RoutableKey>) (Iterable<?>) keys);
+        awaitDone(commandStore.depsCommandsForKeyCache(), (Iterable<RoutableKey>) (Iterable<?>) keys);
     }
 
     private static <T> void awaitDone(AccordStateCache.Instance<T, ?, ?> cache, Iterable<T> keys)

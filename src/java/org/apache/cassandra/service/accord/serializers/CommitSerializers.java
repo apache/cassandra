@@ -30,6 +30,7 @@ import accord.primitives.PartialTxn;
 import accord.primitives.Timestamp;
 import accord.primitives.TxnId;
 import accord.primitives.Unseekables;
+import accord.utils.Invariants;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -42,6 +43,26 @@ import static org.apache.cassandra.utils.NullableSerializer.serializedNullableSi
 
 public class CommitSerializers
 {
+    private static final IVersionedSerializer<Commit.Kind> kind = new IVersionedSerializer<Commit.Kind>()
+    {
+        public void serialize(Commit.Kind kind, DataOutputPlus out, int version) throws IOException
+        {
+            Invariants.checkArgument(kind == Commit.Kind.Minimal || kind == Commit.Kind.Maximal);
+            out.writeBoolean(kind == Commit.Kind.Maximal);
+
+        }
+
+        public Commit.Kind deserialize(DataInputPlus in, int version) throws IOException
+        {
+            return in.readBoolean() ? Commit.Kind.Maximal : Commit.Kind.Minimal;
+        }
+
+        public long serializedSize(Commit.Kind kind, int version)
+        {
+            return TypeSizes.BOOL_SIZE;
+        }
+    };
+
     public abstract static class CommitSerializer<C extends Commit, R extends ReadData> extends TxnRequestSerializer<C>
     {
         private final IVersionedSerializer<ReadData> read;
@@ -54,7 +75,7 @@ public class CommitSerializers
         @Override
         public void serializeBody(C msg, DataOutputPlus out, int version) throws IOException
         {
-            out.writeBoolean(msg.kind == Commit.Kind.Maximal);
+            kind.serialize(msg.kind, out, version);
             CommandSerializers.timestamp.serialize(msg.executeAt, out, version);
             CommandSerializers.nullablePartialTxn.serialize(msg.partialTxn, out, version);
             DepsSerializer.partialDeps.serialize(msg.partialDeps, out, version);
@@ -70,7 +91,7 @@ public class CommitSerializers
         public C deserializeBody(DataInputPlus in, int version, TxnId txnId, PartialRoute<?> scope, long waitForEpoch) throws IOException
         {
             return deserializeCommit(txnId, scope, waitForEpoch,
-                                     in.readBoolean() ? Commit.Kind.Maximal : Commit.Kind.Minimal,
+                                     kind.deserialize(in, version),
                                      CommandSerializers.timestamp.deserialize(in, version),
                                      CommandSerializers.nullablePartialTxn.deserialize(in, version),
                                      DepsSerializer.partialDeps.deserialize(in, version),
@@ -82,7 +103,7 @@ public class CommitSerializers
         @Override
         public long serializedBodySize(C msg, int version)
         {
-            return TypeSizes.BOOL_SIZE
+            return kind.serializedSize(msg.kind, version)
                    + CommandSerializers.timestamp.serializedSize(msg.executeAt, version)
                    + CommandSerializers.nullablePartialTxn.serializedSize(msg.partialTxn, version)
                    + DepsSerializer.partialDeps.serializedSize(msg.partialDeps, version)

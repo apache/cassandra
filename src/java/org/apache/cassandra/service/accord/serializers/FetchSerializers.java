@@ -166,7 +166,7 @@ public class FetchSerializers
         {
             TxnId txnId = CommandSerializers.txnId.deserialize(in, version);
             Route<?> route = KeySerializers.route.deserialize(in, version);
-            SaveStatus saveStatus = CommandSerializers.saveStatus.deserialize(in, version);
+            SaveStatus maxKnowledgeSaveStatus = CommandSerializers.saveStatus.deserialize(in, version);
             SaveStatus maxSaveStatus = CommandSerializers.saveStatus.deserialize(in, version);
             Durability durability = CommandSerializers.durability.deserialize(in, version);
             RoutingKey homeKey = KeySerializers.nullableRoutingKey.deserialize(in, version);
@@ -175,13 +175,13 @@ public class FetchSerializers
             CheckStatus.FoundKnownMap known = CheckStatusSerializers.foundKnownMap.deserialize(in, version);
             boolean isTruncated = in.readBoolean();
             PartialTxn partialTxn = CommandSerializers.nullablePartialTxn.deserialize(in, version);
-            PartialDeps partialDeps = DepsSerializer.nullablePartialDeps.deserialize(in, version);
+            PartialDeps committedDeps = DepsSerializer.nullablePartialDeps.deserialize(in, version);
             long toEpoch = in.readLong();
-            Timestamp executeAt = CommandSerializers.nullableTimestamp.deserialize(in, version);
+            Timestamp committedExecuteAt = CommandSerializers.nullableTimestamp.deserialize(in, version);
             Writes writes = CommandSerializers.nullableWrites.deserialize(in, version);
 
             Result result = null;
-            switch (saveStatus)
+            switch (maxSaveStatus)
             {
                 case PreApplied:
                 case Applying:
@@ -193,7 +193,22 @@ public class FetchSerializers
                     break;
             }
 
-            return Propagate.SerializerSupport.create(txnId, route, saveStatus, maxSaveStatus, durability, homeKey, progressKey, achieved, known, isTruncated, partialTxn, partialDeps, toEpoch, executeAt, writes, result);
+            return Propagate.SerializerSupport.create(txnId,
+                                                      route,
+                                                      maxKnowledgeSaveStatus,
+                                                      maxSaveStatus,
+                                                      durability,
+                                                      homeKey,
+                                                      progressKey,
+                                                      achieved,
+                                                      known,
+                                                      isTruncated,
+                                                      partialTxn,
+                                                      committedDeps,
+                                                      toEpoch,
+                                                      committedExecuteAt,
+                                                      writes,
+                                                      result);
         }
 
         @Override

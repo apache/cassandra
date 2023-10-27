@@ -29,9 +29,14 @@ public class AccordCachingStateTest
 {
     static class CachingState extends AccordCachingState<String, String>
     {
+        public CachingState(String key, int index)
+        {
+            super(key, index);
+        }
+
         public CachingState(String key)
         {
-            super(key);
+            this(key, 0);
         }
     }
 

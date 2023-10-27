@@ -19,22 +19,24 @@
 package org.apache.cassandra.service.accord;
 
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
 
 import accord.api.Key;
-import accord.impl.CommandsForKey;
-import accord.impl.SafeCommandsForKey;
+import accord.impl.SafeTimestampsForKey;
+import accord.impl.TimestampsForKey;
 import accord.primitives.RoutableKey;
+import accord.primitives.Timestamp;
 
-public class AccordSafeCommandsForKey extends SafeCommandsForKey implements AccordSafeState<RoutableKey, CommandsForKey>
+public class AccordSafeTimestampsForKey extends SafeTimestampsForKey implements AccordSafeState<RoutableKey, TimestampsForKey>
 {
     private boolean invalidated;
-    private final AccordCachingState<RoutableKey, CommandsForKey> global;
-    private CommandsForKey original;
-    private CommandsForKey current;
+    private final AccordCachingState<RoutableKey, TimestampsForKey> global;
+    private TimestampsForKey original;
+    private TimestampsForKey current;
 
-    public AccordSafeCommandsForKey(AccordCachingState<RoutableKey, CommandsForKey> global)
+    public AccordSafeTimestampsForKey(AccordCachingState<RoutableKey, TimestampsForKey> global)
     {
         super((Key) global.key());
         this.global = global;
@@ -47,7 +49,7 @@ public class AccordSafeCommandsForKey extends SafeCommandsForKey implements Acco
     {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        AccordSafeCommandsForKey that = (AccordSafeCommandsForKey) o;
+        AccordSafeTimestampsForKey that = (AccordSafeTimestampsForKey) o;
         return Objects.equals(original, that.original) && Objects.equals(current, that.current);
     }
 
@@ -60,7 +62,7 @@ public class AccordSafeCommandsForKey extends SafeCommandsForKey implements Acco
     @Override
     public String toString()
     {
-        return "AccordSafeCommandsForKey{" +
+        return "AccordSafeTimestampsForKey{" +
                "invalidated=" + invalidated +
                ", global=" + global +
                ", original=" + original +
@@ -69,14 +71,14 @@ public class AccordSafeCommandsForKey extends SafeCommandsForKey implements Acco
     }
 
     @Override
-    public AccordCachingState<RoutableKey, CommandsForKey> global()
+    public AccordCachingState<RoutableKey, TimestampsForKey> global()
     {
         checkNotInvalidated();
         return global;
     }
 
     @Override
-    public CommandsForKey current()
+    public TimestampsForKey current()
     {
         checkNotInvalidated();
         return current;
@@ -84,13 +86,13 @@ public class AccordSafeCommandsForKey extends SafeCommandsForKey implements Acco
 
     @Override
     @VisibleForTesting
-    public void set(CommandsForKey cfk)
+    public void set(TimestampsForKey cfk)
     {
         checkNotInvalidated();
         this.current = cfk;
     }
 
-    public CommandsForKey original()
+    public TimestampsForKey original()
     {
         checkNotInvalidated();
         return original;
@@ -108,7 +110,7 @@ public class AccordSafeCommandsForKey extends SafeCommandsForKey implements Acco
     public void postExecute()
     {
         checkNotInvalidated();
-        // updates are applied directly by CommandsForKeyUpdate
+        global.set(current);
     }
 
     @Override
@@ -121,5 +123,24 @@ public class AccordSafeCommandsForKey extends SafeCommandsForKey implements Acco
     public boolean invalidated()
     {
         return invalidated;
+    }
+
+    public long lastExecutedMicros()
+    {
+        return current().lastExecutedHlc();
+    }
+
+    public static long timestampMicrosFor(TimestampsForKey timestamps, Timestamp executeAt, boolean isForWriteTxn)
+    {
+        return timestamps.hlcFor(executeAt, isForWriteTxn);
+    }
+
+    public static int nowInSecondsFor(TimestampsForKey timestamps, Timestamp executeAt, boolean isForWriteTxn)
+    {
+        timestamps.validateExecuteAtTime(executeAt, isForWriteTxn);
+        // we use the executeAt time instead of the monotonic database timestamp to prevent uneven
+        // ttl expiration in extreme cases, ie 1M+ writes/second to a key causing timestamps to overflow
+        // into the next second on some keys and not others.
+        return Math.toIntExact(TimeUnit.MICROSECONDS.toSeconds(timestamps.lastExecutedTimestamp().hlc()));
     }
 }
