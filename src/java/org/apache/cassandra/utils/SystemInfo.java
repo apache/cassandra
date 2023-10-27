@@ -18,17 +18,23 @@
 
 package org.apache.cassandra.utils;
 
-import java.io.IOException;
-import java.nio.file.FileSystems;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
+import java.util.function.Supplier;
+import java.util.regex.Pattern;
 
+import com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.CassandraRelevantProperties;
+import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.FileUtils;
 import oshi.PlatformEnum;
+
+import static java.lang.String.format;
+import static java.util.Optional.empty;
+import static java.util.Optional.of;
+
 
 /**
  * An abstraction of System information, this class provides access to system information without specifying how
@@ -37,14 +43,16 @@ import oshi.PlatformEnum;
 public class SystemInfo
 {
 
-    private static long INFINITY = -1l;
-    private static long EXPECTED_MIN_NOFILE = 10000l; // number of files that can be opened
-    private static long EXPECTED_NPROC = 32768l; // number of processes
-    private static long EXPECTED_AS = 0x7FFFFFFFl; // address space
+    private static final long INFINITY = -1l;
+    private static final long EXPECTED_MIN_NOFILE = 10000l; // number of files that can be opened
+    private static final long EXPECTED_NPROC = 32768l; // number of processes
+    private static final long EXPECTED_AS = 0x7FFFFFFFl; // address space
     /**
      * The default number of processes that are reported if the actual value can not be retrieved.
      */
-    public static long DEFAULT_MAX_PROCESSES = 1024;
+    public static final long DEFAULT_MAX_PROCESSES = 1024;
+
+    private static final Pattern SPACES_PATTERN = Pattern.compile("\\s+");
 
     private Logger logger = LoggerFactory.getLogger(SystemInfo.class);
 
@@ -77,37 +85,40 @@ public class SystemInfo
      * @return The maximum number of processes.
      * @see #DEFAULT_MAX_PROCESSES
      */
-    long getMaxProcess() {
+    long getMaxProcess()
+    {
         // this check only works on Linux systems.
-        if (oshi.SystemInfo.getCurrentPlatform() == PlatformEnum.LINUX) {
-            Path p =  FileSystems.getDefault().getPath("/proc", Long.toString(getPid()), "limits");
+        if (oshi.SystemInfo.getCurrentPlatform() == PlatformEnum.LINUX)
+        {
+            String path = format("/proc/%s/limits", getPid());
             try
             {
-                List<String> lines = Files.readAllLines(p);
-                for (String s : lines)
+                List<String> lines = FileUtils.readLines(new File(path));
+                for (String line : lines)
                 {
-                    if (s.startsWith("Max processes"))
+                    if (line.startsWith("Max processes"))
                     {
-                        String[] parts = s.split("\s+");
+                        String[] parts = SPACES_PATTERN.split(line);
+
+                        if (parts.length < 3)
+                            continue;
+
                         String limit = parts[2];
-                        if ("unlimited".equals(limit))
-                        {
-                            return INFINITY;
-                        }
-                        return Long.parseLong(limit);
+                        return "unlimited".equals(limit) ? INFINITY : Long.parseLong(limit);
                     }
                 }
-                logger.error("'Max processes' not found in " + p);
+                logger.error("'Max processes' not found in " + path);
             }
-            catch (IOException e)
+            catch (Throwable t)
             {
-                logger.error("Unable to read "+p, e);
+                logger.error(format("Unable to read %s", path), t);
             }
         }
+
         /* return the default value for non-Linux systems.
          * can not return 0 as we know there is at least 1 process (this one) and
          * -1 historically represents infinity.
-        */
+         */
         return DEFAULT_MAX_PROCESSES;
     }
 
@@ -115,7 +126,8 @@ public class SystemInfo
      *
      * @return The maximum number of open files allowd to the current process/user.
      */
-    long getMaxOpenFiles()  {
+    long getMaxOpenFiles()
+    {
         // ulimit -H -n
         return si.getOperatingSystem().getCurrentProcess().getHardOpenFileLimit();
     }
@@ -144,71 +156,56 @@ public class SystemInfo
     }
 
     /**
+     * Tests if the system is running in degraded mode.
+     * If the system is running in degraded mode this method will log information.
+     * @return @{code true} if the system is in degraded mode, @{code false} otherwise.
+     */
+    public Optional<String> isDegraded()
+    {
+        Supplier<Optional<String>> expectedNumProc = () -> {
+            // only check proc on nproc linux
+            if (oshi.SystemInfo.getCurrentPlatform() == PlatformEnum.LINUX)
+                return invalid(getMaxProcess(), EXPECTED_NPROC) ? of(format("Number of processes should be >= %s. ", EXPECTED_NPROC))
+                                                                : empty();
+            else
+                return of(format("System is running %s, Linux OS is recommended", platform()));
+        };
+
+        Supplier<Optional<String>> swapShouldBeDisabled = () -> (getSwapSize() > 0)
+                                                                ? of("Swap should be disabled. ")
+                                                                : empty();
+
+        Supplier<Optional<String>> expectedAddressSpace = () -> invalid(getVirtualMemoryMax(), EXPECTED_AS)
+                                                                ? of(format("Amount of available address space should be >= %s. ", EXPECTED_AS))
+                                                                : empty();
+
+        Supplier<Optional<String>> expectedMinNoFile = () -> invalid(getMaxOpenFiles(), EXPECTED_MIN_NOFILE)
+                                                             ? of(format("Minimum value for max open files should be >= %s. ", EXPECTED_MIN_NOFILE))
+                                                             : empty();
+
+        StringBuilder sb = new StringBuilder();
+
+        for (Supplier<Optional<String>> check : ImmutableList.of(expectedNumProc,
+                                                                 swapShouldBeDisabled,
+                                                                 expectedAddressSpace,
+                                                                 expectedMinNoFile))
+        {
+            check.get().map(sb::append);
+        }
+
+        String message = sb.toString();
+        return message.isEmpty() ? empty() : of(message);
+    }
+
+    /**
      * Checks if a value if valide (i.e. value >= min or value == INFINITY..
      * @param value the value to check.
      * @param min the minimum value.
      * @return true if value is valid.
      */
-    private boolean valid(long value, long min)
+    private boolean invalid(long value, long min)
     {
-        return value >= min || value == INFINITY;
+        return value < min && value != INFINITY;
     }
 
-    /**
-     * Tests if the system is running in degraded mode.
-     * If the system is running in degraded mode this method will log information.
-     * @return @{code true} if the system is in degraded mode, @{code false} otherwise.
-     */
-    public boolean warnIfRunningInDegradedMode()
-    {
-        boolean degraded = false;
-        StringBuilder sb = new StringBuilder();
-
-        if (oshi.SystemInfo.getCurrentPlatform() == PlatformEnum.LINUX)
-        {
-            // only check proc on nproc linux
-            if (!valid(getMaxProcess(), EXPECTED_NPROC))
-            {
-                sb.append("Number of processes should be >= ").append(EXPECTED_NPROC).append("\n");
-                degraded = true;
-            }
-        } else
-        {
-            degraded = true;
-            sb.append("System is running ").append(platform()).append(", Linux OS is recommended");
-        }
-
-        if (getSwapSize() > 0)
-        {
-            sb.append("Swap should be disabled\n");
-            degraded = true;
-        }
-        if (!valid(getMaxProcess(), EXPECTED_NPROC))
-        {
-            sb.append("Minimum value for max number of processes should be >= ").append(EXPECTED_NPROC).append("\n");
-            degraded = true;
-        }
-        if (!valid(getVirtualMemoryMax(), EXPECTED_AS))
-        {
-            sb.append("Amount of available address space should be >= ").append(EXPECTED_AS).append("\n");
-            degraded = true;
-        }
-        if (!valid(getMaxOpenFiles(), EXPECTED_MIN_NOFILE))
-        {
-            sb.append("Minimum value for max open files should be >=  ").append(EXPECTED_MIN_NOFILE).append("\n");
-            degraded = true;
-        }
-        if (degraded) {
-            if (CassandraRelevantProperties.TEST_IGNORE_SIGAR.getBoolean())
-            {
-                logger.warn("Cassandra server running in degraded mode.\n" + sb.toString());
-            } else {
-                logger.info("Cassandra server running in degraded mode.\n" + sb.toString());
-            }
-        } else
-        {
-            logger.info("Checked OS settings and found them configured for optimal performance.");
-        }
-        return degraded;
-    }
 }
