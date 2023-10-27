@@ -29,6 +29,7 @@ import org.apache.cassandra.tcm.serialization.MetadataSerializer;
 import org.apache.cassandra.tcm.serialization.Version;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.tcm.ClusterMetadata;
+import org.apache.cassandra.utils.vint.VIntCoding;
 
 public interface SchemaTransformation
 {
@@ -150,6 +151,7 @@ public interface SchemaTransformation
             long size = TypeSizes.sizeof(true);
             if (t.keyspace() != null)
                 size += TypeSizes.sizeof(t.keyspace());
+            size += VIntCoding.computeVIntSize(t.fixedTimestampMicros().orElse(-1L));
             return size + TypeSizes.sizeof(t.cql());
         }
     }
