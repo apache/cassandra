@@ -188,7 +188,7 @@ public class AccordStateCacheTest
         ManualExecutor executor = new ManualExecutor();
         AccordStateCache cache = new AccordStateCache(executor, executor, 500, cacheMetrics);
         AccordStateCache.Instance<String, String, SafeString> instance =
-            cache.instance(String.class, String.class, SafeString::new, key -> key, (original, current) -> null, (k, v) -> true, String::length);
+            cache.instance(String.class, SafeString.class, SafeString::new, key -> key, (original, current) -> null, (k, v) -> true, String::length);
         assertCacheState(cache, 0, 0, 0);
 
         SafeString safeString1 = instance.acquire("1");
@@ -220,9 +220,9 @@ public class AccordStateCacheTest
         ManualExecutor executor = new ManualExecutor();
         AccordStateCache cache = new AccordStateCache(executor, executor, 500, cacheMetrics);
         AccordStateCache.Instance<String, String, SafeString> stringInstance =
-            cache.instance(String.class, String.class, SafeString::new, key -> key, (original, current) -> null, (k, v) -> true,String::length);
+            cache.instance(String.class, SafeString.class, SafeString::new, key -> key, (original, current) -> null, (k, v) -> true,String::length);
         AccordStateCache.Instance<Integer, Integer, SafeInt> intInstance =
-            cache.instance(Integer.class, Integer.class, SafeInt::new, key -> key, (original, current) -> null, (k, v) -> true,ignored -> Integer.BYTES);
+            cache.instance(Integer.class, SafeInt.class, SafeInt::new, key -> key, (original, current) -> null, (k, v) -> true,ignored -> Integer.BYTES);
         assertCacheState(cache, 0, 0, 0);
 
         SafeString safeString1 = stringInstance.acquire("1");
@@ -260,7 +260,7 @@ public class AccordStateCacheTest
         ManualExecutor executor = new ManualExecutor();
         AccordStateCache cache = new AccordStateCache(executor, executor, DEFAULT_NODE_SIZE * 5, cacheMetrics);
         AccordStateCache.Instance<String, String, SafeString> instance =
-            cache.instance(String.class, String.class, SafeString::new, key -> key, (original, current) -> null, (k, v) -> true, String::length);
+            cache.instance(String.class, SafeString.class, SafeString::new, key -> key, (original, current) -> null, (k, v) -> true, String::length);
         assertCacheState(cache, 0, 0, 0);
 
         SafeString[] items = new SafeString[3];
@@ -300,7 +300,7 @@ public class AccordStateCacheTest
         ManualExecutor executor = new ManualExecutor();
         AccordStateCache cache = new AccordStateCache(executor, executor, nodeSize(1) * 5, cacheMetrics);
         AccordStateCache.Instance<String, String, SafeString> instance =
-            cache.instance(String.class, String.class, SafeString::new, key -> key, (original, current) -> null, (k, v) -> true, String::length);
+            cache.instance(String.class, SafeString.class, SafeString::new, key -> key, (original, current) -> null, (k, v) -> true, String::length);
         assertCacheState(cache, 0, 0, 0);
 
         SafeString[] items = new SafeString[5];
@@ -326,8 +326,8 @@ public class AccordStateCacheTest
         assertCacheState(cache, 1, 5, nodeSize(1) * 4 + nodeSize(0));
         Assert.assertSame(items[1].global, cache.head());
         Assert.assertSame(items[4].global, cache.tail());
-        Assert.assertFalse(cache.keyIsCached("0"));
-        Assert.assertFalse(cache.keyIsReferenced("0"));
+        Assert.assertFalse(instance.keyIsCached("0", SafeString.class));
+        Assert.assertFalse(instance.keyIsReferenced("0", SafeString.class));
         assertCacheMetrics(cache.metrics, 0, 6, 6);
         assertCacheMetrics(instance.instanceMetrics, 0, 6, 6);
 
@@ -346,7 +346,7 @@ public class AccordStateCacheTest
         ManualExecutor executor = new ManualExecutor();
         AccordStateCache cache = new AccordStateCache(executor, executor, nodeSize(1) * 4, cacheMetrics);
         AccordStateCache.Instance<String, String, SafeString> instance =
-            cache.instance(String.class, String.class, SafeString::new, key -> key, (original, current) -> null, (k, v) -> true, String::length);
+            cache.instance(String.class, SafeString.class, SafeString::new, key -> key, (original, current) -> null, (k, v) -> true, String::length);
         assertCacheState(cache, 0, 0, 0);
 
         SafeString[] items = new SafeString[5];
@@ -385,7 +385,7 @@ public class AccordStateCacheTest
         ManualExecutor executor = new ManualExecutor();
         AccordStateCache cache = new AccordStateCache(executor, executor, DEFAULT_NODE_SIZE * 4, cacheMetrics);
         AccordStateCache.Instance<String, String, SafeString> instance =
-            cache.instance(String.class, String.class, SafeString::new, key -> key, (original, current) -> null, (k, v) -> true, String::length);
+            cache.instance(String.class, SafeString.class, SafeString::new, key -> key, (original, current) -> null, (k, v) -> true, String::length);
         assertCacheState(cache, 0, 0, 0);
 
         SafeString safeString1 = instance.acquire("0");
@@ -394,12 +394,12 @@ public class AccordStateCacheTest
         assertCacheMetrics(cache.metrics, 0, 1, 1);
         assertCacheMetrics(instance.instanceMetrics, 0, 1, 1);
 
-        Assert.assertEquals(1, cache.references("0"));
+        Assert.assertEquals(1, instance.references("0", SafeString.class));
         assertCacheState(cache, 1, 1, nodeSize(0));
 
         SafeString safeString2 = instance.acquire("0");
         Assert.assertEquals(Status.LOADED, safeString1.globalStatus());
-        Assert.assertEquals(2, cache.references("0"));
+        Assert.assertEquals(2, instance.references("0", SafeString.class));
         assertCacheState(cache, 1, 1, nodeSize(0));
         assertCacheMetrics(cache.metrics, 1, 1, 2);
         assertCacheMetrics(instance.instanceMetrics, 1, 1, 2);
@@ -416,7 +416,7 @@ public class AccordStateCacheTest
         ManualExecutor executor = new ManualExecutor();
         AccordStateCache cache = new AccordStateCache(executor, executor, nodeSize(1) * 3 + nodeSize(3), cacheMetrics);
         AccordStateCache.Instance<String, String, SafeString> instance =
-            cache.instance(String.class, String.class, SafeString::new, key -> key, (original, current) -> null, (k, v) -> true, String::length);
+            cache.instance(String.class, SafeString.class, SafeString::new, key -> key, (original, current) -> null, (k, v) -> true, String::length);
         assertCacheState(cache, 0, 0, 0);
 
         SafeString item = instance.acquire(Integer.toString(0));
@@ -443,10 +443,10 @@ public class AccordStateCacheTest
         // all should have been evicted except 0
         assertCacheState(cache, 0, 1, nodeSize(2));
 
-        Assert.assertTrue(cache.keyIsCached("0"));
-        Assert.assertFalse(cache.keyIsCached("1"));
-        Assert.assertFalse(cache.keyIsCached("2"));
-        Assert.assertFalse(cache.keyIsCached("3"));
+        Assert.assertTrue(instance.keyIsCached("0", SafeString.class));
+        Assert.assertFalse(instance.keyIsCached("1", SafeString.class));
+        Assert.assertFalse(instance.keyIsCached("2", SafeString.class));
+        Assert.assertFalse(instance.keyIsCached("3", SafeString.class));
     }
 
     @Test
@@ -455,7 +455,7 @@ public class AccordStateCacheTest
         ManualExecutor executor = new ManualExecutor();
         AccordStateCache cache = new AccordStateCache(executor, executor, 500, cacheMetrics);
         AccordStateCache.Instance<String, String, SafeString> instance =
-            cache.instance(String.class, String.class, SafeString::new, key -> key, (original, current) -> null, (k, v) -> true, String::length);
+            cache.instance(String.class, SafeString.class, SafeString::new, key -> key, (original, current) -> null, (k, v) -> true, String::length);
         assertCacheState(cache, 0, 0, 0);
 
         SafeString safeString = instance.acquire("1");
