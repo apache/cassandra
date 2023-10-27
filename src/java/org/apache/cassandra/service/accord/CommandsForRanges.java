@@ -41,7 +41,8 @@ import com.google.common.collect.ImmutableSortedMap;
 import accord.api.Key;
 import accord.api.RoutingKey;
 import accord.impl.CommandTimeseries;
-import accord.impl.CommandTimeseriesHolder;
+import accord.impl.DomainCommands;
+import accord.impl.DomainTimestamps;
 import accord.local.Command;
 import accord.local.PreLoadContext;
 import accord.local.SafeCommand;
@@ -66,6 +67,8 @@ import org.apache.cassandra.utils.IntervalTree;
 
 public class CommandsForRanges
 {
+    public interface DomainInfo extends DomainCommands, DomainTimestamps {}
+
     public enum TxnType
     {
         UNKNOWN, LOCAL, REMOTE;
@@ -395,19 +398,19 @@ public class CommandsForRanges
         return localCommands.contains(txnId);
     }
 
-    public Iterable<CommandTimeseriesHolder> search(AbstractKeys<Key> keys)
+    public Iterable<DomainInfo> search(AbstractKeys<Key> keys)
     {
         // group by the keyspace, as ranges are based off TokenKey, which is scoped to a range
         Map<String, List<Key>> groupByKeyspace = new TreeMap<>();
         for (Key key : keys)
             groupByKeyspace.computeIfAbsent(((PartitionKey) key).keyspace(), ignore -> new ArrayList<>()).add(key);
-        return () -> new AbstractIterator<CommandTimeseriesHolder>()
+        return () -> new AbstractIterator<DomainInfo>()
         {
             Iterator<String> ksIt = groupByKeyspace.keySet().iterator();
             Iterator<Map.Entry<Range, Set<RangeCommandSummary>>> rangeIt;
 
             @Override
-            protected CommandTimeseriesHolder computeNext()
+            protected DomainInfo computeNext()
             {
                 while (true)
                 {
@@ -449,14 +452,14 @@ public class CommandsForRanges
     }
 
     @Nullable
-    public CommandTimeseriesHolder search(Range range)
+    public DomainInfo search(Range range)
     {
         List<RangeCommandSummary> matches = rangesToCommands.search(Interval.create(normalize(range.start(), range.startInclusive(), true),
                                                                                     normalize(range.end(), range.endInclusive(), false)));
         return result(range, matches);
     }
 
-    private CommandTimeseriesHolder result(Seekable seekable, Collection<RangeCommandSummary> matches)
+    private DomainInfo result(Seekable seekable, Collection<RangeCommandSummary> matches)
     {
         if (matches.isEmpty())
             return null;
@@ -499,7 +502,7 @@ public class CommandsForRanges
         }
     }
 
-    private static class Holder implements CommandTimeseriesHolder
+    private static class Holder implements DomainInfo
     {
         private final Seekable keyOrRange;
         private final Collection<RangeCommandSummary> matches;
@@ -511,31 +514,25 @@ public class CommandsForRanges
         }
 
         @Override
-        public CommandTimeseries<?> byId()
+        public CommandTimeseries<?> commands()
         {
-            return build(m -> m.txnId);
-        }
-
-        @Override
-        public CommandTimeseries<?> byExecuteAt()
-        {
-            return build(m -> m.executeAt != null ? m.executeAt : m.txnId);
+            return build();
         }
 
         @Override
         public Timestamp max()
         {
-            return byExecuteAt().maxTimestamp();
+            return commands().maxTimestamp();
         }
 
-        private CommandTimeseries<?> build(Function<RangeCommandSummary, Timestamp> fn)
+        private CommandTimeseries<?> build()
         {
-            CommandTimeseries.Update<RangeCommandSummary> builder = new CommandTimeseries.Update<>(keyOrRange, RangeCommandSummaryLoader.INSTANCE);
+            CommandTimeseries.Builder<RangeCommandSummary> builder = new CommandTimeseries.Builder<>(keyOrRange, RangeCommandSummaryLoader.INSTANCE);
             for (RangeCommandSummary m : matches)
             {
                 if (m.status == SaveStatus.Invalidated)
                     continue;
-                builder.add(fn.apply(m), m);
+                builder.add(m.txnId, m);
             }
             return builder.build();
         }

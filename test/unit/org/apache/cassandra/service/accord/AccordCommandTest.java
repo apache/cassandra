@@ -27,7 +27,9 @@ import org.junit.Test;
 import accord.api.Key;
 import accord.api.RoutingKey;
 import accord.impl.CommandsForKey;
+import accord.impl.TimestampsForKey;
 import accord.local.Command;
+import accord.local.KeyHistory;
 import accord.local.Node;
 import accord.local.PreLoadContext;
 import accord.local.Status;
@@ -116,10 +118,11 @@ public class AccordCommandTest
             Assert.assertEquals(Status.PreAccepted, command.status());
             Assert.assertTrue(command.partialDeps() == null || command.partialDeps().isEmpty());
 
-            CommandsForKey cfk = ((AccordSafeCommandStore) instance).commandsForKey(key(1)).current();
-            Assert.assertEquals(txnId, cfk.max());
-            Assert.assertNotNull((cfk.byId()).get(txnId));
-            Assert.assertNotNull((cfk.byExecuteAt()).get(txnId));
+            TimestampsForKey tfk = ((AccordSafeCommandStore) instance).timestampsForKey(key(1)).current();
+            Assert.assertEquals(txnId, tfk.max());
+
+            CommandsForKey cfk = ((AccordSafeCommandStore) instance).depsCommandsForKey(key(1)).current();
+            Assert.assertNotNull((cfk.commands()).get(txnId));
         }));
 
         // check accept
@@ -146,10 +149,11 @@ public class AccordCommandTest
             Assert.assertEquals(Status.Accepted, command.status());
             Assert.assertEquals(deps, command.partialDeps());
 
-            CommandsForKey cfk = ((AccordSafeCommandStore) instance).commandsForKey(key(1)).current();
-            Assert.assertEquals(executeAt, cfk.max());
-            Assert.assertNotNull((cfk.byId()).get(txnId));
-            Assert.assertNotNull((cfk.byExecuteAt()).get(txnId));
+            TimestampsForKey tfk = ((AccordSafeCommandStore) instance).timestampsForKey(key(1)).current();
+            Assert.assertEquals(executeAt, tfk.max());
+
+            CommandsForKey cfk = ((AccordSafeCommandStore) instance).depsCommandsForKey(key(1)).current();
+            Assert.assertNotNull((cfk.commands()).get(txnId));
         }));
 
         // check commit
@@ -157,15 +161,14 @@ public class AccordCommandTest
         commandStore.appendToJournal(commit);
         getUninterruptibly(commandStore.execute(commit, commit::apply));
 
-        getUninterruptibly(commandStore.execute(PreLoadContext.contextFor(txnId, Keys.of(key)), instance -> {
+        getUninterruptibly(commandStore.execute(PreLoadContext.contextFor(txnId, Keys.of(key), KeyHistory.DEPS), instance -> {
             Command command = instance.ifInitialised(txnId).current();
             Assert.assertEquals(commit.executeAt, command.executeAt());
             Assert.assertTrue(command.hasBeen(Status.Committed));
             Assert.assertEquals(commit.partialDeps, command.partialDeps());
 
-            CommandsForKey cfk = ((AccordSafeCommandStore) instance).commandsForKey(key(1)).current();
-            Assert.assertNotNull((cfk.byId()).get(txnId));
-            Assert.assertNotNull((cfk.byExecuteAt()).get(commit.executeAt));
+            CommandsForKey cfk = ((AccordSafeCommandStore) instance).depsCommandsForKey(key(1)).current();
+            Assert.assertNotNull((cfk.commands()).get(txnId));
         }));
     }
 
