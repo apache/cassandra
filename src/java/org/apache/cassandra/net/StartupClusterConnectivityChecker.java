@@ -42,6 +42,7 @@ import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.IEndpointStateChangeSubscriber;
 import org.apache.cassandra.gms.VersionedValue;
 import org.apache.cassandra.locator.InetAddressAndPort;
+import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.net.Verb.PING_REQ;
@@ -54,6 +55,7 @@ public class StartupClusterConnectivityChecker
 
     private final boolean blockForRemoteDcs;
     private final long timeoutNanos;
+    private final Gossiper gossiper;
 
     public static StartupClusterConnectivityChecker create(long timeoutSecs, boolean blockForRemoteDcs)
     {
@@ -61,14 +63,15 @@ public class StartupClusterConnectivityChecker
             logger.warn("setting the block-for-peers timeout (in seconds) to {} might be a bit excessive, but using it nonetheless", timeoutSecs);
         long timeoutNanos = TimeUnit.SECONDS.toNanos(timeoutSecs);
 
-        return new StartupClusterConnectivityChecker(timeoutNanos, blockForRemoteDcs);
+        return new StartupClusterConnectivityChecker(timeoutNanos, blockForRemoteDcs, Gossiper.instance);
     }
 
     @VisibleForTesting
-    StartupClusterConnectivityChecker(long timeoutNanos, boolean blockForRemoteDcs)
+    StartupClusterConnectivityChecker(long timeoutNanos, boolean blockForRemoteDcs, Gossiper gossiper)
     {
         this.blockForRemoteDcs = blockForRemoteDcs;
         this.timeoutNanos = timeoutNanos;
+        this.gossiper = gossiper;
     }
 
     /**
@@ -81,6 +84,16 @@ public class StartupClusterConnectivityChecker
     {
         if (peers == null || this.timeoutNanos < 0)
             return true;
+
+        // Check if there are any nodes which we know are running a version prior to 4.0.
+        // We use this intead of Gossiper::hasMajorVersion3Nodes because in the absence of version information for a peer
+        // we still prefer to run the startup connectivity check.
+        if (gossiper.isUpgradingFromVersionLowerThan(CassandraVersion.CASSANDRA_4_0))
+        {
+            logger.debug("Skipping startup connectivity check as some nodes may be running Cassandra version 3 or older " +
+                        "which does not support connectivity checking.");
+            return true;
+        }
 
         // make a copy of the set, to avoid mucking with the input (in case it's a sensitive collection)
         peers = new HashSet<>(peers);
