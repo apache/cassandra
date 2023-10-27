@@ -74,6 +74,11 @@ public class ListType<T> extends CollectionType<List<T>>
         this.isMultiCell = isMultiCell;
     }
 
+    public boolean isList()
+    {
+        return true;
+    }
+
     @Override
     public <V> boolean referencesUserType(V name, ValueAccessor<V> accessor)
     {

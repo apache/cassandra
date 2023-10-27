@@ -33,9 +33,12 @@ import org.apache.cassandra.db.marshal.ByteBufferAccessor;
 import org.apache.cassandra.db.marshal.ValueAccessor;
 import org.apache.cassandra.db.marshal.ValueComparators;
 import org.apache.cassandra.utils.Pair;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class MapSerializer<K, V> extends AbstractMapSerializer<Map<K, V>>
 {
+    private static final Logger logger = LoggerFactory.getLogger(MapSerializer.class);
     // interning instances
     @SuppressWarnings("rawtypes")
     private static final ConcurrentMap<Pair<TypeSerializer<?>, TypeSerializer<?>>, MapSerializer> instances = new ConcurrentHashMap<>();
@@ -134,10 +137,12 @@ public class MapSerializer<K, V> extends AbstractMapSerializer<Map<K, V>>
             for (int i = 0; i < n; i++)
             {
                 I key = readNonNullValue(input, accessor, offset);
+                logger.debug("Serializing a map: {}:{}",key, "tbd");
                 offset += sizeOfValue(key, accessor);
                 keys.validate(key, accessor);
 
                 I value = readNonNullValue(input, accessor, offset);
+                logger.debug("Serializing a map: {}:{}",key, value);
                 offset += sizeOfValue(value, accessor);
                 values.validate(value, accessor);
 

@@ -244,6 +244,7 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell<?>>
 
     public ComplexColumnData transformAndFilter(DeletionTime newDeletion, Function<? super Cell, ? extends Cell> function)
     {
+
         return update(newDeletion, BTree.transformAndFilter(cells, function));
     }
 

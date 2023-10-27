@@ -19,8 +19,7 @@
 package org.apache.cassandra.distributed.test.accord;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.Vector;
+import java.util.*;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.TimeUnit;
@@ -111,6 +110,11 @@ public class AccordListTest extends AccordTestBase
                 List<Integer> insertionOrder = (List<Integer>) result[0][0];
 
                 assertArrayEquals(completionOrder.toArray(), insertionOrder.toArray());
+
+                completionOrder.clear();
+                SHARED_CLUSTER.get(1).executeInternal("BEGIN TRANSACTION " +
+                        "UPDATE " + currentTable + " SET l = [] WHERE k = 1; " +
+                        "COMMIT TRANSACTION");
             }
         }
         finally
@@ -165,7 +169,71 @@ public class AccordListTest extends AccordTestBase
                 List<Integer> insertionOrder = (List<Integer>) result[0][0];
 
                 assertArrayEquals(completionOrder.toArray(), insertionOrder.toArray());
+
+                completionOrder.clear();
+                SHARED_CLUSTER.get(1).executeInternal("BEGIN TRANSACTION " +
+                        "UPDATE " + currentTable + "Two SET l = [] WHERE k = 1; " +
+                        "COMMIT TRANSACTION");
             }
+        }
+        finally
+        {
+            SHARED_CLUSTER.filters().reset();
+        }
+    }
+    @Test
+    @BMRule(name = "testListAddition",
+            targetClass = "org.apache.cassandra.db.rows.AbstractCell",
+            targetMethod = "updateAllTimestampAndLocalDeletionTime")
+    public void testMap() throws Exception
+    {
+        SHARED_CLUSTER.schemaChange("CREATE TABLE " + currentTable + "Map (k int PRIMARY KEY, m map<int,int>)");
+        SHARED_CLUSTER.forEach(node -> node.runOnInstance(() -> AccordService.instance().setCacheSize(0)));
+
+        CountDownLatch latch = CountDownLatch.newCountDownLatch(1);
+
+        Vector<Integer> completionOrder = new Vector<>();
+        try
+        {
+            for (int i=0; i<100; i++)
+            {
+
+                ForkJoinTask<?> add1 = ForkJoinPool.commonPool().submit(() -> {
+                    latch.awaitThrowUncheckedOnInterrupt();
+                    SHARED_CLUSTER.get(1).executeInternal("BEGIN TRANSACTION " +
+                            "UPDATE " + currentTable + "Map SET m = m + {1:99,2:88} WHERE k = 1; " +
+                            "COMMIT TRANSACTION");
+                    completionOrder.add(1);
+                    completionOrder.add(2);
+                });
+
+                ForkJoinTask<?> add2 = ForkJoinPool.commonPool().submit(() -> {
+                    latch.awaitThrowUncheckedOnInterrupt();
+                    SHARED_CLUSTER.get(1).executeInternal("BEGIN TRANSACTION " +
+                            "UPDATE " + currentTable + "Map SET m = m + {3:77,4:66} WHERE k = 1; " +
+                            "COMMIT TRANSACTION");
+                    completionOrder.add(3);
+                    completionOrder.add(4);
+                });
+                latch.decrement();
+                add1.join();
+                add2.join();
+
+                String check = "BEGIN TRANSACTION\n" +
+                        "  SELECT m FROM " + currentTable + "Map WHERE k=1;\n" +
+                        "COMMIT TRANSACTION";
+
+                Object[][] result = SHARED_CLUSTER.get(1).executeInternal(check);
+                logger.debug("map keys from completionOrder: {}", completionOrder);
+                logger.debug("map keys from SELECT: {}", result);
+                Map<Integer,Integer> insertionOrder = (LinkedHashMap<Integer,Integer>) result[0][0];
+
+                assertArrayEquals(Arrays.stream(completionOrder.toArray()).sorted().toArray(), insertionOrder.keySet().toArray(new Integer[0]));
+
+                completionOrder.clear();
+                SHARED_CLUSTER.get(1).executeInternal("BEGIN TRANSACTION " +
+                        "UPDATE " + currentTable + "Map SET m = {} WHERE k = 1; " +
+                        "COMMIT TRANSACTION");            }
         }
         finally
         {

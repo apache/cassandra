@@ -444,6 +444,11 @@ public final class ColumnMetadata extends ColumnSpecification implements Selecta
         return cellPathComparator != null;
     }
 
+    public boolean isList()
+    {
+        return type.isList();
+    }
+
     public boolean isSimple()
     {
         return !isComplex();

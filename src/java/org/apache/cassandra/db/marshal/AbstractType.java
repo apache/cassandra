@@ -399,6 +399,11 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>, Assignm
         return false;
     }
 
+    public boolean isList()
+    {
+        return false;
+    }
+
     public boolean isUDT()
     {
         return false;
