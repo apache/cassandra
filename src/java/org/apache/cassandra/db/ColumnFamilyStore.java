@@ -3343,4 +3343,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
             return null;
         return topPartitions.topTombstones().lastUpdate;
     }
+
+    @Override
+    public long getMaxSSTableSize()
+    {
+        return metric.maxSSTableSize.getValue();
+    }
+
+    @Override
+    public long getMaxSSTableDuration()
+    {
+        return metric.maxSSTableDuration.getValue();
+    }
+
 }

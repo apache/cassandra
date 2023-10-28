@@ -111,7 +111,8 @@ public class TableStatsTest extends CQLTester
                         "            off_heap_memory_used_total, pending_flushes, percent_repaired,\n" + 
                         "            read_latency, reads, space_used_by_snapshots_total, space_used_live,\n" + 
                         "            space_used_total, sstable_compression_ratio, sstable_count,\n" + 
-                        "            table_name, write_latency, writes)\n" + 
+                        "            table_name, write_latency, writes, max_sstable_size,\n" +"" +
+                        "            local_read_write_ratio, twcs_max_duration)\n" +
                         "\n" + 
                         "        -t <top>, --top <top>\n" + 
                         "            Show only the top K tables for the sort key (specify the number K of\n" + 
@@ -137,13 +138,13 @@ public class TableStatsTest extends CQLTester
     {
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats");
         tool.assertOnCleanExit();
-        assertThat(tool.getStdout()).contains("Keyspace : system_schema");
+        assertThat(tool.getStdout()).contains("Keyspace: system_schema");
         assertThat(StringUtils.countMatches(tool.getStdout(), "Table:")).isGreaterThan(1);
 
         tool = ToolRunner.invokeNodetool("tablestats", "system_distributed");
         tool.assertOnCleanExit();
-        assertThat(tool.getStdout()).contains("Keyspace : system_distributed");
-        assertThat(tool.getStdout()).doesNotContain("Keyspace : system_schema");
+        assertThat(tool.getStdout()).contains("Keyspace: system_distributed");
+        assertThat(tool.getStdout()).doesNotContain("Keyspace: system_schema");
         assertThat(StringUtils.countMatches(tool.getStdout(), "Table:")).isGreaterThan(1);
     }
 
@@ -152,7 +153,7 @@ public class TableStatsTest extends CQLTester
     {
         ToolRunner.ToolResult tool = ToolRunner.invokeNodetool("tablestats", "-i", "system_schema.aggregates");
         tool.assertOnCleanExit();
-        assertThat(tool.getStdout()).contains("Keyspace : system_schema");
+        assertThat(tool.getStdout()).contains("Keyspace: system_schema");
         assertThat(tool.getStdout()).doesNotContain("Table: system_schema.aggregates");
         assertThat(StringUtils.countMatches(tool.getStdout(), "Table:")).isGreaterThan(1);
     }
