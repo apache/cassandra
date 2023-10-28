@@ -500,6 +500,17 @@ public class SchemaLoader
                                                         .compression(getCompressionParameters());
     }
 
+    public static CFMetaData bytesTypeComparatorCFMD18956(String ksName, String cfName) throws ConfigurationException
+    {
+        CFMetaData cfm = CFMetaData.Builder.createDense(ksName, cfName, false, false)
+                                           .addPartitionKey("key", BytesType.instance)
+                                           .addClusteringColumn("3d", BytesType.instance)
+                                           .addRegularColumn("4f", BytesType.instance)
+                                           .build();
+
+        return cfm.compression(getCompressionParameters());
+    }
+
     public static CompressionParams getCompressionParameters()
     {
         return getCompressionParameters(null);

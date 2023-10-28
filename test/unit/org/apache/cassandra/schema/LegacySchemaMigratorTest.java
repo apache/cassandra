@@ -35,6 +35,7 @@ import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.functions.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.thrift.ThriftConversion;
 import org.apache.cassandra.utils.*;
@@ -53,6 +54,8 @@ public class LegacySchemaMigratorTest
     private static final long TIMESTAMP = 1435908994000000L;
 
     private static final String KEYSPACE_PREFIX = "LegacySchemaMigratorTest";
+    private static final String KEYSPACE_18956 = "ks18956";
+    private static final String TABLE_18956 = "table18956";
 
     /*
      * 1. Write a variety of different keyspaces/tables/types/function in the legacy manner, using legacy schema tables
@@ -95,6 +98,24 @@ public class LegacySchemaMigratorTest
         // format of index name: the index_name column of system.IndexInfo used to
         // contain table_name.index_name. Now it should contain just the index_name.
         expected.forEach(LegacySchemaMigratorTest::verifyIndexBuildStatus);
+    }
+
+    @Test
+    public void testMigrate18956() throws IOException
+    {
+        CQLTester.cleanupAndLeaveDirs();
+        Keyspaces expected = keyspacesToMigrate18956();
+        expected.forEach(LegacySchemaMigratorTest::legacySerializeKeyspace);
+        LegacySchemaMigrator.migrate();
+        Schema.instance.loadFromDisk();
+        loadLegacySchemaTables();
+        try {
+            // This should fail
+            executeOnceInternal(String.format("ALTER TABLE %s.%s RENAME key TO \"4f\"", KEYSPACE_18956, TABLE_18956));
+            assert false;
+        } catch (InvalidRequestException e) {
+            assert e.toString().contains("another column of that name already exist");
+        }
     }
 
     @Test
@@ -279,6 +300,18 @@ public class LegacySchemaMigratorTest
         keyspaces.add(keyspaceWithUDAsAndUDTs());
 
         return keyspaces.build();
+    }
+
+    private static Keyspaces keyspacesToMigrate18956()
+    {
+        Keyspaces.Builder keyspaces = Keyspaces.builder();
+        keyspaces.add(KeyspaceMetadata.create(KEYSPACE_18956,
+                                              KeyspaceParams.simple(1),
+                                              Tables.of(
+                                                        SchemaLoader.bytesTypeComparatorCFMD18956(KEYSPACE_18956, TABLE_18956)
+                                                                    )));
+        return keyspaces.build();
+
     }
 
     private static KeyspaceMetadata keyspaceWithDroppedCollections()
@@ -667,10 +700,15 @@ public class LegacySchemaMigratorTest
 
         final RowUpdateBuilder adder = new RowUpdateBuilder(SystemKeyspace.LegacyColumns, timestamp, mutation).clustering(table.cfName, name);
 
-        adder.add("validator", column.type.toString())
-             .add("type", serializeKind(column.kind, table.isDense()))
-             .add("component_index", column.position());
-
+        if (table.cfName.equals(TABLE_18956)) {
+            adder.add("validator", column.type.toString())
+                .add("type", serializeKind18956(column.kind))
+                .add("component_index", column.position());
+        } else {
+            adder.add("validator", column.type.toString())
+                .add("type", serializeKind(column.kind, table.isDense()))
+                .add("component_index", column.position());
+        }
         Optional<IndexMetadata> index = findIndexForColumn(table.getIndexes(), table, column);
         if (index.isPresent())
         {
@@ -711,6 +749,15 @@ public class LegacySchemaMigratorTest
 
         if (kind == ColumnDefinition.Kind.REGULAR && isDense)
             return "compact_value";
+
+        return kind.toString().toLowerCase();
+    }
+
+    private static String serializeKind18956(ColumnDefinition.Kind kind)
+    {
+        // Using cassandra-cli, it's possible to create legacy without compact_value
+        if (kind == ColumnDefinition.Kind.CLUSTERING)
+            return "clustering_key";
 
         return kind.toString().toLowerCase();
     }
