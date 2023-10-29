@@ -1463,6 +1463,8 @@ public abstract class CQLTester
         catch (Exception e)
         {
             logger.info("Error performing schema change", e);
+            if (e instanceof InvalidRequestException)
+                throw new InvalidRequestException(String.format("Error setting schema for test (query was: %s)", query), e);
             throw new RuntimeException("Error setting schema for test (query was: " + query + ")", e);
         }
     }
@@ -2488,6 +2490,14 @@ public abstract class CQLTester
     protected final <T> Vector<T> vector(T... values)
     {
         return new Vector<>(values);
+    }
+
+    protected Vector<Float> vector(float[] v)
+    {
+        var v2 = new Float[v.length];
+        for (int i = 0; i < v.length; i++)
+            v2[i] = v[i];
+        return new Vector<>(v2);
     }
 
     protected Set<Object> set(Object...values)

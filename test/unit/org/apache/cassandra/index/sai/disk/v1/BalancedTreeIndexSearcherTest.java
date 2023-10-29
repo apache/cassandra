@@ -152,7 +152,7 @@ public class BalancedTreeIndexSearcherTest extends SAIRandomizedTester
         {{
             operator = IndexOperator.EQ;
             lower = upper = new Bound(rawType.decompose(rawValueProducer.apply(EQ_TEST_LOWER_BOUND_INCLUSIVE)), encodedType, true);
-        }}, mock(QueryContext.class)))
+        }}, null, mock(QueryContext.class)))
         {
             assertEquals(results.getMinimum(), results.getCurrent());
             assertTrue(results.hasNext());
@@ -164,7 +164,7 @@ public class BalancedTreeIndexSearcherTest extends SAIRandomizedTester
         {{
             operator = IndexOperator.EQ;
             lower = upper = new Bound(rawType.decompose(rawValueProducer.apply(EQ_TEST_UPPER_BOUND_EXCLUSIVE)), encodedType, true);
-        }}, mock(QueryContext.class)))
+        }}, null, mock(QueryContext.class)))
         {
             assertFalse(results.hasNext());
             indexSearcher.close();
@@ -190,7 +190,7 @@ public class BalancedTreeIndexSearcherTest extends SAIRandomizedTester
 
             lower = new Bound(rawType.decompose(rawValueProducer.apply((short)2)), encodedType, false);
             upper = new Bound(rawType.decompose(rawValueProducer.apply((short)7)), encodedType, true);
-        }}, mock(QueryContext.class)))
+        }}, null, mock(QueryContext.class)))
         {
             assertEquals(results.getMinimum(), results.getCurrent());
             assertTrue(results.hasNext());
@@ -203,7 +203,7 @@ public class BalancedTreeIndexSearcherTest extends SAIRandomizedTester
         {{
             operator = IndexOperator.RANGE;
             lower = new Bound(rawType.decompose(rawValueProducer.apply(RANGE_TEST_UPPER_BOUND_EXCLUSIVE)), encodedType, true);
-        }}, mock(QueryContext.class)))
+        }}, null, mock(QueryContext.class)))
         {
             assertFalse(results.hasNext());
         }
@@ -212,7 +212,7 @@ public class BalancedTreeIndexSearcherTest extends SAIRandomizedTester
         {{
             operator = IndexOperator.RANGE;
             upper = new Bound(rawType.decompose(rawValueProducer.apply(RANGE_TEST_LOWER_BOUND_INCLUSIVE)), encodedType, false);
-        }}, mock(QueryContext.class)))
+        }}, null, mock(QueryContext.class)))
         {
             assertFalse(results.hasNext());
             indexSearcher.close();

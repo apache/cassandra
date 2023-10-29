@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
 
 /**
  * Refer to <a href="https://github.com/bytemanproject/byteman/blob/master/docs/asciidoc/src/main/asciidoc/chapters/Byteman-Rule-Language.adoc"/>
- * and injections.md files in the root directory.
+ * and injections.md files in this directory.
  */
 public class Injection
 {

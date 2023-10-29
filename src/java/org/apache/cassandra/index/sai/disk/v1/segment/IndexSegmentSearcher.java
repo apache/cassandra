@@ -20,6 +20,8 @@ package org.apache.cassandra.index.sai.disk.v1.segment;
 import java.io.Closeable;
 import java.io.IOException;
 
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
@@ -32,11 +34,11 @@ import org.apache.cassandra.index.sai.postings.PostingList;
 
 /**
  * Abstract reader for individual segments of an on-disk index.
- *
+ * <p>
  * Accepts shared resources (token/offset file readers), and uses them to perform lookups against on-disk data
  * structures.
  */
-public abstract class IndexSegmentSearcher implements Closeable
+public abstract class IndexSegmentSearcher implements SegmentOrdering, Closeable
 {
     final PrimaryKeyMap.Factory primaryKeyMapFactory;
     final PerColumnIndexFiles indexFiles;
@@ -60,9 +62,12 @@ public abstract class IndexSegmentSearcher implements Closeable
                                             SegmentMetadata segmentMetadata,
                                             IndexContext indexContext) throws IOException
     {
-        return indexContext.isLiteral()
-               ? new LiteralIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexContext)
-               : new NumericIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexContext);
+        if (indexContext.isVector())
+            return new VectorIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexContext);
+        else if (indexContext.isLiteral())
+            return new LiteralIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexContext);
+        else
+            return new NumericIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexContext);
     }
 
     /**
@@ -78,11 +83,11 @@ public abstract class IndexSegmentSearcher implements Closeable
      *
      * @return {@link KeyRangeIterator} with matches for the given expression
      */
-    public abstract KeyRangeIterator search(Expression expression, QueryContext queryContext) throws IOException;
+    public abstract KeyRangeIterator search(Expression expression, AbstractBounds<PartitionPosition> keyRange, QueryContext queryContext) throws IOException;
 
-    KeyRangeIterator toIterator(PostingList postingList, QueryContext queryContext) throws IOException
+    KeyRangeIterator toPrimaryKeyIterator(PostingList postingList, QueryContext queryContext) throws IOException
     {
-        if (postingList == null)
+        if (postingList == null || postingList.size() == 0)
             return KeyRangeIterator.empty();
 
         IndexSegmentSearcherContext searcherContext = new IndexSegmentSearcherContext(metadata.minKey,

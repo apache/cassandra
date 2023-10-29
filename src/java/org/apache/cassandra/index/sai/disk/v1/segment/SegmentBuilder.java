@@ -29,9 +29,11 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
+import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
 import org.apache.cassandra.index.sai.disk.v1.bbtree.BlockBalancedTreeRamBuffer;
 import org.apache.cassandra.index.sai.disk.v1.bbtree.NumericIndexWriter;
 import org.apache.cassandra.index.sai.disk.v1.trie.LiteralIndexWriter;
+import org.apache.cassandra.index.sai.disk.v1.vector.OnHeapGraph;
 import org.apache.cassandra.index.sai.memory.RAMStringIndexer;
 import org.apache.cassandra.index.sai.utils.NamedMemoryLimiter;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
@@ -158,6 +160,35 @@ public abstract class SegmentBuilder
             stringBuffer.grow(length);
             FastByteOperations.copy(buffer, buffer.position(), stringBuffer.bytes(), 0, length);
             stringBuffer.setLength(length);
+        }
+    }
+
+    public static class VectorSegmentBuilder extends SegmentBuilder
+    {
+        private final OnHeapGraph<Integer> graphIndex;
+
+        public VectorSegmentBuilder(AbstractType<?> termComparator, NamedMemoryLimiter limiter, IndexWriterConfig indexWriterConfig)
+        {
+            super(termComparator, limiter);
+            graphIndex = new OnHeapGraph<>(termComparator, indexWriterConfig, false);
+        }
+
+        @Override
+        public boolean isEmpty()
+        {
+            return graphIndex.isEmpty();
+        }
+
+        @Override
+        protected long addInternal(ByteBuffer term, int segmentRowId)
+        {
+            return graphIndex.add(term, segmentRowId, OnHeapGraph.InvalidVectorBehavior.IGNORE);
+        }
+
+        @Override
+        protected SegmentMetadata.ComponentMetadataMap flushInternal(IndexDescriptor indexDescriptor, IndexContext indexContext) throws IOException
+        {
+            return graphIndex.writeData(indexDescriptor, indexContext, p -> p);
         }
     }
 

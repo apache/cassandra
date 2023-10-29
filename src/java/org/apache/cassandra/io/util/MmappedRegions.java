@@ -19,6 +19,8 @@
 package org.apache.cassandra.io.util;
 
 import java.nio.ByteBuffer;
+import java.nio.FloatBuffer;
+import java.nio.IntBuffer;
 import java.nio.channels.FileChannel;
 import java.util.Arrays;
 
@@ -263,11 +265,27 @@ public class MmappedRegions extends SharedCloseableImpl
             this.buffer = buffer;
         }
 
+        @Override
         public ByteBuffer buffer()
         {
             return buffer.duplicate();
         }
 
+        @Override
+        public FloatBuffer floatBuffer()
+        {
+            // this does an implicit duplicate(), so we need to expose it directly to avoid doing it twice unnecessarily
+            return buffer.asFloatBuffer();
+        }
+
+        @Override
+        public IntBuffer intBuffer()
+        {
+            // this does an implicit duplicate(), so we need to expose it directly to avoid doing it twice unnecessarily
+            return buffer.asIntBuffer();
+        }
+
+        @Override
         public long offset()
         {
             return offset;
@@ -278,6 +296,7 @@ public class MmappedRegions extends SharedCloseableImpl
             return offset + buffer.capacity();
         }
 
+        @Override
         public void release()
         {
             // only released after no readers are present

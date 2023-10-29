@@ -51,6 +51,11 @@ public enum IndexComponent
     TERMS_DATA("TermsData"),
 
     /**
+     * Product Quantization store used to store compressed vectors for the vector index
+     */
+    COMPRESSED_VECTORS("CompressedVectors"),
+
+    /**
      * Stores postings written by {@link PostingsWriter}
      */
     POSTING_LISTS("PostingLists"),

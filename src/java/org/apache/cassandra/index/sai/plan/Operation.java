@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ArrayListMultimap;
@@ -175,12 +176,21 @@ public class Operation
      */
     static KeyRangeIterator buildIterator(QueryController controller)
     {
-        return Node.buildTree(controller.filterOperation()).analyzeTree(controller).rangeIterator(controller);
+        var orderings = controller.filterOperation().getExpressions()
+                                  .stream().filter(e -> e.operator() == Operator.ANN).collect(Collectors.toList());
+        assert orderings.size() <= 1;
+        if (controller.filterOperation().getExpressions().size() == 1 && orderings.size() == 1)
+            // If we only have one expression, we just use the ANN index to order and limit.
+            return controller.getTopKRows(orderings.get(0));
+        var iterator = Node.buildTree(controller.filterOperation()).analyzeTree(controller).rangeIterator(controller);
+        if (orderings.isEmpty())
+            return iterator;
+        return controller.getTopKRows(iterator, orderings.get(0));
     }
 
     /**
      * Converts expressions into filter tree (which is currently just a single AND).
-     *
+     * <p>
      * Filter tree allows us to do a couple of important optimizations
      * namely, group flattening for AND operations (query rewrite), expression bounds checks,
      * "satisfies by" checks for resulting rows with an early exit.
