@@ -121,6 +121,9 @@ public class ReadCommandVerbHandler implements IVerbHandler<ReadCommand>
 
         if (replica == null)
         {
+            if (command.isTopK())
+                return;
+
             logger.warn("Received a read request from {} for a range that is not owned by the current replica {}.",
                         message.from(),
                         command);

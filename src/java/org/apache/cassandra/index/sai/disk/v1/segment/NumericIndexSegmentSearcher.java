@@ -24,6 +24,8 @@ import com.google.common.base.MoreObjects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.PartitionPosition;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
@@ -34,7 +36,6 @@ import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.metrics.MulticastQueryEventListeners;
 import org.apache.cassandra.index.sai.metrics.QueryEventListener;
 import org.apache.cassandra.index.sai.plan.Expression;
-import org.apache.cassandra.index.sai.postings.PostingList;
 import org.apache.lucene.index.CorruptIndexException;
 
 import static org.apache.cassandra.index.sai.disk.v1.bbtree.BlockBalancedTreeQueries.balancedTreeQueryFrom;
@@ -79,7 +80,7 @@ public class NumericIndexSegmentSearcher extends IndexSegmentSearcher
 
     @Override
     @SuppressWarnings({"resource", "RedundantSuppression"})
-    public KeyRangeIterator search(Expression exp, QueryContext context) throws IOException
+    public KeyRangeIterator search(Expression exp, AbstractBounds<PartitionPosition> keyRange, QueryContext context) throws IOException
     {
         if (logger.isTraceEnabled())
             logger.trace(indexContext.logMessage("Searching on expression '{}'..."), exp);
@@ -88,8 +89,7 @@ public class NumericIndexSegmentSearcher extends IndexSegmentSearcher
         {
             final BlockBalancedTreeReader.IntersectVisitor query = balancedTreeQueryFrom(exp, treeReader.getBytesPerValue());
             QueryEventListener.BalancedTreeEventListener listener = MulticastQueryEventListeners.of(context, perColumnEventListener);
-            PostingList postingList = treeReader.intersect(query, listener, context);
-            return toIterator(postingList, context);
+            return toPrimaryKeyIterator(treeReader.intersect(query, listener, context), context);
         }
         else
         {

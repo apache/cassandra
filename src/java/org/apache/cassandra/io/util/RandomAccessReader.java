@@ -37,14 +37,14 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
     private long markedPointer;
 
     final Rebufferer rebufferer;
-    private BufferHolder bufferHolder = Rebufferer.EMPTY;
+    protected BufferHolder bufferHolder = Rebufferer.EMPTY;
 
     /**
      * Only created through Builder
      *
      * @param rebufferer Rebufferer to use
      */
-    RandomAccessReader(Rebufferer rebufferer)
+    protected RandomAccessReader(Rebufferer rebufferer)
     {
         super(Rebufferer.EMPTY.buffer());
         this.rebufferer = rebufferer;

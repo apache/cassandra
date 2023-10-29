@@ -237,6 +237,19 @@ public class ByteArrayAccessor implements ValueAccessor<byte[]>
     }
 
     @Override
+    public float[] toFloatArray(byte[] value, int dimension)
+    {
+        float[] array = new float[dimension];
+        int offset = 0;
+        for (int i = 0; i < dimension; i++)
+        {
+            array[i] = getFloat(value, offset);
+            offset += Float.BYTES;
+        }
+        return array;
+    }
+
+    @Override
     public double toDouble(byte[] value)
     {
         return ByteArrayUtil.getDouble(value, 0);

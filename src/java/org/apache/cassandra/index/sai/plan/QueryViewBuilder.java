@@ -21,6 +21,7 @@ package org.apache.cassandra.index.sai.plan;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.NavigableSet;
 import java.util.Set;
@@ -32,7 +33,6 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.index.sai.view.View;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -55,40 +55,39 @@ public class QueryViewBuilder
         this.range = range;
     }
 
-    protected Collection<Pair<Expression, Collection<SSTableIndex>>> build()
+    public static class QueryView
     {
-        Set<String> indexNames = new TreeSet<>();
-        try
+        public final Collection<Pair<Expression, Collection<SSTableIndex>>> view;
+        public final Set<SSTableIndex> referencedIndexes;
+
+        public QueryView(Collection<Pair<Expression, Collection<SSTableIndex>>> view, Set<SSTableIndex> referencedIndexes)
         {
-            while (true)
-            {
-                List<SSTableIndex> referencedIndexes = new ArrayList<>();
-                boolean failed = false;
-
-                Collection<Pair<Expression, Collection<SSTableIndex>>> view = getQueryView(expressions);
-
-                for (SSTableIndex index : view.stream().map(pair -> pair.right).flatMap(Collection::stream).collect(Collectors.toList()))
-                {
-                    indexNames.add(index.getIndexContext().getIndexName());
-
-                    if (index.reference())
-                        referencedIndexes.add(index);
-                    else
-                    {
-                        failed = true;
-                        break;
-                    }
-                }
-
-                if (failed)
-                    referencedIndexes.forEach(SSTableIndex::releaseQuietly);
-                else
-                    return view;
-            }
+            this.view = view;
+            this.referencedIndexes = referencedIndexes;
         }
-        finally
+    }
+
+    protected QueryView build()
+    {
+        Set<SSTableIndex> referencedIndexes = new HashSet<>();
+        while (true)
         {
-            Tracing.trace("Querying storage-attached indexes {}", indexNames);
+            referencedIndexes.clear();
+            boolean failed = false;
+
+            Collection<Pair<Expression, Collection<SSTableIndex>>> view = getQueryView(expressions);
+            for (SSTableIndex index : view.stream().map(pair -> pair.right).flatMap(Collection::stream).collect(Collectors.toList()))
+            {
+                if (index.reference())
+                    referencedIndexes.add(index);
+                else
+                    failed = true;
+            }
+
+            if (failed)
+                referencedIndexes.forEach(SSTableIndex::release);
+            else
+                return new QueryView(view, referencedIndexes);
         }
     }
 
@@ -179,7 +178,7 @@ public class QueryViewBuilder
         return mostSelectiveExpression == null ? null : Pair.create(mostSelectiveExpression, mostSelectiveIndexes);
     }
 
-    private List<SSTableIndex> selectIndexesInRange(List<SSTableIndex> indexes)
+    private List<SSTableIndex> selectIndexesInRange(Collection<SSTableIndex> indexes)
     {
         return indexes.stream().filter(this::indexInRange).collect(Collectors.toList());
     }

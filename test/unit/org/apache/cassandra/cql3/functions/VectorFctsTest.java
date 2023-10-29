@@ -26,8 +26,8 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 import org.apache.cassandra.cql3.CQLTester;
-import org.apache.lucene.index.VectorSimilarityFunction;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -175,5 +175,13 @@ public class VectorFctsTest extends CQLTester
             assertRows(execute("SELECT " + function + "(value, [0, 0]) FROM %s"), row(expected));
             assertRows(execute("SELECT " + function + "([0, 0], value) FROM %s"), row(expected));
         }
+
+        // not-assignable element types
+        assertThatThrownBy(() -> execute("SELECT " + function + "(value, ['a', 'b']) FROM %s WHERE pk=0"))
+            .hasMessageContaining("Type error: ['a', 'b'] cannot be passed as argument 1");
+        assertThatThrownBy(() -> execute("SELECT " + function + "(['a', 'b'], value) FROM %s WHERE pk=0"))
+            .hasMessageContaining("Type error: ['a', 'b'] cannot be passed as argument 0");
+        assertThatThrownBy(() -> execute("SELECT " + function + "(['a', 'b'], ['a', 'b']) FROM %s WHERE pk=0"))
+            .hasMessageContaining("Type error: ['a', 'b'] cannot be passed as argument 0");
     }
 }

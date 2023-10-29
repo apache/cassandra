@@ -27,7 +27,7 @@ import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.transport.ProtocolVersion;
-import org.apache.lucene.index.VectorSimilarityFunction;
+import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 
 public class VectorFcts
 {
@@ -39,7 +39,7 @@ public class VectorFcts
     }
 
     private static FunctionFactory createSimilarityFunctionFactory(String name,
-                                                                   VectorSimilarityFunction luceneFunction,
+                                                                   VectorSimilarityFunction vectorSimilarityFunction,
                                                                    boolean supportsZeroVectors)
     {
         return new FunctionFactory(name,
@@ -55,7 +55,7 @@ public class VectorFcts
                 int dimensions = firstArgType.dimension;
                 if (!argTypes.stream().allMatch(t -> ((VectorType<?>) t).dimension == dimensions))
                     throw new InvalidRequestException("All arguments must have the same vector dimensions");
-                return createSimilarityFunction(name.name, firstArgType, luceneFunction, supportsZeroVectors);
+                return createSimilarityFunction(name.name, firstArgType, vectorSimilarityFunction, supportsZeroVectors);
             }
         };
     }

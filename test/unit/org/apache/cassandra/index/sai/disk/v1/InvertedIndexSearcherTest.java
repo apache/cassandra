@@ -30,9 +30,11 @@ import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SAITester;
+import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.memory.MemtableTermsIterator;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
@@ -41,7 +43,6 @@ import org.apache.cassandra.index.sai.disk.v1.segment.LiteralIndexSegmentSearche
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.v1.trie.LiteralIndexWriter;
 import org.apache.cassandra.index.sai.plan.Expression;
-import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.utils.PrimaryKey;
 import org.apache.cassandra.index.sai.utils.SAIRandomizedTester;
 import org.apache.cassandra.service.StorageService;
@@ -75,6 +76,18 @@ public class InvertedIndexSearcherTest extends SAIRandomizedTester
         {
             return key.token().getLongValue();
         }
+
+        @Override
+        public long ceiling(Token token)
+        {
+            return 0;
+        }
+
+        @Override
+        public long floor(Token token)
+        {
+            return 0;
+        }
     };
     public static final PrimaryKeyMap.Factory TEST_PRIMARY_KEY_MAP_FACTORY = () -> TEST_PRIMARY_KEY_MAP;
 
@@ -102,7 +115,7 @@ public class InvertedIndexSearcherTest extends SAIRandomizedTester
             for (int t = 0; t < numTerms; ++t)
             {
                 try (KeyRangeIterator results = searcher.search(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
-                        .add(Operator.EQ, wrap(termsEnum.get(t).left)), context))
+                        .add(Operator.EQ, wrap(termsEnum.get(t).left)), null, context))
                 {
                     assertEquals(results.getMinimum(), results.getCurrent());
                     assertTrue(results.hasNext());
@@ -118,7 +131,7 @@ public class InvertedIndexSearcherTest extends SAIRandomizedTester
                 }
 
                 try (KeyRangeIterator results = searcher.search(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
-                        .add(Operator.EQ, wrap(termsEnum.get(t).left)), context))
+                        .add(Operator.EQ, wrap(termsEnum.get(t).left)), null, context))
                 {
                     assertEquals(results.getMinimum(), results.getCurrent());
                     assertTrue(results.hasNext());
@@ -141,12 +154,12 @@ public class InvertedIndexSearcherTest extends SAIRandomizedTester
             // try searching for terms that weren't indexed
             final String tooLongTerm = randomSimpleString(10, 12);
             KeyRangeIterator results = searcher.search(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
-                                                                .add(Operator.EQ, UTF8Type.instance.decompose(tooLongTerm)), context);
+                                                  .add(Operator.EQ, UTF8Type.instance.decompose(tooLongTerm)), null, context);
             assertFalse(results.hasNext());
 
             final String tooShortTerm = randomSimpleString(1, 2);
             results = searcher.search(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
-                                                      .add(Operator.EQ, UTF8Type.instance.decompose(tooShortTerm)), context);
+                                      .add(Operator.EQ, UTF8Type.instance.decompose(tooShortTerm)), null, context);
             assertFalse(results.hasNext());
         }
     }
@@ -162,7 +175,7 @@ public class InvertedIndexSearcherTest extends SAIRandomizedTester
         try (IndexSegmentSearcher searcher = buildIndexAndOpenSearcher(numTerms, numPostings, termsEnum))
         {
             searcher.search(new Expression(SAITester.createIndexContext("meh", UTF8Type.instance))
-                            .add(Operator.GT, UTF8Type.instance.decompose("a")), context);
+                            .add(Operator.GT, UTF8Type.instance.decompose("a")), null, context);
 
             fail("Expect IllegalArgumentException thrown, but didn't");
         }
