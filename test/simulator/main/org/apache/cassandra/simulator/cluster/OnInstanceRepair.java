@@ -20,6 +20,7 @@ package org.apache.cassandra.simulator.cluster;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.cassandra.db.Keyspace;
@@ -87,7 +88,7 @@ class OnInstanceRepair extends ClusterAction
         Keyspace keyspace = Keyspace.open(keyspaceName);
         TokenMetadata metadata = StorageService.instance.getTokenMetadata().cloneOnlyTokenMap();
         invokeRepair(keyspaceName, repairPaxos, repairOnlyPaxos,
-                     () -> primaryRangeOnly ? Collections.singletonList(metadata.getPrimaryRangeFor(currentToken()))
+                     () -> primaryRangeOnly ? Collections.singletonList(metadata.getPrimaryRangesFor(List.of(currentToken())).iterator().next())
                                             : keyspace.getReplicationStrategy().getAddressReplicas(metadata).get(getBroadcastAddressAndPort()).asList(Replica::range),
                      primaryRangeOnly, force, listener);
     }
