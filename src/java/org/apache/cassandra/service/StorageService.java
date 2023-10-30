@@ -463,6 +463,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public boolean replacing;
 
     private boolean autoRepairStarted = true;
+
+    private boolean ignoreRepairedatEnabled = false;
+
     private volatile boolean hasDecommissionFailed = false;
     private volatile boolean hasBootstrapFailed = false;
     private final StreamStateStore streamStateStore = new StreamStateStore();
@@ -1013,6 +1016,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         if (DatabaseDescriptor.isCDCEnabled())
             CDCManager.instance.startCDCReader();
+
+        ignoreRepairedatEnabled = DatabaseDescriptor.getIgnoreRepairedatEnabled();
 
         initialized = true;
     }
@@ -7353,6 +7358,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public boolean isAutoRepairEnabled()
     {
         return DatabaseDescriptor.isAutoRepairEnabled();
+    }
+
+    public boolean getIgnoreRepairedatEnabled()
+    {
+        return ignoreRepairedatEnabled;
+    }
+
+    public void setIgnoreRepairedatEnabled(boolean isEnabled)
+    {
+        ignoreRepairedatEnabled = isEnabled;
     }
 
     public boolean isDecommissionFailed()

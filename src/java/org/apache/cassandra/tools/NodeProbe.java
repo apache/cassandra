@@ -99,7 +99,6 @@ import org.apache.cassandra.metrics.TableMetrics;
 import org.apache.cassandra.metrics.ThreadPoolMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.MessagingServiceMBean;
-import org.apache.cassandra.repair.AutoRepairUtils;
 import org.apache.cassandra.service.ActiveRepairServiceMBean;
 import org.apache.cassandra.service.AutoRepairServiceMBean;
 import org.apache.cassandra.service.CacheService;
@@ -2495,6 +2494,12 @@ public class NodeProbe implements AutoCloseable
     public AuthEnforcementFlag getAuthEnforcementFlag()
     {
         return ssProxy.getAuthEnforcementFlag();
+    }
+
+    public boolean getIgnoreRepairedAtEnabled() { return ssProxy.getIgnoreRepairedatEnabled(); }
+
+    public void setIgnoreRepariedAtEnabled(boolean isEnabled) {
+        ssProxy.setIgnoreRepairedatEnabled(isEnabled);
     }
 
     public boolean getGossipServiceCacheMismatchComparisonEnabled()

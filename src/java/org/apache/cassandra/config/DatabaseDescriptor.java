@@ -4974,4 +4974,14 @@ public class DatabaseDescriptor
     {
         conf.gossip_and_storage_service_cache_mismatch_conviction_threshold = threshold;
     }
+
+    public static void setIgnoreRepairedatEnabled(boolean isEnabled)
+    {
+        conf.ignore_repairedat_enabled = isEnabled;
+    }
+
+    public static boolean getIgnoreRepairedatEnabled()
+    {
+        return conf.ignore_repairedat_enabled;
+    }
 }

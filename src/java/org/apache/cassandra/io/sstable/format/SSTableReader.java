@@ -73,6 +73,7 @@ import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.CacheService;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.*;
 
@@ -1628,6 +1629,11 @@ public abstract class SSTableReader extends SSTable implements UnfilteredSource,
 
     public boolean isRepaired()
     {
+        // if ignore_repairedat_enabled is set to true, we basically always report SSTable
+        // to be in unrepaired state
+        if (StorageService.instance.getIgnoreRepairedatEnabled()) {
+            return false;
+        }
         return sstableMetadata.repairedAt != ActiveRepairService.UNREPAIRED_SSTABLE;
     }
 

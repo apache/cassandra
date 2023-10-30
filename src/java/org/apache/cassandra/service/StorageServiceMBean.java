@@ -1127,6 +1127,12 @@ public interface StorageServiceMBean extends NotificationEmitter
     /** Check if AutoRepair is enabled for this node */
     public boolean isAutoRepairEnabled();
 
+    /** Check if repairedAt timestamp is ignored */
+    public boolean getIgnoreRepairedatEnabled();
+
+    /** Set whether ignoring the repairedAt timestamp is enabled */
+    public void setIgnoreRepairedatEnabled(boolean isEnabled);
+
     /** Indicates whether this node's decommission failed. */
     public boolean isDecommissionFailed();
 

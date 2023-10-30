@@ -176,6 +176,7 @@ Merged from 3.0:
  * Remove unused suppressions (CASSANDRA-18724)
 
 Unreleased
+ * [SO-25187] Feature to ignore repairedAt timestamp and reset status to unrepaired
  * [SO-25186] Emit metric for number of repaired SSTable and overlapped tombstones at table level
  * [SO-25494] A metric for Unowned token range read request received
  * [SO-24439] Add MaxSSTableSize and MaxSSTableDuration metrics and propagate them together with local read/write ratio to tablestats (CASSANDRA-18283)

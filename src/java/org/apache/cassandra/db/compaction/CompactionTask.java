@@ -52,6 +52,7 @@ import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Refs;
@@ -323,6 +324,12 @@ public class CompactionTask extends AbstractCompactionTask
 
     public static long getMinRepairedAt(Set<SSTableReader> actuallyCompact)
     {
+        // If ignore_repairedat_enabled is set to true, when compaction happens with mixed
+        // repaired and unrepaired SSTables we always set them to unrepaired state
+        if (StorageService.instance.getIgnoreRepairedatEnabled()) {
+            return ActiveRepairService.UNREPAIRED_SSTABLE;
+        }
+
         long minRepairedAt= Long.MAX_VALUE;
         for (SSTableReader sstable : actuallyCompact)
             minRepairedAt = Math.min(minRepairedAt, sstable.getSSTableMetadata().repairedAt);
