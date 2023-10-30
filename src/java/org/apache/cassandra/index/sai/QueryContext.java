@@ -19,12 +19,12 @@
 package org.apache.cassandra.index.sai;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.NavigableSet;
 import java.util.Set;
-import java.util.TreeSet;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.LongAdder;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -40,44 +40,42 @@ import org.apache.cassandra.index.sai.utils.PrimaryKey;
 
 /**
  * Tracks state relevant to the execution of a single query, including metrics and timeout monitoring.
- *
- * Fields here are non-volatile, as they are accessed from a single thread.
  */
 @NotThreadSafe
 public class QueryContext
 {
     private static final boolean DISABLE_TIMEOUT = Boolean.getBoolean("cassandra.sai.test.disable.timeout");
 
-    private final long queryStartTimeNanos;
+    protected final long queryStartTimeNanos;
 
     public final long executionQuotaNano;
 
-    public long sstablesHit = 0;
-    public long segmentsHit = 0;
-    public long partitionsRead = 0;
-    public long rowsFiltered = 0;
+    private final LongAdder sstablesHit = new LongAdder();
+    private final LongAdder segmentsHit = new LongAdder();
+    private final LongAdder partitionsRead = new LongAdder();
+    private final LongAdder rowsFiltered = new LongAdder();
 
-    public long trieSegmentsHit = 0;
+    private final LongAdder trieSegmentsHit = new LongAdder();
 
-    public long bkdPostingListsHit = 0;
-    public long bkdSegmentsHit = 0;
+    private final LongAdder bkdPostingListsHit = new LongAdder();
+    private final LongAdder bkdSegmentsHit = new LongAdder();
 
-    public long bkdPostingsSkips = 0;
-    public long bkdPostingsDecodes = 0;
+    private final LongAdder bkdPostingsSkips = new LongAdder();
+    private final LongAdder bkdPostingsDecodes = new LongAdder();
 
-    public long triePostingsSkips = 0;
-    public long triePostingsDecodes = 0;
+    private final LongAdder triePostingsSkips = new LongAdder();
+    private final LongAdder triePostingsDecodes = new LongAdder();
 
-    public long tokenSkippingCacheHits = 0;
-    public long tokenSkippingLookups = 0;
+    private final LongAdder tokenSkippingCacheHits = new LongAdder();
+    private final LongAdder tokenSkippingLookups = new LongAdder();
 
-    public long queryTimeouts = 0;
+    private final LongAdder queryTimeouts = new LongAdder();
 
-    public int hnswVectorsAccessed;
-    public int hnswVectorCacheHits;
+    private final LongAdder hnswVectorsAccessed = new LongAdder();
+    private final LongAdder hnswVectorCacheHits = new LongAdder();
 
-    public int shadowedKeysLoopCount = 0;
-    private TreeSet<PrimaryKey> shadowedPrimaryKeys; // allocate when needed
+    private final LongAdder shadowedKeysLoopCount = new LongAdder();
+    private final NavigableSet<PrimaryKey> shadowedPrimaryKeys = new ConcurrentSkipListSet<>();
 
     @VisibleForTesting
     public QueryContext()
@@ -88,7 +86,7 @@ public class QueryContext
     public QueryContext(long executionQuotaMs)
     {
         this.executionQuotaNano = TimeUnit.MILLISECONDS.toNanos(executionQuotaMs);
-        queryStartTimeNanos = System.nanoTime();
+        this.queryStartTimeNanos = System.nanoTime();
     }
 
     public long totalQueryTimeNs()
@@ -96,29 +94,158 @@ public class QueryContext
         return System.nanoTime() - queryStartTimeNanos;
     }
 
-    public void incSstablesHit()
+    // setters
+    public void addSstablesHit(long val)
     {
-        sstablesHit++;
+        sstablesHit.add(val);
+    }
+    public void addSegmentsHit(long val) {
+        segmentsHit.add(val);
+    }
+    public void addPartitionsRead(long val)
+    {
+        partitionsRead.add(val);
+    }
+    public void addRowsFiltered(long val)
+    {
+        rowsFiltered.add(val);
+    }
+    public void addTrieSegmentsHit(long val)
+    {
+        trieSegmentsHit.add(val);
+    }
+    public void addBkdPostingListsHit(long val)
+    {
+        bkdPostingListsHit.add(val);
+    }
+    public void addBkdSegmentsHit(long val)
+    {
+        bkdSegmentsHit.add(val);
+    }
+    public void addBkdPostingsSkips(long val)
+    {
+        bkdPostingsSkips.add(val);
+    }
+    public void addBkdPostingsDecodes(long val)
+    {
+        bkdPostingsDecodes.add(val);
+    }
+    public void addTriePostingsSkips(long val)
+    {
+        triePostingsSkips.add(val);
+    }
+    public void addTriePostingsDecodes(long val)
+    {
+        triePostingsDecodes.add(val);
+    }
+    public void addTokenSkippingCacheHits(long val)
+    {
+        tokenSkippingCacheHits.add(val);
+    }
+    public void addTokenSkippingLookups(long val)
+    {
+        tokenSkippingLookups.add(val);
+    }
+    public void addQueryTimeouts(long val)
+    {
+        queryTimeouts.add(val);
+    }
+    public void addHnswVectorsAccessed(long val)
+    {
+        hnswVectorsAccessed.add(val);
+    }
+    public void addHnswVectorCacheHits(long val)
+    {
+        hnswVectorCacheHits.add(val);
     }
 
+    public void addShadowedKeysLoopCount(long val)
+    {
+        shadowedKeysLoopCount.add(val);
+    }
+
+    // getters
+
+    public long sstablesHit()
+    {
+        return sstablesHit.longValue();
+    }
+    public long segmentsHit() {
+        return segmentsHit.longValue();
+    }
+    public long partitionsRead()
+    {
+        return partitionsRead.longValue();
+    }
+    public long rowsFiltered()
+    {
+        return rowsFiltered.longValue();
+    }
+    public long trieSegmentsHit()
+    {
+        return trieSegmentsHit.longValue();
+    }
+    public long bkdPostingListsHit()
+    {
+        return bkdPostingListsHit.longValue();
+    }
+    public long bkdSegmentsHit()
+    {
+        return bkdSegmentsHit.longValue();
+    }
+    public long bkdPostingsSkips()
+    {
+        return bkdPostingsSkips.longValue();
+    }
+    public long bkdPostingsDecodes()
+    {
+        return bkdPostingsDecodes.longValue();
+    }
+    public long triePostingsSkips()
+    {
+        return triePostingsSkips.longValue();
+    }
+    public long triePostingsDecodes()
+    {
+        return triePostingsDecodes.longValue();
+    }
+    public long tokenSkippingCacheHits()
+    {
+        return tokenSkippingCacheHits.longValue();
+    }
+    public long tokenSkippingLookups()
+    {
+        return tokenSkippingLookups.longValue();
+    }
+    public long queryTimeouts()
+    {
+        return queryTimeouts.longValue();
+    }
+    public long hnswVectorsAccessed()
+    {
+        return hnswVectorsAccessed.longValue();
+    }
+    public long hnswVectorCacheHits()
+    {
+        return hnswVectorCacheHits.longValue();
+    }
+    
     public void checkpoint()
     {
         if (totalQueryTimeNs() >= executionQuotaNano && !DISABLE_TIMEOUT)
         {
-            queryTimeouts++;
+            addQueryTimeouts(1);
             throw new AbortedOperationException();
         }
     }
 
-    public void incShadowedKeysLoopCount()
+    public long shadowedKeysLoopCount()
     {
-        shadowedKeysLoopCount++;
+        return shadowedKeysLoopCount.longValue();
     }
 
     public void recordShadowedPrimaryKey(PrimaryKey primaryKey)
     {
-        if (shadowedPrimaryKeys == null)
-            shadowedPrimaryKeys = new TreeSet<>();
         boolean isNewKey = shadowedPrimaryKeys.add(primaryKey);
         assert isNewKey : "Duplicate shadowed primary key added. Key should have been filtered out earlier in query.";
     }
@@ -126,12 +253,12 @@ public class QueryContext
     // Returns true if the row ID will be included or false if the row ID will be shadowed
     public boolean shouldInclude(long sstableRowId, PrimaryKeyMap primaryKeyMap)
     {
-        return shadowedPrimaryKeys == null || !shadowedPrimaryKeys.contains(primaryKeyMap.primaryKeyFromRowId(sstableRowId));
+        return !shadowedPrimaryKeys.contains(primaryKeyMap.primaryKeyFromRowId(sstableRowId));
     }
 
     public boolean shouldInclude(PrimaryKey pk)
     {
-        return shadowedPrimaryKeys == null || !shadowedPrimaryKeys.contains(pk);
+        return !shadowedPrimaryKeys.contains(pk);
     }
 
     /**
@@ -139,17 +266,15 @@ public class QueryContext
      */
     public NavigableSet<PrimaryKey> getShadowedPrimaryKeys()
     {
-        if (shadowedPrimaryKeys == null)
-            return Collections.emptyNavigableSet();
         return shadowedPrimaryKeys;
     }
 
     public Bits bitsetForShadowedPrimaryKeys(CassandraOnHeapGraph<PrimaryKey> graph)
     {
-        if (shadowedPrimaryKeys == null)
+        if (getShadowedPrimaryKeys().isEmpty())
             return null;
 
-        return new IgnoredKeysBits(graph, shadowedPrimaryKeys);
+        return new IgnoredKeysBits(graph, getShadowedPrimaryKeys());
     }
 
     public Bits bitsetForShadowedPrimaryKeys(SegmentMetadata metadata, PrimaryKeyMap primaryKeyMap, JVectorLuceneOnDiskGraph graph) throws IOException

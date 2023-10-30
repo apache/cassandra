@@ -193,17 +193,29 @@ public class QueryController
         if (key == null)
             throw new IllegalArgumentException("non-null key required");
 
+        SinglePartitionReadCommand partition = getPartitionReadCommand(key, executionController);
+        return executePartitionReadCommand(partition, executionController);
+    }
+
+    public SinglePartitionReadCommand getPartitionReadCommand(PrimaryKey key, ReadExecutionController executionController)
+    {
+        if (key == null)
+            throw new IllegalArgumentException("non-null key required");
+
+        return SinglePartitionReadCommand.create(cfs.metadata(),
+                                                 command.nowInSec(),
+                                                 command.columnFilter(),
+                                                 RowFilter.NONE,
+                                                 DataLimits.NONE,
+                                                 key.partitionKey(),
+                                                 makeFilter(key));
+    }
+
+    public UnfilteredRowIterator executePartitionReadCommand(SinglePartitionReadCommand command, ReadExecutionController executionController)
+    {
         try
         {
-            SinglePartitionReadCommand partition = SinglePartitionReadCommand.create(cfs.metadata(),
-                                                                                     command.nowInSec(),
-                                                                                     command.columnFilter(),
-                                                                                     RowFilter.NONE,
-                                                                                     DataLimits.NONE,
-                                                                                     key.partitionKey(),
-                                                                                     makeFilter(key));
-
-            return partition.queryMemtableAndDisk(cfs, executionController);
+            return command.queryMemtableAndDisk(cfs, executionController);
         }
         finally
         {

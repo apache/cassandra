@@ -212,11 +212,11 @@ public class CassandraOnDiskHnsw implements JVectorLuceneOnDiskGraph, AutoClosea
         @Override
         public float[] vectorValue(int i) throws IOException
         {
-            queryContext.hnswVectorsAccessed++;
+            queryContext.addHnswVectorsAccessed(1);
             var cached = vectorCache.get(i);
             if (cached != null)
             {
-                queryContext.hnswVectorCacheHits++;
+                queryContext.addHnswVectorCacheHits(1);
                 return cached;
             }
 

@@ -63,15 +63,15 @@ public class TableQueryMetrics extends AbstractMetrics
 
     public void record(QueryContext queryContext)
     {
-        if (queryContext.queryTimeouts > 0)
+        if (queryContext.queryTimeouts() > 0)
         {
-            assert queryContext.queryTimeouts == 1;
+            assert queryContext.queryTimeouts() == 1;
 
             totalQueryTimeouts.inc();
         }
 
-        long skippingLookups = queryContext.tokenSkippingLookups;
-        long skippingCacheHits = queryContext.tokenSkippingCacheHits;
+        long skippingLookups = queryContext.tokenSkippingLookups();
+        long skippingCacheHits = queryContext.tokenSkippingCacheHits();
 
         tokenSkippingLookups.mark(skippingLookups);
         tokenSkippingCacheHits.mark(skippingCacheHits);
@@ -165,22 +165,22 @@ public class TableQueryMetrics extends AbstractMetrics
 
         private void recordStringIndexCacheMetrics(QueryContext events)
         {
-            postingsSkips.update(events.triePostingsSkips);
-            postingsDecodes.update(events.triePostingsDecodes);
+            postingsSkips.update(events.triePostingsSkips());
+            postingsDecodes.update(events.triePostingsDecodes());
         }
 
         private void recordNumericIndexCacheMetrics(QueryContext events)
         {
-            kdTreePostingsNumPostings.update(events.bkdPostingListsHit);
+            kdTreePostingsNumPostings.update(events.bkdPostingListsHit());
 
-            kdTreePostingsSkips.update(events.bkdPostingsSkips);
-            kdTreePostingsDecodes.update(events.bkdPostingsDecodes);
+            kdTreePostingsSkips.update(events.bkdPostingsSkips());
+            kdTreePostingsDecodes.update(events.bkdPostingsDecodes());
         }
 
         private void recordHnswIndexMetrics(QueryContext queryContext)
         {
-            hnswVectorsAccessed.add(queryContext.hnswVectorsAccessed);
-            hnswVectorCacheHits.add(queryContext.hnswVectorCacheHits);
+            hnswVectorsAccessed.add(queryContext.hnswVectorsAccessed());
+            hnswVectorCacheHits.add(queryContext.hnswVectorCacheHits());
         }
 
         public void record(QueryContext queryContext)
@@ -189,10 +189,10 @@ public class TableQueryMetrics extends AbstractMetrics
             queryLatency.update(totalQueryTimeNs, TimeUnit.NANOSECONDS);
             final long queryLatencyMicros = TimeUnit.NANOSECONDS.toMicros(totalQueryTimeNs);
 
-            final long ssTablesHit = queryContext.sstablesHit;
-            final long segmentsHit = queryContext.segmentsHit;
-            final long partitionsRead = queryContext.partitionsRead;
-            final long rowsFiltered = queryContext.rowsFiltered;
+            final long ssTablesHit = queryContext.sstablesHit();
+            final long segmentsHit = queryContext.segmentsHit();
+            final long partitionsRead = queryContext.partitionsRead();
+            final long rowsFiltered = queryContext.rowsFiltered();
 
             sstablesHit.update(ssTablesHit);
             this.segmentsHit.update(segmentsHit);
@@ -211,14 +211,14 @@ public class TableQueryMetrics extends AbstractMetrics
                               queryLatencyMicros);
             }
 
-            if (queryContext.trieSegmentsHit > 0)
+            if (queryContext.trieSegmentsHit() > 0)
                 recordStringIndexCacheMetrics(queryContext);
-            if (queryContext.bkdSegmentsHit > 0)
+            if (queryContext.bkdSegmentsHit() > 0)
                 recordNumericIndexCacheMetrics(queryContext);
-            if (queryContext.hnswVectorsAccessed > 0)
+            if (queryContext.hnswVectorsAccessed() > 0)
                 recordHnswIndexMetrics(queryContext);
 
-            shadowedKeysLoopsHistogram.update(queryContext.shadowedKeysLoopCount);
+            shadowedKeysLoopsHistogram.update(queryContext.shadowedKeysLoopCount());
             shadowedKeysScannedHistogram.update(queryContext.getShadowedPrimaryKeys().size());
 
             totalQueriesCompleted.inc();

@@ -23,6 +23,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -36,7 +37,9 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
 import org.apache.cassandra.db.RegularAndStaticColumns;
+import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.partitions.ParallelCommandProcessor;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.AbstractUnfilteredRowIterator;
@@ -59,6 +62,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.AbstractIterator;
+import org.apache.cassandra.utils.Pair;
 
 public class StorageAttachedIndexSearcher implements Index.Searcher
 {
@@ -122,7 +126,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         final var exactLimit = controller.getExactLimit();
         while (true)
         {
-            queryContext.incShadowedKeysLoopCount();
+            queryContext.addShadowedKeysLoopCount(1L);
             long lastShadowedKeysCount = queryContext.getShadowedPrimaryKeys().size();
             final var softLimit = controller.currentSoftLimitEstimate();
             ResultRetriever result = queryIndexes.get();
@@ -168,7 +172,8 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
         return Operation.buildFilter(controller);
     }
 
-    private static class ResultRetriever extends AbstractIterator<UnfilteredRowIterator> implements UnfilteredPartitionIterator
+    private static class ResultRetriever extends AbstractIterator<UnfilteredRowIterator>
+                implements UnfilteredPartitionIterator, ParallelCommandProcessor
     {
         private final PrimaryKey firstPrimaryKey;
         private final PrimaryKey lastPrimaryKey;
@@ -254,6 +259,64 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
                 iterator = apply(key);
             }
             return iterator;
+        }
+
+        /**
+         * Eagerly collects all the keys.
+         * @return List of keys
+         */
+        private @Nullable List<PrimaryKey> getKeys()
+        {
+            List<PrimaryKey> keys = new ArrayList<>();
+            while (true)
+            {
+                if (operation == null)
+                    break;
+
+                if (lastKey == null)
+                    operation.skipTo(firstPrimaryKey);
+
+                skipToNextPartition();
+
+                PrimaryKey key = nextSelectedKeyInRange();
+                if (key == null) break;
+                if (key.equals(lastKey)) break;
+
+                while (key != null)
+                {
+                    lastKey = key;
+                    keys.add(key);
+                    key = nextSelectedKeyInPartition(key.partitionKey());
+                }
+            }
+            return keys;
+        }
+
+        /**
+         * Returns a list of commands that need to be executed to retrieve the data.
+         * @return list of (key, command) tuples
+         */
+        @Override
+        public List<Pair<PrimaryKey, SinglePartitionReadCommand>> getUninitializedCommands()
+        {
+            List<PrimaryKey> keys = getKeys();
+            return keys.stream()
+                       .map(key -> Pair.create(key, controller.getPartitionReadCommand(key, executionController)))
+                       .collect(Collectors.toList());
+        }
+
+        /**
+         * Executes the given command and returns an iterator.
+         */
+        @Override
+        public UnfilteredRowIterator commandToIterator(PrimaryKey key, SinglePartitionReadCommand command)
+        {
+            try (UnfilteredRowIterator partition = controller.executePartitionReadCommand(command, executionController))
+            {
+                queryContext.addPartitionsRead(1);
+
+                return applyIndexFilter(key, partition, filterTree, queryContext);
+            }
         }
 
         /**
@@ -435,7 +498,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
 
             try (UnfilteredRowIterator partition = controller.getPartition(key, executionController))
             {
-                queryContext.partitionsRead++;
+                queryContext.addPartitionsRead(1);
 
                 return applyIndexFilter(key, partition, filterTree, queryContext);
             }
@@ -450,7 +513,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
             {
                 Unfiltered row = partition.next();
 
-                queryContext.rowsFiltered++;
+                queryContext.addRowsFiltered(1);
                 if (tree.isSatisfiedBy(key.partitionKey(), row, staticRow))
                 {
                     clusters.add(row);
@@ -459,7 +522,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
 
             if (clusters.isEmpty())
             {
-                queryContext.rowsFiltered++;
+                queryContext.addRowsFiltered(1);
                 if (tree.isSatisfiedBy(key.partitionKey(), staticRow, staticRow))
                 {
                     clusters.add(staticRow);
@@ -594,7 +657,7 @@ public class StorageAttachedIndexSearcher implements Index.Searcher
                         while (delegate.hasNext())
                         {
                             Row row = delegate.next();
-                            queryContext.rowsFiltered++;
+                            queryContext.addRowsFiltered(1);
                             if (tree.isSatisfiedBy(delegate.partitionKey(), row, staticRow))
                                 return row;
                         }

@@ -742,7 +742,7 @@ public class VectorTypeTest extends VectorTester
         // Must be enough rows to go to graph
         for (int j = 1; j <= 10; j++)
         {
-            execute("INSERT INTO %s (pk, vec) VALUES (?, [?,?])", j, j, j);
+            execute("INSERT INTO %s (pk, vec) VALUES (?, ?)", j, vector(j, j));
         }
         flush();
 
