@@ -211,13 +211,6 @@ public interface StorageServiceMBean extends NotificationEmitter
     public String getLocalHostId();
 
     /**
-     * {@link StorageServiceMBean#getEndpointToHostId}
-     * @deprecated See CASSANDRA-10382
-     */
-    @Deprecated(since = "2.1.10")
-    public Map<String, String> getHostIdMap();
-
-    /**
      * Retrieve the mapping of endpoint to host ID.
      * @deprecated See CASSANDRA-7544
      */
@@ -411,15 +404,8 @@ public interface StorageServiceMBean extends NotificationEmitter
      * If tableNames array is empty, all CFs are scrubbed.
      *
      * Scrubbed CFs will be snapshotted first, if disableSnapshot is false
-     * @deprecated See CASSANDRA-9406
+     * @deprecated See CASSANDRA-11179
      */
-    @Deprecated(since = "2.2.0")
-    default int scrub(boolean disableSnapshot, boolean skipCorrupted, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
-    {
-        return scrub(disableSnapshot, skipCorrupted, true, keyspaceName, tableNames);
-    }
-
-    /** @deprecated See CASSANDRA-11179 */
     @Deprecated(since = "3.5")
     default int scrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, String keyspaceName, String... tableNames) throws IOException, ExecutionException, InterruptedException
     {
