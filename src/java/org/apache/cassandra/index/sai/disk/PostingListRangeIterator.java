@@ -20,6 +20,7 @@ package org.apache.cassandra.index.sai.disk;
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.base.Stopwatch;
@@ -62,6 +63,8 @@ public class PostingListRangeIterator extends RangeIterator
     private final IndexContext indexContext;
     private final PrimaryKeyMap primaryKeyMap;
     private final IndexSearcherContext searcherContext;
+
+    private final AtomicBoolean isClosed = new AtomicBoolean(false);
 
     private boolean needsSkipping = false;
     private PrimaryKey skipToToken = null;
@@ -124,13 +127,22 @@ public class PostingListRangeIterator extends RangeIterator
     @Override
     public void close() throws IOException
     {
-        if (logger.isTraceEnabled())
+        if (isClosed.compareAndSet(false, true))
         {
-            final long exhaustedInMills = timeToExhaust.stop().elapsed(TimeUnit.MILLISECONDS);
-            logger.trace(indexContext.logMessage("PostinListRangeIterator exhausted after {} ms"), exhaustedInMills);
+            if (logger.isTraceEnabled())
+            {
+                // timeToExhaust.stop() throws on already stopped stopwatch
+                final long closedInMills = timeToExhaust.stop().elapsed(TimeUnit.MILLISECONDS);
+                logger.trace(indexContext.logMessage("PostinListRangeIterator exhausted after {} ms"), closedInMills);
+            }
+
+            FileUtils.closeQuietly(postingList, primaryKeyMap);
+        }
+        else {
+            logger.warn("PostingListRangeIterator is already closed",
+                        new IllegalStateException("PostingListRangeIterator is already closed"));
         }
 
-        FileUtils.closeQuietly(postingList, primaryKeyMap);
     }
 
     private boolean exhausted()
