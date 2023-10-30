@@ -123,7 +123,7 @@ public class SystemInfo
     }
 
     /**
-     *
+     * Gets the equivalent of @{code ulimit -H -n}.
      * @return The maximum number of open files allowd to the current process/user.
      */
     long getMaxOpenFiles()
@@ -157,8 +157,8 @@ public class SystemInfo
 
     /**
      * Tests if the system is running in degraded mode.
-     * If the system is running in degraded mode this method will log information.
-     * @return @{code true} if the system is in degraded mode, @{code false} otherwise.
+     * If the system is running in degraded mode this method will return textual information for the logs.
+     * @return An Optional with the textual information if degraded, and empty Optional otherwise.
      */
     public Optional<String> isDegraded()
     {
@@ -198,14 +198,13 @@ public class SystemInfo
     }
 
     /**
-     * Checks if a value if valide (i.e. value >= min or value == INFINITY..
+     * Checks if a value is invalid (i.e. value < min && value != INFINITY).
      * @param value the value to check.
      * @param min the minimum value.
-     * @return true if value is valid.
+     * @return @{code true} if value is invalid.
      */
     private boolean invalid(long value, long min)
     {
         return value < min && value != INFINITY;
     }
-
 }
