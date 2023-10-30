@@ -42,6 +42,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
+import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -49,7 +50,9 @@ import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.metrics.Sampler.SamplerType;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.EstimatedHistogram;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 import com.codahale.metrics.Counter;
@@ -190,6 +193,16 @@ public class TableMetrics
     public final Gauge<Long> bytesRepaired;
     public final Gauge<Long> bytesUnrepaired;
     public final Gauge<Long> bytesPendingRepair;
+
+    /** Number of repaired SSTables */
+    public final Gauge<Long> SSTablesRepaired;
+
+    /** Number of droppable tombstones in repaired SSTable */
+    public final Gauge<Double> droppableTombstonesInRepaired;
+
+    /** Oldest droppable tombstones */
+    public final Gauge<Integer> oldestDroppableTombstone;
+
     /** Number of started repairs as coordinator on this table */
     public final Counter repairsStarted;
     /** Number of completed repairs as coordinator on this table */
@@ -594,6 +607,57 @@ public class TableMetrics
                     size += sstable.uncompressedLength();
                 }
                 return size;
+            }
+        });
+
+        SSTablesRepaired = createTableGauge("SSTablesRepaired", new Gauge<Long>()
+        {
+            public Long getValue()
+            {
+                long count = 0;
+                for (SSTableReader sstable : cfs.getSSTables(SSTableSet.CANONICAL)) {
+                    if (sstable.getRepairedAt() != ActiveRepairService.UNREPAIRED_SSTABLE) {
+                        count += 1;
+                    }
+                }
+                return count;
+            }
+        });
+
+        droppableTombstonesInRepaired = createTableGauge("DroppableTombstonesInRepaired", new Gauge<Double>()
+        {
+            public Double getValue()
+            {
+                double count = 0.0;
+                for (SSTableReader sstable : cfs.getSSTables(SSTableSet.CANONICAL)) {
+                    if (sstable.getRepairedAt() != ActiveRepairService.UNREPAIRED_SSTABLE) {
+                        count += sstable.getDroppableTombstonesBefore(FBUtilities.nowInSeconds() - sstable.metadata().params.gcGraceSeconds);
+                    }
+                }
+                return count;
+            }
+        });
+
+        oldestDroppableTombstone = createTableGauge("OldestDroppableTombstone", new Gauge<Integer>()
+        {
+            public Integer getValue()
+            {
+                int oldestDroppableTime = Cell.NO_DELETION_TIME;
+                for (SSTableReader sstable : cfs.getSSTables(SSTableSet.CANONICAL)) {
+                    int minLocalDeletionTime = sstable.getMinLocalDeletionTime();
+                    if (minLocalDeletionTime == Cell.NO_DELETION_TIME) {
+                        // no tombstone
+                        continue;
+                    }
+                    if (minLocalDeletionTime < FBUtilities.nowInSeconds() - sstable.metadata().params.gcGraceSeconds) {
+                        // only record the droppable ones
+                        oldestDroppableTime = Math.min(minLocalDeletionTime, oldestDroppableTime);
+                    }
+                }
+                // return 0 if no droppable tombstone found
+                return oldestDroppableTime == Cell.NO_DELETION_TIME
+                       ? 0
+                       : FBUtilities.nowInSeconds() - oldestDroppableTime;
             }
         });
 
