@@ -18,14 +18,11 @@
 
 package org.apache.cassandra.index.sai.cql;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
-
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.index.sai.plan.QueryController;
 
 import org.junit.Test;
 
+import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_VECTOR_SEARCH_ORDER_CHUNK_SIZE;
 import static org.apache.cassandra.index.sai.cql.VectorTypeTest.assertContainsInt;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -528,7 +525,7 @@ public class VectorUpdateDeleteTest extends VectorTester
             // We also query for different LIMITs
             for (int i = 1; i <= 100; i++)
             {
-                setChunkSize(i);
+                SAI_VECTOR_SEARCH_ORDER_CHUNK_SIZE.setInt(i);
                 var results = execute("SELECT pk FROM %s WHERE str_val = 'A' ORDER BY vec ANN OF [1,1] LIMIT 1");
                 assertRows(results, row(1));
                 results = execute("SELECT pk FROM %s WHERE str_val = 'A' ORDER BY vec ANN OF [1,1] LIMIT 3");
@@ -543,19 +540,9 @@ public class VectorUpdateDeleteTest extends VectorTester
         finally
         {
             // Revert to prevent interference with other tests. Note that a decreased chunk size can impact
-            // wether we compute the topk with brute force because it determines how many vectors get sent to the
+            // whether we compute the topk with brute force because it determines how many vectors get sent to the
             // vector index.
-            setChunkSize(100000);
+            SAI_VECTOR_SEARCH_ORDER_CHUNK_SIZE.setInt(100000);
         }
-    }
-
-    private static void setChunkSize(final int selectivityLimit) throws Exception
-    {
-        Field selectivity = QueryController.class.getDeclaredField("ORDER_CHUNK_SIZE");
-        selectivity.setAccessible(true);
-        Field modifiersField = Field.class.getDeclaredField("modifiers");
-        modifiersField.setAccessible(true);
-        modifiersField.setInt(selectivity, selectivity.getModifiers() & ~Modifier.FINAL);
-        selectivity.set(null, selectivityLimit);
     }
 }
