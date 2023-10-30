@@ -67,8 +67,6 @@ import static org.apache.cassandra.config.CassandraRelevantProperties.SAI_VECTOR
 
 public class QueryController
 {
-    public static final int ORDER_CHUNK_SIZE = SAI_VECTOR_SEARCH_ORDER_CHUNK_SIZE.getInt();
-
     private final ColumnFamilyStore cfs;
     private final ReadCommand command;
     private final QueryContext queryContext;
@@ -79,6 +77,7 @@ public class QueryController
     private final PrimaryKey.Factory keyFactory;
     private final PrimaryKey firstPrimaryKey;
     private final PrimaryKey lastPrimaryKey;
+    private final int orderChunkSize;
 
     public QueryController(ColumnFamilyStore cfs,
                            ReadCommand command,
@@ -98,6 +97,7 @@ public class QueryController
         this.keyFactory = new PrimaryKey.Factory(cfs.getPartitioner(), cfs.getComparator());
         this.firstPrimaryKey = keyFactory.create(mergeRange.left.getToken());
         this.lastPrimaryKey = keyFactory.create(mergeRange.right.getToken());
+        this.orderChunkSize = SAI_VECTOR_SEARCH_ORDER_CHUNK_SIZE.getInt();
     }
 
     public PrimaryKey.Factory primaryKeyFactory()
@@ -275,7 +275,7 @@ public class QueryController
     // This is a hybrid query. We apply all other predicates before ordering and limiting.
     public KeyRangeIterator getTopKRows(KeyRangeIterator source, RowFilter.Expression expression)
     {
-        return new KeyRangeOrderingIterator(source, ORDER_CHUNK_SIZE, list -> this.getTopKRows(list, expression));
+        return new KeyRangeOrderingIterator(source, orderChunkSize, list -> this.getTopKRows(list, expression));
     }
 
     private KeyRangeIterator getTopKRows(List<PrimaryKey> rawSourceKeys, RowFilter.Expression expression)
