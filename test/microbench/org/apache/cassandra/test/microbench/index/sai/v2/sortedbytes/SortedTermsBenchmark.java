@@ -251,9 +251,12 @@ public class SortedTermsBenchmark extends AbstractOnDiskBenchmark
     @BenchmarkMode({ Mode.Throughput})
     public void seekToTerm(Blackhole bh) throws IOException
     {
-        for (int i = 0; i < NUM_INVOCATIONS; i++)
+        try (SortedTermsReader.Cursor cursor = sortedTermsReader.openCursor())
         {
-            bh.consume(sortedTermsReader.ceiling(ByteComparable.fixedLength(this.bcIntBytes[i * skippingDistance])));
+            for (int i = 0; i < NUM_INVOCATIONS; i++)
+            {
+                bh.consume(cursor.ceiling(ByteComparable.fixedLength(this.bcIntBytes[i * skippingDistance])));
+            }
         }
     }
 

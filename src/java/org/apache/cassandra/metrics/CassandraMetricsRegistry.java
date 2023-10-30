@@ -303,6 +303,8 @@ public class CassandraMetricsRegistry extends MetricRegistry
         long[] values();
 
         long[] getRecentValues();
+
+        default void clear() {}
     }
 
     private static class JmxHistogram extends AbstractBean implements JmxHistogramMBean
@@ -403,6 +405,13 @@ public class CassandraMetricsRegistry extends MetricRegistry
             long[] delta = delta(now, last);
             last = now;
             return delta;
+        }
+
+        @Override
+        public void clear()
+        {
+            if (metric instanceof ClearableHistogram)
+                ((ClearableHistogram) metric).clear();
         }
     }
 

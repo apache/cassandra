@@ -45,7 +45,7 @@ public class MultipleColumnIndexTest extends SAITester
         createTable("CREATE TABLE %s (pk int, ck int, value text, PRIMARY KEY(pk, ck))");
         createIndex("CREATE CUSTOM INDEX ON %s(value) USING 'StorageAttachedIndex' WITH OPTIONS = { 'case_sensitive' : true }");
         assertThatThrownBy(() -> createIndex("CREATE CUSTOM INDEX ON %s(value) USING 'StorageAttachedIndex' WITH OPTIONS = { 'case_sensitive' : false }"))
-                .isInstanceOf(RuntimeException.class).hasCauseInstanceOf(InvalidRequestException.class);
+                .isInstanceOf(InvalidRequestException.class);
     }
 
     @Test

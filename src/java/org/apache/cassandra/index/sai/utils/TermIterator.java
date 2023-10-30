@@ -53,9 +53,10 @@ public class TermIterator extends RangeIterator
 
     public static TermIterator build(List<RangeIterator> sstableIntersections, RangeIterator memtableResults, Set<SSTableIndex> referencedIndexes, QueryContext queryContext)
     {
-        queryContext.sstablesHit += referencedIndexes
+        var sstablesHit = referencedIndexes
                                     .stream()
                                     .map(SSTableIndex::getSSTable).collect(Collectors.toSet()).size();
+        queryContext.addSstablesHit(sstablesHit);
         queryContext.checkpoint();
         RangeIterator union = RangeUnionIterator.builder(sstableIntersections.size() + 1)
                                                 .add(sstableIntersections)
@@ -78,7 +79,7 @@ public class TermIterator extends RangeIterator
             try
             {
                 queryContext.checkpoint();
-                queryContext.incSstablesHit();
+                queryContext.addSstablesHit(1);
                 assert !index.isReleased();
 
                 RangeIterator keyIterator = index.search(e, keyRange, queryContext, defer, limit);

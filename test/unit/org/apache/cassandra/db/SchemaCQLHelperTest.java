@@ -63,7 +63,7 @@ import org.json.simple.parser.JSONParser;
 
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
@@ -559,8 +559,8 @@ public class SchemaCQLHelperTest extends CQLTester
         }
         catch (RuntimeException e)
         {
-            assertThat(e.getCause(), notNullValue());
-            assertThat(e.getCause().getMessage(),
+            assertThat(e, instanceOf(org.apache.cassandra.exceptions.InvalidRequestException.class));
+            assertThat(e.getMessage(),
                        containsString("Cannot have multiple dropped column record for column"));
         }
     }

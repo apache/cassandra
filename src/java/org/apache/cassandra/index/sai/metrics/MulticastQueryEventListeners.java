@@ -49,8 +49,8 @@ public final class MulticastQueryEventListeners
         @Override
         public void onSegmentHit()
         {
-            ctx.segmentsHit++;
-            ctx.trieSegmentsHit++;
+            ctx.addSegmentsHit(1);
+            ctx.addTrieSegmentsHit(1);
             listener.onSegmentHit();
         }
 
@@ -95,15 +95,15 @@ public final class MulticastQueryEventListeners
         @Override
         public void postingListsHit(int count)
         {
-            ctx.bkdPostingListsHit++;
+            ctx.addBkdPostingListsHit(1);
             listener.postingListsHit(count);
         }
 
         @Override
         public void onSegmentHit()
         {
-            ctx.segmentsHit++;
-            ctx.bkdSegmentsHit++;
+            ctx.addSegmentsHit(1);
+            ctx.addBkdSegmentsHit(1);
             listener.onSegmentHit();
         }
 
@@ -128,14 +128,14 @@ public final class MulticastQueryEventListeners
         @Override
         public void onAdvance()
         {
-            ctx.bkdPostingsSkips++;
+            ctx.addBkdPostingsSkips(1);
             listener.onAdvance();
         }
 
         @Override
         public void postingDecoded(long postingDecoded)
         {
-            ctx.bkdPostingsDecodes += postingDecoded;
+            ctx.addBkdPostingsDecodes(postingDecoded);
             listener.postingDecoded(postingDecoded);
         }
     }
@@ -154,14 +154,14 @@ public final class MulticastQueryEventListeners
         @Override
         public void onAdvance()
         {
-            ctx.triePostingsSkips++;
+            ctx.addTriePostingsSkips(1);
             listener.onAdvance();
         }
 
         @Override
         public void postingDecoded(long postingDecoded)
         {
-            ctx.triePostingsDecodes += postingDecoded;
+            ctx.addTriePostingsDecodes(postingDecoded);
             listener.postingDecoded(postingDecoded);
         }
     }

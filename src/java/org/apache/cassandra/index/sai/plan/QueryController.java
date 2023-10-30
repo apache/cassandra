@@ -84,6 +84,8 @@ public class QueryController
 {
     private static final Logger logger = LoggerFactory.getLogger(QueryController.class);
 
+    // for testing
+    public static boolean allowSpeculativeLimits = true;
     public static final int ORDER_CHUNK_SIZE = SAI_VECTOR_SEARCH_ORDER_CHUNK_SIZE.getInt();
 
     private final ColumnFamilyStore cfs;
@@ -191,17 +193,29 @@ public class QueryController
         if (key == null)
             throw new IllegalArgumentException("non-null key required");
 
+        SinglePartitionReadCommand partition = getPartitionReadCommand(key, executionController);
+        return executePartitionReadCommand(partition, executionController);
+    }
+
+    public SinglePartitionReadCommand getPartitionReadCommand(PrimaryKey key, ReadExecutionController executionController)
+    {
+        if (key == null)
+            throw new IllegalArgumentException("non-null key required");
+
+        return SinglePartitionReadCommand.create(cfs.metadata(),
+                                                 command.nowInSec(),
+                                                 command.columnFilter(),
+                                                 RowFilter.NONE,
+                                                 DataLimits.NONE,
+                                                 key.partitionKey(),
+                                                 makeFilter(key));
+    }
+
+    public UnfilteredRowIterator executePartitionReadCommand(SinglePartitionReadCommand command, ReadExecutionController executionController)
+    {
         try
         {
-            SinglePartitionReadCommand partition = SinglePartitionReadCommand.create(cfs.metadata(),
-                                                                                     command.nowInSec(),
-                                                                                     command.columnFilter(),
-                                                                                     RowFilter.NONE,
-                                                                                     DataLimits.NONE,
-                                                                                     key.partitionKey(),
-                                                                                     makeFilter(key));
-
-            return partition.queryMemtableAndDisk(cfs, executionController);
+            return command.queryMemtableAndDisk(cfs, executionController);
         }
         finally
         {
@@ -236,7 +250,7 @@ public class QueryController
             for (Map.Entry<Expression, NavigableSet<SSTableIndex>> e : view)
             {
                 @SuppressWarnings("resource") // RangeIterators are closed by releaseIndexes
-                RangeIterator index = TermIterator.build(e.getKey(), e.getValue(), mergeRange, queryContext, defer, getLimit());
+                RangeIterator index = TermIterator.build(e.getKey(), e.getValue(), mergeRange, queryContext, defer, currentSoftLimitEstimate());
 
                 builder.add(index);
             }
@@ -257,8 +271,9 @@ public class QueryController
         assert expression.operator() == Operator.ANN;
         var planExpression = new Expression(getContext(expression))
                              .add(Operator.ANN, expression.getIndexValue().duplicate());
+        int limit = currentSoftLimitEstimate();
         // search memtable before referencing sstable indexes; otherwise we may miss newly flushed memtable index
-        RangeIterator memtableResults = getContext(expression).searchMemtable(queryContext, planExpression, mergeRange, getLimit());
+        RangeIterator memtableResults = getContext(expression).searchMemtable(queryContext, planExpression, mergeRange, limit);
 
         var queryView = new QueryViewBuilder(Collections.singleton(planExpression), mergeRange).build();
 
@@ -266,7 +281,7 @@ public class QueryController
         {
             List<RangeIterator> sstableIntersections = queryView.view.values()
                                                                                  .stream()
-                                                                                 .map(e -> createRowIdIterator(e, true))
+                                                                                 .map(e -> createRowIdIterator(e, true, limit))
                                                                                  .collect(Collectors.toList());
             return TermIterator.build(sstableIntersections, memtableResults, queryView.referencedIndexes, queryContext);
         }
@@ -295,8 +310,9 @@ public class QueryController
         var planExpression = new Expression(this.getContext(expression));
         planExpression.add(Operator.ANN, expression.getIndexValue().duplicate());
 
+        int limit = currentSoftLimitEstimate();
         // search memtable before referencing sstable indexes; otherwise we may miss newly flushed memtable index
-        RangeIterator memtableResults = this.getContext(expression).limitToTopResults(queryContext, sourceKeys, planExpression, getLimit());
+        RangeIterator memtableResults = this.getContext(expression).limitToTopResults(queryContext, sourceKeys, planExpression, limit);
         var queryView = new QueryViewBuilder(Collections.singleton(planExpression), mergeRange).build();
 
         try
@@ -304,7 +320,7 @@ public class QueryController
             List<RangeIterator> sstableIntersections = queryView.view.values()
                                                                      .stream()
                                                                      .map(e -> {
-                                                                         return reorderAndLimitBySSTableRowIds(sourceKeys, e);
+                                                                         return reorderAndLimitBySSTableRowIds(sourceKeys, e, limit);
                                                                      })
                                                                      .collect(Collectors.toList());
 
@@ -319,14 +335,14 @@ public class QueryController
 
     }
 
-    private RangeIterator reorderAndLimitBySSTableRowIds(List<PrimaryKey> keys, List<QueryViewBuilder.IndexExpression> annIndexExpressions)
+    private RangeIterator reorderAndLimitBySSTableRowIds(List<PrimaryKey> keys, List<QueryViewBuilder.IndexExpression> annIndexExpressions, int limit)
     {
         assert annIndexExpressions.size() == 1 : "only one index is expected in ANN expression, found " + annIndexExpressions.size() + " in " + annIndexExpressions;
         QueryViewBuilder.IndexExpression annIndexExpression = annIndexExpressions.get(0);
 
         try
         {
-            return annIndexExpression.index.limitToTopResults(queryContext, keys, annIndexExpression.expression, getLimit());
+            return annIndexExpression.index.limitToTopResults(queryContext, keys, annIndexExpression.expression, limit);
         }
         catch (IOException e)
         {
@@ -337,7 +353,7 @@ public class QueryController
     /**
      * Create row id iterator from different indexes' on-disk searcher of the same sstable
      */
-    private RangeIterator createRowIdIterator(List<QueryViewBuilder.IndexExpression> indexExpressions, boolean defer)
+    private RangeIterator createRowIdIterator(List<QueryViewBuilder.IndexExpression> indexExpressions, boolean defer, int limit)
     {
         var subIterators = indexExpressions
                            .stream()
@@ -345,7 +361,7 @@ public class QueryController
                                     {
                                         try
                                         {
-                                            return ie.index.search(ie.expression, mergeRange, queryContext, defer, getLimit());
+                                            return ie.index.search(ie.expression, mergeRange, queryContext, defer, limit);
                                         }
                                         catch (Throwable ex)
                                         {
@@ -358,9 +374,31 @@ public class QueryController
         return RangeUnionIterator.builder(subIterators.size()).add(subIterators).build();
     }
 
-    private int getLimit()
+    public int getExactLimit()
     {
         return command.limits().count();
+    }
+
+    /**
+     * Estimate suggestion for the limit to search extra rows in case if some rows were shadowed.
+     * @return
+     */
+    int currentSoftLimitEstimate()
+    {
+        var K = getExactLimit();
+        if (!allowSpeculativeLimits)
+            return K;
+
+        int M = queryContext.getShadowedPrimaryKeys().size();
+        if (M == 0)
+            return K;
+
+        // K+2*M is enough for larger K (> 20)
+        // and does not create too much overhead for small K
+        int limit = K + 2 * M;
+        if (logger.isDebugEnabled())
+            logger.debug("Soft limit estimate: {} with K={} M={}", limit, K, M);
+        return limit;
     }
 
     public IndexFeatureSet indexFeatureSet()
