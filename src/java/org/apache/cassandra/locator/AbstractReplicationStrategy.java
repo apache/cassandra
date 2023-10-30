@@ -22,6 +22,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -214,7 +215,7 @@ public abstract class AbstractReplicationStrategy
 
         for (Token token : metadata.sortedTokens())
         {
-            Range<Token> range = metadata.getPrimaryRangeFor(token);
+            Range<Token> range = metadata.getPrimaryRangesFor(List.of(token)).iterator().next();
             for (Replica replica : calculateNaturalReplicas(token, metadata))
             {
                 // LocalStrategy always returns (min, min] ranges for it's replicas, so we skip the check here
@@ -231,7 +232,7 @@ public abstract class AbstractReplicationStrategy
         RangesAtEndpoint.Builder builder = RangesAtEndpoint.builder(endpoint);
         for (Token token : metadata.sortedTokens())
         {
-            Range<Token> range = metadata.getPrimaryRangeFor(token);
+            Range<Token> range = metadata.getPrimaryRangesFor(List.of(token)).iterator().next();
             Replica replica = calculateNaturalReplicas(token, metadata)
                     .byEndpoint().get(endpoint);
             if (replica != null)
@@ -251,7 +252,7 @@ public abstract class AbstractReplicationStrategy
 
         for (Token token : metadata.sortedTokens())
         {
-            Range<Token> range = metadata.getPrimaryRangeFor(token);
+            Range<Token> range = metadata.getPrimaryRangesFor(List.of(token)).iterator().next();
             for (Replica replica : calculateNaturalReplicas(token, metadata))
             {
                 // LocalStrategy always returns (min, min] ranges for it's replicas, so we skip the check here

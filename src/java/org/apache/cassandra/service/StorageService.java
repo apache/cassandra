@@ -5520,7 +5520,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         return String.format("Removing token (%s). Waiting for replication confirmation from [%s].",
-                             tokenMetadata.getToken(removingNode),
+                             tokenMetadata.getTokens(removingNode).iterator().next(),
                              StringUtils.join(toFormat, ","));
     }
 

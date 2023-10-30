@@ -91,6 +91,9 @@ public class ConfigCompatibilityTest
 
     private static final Set<String> REMOVED_IN_50 = ImmutableSet.<String>builder()
                                                                  .add("commitlog_sync_batch_window_in_ms")
+                                                                 .add("native_transport_max_negotiable_protocol_version")
+                                                                 .add("concurrent_replicates")
+                                                                 .add("commitlog_periodic_queue_size")
                                                                  .build();
 
     private static final Set<String> ALLOW_LIST = Sets.union(REMOVED_IN_40, REMOVED_IN_50);

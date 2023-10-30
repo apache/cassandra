@@ -231,6 +231,7 @@ Upgrading
 
 Deprecation
 -----------
+    - Deprecated code in Cassandra 1.x and 2.x was removed. See CASSANDRA-18959 for more details.
     - In the JMX MBean `org.apache.cassandra.db:type=RepairService` (CASSANDRA-17668):
         - deprecate the getter/setter methods `getRepairSessionSpaceInMebibytes` and `setRepairSessionSpaceInMebibytes`
           in favor of `getRepairSessionSpaceInMiB` and `setRepairSessionSpaceInMiB` respectively

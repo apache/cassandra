@@ -19,6 +19,7 @@ package org.apache.cassandra.locator;
 
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -211,7 +212,7 @@ public class SimpleStrategyTest
         // bootstrap at the end of the ring
         Token bsToken = new BigIntegerToken(String.valueOf(210));
         InetAddressAndPort bootstrapEndpoint = InetAddressAndPort.getByName("127.0.0.11");
-        tmd.addBootstrapToken(bsToken, bootstrapEndpoint);
+        tmd.addBootstrapTokens(Collections.singleton(bsToken), bootstrapEndpoint);
 
         AbstractReplicationStrategy strategy = null;
         for (String keyspaceName : Schema.instance.distributedKeyspaces().names())

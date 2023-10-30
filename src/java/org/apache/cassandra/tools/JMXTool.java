@@ -302,7 +302,8 @@ public class JMXTool
                 DiffResult<Operation> operations = diff(leftInfo.operationSet(), rightInfo.operationSet(), operation -> {
                     for (CliPattern p : excludeOperations)
                     {
-                        if (p.pattern.matcher(operation.name).matches())
+                        if (p.pattern.matcher(operation.name).matches() ||
+                            p.pattern.matcher(operation.toString().replaceAll(" +", "")).matches())
                             return false;
                     }
                     return true;

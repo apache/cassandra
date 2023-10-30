@@ -179,10 +179,6 @@ public class Config
     public int concurrent_materialized_view_writes = 32;
     public int available_processors = -1;
 
-    /** @deprecated See CASSANDRA-6504 */
-    @Deprecated(since = "2.1")
-    public Integer concurrent_replicates = null;
-
     public int memtable_flush_writers = 0;
     @Replaces(oldName = "memtable_heap_space_in_mb", converter = Converters.MEBIBYTES_DATA_STORAGE_INT, deprecated = true)
     public DataStorageSpec.IntMebibytesBound memtable_heap_space;
@@ -297,10 +293,6 @@ public class Config
     @Replaces(oldName = "native_transport_receive_queue_capacity_in_bytes", converter = Converters.BYTES_DATASTORAGE, deprecated = true)
     public DataStorageSpec.IntBytesBound native_transport_receive_queue_capacity = new DataStorageSpec.IntBytesBound("1MiB");
 
-    /** @deprecated See CASSANDRA-5529 */
-    @Deprecated(since = "1.2.6")
-    public Integer native_transport_max_negotiable_protocol_version = null;
-
     /**
      * Max size of values in SSTables, in MebiBytes.
      * Default is the same as the native protocol frame limit: 256MiB.
@@ -414,10 +406,6 @@ public class Config
     public DataStorageSpec.IntMebibytesBound cdc_total_space = new DataStorageSpec.IntMebibytesBound("0MiB");
     @Replaces(oldName = "cdc_free_space_check_interval_ms", converter = Converters.MILLIS_DURATION_INT, deprecated = true)
     public DurationSpec.IntMillisecondsBound cdc_free_space_check_interval = new DurationSpec.IntMillisecondsBound("250ms");
-
-    /** @deprecated See CASSANDRA-3578 */
-    @Deprecated(since = "2.1.3")
-    public int commitlog_periodic_queue_size = -1;
 
     public String endpoint_snitch;
     public boolean dynamic_snitch = true;
