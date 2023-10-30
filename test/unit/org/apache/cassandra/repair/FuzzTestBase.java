@@ -101,6 +101,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallback;
+import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.repair.messages.ValidationResponse;
 import org.apache.cassandra.repair.state.Completable;
@@ -133,6 +134,7 @@ import org.apache.cassandra.utils.Generators;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.MerkleTrees;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
@@ -319,17 +321,13 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             @Override
             public Set<Faults> apply(Cluster.Node node, Message<?> message)
             {
+                if (RepairMessage.ALLOWS_RETRY.contains(message.verb()))
+                {
+                    allowDrop.add(message.id());
+                    return Faults.DROPPED;
+                }
                 switch (message.verb())
                 {
-                    case PREPARE_MSG:
-                    case VALIDATION_REQ:
-                    case VALIDATION_RSP:
-                    case SYNC_REQ:
-                    case SYNC_RSP:
-                    case SNAPSHOT_MSG:
-                    case CLEANUP_MSG:
-                        allowDrop.add(message.id());
-                        return Faults.DROPPED;
                     // these messages are not resilent to ephemeral issues
                     case PREPARE_CONSISTENT_REQ:
                     case PREPARE_CONSISTENT_RSP:
@@ -337,7 +335,6 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                     case FINALIZE_PROMISE_MSG:
                     case FINALIZE_COMMIT_MSG:
                     case FAILED_SESSION_MSG:
-
                         noFaults.add(message.id());
                         return Faults.NONE;
                     default:
@@ -650,6 +647,13 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             Stage.ANTI_ENTROPY.unsafeSetExecutor(orderedExecutor);
             Stage.INTERNAL_RESPONSE.unsafeSetExecutor(unorderedScheduled);
             Mockito.when(failureDetector.isAlive(Mockito.any())).thenReturn(true);
+            Thread expectedThread = Thread.currentThread();
+            NoSpamLogger.unsafeSetClock(() -> {
+                if (Thread.currentThread() != expectedThread)
+                    throw new AssertionError("NoSpamLogger.Clock accessed outside of fuzzing...");
+                return globalExecutor.nanoTime();
+            });
+
             int numNodes = rs.nextInt(3, 10);
             List<String> dcs = Gens.lists(IDENTIFIER_GEN).unique().ofSizeBetween(1, Math.min(10, numNodes)).next(rs);
             Map<InetAddressAndPort, Node> nodes = Maps.newHashMapWithExpectedSize(numNodes);

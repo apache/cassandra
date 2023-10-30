@@ -19,7 +19,6 @@
 package org.apache.cassandra.gms;
 
 import java.io.IOException;
-
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -38,29 +37,31 @@ public class GossipShutdown
         this.state = state;
     }
 
-    public static final class Serializer implements IVersionedSerializer<GossipShutdown>
+    public static final class Serializer implements IVersionedSerializer<Object>
     {
 
         @Override
-        public void serialize(GossipShutdown t, DataOutputPlus out, int version) throws IOException
+        public void serialize(Object t, DataOutputPlus out, int version) throws IOException
         {
             if (version < MessagingService.VERSION_50) return;
-            EndpointState.serializer.serialize(t.state, out, version);
+            GossipShutdown shutdown = (GossipShutdown) t;
+            EndpointState.serializer.serialize(shutdown.state, out, version);
         }
 
         @Nullable
         @Override
-        public GossipShutdown deserialize(DataInputPlus in, int version) throws IOException
+        public Object deserialize(DataInputPlus in, int version) throws IOException
         {
             if (version < MessagingService.VERSION_50) return null;
             return new GossipShutdown(EndpointState.serializer.deserialize(in, version));
         }
 
         @Override
-        public long serializedSize(GossipShutdown t, int version)
+        public long serializedSize(Object t, int version)
         {
             if (version < MessagingService.VERSION_50) return 0;
-            return EndpointState.serializer.serializedSize(t.state, version);
+            GossipShutdown shutdown = (GossipShutdown) t;
+            return EndpointState.serializer.serializedSize(shutdown.state, version);
         }
     }
 }
