@@ -3,6 +3,7 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * ClientRequestSize metrics should not treat CONTAINS restrictions as being equality-based (CASSANDRA-18896)
  * Add support for vector search in SAI (CASSANDRA-18715)
  * Remove crc_check_chance from CompressionParams (CASSANDRA-18872)
  * Fix schema loading of UDTs inside vectors inside UDTs (CASSANDRA-18964)
