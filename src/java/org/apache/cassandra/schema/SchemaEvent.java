@@ -105,7 +105,7 @@ public final class SchemaEvent extends DiagnosticEvent
         this.nonSystemKeyspaces = schema.distributedKeyspaces().names();
         this.userKeyspaces = schema.getUserKeyspaces().immutableCopy();
         this.numberOfTables = schema.getNumberOfTables();
-        this.version = schema.getVersion();
+        this.version = schema.getVersion(); // TODO: rename this field to reflect that the schema version we know here is stale (before the entire transformation started)
 
         this.indexTables = schema.distributedKeyspaces().stream()
                                  .flatMap(ks -> ks.tables.indexTables().entrySet().stream())
