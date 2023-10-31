@@ -1,4 +1,5 @@
 = Operating Cassandra
+:navtitle: Operating
 
 * xref:cassandra:managing/operating/hardware.adoc[Hardware]
 * xref:cassandra:managing/operating/security.adoc[Security]

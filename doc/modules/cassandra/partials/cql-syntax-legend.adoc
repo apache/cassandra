@@ -61,4 +61,3 @@ This syntax is useful when arguments might be mistaken for command line options.
 | `@<xml_entity>='<xml_entity_type>'`
 | Search CQL only: Identify the entity and literal value to overwrite the XML element in the schema and solrConfig files.
 |===
-
