@@ -86,6 +86,13 @@ public abstract class RepairMessage
         map.put(Verb.SYNC_REQ, timeoutVersion);
         map.put(Verb.VALIDATION_RSP, SUPPORTS_RETRY);
         map.put(Verb.SYNC_RSP, SUPPORTS_RETRY);
+        // IR messages
+        map.put(Verb.PREPARE_CONSISTENT_REQ, SUPPORTS_RETRY);
+        map.put(Verb.PREPARE_CONSISTENT_RSP, SUPPORTS_RETRY);
+        map.put(Verb.FINALIZE_PROPOSE_MSG, SUPPORTS_RETRY);
+        map.put(Verb.FINALIZE_PROMISE_MSG, SUPPORTS_RETRY);
+        map.put(Verb.FINALIZE_COMMIT_MSG, SUPPORTS_RETRY);
+        map.put(Verb.FAILED_SESSION_MSG, SUPPORTS_RETRY);
         VERB_TIMEOUT_VERSIONS = Collections.unmodifiableMap(map);
 
         EnumSet<Verb> allowsRetry = EnumSet.noneOf(Verb.class);
@@ -96,6 +103,13 @@ public abstract class RepairMessage
         allowsRetry.add(Verb.SYNC_RSP);
         allowsRetry.add(Verb.SNAPSHOT_MSG);
         allowsRetry.add(Verb.CLEANUP_MSG);
+        // IR messages
+        allowsRetry.add(Verb.PREPARE_CONSISTENT_REQ);
+        allowsRetry.add(Verb.PREPARE_CONSISTENT_RSP);
+        allowsRetry.add(Verb.FINALIZE_PROPOSE_MSG);
+        allowsRetry.add(Verb.FINALIZE_PROMISE_MSG);
+        allowsRetry.add(Verb.FINALIZE_COMMIT_MSG);
+        allowsRetry.add(Verb.FAILED_SESSION_MSG);
         ALLOWS_RETRY = Collections.unmodifiableSet(allowsRetry);
     }
 
@@ -152,6 +166,11 @@ public abstract class RepairMessage
     public static void sendMessageWithRetries(SharedContext ctx, RepairMessage request, Verb verb, InetAddressAndPort endpoint)
     {
         sendMessageWithRetries(ctx, backoff(ctx, verb), always(), request, verb, endpoint, NOOP_CALLBACK, 0);
+    }
+
+    public static void sendMessageWithRetries(SharedContext ctx, Supplier<Boolean> allowRetry, RepairMessage request, Verb verb, InetAddressAndPort endpoint)
+    {
+        sendMessageWithRetries(ctx, backoff(ctx, verb), allowRetry, request, verb, endpoint, NOOP_CALLBACK, 0);
     }
 
     @VisibleForTesting
@@ -214,7 +233,7 @@ public abstract class RepairMessage
                 }
                 else
                 {
-                    noSpam.warn("{} Failure for repair verb " + verb + "; could not complete within {} attempts", prefix, attempt);
+                    noSpam.warn("{} {} failure for repair verb " + verb + "; could not complete within {} attempts", prefix, reason, attempt);
                     RepairMetrics.retryFailure(verb);
                 }
             }
@@ -278,5 +297,16 @@ public abstract class RepairMessage
         if (timeoutVersion == null || remoteVersion.compareTo(timeoutVersion) >= 0)
             return ErrorHandling.TIMEOUT;
         return ErrorHandling.NONE;
+    }
+
+    public static void sendFailureResponse(SharedContext ctx, Message<?> respondTo)
+    {
+        Message<?> reply = respondTo.failureResponse(RequestFailureReason.UNKNOWN);
+        ctx.messaging().send(reply, respondTo.from());
+    }
+
+    public static void sendAck(SharedContext ctx, Message<? extends RepairMessage> message)
+    {
+        ctx.messaging().send(message.emptyResponse(), message.from());
     }
 }

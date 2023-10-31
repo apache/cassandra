@@ -50,6 +50,12 @@ public class PrepareConsistentRequest extends RepairMessage
         this.participants = ImmutableSet.copyOf(participants);
     }
 
+    @Override
+    public TimeUUID parentRepairSession()
+    {
+        return parentSession;
+    }
+
     public boolean equals(Object o)
     {
         if (this == o) return true;
