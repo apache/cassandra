@@ -1468,7 +1468,7 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                 // ANN queries do not currently work correctly when filtering is required, so
                 // we fail even though ALLOW FILTERING was passed
                 if (restrictions.needFiltering(table))
-                    throw invalidRequest(StatementRestrictions.ANN_REQUIRES_ALL_RESTRICTED_COLUMNS_INDEXED_MESSAGE);
+                    throw invalidRequest(StatementRestrictions.ANN_REQUIRES_ALL_RESTRICTED_NON_PARTITION_KEY_COLUMNS_INDEXED_MESSAGE);
             }
             // non-key-range non-indexed queries cannot involve filtering underneath
             if (!parameters.allowFiltering && (restrictions.isKeyRange() || restrictions.usesSecondaryIndexing()))
@@ -1479,6 +1479,10 @@ public class SelectStatement implements CQLStatement.SingleKeyspaceCqlStatement
                 {
                     restrictions.throwRequiresAllowFilteringError(table);
                 }
+                if (restrictions.hasClusteringColumnsRestrictions()
+                    && restrictions.hasAnnRestriction()
+                    && restrictions.hasClusterColumnRestrictionWithoutSupportingIndex(table))
+                        restrictions.throwRequiresAllowFilteringError(table);
             }
         }
 

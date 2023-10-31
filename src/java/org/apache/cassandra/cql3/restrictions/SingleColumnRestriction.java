@@ -865,6 +865,12 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         {
             return index.supportsExpression(columnDef, Operator.ANN);
         }
+
+        @Override
+        public boolean isAnn()
+        {
+            return true;
+        }
     }
 
     public static final class AnalyzerMatchesRestriction extends SingleColumnRestriction

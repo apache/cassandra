@@ -75,8 +75,8 @@ public class StatementRestrictions
     "Restriction on partition key column %s must not be nested under OR operator";
 
     public static final String ANN_REQUIRES_INDEX_MESSAGE = "ANN ordering by vector requires the column to be indexed";
-    public static final String ANN_REQUIRES_ALL_RESTRICTED_COLUMNS_INDEXED_MESSAGE =
-    "ANN ordering by vector requires all restricted column(s) to be indexed";
+    public static final String ANN_REQUIRES_ALL_RESTRICTED_NON_PARTITION_KEY_COLUMNS_INDEXED_MESSAGE =
+    "ANN ordering by vector requires each restricted column to be indexed except for fully-specified partition keys";
 
     public static final String VECTOR_INDEXES_ANN_ONLY_MESSAGE = "Vector indexes only support ANN queries";
 
@@ -579,6 +579,11 @@ public class StatementRestrictions
             if (isKeyRange && hasQueriableClusteringColumnIndex)
                 usesSecondaryIndexing = true;
 
+            // Because an ANN queries limit the result set based within the SAI, clustering column restrictions
+            // must be added to the filter restrictions.
+            if (nonPrimaryKeyRestrictions.restrictions().stream().anyMatch(SingleRestriction::isAnn))
+                usesSecondaryIndexing = true;
+
             if (usesSecondaryIndexing || clusteringColumnsRestrictions.needFiltering())
                 filterRestrictionsBuilder.add(clusteringColumnsRestrictions);
 
@@ -781,7 +786,7 @@ public class StatementRestrictions
     public void throwRequiresAllowFilteringError(TableMetadata table)
     {
         if (hasAnnRestriction())
-            throw invalidRequest(StatementRestrictions.ANN_REQUIRES_ALL_RESTRICTED_COLUMNS_INDEXED_MESSAGE);
+            throw invalidRequest(StatementRestrictions.ANN_REQUIRES_ALL_RESTRICTED_NON_PARTITION_KEY_COLUMNS_INDEXED_MESSAGE);
         Set<ColumnMetadata> unsupported = getColumnsWithUnsupportedIndexRestrictions(table);
         if (unsupported.isEmpty())
         {
@@ -1117,6 +1122,21 @@ public class StatementRestrictions
     public boolean hasClusteringColumnsRestrictions()
     {
         return !clusteringColumnsRestrictions.isEmpty();
+    }
+
+    /**
+     * Checks if the query has any cluster column restrictions that do not also have a supporting index.
+     * @param table the table metadata
+     * @return <code>true</code> if the query has any cluster column restrictions that do not also have a supporting index,
+     * <code>false</code> otherwise.
+     */
+    public boolean hasClusterColumnRestrictionWithoutSupportingIndex(TableMetadata table)
+    {
+        IndexRegistry registry = IndexRegistry.obtain(table);
+        for (Restriction restriction : clusteringColumnsRestrictions.restrictions())
+            if (!restriction.hasSupportingIndex(registry))
+                return true;
+        return false;
     }
 
     /**
