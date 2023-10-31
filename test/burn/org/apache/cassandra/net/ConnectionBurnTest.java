@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.net;
 
+import com.beust.jcommander.internal.Lists;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Queues;
 import com.google.common.util.concurrent.Uninterruptibles;
@@ -53,7 +54,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -199,7 +199,9 @@ public class ConnectionBurnTest
 
         static Builder builder() { return new Builder(); }
 
+        private static final int awaitTerminationTimeoutMs = 30_000;
         private static final int messageIdsPerConnection = 1 << 20;
+        private static final int exceptionBufferCapacity = 1;
 
         final BlockingQueue<Exception> unexpectedExceptions = BlockingQueues.newBlockingQueue();
         final long runForNanos;
@@ -274,7 +276,7 @@ public class ConnectionBurnTest
         public void run() throws Exception
         {
             Reporters reporters = new Reporters(endpoints, connections);
-            List<Exception> exceptions = new LinkedList<>();
+            List<Exception> exceptionsBuffer = Lists.newArrayList(exceptionBufferCapacity);
             try
             {
                 long deadline = nanoTime() + runForNanos;
@@ -491,26 +493,27 @@ public class ConnectionBurnTest
                     }
                 });
 
-                int added = 0;
-                while (deadline > nanoTime() && added == 0)
+                while (deadline > nanoTime() &&
+                        0 == Queues.drainUninterruptibly(unexpectedExceptions,
+                                exceptionsBuffer, exceptionBufferCapacity, awaitTerminationTimeoutMs, TimeUnit.MILLISECONDS))
                 {
                     reporters.update();
                     reporters.print();
-                    added = Queues.drainUninterruptibly(unexpectedExceptions, exceptions, 10, 30L, TimeUnit.SECONDS);
                 }
 
                 executor.shutdownNow();
                 ExecutorUtils.awaitTermination(5L, TimeUnit.MINUTES, executor);
 
-                if (!exceptions.isEmpty())
-                    throw exceptions.get(0);
+                if (exceptionsBuffer.isEmpty())
+                    return;
+
+                Exception resultException = exceptionsBuffer.get(0);
+                for (int i = 1; i < exceptionsBuffer.size(); i++)
+                    resultException.addSuppressed(exceptionsBuffer.get(i));
+                throw resultException;
             }
             finally
             {
-                // Report unexpected exceptions
-                for (Throwable t : exceptions)
-                    logger.error("Unexpected exception while burning connections: ", t);
-
                 cancelled = true;
 
                 List<Future<Void>> closing = new ArrayList<>();
@@ -521,9 +524,9 @@ public class ConnectionBurnTest
                     closing.add(connection.close());
 
                 maybeFail(() -> inboundExecutors.forEach(ExecutorUtils::shutdownNow),
-                        () -> ExecutorUtils.awaitTermination(30, TimeUnit.SECONDS, inboundExecutors));
+                        () -> ExecutorUtils.awaitTermination(awaitTerminationTimeoutMs, TimeUnit.MILLISECONDS, inboundExecutors));
 
-                FutureCombiner.allOf(closing).get(30L, TimeUnit.SECONDS);
+                FutureCombiner.allOf(closing).get(awaitTerminationTimeoutMs, TimeUnit.MILLISECONDS);
 
                 reporters.update();
                 reporters.print();
