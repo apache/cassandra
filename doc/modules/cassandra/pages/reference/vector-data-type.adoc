@@ -1,0 +1,53 @@
+= Vector CQL data type
+
+A new CQL data type, a `VECTOR` is required for Vector Search.
+https://issues.apache.org/jira/browse/CASSANDRA-18504 added this data type to {cass-50}.
+The new type `VECTOR` has the following properties:
+
+* fixed length array
+* elements may not be null
+* flatten array (aka multi-cell = false)
+
+
+Create a keyspace:
+
+[source,cql]
+----
+include::cassandra:example$CQL/vector-search/vector-search-cycling.cql[tag=create-vs-keyspace-cycling]
+----
+
+Use the keyspace:
+
+[source,cql]
+----
+include::cassandra:example$CQL/vector-search/vector-search-cycling.cql[tag=use-vs-keyspace-cycling]
+----
+
+This data type can be used in a `CREATE TABLE` statement:
+
+[source, cql]
+----
+include::cassandra:example$CQL/vector-search/vector-search-cycling.cql[tag=create-vs-table]
+----
+<1> Create a 5-dimensional embedding
+
+Index the vector column:
+
+[source, cql]
+----
+include::cassandra:example$CQL/vector-search/vector-search-cycling.cql[tag=create-vs-index]
+----
+
+Insert data:
+
+[source, cql]
+----
+include::cassandra:example$CQL/vector-search/vector-search-cycling.cql[tag=insert-vector-data-cycling]
+----
+
+Select data:
+
+[source, cql]
+----
+include::cassandra:example$CQL/vector-search/vector-search-cycling.cql[tag=select-vector-data-cycling]
+----

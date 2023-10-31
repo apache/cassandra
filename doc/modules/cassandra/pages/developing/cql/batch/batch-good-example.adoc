@@ -1,0 +1,112 @@
+= Good use of BATCH statement
+:description: How to use a BATCH statement.
+
+Batch operations can be beneficial, as shown in the following examples.
+The examples use the table `cyclist_expenses`:
+
+[source,language-cql]
+----
+include::cassandra:example$CQL/cyclist_expenses-table.cql[tag=create_table]
+----
+
+Note that `balance` is `STATIC`.
+
+include::cassandra:partial$single-partition-batch-note.adoc[]
+
+== Single partition batch
+
+* The first INSERT in the `BATCH` statement sets the `balance` to zero.
+The next two statements insert an `expense_id` and change the `balance` value.
+All the `INSERT` and `UPDATE` statements in this batch write to the same partition, keeping the latency of the write operation low.
++
+[source,language-cql]
+----
+include::cassandra:example$CQL/cyclist_expenses-table.cql[tag=batch_Vera]
+----
++
+This batching example includes conditional updates combined with using xref:reference:static.adoc[static columns].
+Recall that single partition batches are not logged.
++
+[NOTE]
+====
+ It would be reasonable to expect that an UPDATE to the balance could be included in this BATCH statement:
++
+[source,language-cql]
+----
+include::cassandra:example$CQL/cyclist_expenses-table.cql[tag=update_Vera]
+----
++
+However, it is important to understand that all the statements processed in a `BATCH` statement timestamp the records with the same value.
+The operations may not perform in the order listed in the `BATCH` statement.
+The UPDATE might be processed BEFORE the first INSERT that sets the balance value to zero, allowing the conditional to be met.
+====
++
+An acknowledgement of a batch statement is returned if the batch operation is successful.
++
+[source,results]
+----
+include::cassandra:example$RESULTS/true.result[]
+----
++
+The resulting table will only have one record so far.
++
+[source,results]
+----
+include::cassandra:example$RESULTS/select_initial_from_cyclist_expenses.result[]
+----
+
+* The balance can be adjusted separately with an UPDATE statement.
+Now the `balance` will reflect that breakfast was unpaid.
++
+[source,language-cql]
+----
+include::cassandra:example$CQL/cyclist_expenses-table.cql[tag=update_Vera]
+----
++
+[source,results]
+----
+include::cassandra:example$RESULTS/select_after_update_from_cyclist_expenses.result[]
+----
+
+* The table `cyclist_expenses` stores records about each purchase by a cyclist and includes the running balance of all the cyclist's purchases.
+Because the balance is static, all purchase records for a cyclist have the same running balance.
+This `BATCH` statement inserts expenses for two more meals changes the balance to reflect that breakfast and dinner were unpaid.
++
+[source,language-cql]
+----
+include::cassandra:example$CQL/cyclist_expenses-table.cql[tag=batch_food]
+----
++
+[source,results]
+----
+include::cassandra:example$RESULTS/select_after_batch_food_from_cyclist_expenses.result[]
+----
+
+* Finally, the cyclist pays off all outstanding bills and the `balance` of the account goes to zero.
++
+[source,language-cql]
+----
+include::cassandra:example$CQL/cyclist_expenses-table.cql[tag=batch_paid]
+----
++
+[source,results]
+----
+include::cassandra:example$RESULTS/select_after_batch_paid_from_cyclist_expenses.result[]
+----
++
+Because the column is static, you can provide only the partition key when updating the data.
+To update a non-static column, you would also have to provide a clustering key.
+Using batched conditional updates, you can maintain a running balance.
+If the balance were stored in a separate table, maintaining a running balance would not be possible because a batch having conditional updates cannot span multiple partitions.
+
+== Multiple partition logged batch
+
+* Another example is using `BATCH` to perform a multiple partition insert that involves writing the same data to two related tables that must be synchronized.
+The following example modifies multiple partitions, which in general is to be avoided, but the batch only contains two statements:
++
+[source,language-cql]
+----
+include::cassandra:example$CQL/cyclist_expenses-table.cql[tag=batch_multiple_partitions]
+----
++
+Another common use for this type of batch operation is updating usernames and passwords.
