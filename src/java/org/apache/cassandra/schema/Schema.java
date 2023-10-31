@@ -487,7 +487,12 @@ public class Schema implements SchemaProvider
     /* Version control */
 
     /**
-     * @return current schema version
+     * Returns the current schema version. Although, if the schema is being updated while the method was called, it
+     * can return a stale version which does not correspond to the current keyspaces metadata. It is because the schema
+     * version is unknown for the partially applied changes and is updated after the entire schema change is completed.
+     * <p>
+     * This method should be used only internally by {@link Schema} or {@link SchemaUpdateHandler} implementations.
+     * Please use {@link #getDistributedSchemaBlocking()} to get schema version consistently in other cases.
      */
     public UUID getVersion()
     {
@@ -495,7 +500,17 @@ public class Schema implements SchemaProvider
     }
 
     /**
+     * Returns the current keyspaces metadata and version synchronouly. If the schema is in the middle of a multistep
+     * transformation, the method blocks until the update is completed.
+     */
+    public synchronized DistributedSchema getDistributedSchemaBlocking()
+    {
+        return new DistributedSchema(distributedKeyspaces, version);
+    }
+
+    /**
      * Checks whether the given schema version is the same as the current local schema.
+     * Note that this method is non-blocking and may use a stale schema version for comparison - see {@link #getVersion()}.
      */
     public boolean isSameVersion(UUID schemaVersion)
     {
@@ -504,6 +519,7 @@ public class Schema implements SchemaProvider
 
     /**
      * Checks whether the current schema is empty.
+     * Note that this method is non-blocking and may use a stale schema version for comparison - see {@link #getVersion()}.
      */
     public boolean isEmpty()
     {
