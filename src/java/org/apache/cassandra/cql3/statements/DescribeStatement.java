@@ -132,14 +132,13 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
     @Override
     public ResultMessage executeLocally(QueryState state, QueryOptions options)
     {
-        Keyspaces keyspaces = Schema.instance.distributedKeyspaces();
-        UUID schemaVersion = Schema.instance.getVersion();
+        DistributedSchema schema = Schema.instance.getDistributedSchemaBlocking();
 
-        keyspaces = Keyspaces.builder()
-                             .add(keyspaces)
-                             .add(Schema.instance.getLocalKeyspaces())
-                             .add(VirtualKeyspaceRegistry.instance.virtualKeyspacesMetadata())
-                             .build();
+        Keyspaces keyspaces = Keyspaces.builder()
+                                       .add(schema.getKeyspaces())
+                                       .add(Schema.instance.getLocalKeyspaces())
+                                       .add(VirtualKeyspaceRegistry.instance.virtualKeyspacesMetadata())
+                                       .build();
 
         PagingState pagingState = options.getPagingState();
 
@@ -157,7 +156,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
         //   (vint bytes) serialized schema hash (currently the result of Keyspaces.hashCode())
         //
 
-        long offset = getOffset(pagingState, schemaVersion);
+        long offset = getOffset(pagingState, schema.getVersion());
         int pageSize = options.getPageSize();
 
         Stream<? extends T> stream = describe(state.getClientState(), keyspaces);
@@ -174,9 +173,7 @@ public abstract class DescribeStatement<T> extends CQLStatement.Raw implements C
         ResultSet result = new ResultSet(resultMetadata, rows);
 
         if (pageSize > 0 && rows.size() == pageSize)
-        {
-            result.metadata.setHasMorePages(getPagingState(offset + pageSize, schemaVersion));
-        }
+            result.metadata.setHasMorePages(getPagingState(offset + pageSize, schema.getVersion()));
 
         return new ResultMessage.Rows(result);
     }

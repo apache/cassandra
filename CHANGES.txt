@@ -6,6 +6,7 @@
  * Allow empty keystore_password in encryption_options (CASSANDRA-18778)
  * Skip ColumnFamilyStore#topPartitions initialization when client or tool mode (CASSANDRA-18697)
 Merged from 4.0:
+ * Retrieve keyspaces metadata and schema version concistently in DescribeStatement (CASSANDRA-18921)
  * Gossip NPE due to shutdown event corrupting empty statuses (CASSANDRA-18913)
  * Fix closing iterator in SecondaryIndexBuilder (CASSANDRA-18361)
  * Update hdrhistogram to 2.1.12 (CASSANDRA-18893)
