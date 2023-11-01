@@ -70,7 +70,7 @@ import org.apache.cassandra.utils.TimeUUID;
  *  {@code PREPARED}, and a {@link PrepareConsistentResponse} is sent to the coordinator indicating success or failure.
  *  If the pending anti-compaction fails, the local session state is set to {@code FAILED}.
  *  <p/>
- *  (see {@link LocalSessions#handlePrepareMessage(InetAddressAndPort, PrepareConsistentRequest)}
+ *  (see {@link LocalSessions#handlePrepareMessage(org.apache.cassandra.net.Message)}
  *  <p/>
  *  Once the coordinator recieves positive {@code PrepareConsistentResponse} messages from all the participants, the
  *  coordinator begins the normal repair process.
