@@ -114,6 +114,7 @@ public class FailingRepairFuzzTest extends FuzzTestBase
                 }
 
                 cluster.processAll();
+                Assertions.assertThat(repair.state.isComplete()).describedAs("Repair job did not complete, and no work is pending...").isTrue();
                 Assertions.assertThat(repair.state.getResult().kind).describedAs("Unexpected state: %s -> %s; example %d", repair.state, repair.state.getResult(), example).isEqualTo(Completable.Result.Kind.FAILURE);
                 switch (stage)
                 {

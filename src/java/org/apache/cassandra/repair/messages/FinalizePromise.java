@@ -45,6 +45,12 @@ public class FinalizePromise extends RepairMessage
         this.promised = promised;
     }
 
+    @Override
+    public TimeUUID parentRepairSession()
+    {
+        return sessionID;
+    }
+
     public boolean equals(Object o)
     {
         if (this == o) return true;

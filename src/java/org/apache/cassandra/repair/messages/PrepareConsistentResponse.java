@@ -45,6 +45,12 @@ public class PrepareConsistentResponse extends RepairMessage
         this.success = success;
     }
 
+    @Override
+    public TimeUUID parentRepairSession()
+    {
+        return parentSession;
+    }
+
     public boolean equals(Object o)
     {
         if (this == o) return true;

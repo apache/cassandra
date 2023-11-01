@@ -25,7 +25,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.repair.messages.*;
@@ -286,27 +285,28 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     break;
 
                 case PREPARE_CONSISTENT_REQ:
-                    ctx.repair().consistent.local.handlePrepareMessage(message.from(), (PrepareConsistentRequest) message.payload);
+                    ctx.repair().consistent.local.handlePrepareMessage(message);
                     break;
 
                 case PREPARE_CONSISTENT_RSP:
-                    ctx.repair().consistent.coordinated.handlePrepareResponse((PrepareConsistentResponse) message.payload);
+                    ctx.repair().consistent.coordinated.handlePrepareResponse(message);
                     break;
 
                 case FINALIZE_PROPOSE_MSG:
-                    ctx.repair().consistent.local.handleFinalizeProposeMessage(message.from(), (FinalizePropose) message.payload);
+                    ctx.repair().consistent.local.handleFinalizeProposeMessage(message);
                     break;
 
                 case FINALIZE_PROMISE_MSG:
-                    ctx.repair().consistent.coordinated.handleFinalizePromiseMessage((FinalizePromise) message.payload);
+                    ctx.repair().consistent.coordinated.handleFinalizePromiseMessage(message);
                     break;
 
                 case FINALIZE_COMMIT_MSG:
-                    ctx.repair().consistent.local.handleFinalizeCommitMessage(message.from(), (FinalizeCommit) message.payload);
+                    ctx.repair().consistent.local.handleFinalizeCommitMessage(message);
                     break;
 
                 case FAILED_SESSION_MSG:
                     FailSession failure = (FailSession) message.payload;
+                    sendAck(message);
                     ctx.repair().consistent.coordinated.handleFailSessionMessage(failure);
                     ctx.repair().consistent.local.handleFailSessionMessage(message.from(), failure);
                     break;
@@ -410,12 +410,11 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
 
     private void sendFailureResponse(Message<?> respondTo)
     {
-        Message<?> reply = respondTo.failureResponse(RequestFailureReason.UNKNOWN);
-        ctx.messaging().send(reply, respondTo.from());
+        RepairMessage.sendFailureResponse(ctx, respondTo);
     }
 
     private void sendAck(Message<RepairMessage> message)
     {
-        ctx.messaging().send(message.emptyResponse(), message.from());
+        RepairMessage.sendAck(ctx, message);
     }
 }
