@@ -380,7 +380,8 @@ public class CQLSSTableWriter implements Closeable
         private boolean sorted = false;
         private long maxSSTableSizeInMiB = -1L;
 
-        protected Builder() {
+        protected Builder()
+        {
             this.typeStatements = new ArrayList<>();
         }
 
@@ -498,8 +499,8 @@ public class CQLSSTableWriter implements Closeable
             if (size <= 0)
             {
                 logger.warn("A non-positive value for maximum SSTable size is specified, " +
-                        "which disables the size limiting effectively. Please supply a positive value in order " +
-                        "to enforce size limiting for the produced SSTables.");
+                            "which disables the size limiting effectively. Please supply a positive value in order " +
+                            "to enforce size limiting for the produced SSTables.");
             }
             this.maxSSTableSizeInMiB = size;
             return this;

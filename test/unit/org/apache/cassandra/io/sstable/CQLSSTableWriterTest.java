@@ -1121,15 +1121,15 @@ public class CQLSSTableWriterTest
     public void testWriteWithSorted() throws Exception
     {
         String schema = "CREATE TABLE " + qualifiedTable + " ("
-                + "  k int PRIMARY KEY,"
-                + "  v blob )";
+                        + "  k int PRIMARY KEY,"
+                        + "  v blob )";
         CQLSSTableWriter writer = CQLSSTableWriter.builder()
-                .inDirectory(dataDir)
-                .forTable(schema)
-                .using("INSERT INTO " + qualifiedTable +
-                        " (k, v) VALUES (?, textAsBlob(?))" )
-                .sorted()
-                .build();
+                                                  .inDirectory(dataDir)
+                                                  .forTable(schema)
+                                                  .using("INSERT INTO " + qualifiedTable +
+                                                         " (k, v) VALUES (?, textAsBlob(?))" )
+                                                  .sorted()
+                                                  .build();
         int rowCount = 10_000;
         for (int i = 0; i < rowCount; i++)
         {
@@ -1149,22 +1149,24 @@ public class CQLSSTableWriterTest
     }
 
     @Test
-    public void testWriteWithSortedAndMaxSize() throws Exception {
+    public void testWriteWithSortedAndMaxSize() throws Exception
+    {
         String schema = "CREATE TABLE " + qualifiedTable + " ("
-                + "  k int PRIMARY KEY,"
-                + "  v blob )";
+                        + "  k int PRIMARY KEY,"
+                        + "  v blob )";
         CQLSSTableWriter writer = CQLSSTableWriter.builder()
-                .inDirectory(dataDir)
-                .forTable(schema)
-                .using("INSERT INTO " + qualifiedTable +
-                        " (k, v) VALUES (?, textAsBlob(?))")
-                .sorted()
-                .withMaxSSTableSizeInMiB(1)
-                .build();
+                                                  .inDirectory(dataDir)
+                                                  .forTable(schema)
+                                                  .using("INSERT INTO " + qualifiedTable +
+                                                         " (k, v) VALUES (?, textAsBlob(?))")
+                                                  .sorted()
+                                                  .withMaxSSTableSizeInMiB(1)
+                                                  .build();
         int rowCount = 30_000;
         // Max SSTable size is 1 MiB
         // 30_000 rows should take 30_000 * (4 + 37) = 1.17 MiB > 1 MiB
-        for (int i = 0; i < rowCount; i++) {
+        for (int i = 0; i < rowCount; i++)
+        {
             writer.addRow(i, UUID.randomUUID().toString());
         }
         writer.close();
@@ -1172,10 +1174,10 @@ public class CQLSSTableWriterTest
         File[] dataFiles = dataDir.list(f -> f.name().endsWith(Component.DATA.type.repr));
         assertNotNull(dataFiles);
         assertEquals("The sorted writer should produce 2 sstables when max sstable size is configured",
-                2, dataFiles.length);
+                     2, dataFiles.length);
         long closeTo1MiBFileSize = Math.max(dataFiles[0].length(), dataFiles[1].length());
         assertTrue("The file size should be close to 1MiB (with at most 50KiB error rate for the test)",
-                Math.abs(1024 * 1024 - closeTo1MiBFileSize) < 50 * 1024);
+                   Math.abs(1024 * 1024 - closeTo1MiBFileSize) < 50 * 1024);
 
         loadSSTables(dataDir, keyspace);
 
