@@ -3,6 +3,7 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Upgrade Python driver to 3.28.0 (CASSANDRA-18960)
  * Add retries to IR messages (CASSANDRA-18962)
  * Add metrics and logging to repair retries (CASSANDRA-18952)
  * Remove deprecated code in Cassandra 1.x and 2.x (CASSANDRA-18959)
