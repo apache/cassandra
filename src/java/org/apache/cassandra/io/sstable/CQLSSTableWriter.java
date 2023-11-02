@@ -392,7 +392,8 @@ public class CQLSSTableWriter implements Closeable
         private boolean sorted = false;
         private long maxSSTableSizeInMiB = -1L;
 
-        protected Builder() {
+        protected Builder()
+        {
             this.typeStatements = new ArrayList<>();
         }
 
