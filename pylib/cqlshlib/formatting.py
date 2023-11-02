@@ -149,8 +149,8 @@ class CqlType:
     def parse(self, typestring, ksmeta):
         """
         Parse the typestring by looking at this pattern: *<*>. If there is no match then the type
-        is either a simple type or a user type, otherwise it must be a composite type
-        for which we need to look-up the sub-types. For user types the sub types can be extracted
+        is either a simple type or a user type, otherwise it must be a composite type or a vector type,
+        for which we need to look up the subtypes. For user types the subtypes can be extracted
         from the keyspace metadata.
         """
         while True:
@@ -167,8 +167,15 @@ class CqlType:
                     typestring = m.group(2)
                     continue
 
-                name = m.group(1)  # a composite type, parse sub types
-                return name, self.parse_sub_types(m.group(2), ksmeta), self._get_formatter(name)
+                name = m.group(1)  # a composite or vector type, parse subtypes
+                try:
+                    # Vector types are parameterized as name<type,size> so add custom handling for that here
+                    type_args = m.group(2).split(',')
+                    vector_type = CqlType(type_args[0])
+                    vector_size = int(type_args[1])
+                    return name, [vector_type for _ in range(vector_size)], self._get_formatter(name)
+                except (ValueError, IndexError):
+                    return name, self.parse_sub_types(m.group(2), ksmeta), self._get_formatter(name)
 
     @staticmethod
     def _get_formatter(name):
