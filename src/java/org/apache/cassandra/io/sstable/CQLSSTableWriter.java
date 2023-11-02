@@ -475,8 +475,8 @@ public class CQLSSTableWriter implements Closeable
             if (size <= 0)
             {
                 logger.warn("A non-positive value for maximum SSTable size is specified, " +
-                        "which disables the size limiting effectively. Please supply a positive value in order " +
-                        "to enforce size limiting for the produced SSTables.");
+                            "which disables the size limiting effectively. Please supply a positive value in order " +
+                            "to enforce size limiting for the produced SSTables.");
             }
             this.maxSSTableSizeInMiB = size;
             return this;
@@ -499,7 +499,6 @@ public class CQLSSTableWriter implements Closeable
         @Deprecated
         public Builder withBufferSizeInMB(int size)
         {
-
             return withMaxSSTableSizeInMiB(size);
         }
 
