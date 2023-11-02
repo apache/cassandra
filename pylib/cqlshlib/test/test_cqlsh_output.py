@@ -935,6 +935,28 @@ class TestCqlshOutput(BaseTestCase):
             """),
         ))
 
+    def test_vectors_output(self):
+        self.assertQueriesGiveColoredOutput((
+            ("SELECT vectorcol FROM has_all_types;", r"""
+             vectorcol
+             MMMMMMMMM
+            -----------------------
+
+                      [1, -2, NaN]
+                      BGBBGGBBGGGB
+                         [1, 2, 3]
+                         BGBBGBBGB
+                         [0, 0, 0]
+                         BGBBGBBGB
+                              null
+                              RRRR
+             [1e+08, 1e+08, 1e+08]
+             BGGGGGBBGGGGGBBGGGGGB
+
+            (5 rows)
+            """),
+        ))
+
     def test_expanded_output_counts_past_page(self):
         query = "PAGING 5; EXPAND ON; SELECT * FROM twenty_rows_table;"
         output, result = cqlsh_testcall(prompt=None, env=self.default_env,
