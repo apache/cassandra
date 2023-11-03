@@ -29,6 +29,7 @@ import org.apache.cassandra.utils.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashMultimap;
@@ -59,7 +60,6 @@ public class StartupClusterConnectivityChecker
 
     private final boolean blockForRemoteDcs;
     private final long timeoutNanos;
-    private final Gossiper gossiper;
 
     public static StartupClusterConnectivityChecker create(long timeoutSecs, boolean blockForRemoteDcs)
     {
@@ -67,15 +67,14 @@ public class StartupClusterConnectivityChecker
             logger.warn("setting the block-for-peers timeout (in seconds) to {} might be a bit excessive, but using it nonetheless", timeoutSecs);
         long timeoutNanos = TimeUnit.SECONDS.toNanos(timeoutSecs);
 
-        return new StartupClusterConnectivityChecker(timeoutNanos, blockForRemoteDcs, Gossiper.instance);
+        return new StartupClusterConnectivityChecker(timeoutNanos, blockForRemoteDcs);
     }
 
     @VisibleForTesting
-    StartupClusterConnectivityChecker(long timeoutNanos, boolean blockForRemoteDcs, Gossiper gossiper)
+    StartupClusterConnectivityChecker(long timeoutNanos, boolean blockForRemoteDcs)
     {
         this.blockForRemoteDcs = blockForRemoteDcs;
         this.timeoutNanos = timeoutNanos;
-        this.gossiper = gossiper;
     }
 
     /**
@@ -84,7 +83,8 @@ public class StartupClusterConnectivityChecker
      * @return true if the requested percentage of peers are marked ALIVE in gossip and have their connections opened;
      * else false.
      */
-    public boolean execute(Set<InetAddressAndPort> peers, Function<InetAddressAndPort, String> getDatacenterSource)
+    public boolean execute(Set<InetAddressAndPort> peers, Function<InetAddressAndPort, String> getDatacenterSource,
+                           Predicate<CassandraVersion> isUpgradingFromLowerVersionThan)
     {
         if (peers == null || this.timeoutNanos < 0)
             return true;
@@ -92,7 +92,7 @@ public class StartupClusterConnectivityChecker
         // Check if there are any nodes which we know are running a version prior to 4.0.
         // We use this intead of Gossiper::hasMajorVersion3Nodes because in the absence of version information for a peer
         // we still prefer to run the startup connectivity check.
-        if (gossiper.isUpgradingFromVersionLowerThan(CassandraVersion.CASSANDRA_4_0))
+        if (isUpgradingFromLowerVersionThan.test(CassandraVersion.CASSANDRA_4_0))
         {
             logger.debug("Skipping startup connectivity check as some nodes may be running Cassandra version 3 or older " +
                         "which does not support connectivity checking.");
