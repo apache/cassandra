@@ -596,3 +596,72 @@ http://docs.oracle.com/javase/7/docs/technotes/guides/management/agent.html#gdem
 Java7 Docs],
 https://www.lullabot.com/articles/monitor-java-with-jmx[Monitor Java
 with JMX]
+
+
+== Crypto providers
+
+The ability to specify a custom Java Crypto Provider was done as part of https://issues.apache.org/jira/browse/CASSANDRA-18624[CASSANDRA-18624]
+
+The default configuration of `crypto_provider` in `cassandra.yaml` looks like this:
+
+[source,none]
+----
+# Configures Java crypto provider. By default, it will use
+# DefaultCryptoProvider which will install Amazon Correto
+# Crypto Provider.
+#
+# Amazon Correto Crypto Provider works currently for
+# x86_64 and aarch_64 platforms. If this provider fails it will
+# fall back to the default crypto provider in the JRE.
+#
+# To force failure when the provider was not installed properly,
+# set the property "fail_on_missing_provider" to "true".
+#
+# To bypass the installation of a crypto provider use
+# class 'org.apache.cassandra.security.JREProvider'
+#
+crypto_provider:
+  - class_name: org.apache.cassandra.security.DefaultCryptoProvider
+    parameters:
+      - fail_on_missing_provider: "false"
+----
+
+For older nodes, when they upgrade to Cassandra 5.0 with the same `cassandra.yaml`
+where `crypto_provider` section is not set yet, they will default to `JREProvider` which does not
+install any provider, and it will use the one which is in a JRE Cassandra runs with.
+
+As the above snippet shows, `DefaultCryptoProvider` is installing
+https://github.com/corretto/amazon-corretto-crypto-provider[Amazon Corretto Crypto provider] which is proven to be
+way more performant than default crypto providers in a JRE installation.
+
+If you want to use other crypto provider, you have two options.
+
+The first one is to configure your JRE, specifically
+`java.security` file, to instruct JRE what crypto provider to use. You would need to put respective implementation
+of such crypto provider to the class path of JRE as well.
+
+The second option is to implement your own crypto provider by extending
+`org.apache.cassandra.security.AbstractCryptoProvider` and implementing four methods:
+
+getProviderName::
+  Returns name of your provider
+getProviderClassAsString::
+  Returns FQCN of your actual crypto provider which extends `java.security.Provider`.
+installator::
+  Returns `Runnable` which installs your `java.security.Provider` in runtime.
+isHealthyInstallation::
+  Returns `true` if the installation is _healthy_, false otherwise. This serves as a way
+  to check if the installation of your provider was successful or not.
+
+Upon installation of a crypto provider, `AbstractCryptoProvider` checks whether the provider you want to
+install is already installed or not. If it is installed and its installation position is `1` (as providers are
+installed in an order), a message will be logged about this fact. This case may happen if you configured
+your JRE directly via `java.security` and you try to install same provider by Cassandra itself as well.
+
+If it is installed already but not on the first position, if `fail_on_missing_provider` is set to `true`,
+an exception will be thrown and a node will fail to start. Same happens if the installation of
+a provider is not successful as such.
+
+Platform-specific libraries are added to Cassandra's class path automatically by `cassandra.in.sh` script.
+Currently, there are `lib/aarch64` and `lib/x86_64` directories with JAR files for each respective architecture.
+A platform is determined by the output of `uname -m` command.
