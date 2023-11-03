@@ -75,15 +75,40 @@ public class ClientResourceLimitsTest extends NativeProtocolLimitsTestBase
         ClientResourceLimits.setEndpointLimit(LOW_LIMIT);
     }
 
-    @Test
-    public void testQueryExecutionWithThrowOnOverload()
+    @After
+    public void resetServerSideThrowFlag()
     {
+        DatabaseDescriptor.setThrowOnOverload(false);
+    }
+
+    @Test
+    // throw_on_overload enabled at client side only
+    public void testQueryExecutionWithThrowOnOverload1()
+    {
+        DatabaseDescriptor.setThrowOnOverload(false);
+        testQueryExecution(true);
+    }
+
+    @Test
+    // throw_on_overload enabled at server side only
+    public void testQueryExecutionWithThrowOnOverload2()
+    {
+        DatabaseDescriptor.setThrowOnOverload(true);
+        testQueryExecution(false);
+    }
+
+    @Test
+    // throw_on_overload enabled at both client side and server side
+    public void testQueryExecutionWithThrowOnOverload3()
+    {
+        DatabaseDescriptor.setThrowOnOverload(true);
         testQueryExecution(true);
     }
 
     @Test
     public void testQueryExecutionWithoutThrowOnOverload()
     {
+        DatabaseDescriptor.setThrowOnOverload(false);
         testQueryExecution(false);
     }
 
@@ -117,6 +142,9 @@ public class ClientResourceLimitsTest extends NativeProtocolLimitsTestBase
 
     private void backPressureTest(Runnable limitLifter, Consumer<ClientResourceLimits.ResourceProvider> signaller) throws Throwable
     {
+        // make sure server side throw_on_overload is also off in order to apply backpressure
+        DatabaseDescriptor.setThrowOnOverload(false);
+
         final AtomicReference<Exception> error = new AtomicReference<>();
         final CountDownLatch started = new CountDownLatch(1);
         final CountDownLatch complete = new CountDownLatch(1);
@@ -177,24 +205,77 @@ public class ClientResourceLimitsTest extends NativeProtocolLimitsTestBase
     }
 
     @Test
-    public void testOverloadedExceptionWhenGlobalLimitExceeded()
+    // throw_on_overload enabled at client side only
+    public void testOverloadedExceptionWhenGlobalLimitExceeded1()
     {
+        DatabaseDescriptor.setThrowOnOverload(false);
+
         // Bump the per-endpoint limit to make sure we exhaust the global
         ClientResourceLimits.setEndpointLimit(HIGH_LIMIT);
         testOverloadedException(() -> client(true));
     }
 
     @Test
-    public void testOverloadedExceptionWhenEndpointLimitExceeded()
+    // throw_on_overload enabled at both client side and server side
+    public void testOverloadedExceptionWhenGlobalLimitExceeded2()
     {
+        DatabaseDescriptor.setThrowOnOverload(true);
+
+        // Bump the per-endpoint limit to make sure we exhaust the global
+        ClientResourceLimits.setEndpointLimit(HIGH_LIMIT);
+        testOverloadedException(() -> client(true));
+    }
+
+    @Test
+    // throw_on_overload enabled at server side only
+    public void testOverloadedExceptionWhenGlobalLimitExceeded3()
+    {
+        DatabaseDescriptor.setThrowOnOverload(true);
+
+        // Bump the per-endpoint limit to make sure we exhaust the global
+        ClientResourceLimits.setEndpointLimit(HIGH_LIMIT);
+        testOverloadedException(() -> client(false));
+    }
+
+    @Test
+    // throw_on_overload enabled at client side only
+    public void testOverloadedExceptionWhenEndpointLimitExceeded1()
+    {
+        DatabaseDescriptor.setThrowOnOverload(false);
+
         // Make sure we can only exceed the per-endpoint limit
         ClientResourceLimits.setGlobalLimit(HIGH_LIMIT);
         testOverloadedException(() -> client(true));
     }
 
     @Test
-    public void testOverloadedExceptionWhenGlobalLimitByMultiFrameMessage()
+    // throw_on_overload enabled at both client side and server side
+    public void testOverloadedExceptionWhenEndpointLimitExceeded2()
     {
+        DatabaseDescriptor.setThrowOnOverload(true);
+
+        // Make sure we can only exceed the per-endpoint limit
+        ClientResourceLimits.setGlobalLimit(HIGH_LIMIT);
+        testOverloadedException(() -> client(true));
+    }
+
+    @Test
+    // throw_on_overload enabled at server side only
+    public void testOverloadedExceptionWhenEndpointLimitExceeded3()
+    {
+        DatabaseDescriptor.setThrowOnOverload(true);
+
+        // Make sure we can only exceed the per-endpoint limit
+        ClientResourceLimits.setGlobalLimit(HIGH_LIMIT);
+        testOverloadedException(() -> client(false));
+    }
+
+    @Test
+    // throw_on_overload enabled at client side only
+    public void testOverloadedExceptionWhenGlobalLimitByMultiFrameMessage1()
+    {
+        DatabaseDescriptor.setThrowOnOverload(false);
+
         // Bump the per-endpoint limit to make sure we exhaust the global
         ClientResourceLimits.setEndpointLimit(HIGH_LIMIT);
         // test message = 2/3 x
@@ -205,8 +286,41 @@ public class ClientResourceLimitsTest extends NativeProtocolLimitsTestBase
     }
 
     @Test
-    public void testOverloadedExceptionWhenEndpointLimitByMultiFrameMessage()
+    // throw_on_overload enabled at both client side and server side
+    public void testOverloadedExceptionWhenGlobalLimitByMultiFrameMessage2()
     {
+        DatabaseDescriptor.setThrowOnOverload(true);
+
+        // Bump the per-endpoint limit to make sure we exhaust the global
+        ClientResourceLimits.setEndpointLimit(HIGH_LIMIT);
+        // test message = 2/3 x
+        // emulated concurrent message = 2/3 x
+        // test message + emulated concurrent message = 4/3 x > x set as a global limit
+        emulateInFlightConcurrentMessage(LOW_LIMIT * 2 / 3);
+        testOverloadedException(() -> client(true, Ints.checkedCast(LOW_LIMIT / 2)), LOW_LIMIT * 2 / 3);
+    }
+
+    @Test
+    // throw_on_overload enabled at server side only
+    public void testOverloadedExceptionWhenGlobalLimitByMultiFrameMessage3()
+    {
+        DatabaseDescriptor.setThrowOnOverload(true);
+
+        // Bump the per-endpoint limit to make sure we exhaust the global
+        ClientResourceLimits.setEndpointLimit(HIGH_LIMIT);
+        // test message = 2/3 x
+        // emulated concurrent message = 2/3 x
+        // test message + emulated concurrent message = 4/3 x > x set as a global limit
+        emulateInFlightConcurrentMessage(LOW_LIMIT * 2 / 3);
+        testOverloadedException(() -> client(false, Ints.checkedCast(LOW_LIMIT / 2)), LOW_LIMIT * 2 / 3);
+    }
+
+    @Test
+    // throw_on_overload enabled at client side only
+    public void testOverloadedExceptionWhenEndpointLimitByMultiFrameMessage1()
+    {
+        DatabaseDescriptor.setThrowOnOverload(false);
+
         // Make sure we can only exceed the per-endpoint limit
         ClientResourceLimits.setGlobalLimit(HIGH_LIMIT);
         // test message = 2/3 x
@@ -214,6 +328,36 @@ public class ClientResourceLimitsTest extends NativeProtocolLimitsTestBase
         // test message + emulated concurrent message = 4/3 x > x set as an endpoint limit
         emulateInFlightConcurrentMessage(LOW_LIMIT * 2 / 3);
         testOverloadedException(() -> client(true, Ints.checkedCast(LOW_LIMIT / 2)), LOW_LIMIT * 2 / 3);
+    }
+
+    @Test
+    // throw_on_overload enabled at both client side and server side
+    public void testOverloadedExceptionWhenEndpointLimitByMultiFrameMessage2()
+    {
+        DatabaseDescriptor.setThrowOnOverload(true);
+
+        // Make sure we can only exceed the per-endpoint limit
+        ClientResourceLimits.setGlobalLimit(HIGH_LIMIT);
+        // test message = 2/3 x
+        // emulated concurrent message = 2/3 x
+        // test message + emulated concurrent message = 4/3 x > x set as an endpoint limit
+        emulateInFlightConcurrentMessage(LOW_LIMIT * 2 / 3);
+        testOverloadedException(() -> client(true, Ints.checkedCast(LOW_LIMIT / 2)), LOW_LIMIT * 2 / 3);
+    }
+
+    @Test
+    // throw_on_overload enabled at server side only
+    public void testOverloadedExceptionWhenEndpointLimitByMultiFrameMessage3()
+    {
+        DatabaseDescriptor.setThrowOnOverload(true);
+
+        // Make sure we can only exceed the per-endpoint limit
+        ClientResourceLimits.setGlobalLimit(HIGH_LIMIT);
+        // test message = 2/3 x
+        // emulated concurrent message = 2/3 x
+        // test message + emulated concurrent message = 4/3 x > x set as an endpoint limit
+        emulateInFlightConcurrentMessage(LOW_LIMIT * 2 / 3);
+        testOverloadedException(() -> client(false, Ints.checkedCast(LOW_LIMIT / 2)), LOW_LIMIT * 2 / 3);
     }
 
     private void testOverloadedException(Supplier<SimpleClient> clientSupplier)
@@ -418,5 +562,53 @@ public class ClientResourceLimitsTest extends NativeProtocolLimitsTestBase
         assertEquals(500, ClientResourceLimits.getNativeTransportMaxRequestsPerSecond(), 0);
         assertEquals(500, ClientResourceLimits.GLOBAL_REQUEST_LIMITER.getRate(), 0);
         assertEquals(500, StorageService.instance.getNativeTransportMaxRequestsPerSecond());
+    }
+
+    @Test
+    public void testChangingServerSideThrowOnOverloadFlagAtRuntimeForSmallMessage()
+    {
+        testChangingServerSideThrowOnOverloadFlagAtRuntime(true);
+    }
+
+    @Test
+    public void testChangingServerSideThrowOnOverloadFlagAtRuntimeForLargeMessage()
+    {
+        testChangingServerSideThrowOnOverloadFlagAtRuntime(false);
+    }
+
+    private void testChangingServerSideThrowOnOverloadFlagAtRuntime(boolean isSmallMessage)
+    {
+        DatabaseDescriptor.setThrowOnOverload(true);
+        SimpleClient client = isSmallMessage ? client(false) :
+                              client(false, Ints.checkedCast(LOW_LIMIT / 2));
+        try
+        {
+            // set the reserve to 3x the low limit
+            ClientResourceLimits.setEndpointLimit(LOW_LIMIT * 3);
+            ClientResourceLimits.setGlobalLimit(LOW_LIMIT * 3);
+
+            // consume 2x the low limit of the reserve
+            emulateInFlightConcurrentMessage(LOW_LIMIT * 2);
+
+            QueryMessage smallMessage = new QueryMessage(String.format("CREATE TABLE %s.atable (pk int PRIMARY KEY, v text)", KEYSPACE),
+                                                         queryOptions());
+            client.execute(smallMessage);
+            try
+            {
+                // this large message will use another 2/3 of the reserve (2/3 + 2/3 > 1)
+                // as a result it should fail with OverloadedException
+                client.execute(queryMessage(LOW_LIMIT * 2));
+                fail();
+            }
+            catch (RuntimeException e)
+            {
+                // the query should fail because we enabled throw_on_overload on server side, and the payload of the request is too large
+                assertTrue(e.getCause() instanceof OverloadedException);
+            }
+        }
+        finally
+        {
+            client.close();
+        }
     }
 }
