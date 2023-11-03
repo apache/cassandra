@@ -1,6 +1,6 @@
 = Snitch
 
-In cassandra, the snitch has two functions:
+In Cassandra, the snitch has two functions:
 
 * it teaches Cassandra enough about your network topology to route
 requests efficiently.
@@ -33,7 +33,7 @@ was 20% worse than the fastest.
 == Snitch classes
 
 The `endpoint_snitch` parameter in `cassandra.yaml` should be set to the
-class that implements `IEndPointSnitch` which will be wrapped by the
+class that implements `IEndpointSnitch` which will be wrapped by the
 dynamic snitch and decide if two endpoints are in the same data center
 or on the same rack. Out of the box, Cassandra provides the snitch
 implementations:
@@ -51,6 +51,45 @@ SimpleSnitch::
 PropertyFileSnitch::
   Proximity is determined by rack and data center, which are explicitly
   configured in `cassandra-topology.properties`.
+RackInferringSnitch::
+  Proximity is determined by rack and data center, which are assumed to
+  correspond to the 3rd and 2nd octet of each node's IP address,
+  respectively. Unless this happens to match your deployment
+  conventions, this is best used as an example of writing a custom
+  Snitch class and is provided in that spirit.
+
+=== Cloud-based snitches
+
+These snitches are used in cloud environment for various cloud vendors. All cloud-based
+snitch implementations are currently extending `AbstractCloudMetadataServiceSnitch` (which
+in turn extends `AbstractNetworkTopologySnitch`).
+
+Each cloud-based snitch has its own way how to resolve what rack and
+datacenter a respective node belongs to. `AbstractCloudMetadataServiceSnitch` encapsulates
+the most common apparatus for achieving it. All cloud-based snitches are calling an HTTP service,
+specific to a respective cloud. The constructor of `AbstractCloudMetadataServiceSnitch` accepts
+implementations of `AbstractCloudMetadataServiceConnector` which implement a method `apiCall`
+which, by default, executes an HTTP `GET` request against a predefined HTTP URL, sending no HTTP headers,
+and it expects a response with HTTP code `200`. It is possible to send various HTTP headers as part of the
+request if an implementator wants that.
+
+Currently, the only implementation of
+`AbstractCloudMetadataServiceConnector` is `DefaultCloudMetadataServiceConnector`. If a user has a need
+to override the behavior of `AbstractCloudMetadataServiceConnector`, a user is welcome to do so by implementing
+its own connector and propagating it to the constructor of `AbstractCloudMetadataServiceSnitch`.
+
+All cloud-based snitches are accepting these properties in `cassandra-rackdc.properties`:
+
+metadata_url::
+  URL of cloud service to retrieve topology information from, this is cloud-specific.
+metadata_request_timeout::
+  Default value of `30s` (30 seconds) sets connect timeout upon calls by `apiCall`. In other words,
+  request against `metadata_url` will time out if no response arrives in that period.
+dc_suffix::
+  A string, by default empty, which will be appended to resolved datacenter.
+
+In-built cloud-based snitches are:
+
 Ec2Snitch::
   Appropriate for EC2 deployments in a single Region, or in multiple
   regions with inter-region VPC enabled (available since the end of
@@ -66,9 +105,36 @@ Ec2MultiRegionSnitch::
   well). You will need to open the `storage_port` or `ssl_storage_port`
   on the public IP firewall (For intra-Region traffic, Cassandra will
   switch to the private IP after establishing a connection).
-RackInferringSnitch::
-  Proximity is determined by rack and data center, which are assumed to
-  correspond to the 3rd and 2nd octet of each node's IP address,
-  respectively. Unless this happens to match your deployment
-  conventions, this is best used as an example of writing a custom
-  Snitch class and is provided in that spirit.
+
+For Ec2 snitches, since https://issues.apache.org/jira/browse/CASSANDRA-16555[CASSANDRA-16555], it is possible to
+choose version of AWS IMDS. By default, IMDSv2 is used. The version of IMDS is driven by property `ec2_metadata_type`
+and can be of value either `v1` or `v2`. It is possible to specify custom URL of IMDS by
+`ec2_metadata_url` (or by `metadata_url`) which is by default `http://169.254.169.254` and then a query against
+`/latest/meta-data/placement/availability-zone` endpoint is executed.
+
+IMDSv2 is secured by a token which needs to be fetched from IDMSv2 first, and it has to be passed in a header
+for the actual queries to IDMSv2. `Ec2Snitch` and `Ec2MultiRegionSnitch` are doing this automatically.
+The only configuration parameter exposed to a user is `ec2_metadata_token_ttl_seconds`
+which is by default set to `21600`. TTL has to be an integer from the range `[30, 21600]`.
+
+AlibabaCloudSnitch::
+  A snitch that assumes an ECS region is a DC and an ECS availability_zone
+  is a rack. This information is available in the config for the node. the
+  format of the zone-id is like `cn-hangzhou-a` where `cn` means China, `hangzhou`
+  means the Hangzhou region, `a` means the az id. We use `cn-hangzhou` as the dc,
+  and `a` as the zone-id. `metadata_url` for this snitch is, by default,
+  `http://100.100.100.200/` and it will execute an HTTP request against endpoint
+  `/latest/meta-data/zone-id`.
+AzureSnitch::
+  Azure Snitch will resolve datacenter and rack by calling `/metadata/instance/compute?api-version=%s&format=json`
+  endpoint against `metadata_url` of `http://169.254.169.254` returning
+  the response in JSON format for, by default, API version `2021-12-13`. The version of API is configurable
+  via property `azure_api_version` in `cassandra-rackdc.properties`.
+  A datacenter is resolved from `location` field of the response and a rack is resolved by looking
+  into `zone` field first. When `zone` is not set, or it is an empty string, it will look into
+  `platformFaultDomain` field. Such resolved value is prepended by `rack-` string.
+GoogleCloudSnitch::
+  Google snitch will resolve datacenter and rack by calling `/computeMetadata/v1/instance/zone`
+  endpoint against `metadata_url` of `http://metadata.google.internal`.
+
+
