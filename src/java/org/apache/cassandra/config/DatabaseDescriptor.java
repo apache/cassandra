@@ -4982,6 +4982,16 @@ public class DatabaseDescriptor
         return conf.throttling_options;
     }
 
+    public static boolean setThrowOnOverload(boolean throwOnOverload)
+    {
+        return conf.throw_on_overload = throwOnOverload;
+    }
+
+    public static boolean getThrowOnOverload()
+    {
+        return conf.throw_on_overload;
+    }
+
     public static void setThrottlingOptions(ThrottlingOptions throttlingOptions)
     {
         conf.throttling_options = throttlingOptions;

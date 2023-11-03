@@ -44,6 +44,10 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 
 public interface StorageServiceMBean extends NotificationEmitter
 {
+    public void setThrowOnOverload(boolean throwOnOverload);
+
+    public boolean getThrowOnOverload();
+
     public String setBooleanValueForConfig(String configName, boolean value);
 
     public Boolean getBooleanValueForConfig(String configName);

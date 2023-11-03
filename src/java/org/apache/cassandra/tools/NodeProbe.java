@@ -1262,6 +1262,16 @@ public class NodeProbe implements AutoCloseable
         ssProxy.dropPreparedStatements(memoryOnly);
     }
 
+    public void setThrowOnOverload(boolean throwOnOverload)
+    {
+        ssProxy.setThrowOnOverload(throwOnOverload);
+    }
+
+    public boolean getThrowOnOverload()
+    {
+        return ssProxy.getThrowOnOverload();
+    }
+
     public String setBooleanValueForConfig(String configName, boolean value)
     {
         return ssProxy.setBooleanValueForConfig(configName, value);

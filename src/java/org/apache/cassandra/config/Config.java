@@ -767,6 +767,12 @@ public class Config
     // rate limiter related variables:
     public volatile ThrottlingOptions throttling_options = new ThrottlingOptions();
 
+    // throw_on_overload has the same effect as the client side "THROW_ON_OVERLOAD" flag that
+    // was implemented in CASSANDRA-15013.
+    // Either this flag is true or the client side counterpart is true will enable the throwing of
+    // the overloaded exception.
+    public boolean throw_on_overload = false;
+
     /**
      * When a node first starts up it intially considers all other peers as DOWN and is disconnected from all of them.
      * To be useful as a coordinator (and not introduce latency penalties on restart) this node must have successfully

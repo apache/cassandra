@@ -219,6 +219,8 @@ public class NodeTool
                 SetCacheCapacity.class,
                 SetCacheKeysToSave.class,
                 SetColumnIndexSize.class,
+                SetThrowOnOverload.class,
+                GetThrowOnOverload.class,
                 SetCompactionThreshold.class,
                 SetCompactionThroughput.class,
                 SetDirectMaterializedViewModification.class,
