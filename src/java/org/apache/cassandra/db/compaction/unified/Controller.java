@@ -83,11 +83,11 @@ public class Controller
     static final long MIN_TARGET_SSTABLE_SIZE = 1L << 20;
 
     /**
-     * Provision for growth of the constructed SSTables as the size of the data grows. By default the target SSTable
-     * size is fixed for all levels. In some scenarios is may be better to reduce the overall number of SSTables when
+     * Provision for growth of the constructed SSTables as the size of the data grows. By default, the target SSTable
+     * size is fixed for all levels. In some scenarios it may be better to reduce the overall number of SSTables when
      * the data size becomes larger to avoid using too much memory and processing for the corresponding structures.
      * The setting enables such control and determines how much we reduce the growth of the number of split points as
-     * the data size grows. The number specifies the sstable growth part, and the difference from 1 is the shard count
+     * the data size grows. The number specifies the SSTable growth part, and the difference from 1 is the shard count
      * growth component, which is a multiplier applied to the logarithm of the data size, before it is rounded and
      * applied as an exponent in the number of split points. In other words, the given value applies as a negative
      * exponent in the calculation of the number of split points.
@@ -96,7 +96,7 @@ public class Controller
      * target size. Setting this number to 1 will make UCS never split beyong the base shard count. Using 0.5 will
      * make the number of split points a square root of the required number for the target SSTable size, making
      * the number of split points and the size of SSTables grow in lockstep as the density grows. Using
-     * 0.333 (the default) makes the sstable growth the cubic root of the density growth, i.e. the sstable size
+     * 0.333 (the default) makes the sstable growth the cubic root of the density growth, i.e. the SSTable size
      * grows with the square root of the growth of the shard count.
      * <p>
      * For example, given a data size of 1TiB on the top density level and 1GiB target size with base shard count of 1,
@@ -246,16 +246,16 @@ public class Controller
     }
 
     /**
-     * Calculate the number of shards to split the local token space in for the given sstable density.
-     * This is calculated as a power-of-two multiple of baseShardCount, so that the expected size of resulting sstables
+     * Calculate the number of shards to split the local token space in for the given SSTable density.
+     * This is calculated as a power-of-two multiple of baseShardCount, so that the expected size of resulting SSTables
      * is between sqrt(0.5) and sqrt(2) times the target size, which is calculated from targetSSTableSize to grow
      * at the given sstableGrowthModifier of the exponential growth of the density.
      * <p>
-     * Additionally, if a minimum sstable size is set, we can go below the baseShardCount when that would result in
-     * sstables smaller than that minimum. Note that in the case of a non-power-of-two base count, we will only
+     * Additionally, if a minimum SSTable size is set, we can go below the baseShardCount when that would result in
+     * SSTables smaller than that minimum. Note that in the case of a non-power-of-two base count, we will only
      * split to divisors of baseShardCount.
      * <p>
-     * Note that to get the sstables resulting from this splitting within the bounds, the density argument must be
+     * Note that to get the SSTables resulting from this splitting within the bounds, the density argument must be
      * normalized to the span that is being split. In other words, if no disks are defined, the density should be
      * scaled by the token coverage of the locally-owned ranges. If multiple data directories are defined, the density
      * should be scaled by the token coverage of the respective data directory. That is, localDensity = size / span,

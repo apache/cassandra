@@ -218,12 +218,12 @@ This sharding mechanism is independent of the compaction specification.
 
 This sharding scheme easily admits extensions. In particular, when the size of the data set is expected to grow very
 large, to avoid having to pre-specify a high enough target size to avoid problems with per-sstable overhead, we can
-apply an "sstable growth" parameter, which determines what part of the density growth should be assigned to increased
+apply an "SSTtable growth" parameter, which determines what part of the density growth should be assigned to increased
 SSTable size, reducing the growth of the number of shards (and hence non-overlapping sstables).
 
 Additionally, to allow for a mode of operation with a fixed number of shards, and splitting conditional on reaching
-a minimum size, we provide for a "minimum sstable size" that reduces the base shard count whenever that would result
-in sstables smaller than the provided minimum.
+a minimum size, we provide for a "minimum SSTable size" that reduces the base shard count whenever that would result
+in SSTables smaller than the provided minimum.
 
 Generally, the user can specify four sharding parameters:
 
