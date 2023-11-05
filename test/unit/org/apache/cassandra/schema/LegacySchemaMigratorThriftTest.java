@@ -19,11 +19,16 @@ package org.apache.cassandra.schema;
 
 import java.io.IOException;
 
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.junit.Test;
 
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+
+import static org.apache.cassandra.SchemaLoader.getCompressionParameters;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
 
 @SuppressWarnings("deprecation")
@@ -36,18 +41,43 @@ public class LegacySchemaMigratorThriftTest extends LegacySchemaMigratorBaseTest
     public void testMigrate18956() throws IOException
     {
         CQLTester.cleanupAndLeaveDirs();
-        Keyspaces expected = LegacySchemaMigratorBaseTest.keyspacesToMigrate18956();
+        Keyspaces expected = keyspacesToMigrate18956();
         expected.forEach(LegacySchemaMigratorBaseTest::legacySerializeKeyspace);
         LegacySchemaMigrator.migrate();
         Schema.instance.loadFromDisk();
         LegacySchemaMigratorBaseTest.loadLegacySchemaTables();
-        try {
+        try
+        {
             // This should fail
             executeOnceInternal(String.format("ALTER TABLE %s.%s RENAME key TO \"4f\"", KEYSPACE_18956, TABLE_18956));
             assert false;
-        } catch (InvalidRequestException e) {
+        } catch (InvalidRequestException e)
+        {
             assert e.toString().contains("another column of that name already exist");
         }
+    }
+
+    public static Keyspaces keyspacesToMigrate18956()
+    {
+        Keyspaces.Builder keyspaces = Keyspaces.builder();
+        keyspaces.add(KeyspaceMetadata.create(LegacySchemaMigratorThriftTest.KEYSPACE_18956,
+                KeyspaceParams.simple(1),
+                Tables.of(
+                        bytesTypeComparatorCFMD18956(LegacySchemaMigratorThriftTest.KEYSPACE_18956, LegacySchemaMigratorThriftTest.TABLE_18956)
+                )));
+        return keyspaces.build();
+
+    }
+
+    public static CFMetaData bytesTypeComparatorCFMD18956(String ksName, String cfName) throws ConfigurationException
+    {
+        CFMetaData cfm = CFMetaData.Builder.createDense(ksName, cfName, false, false)
+                .addPartitionKey("key", BytesType.instance)
+                .addClusteringColumn("3d", BytesType.instance)
+                .addRegularColumn("4f", BytesType.instance)
+                .build();
+
+        return cfm.compression(getCompressionParameters());
     }
 
 }

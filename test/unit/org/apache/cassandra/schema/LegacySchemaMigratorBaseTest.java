@@ -209,29 +209,6 @@ public abstract class LegacySchemaMigratorBaseTest
         return keyspaces.build();
     }
 
-    public static Keyspaces keyspacesToMigrate18956()
-    {
-        Keyspaces.Builder keyspaces = Keyspaces.builder();
-        keyspaces.add(KeyspaceMetadata.create(LegacySchemaMigratorThriftTest.KEYSPACE_18956,
-                KeyspaceParams.simple(1),
-                Tables.of(
-                        bytesTypeComparatorCFMD18956(LegacySchemaMigratorThriftTest.KEYSPACE_18956, LegacySchemaMigratorThriftTest.TABLE_18956)
-                )));
-        return keyspaces.build();
-
-    }
-
-    public static CFMetaData bytesTypeComparatorCFMD18956(String ksName, String cfName) throws ConfigurationException
-    {
-        CFMetaData cfm = CFMetaData.Builder.createDense(ksName, cfName, false, false)
-                .addPartitionKey("key", BytesType.instance)
-                .addClusteringColumn("3d", BytesType.instance)
-                .addRegularColumn("4f", BytesType.instance)
-                .build();
-
-        return cfm.compression(getCompressionParameters());
-    }
-
     private static KeyspaceMetadata keyspaceWithDroppedCollections()
     {
         String keyspace = KEYSPACE_PREFIX + "DroppedCollections";
