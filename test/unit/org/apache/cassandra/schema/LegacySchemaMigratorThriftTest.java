@@ -27,7 +27,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
 
 @SuppressWarnings("deprecation")
-public class LegacySchemaMigratorThriftTest
+public class LegacySchemaMigratorThriftTest extends LegacySchemaMigratorBaseTest
 {
     public static final String KEYSPACE_18956 = "ks18956";
     public static final String TABLE_18956 = "table18956";
@@ -36,11 +36,11 @@ public class LegacySchemaMigratorThriftTest
     public void testMigrate18956() throws IOException
     {
         CQLTester.cleanupAndLeaveDirs();
-        Keyspaces expected = LegacySchemaMigratorTest.keyspacesToMigrate18956();
-        expected.forEach(LegacySchemaMigratorTest::legacySerializeKeyspace);
+        Keyspaces expected = LegacySchemaMigratorBaseTest.keyspacesToMigrate18956();
+        expected.forEach(LegacySchemaMigratorBaseTest::legacySerializeKeyspace);
         LegacySchemaMigrator.migrate();
         Schema.instance.loadFromDisk();
-        LegacySchemaMigratorTest.loadLegacySchemaTables();
+        LegacySchemaMigratorBaseTest.loadLegacySchemaTables();
         try {
             // This should fail
             executeOnceInternal(String.format("ALTER TABLE %s.%s RENAME key TO \"4f\"", KEYSPACE_18956, TABLE_18956));
