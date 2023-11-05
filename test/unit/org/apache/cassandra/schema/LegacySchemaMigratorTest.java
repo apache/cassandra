@@ -54,8 +54,6 @@ public class LegacySchemaMigratorTest
     private static final long TIMESTAMP = 1435908994000000L;
 
     private static final String KEYSPACE_PREFIX = "LegacySchemaMigratorTest";
-    private static final String KEYSPACE_18956 = "ks18956";
-    private static final String TABLE_18956 = "table18956";
 
     /*
      * 1. Write a variety of different keyspaces/tables/types/function in the legacy manner, using legacy schema tables
@@ -101,24 +99,6 @@ public class LegacySchemaMigratorTest
     }
 
     @Test
-    public void testMigrate18956() throws IOException
-    {
-        CQLTester.cleanupAndLeaveDirs();
-        Keyspaces expected = keyspacesToMigrate18956();
-        expected.forEach(LegacySchemaMigratorTest::legacySerializeKeyspace);
-        LegacySchemaMigrator.migrate();
-        Schema.instance.loadFromDisk();
-        loadLegacySchemaTables();
-        try {
-            // This should fail
-            executeOnceInternal(String.format("ALTER TABLE %s.%s RENAME key TO \"4f\"", KEYSPACE_18956, TABLE_18956));
-            assert false;
-        } catch (InvalidRequestException e) {
-            assert e.toString().contains("another column of that name already exist");
-        }
-    }
-
-    @Test
     public void testMigrateLegacyCachingOptions() throws IOException
     {
         CQLTester.cleanupAndLeaveDirs();
@@ -143,7 +123,7 @@ public class LegacySchemaMigratorTest
         }
     }
 
-    private static void loadLegacySchemaTables()
+    public static void loadLegacySchemaTables()
     {
         KeyspaceMetadata systemKeyspace = Schema.instance.getKSMetaData(SystemKeyspace.NAME);
 
@@ -302,13 +282,13 @@ public class LegacySchemaMigratorTest
         return keyspaces.build();
     }
 
-    private static Keyspaces keyspacesToMigrate18956()
+    public static Keyspaces keyspacesToMigrate18956()
     {
         Keyspaces.Builder keyspaces = Keyspaces.builder();
-        keyspaces.add(KeyspaceMetadata.create(KEYSPACE_18956,
+        keyspaces.add(KeyspaceMetadata.create(LegacySchemaMigratorThriftTest.KEYSPACE_18956,
                                               KeyspaceParams.simple(1),
                                               Tables.of(
-                                                        SchemaLoader.bytesTypeComparatorCFMD18956(KEYSPACE_18956, TABLE_18956)
+                                                        SchemaLoader.bytesTypeComparatorCFMD18956(LegacySchemaMigratorThriftTest.KEYSPACE_18956, LegacySchemaMigratorThriftTest.TABLE_18956)
                                                                     )));
         return keyspaces.build();
 
@@ -594,7 +574,7 @@ public class LegacySchemaMigratorTest
      * Serializing keyspaces
      */
 
-    private static void legacySerializeKeyspace(KeyspaceMetadata keyspace)
+    public static void legacySerializeKeyspace(KeyspaceMetadata keyspace)
     {
         makeLegacyCreateKeyspaceMutation(keyspace, TIMESTAMP).apply();
         setLegacyIndexStatus(keyspace);
@@ -700,7 +680,7 @@ public class LegacySchemaMigratorTest
 
         final RowUpdateBuilder adder = new RowUpdateBuilder(SystemKeyspace.LegacyColumns, timestamp, mutation).clustering(table.cfName, name);
 
-        if (table.cfName.equals(TABLE_18956)) {
+        if (table.cfName.equals(LegacySchemaMigratorThriftTest.TABLE_18956)) {
             adder.add("validator", column.type.toString())
                 .add("type", serializeKind18956(column.kind))
                 .add("component_index", column.position());
