@@ -8,6 +8,10 @@ The new type `VECTOR` has the following properties:
 * elements may not be null
 * flatten array (aka multi-cell = false)
 
+[NOTE]
+====
+Vectors are limited to a maximum dimension of 8K (2^13) items.
+====
 
 Create a keyspace:
 

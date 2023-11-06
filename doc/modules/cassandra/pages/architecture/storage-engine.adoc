@@ -1,46 +1,42 @@
 = Storage Engine
 
+{cassandra} processes data at several stages on the write path, starting with the immediate logging of a write and ending in with a write of data to disk:
+
+* Logging data in the commit log
+* Writing data to the memtable
+* Flushing data from the memtable
+* Storing data on disk in SSTables
+
 [[commit-log]]
-== CommitLog
+== Logging writes to commit logs
 
-Commitlogs are an append-only log of all mutations local to a Cassandra
-node. Any data written to Cassandra will first be written to a commit
-log before being written to a memtable. This provides durability in the
-case of unexpected shutdown. On startup, any mutations in the commit log
-will be applied to memtables.
+When a write occurs, {cassandra} writes the data to a local append-only (https://cassandra.apache.org/_/glossary.html#commit-log)[commit log] on disk.
+This action provides xref:cassandra:managing/configuration/cass_yaml_file.adoc[configurable durability] by logging every write made to a {cassandra} node.
+If an unexpected shutdown occurs, the commit log provides permanent durable writes of the data.
+On startup, any mutations in the commit log will be applied to (https://cassandra.apache.org/_/glossary.html#memtable)[memtables].
+The commit log is shared among tables.
 
-All mutations are write-optimized by storing in commitlog segments, reducing
-the number of seeks needed to write to disk. Commitlog segments are
-limited by the `commitlog_segment_size` option. Once the size is
-reached, a new commitlog segment is created. Commitlog segments can be
-archived, deleted, or recycled once all the data has been flushed to
-SSTables. Commitlog segments are truncated when Cassandra has written
-data older than a certain point to the SSTables. Running "nodetool
-drain" before stopping Cassandra will write everything in the memtables
-to SSTables and remove the need to sync with the commitlogs on startup.
+All mutations are write-optimized on storage in commit log segments, reducing the number of seeks needed to write to disk. 
+Commit log segments are limited by the xref:cassandra:managing/configuration/cass_yaml_file.adoc#commitlog_segment_size[`commitlog_segment_size`] option. 
+Once the defined size is reached, a new commit log segment is created. 
+Commit log segments can be archived, deleted, or recycled once all the data is flushed to
+(https://cassandra.apache.org/_/glossary.html#sstable)[SSTables].
+Commit log segments are truncated when {cassandra} has written data older than a certain point to the SSTables. 
+Running xref:managing:tools/nodetool/drain.adoc[`nodetool drain`] before stopping {cassandra} will write everything in the memtables
+to SSTables and remove the need to sync with the commit logs on startup.
 
-* `commitlog_segment_size`: The default size is 32MiB, which is
-almost always fine, but if you are archiving commitlog segments (see
-commitlog_archiving.properties), then you probably want a finer
-granularity of archiving; 8 or 16 MiB is reasonable.
-`commitlog_segment_size` also determines the default value of
-`max_mutation_size` in `cassandra.yaml`. By default,
-`max_mutation_size` is a half the size of `commitlog_segment_size`.
+* xref:cassandra:managing/configuration/cass_yaml_file.adoc#commitlog_segment_size [`commitlog_segment_size`]: The default size is 32MiB, which is almost always fine, but if you are archiving commitlog segments (see commitlog_archiving.properties), then you probably want a finer granularity of archiving; 8 or 16 MiB is reasonable.
+`commitlog_segment_size` also determines the default value of xref:cassandra:managing/configuration/cass_yaml_file.adoc#max_mutation_size[`max_mutation_size`] in `cassandra.yaml`. By default, `max_mutation_size` is a half the size of `commitlog_segment_size`.
 
 [NOTE]
 ====
-If `max_mutation_size` is set explicitly then
-`commitlog_segment_size` must be set to at least twice the size of
-`max_mutation_size`.
+If `max_mutation_size` is set explicitly then `commitlog_segment_size` must be set to at least twice the size of `max_mutation_size`.
 ====
 
-* `commitlog_sync`: may be either _periodic_ or _batch_.
-** `batch`: In batch mode, Cassandra won’t ack writes until the commit
-log has been fsynced to disk.
+* xref:cassandra:managing/configuration/cass_yaml_file.adoc#commitlog_sync[`commitlog_sync`]: may be either _periodic_ or _batch_.
+** `batch`: In batch mode, {cassandra} won't acknowledge writes until the commit log has been fsynced to disk.
 +
-** `periodic`: In periodic mode, writes are immediately ack'ed, and the
-CommitLog is simply synced every "commitlog_sync_period"
-milliseconds.
+** `periodic`: In periodic mode, writes are immediately acknowledged, and the commit log is simply synced every "commitlog_sync_period" milliseconds.
 +
 - `commitlog_sync_period`: Time to wait between "periodic" fsyncs
 _Default Value:_ 10000ms
@@ -49,22 +45,19 @@ _Default Value:_ batch
 
 [NOTE]
 ====
-In the event of an unexpected shutdown, Cassandra can lose up
-to the sync period or more if the sync is delayed. If using "batch"
-mode, it is recommended to store commitlogs in a separate, dedicated
-device.
+In the event of an unexpected shutdown, {cassandra} can lose up to the sync period or more if the sync is delayed. 
+If using `batch` mode, it is recommended to store commit logs in a separate, dedicated device.
 ====
 
-* `commitlog_directory`: This option is commented out by default. When
-running on magnetic HDD, this should be a separate spindle than the data
-directories. If not set, the default directory is
-`$CASSANDRA_HOME/data/commitlog`.
+* xref:cassandra:managing/configuration/cass_yaml_file.adoc#commitlog_directory[`commitlog_directory`]: This option is commented out by default. 
+When running on magnetic HDD, this should be a separate spindle than the data directories. 
+If not set, the default directory is `$CASSANDRA_HOME/data/commitlog`.
 
 _Default Value:_ `/var/lib/cassandra/commitlog`
 
-* `commitlog_compression`: Compression to apply to the commitlog. If
-omitted, the commit log will be written uncompressed. LZ4, Snappy,
-Deflate and Zstd compressors are supported.
+* xref:cassandra:managing/configuration/cass_yaml_file.adoc#commitlog_compression[`commitlog_compression`]: Compression to apply to the commitlog. 
+If omitted, the commit log will be written uncompressed. 
+LZ4, Snappy,Deflate and Zstd compressors are supported.
 
 _Default Value:_ (complex option):
 
@@ -74,81 +67,94 @@ _Default Value:_ (complex option):
 #     parameters:
 ----
 
-* `commitlog_total_space`: Total space to use for commit logs on
-disk.
-
-If space gets above this value, Cassandra will flush every dirty CF in
-the oldest segment and remove it. So a small total commitlog space will
-tend to cause more flush activity on less-active columnfamilies.
-
-The default value is the smallest between 8192 and 1/4 of the total
-space of the commitlog volume.
+* xref:cassandra:managing/configuration/cass_yaml_file.adoc#commitlog_total_space[`commitlog_total_space`]: Total space to use for commit logs on disk.
+This option is commented out by default.
+If space gets above this value, {cassandra} will flush every dirty table in the oldest segment and remove it. 
+So a small total commit log space will tend to cause more flush activity on less-active tables.
+The default value is the smallest between 8192 and 1/4 of the total space of the commitlog volume.
 
 _Default Value:_ 8192MiB
 
 == Memtables
 
-Memtables are in-memory structures where Cassandra buffers writes. In
-general, there is one active memtable per table. Eventually, memtables
-are flushed onto disk and become immutable link:#sstables[SSTables].
-This can be triggered in several ways:
+When a write occurs, {cassandra} also writes the data to a memtable.
+Memtables are in-memory structures where {cassandra} buffers writes.
+In general, there is one active memtable per table.
+The memtable is a write-back cache of data partitions that {cassandra} looks up by key. 
+Memtables may be stored entirely on-heap or partially off-heap, depending on xref:cassandra:managing/configuration/cass_yaml_file.adoc#memtable_allocation_type[`memtable_allocation_type`].
 
-* The memory usage of the memtables exceeds the configured threshold
-(see `memtable_cleanup_threshold`)
-* The `commit-log` approaches its maximum size, and forces memtable
-flushes in order to allow commitlog segments to be freed
+The memtable stores writes in sorted order until reaching a configurable limit.
+When the limit is reached, memtables are flushed onto disk and become immutable xref:#sstables[SSTables].
+Flushing can be triggered in several ways:
 
-Memtables may be stored entirely on-heap or partially off-heap,
-depending on `memtable_allocation_type`.
+* The memory usage of the memtables exceeds the configured threshold (see xref:cassandra:managing/configuration/cass_yaml_file.adoc#memtable_cleanup_threshold[`memtable_cleanup_threshold`])
+* The `commit log` approaches its maximum size, and forces memtable flushes in order to allow commit log segments to be freed.
+
+When a triggering event occurs, the memtable is put in a queue that is flushed to disk.
+Flushing writes the data to disk, in the memtable-sorted order. 
+A partition index is also created on the disk that maps the tokens to a location on disk.  
+
+The queue can be configured with either the xref:cassandra:managing/configuration/cass_yaml_file.adoc#memtable_heap_space[`memtable_heap_space`] or xref:cassandra:managing/configuration/cass_yaml_file.adoc#memtable_offheap_space[`memtable_offheap_space`] setting in the `cassandra.yaml` file. 
+If the data to be flushed exceeds the `memtable_cleanup_threshold`, {cassandra} blocks writes until the next flush succeeds. 
+You can manually flush a table using xref:managing:tools/nodetool/flush.adoc[`nodetool flush`] or `nodetool drain` (flushes memtables without listening for connections to other nodes). 
+To reduce the commit log replay time, the recommended best practice is to flush the memtable before you restart the nodes. 
+If a node stops working, replaying the commit log restores writes to the memtable that were there before it stopped.
+
+Data in the commit log is purged after its corresponding data in the memtable is flushed to an SSTable on disk.
 
 == SSTables
 
-SSTables are the immutable data files that Cassandra uses for persisting
-data on disk.
+https://cassandra.apache.org/_/glossary.html#sstable[SSTables] are the immutable data files that {cassandra} uses for persisting data on disk.
+SSTables are maintained per table.
+SSTables are immutable, and never written to again after the memtable is flushed. 
+Thus, a partition is typically stored across multiple SSTable files, as data is added or modified.
 
-As SSTables are flushed to disk from `memtables` or are streamed from
-other nodes, Cassandra triggers compactions which combine multiple
-SSTables into one. Once the new SSTable has been written, the old
-SSTables can be removed.
-
-Each SSTable is comprised of multiple components stored in separate
-files:
+Each SSTable is comprised of multiple components stored in separate files:
 
 `Data.db`::
-  The actual data, i.e. the contents of rows.
+The actual data, i.e. the contents of rows.
+`Partitions.db`:: 
+The partition index file maps unique prefixes of decorated partition keys to data file locations, or, in the case of wide partitions indexed in the row index file, to locations in the row index file.
+`Rows.db`::
+The row index file only contains entries for partitions that contain more than one row and are bigger than one index block. 
+For all such partitions, it stores a copy of the partition key, a partition header, and an index of row block separators, which map each row key into the first block where any content with equal or higher row key can be found.
 `Index.db`::
-  An index from partition keys to positions in the `Data.db` file. For
-  wide partitions, this may also include an index to rows within a
-  partition.
+An index from partition keys to positions in the `Data.db` file. 
+For wide partitions, this may also include an index to rows within a partition.
 `Summary.db`::
-  A sampling of (by default) every 128th entry in the `Index.db` file.
+A sampling of (by default) every 128th entry in the `Index.db` file.
 `Filter.db`::
-  A Bloom Filter of the partition keys in the SSTable.
+A Bloom Filter of the partition keys in the SSTable.
 `CompressionInfo.db`::
-  Metadata about the offsets and lengths of compression chunks in the
-  `Data.db` file.
+Metadata about the offsets and lengths of compression chunks in the `Data.db` file.
 `Statistics.db`::
-  Stores metadata about the SSTable, including information about
-  timestamps, tombstones, clustering keys, compaction, repair,
-  compression, TTLs, and more.
+Stores metadata about the SSTable, including information about timestamps, tombstones, clustering keys, compaction, repair, compression, TTLs, and more.
 `Digest.crc32`::
-  A CRC-32 digest of the `Data.db` file.
+A CRC-32 digest of the `Data.db` file.
 `TOC.txt`::
-  A plain text list of the component files for the SSTable.
+A plain text list of the component files for the SSTable.
+`SAI*.db`::
+Index information for Storage-Attached indexes.
+Only present if SAI is enabled for the table.
 
-Within the `Data.db` file, rows are organized by partition. These
-partitions are sorted in token order (i.e. by a hash of the partition
-key when the default partitioner, `Murmur3Partition`, is used). Within a
-partition, rows are stored in the order of their clustering keys.
+[NOTE]
+====
+Note that the `Index.db` file type is replaced by `Partitions.db` and `Rows.db`.
+This change is a consequence of the inclusion of Big Trie indexes in Cassandra (https://cwiki.apache.org/confluence/display/CASSANDRA/CEP-25%3A+Trie-indexed+SSTable+format[CEP-25]).
+====
+
+Within the `Data.db` file, rows are organized by partition. 
+These partitions are sorted in token order (i.e. by a hash of the partition key when the default partitioner, `Murmur3Partition`, is used). 
+Within a partition, rows are stored in the order of their clustering keys.
 
 SSTables can be optionally compressed using block-based compression.
 
+As SSTables are flushed to disk from `memtables` or are streamed from other nodes, {cassandra} triggers compactions which combine multiple SSTables into one. 
+Once the new SSTable has been written, the old SSTables can be removed.
+
 == SSTable Versions
 
-This section was created using the following
-https://gist.github.com/shyamsalimkumar/49a61e5bc6f403d20c55[gist] which
-utilized this original
-http://www.bajb.net/2013/03/cassandra-sstable-format-version-numbers/[source].
+From (https://github.com/apache/cassandra/blob/cassandra-5.0/src/java/org/apache/cassandra/io/sstable/format/big/BigFormat.java#L338)[BigFormat#BigVersion].
 
 The version numbers, to date are:
 
@@ -208,6 +214,37 @@ persisted
 ** store rows natively
 * mb (3.0.7, 3.7): commit log lower bound included
 * mc (3.0.8, 3.9): commit log intervals included
+* md (3.0.18, 3.11.4): corrected sstable min/max clustering
+* me (3.0.25, 3.11.11): added hostId of the node from which the sstable originated
+
+=== Version 4
+
+* na (4.0-rc1): uncompressed chunks, pending repair session, isTransient, checksummed sstable metadata file, new Bloomfilter format
+* nb (4.0.0): originating host id
+
+=== Version 5
+
+* oa (5.0): improved min/max, partition level deletion presence marker, key range (CASSANDRA-18134)
+** Long deletionTime to prevent TTL overflow
+** token space coverage
+
+== Trie-indexed Based SSTable Versions (BTI)
+
+Cassandra 5.0 introduced new SSTable formats BTI for Trie-indexed SSTables.
+To use the BTI formats configure it `cassandra.yaml` like
+
+```
+sstable:
+  selected_format: bti
+```
+
+Versions come from (https://github.com/apache/cassandra/blob/cassandra-5.0/src/java/org/apache/cassandra/io/sstable/format/bti/BtiFormat.java#L287)[BtiFormat#BtiVersion].
+
+For implementation docs see (https://github.com/apache/cassandra/blob/cassandra-5.0/src/java/org/apache/cassandra/io/sstable/format/bti/BtiFormat.md)[BtiFormat.md].
+
+=== Version 5
+
+* da (5.0): initial version of the BIT format
 
 === Example Code
 
