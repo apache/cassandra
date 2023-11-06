@@ -95,7 +95,7 @@ public class StartupClusterConnectivityChecker
         if (isUpgradingFromLowerVersionThan.test(CassandraVersion.CASSANDRA_4_0))
         {
             logger.debug("Skipping startup connectivity check as some nodes may be running Cassandra version 3 or older " +
-                        "which does not support connectivity checking.");
+                         "which does not support connectivity checking.");
             return true;
         }
 
