@@ -121,7 +121,8 @@ public class MultiColumnRelation extends Relation
 
     /**
      * Creates a multi-column NOT IN relation with a marker for the NOT IN values.
-     * For example: "SELECT ... WHERE (a, b) NOT IN ?"
+     * For example: {@code SELECT ... WHERE (a, b) NOT IN ?}
+     *
      * @param entities the columns on the LHS of the relation
      * @param inMarker a single IN marker
      * @return a new <code>MultiColumnRelation</code> instance
