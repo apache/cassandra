@@ -225,7 +225,7 @@ public class MultiClusteringBuilder
     }
 
     /**
-     * Creates a new empty {@code MultiCBuilder}.
+     * Creates a new empty {@code MultiClusteringBuilder}.
      */
     public static MultiClusteringBuilder create(ClusteringComparator comparator)
     {
