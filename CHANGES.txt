@@ -1,4 +1,4 @@
-5.0-alpha3
+5.0-beta1
  * Upgrade Python driver to 3.28.0 (CASSANDRA-18960)
  * Add retries to IR messages (CASSANDRA-18962)
  * Add metrics and logging to repair retries (CASSANDRA-18952)
