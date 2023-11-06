@@ -33,7 +33,7 @@ import static junit.framework.Assert.assertTrue;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
 
 @SuppressWarnings("deprecation")
-public class LegacySchemaMigratorTest extends LegacySchemaMigratorBaseTest
+public class LegacySchemaMigratorTest extends LegacySchemaMigratorBase
 {
     /*
      * 1. Write a variety of different keyspaces/tables/types/function in the legacy manner, using legacy schema tables
@@ -47,7 +47,7 @@ public class LegacySchemaMigratorTest extends LegacySchemaMigratorBaseTest
     {
         CQLTester.cleanupAndLeaveDirs();
 
-        Keyspaces expected = LegacySchemaMigratorBaseTest.keyspacesToMigrate();
+        Keyspaces expected = LegacySchemaMigratorBase.keyspacesToMigrate();
 
         // write the keyspaces into the legacy tables
         expected.forEach(this::legacySerializeKeyspace);
@@ -59,7 +59,7 @@ public class LegacySchemaMigratorTest extends LegacySchemaMigratorBaseTest
         Keyspaces actual = SchemaKeyspace.fetchNonSystemKeyspaces();
 
         // need to load back CFMetaData of those tables (CFS instances will still be loaded)
-        LegacySchemaMigratorBaseTest.loadLegacySchemaTables();
+        LegacySchemaMigratorBase.loadLegacySchemaTables();
 
         // verify that nothing's left in the old schema tables
         for (CFMetaData table : LegacySchemaMigrator.LegacySchemaTables)
@@ -75,7 +75,7 @@ public class LegacySchemaMigratorTest extends LegacySchemaMigratorBaseTest
         // check that the build status of all indexes has been updated to use the new
         // format of index name: the index_name column of system.IndexInfo used to
         // contain table_name.index_name. Now it should contain just the index_name.
-        expected.forEach(LegacySchemaMigratorBaseTest::verifyIndexBuildStatus);
+        expected.forEach(LegacySchemaMigratorBase::verifyIndexBuildStatus);
     }
 
     @Test

@@ -22,7 +22,6 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
-import org.apache.cassandra.exceptions.ConfigurationException;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CFMetaData;
@@ -39,12 +38,11 @@ import org.apache.cassandra.utils.*;
 import static java.lang.String.format;
 import static junit.framework.Assert.assertFalse;
 import static junit.framework.Assert.assertTrue;
-import static org.apache.cassandra.SchemaLoader.getCompressionParameters;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.apache.cassandra.utils.FBUtilities.json;
 
 @SuppressWarnings("deprecation")
-public abstract class LegacySchemaMigratorBaseTest
+public abstract class LegacySchemaMigratorBase
 {
     private static final long TIMESTAMP = 1435908994000000L;
 
@@ -730,7 +728,7 @@ public abstract class LegacySchemaMigratorBaseTest
 
     private static void setLegacyIndexStatus(KeyspaceMetadata keyspace)
     {
-        keyspace.tables.forEach(LegacySchemaMigratorBaseTest::setLegacyIndexStatus);
+        keyspace.tables.forEach(LegacySchemaMigratorBase::setLegacyIndexStatus);
     }
 
     private static void setLegacyIndexStatus(CFMetaData table)
@@ -745,7 +743,7 @@ public abstract class LegacySchemaMigratorBaseTest
 
     public static void verifyIndexBuildStatus(KeyspaceMetadata keyspace)
     {
-        keyspace.tables.forEach(LegacySchemaMigratorBaseTest::verifyIndexBuildStatus);
+        keyspace.tables.forEach(LegacySchemaMigratorBase::verifyIndexBuildStatus);
     }
 
     private static void verifyIndexBuildStatus(CFMetaData table)

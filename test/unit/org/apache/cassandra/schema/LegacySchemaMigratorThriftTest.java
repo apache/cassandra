@@ -33,7 +33,7 @@ import static org.apache.cassandra.SchemaLoader.getCompressionParameters;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
 
 @SuppressWarnings("deprecation")
-public class LegacySchemaMigratorThriftTest extends LegacySchemaMigratorBaseTest
+public class LegacySchemaMigratorThriftTest extends LegacySchemaMigratorBase
 {
     private static final String KEYSPACE_18956 = "ks18956";
     private static final String TABLE_18956 = "table18956";
@@ -46,7 +46,7 @@ public class LegacySchemaMigratorThriftTest extends LegacySchemaMigratorBaseTest
         expected.forEach(this::legacySerializeKeyspace);
         LegacySchemaMigrator.migrate();
         Schema.instance.loadFromDisk();
-        LegacySchemaMigratorBaseTest.loadLegacySchemaTables();
+        LegacySchemaMigratorBase.loadLegacySchemaTables();
         try
         {
             // This should fail
