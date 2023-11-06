@@ -4,6 +4,8 @@
 The xref:cassandra:getting-started/sai-quickstart.adoc[SAI quickstart] focuses only on defining multiple indexes based on non-primary key columns (a very useful feature).
 Let's explore other options using some examples of how you can run queries on tables that have differently defined SAI indexes.
 
+include::developing:partial$sai/sai-only-select.adoc[]
+
 // IS THERE AN EXAMPLE OF 
 // WITH OPTIONS = {'case_sensitive': false, 'normalize': true };
 // case_sensitive	Ignore case in matching string values.
