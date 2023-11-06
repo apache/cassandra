@@ -1,0 +1,5 @@
+[IMPORTANT]
+====
+The Unified Compaction Strategy (UCS) is the recommended compaction strategy for most workloads starting with {cass-50}.
+If you are creating new tables, use this strategy.
+====
