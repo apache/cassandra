@@ -40,8 +40,6 @@ import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.FBUtilities;
 
-import static org.mockito.Mockito.mock;
-
 public class StartupClusterConnectivityCheckerTest
 {
     private StartupClusterConnectivityChecker localQuorumConnectivityChecker;
@@ -70,14 +68,17 @@ public class StartupClusterConnectivityCheckerTest
         return null;
     }
 
-    private static class MockIsUpgradingFromVersionLowerThan implements Predicate<CassandraVersion> {
+    private static class MockIsUpgradingFromVersionLowerThan implements Predicate<CassandraVersion>
+    {
         CassandraVersion clusterVersion;
-        MockIsUpgradingFromVersionLowerThan(CassandraVersion clusterVersion) {
+        MockIsUpgradingFromVersionLowerThan(CassandraVersion clusterVersion)
+        {
             this.clusterVersion = clusterVersion;
         }
         @Override
-        public boolean test(CassandraVersion other) {
-            return this.clusterVersion.compareTo(other) < 0;
+        public boolean test(CassandraVersion other)
+        {
+            return clusterVersion.compareTo(other) < 0;
         }
     }
 
