@@ -75,6 +75,7 @@ public class Operation
         for (final RowFilter.Expression e : expressions)
         {
             IndexContext indexContext = controller.getContext(e);
+
             List<Expression> perColumn = analyzed.get(e.column());
 
             AbstractAnalyzer analyzer = indexContext.getAnalyzerFactory().create();
@@ -111,7 +112,7 @@ public class Operation
                 else
                 // "range" or not-equals operator, combines both bounds together into the single expression,
                 // if operation of the group is AND, otherwise we are forced to create separate expressions,
-                // not-equals is combined with the range iff operator is AND.
+                // not-equals is combined with the range if operator is AND.
                 {
                     Expression range;
                     if (perColumn.size() == 0 || booleanOperator != BooleanOperator.AND)
