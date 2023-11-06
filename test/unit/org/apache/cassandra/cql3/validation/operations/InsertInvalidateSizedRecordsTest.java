@@ -80,7 +80,7 @@ public class InsertInvalidateSizedRecordsTest extends CQLTester
                   .hasRootCauseMessage("Key length of " + (MEDIUM_BLOB.remaining() + LARGE_BLOB.remaining()) + " is longer than maximum of 65535");
 
         // null / empty checks
-        // this is an inconsistent behavior... null is blocked by org.apache.cassandra.db.MultiCBuilder.OneClusteringBuilder.addElementToAll
+        // this is an inconsistent behavior... null is blocked by org.apache.cassandra.db.MultiClusteringBuilder.OneClusteringBuilder.addElementToAll
         // but this does not count empty as null, and doesn't check for this case...  We have a requirement in cqlsh that empty is allowed when
         // user opts-in to allow it (NULL='-'), so we will find that null is blocked, but empty is allowed!
         Assertions.assertThatThrownBy(() -> executeNet("INSERT INTO %s (a, b) VALUES (?, ?)", new Object[] {null, null}))
@@ -116,7 +116,7 @@ public class InsertInvalidateSizedRecordsTest extends CQLTester
                   .hasRootCauseInstanceOf(InvalidQueryException.class)
                   .hasRootCauseMessage("Invalid null value in condition for column b");
 
-        // org.apache.cassandra.db.MultiCBuilder.OneClusteringBuilder.addElementToAll defines "null" differently than most of the code;
+        // org.apache.cassandra.db.MultiClusteringBuilder.OneClusteringBuilder.addElementToAll defines "null" differently than most of the code;
         // most of the code defines null as:
         //   value == null || accessor.isEmpty(value)
         // but the code defines null as

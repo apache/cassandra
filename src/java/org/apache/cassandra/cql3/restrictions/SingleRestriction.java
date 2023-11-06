@@ -104,19 +104,19 @@ public interface SingleRestriction extends Restriction
     /**
      * Appends the values of this <code>SingleRestriction</code> to the specified builder.
      *
-     * @param builder the <code>MultiCBuilder</code> to append to.
+     * @param builder the {@link MultiClusteringBuilder} to append to.
      * @param options the query options
-     * @return the <code>MultiCBuilder</code>
+     * @return the {@link MultiClusteringBuilder}
      */
     public MultiClusteringBuilder appendTo(MultiClusteringBuilder builder, QueryOptions options);
 
     /**
      * Appends the values of the <code>SingleRestriction</code> for the specified bound to the specified builder.
      *
-     * @param builder the <code>MultiCBuilder</code> to append to.
+     * @param builder the {@link MultiClusteringBuilder} to append to.
      * @param bound the bound
      * @param options the query options
-     * @return the <code>MultiCBuilder</code>
+     * @return the {@link MultiClusteringBuilder}
      */
     public default MultiClusteringBuilder appendBoundTo(MultiClusteringBuilder builder, Bound bound, QueryOptions options)
     {
