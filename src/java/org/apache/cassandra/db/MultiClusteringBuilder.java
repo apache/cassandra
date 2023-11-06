@@ -84,7 +84,7 @@ import org.apache.cassandra.utils.btree.BTreeSet;
  * </pre>
  *
  * Finally, we add the slice of column {@code c} by specifying the lower and upper bound
- * (we use {@code TOP} for the upper bound), and we get the final set of clustering bounds:
+ * (we use {@link ClusteringElements#TOP} for the upper bound), and we get the final set of clustering bounds:
  * <pre>
  * excl start: (a1, b1, c1)
  * incl end:   (a1, b1)
