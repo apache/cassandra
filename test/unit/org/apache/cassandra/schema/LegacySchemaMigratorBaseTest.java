@@ -489,13 +489,13 @@ public abstract class LegacySchemaMigratorBaseTest
      * Serializing keyspaces
      */
 
-    public static void legacySerializeKeyspace(KeyspaceMetadata keyspace)
+    public void legacySerializeKeyspace(KeyspaceMetadata keyspace)
     {
         makeLegacyCreateKeyspaceMutation(keyspace, TIMESTAMP).apply();
         setLegacyIndexStatus(keyspace);
     }
 
-    private static Mutation makeLegacyCreateKeyspaceMutation(KeyspaceMetadata keyspace, long timestamp)
+    public Mutation makeLegacyCreateKeyspaceMutation(KeyspaceMetadata keyspace, long timestamp)
     {
         // Note that because Keyspaces is a COMPACT TABLE, we're really only setting static columns internally and shouldn't set any clustering.
         RowUpdateBuilder adder = new RowUpdateBuilder(SystemKeyspace.LegacyKeyspaces, timestamp, keyspace.name);
@@ -518,7 +518,7 @@ public abstract class LegacySchemaMigratorBaseTest
      * Serializing tables
      */
 
-    private static void addTableToSchemaMutation(CFMetaData table, long timestamp, boolean withColumnsAndTriggers, Mutation mutation)
+    public void addTableToSchemaMutation(CFMetaData table, long timestamp, boolean withColumnsAndTriggers, Mutation mutation)
     {
         // For property that can be null (and can be changed), we insert tombstones, to make sure
         // we don't keep a property the user has removed
@@ -586,7 +586,7 @@ public abstract class LegacySchemaMigratorBaseTest
                 caching.rowsPerPartitionAsString());
     }
 
-    private static void addColumnToSchemaMutation(CFMetaData table, ColumnDefinition column, long timestamp, Mutation mutation)
+    public void addColumnToSchemaMutation(CFMetaData table, ColumnDefinition column, long timestamp, Mutation mutation)
     {
         // We need to special case pk-only dense tables. See CASSANDRA-9874.
         String name = table.isDense() && column.kind == ColumnDefinition.Kind.REGULAR && column.type instanceof EmptyType
@@ -594,16 +594,9 @@ public abstract class LegacySchemaMigratorBaseTest
                 : column.name.toString();
 
         final RowUpdateBuilder adder = new RowUpdateBuilder(SystemKeyspace.LegacyColumns, timestamp, mutation).clustering(table.cfName, name);
-
-        if (table.cfName.equals(LegacySchemaMigratorThriftTest.TABLE_18956)) {
-            adder.add("validator", column.type.toString())
-                    .add("type", serializeKind18956(column.kind))
-                    .add("component_index", column.position());
-        } else {
-            adder.add("validator", column.type.toString())
-                    .add("type", serializeKind(column.kind, table.isDense()))
-                    .add("component_index", column.position());
-        }
+        adder.add("validator", column.type.toString())
+                .add("type", serializeKind(column.kind, table.isDense()))
+                .add("component_index", column.position());
         Optional<IndexMetadata> index = findIndexForColumn(table.getIndexes(), table, column);
         if (index.isPresent())
         {
@@ -636,26 +629,8 @@ public abstract class LegacySchemaMigratorBaseTest
         return Optional.empty();
     }
 
-    private static String serializeKind(ColumnDefinition.Kind kind, boolean isDense)
-    {
-        // For backward compatibility, we special case CLUSTERING and the case where the table is dense.
-        if (kind == ColumnDefinition.Kind.CLUSTERING)
-            return "clustering_key";
+    public abstract String serializeKind(ColumnDefinition.Kind kind, boolean isDense);
 
-        if (kind == ColumnDefinition.Kind.REGULAR && isDense)
-            return "compact_value";
-
-        return kind.toString().toLowerCase();
-    }
-
-    private static String serializeKind18956(ColumnDefinition.Kind kind)
-    {
-        // Using cassandra-cli, it's possible to create legacy without compact_value
-        if (kind == ColumnDefinition.Kind.CLUSTERING)
-            return "clustering_key";
-
-        return kind.toString().toLowerCase();
-    }
 
     private static void addTriggerToSchemaMutation(CFMetaData table, TriggerMetadata trigger, long timestamp, Mutation mutation)
     {

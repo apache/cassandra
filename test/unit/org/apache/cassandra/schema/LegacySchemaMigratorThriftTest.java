@@ -20,6 +20,7 @@ package org.apache.cassandra.schema;
 import java.io.IOException;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.junit.Test;
@@ -34,15 +35,15 @@ import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
 @SuppressWarnings("deprecation")
 public class LegacySchemaMigratorThriftTest extends LegacySchemaMigratorBaseTest
 {
-    public static final String KEYSPACE_18956 = "ks18956";
-    public static final String TABLE_18956 = "table18956";
+    private static final String KEYSPACE_18956 = "ks18956";
+    private static final String TABLE_18956 = "table18956";
 
     @Test
     public void testMigrate18956() throws IOException
     {
         CQLTester.cleanupAndLeaveDirs();
         Keyspaces expected = keyspacesToMigrate18956();
-        expected.forEach(LegacySchemaMigratorBaseTest::legacySerializeKeyspace);
+        expected.forEach(this::legacySerializeKeyspace);
         LegacySchemaMigrator.migrate();
         Schema.instance.loadFromDisk();
         LegacySchemaMigratorBaseTest.loadLegacySchemaTables();
@@ -78,6 +79,16 @@ public class LegacySchemaMigratorThriftTest extends LegacySchemaMigratorBaseTest
                 .build();
 
         return cfm.compression(getCompressionParameters());
+    }
+
+    @Override
+    public String serializeKind(ColumnDefinition.Kind kind, boolean isDense)
+    {
+        // Using cassandra-cli, it's possible to create legacy without compact_value
+        if (kind == ColumnDefinition.Kind.CLUSTERING)
+            return "clustering_key";
+
+        return kind.toString().toLowerCase();
     }
 
 }

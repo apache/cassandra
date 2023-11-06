@@ -19,6 +19,7 @@ package org.apache.cassandra.schema;
 
 import java.io.IOException;
 
+import org.apache.cassandra.config.ColumnDefinition;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -32,7 +33,7 @@ import static junit.framework.Assert.assertTrue;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
 
 @SuppressWarnings("deprecation")
-public class LegacySchemaMigratorTest
+public class LegacySchemaMigratorTest extends LegacySchemaMigratorBaseTest
 {
     /*
      * 1. Write a variety of different keyspaces/tables/types/function in the legacy manner, using legacy schema tables
@@ -49,7 +50,7 @@ public class LegacySchemaMigratorTest
         Keyspaces expected = LegacySchemaMigratorBaseTest.keyspacesToMigrate();
 
         // write the keyspaces into the legacy tables
-        expected.forEach(LegacySchemaMigratorBaseTest::legacySerializeKeyspace);
+        expected.forEach(this::legacySerializeKeyspace);
 
         // run the migration
         LegacySchemaMigrator.migrate();
@@ -100,6 +101,19 @@ public class LegacySchemaMigratorTest
             // Expected passing path
             assertTrue(true);
         }
+    }
+
+    @Override
+    public String serializeKind(ColumnDefinition.Kind kind, boolean isDense)
+    {
+        // For backward compatibility, we special case CLUSTERING and the case where the table is dense.
+        if (kind == ColumnDefinition.Kind.CLUSTERING)
+            return "clustering_key";
+
+        if (kind == ColumnDefinition.Kind.REGULAR && isDense)
+            return "compact_value";
+
+        return kind.toString().toLowerCase();
     }
 
 }
