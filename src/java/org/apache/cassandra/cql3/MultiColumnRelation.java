@@ -98,7 +98,8 @@ public class MultiColumnRelation extends Relation
 
     /**
      * Creates a multi-column NOT IN relation with a list of NOT IN values or markers.
-     * For example: "SELECT ... WHERE (a, b) NOT IN ((0, 1), (2, 3))"
+     * For example: {code SELECT ... WHERE (a, b) NOT IN ((0, 1), (2, 3))}
+     *
      * @param entities the columns on the LHS of the relation
      * @param inValues a list of Tuples.Literal instances or a Tuples.Raw markers
      * @return a new <code>MultiColumnRelation</code> instance
