@@ -392,9 +392,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         @Override
         protected boolean isSupportedBy(Index index)
         {
-            boolean supportsSlice = slice.isSupportedBy(columnDef, index);
-            boolean supportsNeq = index.supportsExpression(columnDef, Operator.NEQ);
-            return  supportsSlice || !skippedValues.isEmpty() && supportsNeq;
+            return slice.isSupportedBy(columnDef, index);
         }
 
         @Override

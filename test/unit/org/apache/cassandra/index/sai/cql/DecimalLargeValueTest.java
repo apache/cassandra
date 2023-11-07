@@ -98,13 +98,6 @@ public class DecimalLargeValueTest extends SAITester
         assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE dec >= 1.0"),
                 row(0, 1, BigDecimal.valueOf(1.0D)),
                 row(2, 0, wideDecimal));
-
-        // NEQ queries
-        assertRows(execute("SELECT * FROM %s WHERE dec != 1.0"),
-                row(2, 0, wideDecimal));
-
-        assertRows(execute("SELECT * FROM %s WHERE dec != " + wideDecimalString),
-                row(0, 1, BigDecimal.valueOf(1.0D)));
     }
     /**
      * This is a control method with small (two-significant-digit) values.
@@ -152,14 +145,6 @@ public class DecimalLargeValueTest extends SAITester
                 row(-2, 2, BigDecimal.valueOf(2.2D)),
                 row(-1, 1, BigDecimal.valueOf(1.1D)),
                 row(1, 1, BigDecimal.valueOf(1.1D)),
-                row(2, 1, BigDecimal.valueOf(2.2D)),
-                row(2, 2, BigDecimal.valueOf(2.2D)));
-
-        // NEQ queries
-        assertRowsIgnoringOrder(execute("SELECT * FROM %s WHERE dec != 1.1"),
-                row(-2, 1, BigDecimal.valueOf(2.2D)),
-                row(-2, 2, BigDecimal.valueOf(2.2D)),
-                row(0, 1, BigDecimal.valueOf(0)),
                 row(2, 1, BigDecimal.valueOf(2.2D)),
                 row(2, 2, BigDecimal.valueOf(2.2D)));
     }
