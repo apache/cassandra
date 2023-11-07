@@ -87,6 +87,7 @@ public class CoordinatorSession extends ConsistentSession
     public static class Builder extends AbstractBuilder
     {
         Consumer<CoordinatorSession> listener;
+
         public void withListener(Consumer<CoordinatorSession> listener)
         {
             this.listener = listener;
