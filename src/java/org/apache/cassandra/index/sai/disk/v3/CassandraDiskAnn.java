@@ -135,6 +135,11 @@ public class CassandraDiskAnn implements JVectorLuceneOnDiskGraph, AutoCloseable
         return annRowIdsToPostings(result, limit);
     }
 
+    public CompressedVectors getCompressedVectors()
+    {
+        return compressedVectors;
+    }
+
     private class RowIdIterator implements PrimitiveIterator.OfInt, AutoCloseable
     {
         private final Iterator<NodeScore> it;
