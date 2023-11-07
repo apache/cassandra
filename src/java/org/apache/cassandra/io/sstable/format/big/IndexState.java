@@ -66,7 +66,6 @@ public class IndexState implements AutoCloseable
         {
             reader.seekToPosition(columnOffset(blockIdx));
             mark = reader.file.mark();
-            reader.deserializer.clearState();
         }
 
         currentIndexIdx = blockIdx;
@@ -114,9 +113,9 @@ public class IndexState implements AutoCloseable
             }
             else
             {
-                reader.seekToPosition(startOfBlock);
+                reader.file.seek(startOfBlock);
                 mark = reader.file.mark();
-                reader.seekToPosition(currentFilePointer);
+                reader.file.seek(currentFilePointer);
             }
         }
     }

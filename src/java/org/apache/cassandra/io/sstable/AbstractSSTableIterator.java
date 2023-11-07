@@ -340,6 +340,15 @@ public abstract class AbstractSSTableIterator<RIE extends AbstractRowIndexEntry>
             deserializer = UnfilteredDeserializer.create(metadata, file, sstable.header, helper);
         }
 
+        /**
+         * Seek to the given position in the file. Initializes the file reader along with a deserializer if they are
+         * not initialized yet. Otherwise, the deserializer is reset by calling its {@link UnfilteredDeserializer#clearState()}
+         * method.
+         * <p/>
+         * Note that the only valid usage of this method is to seek to the beginning of the serialized record so that
+         * the deserializer can read the next unfiltered from that position. Setting an arbitrary position will lead
+         * to unexpected results and/or corrupted reads.
+         */
         public void seekToPosition(long position) throws IOException
         {
             // This may be the first time we're actually looking into the file
