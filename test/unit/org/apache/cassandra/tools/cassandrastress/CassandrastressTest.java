@@ -70,6 +70,8 @@ public class CassandrastressTest extends CQLTester
 
         String hostNameAndPort = String.format("localhost:%s", nativePort);
         invokeAndAssertCleanExit(baseArgs, "-node", hostNameAndPort);
+
+        invokeAndAssertCleanExit(baseArgs, "-mode", "simplenative", "prepared");
     }
 
     void invokeAndAssertCleanExit(String[] baseArgs, String ... extraArgs)
