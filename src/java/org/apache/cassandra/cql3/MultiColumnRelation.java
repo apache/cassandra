@@ -103,7 +103,8 @@ public class MultiColumnRelation extends Relation
      * @param entities the columns on the LHS of the relation
      * @param inValues a list of Tuples.Literal instances or a Tuples.Raw markers
      * @return a new <code>MultiColumnRelation</code> instance
-     */public static MultiColumnRelation createNotInRelation(List<ColumnIdentifier> entities, List<? extends Term.MultiColumnRaw> inValues)
+     */
+     public static MultiColumnRelation createNotInRelation(List<ColumnIdentifier> entities, List<? extends Term.MultiColumnRaw> inValues)
     {
         return new MultiColumnRelation(entities, Operator.NOT_IN, null, inValues, null);
     }
