@@ -287,7 +287,7 @@ public class RateLimiterTest extends TestBaseImpl
         }
 
         @SuppressWarnings("unused")
-        public static boolean throttleUserTraffic(String keyspaceName, boolean reads,
+        public static boolean throttleUserTraffic(String keyspaceName, boolean reads, boolean replicationTraffic,
                                                   @SuperCall Callable<Boolean> zuper) throws Exception
 
         {

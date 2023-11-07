@@ -3402,7 +3402,8 @@ public class StorageProxy implements StorageProxyMBean
         {
             if (failureReasonEndpoint.getValue() == RequestFailureReason.TRAFFIC_THROTTLED)
             {
-                return CassandraResourceUtilization.buildOverloadeExceptionDuetoRateLimiter();
+                String failedEndpointIp = failureReasonEndpoint.getKey().getHostAddress(false);
+                return CassandraResourceUtilization.buildOverloadeExceptionDuetoRateLimiter(failedEndpointIp);
             }
         }
         return null;

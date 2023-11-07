@@ -31,7 +31,8 @@ public class RateLimiterService implements RateLimiterServiceMBean {
     {
     }
 
-    static {
+    static
+    {
         MBeanWrapper.instance.registerMBean(instance, MBEAN_NAME);
     }
 

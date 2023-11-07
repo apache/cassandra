@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.service.throttler.dynamic;
 
+import java.net.InetAddress;
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
 import java.util.concurrent.ConcurrentHashMap;
@@ -466,7 +467,12 @@ public class CassandraResourceUtilization
 
     public static OverloadedException buildOverloadeExceptionDuetoRateLimiter()
     {
-        return new OverloadedException(String.format(THROW_MESSAGE + ": %s", FBUtilities.getJustLocalAddress().getHostAddress()));
+        return buildOverloadeExceptionDuetoRateLimiter(FBUtilities.getJustLocalAddress().getHostAddress());
+    }
+
+    public static OverloadedException buildOverloadeExceptionDuetoRateLimiter(String ip)
+    {
+        return new OverloadedException(String.format(THROW_MESSAGE + ": %s", ip));
     }
 
     public static boolean isExceptionDuetoRateLimiter(OverloadedException e)
