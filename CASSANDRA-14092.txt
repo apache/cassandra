@@ -4,7 +4,7 @@ CASSANDRA-14092: MAXIMUM TTL EXPIRATION DATE
 The maximum expiration timestamp that can be represented by the storage engine has been raised to
 2106-02-07T06:28:13+00:00 from the previous 2038-01-19T03:14:06+00:00, which means that INSERTS using 
 TTL that would expire after this date are not currently supported. Notice that on previous versions <5.0 
-or when 5.0 is ran in compatibility mode (<="nc" sstable formats) the limit stays at at 2038-01-19T03:14:06+00:00.
+or when 5.0 is ran in compatibility mode (<="oa" sstable formats) the limit stays at at 2038-01-19T03:14:06+00:00.
 
 There is a new yaml property storage_compatibility_mode that determines the
 Cassandra major version we want to stay compatible with. Its default is CASSANDRA_4, which means that

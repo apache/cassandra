@@ -74,14 +74,14 @@ public abstract class Version
     public abstract boolean hasOldBfFormat();
 
     /**
-     * @deprecated it is replaced by {@link #hasImprovedMinMax()} since 'nc' and to be completetly removed since 'oa'
+     * @deprecated it is replaced by {@link #hasImprovedMinMax()} since 'oa' and to be completetly removed after 'oa'
      */
     /** @deprecated See CASSANDRA-18134 */
     @Deprecated(since = "5.0")
     public abstract boolean hasAccurateMinMax();
 
     /**
-     * @deprecated it is replaced by {@link #hasImprovedMinMax()} since 'nc' and to be completetly removed since 'oa'
+     * @deprecated it is replaced by {@link #hasImprovedMinMax()} since 'oa' and to be completetly removed after 'oa'
      */
     /** @deprecated See CASSANDRA-18134 */
     @Deprecated(since = "5.0")

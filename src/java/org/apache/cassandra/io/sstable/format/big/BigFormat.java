@@ -337,7 +337,7 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
 
     static class BigVersion extends Version
     {
-        public static final String current_version = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? "nc" : "oa";
+        public static final String current_version = DatabaseDescriptor.getStorageCompatibilityMode().isBefore(5) ? "nb" : "oa";
         public static final String earliest_supported_version = "ma";
 
         // ma (3.0.0): swap bf hash order
@@ -349,8 +349,8 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
 
         // na (4.0-rc1): uncompressed chunks, pending repair session, isTransient, checksummed sstable metadata file, new Bloomfilter format
         // nb (4.0.0): originating host id
-        // nc (5.0): improved min/max, partition level deletion presence marker, key range (CASSANDRA-18134)
-        // oa (5.0): Long deletionTime to prevent TTL overflow
+        // oa (5.0): improved min/max, partition level deletion presence marker, key range (CASSANDRA-18134)
+        //           Long deletionTime to prevent TTL overflow
         //           token space coverage
         //
         // NOTE: When adding a new version:
@@ -389,8 +389,8 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
 
             hasCommitLogLowerBound = version.compareTo("mb") >= 0;
             hasCommitLogIntervals = version.compareTo("mc") >= 0;
-            hasAccurateMinMax = version.matches("(m[d-z])|(n[a-z])"); // deprecated in 'nc' and to be removed in 'oa'
-            hasLegacyMinMax = version.matches("(m[a-z])|(n[a-z])"); // deprecated in 'nc' and to be removed in 'oa'
+            hasAccurateMinMax = version.matches("(m[d-z])|(n[a-z])"); // deprecated in 'oa' and to be removed after 'oa'
+            hasLegacyMinMax = version.matches("(m[a-z])|(n[a-z])"); // deprecated in 'oa' and to be removed after 'oa'
             // When adding a new version you might need to add it here
             hasOriginatingHostId = version.compareTo("nb") >= 0 || version.matches("(m[e-z])");
             hasMaxCompressedLength = version.compareTo("na") >= 0;
@@ -398,9 +398,9 @@ public class BigFormat extends AbstractSSTableFormat<BigTableReader, BigTableWri
             hasIsTransient = version.compareTo("na") >= 0;
             hasMetadataChecksum = version.compareTo("na") >= 0;
             hasOldBfFormat = version.compareTo("na") < 0;
-            hasImprovedMinMax = version.compareTo("nc") >= 0;
-            hasPartitionLevelDeletionPresenceMarker = version.compareTo("nc") >= 0;
-            hasKeyRange = version.compareTo("nc") >= 0;
+            hasImprovedMinMax = version.compareTo("oa") >= 0;
+            hasPartitionLevelDeletionPresenceMarker = version.compareTo("oa") >= 0;
+            hasKeyRange = version.compareTo("oa") >= 0;
             hasUintDeletionTime = version.compareTo("oa") >= 0;
             hasTokenSpaceCoverage = version.compareTo("oa") >= 0;
         }
