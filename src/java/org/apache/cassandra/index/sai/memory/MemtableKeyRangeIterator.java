@@ -91,7 +91,7 @@ public class MemtableKeyRangeIterator extends KeyRangeIterator
                                                                            this.keyRange.right,
                                                                            this.keyRange.inclusiveRight());
         DataRange dataRange = new DataRange(keyRange, new ClusteringIndexSliceFilter(Slices.ALL, false));
-        this.partitionIterator = memtable.partitionIterator(columns, dataRange, null);
+       partitionIterator = memtable.partitionIterator(columns, dataRange, null);
         if (partitionIterator.hasNext())
         {
             this.rowIterator = partitionIterator.next();
