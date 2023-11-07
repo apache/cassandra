@@ -167,6 +167,12 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
     }
 
     @Override
+    public void readFully(long[] longs) throws IOException
+    {
+        throw new UnsupportedOperationException(); // only required by BinaryQuantization
+    }
+
+    @Override
     public long getFilePointer()
     {
         if (buffer == null)     // closed already

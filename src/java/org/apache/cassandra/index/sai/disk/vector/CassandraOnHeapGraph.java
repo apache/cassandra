@@ -45,6 +45,7 @@ import io.github.jbellis.jvector.graph.GraphSearcher;
 import io.github.jbellis.jvector.graph.NeighborSimilarity;
 import io.github.jbellis.jvector.graph.RandomAccessVectorValues;
 import io.github.jbellis.jvector.pq.CompressedVectors;
+import io.github.jbellis.jvector.pq.PQVectors;
 import io.github.jbellis.jvector.pq.ProductQuantization;
 import io.github.jbellis.jvector.util.Bits;
 import io.github.jbellis.jvector.vector.VectorEncoding;
@@ -322,7 +323,7 @@ public class CassandraOnHeapGraph<T>
             // null if remapping is not possible
             final BiMap <Integer, Integer> ordinalMap = deletedOrdinals.isEmpty() ? buildOrdinalMap() : null;
 
-            boolean canFastFindRows = ordinalMap != null;
+            boolean canFastFindRows = false; // ordinalMap != null;
             IntUnaryOperator ordinalMapper = canFastFindRows
                                                 ? x -> ordinalMap.getOrDefault(x, x)
                                                 : x -> x;
@@ -343,7 +344,7 @@ public class CassandraOnHeapGraph<T>
             long postingsLength = postingsPosition - postingsOffset;
 
             // complete (internal clean up) and write the graph
-            builder.complete();
+            builder.cleanup();
             long termsOffset = indexOutput.getFilePointer();
 
             OnDiskGraphIndex.write(new RemappingOnDiskGraphIndex<>(builder.getGraph(), ordinalMapper, reverseOrdinalMapper),
@@ -425,7 +426,7 @@ public class CassandraOnHeapGraph<T>
         }
 
         // save (outside the synchronized block, this is io-bound not CPU)
-        var cv = new CompressedVectors(pq, encoded);
+        var cv = new PQVectors(pq, encoded);
         cv.write(writer);
         return writer.position();
     }

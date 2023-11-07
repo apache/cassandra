@@ -34,6 +34,7 @@ import io.github.jbellis.jvector.graph.NeighborSimilarity;
 import io.github.jbellis.jvector.graph.SearchResult;
 import io.github.jbellis.jvector.graph.SearchResult.NodeScore;
 import io.github.jbellis.jvector.pq.CompressedVectors;
+import io.github.jbellis.jvector.pq.PQVectors;
 import io.github.jbellis.jvector.util.Bits;
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 import org.apache.cassandra.index.sai.IndexContext;
@@ -76,7 +77,7 @@ public class CassandraDiskAnn implements JVectorLuceneOnDiskGraph, AutoCloseable
             reader.seek(pqSegmentOffset);
             var containsCompressedVectors = reader.readBoolean();
             if (containsCompressedVectors)
-                compressedVectors = CompressedVectors.load(reader, reader.getFilePointer());
+                compressedVectors = PQVectors.load(reader, reader.getFilePointer());
             else
                 compressedVectors = null;
         }

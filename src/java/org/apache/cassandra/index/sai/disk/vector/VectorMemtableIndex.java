@@ -160,7 +160,7 @@ public class VectorMemtableIndex implements MemtableIndex
 
         float[] qv = expr.lower.value.vector;
 
-        Bits bits = null;
+        Bits bits;
         if (RangeUtil.coversFullRing(keyRange))
         {
             // partition/range deletion won't trigger index update, so we have to filter shadow primary keys in memtable index

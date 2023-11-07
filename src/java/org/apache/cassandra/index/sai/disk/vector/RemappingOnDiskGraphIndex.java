@@ -23,6 +23,7 @@ import java.util.function.IntUnaryOperator;
 
 import io.github.jbellis.jvector.graph.GraphIndex;
 import io.github.jbellis.jvector.graph.NodesIterator;
+import io.github.jbellis.jvector.util.Bits;
 
 /**
  * Remaps the node ordinals of a GraphIndex.
@@ -97,6 +98,13 @@ public class RemappingOnDiskGraphIndex<T> implements GraphIndex<T>
         public void close() throws Exception
         {
             view.close();
+        }
+
+        @Override
+        public Bits liveNodes()
+        {
+            // C* does not delete nodes out of the graph yet
+            return Bits.ALL;
         }
     }
 

@@ -360,14 +360,14 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
         private final int expectedNodesVisited;
         private final PostingList postingList;
 
-        public BitsOrPostingList(@Nullable Bits bits, int expectedNodesVisited)
+        public BitsOrPostingList(Bits bits, int expectedNodesVisited)
         {
             this.bits = bits;
             this.expectedNodesVisited = expectedNodesVisited;
             this.postingList = null;
         }
 
-        public BitsOrPostingList(@Nullable Bits bits)
+        public BitsOrPostingList(Bits bits)
         {
             this.bits = bits;
             this.postingList = null;
