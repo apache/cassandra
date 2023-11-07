@@ -2089,7 +2089,7 @@ drop_compact_storage_enabled: false
 # The chosen storage compatiblity mode will determine the versions of the written sstables, commitlogs, hints,
 # etc. Those storage elements will use the higher minor versions of the major version that corresponds to the
 # Cassandra version we want to stay compatible with. For example, if we want to stay compatible with Cassandra 4.0
-# or 4.1, the value of this property should be 4, and that will make us use 'nc' sstables.
+# or 4.1, the value of this property should be 4, and that will make us use 'oa' sstables.
 #
 # This will also determine if certain features depending on newer formats are available. For example, extended TTLs
 # up to 2106 depend on the sstable, commitlog, hints and messaging versions that were introduced by Cassandra 5.0,
