@@ -19,6 +19,8 @@ package org.apache.cassandra.index.sai.iterators;
 
 import java.io.Closeable;
 
+import javax.annotation.Nullable;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterables;
@@ -131,7 +133,7 @@ public abstract class KeyRangeIterator extends AbstractGuavaIterator<PrimaryKey>
         return hasNext;
     }
 
-    public PrimaryKey nextOrNull()
+    public @Nullable PrimaryKey nextOrNull()
     {
         return hasNext() ? next() : null;
     }

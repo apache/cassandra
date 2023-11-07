@@ -87,7 +87,7 @@ public class MemtableKeyRangeIterator extends KeyRangeIterator
     protected void performSkipTo(PrimaryKey nextKey)
     {
         AbstractBounds<PartitionPosition> keyRange = AbstractBounds.bounds(nextKey.partitionKey(),
-                                                                true,
+                                                                           true,
                                                                            this.keyRange.right,
                                                                            this.keyRange.inclusiveRight());
         DataRange dataRange = new DataRange(keyRange, new ClusteringIndexSliceFilter(Slices.ALL, false));

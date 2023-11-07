@@ -30,8 +30,8 @@ import org.apache.cassandra.io.util.FileUtils;
  */
 public class KeyRangeAntiJoinIterator extends KeyRangeIterator
 {
-    final KeyRangeIterator left;
-    final KeyRangeIterator right;
+    private final KeyRangeIterator left;
+    private final KeyRangeIterator right;
 
     private PrimaryKey nextKeyToSkip = null;
 
@@ -90,7 +90,7 @@ public class KeyRangeAntiJoinIterator extends KeyRangeIterator
         return key != null ? key : endOfData();
     }
 
-    private int compare(PrimaryKey key1, PrimaryKey key2)
+    private static int compare(PrimaryKey key1, PrimaryKey key2)
     {
         return (key1 == null || key2 == null) ? -1 : key1.compareTo(key2);
     }

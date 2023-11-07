@@ -37,14 +37,12 @@ public class MemtableIndex
 {
     private final TrieMemoryIndex index;
 
-    private final IndexContext indexContext;
     private final LongAdder writeCount = new LongAdder();
     private final LongAdder estimatedMemoryUsed = new LongAdder();
 
     public MemtableIndex(IndexContext indexContext)
     {
         this.index = new TrieMemoryIndex(indexContext);
-        this.indexContext = indexContext;
     }
 
     public long writeCount()
