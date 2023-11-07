@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
+import java.nio.LongBuffer;
 
 import javax.annotation.concurrent.NotThreadSafe;
 
@@ -118,6 +119,41 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
         seek(position + (long) Float.BYTES * dest.length);
     }
 
+    @Override
+    public void readFully(long[] dest) throws IOException {
+        var bh = bufferHolder;
+        long position = getPosition();
+
+        LongBuffer longBuffer;
+        if (bh.offset() == 0 && position % Long.BYTES == 0)
+        {
+            // this is a separate code path because buffer() and asLongBuffer() both allocate
+            // new and relatively expensive xBuffer objects, so we want to avoid doing that
+            // twice, where possible
+            longBuffer = bh.longBuffer();
+            longBuffer.position(Ints.checkedCast(position / Long.BYTES));
+        }
+        else
+        {
+            // offset is non-zero, and probably not aligned to Long.BYTES, so
+            // set the position before converting to LongBuffer.
+            var bb = bh.buffer();
+            bb.position(Ints.checkedCast(position - bh.offset()));
+            longBuffer = bb.asLongBuffer();
+        }
+
+        if (dest.length > longBuffer.remaining())
+        {
+            // slow path -- desired slice is across region boundaries
+            var bb = ByteBuffer.allocate(Long.BYTES * dest.length);
+            readFully(bb);
+            longBuffer = bb.asLongBuffer();
+        }
+
+        longBuffer.get(dest);
+        seek(position + (long) Long.BYTES * dest.length);
+    }
+
     /**
      * Read ints into an int[], starting at the current position.
      *
@@ -164,12 +200,6 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
 
         intBuffer.get(dest, offset, count);
         seek(position + (long) Integer.BYTES * count);
-    }
-
-    @Override
-    public void readFully(long[] longs) throws IOException
-    {
-        throw new UnsupportedOperationException(); // only required by BinaryQuantization
     }
 
     @Override

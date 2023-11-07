@@ -44,9 +44,12 @@ import io.github.jbellis.jvector.graph.GraphIndexBuilder;
 import io.github.jbellis.jvector.graph.GraphSearcher;
 import io.github.jbellis.jvector.graph.NeighborSimilarity;
 import io.github.jbellis.jvector.graph.RandomAccessVectorValues;
+import io.github.jbellis.jvector.pq.BQVectors;
+import io.github.jbellis.jvector.pq.BinaryQuantization;
 import io.github.jbellis.jvector.pq.CompressedVectors;
 import io.github.jbellis.jvector.pq.PQVectors;
 import io.github.jbellis.jvector.pq.ProductQuantization;
+import io.github.jbellis.jvector.pq.VectorCompressor;
 import io.github.jbellis.jvector.util.Bits;
 import io.github.jbellis.jvector.vector.VectorEncoding;
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
@@ -399,11 +402,17 @@ public class CassandraOnHeapGraph<T>
 
     private long writePQ(SequentialWriter writer, IntUnaryOperator reverseOrdinalMapper) throws IOException
     {
-        // don't bother with PQ if there are fewer than 1K vectors
-        writer.writeBoolean(vectorValues.size() >= 1024);
-        if (vectorValues.size() < 1024)
+        VectorCompression compressionType;
+        if (vectorValues.dimension() >= 1536)
+            compressionType = VectorCompression.BINARY_QUANTIZATION;
+        else if (vectorValues.size() < 1024)
+            compressionType = VectorCompression.NONE;
+        else
+            compressionType = VectorCompression.PRODUCT_QUANTIZATION;
+        writer.writeByte(compressionType.ordinal());
+        if (compressionType == VectorCompression.NONE)
         {
-            if (logger.isDebugEnabled()) logger.debug("Skipping PQ for only {} vectors", vectorValues.size());
+            if (logger.isDebugEnabled()) logger.debug("Skipping compression for only {} vectors", vectorValues.size());
             return writer.position();
         }
 
@@ -412,23 +421,41 @@ public class CassandraOnHeapGraph<T>
                      vectorValues.size(), bytesPerVector, vectorValues.dimension());
 
         // train PQ and encode
-        ProductQuantization pq;
-        byte[][] encoded;
+        VectorCompressor<?> compressor;
+        Object encoded; // byte[][], or long[][]
         // limit the PQ computation and encoding to one index at a time -- goal during flush is to
         // evict from memory ASAP so better to do the PQ build (in parallel) one at a time
         synchronized (CassandraOnHeapGraph.class)
         {
-            pq = ProductQuantization.compute(vectorValues, bytesPerVector, false);
+            if (vectorValues.dimension() >= 1536)
+                compressor = BinaryQuantization.compute(vectorValues);
+            else
+                compressor = ProductQuantization.compute(vectorValues, bytesPerVector, false);
             assert !vectorValues.isValueShared();
-            encoded = IntStream.range(0, vectorValues.size()).parallel()
-                          .mapToObj(i -> pq.encode(vectorValues.vectorValue(reverseOrdinalMapper.applyAsInt(i))))
-                          .toArray(byte[][]::new);
+            encoded = compressVectors(reverseOrdinalMapper, compressor);
         }
 
         // save (outside the synchronized block, this is io-bound not CPU)
-        var cv = new PQVectors(pq, encoded);
+        CompressedVectors cv;
+        if (compressor instanceof BinaryQuantization)
+            cv = new BQVectors((BinaryQuantization) compressor, (long[][]) encoded);
+        else
+            cv = new PQVectors((ProductQuantization) compressor, (byte[][]) encoded);
         cv.write(writer);
         return writer.position();
+    }
+
+    private Object compressVectors(IntUnaryOperator reverseOrdinalMapper, VectorCompressor<?> compressor)
+    {
+        if (compressor instanceof ProductQuantization)
+            return IntStream.range(0, vectorValues.size()).parallel()
+                       .mapToObj(i -> ((ProductQuantization) compressor).encode(vectorValues.vectorValue(reverseOrdinalMapper.applyAsInt(i))))
+                       .toArray(byte[][]::new);
+        else if (compressor instanceof BinaryQuantization)
+            return IntStream.range(0, vectorValues.size()).parallel()
+                            .mapToObj(i -> ((BinaryQuantization) compressor).encode(vectorValues.vectorValue(reverseOrdinalMapper.applyAsInt(i))))
+                            .toArray(long[][]::new);
+        throw new UnsupportedOperationException("Unrecognized compressor " + compressor.getClass());
     }
 
     /**

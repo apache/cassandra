@@ -28,6 +28,7 @@ import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.github.jbellis.jvector.pq.BinaryQuantization;
 import io.github.jbellis.jvector.util.Bits;
 import io.github.jbellis.jvector.util.SparseFixedBitSet;
 import org.agrona.collections.IntArrayList;
@@ -149,9 +150,12 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
         n = max(1.0, n);
 
         // 2x results at limit=100 is enough for all our tested data sets to match uncompressed recall,
-        // except for the ada002 vectors that compress at a 32x ratio.  For ada002, we need 3x results.
-        if (cv.getOriginalSize() / cv.getCompressedSize() > 16)
-            n = 1.5 * n;
+        // except for the ada002 vectors that compress at a 32x ratio.  For ada002, we need 3x results
+        // with PQ, and 4x for BQ.
+        if (cv instanceof BinaryQuantization)
+            n *= 2;
+        else if ((double) cv.getOriginalSize() / cv.getCompressedSize() > 16.0)
+            n *= 1.5;
 
         return (int) (n * limit);
     }
