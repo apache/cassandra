@@ -49,12 +49,14 @@ public class KeyRangeAntiJoinIterator extends KeyRangeIterator
         return new KeyRangeAntiJoinIterator(statistics, left, right);
     }
 
+    @Override
     protected void performSkipTo(PrimaryKey nextKey)
     {
         left.performSkipTo(nextKey);
         right.performSkipTo(nextKey);
     }
 
+    @Override
     public void close() throws IOException
     {
         FileUtils.closeQuietly(left);
@@ -62,6 +64,7 @@ public class KeyRangeAntiJoinIterator extends KeyRangeIterator
     }
 
 
+    @Override
     protected PrimaryKey computeNext()
     {
         if (nextKeyToSkip == null)

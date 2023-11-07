@@ -161,6 +161,7 @@ public class RowAwarePrimaryKeyMap implements PrimaryKeyMap
         return triePrefixSearcher.prefixSearch(key.asComparableBytes(ByteComparable.Version.OSS50));
     }
 
+    @Override
     public long count()
     {
         return rowIdToToken.length();
