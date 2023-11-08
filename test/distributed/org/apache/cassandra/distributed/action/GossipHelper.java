@@ -52,6 +52,22 @@ public class GossipHelper
         };
     }
 
+    public static InstanceAction statusToDecommission(IInvokableInstance newNode)
+    {
+        return (instance) ->
+        {
+            changeGossipState(instance,
+                              newNode,
+                              Arrays.asList(tokens(newNode),
+                                            statusLeaving(newNode)));
+        };
+    }
+
+    public static VersionedApplicationState statusLeaving(IInvokableInstance instance)
+    {
+        return versionedToken(instance, ApplicationState.STATUS, (partitioner, tokens) -> new VersionedValue.VersionedValueFactory(partitioner).leaving(tokens));
+    }
+
     public static void withProperty(String prop, String value, Runnable r)
     {
         String before = System.getProperty(prop);

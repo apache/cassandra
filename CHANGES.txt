@@ -1,4 +1,5 @@
 3.0.30
+ * Backport CASSANDRA-16418 to 3.x (CASSANDRA-18824)
  * Suppress CVE-2023-6378 (CASSANDRA-19142) 
  * Do not set RPC_READY to false on transports shutdown in order to not fail counter updates for deployments with coordinator and storage nodes with transports turned off (CASSANDRA-18935)
  * Suppress CVE-2023-44487 (CASSANDRA-18943)
@@ -25,6 +26,7 @@
  * Remove dh_python use in Debian packaging (CASSANDRA-18558)
  * Pass down all contact points to driver for cassandra-stress (CASSANDRA-18025)
  * Validate the existence of a datacenter in nodetool rebuild (CASSANDRA-14319)
+
 
 3.0.29
  * Suppress CVE-2023-2251 (CASSANDRA-18497)
@@ -176,6 +178,7 @@ Merged from 2.2:
  * Remove OpenJDK log warning (CASSANDRA-15563)
  * Fix the histogram merge of the table metrics (CASSANDRA-16259)
 
+
 3.0.23:
  * Fix OOM when terminating repair session (CASSANDRA-15902)
  * Avoid marking shutting down nodes as up after receiving gossip shutdown message (CASSANDRA-16094)
@@ -187,6 +190,7 @@ Merged from 2.2:
 Merged from 2.2:
  * Package tools/bin scripts as executable (CASSANDRA-16151)
  * Fixed a NullPointerException when calling nodetool enablethrift (CASSANDRA-16127)
+
 
 3.0.22:
  * Fix gossip shutdown order (CASSANDRA-15816)
@@ -202,6 +206,7 @@ Merged from 2.2:
  * Fix CQL parsing of collections when the column type is reversed (CASSANDRA-15814)
 Merged from 2.1:
  * Only allow strings to be passed to JMX authentication (CASSANDRA-16077)
+
 
 3.0.21
  * Backport CASSANDRA-12189: escape string literals (CASSANDRA-15948)
@@ -956,6 +961,7 @@ Merged from 2.1:
  * Backport CASSANDRA-10679 (CASSANDRA-9598)
  * InvalidateKeys should have a weak ref to key cache (CASSANDRA-11176)
  * COPY FROM on large datasets: fix progress report and debug performance (CASSANDRA-11053)
+
 
 3.0.4
  * Preserve order for preferred SSL cipher suites (CASSANDRA-11164)
@@ -5011,7 +5017,7 @@ Merged from 0.8:
  * improve ignoring of obsolete mutations in index maintenance (CASSANDRA-2401)
  * recognize attempt to drop just the index while leaving the column
    definition alone (CASSANDRA-2619)
-  
+
 
 0.8.0-beta1
  * remove Avro RPC support (CASSANDRA-926)
@@ -5646,7 +5652,7 @@ Merged from 0.8:
  * Allow using DynamicEndpointSnitch with RackAwareStrategy (CASSANDRA-1429)
  * remove the remaining vestiges of the unfinished DatacenterShardStrategy 
    (replaced by NetworkTopologyStrategy in 0.7)
-   
+
 
 0.6.5
  * fix key ordering in range query results with RandomPartitioner
@@ -5887,7 +5893,7 @@ Merged from 0.8:
  * change streaming chunk size to 32MB to accomodate Windows XP limitations
    (was 64MB) (CASSANDRA-795)
  * fix get_range_slice returning results in the wrong order (CASSANDRA-781)
- 
+
 
 0.5.0 final
  * avoid attempting to delete temporary bootstrap files twice (CASSANDRA-681)
@@ -6014,7 +6020,7 @@ Merged from 0.8:
  * optimized local-node writes (CASSANDRA-558)
  * added get_range_slice, deprecating get_key_range (CASSANDRA-344)
  * expose TimedOutException to thrift (CASSANDRA-563)
- 
+
 
 0.4.2
  * Add validation disallowing null keys (CASSANDRA-486)
@@ -6080,7 +6086,6 @@ Merged from 0.8:
     - Similarly, merged batch_insert_super into batch_insert.
 
 
-
 0.4.0 beta
  * On-disk data format has changed to allow billions of keys/rows per
    node instead of only millions
@@ -6117,7 +6122,6 @@ Merged from 0.8:
  * Rename configuration "table" to "keyspace"
  * Moved to crash-only design; no more shutdown (just kill the process)
  * Lots of bug fixes
-
 Full list of issues resolved in 0.4 is at https://issues.apache.org/jira/secure/IssueNavigator.jspa?reset=true&&pid=12310865&fixfor=12313862&resolution=1&sorter/field=issuekey&sorter/order=DESC
 
 
@@ -6148,3 +6152,5 @@ Full list of issues resolved in 0.4 is at https://issues.apache.org/jira/secure/
  * Combined blocking and non-blocking versions of insert APIs
  * Added FlushPeriodInMinutes configuration parameter to force
    flushing of infrequently-updated ColumnFamilies
+
+
