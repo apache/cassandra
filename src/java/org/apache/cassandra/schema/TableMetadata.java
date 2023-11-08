@@ -39,6 +39,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -375,6 +376,12 @@ public class TableMetadata implements SchemaElement
                 return otherColumns.hasNext() ? otherColumns.next() : endOfData();
             }
         };
+    }
+
+    public SSTableFormat<?, ?> getSSTableFormat()
+    {
+        //TODO make table level
+        return DatabaseDescriptor.getSelectedSSTableFormat();
     }
 
     /**

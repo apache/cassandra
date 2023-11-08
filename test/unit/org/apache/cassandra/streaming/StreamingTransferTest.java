@@ -342,13 +342,13 @@ public class StreamingTransferTest
 
         // add columns of size slightly less than column_index_size to force insert column index
         updates.clustering(1)
-                .add("val", ByteBuffer.wrap(new byte[DatabaseDescriptor.getColumnIndexSize(BigFormatPartitionWriter.DEFAULT_GRANULARITY) - 64]))
+                .add("val", ByteBuffer.wrap(new byte[DatabaseDescriptor.getRowIndexGranularity(BigFormatPartitionWriter.DEFAULT_GRANULARITY) - 64]))
                 .build()
                 .apply();
 
         updates = new RowUpdateBuilder(cfs.metadata(), FBUtilities.timestampMicros(), key);
         updates.clustering(6)
-                .add("val", ByteBuffer.wrap(new byte[DatabaseDescriptor.getColumnIndexSize(BigFormatPartitionWriter.DEFAULT_GRANULARITY)]))
+                .add("val", ByteBuffer.wrap(new byte[DatabaseDescriptor.getRowIndexGranularity(BigFormatPartitionWriter.DEFAULT_GRANULARITY)]))
                 .build()
                 .apply();
 

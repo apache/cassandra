@@ -17,11 +17,13 @@
  */
 package org.apache.cassandra.config;
 
+import com.google.common.collect.ImmutableMap;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import static org.apache.cassandra.config.DataStorageSpec.DataStorageUnit.MEBIBYTES;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
 public class ParseAndConvertUnitsTest
@@ -88,7 +90,7 @@ public class ParseAndConvertUnitsTest
         assertEquals(new DataStorageSpec.IntBytesBound(536870912), config.internode_application_receive_queue_reserve_global_capacity);
         assertEquals(new DataStorageSpec.IntMebibytesBound(16), config.native_transport_max_frame_size);
         assertEquals(new DataStorageSpec.IntMebibytesBound(256), config.max_value_size);
-        assertEquals(new DataStorageSpec.IntKibibytesBound(4), config.column_index_size);
+        assertEquals(new DataStorageSpec.IntKibibytesBound(4), config.row_index_granularity);
         assertEquals(new DataStorageSpec.IntKibibytesBound(2), config.column_index_cache_size);
         assertEquals(new DataStorageSpec.IntKibibytesBound(5), config.batch_size_warn_threshold);
         assertEquals(new DataStorageSpec.IntKibibytesBound(50), config.batch_size_fail_threshold);
@@ -114,5 +116,11 @@ public class ParseAndConvertUnitsTest
         assertEquals(new DataRateSpec.LongBytesPerSecondBound(0), config.compaction_throughput);
         assertEquals(new DataRateSpec.LongBytesPerSecondBound(23841858, DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND), config.stream_throughput_outbound);
         assertEquals(new DataRateSpec.LongBytesPerSecondBound(24, DataRateSpec.DataRateUnit.MEBIBYTES_PER_SECOND), config.inter_dc_stream_throughput_outbound);
+
+        // sstable format, see test's config cassandra.yaml
+        assertNotNull(config.sstable);
+        // big by default
+        assertEquals("big", config.sstable.selected_format);
+        assertEquals(ImmutableMap.of("row_index_granularity", "4KiB", "column_index_cache_size", "2KiB"), config.sstable.format.get("big"));
     }
 }

@@ -35,6 +35,7 @@ import java.util.function.Consumer;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Sets;
+import org.apache.cassandra.io.sstable.format.AbstractSSTableFormat.Option;
 import org.junit.After;
 import org.junit.Assume;
 import org.junit.Before;
@@ -556,15 +557,19 @@ public class IndexSummaryManagerTest<R extends SSTableReader & IndexSummarySuppo
         // resize interval
         manager.setResizeIntervalInMinutes(-1);
         assertEquals(-1, DatabaseDescriptor.getIndexSummaryResizeIntervalInMinutes());
+        assertEquals(-1, (int)DatabaseDescriptor.getSelectedSSTableFormat().getSSTableFormatValue(Option.INDEX_SUMMARY_RESIZE_INTERVAL));
         assertNull(manager.getTimeToNextResize(TimeUnit.MINUTES));
+
 
         manager.setResizeIntervalInMinutes(10);
         assertEquals(10, manager.getResizeIntervalInMinutes());
         assertEquals(10, DatabaseDescriptor.getIndexSummaryResizeIntervalInMinutes());
+        assertEquals(10, (int)DatabaseDescriptor.getSelectedSSTableFormat().getSSTableFormatValue(Option.INDEX_SUMMARY_RESIZE_INTERVAL));
         assertEquals(10, manager.getTimeToNextResize(TimeUnit.MINUTES), 1);
         manager.setResizeIntervalInMinutes(15);
         assertEquals(15, manager.getResizeIntervalInMinutes());
         assertEquals(15, DatabaseDescriptor.getIndexSummaryResizeIntervalInMinutes());
+        assertEquals(15, (int)DatabaseDescriptor.getSelectedSSTableFormat().getSSTableFormatValue(Option.INDEX_SUMMARY_RESIZE_INTERVAL));
         assertEquals(15, manager.getTimeToNextResize(TimeUnit.MINUTES), 2);
 
         // memory pool capacity

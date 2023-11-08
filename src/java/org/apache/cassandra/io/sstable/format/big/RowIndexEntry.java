@@ -34,6 +34,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
 import org.apache.cassandra.io.sstable.IndexInfo;
+import org.apache.cassandra.io.sstable.format.AbstractSSTableFormat.Option;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.format.big.BigFormat.Components;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -83,7 +84,7 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
  *     samples</i> (list of {@link IndexInfo} objects) and those who don't.
  *     For each <i>portion</i> of data for a single partition in the data file,
  *     an index sample is created. The size of that <i>portion</i> is defined
- *     by {@link org.apache.cassandra.config.Config#column_index_size}.
+ *     by {@link org.apache.cassandra.config.Config#row_index_granularity}.
  * </p>
  * <p>
  *     Index entries with less than 2 index samples, will just store the
@@ -357,7 +358,7 @@ public class RowIndexEntry extends AbstractRowIndexEntry
 
                 int indexedPartSize = size - serializedSize(deletionTime, headerLength, columnsIndexCount, version);
 
-                if (size <= DatabaseDescriptor.getColumnIndexCacheSize())
+                if (size <= (int)version.getSSTableFormatValue(Option.COLUMN_INDEX_CACHE_SIZE))
                 {
                     return new IndexedEntry(position, in, deletionTime, headerLength, columnsIndexCount,
                                             idxInfoSerializer, indexedPartSize, version);

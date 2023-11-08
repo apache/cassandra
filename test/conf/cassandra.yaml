@@ -19,7 +19,7 @@ storage_port: 7012
 ssl_storage_port: 17012
 start_native_transport: true
 native_transport_port: 9042
-column_index_size: 4KiB
+row_index_granularity: 4KiB
 saved_caches_directory: build/test/cassandra/saved_caches
 data_file_directories:
     - build/test/cassandra/data
@@ -65,6 +65,13 @@ local_read_size_warn_threshold: 4096KiB
 local_read_size_fail_threshold: 8192KiB
 row_index_read_size_warn_threshold: 4096KiB
 row_index_read_size_fail_threshold: 8192KiB
+
+sstable:
+    selected_format: big
+    format:
+        big:
+           row_index_granularity: 4KiB
+           column_index_cache_size: 2KiB
 
 memtable:
     configurations:

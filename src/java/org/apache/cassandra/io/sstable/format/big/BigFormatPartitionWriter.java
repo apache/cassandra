@@ -27,12 +27,12 @@ import java.util.List;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.rows.Unfiltered;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.IndexInfo;
+import org.apache.cassandra.io.sstable.format.AbstractSSTableFormat.Option;
 import org.apache.cassandra.io.sstable.format.SortedTablePartitionWriter;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -70,7 +70,12 @@ public class BigFormatPartitionWriter extends SortedTablePartitionWriter
                              Version version,
                              ISerializer<IndexInfo> indexInfoSerializer)
     {
-        this(header, writer, version, indexInfoSerializer, DatabaseDescriptor.getColumnIndexCacheSize(), DatabaseDescriptor.getColumnIndexSize(DEFAULT_GRANULARITY));
+        this(header,
+             writer,
+             version,
+             indexInfoSerializer,
+             (int)version.getSSTableFormatValue(Option.COLUMN_INDEX_CACHE_SIZE),
+             (int)version.getSSTableFormatValue(Option.ROW_INDEX_GRANULARITY));
     }
 
     BigFormatPartitionWriter(SerializationHeader header,

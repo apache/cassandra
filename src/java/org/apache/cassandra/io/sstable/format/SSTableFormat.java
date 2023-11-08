@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Set;
 import javax.annotation.Nonnull;
 
+import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
@@ -30,6 +31,7 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.AbstractRowIndexEntry;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.format.AbstractSSTableFormat.Option;
 import org.apache.cassandra.io.sstable.IScrubber;
 import org.apache.cassandra.io.sstable.MetricsProviders;
 import org.apache.cassandra.io.sstable.SSTable;
@@ -45,9 +47,12 @@ import org.apache.cassandra.utils.Pair;
 public interface SSTableFormat<R extends SSTableReader, W extends SSTableWriter>
 {
     String name();
+    Map<String, String> options();
 
     Version getLatestVersion();
     Version getVersion(String version);
+
+    Object getSSTableFormatValue(Option option);
 
     SSTableWriterFactory<W, ?> getWriterFactory();
 

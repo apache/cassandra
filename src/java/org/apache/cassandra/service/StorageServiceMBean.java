@@ -987,12 +987,14 @@ public interface StorageServiceMBean extends NotificationEmitter
      * Returns the granularity of the collation index of rows within a partition.
      * -1 stands for the SSTable format's default.
      **/
+    //TODO rename or deprecated in the future
     public int getColumnIndexSizeInKiB();
 
     /**
      * Sets the granularity of the collation index of rows within a partition.
      * Use -1 to select the SSTable format's default.
      **/
+    //TODO rename or deprecated in the future
     public void setColumnIndexSizeInKiB(int columnIndexSizeInKiB);
 
     /**

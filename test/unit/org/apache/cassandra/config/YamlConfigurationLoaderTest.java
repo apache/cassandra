@@ -44,6 +44,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 
@@ -371,8 +372,8 @@ public class YamlConfigurationLoaderTest
         .hasRootCauseMessage("Invalid data storage: value must be non-negative");
 
         // KIBIBYTES_DATASTORAGE
-        assertThat(from("column_index_size_in_kb", "42").column_index_size.toKibibytes()).isEqualTo(42);
-        assertThatThrownBy(() -> from("column_index_size_in_kb", -2).column_index_size.toKibibytes())
+        assertThat(from("column_index_size_in_kb", "42").row_index_granularity.toKibibytes()).isEqualTo(42);
+        assertThatThrownBy(() -> from("column_index_size_in_kb", -2).row_index_granularity.toKibibytes())
         .hasRootCauseInstanceOf(IllegalArgumentException.class)
         .hasRootCauseMessage("Invalid data storage: value must be non-negative");
 

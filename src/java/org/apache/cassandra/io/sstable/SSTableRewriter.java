@@ -23,11 +23,12 @@ import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.lifecycle.ILifecycleTransaction;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.io.sstable.format.AbstractSSTableFormat.Option;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.utils.concurrent.Transactional;
@@ -87,24 +88,24 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
         this.eagerWriterMetaRelease = eagerWriterMetaRelease;
     }
 
-    public static SSTableRewriter constructKeepingOriginals(ILifecycleTransaction transaction, boolean keepOriginals, long maxAge)
+    public static SSTableRewriter constructKeepingOriginals(ILifecycleTransaction transaction, SSTableFormat<?, ?> format, boolean keepOriginals, long maxAge)
     {
-        return new SSTableRewriter(transaction, maxAge, calculateOpenInterval(true), keepOriginals, true);
+        return new SSTableRewriter(transaction, maxAge, calculateOpenInterval(format, true), keepOriginals, true);
     }
 
-    public static SSTableRewriter constructWithoutEarlyOpening(ILifecycleTransaction transaction, boolean keepOriginals, long maxAge)
+    public static SSTableRewriter constructWithoutEarlyOpening(ILifecycleTransaction transaction, SSTableFormat<?, ?> format, boolean keepOriginals, long maxAge)
     {
-        return new SSTableRewriter(transaction, maxAge, calculateOpenInterval(false), keepOriginals, true);
+        return new SSTableRewriter(transaction, maxAge, calculateOpenInterval(format, false), keepOriginals, true);
     }
 
-    public static SSTableRewriter construct(ColumnFamilyStore cfs, ILifecycleTransaction transaction, boolean keepOriginals, long maxAge)
+    public static SSTableRewriter construct(ColumnFamilyStore cfs, SSTableFormat<?, ?> format, ILifecycleTransaction transaction, boolean keepOriginals, long maxAge)
     {
-        return new SSTableRewriter(transaction, maxAge, calculateOpenInterval(cfs.supportsEarlyOpen()), keepOriginals, true);
+        return new SSTableRewriter(transaction, maxAge, calculateOpenInterval(format, cfs.supportsEarlyOpen()), keepOriginals, true);
     }
 
-    private static long calculateOpenInterval(boolean shouldOpenEarly)
+    private static long calculateOpenInterval(SSTableFormat<?, ?> format, boolean shouldOpenEarly)
     {
-        long interval = DatabaseDescriptor.getSSTablePreemptiveOpenIntervalInMiB() * (1L << 20);
+        long interval = (long) format.getSSTableFormatValue(Option.SSTABLE_PREEMPTIVE_OPEN_INTERVAL) * (1L << 20);
         if (disableEarlyOpeningForTests || !shouldOpenEarly || interval < 0)
             interval = Long.MAX_VALUE;
         return interval;

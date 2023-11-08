@@ -32,6 +32,33 @@ public abstract class AbstractSSTableFormat<R extends SSTableReader, W extends S
         this.options = options;
     }
 
+    public enum Option
+    {
+        // TODO add other configurations in the future
+        ROW_INDEX_GRANULARITY("row_index_granularity"),
+        COLUMN_INDEX_CACHE_SIZE("column_index_cache_size"),
+        INDEX_SUMMARY_CAPACITY("index_summary_capacity"),
+        INDEX_SUMMARY_RESIZE_INTERVAL("index_summary_resize_interval"),
+        SSTABLE_PREEMPTIVE_OPEN_INTERVAL("sstable_preemptive_open_interval");
+
+        private String name;
+        Option(String name)
+        {
+            this.name = name;
+        }
+
+        public String getName()
+        {
+            return name;
+        }
+    }
+
+    @Override
+    public Map<String, String> options()
+    {
+        return options;
+    }
+
     @Override
     public final String name()
     {

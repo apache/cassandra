@@ -3112,6 +3112,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean, Memtable.Owner
         return indexManager.getBuiltIndexNames();
     }
 
+    public  SSTableFormat<?, ?> getSSTableFormat()
+    {
+        return metadata().getSSTableFormat();
+    }
+
     @Override
     public int getUnleveledSSTables()
     {
