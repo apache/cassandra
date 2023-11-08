@@ -85,6 +85,7 @@ public class CommitLogUpgradeTest
                      .addPartitionKeyColumn("key", AsciiType.instance)
                      .addClusteringColumn("col", AsciiType.instance)
                      .addRegularColumn("val", BytesType.instance)
+                     .addRegularColumn("val0", BytesType.instance)
                      .compression(SchemaLoader.getCompressionParameters())
                      .build();
 
@@ -100,6 +101,27 @@ public class CommitLogUpgradeTest
     {
         JVMStabilityInspector.replaceKiller(originalKiller);
         Assert.assertEquals("JVM killed", shouldBeKilled, killerForTests.wasKilled());
+    }
+
+    // 30 matches version in MessagingService, 3.0.13 is the latest patch release after 3.0.0 but before 3.0.14
+    @Test
+    public void test30_encrypted() throws Exception
+    {
+        testRestore(DATA_DIR + "3.0.13-encrypted");
+    }
+
+    // 3014 matches version in MessagingService, 3.0.29 is the latest patch release after 3.0.14
+    @Test
+    public void test3014_encrypted() throws Exception
+    {
+        testRestore(DATA_DIR + "3.0.29-encrypted");
+    }
+
+    // 40 matches version in MessagingService, 4.0.11 is the latest patch release on 4.0
+    @Test
+    public void test40_encrypted() throws Exception
+    {
+        testRestore(DATA_DIR + "4.0.11-encrypted");
     }
 
     @Test
