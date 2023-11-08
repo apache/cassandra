@@ -117,7 +117,12 @@ public interface RateLimiterServiceMBean
     public void setHealthCheckFreqInSec(int healthCheckPeriodInSec);
 
     /**
-     * Set throttle_replica_traffic
+     * Set throttle_read_replica_traffic
      */
-    public void setThrottleReplicaTraffic(boolean throttleReplicaTraffic);
+    public void setThrottleReadReplicaTraffic(boolean throttleReadReplicaTraffic);
+
+    /**
+     * Set throttle_mutation_replica_traffic
+     */
+    public void setThrottleMutationReplicaTraffic(boolean throttleMutationReplicaTraffic);
 }

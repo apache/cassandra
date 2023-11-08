@@ -158,8 +158,14 @@ public class RateLimiterService implements RateLimiterServiceMBean {
     }
 
     @Override
-    public void setThrottleReplicaTraffic(boolean throttleReplicaTraffic)
+    public void setThrottleReadReplicaTraffic(boolean throttleReadReplicaTraffic)
     {
-        this.throttlingOptions.setThrottleReplicaTraffic(throttleReplicaTraffic);
+        this.throttlingOptions.setThrottleReadReplicaTraffic(throttleReadReplicaTraffic);
+    }
+
+    @Override
+    public void setThrottleMutationReplicaTraffic(boolean throttleMutationReplicaTraffic)
+    {
+        this.throttlingOptions.setThrottleMutationReplicaTraffic(throttleMutationReplicaTraffic);
     }
 }

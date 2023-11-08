@@ -2439,9 +2439,14 @@ public class NodeProbe implements AutoCloseable
         rateLimiterProxy.setIgnoreKeyspaces(ignoreKeyspaces);
     }
 
-    public void setThrottleReplicaTraffic(boolean throttleReplicaTraffic)
+    public void setThrottleReadReplicaTraffic(boolean throttleReadReplicaTraffic)
     {
-        rateLimiterProxy.setThrottleReplicaTraffic(throttleReplicaTraffic);
+        rateLimiterProxy.setThrottleReadReplicaTraffic(throttleReadReplicaTraffic);
+    }
+
+    public void setThrottleMutationReplicaTraffic(boolean throttleMutationReplicaTraffic)
+    {
+        rateLimiterProxy.setThrottleMutationReplicaTraffic(throttleMutationReplicaTraffic);
     }
 
     public ThrottlingOptions getThrottlingOptions()

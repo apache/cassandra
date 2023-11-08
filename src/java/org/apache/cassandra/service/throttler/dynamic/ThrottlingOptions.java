@@ -47,7 +47,8 @@ public class ThrottlingOptions implements Serializable
     public String ignore_keyspaces = "system.*|pingless";
     public int health_check_init_delay_in_sec = 60;
     public int health_check_freq_in_sec = 1;
-    public boolean throttle_replica_traffic = true;
+    public boolean throttle_read_replica_traffic = true;
+    public boolean throttle_mutation_replica_traffic = true;
 
     private Pattern ignoreKeyspacesPattern = Pattern.compile(ignore_keyspaces);
 
@@ -222,14 +223,24 @@ public class ThrottlingOptions implements Serializable
         this.health_check_freq_in_sec = healthCheckFreqInSec;
     }
 
-    public boolean getThrottleReplicaTraffic()
+    public boolean getThrottleReadReplicaTraffic()
     {
-        return throttle_replica_traffic;
+        return throttle_read_replica_traffic;
     }
 
-    public void setThrottleReplicaTraffic(boolean throttleReplicaTraffic)
+    public void setThrottleReadReplicaTraffic(boolean throttleReadReplicationTraffic)
     {
-        this.throttle_replica_traffic = throttleReplicaTraffic;
+        this.throttle_read_replica_traffic = throttleReadReplicationTraffic;
+    }
+
+    public boolean getThrottleMutationReplicaTraffic()
+    {
+        return throttle_mutation_replica_traffic;
+    }
+
+    public void setThrottleMutationReplicaTraffic(boolean throttleMutationReplicationTraffic)
+    {
+        this.throttle_mutation_replica_traffic = throttleMutationReplicationTraffic;
     }
 
     public String toString()
@@ -251,6 +262,7 @@ public class ThrottlingOptions implements Serializable
                "ignore keyspaces: " + ignore_keyspaces + "\n" +
                "health initial delay in sec: " + health_check_init_delay_in_sec + "\n" +
                "health check frequency in sec: " + health_check_freq_in_sec + "\n" +
-               "throttle replica traffic: " + throttle_replica_traffic;
+               "throttle read replica traffic: " + throttle_read_replica_traffic + "\n" +
+               "throttle mutation replica traffic: " + throttle_mutation_replica_traffic;
     }
 }

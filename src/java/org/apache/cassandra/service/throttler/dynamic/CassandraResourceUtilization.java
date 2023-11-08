@@ -273,16 +273,24 @@ public class CassandraResourceUtilization
             throttlingMetrics.disableThrottling.inc();
             return false;
         }
-        if (replicationTraffic && !throttlingOptions.getThrottleReplicaTraffic())
-        {
-            throttlingMetrics.disableReplicaTrafficThrottling.inc();
-            return false;
-        }
         KeyspaceThrottlingMetrics ksThrottlingMetrics = KeyspaceThrottlingMetricsManager.getMetrics(keyspaceName);
         if (throttlingOptions.getIgnoreKeyspacesPattern().matcher(keyspaceName.toLowerCase()).matches())
         {
             ksThrottlingMetrics.skipKSThrottling.inc();
             return false;
+        }
+        if (replicationTraffic)
+        {
+            if (reads && !throttlingOptions.getThrottleReadReplicaTraffic())
+            {
+                throttlingMetrics.disableReadReplicaTrafficThrottling.inc();
+                return false;
+            }
+            if (!reads && !throttlingOptions.getThrottleMutationReplicaTraffic())
+            {
+                throttlingMetrics.disableMutationReplicaTrafficThrottling.inc();
+                return false;
+            }
         }
         KeyspaceMetrics metrics = Keyspace.open(keyspaceName).metric;
         if (shouldThrottle)

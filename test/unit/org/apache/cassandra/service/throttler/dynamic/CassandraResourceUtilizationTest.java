@@ -717,6 +717,7 @@ public class CassandraResourceUtilizationTest extends CQLTester
     public void testThrottlingMutationReplicationTrafficEnabled()
     {
         CassandraResourceUtilization cassandraResourceUtilization = forceThrottling();
+        cassandraResourceUtilization.throttlingOptions.setThrottleReadReplicaTraffic(false);
         try
         {
             Keyspace ks = Keyspace.open(KEYSPACE_THROTTLE);
@@ -729,7 +730,8 @@ public class CassandraResourceUtilizationTest extends CQLTester
         }
         catch (ExecutionException e)
         {
-            Assert.assertEquals(0,  cassandraResourceUtilization.throttlingMetrics.disableReplicaTrafficThrottling.getCount());
+            Assert.assertEquals(0,  cassandraResourceUtilization.throttlingMetrics.disableReadReplicaTrafficThrottling.getCount());
+            Assert.assertEquals(0,  cassandraResourceUtilization.throttlingMetrics.disableMutationReplicaTrafficThrottling.getCount());
             OverloadedException e1 = (OverloadedException) e.getCause();
             Assert.assertEquals("from dynamic throttler: 127.0.0.1", e1.getMessage());
             throw e1;
@@ -744,7 +746,8 @@ public class CassandraResourceUtilizationTest extends CQLTester
     public void testThrottlingMutationReplicationTrafficDisabled()
     {
         CassandraResourceUtilization cassandraResourceUtilization = forceThrottling();
-        cassandraResourceUtilization.throttlingOptions.setThrottleReplicaTraffic(false);
+        cassandraResourceUtilization.throttlingOptions.setThrottleReadReplicaTraffic(true);
+        cassandraResourceUtilization.throttlingOptions.setThrottleMutationReplicaTraffic(false);
         Keyspace ks = Keyspace.open(KEYSPACE_THROTTLE);
         ColumnFamilyStore cf = ks.getColumnFamilyStore(TABLE);
         Mutation mutation = new RowUpdateBuilder(cf.metadata(), FBUtilities.timestampMicros(), ByteBufferUtil.bytes("1"))
@@ -754,7 +757,8 @@ public class CassandraResourceUtilizationTest extends CQLTester
         try
         {
             ks.applyFuture(mutation, true, true).get();
-            Assert.assertEquals(1,  cassandraResourceUtilization.throttlingMetrics.disableReplicaTrafficThrottling.getCount());
+            Assert.assertEquals(0,  cassandraResourceUtilization.throttlingMetrics.disableReadReplicaTrafficThrottling.getCount());
+            Assert.assertEquals(1,  cassandraResourceUtilization.throttlingMetrics.disableMutationReplicaTrafficThrottling.getCount());
         }
         catch (InterruptedException | ExecutionException e)
         {
@@ -766,6 +770,7 @@ public class CassandraResourceUtilizationTest extends CQLTester
     public void testThrottlingReadReplicationTrafficEnabled()
     {
         CassandraResourceUtilization cassandraResourceUtilization = forceThrottling();
+        cassandraResourceUtilization.throttlingOptions.setThrottleMutationReplicaTraffic(false);
         try
         {
             ReadCommand cmd = new AbstractReadCommandBuilder.PartitionRangeBuilder(Keyspace.open(KEYSPACE_THROTTLE).getColumnFamilyStore(TABLE)).build();
@@ -773,7 +778,8 @@ public class CassandraResourceUtilizationTest extends CQLTester
         }
         catch (OverloadedException e)
         {
-            Assert.assertEquals(0,  cassandraResourceUtilization.throttlingMetrics.disableReplicaTrafficThrottling.getCount());
+            Assert.assertEquals(0,  cassandraResourceUtilization.throttlingMetrics.disableReadReplicaTrafficThrottling.getCount());
+            Assert.assertEquals(0,  cassandraResourceUtilization.throttlingMetrics.disableMutationReplicaTrafficThrottling.getCount());
             Assert.assertEquals("from dynamic throttler: 127.0.0.1", e.getMessage());
             throw e;
         }
@@ -783,10 +789,12 @@ public class CassandraResourceUtilizationTest extends CQLTester
     public void testThrottlingReadReplicationTrafficDisabled()
     {
         CassandraResourceUtilization cassandraResourceUtilization = forceThrottling();
-        cassandraResourceUtilization.throttlingOptions.setThrottleReplicaTraffic(false);
+        cassandraResourceUtilization.throttlingOptions.setThrottleReadReplicaTraffic(false);
+        cassandraResourceUtilization.throttlingOptions.setThrottleMutationReplicaTraffic(true);
         ReadCommand cmd = new AbstractReadCommandBuilder.PartitionRangeBuilder(Keyspace.open(KEYSPACE_THROTTLE).getColumnFamilyStore(TABLE)).build();
         cmd.executeLocally(cmd.executionController());
-        Assert.assertEquals(1,  cassandraResourceUtilization.throttlingMetrics.disableReplicaTrafficThrottling.getCount());
+        Assert.assertEquals(1,  cassandraResourceUtilization.throttlingMetrics.disableReadReplicaTrafficThrottling.getCount());
+        Assert.assertEquals(0,  cassandraResourceUtilization.throttlingMetrics.disableMutationReplicaTrafficThrottling.getCount());
     }
 
     private CassandraResourceUtilization forceThrottling()
@@ -831,7 +839,8 @@ public class CassandraResourceUtilizationTest extends CQLTester
         cassandraResourceUtilization.throttlingMetrics.resetThrottling.dec(cassandraResourceUtilization.throttlingMetrics.resetThrottling.getCount());
         cassandraResourceUtilization.throttlingMetrics.increaseThrottling.dec(cassandraResourceUtilization.throttlingMetrics.increaseThrottling.getCount());
         cassandraResourceUtilization.throttlingMetrics.disableThrottling.dec(cassandraResourceUtilization.throttlingMetrics.disableThrottling.getCount());
-        cassandraResourceUtilization.throttlingMetrics.disableReplicaTrafficThrottling.dec(cassandraResourceUtilization.throttlingMetrics.disableReplicaTrafficThrottling.getCount());
+        cassandraResourceUtilization.throttlingMetrics.disableReadReplicaTrafficThrottling.dec(cassandraResourceUtilization.throttlingMetrics.disableReadReplicaTrafficThrottling.getCount());
+        cassandraResourceUtilization.throttlingMetrics.disableMutationReplicaTrafficThrottling.dec(cassandraResourceUtilization.throttlingMetrics.disableMutationReplicaTrafficThrottling.getCount());
 
         cassandraResourceUtilization.resetThrottlingParams();
 

@@ -33,6 +33,7 @@ public class ThrottlingMetrics
     public Counter resetThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("ResetThrottling"));
     public Counter increaseThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("IncreaseThrottling"));
     public Counter disableThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("DisableThrottling"));
-    public Counter disableReplicaTrafficThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("DisableReplicaTrafficThrottling"));
+    public Counter disableReadReplicaTrafficThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("DisableReadReplicaTrafficThrottling"));
+    public Counter disableMutationReplicaTrafficThrottling = CassandraMetricsRegistry.Metrics.counter(factory.createMetricName("DisableMutationReplicaTrafficThrottling"));
     public Gauge currentThrottlingPercentage;
 }
