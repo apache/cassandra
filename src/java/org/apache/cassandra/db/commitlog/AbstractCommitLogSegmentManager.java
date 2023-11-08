@@ -111,12 +111,19 @@ public abstract class AbstractCommitLogSegmentManager
     {
         // For encrypted segments we want to keep the compression buffers on-heap as we need those bytes for encryption,
         // and we want to avoid copying from off-heap (compression buffer) to on-heap encryption APIs
-        BufferType bufferType = commitLog.configuration.useEncryption() || !commitLog.configuration.useCompression()
-                                ? BufferType.ON_HEAP
-                                : commitLog.configuration.getCompressor().preferredBufferType();
+        BufferType bufferType = commitLog.configuration.isDirectIOEnabled()
+                                ? BufferType.OFF_HEAP
+                                  : commitLog.configuration.useEncryption() || !commitLog.configuration.useCompression()
+                                    ? BufferType.ON_HEAP
+                                    : commitLog.configuration.getCompressor().preferredBufferType();
+
+        // Identify minimum block size used for Direct-I/O. allocateDirect does not return from aligned space.
+        // To avoid write errors additional block size is requested and next aligned it minimum block size.
+        int minimumAllowedAlign = !commitLog.configuration.isDirectIOEnabled()
+                                  ? 0 : CommitLogSegment.getDirectIOMinimumAlignement(storageDirectory, "CommitLog-DirectIO-Test.log");
 
         this.bufferPool = new SimpleCachedBufferPool(DatabaseDescriptor.getCommitLogMaxCompressionBuffersInPool(),
-                                                     DatabaseDescriptor.getCommitLogSegmentSize(),
+                                                     DatabaseDescriptor.getCommitLogSegmentSize() + minimumAllowedAlign,
                                                      bufferType);
 
 
