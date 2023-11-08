@@ -18,13 +18,12 @@
 
 package org.apache.cassandra.index.sai.disk.vector;
 
-public enum OptimizeFor
-{
-    LATENCY,
-    RECALL;
+import java.io.IOException;
 
-    public static OptimizeFor fromString(String value)
-    {
-        return valueOf(value.toUpperCase());
-    }
+public interface OrdinalsView extends AutoCloseable
+{
+    int getOrdinalForRowId(int rowId) throws IOException;
+
+    @Override
+    void close();
 }

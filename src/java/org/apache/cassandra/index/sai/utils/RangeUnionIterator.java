@@ -33,14 +33,12 @@ public class RangeUnionIterator extends RangeIterator
 {
     private final List<RangeIterator> ranges;
 
-    private final List<RangeIterator> toRelease;
     private final List<RangeIterator> candidates = new ArrayList<>();
 
     private RangeUnionIterator(Builder.Statistics statistics, List<RangeIterator> ranges)
     {
         super(statistics);
-        this.ranges = ranges;
-        this.toRelease = new ArrayList<>(ranges);
+        this.ranges = new ArrayList<>(ranges);
     }
 
     public PrimaryKey computeNext()
@@ -93,7 +91,6 @@ public class RangeUnionIterator extends RangeIterator
     public void close() throws IOException
     {
         // Due to lazy key fetching, we cannot close iterator immediately
-        toRelease.forEach(FileUtils::closeQuietly);
         ranges.forEach(FileUtils::closeQuietly);
     }
 

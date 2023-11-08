@@ -176,4 +176,30 @@ public class VectorInvalidQueryTest extends SAITester
         assertThatThrownBy(() -> execute("INSERT INTO %s (pk, value) VALUES (0, ?)", vector(Float.NEGATIVE_INFINITY, 1))).isInstanceOf(InvalidRequestException.class);
         assertThatThrownBy(() -> execute("SELECT * FROM %s ORDER BY value ann of [0.0, 0.0] LIMIT 2")).isInstanceOf(InvalidRequestException.class);
     }
+
+    @Test
+    public void disallowClusteringColumnPredicateWithoutSupportingIndex() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, num int, v vector<float, 2>, PRIMARY KEY(pk, num))");
+        createIndex("CREATE CUSTOM INDEX ON %s(v) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+        execute("INSERT INTO %s (pk, num, v) VALUES (3, 1, [1,1])");
+        execute("INSERT INTO %s (pk, num, v) VALUES (3, 4, [1,4])");
+        flush();
+
+        // If we didn't have the query planner fail this query, we would get incorrect results for both queries
+        // because the clustering columns are not yet available to restrict the ANN result set.
+        assertThatThrownBy(() -> execute("SELECT num FROM %s WHERE pk=3 AND num > 3 ORDER BY v ANN OF [1,1] LIMIT 1"))
+        .isInstanceOf(InvalidRequestException.class)
+        .hasMessage(StatementRestrictions.ANN_REQUIRES_ALL_RESTRICTED_NON_PARTITION_KEY_COLUMNS_INDEXED_MESSAGE);
+
+        assertThatThrownBy(() -> execute("SELECT num FROM %s WHERE pk=3 AND num = 4 ORDER BY v ANN OF [1,1] LIMIT 1"))
+        .isInstanceOf(InvalidRequestException.class)
+        .hasMessage(StatementRestrictions.ANN_REQUIRES_ALL_RESTRICTED_NON_PARTITION_KEY_COLUMNS_INDEXED_MESSAGE);
+
+        // Cover the alternative code path
+        createIndex("CREATE CUSTOM INDEX ON %s(num) USING 'StorageAttachedIndex'");
+        waitForIndexQueryable();
+        assertRows(execute("SELECT num FROM %s WHERE pk=3 AND num > 3 ORDER BY v ANN OF [1,1] LIMIT 1"), row(4));
+    }
 }

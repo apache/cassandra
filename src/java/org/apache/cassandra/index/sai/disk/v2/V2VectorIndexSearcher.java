@@ -28,6 +28,7 @@ import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.github.jbellis.jvector.pq.BinaryQuantization;
 import io.github.jbellis.jvector.util.Bits;
 import io.github.jbellis.jvector.util.SparseFixedBitSet;
 import org.agrona.collections.IntArrayList;
@@ -42,8 +43,8 @@ import org.apache.cassandra.index.sai.disk.v1.IndexSearcher;
 import org.apache.cassandra.index.sai.disk.v1.PerIndexFiles;
 import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.v2.hnsw.CassandraOnDiskHnsw;
+import org.apache.cassandra.index.sai.disk.v3.CassandraDiskAnn;
 import org.apache.cassandra.index.sai.disk.vector.JVectorLuceneOnDiskGraph;
-import org.apache.cassandra.index.sai.disk.vector.OptimizeFor;
 import org.apache.cassandra.index.sai.disk.vector.VectorMemtableIndex;
 import org.apache.cassandra.index.sai.plan.Expression;
 import org.apache.cassandra.index.sai.utils.ArrayPostingList;
@@ -130,16 +131,32 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
     }
 
     /**
-     * If we are optimizing for recall, ask the index to search for more than `limit` results,
-     * which (since it will search deeper in the graph) will tend to surface slightly better
-     * candidates in the process.
+     * @return the topK >= `limit` results to ask the index to search for.  This allows
+     * us to compensate for using lossily-compressed vectors during the search, by
+     * searching deeper in the graph.
      */
     private int topKFor(int limit)
     {
+        // uncompressed indexes don't need to over-search
+        if (graph instanceof CassandraOnDiskHnsw)
+            return limit;
+        var cv = ((CassandraDiskAnn) graph).getCompressedVectors();
+        if (cv == null)
+            return limit;
+
         // compute the factor `n` to multiply limit by to increase the number of results from the index.
-        var n = indexContext.getIndexWriterConfig().getOptimizeFor() == OptimizeFor.LATENCY
-                ? 0.979 + 4.021 * pow(limit, -0.761)  // f(1) =  5.0, f(100) = 1.1, f(1000) = 1.0
-                : 0.509 + 9.491 * pow(limit, -0.402); // f(1) = 10.0, f(100) = 2.0, f(1000) = 1.1
+        var n = 0.509 + 9.491 * pow(limit, -0.402); // f(1) = 10.0, f(100) = 2.0, f(1000) = 1.1
+        // The function becomes less than 1 at limit ~= 1583.4
+        n = max(1.0, n);
+
+        // 2x results at limit=100 is enough for all our tested data sets to match uncompressed recall,
+        // except for the ada002 vectors that compress at a 32x ratio.  For ada002, we need 3x results
+        // with PQ, and 4x for BQ.
+        if (cv instanceof BinaryQuantization)
+            n *= 2;
+        else if ((double) cv.getOriginalSize() / cv.getCompressedSize() > 16.0)
+            n *= 1.5;
+
         return (int) (n * limit);
     }
 
@@ -357,14 +374,14 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
         private final int expectedNodesVisited;
         private final PostingList postingList;
 
-        public BitsOrPostingList(@Nullable Bits bits, int expectedNodesVisited)
+        public BitsOrPostingList(Bits bits, int expectedNodesVisited)
         {
             this.bits = bits;
             this.expectedNodesVisited = expectedNodesVisited;
             this.postingList = null;
         }
 
-        public BitsOrPostingList(@Nullable Bits bits)
+        public BitsOrPostingList(Bits bits)
         {
             this.bits = bits;
             this.postingList = null;

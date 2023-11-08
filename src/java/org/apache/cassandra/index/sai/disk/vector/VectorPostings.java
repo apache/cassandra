@@ -44,7 +44,7 @@ public class VectorPostings<T>
      * Split out from constructor only to make dealing with concurrent inserts easier for CassandraOnHeapGraph.
      * Should be called at most once per instance.
      */
-    void setOrdinal(int ordinal)
+    public void setOrdinal(int ordinal)
     {
         assert this.ordinal == -1 : String.format("ordinal already set to %d; attempted to set to %d", this.ordinal, ordinal);
         this.ordinal = ordinal;

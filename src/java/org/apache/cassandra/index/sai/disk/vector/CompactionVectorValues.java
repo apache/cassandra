@@ -21,6 +21,7 @@ package org.apache.cassandra.index.sai.disk.vector;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.function.IntUnaryOperator;
 import javax.annotation.concurrent.NotThreadSafe;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -77,13 +78,14 @@ public class CompactionVectorValues implements RamAwareVectorValues
     }
 
     @VisibleForTesting
-    public long write(SequentialWriter writer) throws IOException
+    public long write(SequentialWriter writer, IntUnaryOperator ordinalMapper) throws IOException
     {
         writer.writeInt(size());
         writer.writeInt(dimension());
 
         for (var i = 0; i < size(); i++) {
-            var bb = values.get(i);
+            int ord = ordinalMapper.applyAsInt(i);
+            var bb = values.get(ord);
             assert bb != null : "null vector at index " + i + " of " + size();
             writer.write(bb);
         }

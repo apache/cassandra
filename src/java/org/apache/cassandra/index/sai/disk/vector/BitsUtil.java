@@ -30,12 +30,12 @@ public class BitsUtil
     {
         return deletedOrdinals.isEmpty()
                ? toAccept
-               : toAccept == null ? new NoDeletedBits(deletedOrdinals) : new NoDeletedIntersectingBits(toAccept, deletedOrdinals);
+               : toAccept == Bits.ALL ? new NoDeletedBits(deletedOrdinals) : new NoDeletedIntersectingBits(toAccept, deletedOrdinals);
     }
 
     public static <T> Bits bitsIgnoringDeleted(Bits toAccept, NonBlockingHashMapLong<VectorPostings<T>> postings)
     {
-        return toAccept == null ? new NoDeletedPostings(postings) : new NoDeletedIntersectingPostings(toAccept, postings);
+        return toAccept == Bits.ALL ? new NoDeletedPostings(postings) : new NoDeletedIntersectingPostings(toAccept, postings);
     }
 
     private static abstract class BitsWithoutLength implements Bits, org.apache.lucene.util.Bits

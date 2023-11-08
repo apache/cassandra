@@ -29,6 +29,7 @@ import org.junit.Before;
 
 import io.github.jbellis.jvector.graph.GraphIndexBuilder;
 import io.github.jbellis.jvector.graph.GraphSearcher;
+import io.github.jbellis.jvector.util.Bits;
 import io.github.jbellis.jvector.vector.VectorEncoding;
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -94,7 +95,7 @@ public class VectorTester extends SAITester
                                            VectorEncoding.FLOAT32,
                                            VectorSimilarityFunction.COSINE,
                                            graphBuilder.getGraph(),
-                                           null);
+                                           Bits.ALL);
 
         List<float[]> nearestNeighbors = new ArrayList<>();
         for (var ns : results.getNodes())

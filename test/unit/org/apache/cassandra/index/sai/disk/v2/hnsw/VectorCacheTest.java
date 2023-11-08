@@ -93,7 +93,7 @@ public class VectorCacheTest
         var writerOption = SequentialWriterOption.newBuilder().finishOnClose(true).build();
         var vectorsWriter = new SequentialWriter(vectorFile, writerOption);
         var offset = vectorsWriter.getOnDiskFilePointer();
-        vectorValues.write(vectorsWriter);
+        vectorValues.write(vectorsWriter, x -> x);
         vectorsWriter.close();
         return offset;
     }

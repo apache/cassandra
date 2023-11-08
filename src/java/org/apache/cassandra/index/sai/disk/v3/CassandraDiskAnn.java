@@ -33,7 +33,9 @@ import io.github.jbellis.jvector.graph.GraphSearcher;
 import io.github.jbellis.jvector.graph.NeighborSimilarity;
 import io.github.jbellis.jvector.graph.SearchResult;
 import io.github.jbellis.jvector.graph.SearchResult.NodeScore;
+import io.github.jbellis.jvector.pq.BQVectors;
 import io.github.jbellis.jvector.pq.CompressedVectors;
+import io.github.jbellis.jvector.pq.PQVectors;
 import io.github.jbellis.jvector.util.Bits;
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 import org.apache.cassandra.index.sai.IndexContext;
@@ -45,6 +47,9 @@ import org.apache.cassandra.index.sai.disk.v1.postings.VectorPostingList;
 import org.apache.cassandra.index.sai.disk.vector.CassandraOnHeapGraph;
 import org.apache.cassandra.index.sai.disk.vector.JVectorLuceneOnDiskGraph;
 import org.apache.cassandra.index.sai.disk.vector.OnDiskOrdinalsMap;
+import org.apache.cassandra.index.sai.disk.vector.OrdinalsView;
+import org.apache.cassandra.index.sai.disk.vector.RowIdsView;
+import org.apache.cassandra.index.sai.disk.vector.VectorCompression;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.tracing.Tracing;
 
@@ -72,9 +77,11 @@ public class CassandraDiskAnn implements JVectorLuceneOnDiskGraph, AutoCloseable
              var reader = pqFile.createReader())
         {
             reader.seek(pqSegmentOffset);
-            var containsCompressedVectors = reader.readBoolean();
-            if (containsCompressedVectors)
-                compressedVectors = CompressedVectors.load(reader, reader.getFilePointer());
+            VectorCompression compressionType = VectorCompression.values()[reader.readByte()];
+            if (compressionType == VectorCompression.PRODUCT_QUANTIZATION)
+                compressedVectors = PQVectors.load(reader, reader.getFilePointer());
+            else if (compressionType == VectorCompression.BINARY_QUANTIZATION)
+                compressedVectors = BQVectors.load(reader, reader.getFilePointer());
             else
                 compressedVectors = null;
         }
@@ -132,10 +139,15 @@ public class CassandraDiskAnn implements JVectorLuceneOnDiskGraph, AutoCloseable
         return annRowIdsToPostings(result, limit);
     }
 
+    public CompressedVectors getCompressedVectors()
+    {
+        return compressedVectors;
+    }
+
     private class RowIdIterator implements PrimitiveIterator.OfInt, AutoCloseable
     {
         private final Iterator<NodeScore> it;
-        private final OnDiskOrdinalsMap.RowIdsView rowIdsView = ordinalsMap.getRowIdsView();
+        private final RowIdsView rowIdsView = ordinalsMap.getRowIdsView();
 
         private OfInt segmentRowIdIterator = IntStream.empty().iterator();
 
@@ -193,7 +205,7 @@ public class CassandraDiskAnn implements JVectorLuceneOnDiskGraph, AutoCloseable
     }
 
     @Override
-    public OnDiskOrdinalsMap.OrdinalsView getOrdinalsView()
+    public OrdinalsView getOrdinalsView()
     {
         return ordinalsMap.getOrdinalsView();
     }

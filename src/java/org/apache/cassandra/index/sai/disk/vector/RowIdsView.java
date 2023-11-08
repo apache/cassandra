@@ -20,25 +20,10 @@ package org.apache.cassandra.index.sai.disk.vector;
 
 import java.io.IOException;
 
-import io.github.jbellis.jvector.util.Bits;
-import org.apache.cassandra.index.sai.QueryContext;
-import org.apache.cassandra.index.sai.disk.v1.postings.VectorPostingList;
-
-/**
- * A common interface between Lucene and JVector graph indexes
- */
-public interface JVectorLuceneOnDiskGraph extends AutoCloseable
+public interface RowIdsView extends AutoCloseable
 {
-    long ramBytesUsed();
+    int[] getSegmentRowIdsMatching(int vectorOrdinal) throws IOException;
 
-    int size();
-
-    OrdinalsView getOrdinalsView() throws IOException;
-
-    /**
-     * See CassandraDiskANN::search
-     */
-    VectorPostingList search(float[] queryVector, int topK, int limit, Bits bits, QueryContext context);
-
-    void close() throws IOException;
+    @Override
+    void close();
 }

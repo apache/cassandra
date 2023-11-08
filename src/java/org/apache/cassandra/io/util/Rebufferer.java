@@ -21,6 +21,7 @@ package org.apache.cassandra.io.util;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
+import java.nio.LongBuffer;
 
 /**
  * Rebufferer for reading data by a RandomAccessReader.
@@ -55,6 +56,11 @@ public interface Rebufferer extends ReaderFileProxy
         }
 
         default IntBuffer intBuffer()
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        default LongBuffer longBuffer()
         {
             throw new UnsupportedOperationException();
         }
