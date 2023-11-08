@@ -19,11 +19,10 @@ package org.apache.cassandra.db.commitlog;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.file.Files;
+import java.nio.LongBuffer;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.util.FileUtils;
 
 /*
  * Direct-IO segment. Allocates ByteBuffer using ByteBuffer.allocateDirect and align
@@ -33,7 +32,6 @@ import org.apache.cassandra.io.util.FileUtils;
 public class DirectIOSegment extends CommitLogSegment
 {
     ByteBuffer original;
-    static int minimumAllowedAlign;
 
     // Needed to track number of bytes written to disk in multiple of page size.
     long lastWritten = 0;
@@ -51,39 +49,25 @@ public class DirectIOSegment extends CommitLogSegment
         int firstSync = buffer.position();
         buffer.putInt(firstSync + 0, 0);
         buffer.putInt(firstSync + 4, 0);
-
-        // Testing shows writing initial bytes takes some time. During peak load, it helps
-        // lot and Syncer thread can actually do flush activity. Making this initial
-        // slow operation to be executed by Allocator thread here.
-        int oldLastSyncedOffset = lastSyncedOffset;
-        // 8 bytes are written above.
-        lastSyncedOffset = 8;
-        flush(0, lastSyncedOffset);
-        lastSyncedOffset = oldLastSyncedOffset;
     }
 
     ByteBuffer createBuffer(CommitLog commitLog)
     {
-        if (minimumAllowedAlign == 0)
-        {
-            try
-            {
-                minimumAllowedAlign = (int)Files.getFileStore(logFile.toPath()).getBlockSize();
-            }
-            catch (IOException e)
-            {
-                throw new FSWriteError(e, logFile);
-            }
-        }
-
         int segmentSize = DatabaseDescriptor.getCommitLogSegmentSize();
-        original = ByteBuffer.allocateDirect(segmentSize + minimumAllowedAlign);
 
-        ByteBuffer alignedBuffer = original.alignedSlice(minimumAllowedAlign);
+        original =  manager.getBufferPool().createBuffer();
+
+        // May get previously used buffer and zero it out to now. Direct I/O writes additional bytes during flush
+        // operation.
+        LongBuffer arrayBuffer = original.asLongBuffer();
+        for(int i = 0 ; i < arrayBuffer.limit() ; i++)
+            arrayBuffer.put(i, 0);
+
+        ByteBuffer alignedBuffer = original.alignedSlice(minimumDirectIOAlignement);
         assert alignedBuffer.limit() >= segmentSize : String.format("Bytebuffer slicing failed to get required buffer size (required=%d,current size=%d", segmentSize, alignedBuffer.limit());
 
-        assert alignedBuffer.alignmentOffset(0, minimumAllowedAlign) == 0 : String.format("Index 0 should be aligned to %d page size.", minimumAllowedAlign);
-        assert alignedBuffer.alignmentOffset(alignedBuffer.limit(), minimumAllowedAlign) == 0 : String.format("Limit should be aligned to %d page size", minimumAllowedAlign);
+        assert alignedBuffer.alignmentOffset(0, minimumDirectIOAlignement) == 0 : String.format("Index 0 should be aligned to %d page size.", minimumDirectIOAlignement);
+        assert alignedBuffer.alignmentOffset(alignedBuffer.limit(), minimumDirectIOAlignement) == 0 : String.format("Limit should be aligned to %d page size", minimumDirectIOAlignement);
 
         return alignedBuffer;
     }
@@ -116,9 +100,9 @@ public class DirectIOSegment extends CommitLogSegment
             ByteBuffer duplicate = buffer.duplicate();
 
             // Aligned file position if not aligned to start of 4K page.
-            if (filePosition % minimumAllowedAlign != 0)
+            if (filePosition % minimumDirectIOAlignement != 0)
             {
-                filePosition = filePosition & ~(minimumAllowedAlign -1);
+                filePosition = filePosition & ~(minimumDirectIOAlignement -1);
                 channel.position(filePosition);
             }
             duplicate.position(filePosition);
@@ -126,8 +110,8 @@ public class DirectIOSegment extends CommitLogSegment
             int flushSizeInBytes = nextMarker;
 
             // Align last byte to end of 4K page.
-            if (flushSizeInBytes % minimumAllowedAlign != 0)
-                flushSizeInBytes = (flushSizeInBytes + minimumAllowedAlign) & ~(minimumAllowedAlign -1);
+            if (flushSizeInBytes % minimumDirectIOAlignement != 0)
+                flushSizeInBytes = (flushSizeInBytes + minimumDirectIOAlignement) & ~(minimumDirectIOAlignement -1);
 
             duplicate.limit(flushSizeInBytes);
 
@@ -157,7 +141,14 @@ public class DirectIOSegment extends CommitLogSegment
     @Override
     protected void internalClose()
     {
-        FileUtils.clean(original);
-        super.internalClose();
+        try
+        {
+            manager.getBufferPool().releaseBuffer(original);
+            super.internalClose();
+        }
+        finally
+        {
+            manager.notifyBufferFreed();
+        }
     }
 }

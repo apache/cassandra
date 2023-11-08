@@ -20,6 +20,7 @@ package org.apache.cassandra.db.commitlog;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import com.sun.nio.file.ExtendedOpenOption;
 import java.util.*;
@@ -83,6 +84,9 @@ public abstract class CommitLogSegment
         }
         replayLimitId = idBase = Math.max(currentTimeMillis(), maxId + 1);
     }
+
+    // Minimum alignement and block size required by direct I/O feature.
+    public static int minimumDirectIOAlignement = 0;
 
     // The commit log entry overhead in bytes (int: length + int: head checksum + int: tail checksum)
     public static final int ENTRY_OVERHEAD_SIZE = 4 + 4 + 4;
@@ -177,7 +181,7 @@ public abstract class CommitLogSegment
 
         try
         {
-            if(commitLog.configuration.isDirectIOEnabled())
+            if (commitLog.configuration.isDirectIOEnabled())
                 channel = FileChannel.open(logFile.toPath(), StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE, ExtendedOpenOption.DIRECT);
             else
                 channel = FileChannel.open(logFile.toPath(), StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE);
@@ -202,6 +206,12 @@ public abstract class CommitLogSegment
         lastSyncedOffset = lastMarkerOffset = buffer.position();
         allocatePosition.set(lastSyncedOffset + SYNC_MARKER_SIZE);
         headerWritten = true;
+
+        // Testing shows writing initial bytes takes some time for Direct I/O. During peak load,
+        // it is better to make "COMMIT-LOG-ALLOCATOR" thread to write these few bytes of each
+        // file and this helps syncer thread to speedup the flush activity.
+        if (CommitLog.instance.configuration.isDirectIOEnabled())
+            flush(0, lastSyncedOffset);
     }
 
     /**
@@ -717,6 +727,29 @@ public abstract class CommitLogSegment
             cdcState = newState;
             return oldState;
         }
+    }
+
+    /**
+     * Direct requires minimum alignement and block size to be used for read and writes. Identify it now.
+     */
+    static public int getDirectIOMinimumAlignement(String storageDirectory, String fileName)
+    {
+        if (minimumDirectIOAlignement != 0)
+            return minimumDirectIOAlignement;
+
+        File testFile = new File(storageDirectory, "directio_test_blocksize.log");
+        try
+        {
+            FileChannel channel = FileChannel.open(testFile.toPath(), StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE, ExtendedOpenOption.DIRECT);
+            minimumDirectIOAlignement = (int)Files.getFileStore(testFile.toPath()).getBlockSize();
+            channel.close();
+        }
+        catch (IOException e)
+        {
+            throw new FSWriteError(e, testFile);
+        }
+        FileUtils.deleteWithConfirm(testFile);
+        return minimumDirectIOAlignement;
     }
 
     /**
