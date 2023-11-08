@@ -74,11 +74,14 @@ public class StatementRestrictions
     public static final String PARTITION_KEY_RESTRICTION_MUST_BE_TOP_LEVEL =
     "Restriction on partition key column %s must not be nested under OR operator";
 
+    public static final String GEO_DISTANCE_REQUIRES_INDEX_MESSAGE = "GEO_DISTANCE requires the vector column to be indexed";
     public static final String ANN_REQUIRES_INDEX_MESSAGE = "ANN ordering by vector requires the column to be indexed";
     public static final String ANN_REQUIRES_ALL_RESTRICTED_NON_PARTITION_KEY_COLUMNS_INDEXED_MESSAGE =
     "ANN ordering by vector requires each restricted column to be indexed except for fully-specified partition keys";
 
-    public static final String VECTOR_INDEXES_ANN_ONLY_MESSAGE = "Vector indexes only support ANN queries";
+    public static final String VECTOR_INDEX_PRESENT_NOT_SUPPORT_GEO_DISTANCE_MESSAGE =
+    "Vector index present, but configuration does not support GEO_DISTANCE queries. GEO_DISTANCE requires similarity_function 'euclidean'";
+    public static final String VECTOR_INDEXES_UNSUPPORTED_OP_MESSAGE = "Vector indexes only support ANN and GEO_DISTANCE queries";
 
     /**
      * The Column Family meta data
@@ -610,10 +613,17 @@ public class StatementRestrictions
                     {
                         var vc = vectorColumn.get();
                         var hasIndex = indexRegistry.listIndexes().stream().anyMatch(i -> i.dependsOn(vc));
+                        var isBoundedANN = nonPrimaryKeyRestrictions.restrictions().stream().anyMatch(SingleRestriction::isBoundedAnn);
                         if (hasIndex)
-                            throw invalidRequest(StatementRestrictions.VECTOR_INDEXES_ANN_ONLY_MESSAGE);
+                            if (isBoundedANN)
+                                throw invalidRequest(StatementRestrictions.VECTOR_INDEX_PRESENT_NOT_SUPPORT_GEO_DISTANCE_MESSAGE);
+                            else
+                                throw invalidRequest(StatementRestrictions.VECTOR_INDEXES_UNSUPPORTED_OP_MESSAGE, vc);
                         else
-                            throw invalidRequest(StatementRestrictions.ANN_REQUIRES_INDEX_MESSAGE);
+                            if (isBoundedANN)
+                                throw invalidRequest(StatementRestrictions.GEO_DISTANCE_REQUIRES_INDEX_MESSAGE);
+                            else
+                                throw invalidRequest(StatementRestrictions.ANN_REQUIRES_INDEX_MESSAGE);
                     }
 
                     if (!allowFiltering)
@@ -780,7 +790,7 @@ public class StatementRestrictions
 
     public boolean hasAnnRestriction()
     {
-        return nonPrimaryKeyRestrictions.getColumnDefs().stream().anyMatch(c -> c.type.isVector());
+        return nonPrimaryKeyRestrictions.restrictions().stream().anyMatch(SingleRestriction::isAnn);
     }
 
     public void throwRequiresAllowFilteringError(TableMetadata table)

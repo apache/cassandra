@@ -42,7 +42,7 @@ import io.github.jbellis.jvector.disk.OnDiskGraphIndex;
 import io.github.jbellis.jvector.graph.GraphIndex;
 import io.github.jbellis.jvector.graph.GraphIndexBuilder;
 import io.github.jbellis.jvector.graph.GraphSearcher;
-import io.github.jbellis.jvector.graph.NeighborSimilarity;
+import io.github.jbellis.jvector.graph.NodeSimilarity;
 import io.github.jbellis.jvector.graph.RandomAccessVectorValues;
 import io.github.jbellis.jvector.pq.BQVectors;
 import io.github.jbellis.jvector.pq.BinaryQuantization;
@@ -264,7 +264,7 @@ public class CassandraOnHeapGraph<T>
     /**
      * @return keys (PrimaryKey or segment row id) associated with the topK vectors near the query
      */
-    public PriorityQueue<T> search(float[] queryVector, int limit, Bits toAccept)
+    public PriorityQueue<T> search(float[] queryVector, int limit, float threshold, Bits toAccept)
     {
         validateIndexable(queryVector, similarityFunction);
 
@@ -276,10 +276,10 @@ public class CassandraOnHeapGraph<T>
         // VSTODO re-use searcher objects
         GraphIndex<float[]> graph = builder.getGraph();
         var searcher = new GraphSearcher.Builder<>(graph.getView()).withConcurrentUpdates().build();
-        NeighborSimilarity.ExactScoreFunction scoreFunction = node2 -> {
+        NodeSimilarity.ExactScoreFunction scoreFunction = node2 -> {
             return similarityFunction.compare(queryVector, ((RandomAccessVectorValues<float[]>) vectorValues).vectorValue(node2));
         };
-        var result = searcher.search(scoreFunction, null, limit, bits);
+        var result = searcher.search(scoreFunction, null, limit, threshold, bits);
         Tracing.trace("ANN search visited {} in-memory nodes to return {} results", result.getVisitedCount(), result.getNodes().length);
         var a = result.getNodes();
         PriorityQueue<T> keyQueue = new PriorityQueue<>();

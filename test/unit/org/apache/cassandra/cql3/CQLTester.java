@@ -2444,6 +2444,11 @@ public abstract class CQLTester
             return RandomInts.randomIntBetween(random, minValue, maxValue);
         }
 
+        public float nextFloatBetween(int minValue, int maxValue)
+        {
+            return random.nextFloat() * (maxValue - minValue) + minValue;
+        }
+
         public long nextLong()
         {
             return random.nextLong();

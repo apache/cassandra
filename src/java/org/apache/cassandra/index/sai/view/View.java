@@ -76,7 +76,7 @@ public class View implements Iterable<SSTableIndex>
      */
     public Set<SSTableIndex> match(Expression expression)
     {
-        if (expression.getOp() == Expression.Op.ANN)
+        if (expression.getOp() == Expression.Op.ANN || expression.getOp() == Expression.Op.BOUNDED_ANN)
             return new HashSet<>(getIndexes());
         return termTree.search(expression);
     }

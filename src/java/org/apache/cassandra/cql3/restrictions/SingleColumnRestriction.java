@@ -873,6 +873,82 @@ public abstract class SingleColumnRestriction implements SingleRestriction
         }
     }
 
+    /**
+     * A Bounded ANN Restriction is one that uses a similarity score as the limiting factor for ANN instead of a number
+     * of results.
+     */
+    public static final class BoundedAnnRestriction extends SingleColumnRestriction
+    {
+        private final Term value;
+        private final Term distance;
+        private final boolean isInclusive;
+
+        public BoundedAnnRestriction(ColumnMetadata columnDef, Term value, Term distance, boolean isInclusive)
+        {
+            super(columnDef);
+            this.value = value;
+            this.distance = distance;
+            this.isInclusive = isInclusive;
+        }
+
+        public ByteBuffer value(QueryOptions options)
+        {
+            return value.bindAndGet(options);
+        }
+
+        @Override
+        public void addFunctionsTo(List<Function> functions)
+        {
+            value.addFunctionsTo(functions);
+            distance.addFunctionsTo(functions);
+        }
+
+        @Override
+        MultiColumnRestriction toMultiColumnRestriction()
+        {
+            // only used by partition and clustering restrictions
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void addToRowFilter(RowFilter.Builder filter,
+                                   IndexRegistry indexRegistry,
+                                   QueryOptions options)
+        {
+            filter.addGeoDistanceExpression(columnDef, value.bindAndGet(options), isInclusive ? Operator.LTE : Operator.LT, distance.bindAndGet(options));
+        }
+
+        @Override
+        public MultiCBuilder appendTo(MultiCBuilder builder, QueryOptions options)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String toString()
+        {
+            return String.format("BOUNDED_ANN(%s)", value);
+        }
+
+        @Override
+        public SingleRestriction doMergeWith(SingleRestriction otherRestriction)
+        {
+            throw invalidRequest("%s cannot be restricted by more than one relation if it includes an BOUNDED_ANN", columnDef.name);
+        }
+
+        @Override
+        protected boolean isSupportedBy(Index index)
+        {
+            return index.supportsExpression(columnDef, Operator.BOUNDED_ANN);
+        }
+
+        @Override
+        public boolean isBoundedAnn()
+        {
+            return true;
+        }
+    }
+
     public static final class AnalyzerMatchesRestriction extends SingleColumnRestriction
     {
         private final List<Term> values;

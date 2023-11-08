@@ -292,6 +292,27 @@ public enum Operator
         {
             throw new UnsupportedOperationException(": operation can only be computed by an indexed column with a configured analyzer");
         }
+    },
+    /**
+     * An operator that performs a distance bounded approximate nearest neighbor search against a vector column such
+     * that all result vectors are within a given distance of the query vector. The notable difference between this
+     * operator and {@link #ANN} is that it does not introduce an arbitrary limit on the number of results returned,
+     * and as a consequence, it can be logically combined with other predicates and even unioned with other
+     * {@link #BOUNDED_ANN} predicates.
+     */
+    BOUNDED_ANN(101)
+    {
+        @Override
+        public String toString()
+        {
+            return "BOUNDED_ANN";
+        }
+
+        @Override
+        public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
+        {
+            throw new UnsupportedOperationException();
+        }
     };
 
     /**

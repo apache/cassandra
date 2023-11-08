@@ -115,16 +115,18 @@ public class V2VectorIndexSearcher extends IndexSearcher implements SegmentOrder
         if (logger.isTraceEnabled())
             logger.trace(indexContext.logMessage("Searching on expression '{}'..."), exp);
 
-        if (exp.getOp() != Expression.Op.ANN)
+        if (exp.getOp() != Expression.Op.ANN && exp.getOp() != Expression.Op.BOUNDED_ANN)
             throw new IllegalArgumentException(indexContext.logMessage("Unsupported expression during ANN index query: " + exp));
 
+        if (exp.getEuclideanSearchThreshold() > 0)
+            limit = 100000;
         int topK = topKFor(limit);
         BitsOrPostingList bitsOrPostingList = bitsOrPostingListForKeyRange(context, keyRange, topK);
         if (bitsOrPostingList.skipANN())
             return bitsOrPostingList.postingList();
 
         float[] queryVector = exp.lower.value.vector;
-        var vectorPostings = graph.search(queryVector, topK, limit, bitsOrPostingList.getBits(), context);
+        var vectorPostings = graph.search(queryVector, topK, exp.getEuclideanSearchThreshold(), limit, bitsOrPostingList.getBits(), context);
         if (bitsOrPostingList.expectedNodesVisited >= 0)
             updateExpectedNodes(vectorPostings.getVisitedCount(), bitsOrPostingList.expectedNodesVisited);
         return vectorPostings;

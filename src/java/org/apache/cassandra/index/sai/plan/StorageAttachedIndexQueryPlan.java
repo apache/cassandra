@@ -28,6 +28,7 @@ import javax.annotation.Nullable;
 import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.filter.RowFilter;
@@ -61,7 +62,7 @@ public class StorageAttachedIndexQueryPlan implements Index.QueryPlan
         this.filterOperation = filterOperation;
         this.indexes = indexes;
         this.indexFeatureSet = indexFeatureSet;
-        this.isTopK = indexes.stream().anyMatch(i -> i instanceof StorageAttachedIndex && ((StorageAttachedIndex) i).getIndexContext().isVector());
+        this.isTopK = filterOperation.expressions().stream().anyMatch(p -> p.operator() == Operator.ANN);
     }
 
     @Nullable

@@ -180,6 +180,7 @@ K_WRITETIME:   W R I T E T I M E;
 K_DATE:        D A T E;
 K_TIME:        T I M E;
 K_VECTOR:      V E C T O R;
+K_GEO_DISTANCE:G E O '_' D I S T A N C E;
 
 K_NULL:        N U L L;
 K_NOT:         N O T;

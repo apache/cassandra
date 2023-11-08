@@ -66,6 +66,11 @@ public interface SingleRestriction extends Restriction
         return false;
     }
 
+    public default boolean isBoundedAnn()
+    {
+        return false;
+    }
+
     /**
      * Checks if the specified bound is set or not.
      * @param b the bound type

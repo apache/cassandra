@@ -123,6 +123,12 @@ public class CassandraOnDiskHnsw implements JVectorLuceneOnDiskGraph, AutoClosea
         }
     }
 
+    @Override
+    public VectorPostingList search(float[] queryVector, int topK, float threshold, int limit, Bits bits, QueryContext context)
+    {
+        throw new UnsupportedOperationException();
+    }
+
     private class RowIdIterator implements PrimitiveIterator.OfInt, AutoCloseable
     {
         private final NeighborQueue queue;

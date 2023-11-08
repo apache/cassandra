@@ -138,6 +138,14 @@ public class Operation
                         while (analyzer.hasNext());
                     }
                 }
+                else if (e instanceof RowFilter.GeoDistanceExpression)
+                {
+                    var distance = ((RowFilter.GeoDistanceExpression) e);
+                    var expression = new Expression(indexContext)
+                                     .add(distance.getDistanceOperator(), distance.getDistance().duplicate())
+                                     .add(Operator.BOUNDED_ANN, e.getIndexValue().duplicate());
+                    perColumn.add(expression);
+                }
                 else
                 // "range" or not-equals operator, combines both bounds together into the single expression,
                 // if operation of the group is AND, otherwise we are forced to create separate expressions,

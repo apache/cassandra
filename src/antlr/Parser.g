@@ -1541,6 +1541,7 @@ allowedFunctionName returns [String s]
     | f=QUOTED_NAME                 { $s = $f.text; }
     | u=unreserved_function_keyword { $s = u; }
     | K_TOKEN                       { $s = "token"; }
+    | K_GEO_DISTANCE                { $s = "GEO_DISTANCE"; }
     | K_COUNT                       { $s = "count"; }
     ;
 
@@ -1701,6 +1702,8 @@ relation[WhereClause.Builder clauses]
     | name=cident K_IS K_NOT K_NULL { $clauses.add(new SingleColumnRelation(name, Operator.IS_NOT, Constants.NULL_LITERAL)); }
     | K_TOKEN l=tupleOfIdentifiers type=relationType t=term
         { $clauses.add(new TokenRelation(l, type, t)); }
+    | K_GEO_DISTANCE '(' name=cident ',' point=term ')' type=relationType distance=term
+        { $clauses.add(new GeoDistanceRelation(name, point, type, distance)); }
     | name=cident K_IN marker=inMarker
         { $clauses.add(new SingleColumnRelation(name, Operator.IN, marker)); }
     | name=cident K_IN inValues=singleColumnInValues

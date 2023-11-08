@@ -32,6 +32,7 @@ import com.google.common.base.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.github.jbellis.jvector.vector.VectorUtil;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.restrictions.ExternalRestriction;
@@ -46,6 +47,8 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.IndexRegistry;
+import org.apache.cassandra.index.sai.utils.GeoUtil;
+import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
@@ -55,6 +58,7 @@ import org.apache.cassandra.schema.TableMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.lucene.util.SloppyMath;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkBindValueSet;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
@@ -301,6 +305,11 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         public void addMapEquality(ColumnMetadata def, ByteBuffer key, Operator op, ByteBuffer value)
         {
             add(new MapEqualityExpression(def, key, op, value));
+        }
+
+        public void addGeoDistanceExpression(ColumnMetadata def, ByteBuffer point, Operator op, ByteBuffer distance)
+        {
+            add(new GeoDistanceExpression(def, point, op, distance));
         }
 
         public void addCustomIndexExpression(TableMetadata metadata, IndexMetadata targetIndex, ByteBuffer value)
@@ -600,11 +609,30 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
     {
         public static final Serializer serializer = new Serializer();
 
-        // Note: the order of this enum matter, it's used for serialization,
+        // Note: the val of this enum is used for serialization,
         // and this is why we have some UNUSEDX for values we don't use anymore
         // (we could clean those on a major protocol update, but it's not worth
         // the trouble for now)
-        protected enum Kind { SIMPLE, MAP_EQUALITY, UNUSED1, CUSTOM, USER }
+        // VECTOR
+        protected enum Kind {
+            SIMPLE(0), MAP_EQUALITY(1), UNUSED1(2), CUSTOM(3), USER(4), VECTOR_RADIUS(100);
+            private final int val;
+            Kind(int v) { val = v; }
+            public int getVal() { return val; }
+            public static Kind fromVal(int val)
+            {
+                switch (val)
+                {
+                    case 0: return SIMPLE;
+                    case 1: return MAP_EQUALITY;
+                    case 2: return UNUSED1;
+                    case 3: return CUSTOM;
+                    case 4: return USER;
+                    case 100: return VECTOR_RADIUS;
+                    default: throw new IllegalArgumentException("Unknown index expression kind: " + val);
+                }
+            }
+        }
 
         protected abstract Kind kind();
         protected final ColumnMetadata column;
@@ -737,7 +765,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         {
             public void serialize(Expression expression, DataOutputPlus out, int version) throws IOException
             {
-                out.writeByte(expression.kind().ordinal());
+                out.writeByte(expression.kind().getVal());
 
                 // Custom expressions include neither a column or operator, but all
                 // other expressions do.
@@ -767,12 +795,18 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                         ByteBufferUtil.writeWithShortLength(mexpr.key, out);
                         ByteBufferUtil.writeWithShortLength(mexpr.value, out);
                         break;
+                    case VECTOR_RADIUS:
+                        GeoDistanceExpression gexpr = (GeoDistanceExpression) expression;
+                        gexpr.distanceOperator.writeTo(out);
+                        ByteBufferUtil.writeWithShortLength(gexpr.distance, out);
+                        ByteBufferUtil.writeWithShortLength(gexpr.value, out);
+                        break;
                 }
             }
 
             public Expression deserialize(DataInputPlus in, int version, TableMetadata metadata) throws IOException
             {
-                Kind kind = Kind.values()[in.readByte()];
+                Kind kind = Kind.fromVal(in.readByte());
 
                 // custom expressions (3.0+ only) do not contain a column or operator, only a value
                 if (kind == Kind.CUSTOM)
@@ -802,6 +836,11 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                         ByteBuffer key = ByteBufferUtil.readWithShortLength(in);
                         ByteBuffer value = ByteBufferUtil.readWithShortLength(in);
                         return new MapEqualityExpression(column, key, operator, value);
+                    case VECTOR_RADIUS:
+                        Operator boundaryOperator = Operator.readFrom(in);
+                        ByteBuffer distance = ByteBufferUtil.readWithShortLength(in);
+                        ByteBuffer searchVector = ByteBufferUtil.readWithShortLength(in);
+                        return new GeoDistanceExpression(column, searchVector, boundaryOperator, distance);
                 }
                 throw new AssertionError();
             }
@@ -832,6 +871,12 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                         break;
                     case USER:
                         size += UserExpression.serializedSize((UserExpression)expression, version);
+                        break;
+                    case VECTOR_RADIUS:
+                        GeoDistanceExpression geoDistanceRelation = (GeoDistanceExpression) expression;
+                        size += ByteBufferUtil.serializedSizeWithShortLength(geoDistanceRelation.distance)
+                                + ByteBufferUtil.serializedSizeWithShortLength(geoDistanceRelation.value)
+                                + geoDistanceRelation.distanceOperator.serializedSize();
                         break;
                 }
                 return size;
@@ -1078,6 +1123,112 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         protected Kind kind()
         {
             return Kind.MAP_EQUALITY;
+        }
+    }
+
+
+    public static class GeoDistanceExpression extends Expression
+    {
+        private final ByteBuffer distance;
+        private final Operator distanceOperator;
+        private final float searchRadiusMeters;
+        private final float searchRadiusDegreesSquared;
+        private final float searchLat;
+        private final float searchLon;
+
+        public GeoDistanceExpression(ColumnMetadata column, ByteBuffer point, Operator operator, ByteBuffer distance)
+        {
+            super(column, Operator.BOUNDED_ANN, point);
+            assert column.type instanceof VectorType && (operator == Operator.LTE || operator == Operator.LT);
+            this.distanceOperator = operator;
+            this.distance = distance;
+            searchRadiusMeters = FloatType.instance.compose(distance);
+            if (searchRadiusMeters <= 0)
+                throw new InvalidRequestException("GEO_DISTANCE radius must be non-negative, got " + searchRadiusMeters);
+            searchRadiusDegreesSquared = GeoUtil.maximumSquareDistanceForCorrectLatLongSimilarity(searchRadiusMeters);
+            var pointVector = TypeUtil.decomposeVector(column.type, point);
+            // This is validated earlier in the parser because the column requires size 2, so only assert on it
+            assert pointVector.length == 2 : "GEO_DISTANCE requires search vector to have 2 dimensions.";
+            searchLat = pointVector[0];
+            searchLon = pointVector[1];
+        }
+
+
+        public Operator getDistanceOperator()
+        {
+            return distanceOperator;
+        }
+
+        public ByteBuffer getDistance()
+        {
+            return distance;
+        }
+
+        @Override
+        public void validate() throws InvalidRequestException
+        {
+            checkBindValueSet(distance, "Unsupported unset distance for column %s", column.name);
+            checkBindValueSet(value, "Unsupported unset vector value for column %s", column.name);
+        }
+
+        @Override
+        public boolean isSatisfiedBy(TableMetadata metadata, DecoratedKey partitionKey, Row row)
+        {
+            ByteBuffer foundValue = getValue(metadata, partitionKey, row);
+            if (foundValue == null)
+                return false;
+            double squareDistance = VectorUtil.squareDistance(foundValue.array(), value.array());
+            // If we are within the search radius degrees, then we are within the search radius meters.
+            // This relies on the fact that lat/long distort distance by making close points further apart.
+            if (squareDistance <= searchRadiusDegreesSquared)
+                return true;
+            var foundVector = TypeUtil.decomposeVector(column.type, foundValue);
+            double haversineDistance = SloppyMath.haversinMeters(foundVector[0], foundVector[1], searchLat, searchLon);
+            switch (distanceOperator)
+            {
+                case LTE:
+                    return haversineDistance <= searchRadiusMeters;
+                case LT:
+                    return haversineDistance < searchRadiusMeters;
+                default:
+                    throw new AssertionError("Unsupported operator: " + operator);
+            }
+        }
+
+        @Override
+        public String toString()
+        {
+            return String.format("GEO_DISTANCE(%s, %s) %s %s", column.name, column.type.getString(value),
+                                 distanceOperator, FloatType.instance.getString(distance));
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o)
+                return true;
+
+            if (!(o instanceof GeoDistanceExpression))
+                return false;
+
+            GeoDistanceExpression that = (GeoDistanceExpression)o;
+
+            return Objects.equal(this.column.name, that.column.name)
+                   && Objects.equal(this.distanceOperator, that.distanceOperator)
+                   && Objects.equal(this.distance, that.distance)
+                   && Objects.equal(this.value, that.value);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hashCode(column.name, distanceOperator, value, distance);
+        }
+
+        @Override
+        protected Kind kind()
+        {
+            return Kind.VECTOR_RADIUS;
         }
     }
 

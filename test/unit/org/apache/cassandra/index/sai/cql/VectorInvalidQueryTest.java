@@ -136,10 +136,10 @@ public class VectorInvalidQueryTest extends SAITester
         createIndex("CREATE CUSTOM INDEX ON %s(val) USING 'StorageAttachedIndex'");
         waitForIndexQueryable();
 
-        assertInvalidMessage(StatementRestrictions.VECTOR_INDEXES_ANN_ONLY_MESSAGE,
+        assertInvalidMessage(StatementRestrictions.VECTOR_INDEXES_UNSUPPORTED_OP_MESSAGE,
                              "SELECT * FROM %s WHERE val = [2.5, 3.5, 4.5] LIMIT 1");
 
-        assertInvalidMessage(StatementRestrictions.VECTOR_INDEXES_ANN_ONLY_MESSAGE,
+        assertInvalidMessage(StatementRestrictions.VECTOR_INDEXES_UNSUPPORTED_OP_MESSAGE,
                              "SELECT * FROM %s WHERE val = [2.5, 3.5, 4.5]");
     }
 

@@ -40,5 +40,10 @@ public interface JVectorLuceneOnDiskGraph extends AutoCloseable
      */
     VectorPostingList search(float[] queryVector, int topK, int limit, Bits bits, QueryContext context);
 
+    /**
+     * See CassandraDiskANN::search
+     */
+    VectorPostingList search(float[] queryVector, int topK, float threshold, int limit, Bits bits, QueryContext context);
+
     void close() throws IOException;
 }

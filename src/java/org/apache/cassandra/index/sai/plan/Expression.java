@@ -35,12 +35,16 @@ import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.github.jbellis.jvector.vector.VectorUtil;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.FloatType;
 import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.analyzer.AbstractAnalyzer;
+import org.apache.cassandra.index.sai.utils.GeoUtil;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.lucene.util.SloppyMath;
 
 public class Expression
 {
@@ -48,7 +52,7 @@ public class Expression
 
     public enum Op
     {
-        EQ, MATCH, PREFIX, NOT_EQ, RANGE, CONTAINS_KEY, CONTAINS_VALUE, IN, ANN;
+        EQ, MATCH, PREFIX, NOT_EQ, RANGE, CONTAINS_KEY, CONTAINS_VALUE, IN, ANN, BOUNDED_ANN;
 
         public static Op valueOf(Operator operator)
         {
@@ -85,6 +89,9 @@ public class Expression
                 case ANN:
                     return ANN;
 
+                case BOUNDED_ANN:
+                    return BOUNDED_ANN;
+
                 default:
                     return null;
             }
@@ -110,6 +117,9 @@ public class Expression
     protected Op operation;
 
     public Bound lower, upper;
+    private float boundedAnnEuclideanDistanceThreshold = 0;
+    private float searchRadiusMeters = 0;
+    private float searchRadiusDegreesSquared = 0;
     public int topK;
     public boolean upperInclusive, lowerInclusive;
 
@@ -199,6 +209,14 @@ public class Expression
                 lower = new Bound(value, validator, true);
                 upper = lower;
                 break;
+            case BOUNDED_ANN:
+                operation = Op.BOUNDED_ANN;
+                lower = new Bound(value, validator, true);
+                assert upper != null;
+                searchRadiusMeters = FloatType.instance.compose(upper.value.raw);
+                searchRadiusDegreesSquared = GeoUtil.maximumSquareDistanceForCorrectLatLongSimilarity(searchRadiusMeters);
+                boundedAnnEuclideanDistanceThreshold = GeoUtil.amplifiedEuclideanSimilarityThreshold(lower.value.vector, searchRadiusMeters);
+                break;
         }
 
         assert operation != null;
@@ -208,7 +226,8 @@ public class Expression
 
     public boolean isSatisfiedBy(ByteBuffer columnValue)
     {
-        if (validator.isVector())
+        // ANN accepts all results
+        if (operation == Op.ANN)
             return true;
 
         if (!TypeUtil.isValid(columnValue, validator))
@@ -218,6 +237,19 @@ public class Expression
         }
 
         Value value = new Value(columnValue, validator);
+
+        if (operation == Op.BOUNDED_ANN)
+        {
+            double squareDistance = VectorUtil.squareDistance(lower.value.vector, value.vector);
+            // If we are within the search radius degrees, then we are within the search radius meters.
+            // This relies on the fact that lat/long distort distance by making close points further apart.
+            if (squareDistance <= searchRadiusDegreesSquared)
+                return true;
+            // Otherwise, we need to compute the more expensive haversine distance to determine if we are within the
+            // search radius meters.
+            double haversineDistance = SloppyMath.haversinMeters(lower.value.vector[0], lower.value.vector[1], value.vector[0], value.vector[1]);
+            return upperInclusive ? haversineDistance <= searchRadiusMeters : haversineDistance < searchRadiusMeters;
+        }
 
         if (lower != null)
         {
@@ -345,6 +377,11 @@ public class Expression
         return cmp < 0 || cmp == 0 && upper.inclusive;
     }
 
+    public float getEuclideanSearchThreshold()
+    {
+        return boundedAnnEuclideanDistanceThreshold;
+    }
+
     public String toString()
     {
         return String.format("Expression{name: %s, op: %s, lower: (%s, %s), upper: (%s, %s), exclusions: %s}",
@@ -402,7 +439,7 @@ public class Expression
         {
             this.raw = value;
             this.encoded = TypeUtil.encode(value, type);
-            this.vector = type.isVector() ? TypeUtil.decomposeVector(type, raw.duplicate()) : null;
+            this.vector = type.isVector() ? TypeUtil.decomposeVector(type, raw) : null;
         }
 
         @Override

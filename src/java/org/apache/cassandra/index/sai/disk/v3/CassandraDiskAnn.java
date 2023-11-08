@@ -30,7 +30,7 @@ import javax.annotation.Nullable;
 import io.github.jbellis.jvector.disk.CachingGraphIndex;
 import io.github.jbellis.jvector.disk.OnDiskGraphIndex;
 import io.github.jbellis.jvector.graph.GraphSearcher;
-import io.github.jbellis.jvector.graph.NeighborSimilarity;
+import io.github.jbellis.jvector.graph.NodeSimilarity;
 import io.github.jbellis.jvector.graph.SearchResult;
 import io.github.jbellis.jvector.graph.SearchResult.NodeScore;
 import io.github.jbellis.jvector.pq.BQVectors;
@@ -114,15 +114,32 @@ public class CassandraDiskAnn implements JVectorLuceneOnDiskGraph, AutoCloseable
     @Override
     public VectorPostingList search(float[] queryVector, int topK, int limit, Bits acceptBits, QueryContext context)
     {
+        return search(queryVector, topK, 0, limit, acceptBits, context);
+    }
+
+    /**
+     * @return Row IDs associated with the topK vectors near the query. If a threshold is specified, only vectors with
+     * a similarity score >= threshold will be returned.
+     * @param queryVector the query vector
+     * @param topK the number of results to look for in the index (>= limit)
+     * @param threshold the minimum similarity score to accept
+     * @param limit the maximum number of results to return
+     * @param acceptBits a Bits indicating which row IDs are acceptable, or null if no constraints
+     * @param context unused (vestige from HNSW, retained in signature to allow calling both easily)
+     * @return
+     */
+    @Override
+    public VectorPostingList search(float[] queryVector, int topK, float threshold, int limit, Bits acceptBits, QueryContext context)
+    {
         CassandraOnHeapGraph.validateIndexable(queryVector, similarityFunction);
 
         var view = graph.getView();
         var searcher = new GraphSearcher.Builder<>(view).build();
-        NeighborSimilarity.ScoreFunction scoreFunction;
-        NeighborSimilarity.ReRanker<float[]> reRanker;
+        NodeSimilarity.ScoreFunction scoreFunction;
+        NodeSimilarity.ReRanker<float[]> reRanker;
         if (compressedVectors == null)
         {
-            scoreFunction = (NeighborSimilarity.ExactScoreFunction)
+            scoreFunction = (NodeSimilarity.ExactScoreFunction)
                             i -> similarityFunction.compare(queryVector, view.getVector(i));
             reRanker = null;
         }
@@ -134,6 +151,7 @@ public class CassandraDiskAnn implements JVectorLuceneOnDiskGraph, AutoCloseable
         var result = searcher.search(scoreFunction,
                                      reRanker,
                                      topK,
+                                     threshold,
                                      ordinalsMap.ignoringDeleted(acceptBits));
         Tracing.trace("DiskANN search visited {} nodes to return {} results", result.getVisitedCount(), result.getNodes().length);
         return annRowIdsToPostings(result, limit);
