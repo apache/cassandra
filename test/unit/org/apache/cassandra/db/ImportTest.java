@@ -43,6 +43,7 @@ import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.io.sstable.format.SSTableFormat.Components;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.File;
+import org.apache.cassandra.io.util.PathUtils;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.CacheService;
@@ -135,8 +136,9 @@ public class ImportTest extends CQLTester
     }
 
 
+    /** @deprecated See CASSANDRA-6719 */
     @Test
-    @Deprecated
+    @Deprecated(since = "4.0")
     public void refreshTest() throws Throwable
     {
         createTable("create table %s (id int primary key, d int)");
@@ -245,6 +247,7 @@ public class ImportTest extends CQLTester
                 }
             }
         }
+        PathUtils.deleteRecursiveOnExit(temp);
         return new File(backupdir);
     }
 

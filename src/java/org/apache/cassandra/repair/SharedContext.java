@@ -47,7 +47,7 @@ import org.apache.cassandra.utils.MBeanWrapper;
  * <p>
  * In many parts of the code base we reach into the global space to pull out singletons, but this makes testing much harder; the main goals for this type is to make users easier to test.
  *
- * @see {@link Global#instance} for the main production path
+ * See {@link Global#instance} for the main production path
  */
 public interface SharedContext
 {
@@ -59,6 +59,16 @@ public interface SharedContext
     ScheduledExecutorPlus optionalTasks();
 
     MessageDelivery messaging();
+    default SharedContext withMessaging(MessageDelivery messaging)
+    {
+        return new ForwardingSharedContext(this) {
+            @Override
+            public MessageDelivery messaging()
+            {
+                return messaging;
+            }
+        };
+    }
     IFailureDetector failureDetector();
     IEndpointSnitch snitch();
     IGossiper gossiper();
@@ -160,6 +170,111 @@ public interface SharedContext
         public StreamExecutor streamExecutor()
         {
             return StreamPlan::execute;
+        }
+    }
+
+    class ForwardingSharedContext implements SharedContext
+    {
+        private final SharedContext delegate;
+
+        public ForwardingSharedContext(SharedContext delegate)
+        {
+            this.delegate = delegate;
+        }
+
+        protected SharedContext delegate()
+        {
+            return delegate;
+        }
+
+        @Override
+        public InetAddressAndPort broadcastAddressAndPort()
+        {
+            return delegate().broadcastAddressAndPort();
+        }
+
+        @Override
+        public Supplier<Random> random()
+        {
+            return delegate().random();
+        }
+
+        @Override
+        public Clock clock()
+        {
+            return delegate().clock();
+        }
+
+        @Override
+        public ExecutorFactory executorFactory()
+        {
+            return delegate().executorFactory();
+        }
+
+        @Override
+        public MBeanWrapper mbean()
+        {
+            return delegate().mbean();
+        }
+
+        @Override
+        public ScheduledExecutorPlus optionalTasks()
+        {
+            return delegate().optionalTasks();
+        }
+
+        @Override
+        public MessageDelivery messaging()
+        {
+            return delegate().messaging();
+        }
+
+        @Override
+        public IFailureDetector failureDetector()
+        {
+            return delegate().failureDetector();
+        }
+
+        @Override
+        public IEndpointSnitch snitch()
+        {
+            return delegate().snitch();
+        }
+
+        @Override
+        public IGossiper gossiper()
+        {
+            return delegate().gossiper();
+        }
+
+        @Override
+        public ICompactionManager compactionManager()
+        {
+            return delegate().compactionManager();
+        }
+
+        @Override
+        public ActiveRepairService repair()
+        {
+            return delegate().repair();
+        }
+
+        @Override
+        public IValidationManager validationManager()
+        {
+            return delegate().validationManager();
+        }
+
+        @Override
+        public TableRepairManager repairManager(ColumnFamilyStore store)
+        {
+            return delegate().repairManager(store);
+        }
+
+        @Override
+        public StreamExecutor streamExecutor()
+        {
+            return delegate().streamExecutor();
         }
     }
 }

@@ -32,6 +32,7 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.Util.PartitionerSwitcher;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.schema.Schema;
@@ -62,6 +63,7 @@ public class LeaveAndBootstrapTest
     @BeforeClass
     public static void defineSchema() throws Exception
     {
+        CassandraRelevantProperties.GOSSIPER_QUARANTINE_DELAY.setLong(10000);
         DatabaseDescriptor.daemonInitialization();
         partitionerSwitcher = Util.switchPartitioner(partitioner);
         SchemaLoader.loadSchema();
@@ -123,7 +125,7 @@ public class LeaveAndBootstrapTest
         PendingRangeCalculatorService.instance.blockUntilFinished();
 
         AbstractReplicationStrategy strategy;
-        for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces().names())
+        for (String keyspaceName : Schema.instance.distributedKeyspaces().names())
         {
             strategy = getStrategy(keyspaceName, tmd);
             for (Token token : keyTokens)
@@ -527,10 +529,10 @@ public class LeaveAndBootstrapTest
 
         assertTrue(tmd.isMember(hosts.get(2)));
         assertFalse(tmd.isLeaving(hosts.get(2)));
-        assertEquals(keyTokens.get(3), tmd.getToken(hosts.get(2)));
+        assertEquals(keyTokens.get(3), tmd.getTokens(hosts.get(2)).iterator().next());
         assertTrue(tmd.isMember(hosts.get(3)));
         assertFalse(tmd.isLeaving(hosts.get(3)));
-        assertEquals(keyTokens.get(2), tmd.getToken(hosts.get(3)));
+        assertEquals(keyTokens.get(2), tmd.getTokens(hosts.get(3)).iterator().next());
 
         assertTrue(tmd.getBootstrapTokens().isEmpty());
     }
@@ -557,14 +559,14 @@ public class LeaveAndBootstrapTest
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.leaving(Collections.singleton(endpointTokens.get(2))));
 
         assertTrue(tmd.isLeaving(hosts.get(2)));
-        assertEquals(endpointTokens.get(2), tmd.getToken(hosts.get(2)));
+        assertEquals(endpointTokens.get(2), tmd.getTokens(hosts.get(2)).iterator().next());
 
         // back to normal
         Gossiper.instance.injectApplicationState(hosts.get(2), ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(2))));
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(Collections.singleton(keyTokens.get(2))));
 
         assertTrue(tmd.getSizeOfLeavingEndpoints() == 0);
-        assertEquals(keyTokens.get(2), tmd.getToken(hosts.get(2)));
+        assertEquals(keyTokens.get(2), tmd.getTokens(hosts.get(2)).iterator().next());
 
         // node 3 goes through leave and left and then jumps to normal at its new token
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.leaving(Collections.singleton(keyTokens.get(2))));
@@ -575,7 +577,7 @@ public class LeaveAndBootstrapTest
 
         assertTrue(tmd.getBootstrapTokens().isEmpty());
         assertTrue(tmd.getSizeOfLeavingEndpoints() == 0);
-        assertEquals(keyTokens.get(4), tmd.getToken(hosts.get(2)));
+        assertEquals(keyTokens.get(4), tmd.getTokens(hosts.get(2)).iterator().next());
     }
 
     @Test
@@ -600,7 +602,7 @@ public class LeaveAndBootstrapTest
         Gossiper.instance.injectApplicationState(hosts.get(2), ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(keyTokens.get(0))));
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.leaving(Collections.singleton(keyTokens.get(0))));
 
-        assertEquals(keyTokens.get(0), tmd.getToken(hosts.get(2)));
+        assertEquals(keyTokens.get(0), tmd.getTokens(hosts.get(2)).iterator().next());
         assertTrue(tmd.isLeaving(hosts.get(2)));
         assertNull(tmd.getEndpoint(endpointTokens.get(2)));
 

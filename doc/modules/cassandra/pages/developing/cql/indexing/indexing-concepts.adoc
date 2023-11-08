@@ -1,5 +1,4 @@
 = Indexing concepts
-:page-aliases: developing:cql/indexes.adoc
 :description: How to query data from tables using indexes.
 :y: &#10003;
 :n: &#65794;

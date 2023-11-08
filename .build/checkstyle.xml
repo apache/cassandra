@@ -94,7 +94,7 @@
       <property name="message" value="Avoid MoreExecutors.directExecutor() in favor of ImmediateExecutor.INSTANCE" />
     </module>
     <module name="IllegalImport">
-      <property name="illegalPkgs" value="junit.framework"/>
+      <property name="illegalPkgs" value="junit.framework,org.jboss.byteman"/>
       <property name="illegalClasses" value="java.io.File,java.io.FileInputStream,java.io.FileOutputStream,java.io.FileReader,java.io.FileWriter,java.io.RandomAccessFile,java.util.concurrent.Semaphore,java.util.concurrent.CountDownLatch,java.util.concurrent.Executors,java.util.concurrent.LinkedBlockingQueue,java.util.concurrent.SynchronousQueue,java.util.concurrent.ArrayBlockingQueue,com.google.common.util.concurrent.Futures,java.util.concurrent.CompletableFuture,io.netty.util.concurrent.Future,io.netty.util.concurrent.Promise,io.netty.util.concurrent.AbstractFuture,com.google.common.util.concurrent.ListenableFutureTask,com.google.common.util.concurrent.ListenableFuture,com.google.common.util.concurrent.AbstractFuture,java.nio.file.Paths"/>
     </module>
     <module name="IllegalInstantiation">
@@ -171,6 +171,14 @@
 
     <module name="RedundantImport"/>
     <module name="UnusedImports"/>
+
+    <module name="MissingDeprecated"/>
+    <module name="MatchXpath">
+      <property name="query" value="//ANNOTATION[./IDENT[@text='Deprecated']
+              and not(./ANNOTATION_MEMBER_VALUE_PAIR/IDENT[@text='since'])]"/>
+      <message key="matchxpath.match"
+               value="'Deprecated annotation must provide 'since' value."/>
+    </module>
   </module>
 
 </module>

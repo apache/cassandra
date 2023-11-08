@@ -599,12 +599,14 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
     /**
      * This method is used to mark a node as shutdown; that is it gracefully exited on its own and told us about it
      * @param endpoint endpoint that has shut itself down
+     * @deprecated see CASSANDRA-18913
      */
+    @Deprecated(since = "5.0") // can remove once 4.x is not supported
     protected void markAsShutdown(InetAddressAndPort endpoint)
     {
         checkProperThreadForStateMutation();
         EndpointState epState = endpointStateMap.get(endpoint);
-        if (epState == null)
+        if (epState == null || epState.isStateEmpty())
             return;
         VersionedValue shutdown = StorageService.instance.valueFactory.shutdown(true);
         epState.addApplicationState(ApplicationState.STATUS_WITH_PORT, shutdown);
@@ -612,6 +614,32 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
         epState.addApplicationState(ApplicationState.RPC_READY, StorageService.instance.valueFactory.rpcReady(false));
         epState.getHeartBeatState().forceHighestPossibleVersionUnsafe();
         markDead(endpoint, epState);
+        FailureDetector.instance.forceConviction(endpoint);
+        GossiperDiagnostics.markedAsShutdown(this, endpoint);
+        for (IEndpointStateChangeSubscriber subscriber : subscribers)
+            subscriber.onChange(endpoint, ApplicationState.STATUS_WITH_PORT, shutdown);
+        logger.debug("Marked {} as shutdown", endpoint);
+    }
+
+    /**
+     * This method is used to mark a node as shutdown; that is it gracefully exited on its own and told us about it
+     * @param endpoint endpoint that has shut itself down
+     * @param remoteState from the endpoint shutting down
+     */
+    protected void markAsShutdown(InetAddressAndPort endpoint, EndpointState remoteState)
+    {
+        checkProperThreadForStateMutation();
+        EndpointState epState = endpointStateMap.get(endpoint);
+        if (epState == null || epState.isStateEmpty())
+            return;
+        if (!VersionedValue.SHUTDOWN.equals(remoteState.getStatus()))
+            throw new AssertionError("Remote shutdown sent but was not with a shutdown status?  " + remoteState);
+        // added in 5.0 so we know STATUS_WITH_PORT is set
+        VersionedValue shutdown = remoteState.getApplicationState(ApplicationState.STATUS_WITH_PORT);
+        if (shutdown == null)
+            throw new AssertionError("Remote shutdown sent but missing STATUS_WITH_PORT; " + remoteState);
+        endpointStateMap.put(endpoint, remoteState);
+        markDead(endpoint, remoteState);
         FailureDetector.instance.forceConviction(endpoint);
         GossiperDiagnostics.markedAsShutdown(this, endpoint);
         for (IEndpointStateChangeSubscriber subscriber : subscribers)
@@ -2177,7 +2205,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean, 
             logger.info("Announcing shutdown");
             addLocalApplicationState(ApplicationState.STATUS_WITH_PORT, StorageService.instance.valueFactory.shutdown(true));
             addLocalApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.shutdown(true));
-            Message message = Message.out(Verb.GOSSIP_SHUTDOWN, noPayload);
+            Message<GossipShutdown> message = Message.out(Verb.GOSSIP_SHUTDOWN, new GossipShutdown(mystate));
             for (InetAddressAndPort ep : liveEndpoints)
                 MessagingService.instance().send(message, ep);
             Uninterruptibles.sleepUninterruptibly(SHUTDOWN_ANNOUNCE_DELAY_IN_MS.getInt(), TimeUnit.MILLISECONDS);

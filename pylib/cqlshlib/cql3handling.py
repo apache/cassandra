@@ -21,7 +21,7 @@ from cqlshlib.cqlhandling import CqlParsingRuleSet, Hint
 simple_cql_types = {'ascii', 'bigint', 'blob', 'boolean', 'counter', 'date', 'decimal', 'double', 'duration', 'float',
                     'inet', 'int', 'smallint', 'text', 'time', 'timestamp', 'timeuuid', 'tinyint', 'uuid', 'varchar',
                     'varint'}
-simple_cql_types.difference_update(('set', 'map', 'list'))
+simple_cql_types.difference_update(('set', 'map', 'list', 'vector'))
 
 
 class UnexpectedTableStructure(UserWarning):
@@ -64,7 +64,7 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
             ('class', 'max_threshold', 'tombstone_compaction_interval', 'tombstone_threshold', 'enabled',
              'unchecked_tombstone_compaction', 'only_purge_repaired_tombstones', 'provide_overlapping_tombstones')),
         ('compression', 'compression_parameters',
-            ('sstable_compression', 'chunk_length_kb', 'crc_check_chance')),
+            ('class', 'chunk_length_in_kb', 'enabled', 'min_compress_ratio', 'max_compressed_length')),
         ('caching', None,
             ('rows_per_partition', 'keys')),
     )
@@ -303,7 +303,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
 
 <userType> ::= utname=<cfOrKsName> ;
 
-<storageType> ::= ( <simpleStorageType> | <collectionType> | <frozenCollectionType> | <userType> ) ( <column_mask> )? ;
+<storageType> ::= ( <simpleStorageType> | <collectionType> | <frozenCollectionType> | <vectorType> | <userType> ) ( <column_mask> )? ;
 
 <column_mask> ::= "MASKED" "WITH" ( "DEFAULT" | <functionName> <selectionFunctionArguments> );
 
@@ -318,6 +318,8 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                          | "frozen" "<" "list" "<" <storageType> ">" ">"
                          | "frozen" "<" "set"  "<" <storageType> ">" ">"
                          ;
+
+<vectorType> ::= "vector" "<" <storageType> "," <wholenumber> ">" ;
 
 <columnFamilyName> ::= ( ksname=<cfOrKsName> dot="." )? cfname=<cfOrKsName> ;
 
@@ -498,7 +500,7 @@ def cf_prop_val_completer(ctxt, cass):
     exist_opts = ctxt.get_binding('propname')
     this_opt = exist_opts[-1]
     if this_opt == 'compression':
-        return ["{'sstable_compression': '"]
+        return ["{'class': '"]
     if this_opt == 'compaction':
         return ["{'class': '"]
     if this_opt == 'caching':
@@ -563,7 +565,7 @@ def cf_prop_val_mapval_completer(ctxt, cass):
             return [Hint('<NONE|ROW|CELL>')]
         return [Hint('<option_value>')]
     elif opt == 'compression':
-        if key == 'sstable_compression':
+        if key == 'class':
             return list(map(escape_value, CqlRuleSet.available_compression_classes))
         return [Hint('<option_value>')]
     elif opt == 'caching':
@@ -920,9 +922,9 @@ def insert_newval_completer(ctxt, cass):
         return []
     curcol = insertcols[len(valuesdone)]
     coltype = layout.columns[curcol].cql_type
-    if coltype in ('map', 'set'):
+    if coltype.startswith('map<') or coltype.startswith('set<'):
         return ['{']
-    if coltype == 'list':
+    if coltype.startswith('list<') or coltype.startswith('vector<'):
         return ['[']
     if coltype == 'boolean':
         return ['true', 'false']
@@ -997,10 +999,10 @@ def update_countername_completer(ctxt, cass):
     coltype = layout.columns[curcol].cql_type
     if coltype == 'counter':
         return [maybe_escape_name(curcol)]
-    if coltype in ('map', 'set'):
-        return ["{"]
-    if coltype == 'list':
-        return ["["]
+    if coltype.startswith('map<') or coltype.startswith('set<'):
+        return ['{']
+    if coltype.startswith('list<') or coltype.startswith('vector<'):
+        return ['[']
     return [Hint('<term (%s)>' % coltype)]
 
 
@@ -1063,7 +1065,7 @@ def assignment_udt_field_completer(ctxt, cass):
 
 def _is_usertype(layout, curcol):
     coltype = layout.columns[curcol].cql_type
-    return coltype not in simple_cql_types and coltype not in ('map', 'set', 'list')
+    return coltype not in simple_cql_types and coltype not in ('map', 'set', 'list', 'vector')
 
 
 def _usertype_fields(ctxt, cass, layout, curcol):

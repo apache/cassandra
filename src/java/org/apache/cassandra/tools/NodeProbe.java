@@ -112,7 +112,6 @@ import org.apache.cassandra.streaming.StreamState;
 import org.apache.cassandra.streaming.management.StreamStateCompositeData;
 import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 
-import com.codahale.metrics.JmxReporter;
 import com.google.common.base.Function;
 import com.google.common.base.Strings;
 import com.google.common.collect.HashMultimap;
@@ -932,7 +931,8 @@ public class NodeProbe implements AutoCloseable
      * @param tag tag of snapshot to clear
      * @param keyspaces keyspaces to clear snapshots for
      */
-    @Deprecated
+    /** @deprecated See CASSANDRA-16860 */
+    @Deprecated(since = "5.0")
     public void clearSnapshot(String tag, String... keyspaces) throws IOException
     {
         clearSnapshot(Collections.emptyMap(), tag, keyspaces);
@@ -957,7 +957,8 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getSnapshotDetails(options);
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-16789 */
+    @Deprecated(since = "4.1")
     public Map<String, TabularData> getSnapshotDetails()
     {
         return getSnapshotDetails(ImmutableMap.of());
@@ -1391,7 +1392,8 @@ public class NodeProbe implements AutoCloseable
         ssProxy.setCompactionThroughputMbPerSec(value);
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17225 */
+    @Deprecated(since = "4.1")
     public int getCompactionThroughput()
     {
         return ssProxy.getCompactionThroughputMbPerSec();
@@ -1476,7 +1478,8 @@ public class NodeProbe implements AutoCloseable
         }
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17225 */
+    @Deprecated(since = "4.1")
     public int getStreamThroughput()
     {
         return ssProxy.getStreamThroughputMbitPerSec();
@@ -1487,7 +1490,8 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getStreamThroughputMbitPerSecAsDouble();
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-17225 */
+    @Deprecated(since = "4.1")
     public int getInterDCStreamThroughput()
     {
         return ssProxy.getInterDCStreamThroughputMbitPerSec();
@@ -1533,7 +1537,8 @@ public class NodeProbe implements AutoCloseable
         return msProxy.getDroppedMessages();
     }
 
-    @Deprecated
+    /** @deprecated See CASSANDRA-6719 */
+    @Deprecated(since = "4.0")
     public void loadNewSSTables(String ksName, String cfName)
     {
         ssProxy.loadNewSSTables(ksName, cfName);
@@ -1833,10 +1838,10 @@ public class NodeProbe implements AutoCloseable
               case ThreadPoolMetrics.PENDING_TASKS:
               case ThreadPoolMetrics.COMPLETED_TASKS:
               case ThreadPoolMetrics.MAX_POOL_SIZE:
-                  return JMX.newMBeanProxy(mbeanServerConn, oName, JmxReporter.JmxGaugeMBean.class).getValue();
+                  return JMX.newMBeanProxy(mbeanServerConn, oName, CassandraMetricsRegistry.JmxGaugeMBean.class).getValue();
               case ThreadPoolMetrics.TOTAL_BLOCKED_TASKS:
               case ThreadPoolMetrics.CURRENTLY_BLOCKED_TASKS:
-                  return JMX.newMBeanProxy(mbeanServerConn, oName, JmxReporter.JmxCounterMBean.class).getCount();
+                  return JMX.newMBeanProxy(mbeanServerConn, oName, CassandraMetricsRegistry.JmxCounterMBean.class).getCount();
               default:
                   throw new AssertionError("Unknown ThreadPools metric name " + metricName);
           }

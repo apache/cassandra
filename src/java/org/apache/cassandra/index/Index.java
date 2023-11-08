@@ -21,8 +21,11 @@
 package org.apache.cassandra.index;
 
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -33,6 +36,8 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.restrictions.Restriction;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
@@ -55,8 +60,8 @@ import org.apache.cassandra.index.transactions.IndexTransaction;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
-import org.apache.cassandra.io.sstable.SSTableFlushObserver;
 import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.SSTableFlushObserver;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
@@ -276,6 +281,17 @@ public interface Index
     public void register(IndexRegistry registry);
 
     /**
+     * Unregister current index when it's removed from system
+     *
+     * @param registry the index registry to register the instance with
+     */
+    default void unregister(IndexRegistry registry)
+    {
+        // for singleton index, the group key is the index itself
+        registry.unregisterIndex(this, new Index.Group.Key(this));
+    }
+
+    /**
      * If the index implementation uses a local table to store its index data, this method should return a
      * handle to it. If not, an empty {@link Optional} should be returned. This exists to support legacy
      * implementations, and should always be empty for indexes not belonging to a {@link SingletonIndexGroup}.
@@ -439,6 +455,18 @@ public interface Index
      *         the index was used to narrow the initial result set
      */
     public RowFilter getPostIndexQueryFilter(RowFilter filter);
+
+    /**
+     * Return a comparator that reorders query result before sending to client
+     *
+     * @param restriction restriction that requires current index
+     * @param options query options
+     * @return a comparator for post-query ordering; or null if not supported
+     */
+    default Comparator<ByteBuffer> getPostQueryOrdering(Restriction restriction, QueryOptions options)
+    {
+        return null;
+    }
 
     /**
      * Return an estimate of the number of results this index is expected to return for any given
@@ -677,11 +705,39 @@ public interface Index
      * Class providing grouped operations for indexes that communicate with each other.
      *
      * Index implementations should provide a {@code Group} implementation calling to
-     * {@link SecondaryIndexManager#registerIndex(Index, Object, Supplier)} during index registering
+     * {@link SecondaryIndexManager#registerIndex(Index, Index.Group.Key, Supplier)} during index registering
      * at {@link #register(IndexRegistry)} method.
      */
     interface Group
     {
+        /**
+         * Group key is used to uniquely identify a {@link Group} within a table
+         */
+        class Key
+        {
+            private final Object object;
+
+            public Key(Object object)
+            {
+                this.object = object;
+            }
+
+            @Override
+            public boolean equals(Object o)
+            {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+                Key key = (Key) o;
+                return Objects.equals(object, key.object);
+            }
+
+            @Override
+            public int hashCode()
+            {
+                return Objects.hash(object);
+            }
+        }
+
         /**
          * Returns the indexes that are members of this group.
          *
@@ -694,14 +750,16 @@ public interface Index
          *
          * @param index the index to be added
          */
-        void addIndex(Index index);
+        default void addIndex(Index index)
+        {}
 
         /**
          * Removes the specified {@link Index} from the members of this group.
          *
          * @param index the index to be removed
          */
-        void removeIndex(Index index);
+        default void removeIndex(Index index)
+        {}
 
         /**
          * Returns if this group contains the specified {@link Index}.
@@ -710,6 +768,16 @@ public interface Index
          * @return {@code true} if this group contains {@code index}, {@code false} otherwise
          */
         boolean containsIndex(Index index);
+
+        /**
+         * Returns whether this group can only ever contain a single index.
+         *
+         * @return {@code true} if this group only contains a single index, {@code false} otherwise
+         */
+        default boolean isSingleton()
+        {
+            return true;
+        }
 
         /**
          * Creates an new {@code Indexer} object for updates to a given partition.
@@ -769,8 +837,8 @@ public interface Index
         }
 
         /**
-         * Called when the table associated with this group has been invalidated. Implementations
-         * should dispose of any resources tied to the lifecycle of the {@link Group}.
+         * Called when the table associated with this group has been invalidated or all indexes in the group are removed.
+         * Implementations should dispose of any resources tied to the lifecycle of the {@link Group}.
          */
         default void invalidate() { }
 
@@ -908,8 +976,10 @@ public interface Index
          * The function takes a PartitionIterator of the results from the replicas which has already been collated
          * and reconciled, along with the command being executed. It returns another PartitionIterator containing the results
          * of the transformation (which may be the same as the input if the transformation is a no-op).
+         *
+         * @param command the read command being executed
          */
-        default Function<PartitionIterator, PartitionIterator> postProcessor()
+        default Function<PartitionIterator, PartitionIterator> postProcessor(ReadCommand command)
         {
             return partitions -> partitions;
         }
@@ -942,6 +1012,14 @@ public interface Index
         default boolean supportsReplicaFilteringProtection(RowFilter rowFilter)
         {
             return true;
+        }
+
+        /**
+         * @return true if given index query plan is a top-k request
+         */
+        default boolean isTopK()
+        {
+            return false;
         }
     }
 

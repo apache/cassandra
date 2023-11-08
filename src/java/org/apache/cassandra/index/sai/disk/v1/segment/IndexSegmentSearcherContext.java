@@ -43,8 +43,6 @@ public class IndexSegmentSearcherContext
         this.segmentRowIdOffset = segmentRowIdOffset;
 
         this.minimumKey = minimumKey;
-
-        // use segment's metadata for the range iterator, may not be accurate, but should not matter to performance.
         this.maximumKey = maximumKey;
     }
 

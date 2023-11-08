@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -73,6 +74,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Digest;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.ICompactionManager;
 import org.apache.cassandra.db.marshal.EmptyType;
 import org.apache.cassandra.db.repair.CassandraTableRepairManager;
@@ -101,6 +103,7 @@ import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessageDelivery;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.RequestCallback;
+import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.repair.messages.ValidationResponse;
 import org.apache.cassandra.repair.state.Completable;
@@ -133,6 +136,7 @@ import org.apache.cassandra.utils.Generators;
 import org.apache.cassandra.utils.MBeanWrapper;
 import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.MerkleTrees;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.concurrent.AsyncPromise;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.ImmediateFuture;
@@ -278,6 +282,12 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
         createSchema();
     }
 
+    protected void cleanupRepairTables()
+    {
+        for (String table : Arrays.asList(SystemKeyspace.REPAIRS))
+            execute(String.format("TRUNCATE %s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, table));
+    }
+
     private void createSchema()
     {
         // The main reason to use random here with a fixed seed is just to have a set of tables that are not hard coded.
@@ -319,25 +329,16 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             @Override
             public Set<Faults> apply(Cluster.Node node, Message<?> message)
             {
+                if (RepairMessage.ALLOWS_RETRY.contains(message.verb()))
+                {
+                    allowDrop.add(message.id());
+                    return Faults.DROPPED;
+                }
                 switch (message.verb())
                 {
-                    case PREPARE_MSG:
-                    case VALIDATION_REQ:
-                    case VALIDATION_RSP:
-                    case SYNC_REQ:
-                    case SYNC_RSP:
-                    case SNAPSHOT_MSG:
-                    case CLEANUP_MSG:
-                        allowDrop.add(message.id());
-                        return Faults.DROPPED;
                     // these messages are not resilent to ephemeral issues
-                    case PREPARE_CONSISTENT_REQ:
-                    case PREPARE_CONSISTENT_RSP:
-                    case FINALIZE_PROPOSE_MSG:
-                    case FINALIZE_PROMISE_MSG:
-                    case FINALIZE_COMMIT_MSG:
-                    case FAILED_SESSION_MSG:
-
+                    case STATUS_REQ:
+                    case STATUS_RSP:
                         noFaults.add(message.id());
                         return Faults.NONE;
                     default:
@@ -360,7 +361,10 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
 
     static void assertSuccess(int example, boolean shouldSync, RepairCoordinator repair)
     {
-        Assertions.assertThat(repair.state.getResult()).describedAs("Unexpected state: %s -> %s; example %d", repair.state, repair.state.getResult(), example).isEqualTo(Completable.Result.success(repairSuccessMessage(repair)));
+        Completable.Result result = repair.state.getResult();
+        Assertions.assertThat(result)
+                  .describedAs("Expected repair to have completed with success, but is still running... %s; example %d", repair.state, example).isNotNull()
+                  .describedAs("Unexpected state: %s -> %s; example %d", repair.state, result, example).isEqualTo(Completable.Result.success(repairSuccessMessage(repair)));
         Assertions.assertThat(repair.state.getStateTimesMillis().keySet()).isEqualTo(EnumSet.allOf(CoordinatorState.State.class));
         Assertions.assertThat(repair.state.getSessions()).isNotEmpty();
         boolean shouldSnapshot = repair.state.options.getParallelism() != RepairParallelism.PARALLEL
@@ -646,10 +650,19 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             orderedExecutor = globalExecutor.configureSequential("ignore").build();
             unorderedScheduled = globalExecutor.scheduled("ignored");
 
+
+
             // We run tests in an isolated JVM per class, so not cleaing up is safe... but if that assumption ever changes, will need to cleanup
             Stage.ANTI_ENTROPY.unsafeSetExecutor(orderedExecutor);
             Stage.INTERNAL_RESPONSE.unsafeSetExecutor(unorderedScheduled);
             Mockito.when(failureDetector.isAlive(Mockito.any())).thenReturn(true);
+            Thread expectedThread = Thread.currentThread();
+            NoSpamLogger.unsafeSetClock(() -> {
+                if (Thread.currentThread() != expectedThread)
+                    throw new AssertionError("NoSpamLogger.Clock accessed outside of fuzzing...");
+                return globalExecutor.nanoTime();
+            });
+
             int numNodes = rs.nextInt(3, 10);
             List<String> dcs = Gens.lists(IDENTIFIER_GEN).unique().ofSizeBetween(1, Math.min(10, numNodes)).next(rs);
             Map<InetAddressAndPort, Node> nodes = Maps.newHashMapWithExpectedSize(numNodes);
@@ -743,7 +756,7 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
             }
         }
 
-        private static class CallbackContext
+        private class CallbackContext
         {
             final RequestCallback callback;
 
@@ -799,6 +812,8 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                 CallbackContext cb;
                 if (callback != null)
                 {
+                    if (callbacks.containsKey(message.id()))
+                        throw new AssertionError("Message id " + message.id() + " already has a callback");
                     cb = new CallbackContext(callback);
                     callbacks.put(message.id(), cb);
                 }
@@ -850,7 +865,14 @@ public abstract class FuzzTestBase extends CQLTester.InMemory
                             if (ctx != null)
                             {
                                 assert ctx == cb;
-                                ctx.onFailure(to, RequestFailureReason.TIMEOUT);
+                                try
+                                {
+                                    ctx.onFailure(to, RequestFailureReason.TIMEOUT);
+                                }
+                                catch (Throwable t)
+                                {
+                                    failures.add(t);
+                                }
                             }
                         }, message.verb().expiresAfterNanos(), TimeUnit.NANOSECONDS);
                     }

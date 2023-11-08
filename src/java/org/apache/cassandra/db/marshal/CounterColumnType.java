@@ -37,6 +37,13 @@ public class CounterColumnType extends NumberType<Long>
 
     CounterColumnType() {super(ComparisonType.NOT_COMPARABLE);} // singleton
 
+    @Override
+    public boolean allowsEmpty()
+    {
+        return true;
+    }
+
+    @Override
     public boolean isEmptyValueMeaningless()
     {
         return true;

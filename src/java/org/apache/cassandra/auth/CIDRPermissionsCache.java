@@ -54,10 +54,11 @@ public class CIDRPermissionsCache extends AuthCache<RoleResource, CIDRPermission
      */
     public boolean invalidateCidrPermissions(String roleName)
     {
-        if (cache.getIfPresent(roleName) == null)
+        RoleResource role = RoleResource.role(roleName);
+        if (cache.getIfPresent(role) == null)
             return false;
 
-        invalidate(RoleResource.role(roleName));
+        invalidate(role);
         return true;
     }
 

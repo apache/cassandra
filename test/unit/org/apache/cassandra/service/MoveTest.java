@@ -557,7 +557,7 @@ public class MoveTest
     private void assertPendingRanges(TokenMetadata tmd, Map<Range<Token>, EndpointsForRange> pendingRanges, String keyspaceName) throws ConfigurationException
     {
         boolean keyspaceFound = false;
-        for (String nonSystemKeyspaceName : Schema.instance.getNonLocalStrategyKeyspaces().names())
+        for (String nonSystemKeyspaceName : Schema.instance.distributedKeyspaces().names())
         {
             if(!keyspaceName.equals(nonSystemKeyspaceName))
                 continue;
@@ -626,7 +626,7 @@ public class MoveTest
         assertTrue(tmd.isMoving(hosts.get(MOVING_NODE)));
 
         AbstractReplicationStrategy strategy;
-        for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces().names())
+        for (String keyspaceName : Schema.instance.distributedKeyspaces().names())
         {
             strategy = getStrategy(keyspaceName, tmd);
             if(strategy instanceof NetworkTopologyStrategy)
@@ -967,14 +967,14 @@ public class MoveTest
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.moving(newToken));
 
         assertTrue(tmd.isMoving(hosts.get(2)));
-        assertEquals(endpointTokens.get(2), tmd.getToken(hosts.get(2)));
+        assertEquals(endpointTokens.get(2), tmd.getTokens(hosts.get(2)).iterator().next());
 
         // back to normal
         Gossiper.instance.injectApplicationState(hosts.get(2), ApplicationState.TOKENS, valueFactory.tokens(Collections.singleton(newToken)));
         ss.onChange(hosts.get(2), ApplicationState.STATUS, valueFactory.normal(Collections.singleton(newToken)));
 
         assertTrue(tmd.getSizeOfMovingEndpoints() == 0);
-        assertEquals(newToken, tmd.getToken(hosts.get(2)));
+        assertEquals(newToken, tmd.getTokens(hosts.get(2)).iterator().next());
 
         newToken = positionToken(8);
         // node 2 goes through leave and left and then jumps to normal at its new token
@@ -984,7 +984,7 @@ public class MoveTest
 
         assertTrue(tmd.getBootstrapTokens().isEmpty());
         assertTrue(tmd.getSizeOfMovingEndpoints() == 0);
-        assertEquals(newToken, tmd.getToken(hosts.get(2)));
+        assertEquals(newToken, tmd.getTokens(hosts.get(2)).iterator().next());
     }
 
     private static Collection<InetAddressAndPort> makeAddrs(String... hosts) throws UnknownHostException

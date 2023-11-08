@@ -124,7 +124,7 @@ import static org.apache.cassandra.utils.concurrent.Condition.newOneTimeConditio
  * All actions (reading, writing, schema changes, etc) are executed by serializing lambda/runnables,
  * transferring them to instance-specific classloaders, deserializing and running them there. Most of
  * the things can be simply captured in closure or passed through `apply` method of the wrapped serializable
- * function/callable. You can use {@link Instance#{applies|runs|consumes}OnInstance} for executing
+ * function/callable. You can use {@code Instance#{applies|runs|consumes}OnInstance} for executing
  * code on specific instance.
  *
  * Each instance has its own logger. Each instance log line will contain INSTANCE{instance_id}.
@@ -850,8 +850,13 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
 
     public void schemaChange(String query, boolean ignoreStoppedInstances, I instance)
     {
+        schemaChange(query, ignoreStoppedInstances, instance, SchemaChangeMonitor.DEFAULT_WAIT_SECONDS, TimeUnit.SECONDS);
+    }
+
+    public void schemaChange(String query, boolean ignoreStoppedInstances, I instance, int waitSchemaAgreementAmount, TimeUnit unit)
+    {
         instance.sync(() -> {
-            try (SchemaChangeMonitor monitor = new SchemaChangeMonitor())
+            try (SchemaChangeMonitor monitor = new SchemaChangeMonitor(waitSchemaAgreementAmount, unit))
             {
                 if (ignoreStoppedInstances)
                     monitor.ignoreStoppedInstances();
@@ -963,9 +968,17 @@ public abstract class AbstractCluster<I extends IInstance> implements ICluster<I
      */
     public class SchemaChangeMonitor extends ChangeMonitor
     {
+        // See CASSANDRA-18707
+        static final public int DEFAULT_WAIT_SECONDS = 120;
+
         public SchemaChangeMonitor()
         {
-            super(70, TimeUnit.SECONDS);
+            super(DEFAULT_WAIT_SECONDS, TimeUnit.SECONDS);
+        }
+
+        public SchemaChangeMonitor(int waitAmount, TimeUnit unit)
+        {
+            super(waitAmount, unit);
         }
 
         protected IListen.Cancel startPolling(IInstance instance)

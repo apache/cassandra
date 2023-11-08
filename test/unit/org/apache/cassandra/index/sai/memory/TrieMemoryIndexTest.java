@@ -123,7 +123,7 @@ public class TrieMemoryIndexTest extends SAIRandomizedTester
 
             Set<Integer> foundKeys = new HashSet<>();
 
-            try (KeyRangeIterator iterator = index.search(expression, keyRange))
+            try (KeyRangeIterator iterator = index.search(null, expression, keyRange))
             {
                 while (iterator.hasNext())
                 {

@@ -82,6 +82,26 @@ public abstract class SingleColumnRestriction implements SingleRestriction
     }
 
     @Override
+    public Index findSupportingIndex(IndexRegistry indexRegistry)
+    {
+        for (Index index : indexRegistry.listIndexes())
+            if (isSupportedBy(index))
+                return index;
+
+        return null;
+    }
+
+    @Override
+    public Index findSupportingIndexFromQueryPlan(Index.QueryPlan indexQueryPlan)
+    {
+        for (Index index : indexQueryPlan.getIndexes())
+            if (isSupportedBy(index))
+                return index;
+
+        return null;
+    }
+
+    @Override
     public boolean needsFiltering(Index.Group indexGroup)
     {
         for (Index index : indexGroup.getIndexes())
@@ -802,6 +822,71 @@ public abstract class SingleColumnRestriction implements SingleRestriction
             newValue.position(beginIndex);
             newValue.limit(endIndex);
             return Pair.create(operator, newValue);
+        }
+    }
+    public static final class AnnRestriction extends SingleColumnRestriction
+    {
+        private final Term value;
+
+        public AnnRestriction(ColumnMetadata columnDef, Term value)
+        {
+            super(columnDef);
+            this.value = value;
+        }
+
+        public ByteBuffer value(QueryOptions options)
+        {
+            return value.bindAndGet(options);
+        }
+
+        @Override
+        public boolean isANN()
+        {
+            return true;
+        }
+
+        @Override
+        public void addFunctionsTo(List<Function> functions)
+        {
+            value.addFunctionsTo(functions);
+        }
+
+        @Override
+        MultiColumnRestriction toMultiColumnRestriction()
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void addToRowFilter(RowFilter filter,
+                                   IndexRegistry indexRegistry,
+                                   QueryOptions options)
+        {
+            filter.add(columnDef, Operator.ANN, value.bindAndGet(options));
+        }
+
+        @Override
+        public MultiCBuilder appendTo(MultiCBuilder builder, QueryOptions options)
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String toString()
+        {
+            return String.format("ANN(%s)", value);
+        }
+
+        @Override
+        public SingleRestriction doMergeWith(SingleRestriction otherRestriction)
+        {
+            throw invalidRequest("%s cannot be restricted by more than one relation in an ANN ordering", columnDef.name);
+        }
+
+        @Override
+        protected boolean isSupportedBy(Index index)
+        {
+            return index.supportsExpression(columnDef, Operator.ANN);
         }
     }
 }

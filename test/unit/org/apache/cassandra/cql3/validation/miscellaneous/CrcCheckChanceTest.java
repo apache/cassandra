@@ -36,31 +36,12 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.FBUtilities;
 
-
 public class CrcCheckChanceTest extends CQLTester
 {
-
-
     @Test
-    public void testChangingCrcCheckChanceNewFormat() throws Throwable
+    public void testChangingCrcCheckChance()
     {
-        testChangingCrcCheckChance(true);
-    }
-
-    @Test
-    public void testChangingCrcCheckChanceOldFormat() throws Throwable
-    {
-        testChangingCrcCheckChance(false);
-    }
-
-
-    public void testChangingCrcCheckChance(boolean newFormat) throws Throwable
-    {
-        //Start with crc_check_chance of 99%
-        if (newFormat)
-            createTable("CREATE TABLE %s (p text, c text, v text, s text static, PRIMARY KEY (p, c)) WITH compression = {'sstable_compression': 'LZ4Compressor'} AND crc_check_chance = 0.99;");
-        else
-            createTable("CREATE TABLE %s (p text, c text, v text, s text static, PRIMARY KEY (p, c)) WITH compression = {'sstable_compression': 'LZ4Compressor', 'crc_check_chance' : 0.99}");
+        createTable("CREATE TABLE %s (p text, c text, v text, s text static, PRIMARY KEY (p, c)) WITH compression = {'class': 'LZ4Compressor'} AND crc_check_chance = 0.99;");
 
         execute("CREATE INDEX foo ON %s(v)");
 
@@ -79,10 +60,7 @@ public class CrcCheckChanceTest extends CQLTester
         Assert.assertEquals(0.99, indexCfs.getLiveSSTables().iterator().next().getCrcCheckChance(), 0.0);
 
         //Test for stack overflow
-        if (newFormat)
-            alterTable("ALTER TABLE %s WITH crc_check_chance = 0.99");
-        else
-            alterTable("ALTER TABLE %s WITH compression = {'sstable_compression': 'LZ4Compressor', 'crc_check_chance': 0.99}");
+        alterTable("ALTER TABLE %s WITH crc_check_chance = 0.99");
 
         assertRows(execute("SELECT * FROM %s WHERE p=?", "p1"),
                    row("p1", "k1", "sv1", "v1"),
@@ -131,10 +109,7 @@ public class CrcCheckChanceTest extends CQLTester
         );
 
         //Alter again via schema
-        if (newFormat)
-            alterTable("ALTER TABLE %s WITH crc_check_chance = 0.5");
-        else
-            alterTable("ALTER TABLE %s WITH compression = {'sstable_compression': 'LZ4Compressor', 'crc_check_chance': 0.5}");
+        alterTable("ALTER TABLE %s WITH crc_check_chance = 0.5");
 
         //We should be able to get the new value by accessing directly the schema metadata
         Assert.assertEquals(0.5, cfs.metadata().params.crcCheckChance, 0.0);
@@ -168,12 +143,12 @@ public class CrcCheckChanceTest extends CQLTester
     }
 
     @Test
-    public void testDropDuringCompaction() throws Throwable
+    public void testDropDuringCompaction()
     {
         CompactionManager.instance.disableAutoCompaction();
 
         //Start with crc_check_chance of 99%
-        createTable("CREATE TABLE %s (p text, c text, v text, s text static, PRIMARY KEY (p, c)) WITH compression = {'sstable_compression': 'LZ4Compressor', 'crc_check_chance' : 0.99}");
+        createTable("CREATE TABLE %s (p text, c text, v text, s text static, PRIMARY KEY (p, c)) WITH compression = {'class': 'LZ4Compressor'} AND crc_check_chance = 0.99");
 
         ColumnFamilyStore cfs = Keyspace.open(CQLTester.KEYSPACE).getColumnFamilyStore(currentTable());
 
@@ -202,4 +177,3 @@ public class CrcCheckChanceTest extends CQLTester
         }
     }
 }
-

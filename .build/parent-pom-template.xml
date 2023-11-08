@@ -299,12 +299,6 @@
         <version>1.8.0</version>
       </dependency>
       <dependency>
-        <groupId>com.ning</groupId>
-        <artifactId>compress-lzf</artifactId>
-        <version>0.8.4</version>
-        <scope>provided</scope>
-      </dependency>
-      <dependency>
         <groupId>com.github.luben</groupId>
         <artifactId>zstd-jni</artifactId>
         <version>1.5.5-1</version>
@@ -350,7 +344,7 @@
       <dependency>
         <groupId>org.hdrhistogram</groupId>
         <artifactId>HdrHistogram</artifactId>
-        <version>2.1.9</version>
+        <version>2.1.12</version>
       </dependency>
       <dependency>
         <groupId>commons-cli</groupId>
@@ -418,12 +412,12 @@
       <dependency>
         <groupId>ch.qos.logback</groupId>
         <artifactId>logback-core</artifactId>
-        <version>1.2.9</version>
+        <version>1.2.12</version>
       </dependency>
       <dependency>
         <groupId>ch.qos.logback</groupId>
         <artifactId>logback-classic</artifactId>
-        <version>1.2.9</version>
+        <version>1.2.12</version>
       </dependency>
       <dependency>
         <groupId>com.fasterxml.jackson.core</groupId>
@@ -618,6 +612,8 @@
           </exclusion>
         </exclusions>
       </dependency>
+      <!-- these dependencies have to be of provided scope as they are used by cassandra-dtests and ccm is looking
+           for these libraries in build/lib/jars -->
       <dependency>
         <groupId>org.jboss.byteman</groupId>
         <artifactId>byteman-install</artifactId>
@@ -646,11 +642,13 @@
         <groupId>net.bytebuddy</groupId>
         <artifactId>byte-buddy</artifactId>
         <version>${bytebuddy.version}</version>
+        <scope>test</scope>
       </dependency>
       <dependency>
         <groupId>net.bytebuddy</groupId>
         <artifactId>byte-buddy-agent</artifactId>
         <version>${bytebuddy.version}</version>
+        <scope>test</scope>
       </dependency>
       <dependency>
         <groupId>org.openjdk.jmh</groupId>
@@ -678,26 +676,37 @@
       <dependency>
         <groupId>io.dropwizard.metrics</groupId>
         <artifactId>metrics-core</artifactId>
-        <version>3.1.5</version>
+        <version>4.2.19</version>
+        <exclusions>
+          <exclusion>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+          </exclusion>
+        </exclusions>
       </dependency>
       <dependency>
         <groupId>io.dropwizard.metrics</groupId>
         <artifactId>metrics-jvm</artifactId>
-        <version>3.1.5</version>
+        <version>4.2.19</version>
+        <exclusions>
+          <exclusion>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+          </exclusion>
+        </exclusions>
       </dependency>
       <dependency>
         <groupId>io.dropwizard.metrics</groupId>
         <artifactId>metrics-logback</artifactId>
-        <version>3.1.5</version>
-      </dependency>
-      <dependency>
-        <groupId>com.addthis.metrics</groupId>
-        <artifactId>reporter-config3</artifactId>
-        <version>3.0.3</version>
+        <version>4.2.19</version>
         <exclusions>
           <exclusion>
-            <artifactId>hibernate-validator</artifactId>
-            <groupId>org.hibernate</groupId>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-core</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
           </exclusion>
         </exclusions>
       </dependency>
@@ -920,7 +929,7 @@
       <dependency>
         <groupId>com.datastax.cassandra</groupId>
         <artifactId>cassandra-driver-core</artifactId>
-        <version>3.11.0</version>
+        <version>3.11.5</version>
         <classifier>shaded</classifier>
         <exclusions>
           <exclusion>
@@ -1015,7 +1024,17 @@
       <dependency>
         <groupId>com.github.ben-manes.caffeine</groupId>
         <artifactId>caffeine</artifactId>
-        <version>2.9.2</version>
+        <version>3.1.8</version>
+        <exclusions>
+          <exclusion>
+            <groupId>org.checkerframework</groupId>
+            <artifactId>checker-qual</artifactId>
+          </exclusion>
+          <exclusion>
+            <groupId>com.google.errorprone</groupId>
+            <artifactId>error_prone_annotations</artifactId>
+          </exclusion>
+        </exclusions>
       </dependency>
       <dependency>
         <groupId>org.jctools</groupId>
@@ -1181,6 +1200,11 @@
         <groupId>org.apache.lucene</groupId>
         <artifactId>lucene-analysis-common</artifactId>
         <version>9.7.0</version>
+      </dependency>
+      <dependency>
+        <groupId>io.github.jbellis</groupId>
+        <artifactId>jvector</artifactId>
+        <version>1.0.2</version>
       </dependency>
       <dependency>
         <groupId>com.carrotsearch.randomizedtesting</groupId>

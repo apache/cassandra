@@ -18,7 +18,6 @@
 
 package org.apache.cassandra.repair;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -29,9 +28,11 @@ import accord.utils.Gen;
 import accord.utils.Gens;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.RetrySpec;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.repair.consistent.LocalSessions;
 import org.apache.cassandra.repair.state.Completable;
 import org.apache.cassandra.utils.Closeable;
+import org.apache.cassandra.utils.FailingBiConsumer;
 import org.assertj.core.api.Assertions;
 
 import static accord.utils.Property.qt;
@@ -43,7 +44,7 @@ public class ConcurrentIrWithPreviewFuzzTest extends FuzzTestBase
     {
         // to avoid unlucky timing issues, retry until success; given enough retries we should eventually become success
         DatabaseDescriptor.getRepairRetrySpec().maxAttempts = new RetrySpec.MaxAttempt(Integer.MAX_VALUE);
-        qt().withPure(false).withExamples(2).withTimeout(Duration.ofMinutes(1)).check(rs -> {
+        qt().withPure(false).withExamples(1).check(rs -> {
             Cluster cluster = new Cluster(rs);
             enableMessageFaults(cluster);
 
@@ -63,7 +64,7 @@ public class ConcurrentIrWithPreviewFuzzTest extends FuzzTestBase
                 // cause a delay in validation to have more failing previews
                 closeables.add(cluster.nodes.get(pickParticipant(rs, previewCoordinator, preview)).doValidation(next -> (cfs, validator) -> {
                     if (validator.desc.parentSessionId.equals(preview.state.id))
-                        cluster.unorderedScheduled.schedule(() -> next.accept(cfs, validator), 1, TimeUnit.HOURS);
+                        delayValidation(cluster, ir, next, cfs, validator);
                     else next.acceptOrFail(cfs, validator);
                 }));
                 // make sure listeners don't leak
@@ -88,5 +89,19 @@ public class ConcurrentIrWithPreviewFuzzTest extends FuzzTestBase
                 closeables.clear();
             }
         });
+    }
+
+    private void delayValidation(Cluster cluster, RepairCoordinator ir, FailingBiConsumer<ColumnFamilyStore, Validator> next, ColumnFamilyStore cfs, Validator validator)
+    {
+        cluster.unorderedScheduled.schedule(() -> {
+            // make sure to wait for IR to complete...
+            Completable.Result result = ir.state.getResult();
+            if (result == null)
+            {
+                delayValidation(cluster, ir, next, cfs, validator);
+                return;
+            }
+            next.accept(cfs, validator);
+        }, 1, TimeUnit.HOURS);
     }
 }

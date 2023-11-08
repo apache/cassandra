@@ -26,6 +26,9 @@ import java.util.List;
 
 import org.junit.runners.Parameterized;
 
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.VectorType;
+
 /**
  * {@link ColumnMaskQueryTester} for {@link ReplaceMaskingFunction}.
  */
@@ -43,6 +46,10 @@ public class ColumnMaskQueryWithReplaceTest extends ColumnMaskQueryTester
             options.add(new Object[]{ order, "mask_replace(0)", "int", 123, 0 });
             options.add(new Object[]{ order, "mask_replace(0)", "bigint", 123L, 0L });
             options.add(new Object[]{ order, "mask_replace(0)", "varint", BigInteger.valueOf(123), BigInteger.ZERO });
+            // TODO: the driver version that we use doesn't support vectors, so we have to use raw values by now
+            options.add(new Object[]{ order, "mask_replace([0, 0])", "vector<int, 2>",
+                                      VectorType.getInstance(Int32Type.instance, 2).decompose(1, 2),
+                                      VectorType.getInstance(Int32Type.instance, 2).decompose(0, 0) });
         }
         return options;
     }

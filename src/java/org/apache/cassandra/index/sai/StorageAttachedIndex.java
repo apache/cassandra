@@ -18,6 +18,7 @@
 
 package org.apache.cassandra.index.sai;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -40,16 +41,21 @@ import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.Futures; // checkstyle: permit this import
 import com.google.common.util.concurrent.ListenableFuture; // checkstyle: permit this import
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.CqlBuilder;
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.restrictions.Restriction;
+import org.apache.cassandra.cql3.restrictions.SingleColumnRestriction;
 import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.CassandraWriteContext;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -61,6 +67,8 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.LifecycleNewTracker;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.FloatType;
+import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.db.memtable.Memtable;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
@@ -79,6 +87,7 @@ import org.apache.cassandra.index.sai.analyzer.NonTokenizingOptions;
 import org.apache.cassandra.index.sai.disk.SSTableIndex;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.format.Version;
+import org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig;
 import org.apache.cassandra.index.sai.utils.TypeUtil;
 import org.apache.cassandra.index.sai.view.View;
 import org.apache.cassandra.index.transactions.IndexTransaction;
@@ -90,17 +99,36 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.ColumnMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.TableMetadata;
+import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
+import static org.apache.cassandra.index.sai.disk.v1.IndexWriterConfig.MAX_TOP_K;
+
 public class StorageAttachedIndex implements Index
 {
     public static final String NAME = "sai";
+    
+    public static final String VECTOR_USAGE_WARNING = "SAI ANN indexes on vector columns are experimental and are not recommended for production use.\n" +
+                                                      "They don't yet support SELECT queries with:\n" +
+                                                      " * Consistency level higher than ONE/LOCAL_ONE.\n" +
+                                                      " * Paging.\n" +
+                                                      " * No LIMIT clauses.\n" +
+                                                      " * PER PARTITION LIMIT clauses.\n" +
+                                                      " * GROUP BY clauses.\n" +
+                                                      " * Aggregation functions.\n" +
+                                                      " * Filters on columns without a SAI index.";
+
+    public static final String VECTOR_NON_FLOAT_ERROR = "SAI ANN indexes are only allowed on vector columns with float elements";
+    public static final String VECTOR_1_DIMENSION_COSINE_ERROR = "Cosine similarity is not supported for single-dimension vectors";
+    public static final String VECTOR_MULTIPLE_DATA_DIRECTORY_ERROR = "SAI ANN indexes are not allowed on multiple data directories";
 
     @VisibleForTesting
     public static final String ANALYSIS_ON_KEY_COLUMNS_MESSAGE = "Analysis options are not supported on primary key columns, but found ";
-    
+
+    public static final String ANN_LIMIT_ERROR = "Use of ANN OF in an ORDER BY clause requires a LIMIT that is not greater than %s. LIMIT was %s";
+
     private static final Logger logger = LoggerFactory.getLogger(StorageAttachedIndex.class);
 
     private static class StorageAttachedIndexBuildingSupport implements IndexBuildingSupport
@@ -147,6 +175,10 @@ public class StorageAttachedIndex implements Index
 
     private static final Set<String> VALID_OPTIONS = ImmutableSet.of(IndexTarget.TARGET_OPTION_NAME,
                                                                      IndexTarget.CUSTOM_INDEX_OPTION_NAME,
+                                                                     IndexWriterConfig.MAXIMUM_NODE_CONNECTIONS,
+                                                                     IndexWriterConfig.CONSTRUCTION_BEAM_WIDTH,
+                                                                     IndexWriterConfig.SIMILARITY_FUNCTION,
+                                                                     IndexWriterConfig.OPTIMIZE_FOR,
                                                                      NonTokenizingOptions.CASE_SENSITIVE,
                                                                      NonTokenizingOptions.NORMALIZE,
                                                                      NonTokenizingOptions.ASCII);
@@ -242,7 +274,15 @@ public class StorageAttachedIndex implements Index
             throw new InvalidRequestException("Cannot create more than one storage-attached index on the same column: " + target.left);
         }
 
+        Map<String, String> analysisOptions = AbstractAnalyzer.getAnalyzerOptions(options);
+        if (target.left.isPrimaryKeyColumn() && !analysisOptions.isEmpty())
+        {
+            throw new InvalidRequestException(ANALYSIS_ON_KEY_COLUMNS_MESSAGE + new CqlBuilder().append(analysisOptions));
+        }
+
         AbstractType<?> type = TypeUtil.cellValueType(target.left, target.right);
+        AbstractAnalyzer.fromOptions(type, analysisOptions);
+        IndexWriterConfig config = IndexWriterConfig.fromOptions(null, type, options);
 
         // If we are indexing map entries we need to validate the subtypes
         if (TypeUtil.isComposite(type))
@@ -257,13 +297,21 @@ public class StorageAttachedIndex implements Index
         {
             throw new InvalidRequestException("Unsupported type: " + type.asCQL3Type());
         }
-
-        Map<String, String> analysisOptions = AbstractAnalyzer.getAnalyzerOptions(options);
-        if (target.left.isPrimaryKeyColumn() && !analysisOptions.isEmpty())
+        else if (type.isVector())
         {
-            throw new InvalidRequestException(ANALYSIS_ON_KEY_COLUMNS_MESSAGE + new CqlBuilder().append(analysisOptions));
+            VectorType<?> vectorType = (VectorType<?>) type;
+
+            if (!(vectorType.elementType instanceof FloatType))
+                throw new InvalidRequestException(VECTOR_NON_FLOAT_ERROR);
+
+            if (vectorType.dimension == 1 && config.getSimilarityFunction() == VectorSimilarityFunction.COSINE)
+                throw new InvalidRequestException(VECTOR_1_DIMENSION_COSINE_ERROR);
+
+            if (DatabaseDescriptor.getRawConfig().data_file_directories.length > 1)
+                throw new InvalidRequestException(VECTOR_MULTIPLE_DATA_DIRECTORY_ERROR);
+
+            ClientWarn.instance.warn(VECTOR_USAGE_WARNING);
         }
-        AbstractAnalyzer.fromOptions(type, analysisOptions);
 
         return Collections.emptyMap();
     }
@@ -272,7 +320,13 @@ public class StorageAttachedIndex implements Index
     public void register(IndexRegistry registry)
     {
         // index will be available for writes
-        registry.registerIndex(this, StorageAttachedIndexGroup.class, () -> new StorageAttachedIndexGroup(baseCfs));
+        registry.registerIndex(this, StorageAttachedIndexGroup.GROUP_KEY, () -> new StorageAttachedIndexGroup(baseCfs));
+    }
+
+    @Override
+    public void unregister(IndexRegistry registry)
+    {
+        registry.unregisterIndex(this, StorageAttachedIndexGroup.GROUP_KEY);
     }
 
     @Override
@@ -523,6 +577,40 @@ public class StorageAttachedIndex implements Index
     }
 
     @Override
+    public Comparator<ByteBuffer> getPostQueryOrdering(Restriction restriction, QueryOptions options)
+    {
+        // For now, only support ANN
+        assert restriction instanceof SingleColumnRestriction.AnnRestriction;
+
+        Preconditions.checkState(indexContext.isVector());
+
+        SingleColumnRestriction.AnnRestriction annRestriction = (SingleColumnRestriction.AnnRestriction) restriction;
+        VectorSimilarityFunction function = indexContext.getIndexWriterConfig().getSimilarityFunction();
+
+        float[] target = TypeUtil.decomposeVector(indexContext, annRestriction.value(options).duplicate());
+
+        return (leftBuf, rightBuf) -> {
+            float[] left = TypeUtil.decomposeVector(indexContext, leftBuf.duplicate());
+            double scoreLeft = function.compare(left, target);
+
+            float[] right = TypeUtil.decomposeVector(indexContext, rightBuf.duplicate());
+            double scoreRight = function.compare(right, target);
+            return Double.compare(scoreRight, scoreLeft); // descending order
+        };
+    }
+
+    @Override
+    public void validate(ReadCommand command) throws InvalidRequestException
+    {
+        if (!getIndexContext().isVector())
+            return;
+
+        // to avoid overflow of the vector graph internal data structure and avoid OOM when filtering top-k
+        if (command.limits().count() > MAX_TOP_K)
+            throw new InvalidRequestException(String.format(ANN_LIMIT_ERROR, MAX_TOP_K, command.limits().count()));
+    }
+
+    @Override
     public long getEstimatedResultRows()
     {
         throw new UnsupportedOperationException("Use StorageAttachedIndexQueryPlan#getEstimatedResultRows() instead.");
@@ -664,12 +752,15 @@ public class StorageAttachedIndex implements Index
         @Override
         public void updateRow(Row oldRow, Row newRow)
         {
-            insertRow(newRow);
+            adjustMemtableSize(indexContext.getMemtableIndexManager().update(key, oldRow, newRow, memtable),
+                               CassandraWriteContext.fromContext(writeContext).getGroup());
         }
 
         void adjustMemtableSize(long additionalSpace, OpOrder.Group opGroup)
         {
-            memtable.markExtraOnHeapUsed(additionalSpace, opGroup);
+            // The memtable will assert if we try and reduce its memory usage so, for now, just don't tell it.
+            if (additionalSpace >= 0)
+                memtable.markExtraOnHeapUsed(additionalSpace, opGroup);
         }
     }
 }

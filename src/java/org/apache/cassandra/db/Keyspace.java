@@ -749,14 +749,9 @@ public class Keyspace
         return Schema.instance.getKeyspaces().stream().map(Schema.instance::getKeyspaceInstance).filter(Objects::nonNull);
     }
 
-    public static Iterable<Keyspace> nonSystem()
-    {
-        return Iterables.transform(Schema.instance.getNonSystemKeyspaces().names(), Keyspace::open);
-    }
-
     public static Iterable<Keyspace> nonLocalStrategy()
     {
-        return Iterables.transform(Schema.instance.getNonLocalStrategyKeyspaces().names(), Keyspace::open);
+        return Iterables.transform(Schema.instance.distributedKeyspaces().names(), Keyspace::open);
     }
 
     public static Iterable<Keyspace> system()

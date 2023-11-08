@@ -31,11 +31,6 @@ import com.google.common.collect.Sets;
  */
 public enum Permission
 {
-    @Deprecated
-    READ,
-    @Deprecated
-    WRITE,
-
     // schema and role management
     // CREATE, ALTER and DROP permissions granted on an appropriate DataResource are required for
     // CREATE KEYSPACE and CREATE TABLE.

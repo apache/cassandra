@@ -22,16 +22,19 @@ import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.RepairRetrySpec;
 import org.apache.cassandra.config.RetrySpec;
+import org.apache.cassandra.metrics.RepairMetrics;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.exceptions.RepairException;
 import org.apache.cassandra.exceptions.RequestFailureReason;
@@ -43,6 +46,7 @@ import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.streaming.PreviewKind;
 import org.apache.cassandra.utils.Backoff;
 import org.apache.cassandra.utils.CassandraVersion;
+import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Future;
 
@@ -56,8 +60,23 @@ import static org.apache.cassandra.net.MessageFlag.CALL_BACK_ON_FAILURE;
 public abstract class RepairMessage
 {
     private enum ErrorHandling { NONE, TIMEOUT, RETRY }
-    private static final CassandraVersion SUPPORTS_RETRY = new CassandraVersion("5.0.0-alpha2.SNAPSHOT");
+    @VisibleForTesting
+    static final CassandraVersion SUPPORTS_RETRY = new CassandraVersion("5.0.0-alpha2.SNAPSHOT");
     private static final Map<Verb, CassandraVersion> VERB_TIMEOUT_VERSIONS;
+    public static final Set<Verb> ALLOWS_RETRY;
+    private static final Set<Verb> SUPPORTS_RETRY_WITHOUT_VERSION_CHECK = Collections.unmodifiableSet(EnumSet.of(Verb.CLEANUP_MSG));
+    public static final RequestCallback<Object> NOOP_CALLBACK = new RequestCallback<>()
+    {
+        @Override
+        public void onResponse(Message<Object> msg)
+        {
+        }
+
+        @Override
+        public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
+        {
+        }
+    };
 
     static
     {
@@ -67,11 +86,36 @@ public abstract class RepairMessage
         map.put(Verb.SYNC_REQ, timeoutVersion);
         map.put(Verb.VALIDATION_RSP, SUPPORTS_RETRY);
         map.put(Verb.SYNC_RSP, SUPPORTS_RETRY);
+        // IR messages
+        map.put(Verb.PREPARE_CONSISTENT_REQ, SUPPORTS_RETRY);
+        map.put(Verb.PREPARE_CONSISTENT_RSP, SUPPORTS_RETRY);
+        map.put(Verb.FINALIZE_PROPOSE_MSG, SUPPORTS_RETRY);
+        map.put(Verb.FINALIZE_PROMISE_MSG, SUPPORTS_RETRY);
+        map.put(Verb.FINALIZE_COMMIT_MSG, SUPPORTS_RETRY);
+        map.put(Verb.FAILED_SESSION_MSG, SUPPORTS_RETRY);
         VERB_TIMEOUT_VERSIONS = Collections.unmodifiableMap(map);
+
+        EnumSet<Verb> allowsRetry = EnumSet.noneOf(Verb.class);
+        allowsRetry.add(Verb.PREPARE_MSG);
+        allowsRetry.add(Verb.VALIDATION_REQ);
+        allowsRetry.add(Verb.VALIDATION_RSP);
+        allowsRetry.add(Verb.SYNC_REQ);
+        allowsRetry.add(Verb.SYNC_RSP);
+        allowsRetry.add(Verb.SNAPSHOT_MSG);
+        allowsRetry.add(Verb.CLEANUP_MSG);
+        // IR messages
+        allowsRetry.add(Verb.PREPARE_CONSISTENT_REQ);
+        allowsRetry.add(Verb.PREPARE_CONSISTENT_RSP);
+        allowsRetry.add(Verb.FINALIZE_PROPOSE_MSG);
+        allowsRetry.add(Verb.FINALIZE_PROMISE_MSG);
+        allowsRetry.add(Verb.FINALIZE_COMMIT_MSG);
+        allowsRetry.add(Verb.FAILED_SESSION_MSG);
+        ALLOWS_RETRY = Collections.unmodifiableSet(allowsRetry);
     }
-    private static final Set<Verb> SUPPORTS_RETRY_WITHOUT_VERSION_CHECK = Collections.unmodifiableSet(EnumSet.of(Verb.CLEANUP_MSG));
 
     private static final Logger logger = LoggerFactory.getLogger(RepairMessage.class);
+    private static final NoSpamLogger noSpam = NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES);
+
     @Nullable
     public final RepairJobDesc desc;
 
@@ -104,7 +148,7 @@ public abstract class RepairMessage
         return () -> !f.isDone();
     }
 
-    private static Supplier<Boolean> always()
+    public static Supplier<Boolean> always()
     {
         return () -> true;
     }
@@ -121,27 +165,25 @@ public abstract class RepairMessage
 
     public static void sendMessageWithRetries(SharedContext ctx, RepairMessage request, Verb verb, InetAddressAndPort endpoint)
     {
-        sendMessageWithRetries(ctx, backoff(ctx, verb), always(), request, verb, endpoint, new RequestCallback<>()
-        {
-            @Override
-            public void onResponse(Message<Object> msg)
-            {
-            }
-
-            @Override
-            public void onFailure(InetAddressAndPort from, RequestFailureReason failureReason)
-            {
-            }
-        }, 0);
+        sendMessageWithRetries(ctx, backoff(ctx, verb), always(), request, verb, endpoint, NOOP_CALLBACK, 0);
     }
 
-    private static <T> void sendMessageWithRetries(SharedContext ctx, Backoff backoff, Supplier<Boolean> allowRetry, RepairMessage request, Verb verb, InetAddressAndPort endpoint, RequestCallback<T> finalCallback, int attempt)
+    public static void sendMessageWithRetries(SharedContext ctx, Supplier<Boolean> allowRetry, RepairMessage request, Verb verb, InetAddressAndPort endpoint)
     {
+        sendMessageWithRetries(ctx, backoff(ctx, verb), allowRetry, request, verb, endpoint, NOOP_CALLBACK, 0);
+    }
+
+    @VisibleForTesting
+    static <T> void sendMessageWithRetries(SharedContext ctx, Backoff backoff, Supplier<Boolean> allowRetry, RepairMessage request, Verb verb, InetAddressAndPort endpoint, RequestCallback<T> finalCallback, int attempt)
+    {
+        if (!ALLOWS_RETRY.contains(verb))
+            throw new AssertionError("Repair verb " + verb + " does not support retry, but a request to send with retry was given!");
         RequestCallback<T> callback = new RequestCallback<>()
         {
             @Override
             public void onResponse(Message<T> msg)
             {
+                maybeRecordRetry(null);
                 finalCallback.onResponse(msg);
             }
 
@@ -165,10 +207,34 @@ public abstract class RepairMessage
                                                          backoff.computeWaitTime(attempt), backoff.unit());
                             return;
                         }
+                        maybeRecordRetry(failureReason);
                         finalCallback.onFailure(from, failureReason);
                         return;
                     default:
                         throw new AssertionError("Unknown error handler: " + allowed);
+                }
+            }
+
+            private void maybeRecordRetry(@Nullable RequestFailureReason reason)
+            {
+                if (attempt <= 0)
+                    return;
+                // we don't know what the prefix kind is... so use NONE... this impacts logPrefix as it will cause us to use "repair" rather than "preview repair" which may not be correct... but close enough...
+                String prefix = PreviewKind.NONE.logPrefix(request.parentRepairSession());
+                RepairMetrics.retry(verb, attempt);
+                if (reason == null)
+                {
+                    noSpam.info("{} Retry of repair verb " + verb + " was successful after {} attempts", prefix, attempt);
+                }
+                else if (reason == RequestFailureReason.TIMEOUT)
+                {
+                    noSpam.warn("{} Timeout for repair verb " + verb + "; could not complete within {} attempts", prefix, attempt);
+                    RepairMetrics.retryTimeout(verb);
+                }
+                else
+                {
+                    noSpam.warn("{} {} failure for repair verb " + verb + "; could not complete within {} attempts", prefix, reason, attempt);
+                    RepairMetrics.retryFailure(verb);
                 }
             }
 
@@ -231,5 +297,16 @@ public abstract class RepairMessage
         if (timeoutVersion == null || remoteVersion.compareTo(timeoutVersion) >= 0)
             return ErrorHandling.TIMEOUT;
         return ErrorHandling.NONE;
+    }
+
+    public static void sendFailureResponse(SharedContext ctx, Message<?> respondTo)
+    {
+        Message<?> reply = respondTo.failureResponse(RequestFailureReason.UNKNOWN);
+        ctx.messaging().send(reply, respondTo.from());
+    }
+
+    public static void sendAck(SharedContext ctx, Message<? extends RepairMessage> message)
+    {
+        ctx.messaging().send(message.emptyResponse(), message.from());
     }
 }

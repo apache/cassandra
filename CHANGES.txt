@@ -3,6 +3,24 @@
  * Add the ability to disable bulk loading of SSTables (CASSANDRA-18781)
  * Clean up obsolete functions and simplify cql_version handling in cqlsh (CASSANDRA-18787)
 Merged from 5.0:
+ * Upgrade Python driver to 3.28.0 (CASSANDRA-18960)
+ * Add retries to IR messages (CASSANDRA-18962)
+ * Add metrics and logging to repair retries (CASSANDRA-18952)
+ * Remove deprecated code in Cassandra 1.x and 2.x (CASSANDRA-18959)
+ * ClientRequestSize metrics should not treat CONTAINS restrictions as being equality-based (CASSANDRA-18896)
+ * Add support for vector search in SAI (CASSANDRA-18715)
+ * Remove crc_check_chance from CompressionParams (CASSANDRA-18872)
+ * Fix schema loading of UDTs inside vectors inside UDTs (CASSANDRA-18964)
+ * Add cqlsh autocompletion for the vector data type (CASSANDRA-18946)
+ * Fix nodetool tablehistograms output to avoid printing repeated information and ensure at most two arguments (CASSANDRA-18955)
+ * Change the checksum algorithm SAI-related files use from CRC32 to CRC32C (CASSANDRA-18836)
+ * Correctly remove Index.Group from IndexRegistry (CASSANDRA-18905)
+ * Fix vector type to support DDM's mask_default function (CASSANDRA-18889)
+ * Remove unnecessary reporter-config3 dependency (CASSANDRA-18907)
+ * Remove support for empty values on the vector data type (CASSANDRA-18876)
+ * Upgrade Dropwizard Metrics to 4.2.19 (CASSANDRA-14667)
+ * Upgrade caffeine cache and fix CIDR permissions cache invalidation (CASSANDRA-18805)
+ * Remove deprecated properties in CompressionParams (CASSANDRA-18742)
  * Add support for repair coordinator to retry messages that timeout (CASSANDRA-18816)
  * Upgrade slf4j-api to 1.7.36 (CASSANDRA-18882)
  * Make the output of ON/OFF commands in cqlsh consistent (CASSANDRA-18547)
@@ -18,12 +36,21 @@ Merged from 4.1:
  * Internode legacy SSL storage port certificate is not hot reloaded on update (CASSANDRA-18681)
  * Nodetool paxos-only repair is no longer incremental (CASSANDRA-18466)
 Merged from 4.0:
+ * Gossip NPE due to shutdown event corrupting empty statuses (CASSANDRA-18913)
+ * Update hdrhistogram to 2.1.12 (CASSANDRA-18893)
+ * Improve performance of compactions when table does not have an index (CASSANDRA-18773)
+ * JMH improvements - faster build and async profiler (CASSANDRA-18871)
  * Enable 3rd party JDK installations for Debian package (CASSANDRA-18844)
 Merged from 3.11:
  * Revert CASSANDRA-18543 (CASSANDRA-18854)
 Merged from 3.0:
+ * Suppress CVE-2023-44487 (CASSANDRA-18943)
+ * Implement the logic in bin/stop-server (CASSANDRA-18838)
+ * Fix nodetool enable/disablebinary to correctly set rpc readiness in gossip (CASSANDRA-18935)
+ * Implement the logic in bin/stop-server (CASSANDRA-18838) 
  * Upgrade snappy-java to 1.1.10.4 (CASSANDRA-18878)
  * Add cqlshrc.sample and credentials.sample into Debian package (CASSANDRA-18818)
+
 
 5.0-alpha1
  * Fix rpm installations to work with jdk17 (CASSANDRA-18817)
@@ -40,9 +67,11 @@ Merged from 3.0:
  * Upgrade JMH from 1.21 to 1.36 (CASSANDRA-18696)
  * Add guardrail for vector dimensions (CASSANDRA-18730)
 Merged from 4.1:
+ * Fixed the inconsistency between distributedKeyspaces and distributedAndLocalKeyspaces (CASSANDRA-18747)
  * Waiting indefinitely on ReceivedMessage response in StreamSession#receive() can cause deadlock (CASSANDRA-18733)
  * Allow empty keystore_password in encryption_options (CASSANDRA-18778)
 Merged from 4.0:
+ * Retrieve keyspaces metadata and schema version concistently in DescribeStatement (CASSANDRA-18921)
  * JMH improvements - faster build and async profiler (CASSANDRA-18871)
 Merged from 3.11:
  * Fix NPE when using udfContext in UDF after a restart of a node (CASSANDRA-18739)

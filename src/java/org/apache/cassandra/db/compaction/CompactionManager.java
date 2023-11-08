@@ -197,9 +197,9 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
      * Sets the rate for the rate limiter. When compaction_throughput is 0 or node is bootstrapping,
      * this sets the rate to Double.MAX_VALUE bytes per second.
      * @param throughputMbPerSec throughput to set in MiB/s
-     * @deprecated Use setRateInBytes instead
+     * @deprecated Use setRateInBytes instead See CASSANDRA-17225
      */
-    @Deprecated
+    @Deprecated(since = "4.1")
     public void setRate(final double throughputMbPerSec)
     {
         setRateInBytes(throughputMbPerSec * 1024.0 * 1024);
@@ -1294,7 +1294,7 @@ public class CompactionManager implements CompactionManagerMBean, ICompactionMan
     /* Used in tests. */
     public void disableAutoCompaction()
     {
-        for (String ksname : Schema.instance.getNonSystemKeyspaces().names())
+        for (String ksname : Schema.instance.distributedKeyspaces().names())
         {
             for (ColumnFamilyStore cfs : Keyspace.open(ksname).getColumnFamilyStores())
                 cfs.disableAutoCompaction();

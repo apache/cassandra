@@ -33,38 +33,50 @@ CREATE TABLE has_all_types (
     tinyintcol tinyint,
     uuidcol uuid,
     varcharcol varchar,
-    varintcol varint
-) WITH compression = {'sstable_compression':'LZ4Compressor'};
+    varintcol varint,
+    listcol list<text>,
+    setcol set<text>,
+    mapcol map<text, int>,
+    vectorcol vector<float, 3>,
+) WITH compression = {'class':'LZ4Compressor'};
 
 INSERT INTO has_all_types (num, intcol, asciicol, bigintcol, blobcol, booleancol,
                            decimalcol, doublecol, durationcol, floatcol, smallintcol, textcol,
-                           timestampcol, tinyintcol, uuidcol, varcharcol, varintcol)
+                           timestampcol, tinyintcol, uuidcol, varcharcol, varintcol,
+                           listcol, setcol, mapcol, vectorcol)
 VALUES (0, -12, 'abcdefg', 1234567890123456789, 0x000102030405fffefd, true,
         19952.11882, 1.0, 12h, -2.1, 32767, 'Voilá!',
-        '2012-05-14 12:53:20+0000', 127, bd1924e1-6af8-44ae-b5e1-f24131dbd460, '"', 10000000000000000000000000);
+        '2012-05-14 12:53:20+0000', 127, bd1924e1-6af8-44ae-b5e1-f24131dbd460, '"', 10000000000000000000000000,
+        ['a', 'b', 'c'], {'a', 'b', 'c'}, {'a': 1, 'b': 2, 'c': 3}, [1.0, 2.0, 3.0]);
 
 INSERT INTO has_all_types (num, intcol, asciicol, bigintcol, blobcol, booleancol,
                            decimalcol, doublecol, durationcol, floatcol, smallintcol, textcol,
-                           timestampcol, tinyintcol, uuidcol, varcharcol, varintcol)
+                           timestampcol, tinyintcol, uuidcol, varcharcol, varintcol,
+                           listcol, setcol, mapcol, vectorcol)
 VALUES (1, 2147483647, '__!''$#@!~"', 9223372036854775807, 0xffffffffffffffffff, true,
         0.00000000000001, 9999999.999, 12h30m, 99999.999, 32767, '∭Ƕ⑮ฑ➳❏''',
         '1950-01-01+0000', 127, ffffffff-ffff-ffff-ffff-ffffffffffff, 'newline->
-<-', 9);
+<-', 9,
+['__!''$#@!~"'], {'__!''$#@!~"'}, {'__!''$#@!~"': 2147483647}, [1, -2.0, NaN]);
 
 INSERT INTO has_all_types (num, intcol, asciicol, bigintcol, blobcol, booleancol,
                            decimalcol, doublecol, durationcol, floatcol, smallintcol, textcol,
-                           timestampcol, tinyintcol, uuidcol, varcharcol, varintcol)
+                           timestampcol, tinyintcol, uuidcol, varcharcol, varintcol,
+                           listcol, setcol, mapcol, vectorcol)
 VALUES (2, 0, '', 0, 0x, false,
         0.0, 0.0, 12h30m30s, 0.0, 0, '',
-        0, 0, 00000000-0000-0000-0000-000000000000, '', 0);
+        0, 0, 00000000-0000-0000-0000-000000000000, '', 0,
+        [], {}, {}, [0.0, 0.0, 0.0]);
 
 INSERT INTO has_all_types (num, intcol, asciicol, bigintcol, blobcol, booleancol,
                            decimalcol, doublecol, durationcol, floatcol, smallintcol, textcol,
-                           timestampcol, tinyintcol, uuidcol, varcharcol, varintcol)
+                           timestampcol, tinyintcol, uuidcol, varcharcol, varintcol,
+                           listcol, setcol, mapcol, vectorcol)
 VALUES (3, -2147483648, '''''''', -9223372036854775808, 0x80, false,
         10.0000000000000, -1004.10, 12h30m30s250ms, 100000000.9, 32767, '龍馭鬱',
         '2038-01-19T03:14-1200', 127, ffffffff-ffff-1fff-8fff-ffffffffffff,
-	    '''', -10000000000000000000000000);
+	    '''', -10000000000000000000000000,
+	    ['龍馭鬱'], {'龍馭鬱'}, {'龍馭鬱': -2147483648}, [100000000.9, 100000000.9, 100000000.9]);
 
 INSERT INTO has_all_types (num, intcol, asciicol, bigintcol, blobcol, booleancol,
                            decimalcol, doublecol, floatcol, smallintcol, textcol,

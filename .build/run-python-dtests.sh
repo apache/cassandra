@@ -51,11 +51,10 @@ export CASS_DRIVER_NO_EXTENSIONS=true
 export CASS_DRIVER_NO_CYTHON=true
 export CCM_MAX_HEAP_SIZE="1024M"
 export CCM_HEAP_NEWSIZE="512M"
-export CCM_CONFIG_DIR=${DIST_DIR}/.ccm
 export NUM_TOKENS="16"
 #Have Cassandra skip all fsyncs to improve test performance and reliability
 export CASSANDRA_SKIP_SYNC=true
-export TMPDIR="$(mktemp -d /tmp/run-python-dtest.XXXXXX)"
+export TMPDIR="$(mktemp -d ${DIST_DIR}/run-python-dtest.XXXXXX)"
 unset CASSANDRA_HOME
 
 # pre-conditions
@@ -73,7 +72,9 @@ if [ "${java_version}" -eq 17 ] && [[ "${target}" == "dtest-upgrade" ]] ; then
     exit 1
 fi
 
-python_version=$(python -V | awk '{print $2}' | awk -F'.' '{print $1"."$2}')
+python_version=$(python -V 2>&1 | awk '{print $2}' | awk -F'.' '{print $1"."$2}')
+python_regx_supported_versions="^(3.7|3.8|3.11)$"
+[[ $python_version =~ $python_regx_supported_versions ]] || { echo "Python ${python_version} not supported."; exit 1; }
 
 # check project is already built. no cleaning is done, so jenkins unstash works, beware.
 [[ -f "${DIST_DIR}/apache-cassandra-${version}.jar" ]] || [[ -f "${DIST_DIR}/apache-cassandra-${version}-SNAPSHOT.jar" ]] || { echo "Project must be built first. Use \`ant jar\`. Build directory is ${DIST_DIR} with: $(ls ${DIST_DIR})"; exit 1; }
@@ -163,8 +164,8 @@ fi
 # merge all unit xml files into one, and print summary test numbers
 pushd ${CASSANDRA_DIR}/ >/dev/null
 # remove <testsuites> wrapping elements. `ant generate-unified-test-report` doesn't like it`
-sed -r "s/<[\/]?testsuites>//g" ${DIST_DIR}/test/output/nosetests.xml > /tmp/nosetests.xml
-cat /tmp/nosetests.xml > ${DIST_DIR}/test/output/nosetests.xml
+sed -r "s/<[\/]?testsuites>//g" ${DIST_DIR}/test/output/nosetests.xml > ${TMPDIR}/nosetests.xml
+cat ${TMPDIR}/nosetests.xml > ${DIST_DIR}/test/output/nosetests.xml
 ant -quiet -silent generate-unified-test-report
 popd  >/dev/null
 
@@ -174,7 +175,7 @@ popd  >/dev/null
 #
 ################################
 
-rm -rf "/tmp/run-python-dtest.${TMPDIR/\/tmp\/run-python-dtest./}"
+[[ "${TMPDIR}" == *"${DIST_DIR}/run-python-dtest."* ]] && rm -rf "${TMPDIR}"
 unset TMPDIR
 deactivate
 
