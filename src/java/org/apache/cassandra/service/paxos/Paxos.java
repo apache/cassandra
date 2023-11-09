@@ -951,7 +951,6 @@ public class Paxos
      * @return the Paxos ballot promised by the replicas if no in-progress requests were seen and a quorum of
      * nodes have seen the mostRecentCommit.  Otherwise, return null.
      */
-    @SuppressWarnings("resource")
     private static BeginResult begin(long deadline,
                                      SinglePartitionReadCommand query,
                                      ConsistencyLevel consistencyForConsensus,

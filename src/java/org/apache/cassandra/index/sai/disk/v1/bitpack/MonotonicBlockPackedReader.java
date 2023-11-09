@@ -82,7 +82,6 @@ public class MonotonicBlockPackedReader implements LongArray.Factory
     }
 
     @Override
-    @SuppressWarnings({"resource", "RedundantSuppression"})
     public LongArray open()
     {
         final IndexInput indexInput = IndexFileUtils.instance.openInput(file);

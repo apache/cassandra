@@ -95,7 +95,6 @@ public class SimpleClientPerfTest
         }
     }
 
-    @SuppressWarnings({"IOResourceOpenedButNotSafelyClosed", "resource"})
     @Test
     public void measureSmall() throws Throwable
     {
@@ -108,7 +107,6 @@ public class SimpleClientPerfTest
                  version);
     }
 
-    @SuppressWarnings({"IOResourceOpenedButNotSafelyClosed", "resource"})
     @Test
     public void measureSmallWithCompression() throws Throwable
     {
@@ -121,7 +119,6 @@ public class SimpleClientPerfTest
                  version);
     }
 
-    @SuppressWarnings({"IOResourceOpenedButNotSafelyClosed", "resource"})
     @Test
     public void measureLarge() throws Throwable
     {
@@ -134,7 +131,6 @@ public class SimpleClientPerfTest
                  version);
     }
 
-    @SuppressWarnings({"IOResourceOpenedButNotSafelyClosed", "resource"})
     @Test
     public void measureLargeWithCompression() throws Throwable
     {

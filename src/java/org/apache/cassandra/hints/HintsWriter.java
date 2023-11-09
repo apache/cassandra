@@ -65,7 +65,6 @@ class HintsWriter implements AutoCloseable
         this.globalCRC = globalCRC;
     }
 
-    @SuppressWarnings("resource") // HintsWriter owns channel
     static HintsWriter create(File directory, HintsDescriptor descriptor) throws IOException
     {
         File file = descriptor.file(directory);

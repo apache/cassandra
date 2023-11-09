@@ -58,7 +58,6 @@ public class IndexSearchResultIterator extends KeyRangeIterator
      * Builds a new {@link IndexSearchResultIterator} that wraps a {@link KeyRangeUnionIterator} over the
      * results of searching the {@link org.apache.cassandra.index.sai.memory.MemtableIndex} and the {@link SSTableIndex}es.
      */
-    @SuppressWarnings({"resource", "RedundantSuppression"})
     public static IndexSearchResultIterator build(Expression expression,
                                                   Collection<SSTableIndex> sstableIndexes,
                                                   AbstractBounds<PartitionPosition> keyRange,

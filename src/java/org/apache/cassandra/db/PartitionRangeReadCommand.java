@@ -315,7 +315,6 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
     }
 
     @VisibleForTesting
-    @SuppressWarnings("resource")
     public UnfilteredPartitionIterator queryStorage(final ColumnFamilyStore cfs, ReadExecutionController controller)
     {
         ColumnFamilyStore.ViewFragment view = cfs.select(View.selectLive(dataRange().keyRange()));
@@ -328,7 +327,6 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
             SSTableReadsListener readCountUpdater = newReadCountUpdater();
             for (Memtable memtable : view.memtables)
             {
-                @SuppressWarnings("resource") // We close on exception and on closing the result returned by this method
                 UnfilteredPartitionIterator iter = memtable.partitionIterator(columnFilter(), dataRange(), readCountUpdater);
                 controller.updateMinOldestUnrepairedTombstone(memtable.getMinLocalDeletionTime());
                 inputCollector.addMemtableIterator(RTBoundValidator.validate(iter, RTBoundValidator.Stage.MEMTABLE, false));
@@ -344,7 +342,6 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
                 if (!intersects && !hasPartitionLevelDeletions && !hasRequiredStatics)
                     continue;
 
-                @SuppressWarnings("resource") // We close on exception and on closing the result returned by this method
                 UnfilteredPartitionIterator iter = sstable.partitionIterator(columnFilter(), dataRange(), readCountUpdater);
                 inputCollector.addSSTableIterator(sstable, RTBoundValidator.validate(iter, RTBoundValidator.Stage.SSTABLE, false));
 
@@ -558,7 +555,6 @@ public class PartitionRangeReadCommand extends ReadCommand implements PartitionR
         }
 
         @Override
-        @SuppressWarnings("resource")
         public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController)
         {
             VirtualTable view = VirtualKeyspaceRegistry.instance.getTableNullable(metadata().id);

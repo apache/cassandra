@@ -27,7 +27,6 @@ import org.apache.cassandra.index.sasi.sa.TermIterator;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.Pair;
 
-@SuppressWarnings("resource")
 public class CombinedTermIterator extends TermIterator
 {
     final Descriptor descriptor;

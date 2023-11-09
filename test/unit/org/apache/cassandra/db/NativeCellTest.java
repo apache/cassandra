@@ -50,7 +50,6 @@ public class NativeCellTest extends CQLTester
                                                                           Integer.MAX_VALUE,
                                                                           1f,
                                                                           () -> ImmediateFuture.success(true)).newAllocator(null);
-    @SuppressWarnings("resource")
     private static final OpOrder.Group group = new OpOrder().start();
     private static Random rand;
 

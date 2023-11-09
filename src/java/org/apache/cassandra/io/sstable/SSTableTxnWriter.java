@@ -104,8 +104,6 @@ public class SSTableTxnWriter extends Transactional.AbstractTransactional implem
         return new SSTableTxnWriter(txn, writer);
     }
 
-
-    @SuppressWarnings({"resource", "RedundantSuppression"}) // log and writer closed during doPostCleanup
     public static SSTableTxnWriter createRangeAware(TableMetadataRef metadata,
                                                     long keyCount,
                                                     long repairedAt,

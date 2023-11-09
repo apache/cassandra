@@ -53,7 +53,6 @@ public class KeyRangeConcatIterator extends KeyRangeIterator
     }
 
     @Override
-    @SuppressWarnings({"resource", "RedundantSuppression"})
     protected void performSkipTo(PrimaryKey nextKey)
     {
         while (!ranges.isEmpty())
@@ -80,7 +79,6 @@ public class KeyRangeConcatIterator extends KeyRangeIterator
     }
 
     @Override
-    @SuppressWarnings({"resource", "RedundantSuppression"})
     protected PrimaryKey computeNext()
     {
         while (!ranges.isEmpty())
