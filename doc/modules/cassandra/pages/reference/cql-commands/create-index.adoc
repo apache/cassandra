@@ -21,7 +21,12 @@ include::example$BNF/index_name.bnf[]
 CREATE INDEX [ IF NOT EXISTS ] <index_name>
   ON [<keyspace_name>.]<table_name>
   ([ ( KEYS | FULL ) ] <column_name>)
-  (ENTRIES <column_name>) ;
+  (ENTRIES <column_name>) 
+    //   | [ (KEYS(<map_name>)) ]
+    // | [ (VALUES(<map_name>)) ]
+    // | [ (ENTRIES(<map_name>)) ]
+   [USING 'sai'
+  [ WITH OPTIONS = { <option_map> } ]];
 ----
 // end::syntax[]
 

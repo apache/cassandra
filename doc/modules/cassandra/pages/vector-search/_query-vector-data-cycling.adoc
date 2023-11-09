@@ -7,7 +7,7 @@ To query data using Vector Search, use a `SELECT` query:
 include::example$CQL/vector-search/vector-search-cycling.cql[tag=select-vector-data-cycling]
 ----
 
-To obtain the distance calculation of the best scoring node closest to the query data as part of the results, use a `SELECT` query: 
+To obtain the similarity calculation of the best scoring node closest to the query data as part of the results, use a `SELECT` query: 
 
 [source,cql]
 ----

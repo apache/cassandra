@@ -5,7 +5,7 @@
 
 This section covers the new features in Apache Cassandra 5.0.
 
-* https://cwiki.apache.org/confluence/x/FQRACw[ACID Transactions (Accord)]
+// * https://cwiki.apache.org/confluence/x/FQRACw[ACID Transactions (Accord)]
 * https://issues.apache.org/jira/browse/CASSANDRA-16052[Storage Attached Indexes]
 * https://issues.apache.org/jira/browse/CASSANDRA-17240[Trie Memtables]
 * https://issues.apache.org/jira/browse/CASSANDRA-18398[Trie SSTables]
