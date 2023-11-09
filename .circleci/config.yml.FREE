@@ -151,7 +151,7 @@ jobs:
           # if additional dependencies were added to requirmeents.txt and the docker image hasn't been updated
           # we'd have to install it here at runtime -- which will make things slow, so do yourself a favor and
           # rebuild the docker image! (it automatically pulls the latest requirements.txt on build)
-          source ~/env3.6/bin/activate
+          source ~/env3.7/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
           pip3 install --exists-action w --upgrade -r ~/cassandra-dtest/requirements.txt
           pip3 uninstall -y cqlsh
@@ -159,11 +159,11 @@ jobs:
     - run:
         name: Determine Tests to Run (j17_without_vnodes)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j17_without_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --skip-resource-intensive-tests --pytest-options '-k not cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j17_without_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j17_without_vnodes_raw /tmp/all_dtest_tests_j17_without_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j17_without_vnodes_raw > /tmp/all_dtest_tests_j17_without_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j17_without_vnodes > /tmp/split_dtest_tests_j17_without_vnodes.txt\ncat /tmp/split_dtest_tests_j17_without_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j17_without_vnodes_final.txt\ncat /tmp/split_dtest_tests_j17_without_vnodes_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.7/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j17_without_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --skip-resource-intensive-tests --pytest-options '-k not cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j17_without_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j17_without_vnodes_raw /tmp/all_dtest_tests_j17_without_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j17_without_vnodes_raw > /tmp/all_dtest_tests_j17_without_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j17_without_vnodes > /tmp/split_dtest_tests_j17_without_vnodes.txt\ncat /tmp/split_dtest_tests_j17_without_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j17_without_vnodes_final.txt\ncat /tmp/split_dtest_tests_j17_without_vnodes_final.txt\n"
     - run:
         name: Run dtests (j17_without_vnodes)
         no_output_timeout: 15m
-        command: "echo \"cat /tmp/split_dtest_tests_j17_without_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j17_without_vnodes_final.txt\n\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j17_without_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --skip-resource-intensive-tests --log-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j17_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
+        command: "echo \"cat /tmp/split_dtest_tests_j17_without_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j17_without_vnodes_final.txt\n\nsource ~/env3.7/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j17_without_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --skip-resource-intensive-tests --log-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j17_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
     - store_test_results:
         path: /tmp/results
     - store_artifacts:
@@ -651,7 +651,7 @@ jobs:
           # if additional dependencies were added to requirmeents.txt and the docker image hasn't been updated
           # we'd have to install it here at runtime -- which will make things slow, so do yourself a favor and
           # rebuild the docker image! (it automatically pulls the latest requirements.txt on build)
-          source ~/env3.6/bin/activate
+          source ~/env3.7/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
           pip3 install --exists-action w --upgrade -r ~/cassandra-dtest/requirements.txt
           pip3 uninstall -y cqlsh
@@ -659,7 +659,7 @@ jobs:
     - run:
         name: Determine Tests to Run (j17_dtests_offheap)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j17_dtests_offheap)***\"\nset -eo pipefail && ./run_dtests.py --use-vnodes --use-off-heap-memtables --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j17_dtests_offheap_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j17_dtests_offheap_raw /tmp/all_dtest_tests_j17_dtests_offheap\nelse\n  grep -e '' /tmp/all_dtest_tests_j17_dtests_offheap_raw > /tmp/all_dtest_tests_j17_dtests_offheap || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j17_dtests_offheap > /tmp/split_dtest_tests_j17_dtests_offheap.txt\ncat /tmp/split_dtest_tests_j17_dtests_offheap.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j17_dtests_offheap_final.txt\ncat /tmp/split_dtest_tests_j17_dtests_offheap_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.7/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j17_dtests_offheap)***\"\nset -eo pipefail && ./run_dtests.py --use-vnodes --use-off-heap-memtables --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j17_dtests_offheap_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j17_dtests_offheap_raw /tmp/all_dtest_tests_j17_dtests_offheap\nelse\n  grep -e '' /tmp/all_dtest_tests_j17_dtests_offheap_raw > /tmp/all_dtest_tests_j17_dtests_offheap || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j17_dtests_offheap > /tmp/split_dtest_tests_j17_dtests_offheap.txt\ncat /tmp/split_dtest_tests_j17_dtests_offheap.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j17_dtests_offheap_final.txt\ncat /tmp/split_dtest_tests_j17_dtests_offheap_final.txt\n"
     - run:
         name: Run dtests (j17_dtests_offheap)
         no_output_timeout: 15m
@@ -667,10 +667,10 @@ jobs:
           echo "cat /tmp/split_dtest_tests_j17_dtests_offheap_final.txt"
           cat /tmp/split_dtest_tests_j17_dtests_offheap_final.txt
 
-          source ~/env3.6/bin/activate
+          source ~/env3.7/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
-          if [ -n 'CQLSH_PYTHON=/usr/bin/python3.6' ]; then
-            export CQLSH_PYTHON=/usr/bin/python3.6
+          if [ -n 'CQLSH_PYTHON=/usr/bin/python3.7' ]; then
+            export CQLSH_PYTHON=/usr/bin/python3.7
           fi
 
           java -version
@@ -1006,7 +1006,7 @@ jobs:
           # if additional dependencies were added to requirmeents.txt and the docker image hasn't been updated
           # we'd have to install it here at runtime -- which will make things slow, so do yourself a favor and
           # rebuild the docker image! (it automatically pulls the latest requirements.txt on build)
-          source ~/env3.6/bin/activate
+          source ~/env3.7/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
           pip3 install --exists-action w --upgrade -r ~/cassandra-dtest/requirements.txt
           pip3 uninstall -y cqlsh
@@ -1035,7 +1035,7 @@ jobs:
             else
               echo "Running ${REPEATED_DTESTS} $count times"
 
-              source ~/env3.6/bin/activate
+              source ~/env3.7/bin/activate
               export PATH=$JAVA_HOME/bin:$PATH
 
               java -version
@@ -1138,7 +1138,7 @@ jobs:
           # if additional dependencies were added to requirmeents.txt and the docker image hasn't been updated
           # we'd have to install it here at runtime -- which will make things slow, so do yourself a favor and
           # rebuild the docker image! (it automatically pulls the latest requirements.txt on build)
-          source ~/env3.6/bin/activate
+          source ~/env3.7/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
           pip3 install --exists-action w --upgrade -r ~/cassandra-dtest/requirements.txt
           pip3 uninstall -y cqlsh
@@ -1167,7 +1167,7 @@ jobs:
             else
               echo "Running ${REPEATED_DTESTS} $count times"
 
-              source ~/env3.6/bin/activate
+              source ~/env3.7/bin/activate
               export PATH=$JAVA_HOME/bin:$PATH
 
               java -version
@@ -1270,7 +1270,7 @@ jobs:
           # if additional dependencies were added to requirmeents.txt and the docker image hasn't been updated
           # we'd have to install it here at runtime -- which will make things slow, so do yourself a favor and
           # rebuild the docker image! (it automatically pulls the latest requirements.txt on build)
-          source ~/env3.6/bin/activate
+          source ~/env3.7/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
           pip3 install --exists-action w --upgrade -r ~/cassandra-dtest/requirements.txt
           pip3 uninstall -y cqlsh
@@ -1299,7 +1299,7 @@ jobs:
             else
               echo "Running ${REPEATED_DTESTS} $count times"
 
-              source ~/env3.6/bin/activate
+              source ~/env3.7/bin/activate
               export PATH=$JAVA_HOME/bin:$PATH
 
               java -version
@@ -1521,7 +1521,7 @@ jobs:
           # if additional dependencies were added to requirmeents.txt and the docker image hasn't been updated
           # we'd have to install it here at runtime -- which will make things slow, so do yourself a favor and
           # rebuild the docker image! (it automatically pulls the latest requirements.txt on build)
-          source ~/env3.6/bin/activate
+          source ~/env3.7/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
           pip3 install --exists-action w --upgrade -r ~/cassandra-dtest/requirements.txt
           pip3 uninstall -y cqlsh
@@ -1529,7 +1529,7 @@ jobs:
     - run:
         name: Determine Tests to Run (j17_without_vnodes)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j17_without_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j17_without_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j17_without_vnodes_raw /tmp/all_dtest_tests_j17_without_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j17_without_vnodes_raw > /tmp/all_dtest_tests_j17_without_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j17_without_vnodes > /tmp/split_dtest_tests_j17_without_vnodes.txt\ncat /tmp/split_dtest_tests_j17_without_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j17_without_vnodes_final.txt\ncat /tmp/split_dtest_tests_j17_without_vnodes_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.7/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j17_without_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j17_without_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j17_without_vnodes_raw /tmp/all_dtest_tests_j17_without_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j17_without_vnodes_raw > /tmp/all_dtest_tests_j17_without_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j17_without_vnodes > /tmp/split_dtest_tests_j17_without_vnodes.txt\ncat /tmp/split_dtest_tests_j17_without_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j17_without_vnodes_final.txt\ncat /tmp/split_dtest_tests_j17_without_vnodes_final.txt\n"
     - run:
         name: Run dtests (j17_without_vnodes)
         no_output_timeout: 15m
@@ -1537,10 +1537,10 @@ jobs:
           echo "cat /tmp/split_dtest_tests_j17_without_vnodes_final.txt"
           cat /tmp/split_dtest_tests_j17_without_vnodes_final.txt
 
-          source ~/env3.6/bin/activate
+          source ~/env3.7/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
-          if [ -n 'CQLSH_PYTHON=/usr/bin/python3.6' ]; then
-            export CQLSH_PYTHON=/usr/bin/python3.6
+          if [ -n 'CQLSH_PYTHON=/usr/bin/python3.7' ]; then
+            export CQLSH_PYTHON=/usr/bin/python3.7
           fi
 
           java -version
@@ -2034,7 +2034,7 @@ jobs:
           # if additional dependencies were added to requirmeents.txt and the docker image hasn't been updated
           # we'd have to install it here at runtime -- which will make things slow, so do yourself a favor and
           # rebuild the docker image! (it automatically pulls the latest requirements.txt on build)
-          source ~/env3.6/bin/activate
+          source ~/env3.7/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
           pip3 install --exists-action w --upgrade -r ~/cassandra-dtest/requirements.txt
           pip3 uninstall -y cqlsh
@@ -2063,7 +2063,7 @@ jobs:
             else
               echo "Running ${REPEATED_LARGE_DTESTS} $count times"
 
-              source ~/env3.6/bin/activate
+              source ~/env3.7/bin/activate
               export PATH=$JAVA_HOME/bin:$PATH
 
               java -version
@@ -2188,7 +2188,7 @@ jobs:
           # if additional dependencies were added to requirmeents.txt and the docker image hasn't been updated
           # we'd have to install it here at runtime -- which will make things slow, so do yourself a favor and
           # rebuild the docker image! (it automatically pulls the latest requirements.txt on build)
-          source ~/env3.6/bin/activate
+          source ~/env3.7/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
           pip3 install --exists-action w --upgrade -r ~/cassandra-dtest/requirements.txt
           pip3 uninstall -y cqlsh
@@ -2217,7 +2217,7 @@ jobs:
             else
               echo "Running ${REPEATED_DTESTS} $count times"
 
-              source ~/env3.6/bin/activate
+              source ~/env3.7/bin/activate
               export PATH=$JAVA_HOME/bin:$PATH
 
               java -version
@@ -3147,7 +3147,7 @@ jobs:
           # if additional dependencies were added to requirmeents.txt and the docker image hasn't been updated
           # we'd have to install it here at runtime -- which will make things slow, so do yourself a favor and
           # rebuild the docker image! (it automatically pulls the latest requirements.txt on build)
-          source ~/env3.6/bin/activate
+          source ~/env3.7/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
           pip3 install --exists-action w --upgrade -r ~/cassandra-dtest/requirements.txt
           pip3 uninstall -y cqlsh
@@ -3155,11 +3155,11 @@ jobs:
     - run:
         name: Determine Tests to Run (j11_large_with_vnodes)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j11_large_with_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --use-vnodes --only-resource-intensive-tests --force-resource-intensive-tests --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_large_with_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j11_large_with_vnodes_raw /tmp/all_dtest_tests_j11_large_with_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j11_large_with_vnodes_raw > /tmp/all_dtest_tests_j11_large_with_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j11_large_with_vnodes > /tmp/split_dtest_tests_j11_large_with_vnodes.txt\ncat /tmp/split_dtest_tests_j11_large_with_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j11_large_with_vnodes_final.txt\ncat /tmp/split_dtest_tests_j11_large_with_vnodes_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.7/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j11_large_with_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --use-vnodes --only-resource-intensive-tests --force-resource-intensive-tests --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_large_with_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j11_large_with_vnodes_raw /tmp/all_dtest_tests_j11_large_with_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j11_large_with_vnodes_raw > /tmp/all_dtest_tests_j11_large_with_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j11_large_with_vnodes > /tmp/split_dtest_tests_j11_large_with_vnodes.txt\ncat /tmp/split_dtest_tests_j11_large_with_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j11_large_with_vnodes_final.txt\ncat /tmp/split_dtest_tests_j11_large_with_vnodes_final.txt\n"
     - run:
         name: Run dtests (j11_large_with_vnodes)
         no_output_timeout: 15m
-        command: "echo \"cat /tmp/split_dtest_tests_j11_large_with_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j11_large_with_vnodes_final.txt\n\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j11_large_with_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --only-resource-intensive-tests --force-resource-intensive-tests --log-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j11_large_with_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
+        command: "echo \"cat /tmp/split_dtest_tests_j11_large_with_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j11_large_with_vnodes_final.txt\n\nsource ~/env3.7/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j11_large_with_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --only-resource-intensive-tests --force-resource-intensive-tests --log-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j11_large_with_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
     - store_test_results:
         path: /tmp/results
     - store_artifacts:
@@ -3232,7 +3232,7 @@ jobs:
           # if additional dependencies were added to requirmeents.txt and the docker image hasn't been updated
           # we'd have to install it here at runtime -- which will make things slow, so do yourself a favor and
           # rebuild the docker image! (it automatically pulls the latest requirements.txt on build)
-          source ~/env3.6/bin/activate
+          source ~/env3.7/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
           pip3 install --exists-action w --upgrade -r ~/cassandra-dtest/requirements.txt
           pip3 uninstall -y cqlsh
@@ -3261,7 +3261,7 @@ jobs:
             else
               echo "Running ${REPEATED_LARGE_DTESTS} $count times"
 
-              source ~/env3.6/bin/activate
+              source ~/env3.7/bin/activate
               export PATH=$JAVA_HOME/bin:$PATH
 
               java -version
@@ -3591,7 +3591,7 @@ jobs:
           # if additional dependencies were added to requirmeents.txt and the docker image hasn't been updated
           # we'd have to install it here at runtime -- which will make things slow, so do yourself a favor and
           # rebuild the docker image! (it automatically pulls the latest requirements.txt on build)
-          source ~/env3.6/bin/activate
+          source ~/env3.7/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
           pip3 install --exists-action w --upgrade -r ~/cassandra-dtest/requirements.txt
           pip3 uninstall -y cqlsh
@@ -3599,11 +3599,11 @@ jobs:
     - run:
         name: Determine Tests to Run (j11_large_without_vnodes)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j11_large_without_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --only-resource-intensive-tests --force-resource-intensive-tests --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_large_without_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j11_large_without_vnodes_raw /tmp/all_dtest_tests_j11_large_without_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j11_large_without_vnodes_raw > /tmp/all_dtest_tests_j11_large_without_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j11_large_without_vnodes > /tmp/split_dtest_tests_j11_large_without_vnodes.txt\ncat /tmp/split_dtest_tests_j11_large_without_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j11_large_without_vnodes_final.txt\ncat /tmp/split_dtest_tests_j11_large_without_vnodes_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.7/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j11_large_without_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --only-resource-intensive-tests --force-resource-intensive-tests --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_large_without_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j11_large_without_vnodes_raw /tmp/all_dtest_tests_j11_large_without_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j11_large_without_vnodes_raw > /tmp/all_dtest_tests_j11_large_without_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j11_large_without_vnodes > /tmp/split_dtest_tests_j11_large_without_vnodes.txt\ncat /tmp/split_dtest_tests_j11_large_without_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j11_large_without_vnodes_final.txt\ncat /tmp/split_dtest_tests_j11_large_without_vnodes_final.txt\n"
     - run:
         name: Run dtests (j11_large_without_vnodes)
         no_output_timeout: 15m
-        command: "echo \"cat /tmp/split_dtest_tests_j11_large_without_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j11_large_without_vnodes_final.txt\n\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j11_large_without_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --only-resource-intensive-tests --force-resource-intensive-tests --log-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j11_large_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
+        command: "echo \"cat /tmp/split_dtest_tests_j11_large_without_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j11_large_without_vnodes_final.txt\n\nsource ~/env3.7/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j11_large_without_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --only-resource-intensive-tests --force-resource-intensive-tests --log-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j11_large_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
     - store_test_results:
         path: /tmp/results
     - store_artifacts:
@@ -3884,7 +3884,7 @@ jobs:
           # if additional dependencies were added to requirmeents.txt and the docker image hasn't been updated
           # we'd have to install it here at runtime -- which will make things slow, so do yourself a favor and
           # rebuild the docker image! (it automatically pulls the latest requirements.txt on build)
-          source ~/env3.6/bin/activate
+          source ~/env3.7/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
           pip3 install --exists-action w --upgrade -r ~/cassandra-dtest/requirements.txt
           pip3 uninstall -y cqlsh
@@ -3913,7 +3913,7 @@ jobs:
             else
               echo "Running ${REPEATED_UPGRADE_DTESTS} $count times"
 
-              source ~/env3.6/bin/activate
+              source ~/env3.7/bin/activate
               export PATH=$JAVA_HOME/bin:$PATH
 
               java -version
@@ -4329,7 +4329,7 @@ jobs:
           # if additional dependencies were added to requirmeents.txt and the docker image hasn't been updated
           # we'd have to install it here at runtime -- which will make things slow, so do yourself a favor and
           # rebuild the docker image! (it automatically pulls the latest requirements.txt on build)
-          source ~/env3.6/bin/activate
+          source ~/env3.7/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
           pip3 install --exists-action w --upgrade -r ~/cassandra-dtest/requirements.txt
           pip3 uninstall -y cqlsh
@@ -4337,7 +4337,7 @@ jobs:
     - run:
         name: Determine Tests to Run (j11_without_vnodes)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j11_without_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_without_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j11_without_vnodes_raw /tmp/all_dtest_tests_j11_without_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j11_without_vnodes_raw > /tmp/all_dtest_tests_j11_without_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j11_without_vnodes > /tmp/split_dtest_tests_j11_without_vnodes.txt\ncat /tmp/split_dtest_tests_j11_without_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j11_without_vnodes_final.txt\ncat /tmp/split_dtest_tests_j11_without_vnodes_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.7/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j11_without_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_without_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j11_without_vnodes_raw /tmp/all_dtest_tests_j11_without_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j11_without_vnodes_raw > /tmp/all_dtest_tests_j11_without_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j11_without_vnodes > /tmp/split_dtest_tests_j11_without_vnodes.txt\ncat /tmp/split_dtest_tests_j11_without_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j11_without_vnodes_final.txt\ncat /tmp/split_dtest_tests_j11_without_vnodes_final.txt\n"
     - run:
         name: Run dtests (j11_without_vnodes)
         no_output_timeout: 15m
@@ -4345,10 +4345,10 @@ jobs:
           echo "cat /tmp/split_dtest_tests_j11_without_vnodes_final.txt"
           cat /tmp/split_dtest_tests_j11_without_vnodes_final.txt
 
-          source ~/env3.6/bin/activate
+          source ~/env3.7/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
-          if [ -n 'CQLSH_PYTHON=/usr/bin/python3.6' ]; then
-            export CQLSH_PYTHON=/usr/bin/python3.6
+          if [ -n 'CQLSH_PYTHON=/usr/bin/python3.7' ]; then
+            export CQLSH_PYTHON=/usr/bin/python3.7
           fi
 
           java -version
@@ -4823,7 +4823,7 @@ jobs:
           # if additional dependencies were added to requirmeents.txt and the docker image hasn't been updated
           # we'd have to install it here at runtime -- which will make things slow, so do yourself a favor and
           # rebuild the docker image! (it automatically pulls the latest requirements.txt on build)
-          source ~/env3.6/bin/activate
+          source ~/env3.7/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
           pip3 install --exists-action w --upgrade -r ~/cassandra-dtest/requirements.txt
           pip3 uninstall -y cqlsh
@@ -4852,7 +4852,7 @@ jobs:
             else
               echo "Running ${REPEATED_DTESTS} $count times"
 
-              source ~/env3.6/bin/activate
+              source ~/env3.7/bin/activate
               export PATH=$JAVA_HOME/bin:$PATH
 
               java -version
@@ -5755,7 +5755,7 @@ jobs:
           # if additional dependencies were added to requirmeents.txt and the docker image hasn't been updated
           # we'd have to install it here at runtime -- which will make things slow, so do yourself a favor and
           # rebuild the docker image! (it automatically pulls the latest requirements.txt on build)
-          source ~/env3.6/bin/activate
+          source ~/env3.7/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
           pip3 install --exists-action w --upgrade -r ~/cassandra-dtest/requirements.txt
           pip3 uninstall -y cqlsh
@@ -5763,11 +5763,11 @@ jobs:
     - run:
         name: Determine Tests to Run (j17_with_vnodes)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j17_with_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --use-vnodes --skip-resource-intensive-tests --pytest-options '-k not cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j17_with_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j17_with_vnodes_raw /tmp/all_dtest_tests_j17_with_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j17_with_vnodes_raw > /tmp/all_dtest_tests_j17_with_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j17_with_vnodes > /tmp/split_dtest_tests_j17_with_vnodes.txt\ncat /tmp/split_dtest_tests_j17_with_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j17_with_vnodes_final.txt\ncat /tmp/split_dtest_tests_j17_with_vnodes_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.7/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j17_with_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --use-vnodes --skip-resource-intensive-tests --pytest-options '-k not cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j17_with_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j17_with_vnodes_raw /tmp/all_dtest_tests_j17_with_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j17_with_vnodes_raw > /tmp/all_dtest_tests_j17_with_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j17_with_vnodes > /tmp/split_dtest_tests_j17_with_vnodes.txt\ncat /tmp/split_dtest_tests_j17_with_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j17_with_vnodes_final.txt\ncat /tmp/split_dtest_tests_j17_with_vnodes_final.txt\n"
     - run:
         name: Run dtests (j17_with_vnodes)
         no_output_timeout: 15m
-        command: "echo \"cat /tmp/split_dtest_tests_j17_with_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j17_with_vnodes_final.txt\n\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j17_with_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --skip-resource-intensive-tests --log-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j17_with_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
+        command: "echo \"cat /tmp/split_dtest_tests_j17_with_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j17_with_vnodes_final.txt\n\nsource ~/env3.7/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j17_with_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --skip-resource-intensive-tests --log-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j17_with_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
     - store_test_results:
         path: /tmp/results
     - store_artifacts:
@@ -5839,7 +5839,7 @@ jobs:
           # if additional dependencies were added to requirmeents.txt and the docker image hasn't been updated
           # we'd have to install it here at runtime -- which will make things slow, so do yourself a favor and
           # rebuild the docker image! (it automatically pulls the latest requirements.txt on build)
-          source ~/env3.6/bin/activate
+          source ~/env3.7/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
           pip3 install --exists-action w --upgrade -r ~/cassandra-dtest/requirements.txt
           pip3 uninstall -y cqlsh
@@ -5868,7 +5868,7 @@ jobs:
             else
               echo "Running ${REPEATED_DTESTS} $count times"
 
-              source ~/env3.6/bin/activate
+              source ~/env3.7/bin/activate
               export PATH=$JAVA_HOME/bin:$PATH
 
               java -version
@@ -6179,7 +6179,7 @@ jobs:
           # if additional dependencies were added to requirmeents.txt and the docker image hasn't been updated
           # we'd have to install it here at runtime -- which will make things slow, so do yourself a favor and
           # rebuild the docker image! (it automatically pulls the latest requirements.txt on build)
-          source ~/env3.6/bin/activate
+          source ~/env3.7/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
           pip3 install --exists-action w --upgrade -r ~/cassandra-dtest/requirements.txt
           pip3 uninstall -y cqlsh
@@ -6187,7 +6187,7 @@ jobs:
     - run:
         name: Determine Tests to Run (j11_dtests_offheap)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j11_dtests_offheap)***\"\nset -eo pipefail && ./run_dtests.py --use-vnodes --use-off-heap-memtables --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_dtests_offheap_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j11_dtests_offheap_raw /tmp/all_dtest_tests_j11_dtests_offheap\nelse\n  grep -e '' /tmp/all_dtest_tests_j11_dtests_offheap_raw > /tmp/all_dtest_tests_j11_dtests_offheap || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j11_dtests_offheap > /tmp/split_dtest_tests_j11_dtests_offheap.txt\ncat /tmp/split_dtest_tests_j11_dtests_offheap.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j11_dtests_offheap_final.txt\ncat /tmp/split_dtest_tests_j11_dtests_offheap_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.7/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j11_dtests_offheap)***\"\nset -eo pipefail && ./run_dtests.py --use-vnodes --use-off-heap-memtables --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_dtests_offheap_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j11_dtests_offheap_raw /tmp/all_dtest_tests_j11_dtests_offheap\nelse\n  grep -e '' /tmp/all_dtest_tests_j11_dtests_offheap_raw > /tmp/all_dtest_tests_j11_dtests_offheap || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j11_dtests_offheap > /tmp/split_dtest_tests_j11_dtests_offheap.txt\ncat /tmp/split_dtest_tests_j11_dtests_offheap.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j11_dtests_offheap_final.txt\ncat /tmp/split_dtest_tests_j11_dtests_offheap_final.txt\n"
     - run:
         name: Run dtests (j11_dtests_offheap)
         no_output_timeout: 15m
@@ -6195,10 +6195,10 @@ jobs:
           echo "cat /tmp/split_dtest_tests_j11_dtests_offheap_final.txt"
           cat /tmp/split_dtest_tests_j11_dtests_offheap_final.txt
 
-          source ~/env3.6/bin/activate
+          source ~/env3.7/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
-          if [ -n 'CQLSH_PYTHON=/usr/bin/python3.6' ]; then
-            export CQLSH_PYTHON=/usr/bin/python3.6
+          if [ -n 'CQLSH_PYTHON=/usr/bin/python3.7' ]; then
+            export CQLSH_PYTHON=/usr/bin/python3.7
           fi
 
           java -version
@@ -6515,7 +6515,7 @@ jobs:
           # if additional dependencies were added to requirmeents.txt and the docker image hasn't been updated
           # we'd have to install it here at runtime -- which will make things slow, so do yourself a favor and
           # rebuild the docker image! (it automatically pulls the latest requirements.txt on build)
-          source ~/env3.6/bin/activate
+          source ~/env3.7/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
           pip3 install --exists-action w --upgrade -r ~/cassandra-dtest/requirements.txt
           pip3 uninstall -y cqlsh
@@ -6523,11 +6523,11 @@ jobs:
     - run:
         name: Determine Tests to Run (j11_upgradetests_without_vnodes)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j11_upgradetests_without_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_upgradetests_without_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j11_upgradetests_without_vnodes_raw /tmp/all_dtest_tests_j11_upgradetests_without_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j11_upgradetests_without_vnodes_raw > /tmp/all_dtest_tests_j11_upgradetests_without_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j11_upgradetests_without_vnodes > /tmp/split_dtest_tests_j11_upgradetests_without_vnodes.txt\ncat /tmp/split_dtest_tests_j11_upgradetests_without_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j11_upgradetests_without_vnodes_final.txt\ncat /tmp/split_dtest_tests_j11_upgradetests_without_vnodes_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.7/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j11_upgradetests_without_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_upgradetests_without_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j11_upgradetests_without_vnodes_raw /tmp/all_dtest_tests_j11_upgradetests_without_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j11_upgradetests_without_vnodes_raw > /tmp/all_dtest_tests_j11_upgradetests_without_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j11_upgradetests_without_vnodes > /tmp/split_dtest_tests_j11_upgradetests_without_vnodes.txt\ncat /tmp/split_dtest_tests_j11_upgradetests_without_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j11_upgradetests_without_vnodes_final.txt\ncat /tmp/split_dtest_tests_j11_upgradetests_without_vnodes_final.txt\n"
     - run:
         name: Run dtests (j11_upgradetests_without_vnodes)
         no_output_timeout: 15m
-        command: "echo \"cat /tmp/split_dtest_tests_j11_upgradetests_without_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j11_upgradetests_without_vnodes_final.txt\n\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j11_upgradetests_without_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all --log-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j11_upgradetests_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
+        command: "echo \"cat /tmp/split_dtest_tests_j11_upgradetests_without_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j11_upgradetests_without_vnodes_final.txt\n\nsource ~/env3.7/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j11_upgradetests_without_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --execute-upgrade-tests-only --upgrade-target-version-only --upgrade-version-selection all --log-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j11_upgradetests_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
     - store_test_results:
         path: /tmp/results
     - store_artifacts:
@@ -6600,7 +6600,7 @@ jobs:
           # if additional dependencies were added to requirmeents.txt and the docker image hasn't been updated
           # we'd have to install it here at runtime -- which will make things slow, so do yourself a favor and
           # rebuild the docker image! (it automatically pulls the latest requirements.txt on build)
-          source ~/env3.6/bin/activate
+          source ~/env3.7/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
           pip3 install --exists-action w --upgrade -r ~/cassandra-dtest/requirements.txt
           pip3 uninstall -y cqlsh
@@ -6629,7 +6629,7 @@ jobs:
             else
               echo "Running ${REPEATED_LARGE_DTESTS} $count times"
 
-              source ~/env3.6/bin/activate
+              source ~/env3.7/bin/activate
               export PATH=$JAVA_HOME/bin:$PATH
 
               java -version
@@ -6822,7 +6822,7 @@ jobs:
           # if additional dependencies were added to requirmeents.txt and the docker image hasn't been updated
           # we'd have to install it here at runtime -- which will make things slow, so do yourself a favor and
           # rebuild the docker image! (it automatically pulls the latest requirements.txt on build)
-          source ~/env3.6/bin/activate
+          source ~/env3.7/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
           pip3 install --exists-action w --upgrade -r ~/cassandra-dtest/requirements.txt
           pip3 uninstall -y cqlsh
@@ -6830,7 +6830,7 @@ jobs:
     - run:
         name: Determine Tests to Run (j11_with_vnodes)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j11_with_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_with_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j11_with_vnodes_raw /tmp/all_dtest_tests_j11_with_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j11_with_vnodes_raw > /tmp/all_dtest_tests_j11_with_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j11_with_vnodes > /tmp/split_dtest_tests_j11_with_vnodes.txt\ncat /tmp/split_dtest_tests_j11_with_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j11_with_vnodes_final.txt\ncat /tmp/split_dtest_tests_j11_with_vnodes_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.7/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j11_with_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_with_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j11_with_vnodes_raw /tmp/all_dtest_tests_j11_with_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j11_with_vnodes_raw > /tmp/all_dtest_tests_j11_with_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j11_with_vnodes > /tmp/split_dtest_tests_j11_with_vnodes.txt\ncat /tmp/split_dtest_tests_j11_with_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j11_with_vnodes_final.txt\ncat /tmp/split_dtest_tests_j11_with_vnodes_final.txt\n"
     - run:
         name: Run dtests (j11_with_vnodes)
         no_output_timeout: 15m
@@ -6838,10 +6838,10 @@ jobs:
           echo "cat /tmp/split_dtest_tests_j11_with_vnodes_final.txt"
           cat /tmp/split_dtest_tests_j11_with_vnodes_final.txt
 
-          source ~/env3.6/bin/activate
+          source ~/env3.7/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
-          if [ -n 'CQLSH_PYTHON=/usr/bin/python3.6' ]; then
-            export CQLSH_PYTHON=/usr/bin/python3.6
+          if [ -n 'CQLSH_PYTHON=/usr/bin/python3.7' ]; then
+            export CQLSH_PYTHON=/usr/bin/python3.7
           fi
 
           java -version
@@ -7002,7 +7002,7 @@ jobs:
           # if additional dependencies were added to requirmeents.txt and the docker image hasn't been updated
           # we'd have to install it here at runtime -- which will make things slow, so do yourself a favor and
           # rebuild the docker image! (it automatically pulls the latest requirements.txt on build)
-          source ~/env3.6/bin/activate
+          source ~/env3.7/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
           pip3 install --exists-action w --upgrade -r ~/cassandra-dtest/requirements.txt
           pip3 uninstall -y cqlsh
@@ -7010,11 +7010,11 @@ jobs:
     - run:
         name: Determine Tests to Run (j17_large_with_vnodes)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j17_large_with_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --use-vnodes --only-resource-intensive-tests --force-resource-intensive-tests --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j17_large_with_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j17_large_with_vnodes_raw /tmp/all_dtest_tests_j17_large_with_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j17_large_with_vnodes_raw > /tmp/all_dtest_tests_j17_large_with_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j17_large_with_vnodes > /tmp/split_dtest_tests_j17_large_with_vnodes.txt\ncat /tmp/split_dtest_tests_j17_large_with_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j17_large_with_vnodes_final.txt\ncat /tmp/split_dtest_tests_j17_large_with_vnodes_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.7/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j17_large_with_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --use-vnodes --only-resource-intensive-tests --force-resource-intensive-tests --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j17_large_with_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j17_large_with_vnodes_raw /tmp/all_dtest_tests_j17_large_with_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j17_large_with_vnodes_raw > /tmp/all_dtest_tests_j17_large_with_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j17_large_with_vnodes > /tmp/split_dtest_tests_j17_large_with_vnodes.txt\ncat /tmp/split_dtest_tests_j17_large_with_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j17_large_with_vnodes_final.txt\ncat /tmp/split_dtest_tests_j17_large_with_vnodes_final.txt\n"
     - run:
         name: Run dtests (j17_large_with_vnodes)
         no_output_timeout: 15m
-        command: "echo \"cat /tmp/split_dtest_tests_j17_large_with_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j17_large_with_vnodes_final.txt\n\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j17_large_with_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --only-resource-intensive-tests --force-resource-intensive-tests --log-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j17_large_with_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
+        command: "echo \"cat /tmp/split_dtest_tests_j17_large_with_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j17_large_with_vnodes_final.txt\n\nsource ~/env3.7/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j17_large_with_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --only-resource-intensive-tests --force-resource-intensive-tests --log-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j17_large_with_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
     - store_test_results:
         path: /tmp/results
     - store_artifacts:
@@ -7086,7 +7086,7 @@ jobs:
           # if additional dependencies were added to requirmeents.txt and the docker image hasn't been updated
           # we'd have to install it here at runtime -- which will make things slow, so do yourself a favor and
           # rebuild the docker image! (it automatically pulls the latest requirements.txt on build)
-          source ~/env3.6/bin/activate
+          source ~/env3.7/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
           pip3 install --exists-action w --upgrade -r ~/cassandra-dtest/requirements.txt
           pip3 uninstall -y cqlsh
@@ -7094,11 +7094,11 @@ jobs:
     - run:
         name: Determine Tests to Run (j11_dtests_offheap)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j11_dtests_offheap)***\"\nset -eo pipefail && ./run_dtests.py --use-vnodes --use-off-heap-memtables --skip-resource-intensive-tests --pytest-options '-k not cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_dtests_offheap_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j11_dtests_offheap_raw /tmp/all_dtest_tests_j11_dtests_offheap\nelse\n  grep -e '' /tmp/all_dtest_tests_j11_dtests_offheap_raw > /tmp/all_dtest_tests_j11_dtests_offheap || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j11_dtests_offheap > /tmp/split_dtest_tests_j11_dtests_offheap.txt\ncat /tmp/split_dtest_tests_j11_dtests_offheap.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j11_dtests_offheap_final.txt\ncat /tmp/split_dtest_tests_j11_dtests_offheap_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.7/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j11_dtests_offheap)***\"\nset -eo pipefail && ./run_dtests.py --use-vnodes --use-off-heap-memtables --skip-resource-intensive-tests --pytest-options '-k not cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_dtests_offheap_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j11_dtests_offheap_raw /tmp/all_dtest_tests_j11_dtests_offheap\nelse\n  grep -e '' /tmp/all_dtest_tests_j11_dtests_offheap_raw > /tmp/all_dtest_tests_j11_dtests_offheap || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j11_dtests_offheap > /tmp/split_dtest_tests_j11_dtests_offheap.txt\ncat /tmp/split_dtest_tests_j11_dtests_offheap.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j11_dtests_offheap_final.txt\ncat /tmp/split_dtest_tests_j11_dtests_offheap_final.txt\n"
     - run:
         name: Run dtests (j11_dtests_offheap)
         no_output_timeout: 15m
-        command: "echo \"cat /tmp/split_dtest_tests_j11_dtests_offheap_final.txt\"\ncat /tmp/split_dtest_tests_j11_dtests_offheap_final.txt\n\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j11_dtests_offheap_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests --log-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j11_dtests_offheap.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
+        command: "echo \"cat /tmp/split_dtest_tests_j11_dtests_offheap_final.txt\"\ncat /tmp/split_dtest_tests_j11_dtests_offheap_final.txt\n\nsource ~/env3.7/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j11_dtests_offheap_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests --log-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j11_dtests_offheap.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
     - store_test_results:
         path: /tmp/results
     - store_artifacts:
@@ -7947,7 +7947,7 @@ jobs:
           # if additional dependencies were added to requirmeents.txt and the docker image hasn't been updated
           # we'd have to install it here at runtime -- which will make things slow, so do yourself a favor and
           # rebuild the docker image! (it automatically pulls the latest requirements.txt on build)
-          source ~/env3.6/bin/activate
+          source ~/env3.7/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
           pip3 install --exists-action w --upgrade -r ~/cassandra-dtest/requirements.txt
           pip3 uninstall -y cqlsh
@@ -7955,7 +7955,7 @@ jobs:
     - run:
         name: Determine Tests to Run (j17_with_vnodes)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j17_with_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j17_with_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j17_with_vnodes_raw /tmp/all_dtest_tests_j17_with_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j17_with_vnodes_raw > /tmp/all_dtest_tests_j17_with_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j17_with_vnodes > /tmp/split_dtest_tests_j17_with_vnodes.txt\ncat /tmp/split_dtest_tests_j17_with_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j17_with_vnodes_final.txt\ncat /tmp/split_dtest_tests_j17_with_vnodes_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.7/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j17_with_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --use-vnodes --skip-resource-intensive-tests --pytest-options '-k cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j17_with_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j17_with_vnodes_raw /tmp/all_dtest_tests_j17_with_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j17_with_vnodes_raw > /tmp/all_dtest_tests_j17_with_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j17_with_vnodes > /tmp/split_dtest_tests_j17_with_vnodes.txt\ncat /tmp/split_dtest_tests_j17_with_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j17_with_vnodes_final.txt\ncat /tmp/split_dtest_tests_j17_with_vnodes_final.txt\n"
     - run:
         name: Run dtests (j17_with_vnodes)
         no_output_timeout: 15m
@@ -7963,10 +7963,10 @@ jobs:
           echo "cat /tmp/split_dtest_tests_j17_with_vnodes_final.txt"
           cat /tmp/split_dtest_tests_j17_with_vnodes_final.txt
 
-          source ~/env3.6/bin/activate
+          source ~/env3.7/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
-          if [ -n 'CQLSH_PYTHON=/usr/bin/python3.6' ]; then
-            export CQLSH_PYTHON=/usr/bin/python3.6
+          if [ -n 'CQLSH_PYTHON=/usr/bin/python3.7' ]; then
+            export CQLSH_PYTHON=/usr/bin/python3.7
           fi
 
           java -version
@@ -8703,7 +8703,7 @@ jobs:
           # if additional dependencies were added to requirmeents.txt and the docker image hasn't been updated
           # we'd have to install it here at runtime -- which will make things slow, so do yourself a favor and
           # rebuild the docker image! (it automatically pulls the latest requirements.txt on build)
-          source ~/env3.6/bin/activate
+          source ~/env3.7/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
           pip3 install --exists-action w --upgrade -r ~/cassandra-dtest/requirements.txt
           pip3 uninstall -y cqlsh
@@ -8711,11 +8711,11 @@ jobs:
     - run:
         name: Determine Tests to Run (j11_without_vnodes)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j11_without_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --skip-resource-intensive-tests --pytest-options '-k not cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_without_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j11_without_vnodes_raw /tmp/all_dtest_tests_j11_without_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j11_without_vnodes_raw > /tmp/all_dtest_tests_j11_without_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j11_without_vnodes > /tmp/split_dtest_tests_j11_without_vnodes.txt\ncat /tmp/split_dtest_tests_j11_without_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j11_without_vnodes_final.txt\ncat /tmp/split_dtest_tests_j11_without_vnodes_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.7/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j11_without_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --skip-resource-intensive-tests --pytest-options '-k not cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_without_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j11_without_vnodes_raw /tmp/all_dtest_tests_j11_without_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j11_without_vnodes_raw > /tmp/all_dtest_tests_j11_without_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j11_without_vnodes > /tmp/split_dtest_tests_j11_without_vnodes.txt\ncat /tmp/split_dtest_tests_j11_without_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j11_without_vnodes_final.txt\ncat /tmp/split_dtest_tests_j11_without_vnodes_final.txt\n"
     - run:
         name: Run dtests (j11_without_vnodes)
         no_output_timeout: 15m
-        command: "echo \"cat /tmp/split_dtest_tests_j11_without_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j11_without_vnodes_final.txt\n\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j11_without_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --skip-resource-intensive-tests --log-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j11_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
+        command: "echo \"cat /tmp/split_dtest_tests_j11_without_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j11_without_vnodes_final.txt\n\nsource ~/env3.7/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j11_without_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --skip-resource-intensive-tests --log-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j11_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
     - store_test_results:
         path: /tmp/results
     - store_artifacts:
@@ -9219,7 +9219,7 @@ jobs:
           # if additional dependencies were added to requirmeents.txt and the docker image hasn't been updated
           # we'd have to install it here at runtime -- which will make things slow, so do yourself a favor and
           # rebuild the docker image! (it automatically pulls the latest requirements.txt on build)
-          source ~/env3.6/bin/activate
+          source ~/env3.7/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
           pip3 install --exists-action w --upgrade -r ~/cassandra-dtest/requirements.txt
           pip3 uninstall -y cqlsh
@@ -9227,11 +9227,11 @@ jobs:
     - run:
         name: Determine Tests to Run (j17_large_without_vnodes)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j17_large_without_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --only-resource-intensive-tests --force-resource-intensive-tests --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j17_large_without_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j17_large_without_vnodes_raw /tmp/all_dtest_tests_j17_large_without_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j17_large_without_vnodes_raw > /tmp/all_dtest_tests_j17_large_without_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j17_large_without_vnodes > /tmp/split_dtest_tests_j17_large_without_vnodes.txt\ncat /tmp/split_dtest_tests_j17_large_without_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j17_large_without_vnodes_final.txt\ncat /tmp/split_dtest_tests_j17_large_without_vnodes_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.7/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j17_large_without_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --only-resource-intensive-tests --force-resource-intensive-tests --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j17_large_without_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j17_large_without_vnodes_raw /tmp/all_dtest_tests_j17_large_without_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j17_large_without_vnodes_raw > /tmp/all_dtest_tests_j17_large_without_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j17_large_without_vnodes > /tmp/split_dtest_tests_j17_large_without_vnodes.txt\ncat /tmp/split_dtest_tests_j17_large_without_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j17_large_without_vnodes_final.txt\ncat /tmp/split_dtest_tests_j17_large_without_vnodes_final.txt\n"
     - run:
         name: Run dtests (j17_large_without_vnodes)
         no_output_timeout: 15m
-        command: "echo \"cat /tmp/split_dtest_tests_j17_large_without_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j17_large_without_vnodes_final.txt\n\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j17_large_without_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --only-resource-intensive-tests --force-resource-intensive-tests --log-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j17_large_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
+        command: "echo \"cat /tmp/split_dtest_tests_j17_large_without_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j17_large_without_vnodes_final.txt\n\nsource ~/env3.7/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j17_large_without_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --only-resource-intensive-tests --force-resource-intensive-tests --log-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j17_large_without_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
     - store_test_results:
         path: /tmp/results
     - store_artifacts:
@@ -9553,7 +9553,7 @@ jobs:
           # if additional dependencies were added to requirmeents.txt and the docker image hasn't been updated
           # we'd have to install it here at runtime -- which will make things slow, so do yourself a favor and
           # rebuild the docker image! (it automatically pulls the latest requirements.txt on build)
-          source ~/env3.6/bin/activate
+          source ~/env3.7/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
           pip3 install --exists-action w --upgrade -r ~/cassandra-dtest/requirements.txt
           pip3 uninstall -y cqlsh
@@ -9561,11 +9561,11 @@ jobs:
     - run:
         name: Determine Tests to Run (j11_with_vnodes)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j11_with_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --use-vnodes --skip-resource-intensive-tests --pytest-options '-k not cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_with_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j11_with_vnodes_raw /tmp/all_dtest_tests_j11_with_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j11_with_vnodes_raw > /tmp/all_dtest_tests_j11_with_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j11_with_vnodes > /tmp/split_dtest_tests_j11_with_vnodes.txt\ncat /tmp/split_dtest_tests_j11_with_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j11_with_vnodes_final.txt\ncat /tmp/split_dtest_tests_j11_with_vnodes_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.7/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j11_with_vnodes)***\"\nset -eo pipefail && ./run_dtests.py --use-vnodes --skip-resource-intensive-tests --pytest-options '-k not cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j11_with_vnodes_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j11_with_vnodes_raw /tmp/all_dtest_tests_j11_with_vnodes\nelse\n  grep -e '' /tmp/all_dtest_tests_j11_with_vnodes_raw > /tmp/all_dtest_tests_j11_with_vnodes || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j11_with_vnodes > /tmp/split_dtest_tests_j11_with_vnodes.txt\ncat /tmp/split_dtest_tests_j11_with_vnodes.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j11_with_vnodes_final.txt\ncat /tmp/split_dtest_tests_j11_with_vnodes_final.txt\n"
     - run:
         name: Run dtests (j11_with_vnodes)
         no_output_timeout: 15m
-        command: "echo \"cat /tmp/split_dtest_tests_j11_with_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j11_with_vnodes_final.txt\n\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j11_with_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --skip-resource-intensive-tests --log-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j11_with_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
+        command: "echo \"cat /tmp/split_dtest_tests_j11_with_vnodes_final.txt\"\ncat /tmp/split_dtest_tests_j11_with_vnodes_final.txt\n\nsource ~/env3.7/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j11_with_vnodes_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --skip-resource-intensive-tests --log-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j11_with_vnodes.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
     - store_test_results:
         path: /tmp/results
     - store_artifacts:
@@ -9749,7 +9749,7 @@ jobs:
           # if additional dependencies were added to requirmeents.txt and the docker image hasn't been updated
           # we'd have to install it here at runtime -- which will make things slow, so do yourself a favor and
           # rebuild the docker image! (it automatically pulls the latest requirements.txt on build)
-          source ~/env3.6/bin/activate
+          source ~/env3.7/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
           pip3 install --exists-action w --upgrade -r ~/cassandra-dtest/requirements.txt
           pip3 uninstall -y cqlsh
@@ -9757,11 +9757,11 @@ jobs:
     - run:
         name: Determine Tests to Run (j17_dtests_offheap)
         no_output_timeout: 5m
-        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j17_dtests_offheap)***\"\nset -eo pipefail && ./run_dtests.py --use-vnodes --use-off-heap-memtables --skip-resource-intensive-tests --pytest-options '-k not cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j17_dtests_offheap_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j17_dtests_offheap_raw /tmp/all_dtest_tests_j17_dtests_offheap\nelse\n  grep -e '' /tmp/all_dtest_tests_j17_dtests_offheap_raw > /tmp/all_dtest_tests_j17_dtests_offheap || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j17_dtests_offheap > /tmp/split_dtest_tests_j17_dtests_offheap.txt\ncat /tmp/split_dtest_tests_j17_dtests_offheap.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j17_dtests_offheap_final.txt\ncat /tmp/split_dtest_tests_j17_dtests_offheap_final.txt\n"
+        command: "# reminder: this code (along with all the steps) is independently executed on every circle container\n# so the goal here is to get the circleci script to return the tests *this* container will run\n# which we do via the `circleci` cli tool.\n\ncd cassandra-dtest\nsource ~/env3.7/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\n\nif [ -n '' ]; then\n  export \nfi\n\necho \"***Collected DTests (j17_dtests_offheap)***\"\nset -eo pipefail && ./run_dtests.py --use-vnodes --use-off-heap-memtables --skip-resource-intensive-tests --pytest-options '-k not cql' --dtest-print-tests-only --dtest-print-tests-output=/tmp/all_dtest_tests_j17_dtests_offheap_raw --cassandra-dir=../cassandra\nif [ -z '' ]; then\n  mv /tmp/all_dtest_tests_j17_dtests_offheap_raw /tmp/all_dtest_tests_j17_dtests_offheap\nelse\n  grep -e '' /tmp/all_dtest_tests_j17_dtests_offheap_raw > /tmp/all_dtest_tests_j17_dtests_offheap || { echo \"Filter did not match any tests! Exiting build.\"; exit 0; }\nfi\nset -eo pipefail && circleci tests split --split-by=timings --timings-type=classname /tmp/all_dtest_tests_j17_dtests_offheap > /tmp/split_dtest_tests_j17_dtests_offheap.txt\ncat /tmp/split_dtest_tests_j17_dtests_offheap.txt | tr '\\n' ' ' > /tmp/split_dtest_tests_j17_dtests_offheap_final.txt\ncat /tmp/split_dtest_tests_j17_dtests_offheap_final.txt\n"
     - run:
         name: Run dtests (j17_dtests_offheap)
         no_output_timeout: 15m
-        command: "echo \"cat /tmp/split_dtest_tests_j17_dtests_offheap_final.txt\"\ncat /tmp/split_dtest_tests_j17_dtests_offheap_final.txt\n\nsource ~/env3.6/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j17_dtests_offheap_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests --log-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j17_dtests_offheap.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
+        command: "echo \"cat /tmp/split_dtest_tests_j17_dtests_offheap_final.txt\"\ncat /tmp/split_dtest_tests_j17_dtests_offheap_final.txt\n\nsource ~/env3.7/bin/activate\nexport PATH=$JAVA_HOME/bin:$PATH\nif [ -n '' ]; then\n  export \nfi\n\njava -version\ncd ~/cassandra-dtest\nmkdir -p /tmp/dtest\n\necho \"env: $(env)\"\necho \"** done env\"\nmkdir -p /tmp/results/dtests\n# we need the \"set -o pipefail\" here so that the exit code that circleci will actually use is from pytest and not the exit code from tee\nexport SPLIT_TESTS=`cat /tmp/split_dtest_tests_j17_dtests_offheap_final.txt`\nif [ ! -z \"$SPLIT_TESTS\" ]; then\n  set -o pipefail && cd ~/cassandra-dtest && pytest --use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests --log-level=\"DEBUG\" --junit-xml=/tmp/results/dtests/pytest_result_j17_dtests_offheap.xml -s --cassandra-dir=/home/cassandra/cassandra --keep-test-dir $SPLIT_TESTS 2>&1 | tee /tmp/dtest/stdout.txt\nelse\n  echo \"Tune your parallelism, there are more containers than test classes. Nothing to do in this container\"\n  (exit 1)\nfi\n"
     - store_test_results:
         path: /tmp/results
     - store_artifacts:
@@ -9833,7 +9833,7 @@ jobs:
           # if additional dependencies were added to requirmeents.txt and the docker image hasn't been updated
           # we'd have to install it here at runtime -- which will make things slow, so do yourself a favor and
           # rebuild the docker image! (it automatically pulls the latest requirements.txt on build)
-          source ~/env3.6/bin/activate
+          source ~/env3.7/bin/activate
           export PATH=$JAVA_HOME/bin:$PATH
           pip3 install --exists-action w --upgrade -r ~/cassandra-dtest/requirements.txt
           pip3 uninstall -y cqlsh
@@ -9862,7 +9862,7 @@ jobs:
             else
               echo "Running ${REPEATED_LARGE_DTESTS} $count times"
 
-              source ~/env3.6/bin/activate
+              source ~/env3.7/bin/activate
               export PATH=$JAVA_HOME/bin:$PATH
 
               java -version

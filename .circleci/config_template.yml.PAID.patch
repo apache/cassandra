@@ -1,5 +1,5 @@
---- config_template.yml	2023-08-11 10:06:39.000000000 -0400
-+++ config_template.yml.PAID	2023-08-11 10:07:25.000000000 -0400
+--- config_template.yml	2023-11-10 15:39:02.663105186 +0000
++++ config_template.yml.PAID	2023-11-10 15:39:24.839456426 +0000
 @@ -157,20 +157,20 @@
  j11_par_executor: &j11_par_executor
    executor:
@@ -215,7 +215,7 @@
        - attach_workspace:
            at: /home/cassandra
 @@ -2102,7 +2125,7 @@
-           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
+           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.7'
  
    j11_cqlsh_dtests_py3_offheap:
 -    <<: *j11_par_executor
@@ -224,7 +224,7 @@
        - attach_workspace:
            at: /home/cassandra
 @@ -2117,7 +2140,7 @@
-           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
+           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.7'
  
    j11_cqlsh_dtests_py38_vnode:
 -    <<: *j11_par_executor
@@ -269,7 +269,7 @@
        - attach_workspace:
            at: /home/cassandra
 @@ -2204,7 +2227,7 @@
-           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
+           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.7'
  
    j11_cqlsh_dtests_py38:
 -    <<: *j11_par_executor
@@ -296,7 +296,7 @@
        - attach_workspace:
            at: /home/cassandra
 @@ -2255,7 +2278,7 @@
-           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
+           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.7'
  
    j17_cqlsh_dtests_py3_offheap:
 -    <<: *j17_par_executor
@@ -305,7 +305,7 @@
        - attach_workspace:
            at: /home/cassandra
 @@ -2270,7 +2293,7 @@
-           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
+           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.7'
  
    j17_cqlsh_dtests_py38_vnode:
 -    <<: *j17_par_executor
@@ -350,7 +350,7 @@
        - attach_workspace:
            at: /home/cassandra
 @@ -2357,7 +2380,7 @@
-           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
+           extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.7'
  
    j17_cqlsh_dtests_py38:
 -    <<: *j17_par_executor

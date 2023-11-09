@@ -2099,7 +2099,7 @@ jobs:
       - run_dtests:
           file_tag: j11_with_vnodes
           pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
-          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
+          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.7'
 
   j11_cqlsh_dtests_py3_offheap:
     <<: *j11_par_executor
@@ -2114,7 +2114,7 @@ jobs:
       - run_dtests:
           file_tag: j11_dtests_offheap
           pytest_extra_args: '--use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests'
-          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
+          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.7'
 
   j11_cqlsh_dtests_py38_vnode:
     <<: *j11_par_executor
@@ -2201,7 +2201,7 @@ jobs:
       - run_dtests:
           file_tag: j11_without_vnodes
           pytest_extra_args: '--skip-resource-intensive-tests'
-          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
+          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.7'
 
   j11_cqlsh_dtests_py38:
     <<: *j11_par_executor
@@ -2252,7 +2252,7 @@ jobs:
       - run_dtests:
           file_tag: j17_with_vnodes
           pytest_extra_args: '--use-vnodes --num-tokens=16 --skip-resource-intensive-tests'
-          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
+          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.7'
 
   j17_cqlsh_dtests_py3_offheap:
     <<: *j17_par_executor
@@ -2267,7 +2267,7 @@ jobs:
       - run_dtests:
           file_tag: j17_dtests_offheap
           pytest_extra_args: '--use-vnodes --num-tokens=16 --use-off-heap-memtables --skip-resource-intensive-tests'
-          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
+          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.7'
 
   j17_cqlsh_dtests_py38_vnode:
     <<: *j17_par_executor
@@ -2354,7 +2354,7 @@ jobs:
       - run_dtests:
           file_tag: j17_without_vnodes
           pytest_extra_args: '--skip-resource-intensive-tests'
-          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.6'
+          extra_env_args: 'CQLSH_PYTHON=/usr/bin/python3.7'
 
   j17_cqlsh_dtests_py38:
     <<: *j17_par_executor
@@ -3117,8 +3117,8 @@ commands:
     parameters:
       python_version:
         type: enum
-        default: "3.6"
-        enum: ["3.6", "3.7", "3.8", "3.11"]
+        default: "3.7"
+        enum: ["3.7", "3.8", "3.11"]
     steps:
     - run:
         name: Configure virtualenv and python Dependencies
@@ -3148,8 +3148,8 @@ commands:
         default: ''
       python_version:
         type: enum
-        default: "3.6"
-        enum: ["3.6", "3.7", "3.8", "3.11"]
+        default: "3.7"
+        enum: ["3.7", "3.8", "3.11"]
     steps:
     - run:
         name: Determine Tests to Run (<<parameters.file_tag>>)
@@ -3190,8 +3190,8 @@ commands:
         default: ''
       python_version:
         type: enum
-        default: "3.6"
-        enum: ["3.6", "3.7", "3.8", "3.11"]
+        default: "3.7"
+        enum: ["3.7", "3.8", "3.11"]
     steps:
       - run:
           name: Run dtests (<<parameters.file_tag>>)
@@ -3662,7 +3662,7 @@ commands:
               else
                 echo "Running <<parameters.tests>> $count times"
             
-                source ~/env3.6/bin/activate
+                source ~/env3.7/bin/activate
                 export PATH=$JAVA_HOME/bin:$PATH
 
                 java -version

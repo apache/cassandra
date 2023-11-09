@@ -95,7 +95,7 @@ WORKDIR ${BUILD_HOME}
 ENV ANT_HOME=/usr/share/ant
 
 # run pip commands and setup virtualenv (note we do this after we switch to cassandra user so we
-# setup the virtualenv for the cassandra user and not the root user by accident) for Python 3.6/3.7/3.8
+# setup the virtualenv for the cassandra user and not the root user by accident) for Python 3.7/3.8
 # Don't build cython extensions when installing cassandra-driver. During test execution the driver
 # dependency is refreshed via pip install --upgrade, so that driver changes can be pulled in without
 # requiring the image to be rebuilt. Rebuilding compiled extensions is costly and is disabled by
