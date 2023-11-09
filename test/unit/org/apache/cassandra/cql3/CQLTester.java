@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -1494,19 +1495,19 @@ public abstract class CQLTester
         return sessionNet(protocolVersion).execute(statement);
     }
 
-    protected com.datastax.driver.core.ResultSet executeNetWithPaging(ProtocolVersion version, String query, int pageSize)
+    protected com.datastax.driver.core.ResultSet executeNetWithPaging(ProtocolVersion version, String query, int pageSize, Object... values)
     {
-        return sessionNet(version).execute(new SimpleStatement(formatQuery(query)).setFetchSize(pageSize));
+        return sessionNet(version).execute(new SimpleStatement(formatQuery(query), values).setFetchSize(pageSize));
     }
 
-    protected com.datastax.driver.core.ResultSet executeNetWithPaging(ProtocolVersion version, String query, String KS, int pageSize)
+    protected com.datastax.driver.core.ResultSet executeNetWithPaging(ProtocolVersion version, String query, String KS, int pageSize, Object... values)
     {
-        return sessionNet(version).execute(new SimpleStatement(formatQuery(KS, query)).setKeyspace(KS).setFetchSize(pageSize));
+        return sessionNet(version).execute(new SimpleStatement(formatQuery(KS, query), values).setKeyspace(KS).setFetchSize(pageSize));
     }
 
-    protected com.datastax.driver.core.ResultSet executeNetWithPaging(String query, int pageSize)
+    protected com.datastax.driver.core.ResultSet executeNetWithPaging(String query, int pageSize, Object... values)
     {
-        return sessionNet().execute(new SimpleStatement(formatQuery(query)).setFetchSize(pageSize));
+        return sessionNet().execute(new SimpleStatement(formatQuery(query), values).setFetchSize(pageSize));
     }
 
     protected com.datastax.driver.core.ResultSet executeNetWithoutPaging(String query)
@@ -1620,6 +1621,23 @@ public abstract class CQLTester
                 logger.trace("Got {} rows", rs.size());
         }
         return rs;
+    }
+
+    public static int compareNetRows(Row r1, Row r2)
+    {
+        Comparator<ByteBuffer> bufComp = Comparator.nullsFirst(Comparator.naturalOrder());
+        for (int c = 0; c < Math.min(r1.getColumnDefinitions().size(), r2.getColumnDefinitions().size()); c++)
+        {
+            DataType t1 = r1.getColumnDefinitions().getType(c);
+            DataType t2 = r2.getColumnDefinitions().getType(c);
+            if (!t1.equals(t2))
+                return t1.getName().toString().compareTo(t2.getName().toString());
+
+            int cmp = bufComp.compare(r1.getBytesUnsafe(c), r2.getBytesUnsafe(c));
+            if (cmp != 0)
+                return cmp;
+        }
+        return Integer.compare(r1.getColumnDefinitions().size(), r2.getColumnDefinitions().size());
     }
 
     protected void assertRowsNet(ResultSet result, Object[]... rows)
