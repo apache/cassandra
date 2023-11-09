@@ -62,8 +62,8 @@ is_supported_version() {
     version=$1
     major_version="${version%.*}"
     minor_version="${version#*.}"
-    # python3.6+ is supported
-    if [ "$major_version" = 3 ] && [ "$minor_version" -ge 6 ]; then
+    # python 3.7+ is supported
+    if [ "$major_version" = 3 ] && [ "$minor_version" -ge 7 ]; then
         echo "supported"
     else
         echo "unsupported"
