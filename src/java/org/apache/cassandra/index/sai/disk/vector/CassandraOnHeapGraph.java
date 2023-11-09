@@ -53,6 +53,7 @@ import io.github.jbellis.jvector.pq.VectorCompressor;
 import io.github.jbellis.jvector.util.Bits;
 import io.github.jbellis.jvector.vector.VectorEncoding;
 import io.github.jbellis.jvector.vector.VectorSimilarityFunction;
+import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.VectorType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -326,7 +327,7 @@ public class CassandraOnHeapGraph<T>
             // null if remapping is not possible
             final BiMap <Integer, Integer> ordinalMap = deletedOrdinals.isEmpty() ? buildOrdinalMap() : null;
 
-            boolean canFastFindRows = false; // ordinalMap != null;
+            boolean canFastFindRows = ordinalMap != null && CassandraRelevantProperties.VSEARCH_11_9_UPGRADES.getBoolean();
             IntUnaryOperator ordinalMapper = canFastFindRows
                                                 ? x -> ordinalMap.getOrDefault(x, x)
                                                 : x -> x;
@@ -403,7 +404,7 @@ public class CassandraOnHeapGraph<T>
     private long writePQ(SequentialWriter writer, IntUnaryOperator reverseOrdinalMapper) throws IOException
     {
         VectorCompression compressionType;
-        if (vectorValues.dimension() >= 1536)
+        if (vectorValues.dimension() >= 1536 && CassandraRelevantProperties.VSEARCH_11_9_UPGRADES.getBoolean())
             compressionType = VectorCompression.BINARY_QUANTIZATION;
         else if (vectorValues.size() < 1024)
             compressionType = VectorCompression.NONE;
