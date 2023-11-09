@@ -39,6 +39,13 @@ import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * Tests initially implemented for CASSANDRA-18932 and CASSANDRA-18993. They verify the behaviour of querying data
+ * from a row with a clustering column condition, where the last item covered by the column index block is a range
+ * tombstone boundary marker.
+ * <p/>
+ * The column index is actually a part of primary index in BIG format and row index in BTI format.
+ */
 @RunWith(BMUnitRunner.class)
 public class ColumnIndexTest extends CQLTester
 {
