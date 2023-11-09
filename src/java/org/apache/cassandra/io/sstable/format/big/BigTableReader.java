@@ -621,7 +621,6 @@ public class BigTableReader extends SSTableReaderWithFilter implements IndexSumm
      * @param samplingLevel the desired sampling level for the index summary on the new SSTableReader
      * @return a new SSTableReader
      */
-    @SuppressWarnings("resource")
     public BigTableReader cloneWithNewSummarySamplingLevel(ColumnFamilyStore parent, int samplingLevel) throws IOException
     {
         assert openReason != OpenReason.EARLY;

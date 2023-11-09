@@ -160,7 +160,6 @@ final class HintsBuffer
         earliestHintByHost.remove(hostId);
     }
 
-    @SuppressWarnings("resource")
     Allocation allocate(int hintSize)
     {
         int totalSize = hintSize + ENTRY_OVERHEAD_SIZE;

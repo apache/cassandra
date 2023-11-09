@@ -189,7 +189,6 @@ public class PaxosUncommittedTracker
         return tableStates.get(tableId);
     }
 
-    @SuppressWarnings("resource")
     public CloseableIterator<UncommittedPaxosKey> uncommittedKeyIterator(TableId tableId, Collection<Range<Token>> ranges)
     {
         ranges = (ranges == null || ranges.isEmpty()) ? Collections.singleton(FULL_RANGE) : Range.normalize(ranges);

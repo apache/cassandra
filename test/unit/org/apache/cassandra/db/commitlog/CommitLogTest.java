@@ -1050,7 +1050,6 @@ public abstract class CommitLogTest
             this.metadata = metadata;
         }
 
-        @SuppressWarnings("resource")
         @Override
         public void handleMutation(Mutation m, int size, int entryLocation, CommitLogDescriptor desc)
         {

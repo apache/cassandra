@@ -57,7 +57,6 @@ public class IndexFileUtils
         this.writerOption = writerOption;
     }
 
-    @SuppressWarnings({"resource", "RedundantSuppression"})
     public IndexOutputWriter openOutput(File file)
     {
         assert writerOption.finishOnClose() : "IndexOutputWriter relies on close() to sync with disk.";
@@ -81,7 +80,6 @@ public class IndexFileUtils
         return IndexInputReader.create(handle);
     }
 
-    @SuppressWarnings({"resource", "RedundantSuppression"})
     public IndexInput openBlockingInput(File file)
     {
         FileHandle fileHandle = new FileHandle.Builder(file).complete();

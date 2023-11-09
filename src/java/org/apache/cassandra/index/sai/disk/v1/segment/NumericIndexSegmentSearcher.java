@@ -79,7 +79,6 @@ public class NumericIndexSegmentSearcher extends IndexSegmentSearcher
     }
 
     @Override
-    @SuppressWarnings({"resource", "RedundantSuppression"})
     public KeyRangeIterator search(Expression exp, AbstractBounds<PartitionPosition> keyRange, QueryContext context) throws IOException
     {
         if (logger.isTraceEnabled())

@@ -96,7 +96,6 @@ public class BlockPackedReader implements LongArray.Factory
     }
 
     @Override
-    @SuppressWarnings({"resource", "RedundantSuppression"})
     public LongArray open()
     {
         IndexInput indexInput = IndexFileUtils.instance.openInput(file);

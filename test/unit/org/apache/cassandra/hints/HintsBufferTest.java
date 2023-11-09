@@ -72,7 +72,6 @@ public class HintsBufferTest
     }
 
     @Test
-    @SuppressWarnings("resource")
     public void testOverlyLargeAllocation()
     {
         // create a small, 128 bytes buffer
