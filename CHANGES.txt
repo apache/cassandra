@@ -176,6 +176,8 @@ Merged from 3.0:
  * Remove unused suppressions (CASSANDRA-18724)
 
 Unreleased
+ * [SO-25542] Fix consistency level in storage proxy metrics
+4.0.6.9
  * [SO-25187] Feature to ignore repairedAt timestamp and reset status to unrepaired
  * [SO-25186] Emit metric for number of repaired SSTable and overlapped tombstones at table level
  * [SO-25494] A metric for Unowned token range read request received

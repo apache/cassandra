@@ -21,11 +21,13 @@ package org.apache.cassandra.metrics;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.apache.commons.lang3.tuple.Pair;
+
 import org.apache.cassandra.db.ConsistencyLevel;
 
 public class StorageProxyMetricsManager
 {
-    private static Map<String, StorageProxyMetrics> storageProxyMetrics = new ConcurrentHashMap<>();
+    private static Map<Pair<String, ConsistencyLevel>, StorageProxyMetrics> storageProxyMetrics = new ConcurrentHashMap<>();
 
     private StorageProxyMetricsManager()
     {
@@ -33,6 +35,6 @@ public class StorageProxyMetricsManager
 
     public static StorageProxyMetrics getMetrics(String ksName, ConsistencyLevel consistencyLevel)
     {
-        return storageProxyMetrics.computeIfAbsent(ksName, k -> new StorageProxyMetrics(ksName, consistencyLevel.name()));
+        return storageProxyMetrics.computeIfAbsent(Pair.of(ksName, consistencyLevel), k -> new StorageProxyMetrics(ksName, consistencyLevel.name()));
     }
 }

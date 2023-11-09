@@ -22,12 +22,12 @@ public class KeyspaceConsistencyLevelMetricsFactory implements MetricNameFactory
 {
     private final String keyspaceName;
     private final String type;
-    private final String consistnecyLevel;
+    private final String consistencyLevel;
 
     public KeyspaceConsistencyLevelMetricsFactory(String ksName, String consistencyLevel)
     {
         this.keyspaceName = ksName;
-        this.consistnecyLevel = consistencyLevel;
+        this.consistencyLevel = consistencyLevel;
         this.type = "KeyspaceConsistencyLevel";
     }
 
@@ -39,9 +39,13 @@ public class KeyspaceConsistencyLevelMetricsFactory implements MetricNameFactory
         mbeanName.append(groupName).append(":");
         mbeanName.append("type=").append(type);
         mbeanName.append(",keyspace=").append(keyspaceName);
-        mbeanName.append(",cl=").append(consistnecyLevel);
+        mbeanName.append(",cl=").append(consistencyLevel);
         mbeanName.append(",name=").append(metricName);
 
-        return new CassandraMetricsRegistry.MetricName(groupName, type.toLowerCase(), metricName, keyspaceName, mbeanName.toString());
+        StringBuilder scope = new StringBuilder();
+        scope.append("keyspace=").append(keyspaceName);
+        scope.append(",cl=").append(consistencyLevel);
+
+        return new CassandraMetricsRegistry.MetricName(groupName, type.toLowerCase(), metricName, scope.toString(), mbeanName.toString());
     }
 }
