@@ -60,9 +60,9 @@ public abstract class ViewAbstractParameterizedTest extends ViewAbstractTest
     }
 
     @Override
-    protected com.datastax.driver.core.ResultSet executeNetWithPaging(String query, int pageSize)
+    protected com.datastax.driver.core.ResultSet executeNetWithPaging(String query, int pageSize, Object... values)
     {
-        return executeNetWithPaging(version, query, pageSize);
+        return executeNetWithPaging(version, query, pageSize, values);
     }
 
     @Override
