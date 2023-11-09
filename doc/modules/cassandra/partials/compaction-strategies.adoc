@@ -1,0 +1,9 @@
+|===
+| Compaction Strategy |  |  |
+
+| xref:managing/operating/compaction/ucs.adoc[UCS]
+| xref:managing/operating/compaction/ccs.adoc[LCS]
+| xref:managing/operating/compaction/stsc.adoc[STCS]
+| xref:managing/operating/compaction/twcs.adoc[TWCS]
+
+|===

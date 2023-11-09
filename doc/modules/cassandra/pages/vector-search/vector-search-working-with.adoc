@@ -1,0 +1,13 @@
+= Working with Vector Search
+
+include::_create-vector-keyspace-cycling.adoc[leveloffset=+1]
+
+include::_use-vector-keyspace-cycling.adoc[leveloffset=+1]
+
+include::_create-vector-table-cycling.adoc[leveloffset=+1]
+
+include::_create-vector-index-cycling.adoc[leveloffset=+1]
+
+include::_load-vector-data-cycling.adoc[leveloffset=+1]
+
+include::_query-vector-data-cycling.adoc[leveloffset=+1]
