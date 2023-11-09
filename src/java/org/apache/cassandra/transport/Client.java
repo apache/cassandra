@@ -260,7 +260,10 @@ public class Client extends SimpleClient
         EncryptionOptions encryptionOptions = new EncryptionOptions().applyConfig();
         System.out.println("CQL binary protocol console " + host + "@" + port + " using native protocol version " + version);
 
-        new Client(host, port, version, encryptionOptions).run();
+        try (Client client = new Client(host, port, version, encryptionOptions))
+        {
+            client.run();
+        }
         System.exit(0);
     }
 }
