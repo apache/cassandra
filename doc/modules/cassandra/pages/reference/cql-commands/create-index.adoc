@@ -21,7 +21,12 @@ include::example$BNF/index_name.bnf[]
 CREATE INDEX [ IF NOT EXISTS ] <index_name>
   ON [<keyspace_name>.]<table_name>
   ([ ( KEYS | FULL ) ] <column_name>)
-  (ENTRIES <column_name>) ;
+  (ENTRIES <column_name>)
+    //   | [ (KEYS(<map_name>)) ]
+    // | [ (VALUES(<map_name>)) ]
+    // | [ (ENTRIES(<map_name>)) ]
+   [USING 'sai'
+  [ WITH OPTIONS = { <option_map> } ]];
 ----
 // end::syntax[]
 
@@ -47,7 +52,7 @@ Enclose in quotes to use special characters or preserve capitalization.
 If no name is specified, {product} names the index: `<table_name>_<column_name>_idx`.
 
 *keyspace_name*::
-Name of the keyspace that contains the table to index. 
+Name of the keyspace that contains the table to index.
 If no name is specified, the current keyspace is used.
 
 == Usage notes

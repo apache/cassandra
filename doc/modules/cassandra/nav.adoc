@@ -2,9 +2,10 @@
 
 ** xref:cassandra:overview/faq/index.adoc[]
 
-** xref:cassandra:getting-started/index.adoc[]	
+** xref:cassandra:getting-started/index.adoc[]
 *** xref:cassandra:getting-started/cassandra-quickstart.adoc[]
 *** xref:cassandra:getting-started/sai-quickstart.adoc[]
+*** xref:cassandra:getting-started/vector-search-quickstart.adoc[]
 *** xref:cassandra:installing/installing.adoc[]
 *** xref:cassandra:getting-started/configuring.adoc[]
 *** xref:cassandra:getting-started/querying.adoc[]
@@ -17,7 +18,7 @@
 
 ** xref:cassandra:architecture/index.adoc[]
 *** xref:cassandra:architecture/overview.adoc[]
-*** xref:cassandra:architecture/dynamo.adoc[]		
+*** xref:cassandra:architecture/dynamo.adoc[]
 *** xref:cassandra:architecture/storage-engine.adoc[]
 *** xref:cassandra:architecture/guarantees.adoc[]
 *** xref:cassandra:architecture/messaging.adoc[]
@@ -66,8 +67,9 @@
 ** xref:cassandra:vector-search/overview.adoc[]
 *** xref:cassandra:vector-search/concepts.adoc[]
 **** xref:cassandra:vector-search/data-modeling.adoc[]
-*** xref:cassandra:vector-search/quickstarts.adoc[]
-**** xref:cassandra:getting-started/vector-search-quickstart.adoc[]
+// *** xref:cassandra:vector-search/quickstarts.adoc[]
+*** xref:cassandra:getting-started/vector-search-quickstart.adoc[]
+*** xref:cassandra:vector-search/vector-search-working-with.adoc[]
 // **** xref:getting-started/sai-quickstart.adoc[]
 
 ** xref:cassandra:managing/index.adoc[]
