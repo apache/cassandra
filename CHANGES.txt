@@ -1,4 +1,5 @@
 5.0-beta1
+ * Make cqlsh's min required Python version 3.7+ instead of 3.6+ (CASSANDRA-18960)
  * Fix incorrect seeking through the sstable iterator by IndexState (CASSANDRA-18932)
  * Upgrade Python driver to 3.28.0 (CASSANDRA-18960)
  * Add retries to IR messages (CASSANDRA-18962)
