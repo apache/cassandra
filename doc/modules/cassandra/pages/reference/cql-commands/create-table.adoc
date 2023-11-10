@@ -1,0 +1,95 @@
+= CREATE TABLE
+:description: Defines the columns of a new table.
+
+{description}
+
+{product} supports creating a new https://cassandra.apache.org/_/glossary.html#table[table] in the selected keyspace.
+Use `IF NOT EXISTS` to suppress the error message if the table already exists;
+no table is created.
+A xref:cassandra:reference/static.adoc[static column] can store the same data in multiple clustered rows of a partition, and then retrieve that data with a single `SELECT` statement.
+
+Tables support a single xref:developing/cql/counter-column.adoc[counter column].
+
+*See also:* xref:cassandra:reference/cql-commands/alter-table.adoc[ALTER TABLE],
+xref:cassandra:reference/cql-commands/drop-table.adoc[DROP TABLE],
+xref:cassandra:reference/cql-commands/create-custom-index.adoc[CREATE CUSTOM INDEX] for Storage-Attached Indexes (SAI), xref:cassandra:reference/cql-commands/create-index.adoc[CREATE INDEX] for secondary indexes (2i)
+
+== Syntax
+
+BNF definition:
+
+[source,bnf]
+----
+include::cassandra:example$BNF/create_table.bnf[]
+----
+
+// tag::syntax[]
+----
+CREATE TABLE [ IF NOT EXISTS ] [<keyspace_name>.]<table_name>
+  ( <column_definition> [ , ... ] | PRIMARY KEY (column_list) )
+  [ WITH [ <table_options> ]
+  [ [ AND ] CLUSTERING ORDER BY [ <clustering_column_name> (ASC | DESC) ] ]
+  [ [ AND ] ID = '<table_hash_tag>' ] ] ;
+----
+// end::syntax[]
+
+.Syntax legend
+[%collapsible]
+====
+include::partial$cql-syntax-legend.adoc[]
+====
+
+== Required parameters
+
+*table_name*::
+Name of the table to index.
+
+*column_name*::
+Name of the column.
+
+// Column Definitions
+
+include::cassandra:partial$table-column-definitions.adoc[]
+
+// Primary Key
+
+include::cassandra:partial$primary-key-column.adoc[]
+
+// Table Options
+
+include::cassandra:partial$table-properties.adoc[]
+
+// Compression
+
+include::cassandra:partial$compress-subproperties.adoc[]
+
+// Compaction
+
+include::cassandra:partial$compact-subproperties.adoc[]
+
+== Optional parameters
+
+// Table Keywords
+
+include::cassandra:partial$cluster-order.adoc[]
+
+*index_name*::
+Name of the index.
+Enclose in quotes to use special characters or preserve capitalization.
+If no name is specified, {product} names the index: `<table_name>_<column_name>_idx`.
+
+*keyspace_name*::
+Name of the keyspace that contains the table to index.
+If no name is specified, the current keyspace is used.
+
+== Usage notes
+
+If the column already contains data, it is indexed during the execution of this statement.
+After an index has been created, it is automatically updated when data in the column changes.
+
+Indexing with the `CREATE INDEX` command can impact performance.
+Before creating an index, be aware of when and xref:cassandra:developing/indexing/2i/2i-when-to-use.adoc#when-no-index[when not to create an index].
+
+*Restriction:* Indexing counter columns is not supported.
+
+include::create-table-examples.adoc[leveloffset=+1]
