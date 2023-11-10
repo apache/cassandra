@@ -76,6 +76,7 @@ public class DatabaseDescriptorRefTest
     "org.apache.cassandra.auth.ICIDRAuthorizer",
     "org.apache.cassandra.auth.ICIDRAuthorizer$CIDRAuthorizerMode",
     "org.apache.cassandra.auth.INetworkAuthorizer",
+    "org.apache.cassandra.cache.IMeasurableMemory",
     "org.apache.cassandra.auth.IRoleManager",
     "org.apache.cassandra.config.CassandraRelevantProperties",
     "org.apache.cassandra.config.CassandraRelevantProperties$PropertyConverter",

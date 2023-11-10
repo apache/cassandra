@@ -34,15 +34,20 @@ import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
-import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
+import com.google.common.primitives.Ints;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.Weigher;
 import org.apache.cassandra.concurrent.ExecutorPlus;
+import org.apache.cassandra.concurrent.ImmediateExecutor;
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DataStorageSpec;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -185,9 +190,9 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
     private final ConcurrentMap<TimeUUID, ParentRepairSession> parentRepairSessions = new ConcurrentHashMap<>();
     // map of top level repair id (parent repair id) -> state
-    private final Cache<TimeUUID, CoordinatorState> repairs;
+    final Cache<TimeUUID, CoordinatorState> repairs;
     // map of top level repair id (parent repair id) -> participate state
-    private final Cache<TimeUUID, ParticipateState> participates;
+    final Cache<TimeUUID, ParticipateState> participates;
     public final SharedContext ctx;
 
     private volatile ScheduledFuture<?> irCleanup;
@@ -220,7 +225,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         return RepairCommandExecutorHandle.repairCommandExecutor;
     }
 
-    private final Cache<Integer, Pair<ParentRepairStatus, List<String>>> repairStatusByCmd;
+    private final com.google.common.cache.Cache<Integer, Pair<ParentRepairStatus, List<String>>> repairStatusByCmd;
     public final ExecutorPlus snapshotExecutor;
 
     public ActiveRepairService()
@@ -245,16 +250,60 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                                              .build();
 
         DurationSpec.LongNanosecondsBound duration = getRepairStateExpires();
-        int numElements = getRepairStateSize();
-        logger.info("Storing repair state for {} or for {} elements", duration, numElements);
-        repairs = CacheBuilder.newBuilder()
+        DataStorageSpec.IntBytesBound maxRetainedSize = getRepairStateHeapSize();
+        Integer numElements = getRepairStateSize();
+        if (numElements != null)
+        {
+            logger.info("Storing repair state for {} or for {} cached elements", duration, numElements);
+            repairs = Caffeine.newBuilder()
                               .expireAfterWrite(duration.quantity(), duration.unit())
                               .maximumSize(numElements)
+                              .executor(ImmediateExecutor.INSTANCE)
                               .build();
-        participates = CacheBuilder.newBuilder()
+            participates = Caffeine.newBuilder()
                                    .expireAfterWrite(duration.quantity(), duration.unit())
                                    .maximumSize(numElements)
+                                   .executor(ImmediateExecutor.INSTANCE)
                                    .build();
+        }
+        else if (maxRetainedSize != null)
+        {
+            logger.info("Storing repair state for {} or for {} retained size", duration, maxRetainedSize);
+            repairs = Caffeine.newBuilder()
+                              .expireAfterWrite(duration.quantity(), duration.unit())
+                              .weigher(new Weigher<TimeUUID, CoordinatorState>()
+                              {
+                                  @Override
+                                  public int weigh(TimeUUID id, CoordinatorState coordinatorState)
+                                  {
+                                      long retained = coordinatorState.totalNestedRetainedSize().get() + coordinatorState.independentRetainedSize();
+                                      int clamped = Ints.saturatedCast(retained);
+                                      return Math.max(1, clamped);
+                                  }
+                              })
+                              .maximumWeight(maxRetainedSize.toBytes())
+                              .executor(ImmediateExecutor.INSTANCE)
+                              .build();
+            participates = Caffeine.newBuilder()
+                                   .expireAfterWrite(duration.quantity(), duration.unit())
+                                   .weigher(new Weigher<TimeUUID, ParticipateState>()
+                                   {
+                                       @Override
+                                       public int weigh(TimeUUID id, ParticipateState participateState)
+                                       {
+                                           long retained = participateState.totalNestedRetainedSize().get() + participateState.independentRetainedSize();
+                                           int clamped = Ints.saturatedCast(retained);
+                                           return Math.max(1, clamped);
+                                       }
+                                   })
+                                   .maximumWeight(maxRetainedSize.toBytes())
+                                   .executor(ImmediateExecutor.INSTANCE)
+                                   .build();
+        }
+        else
+        {
+            throw new ConfigurationException("Expected repair state cache to be configured by number of elements or heap size, got neither", true);
+        }
 
         ctx.mbean().registerMBean(this, MBEAN_NAME);
     }
@@ -281,6 +330,17 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         if (irCleanup != null)
             irCleanup.cancel(false);
         consistent.local.stop();
+    }
+
+    // Caches only weigh elements on insertion and not on mutation, so need to explicitly handle updates by re-inserting
+    public void onUpdate(CoordinatorState coordinatorState)
+    {
+        repairs.put(coordinatorState.id, coordinatorState);
+    }
+
+    public void onUpdate(ParticipateState participateState)
+    {
+        participates.put(participateState.id, participateState);
     }
 
     @Override
@@ -421,7 +481,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
      *
      * @return Future for asynchronous call or null if there is no need to repair
      */
-    public RepairSession submitRepairSession(TimeUUID parentRepairSession,
+    public RepairSession submitRepairSession(CoordinatorState coordinator,
                                              CommonRange range,
                                              String keyspace,
                                              RepairParallelism parallelismDegree,
@@ -443,10 +503,10 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         if (cfnames.length == 0)
             return null;
 
-        final RepairSession session = new RepairSession(ctx, parentRepairSession, range, keyspace,
+        final RepairSession session = new RepairSession(ctx, coordinator, range, keyspace,
                                                         parallelismDegree, isIncremental, pullRepair,
                                                         previewKind, optimiseStreams, repairPaxos, paxosOnly, cfnames);
-        repairs.getIfPresent(parentRepairSession).register(session.state);
+        repairs.getIfPresent(coordinator.id).register(session.state);
 
         sessions.put(session.getId(), session);
         // register listeners

@@ -56,6 +56,7 @@ import org.apache.cassandra.repair.consistent.LocalSession;
 import org.apache.cassandra.repair.consistent.LocalSessions;
 import org.apache.cassandra.repair.messages.SyncResponse;
 import org.apache.cassandra.repair.messages.ValidationResponse;
+import org.apache.cassandra.repair.state.CoordinatorState;
 import org.apache.cassandra.repair.state.SessionState;
 import org.apache.cassandra.schema.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.TableId;
@@ -149,7 +150,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
      * @param cfnames names of columnfamilies
      */
     public RepairSession(SharedContext ctx,
-                         TimeUUID parentRepairSession,
+                         CoordinatorState coordinator,
                          CommonRange commonRange,
                          String keyspace,
                          RepairParallelism parallelismDegree,
@@ -165,7 +166,7 @@ public class RepairSession extends AsyncFuture<RepairSessionResult> implements I
         this.repairPaxos = repairPaxos;
         this.paxosOnly = paxosOnly;
         assert cfnames.length > 0 : "Repairing no column families seems pointless, doesn't it";
-        this.state = new SessionState(ctx.clock(), parentRepairSession, keyspace, cfnames, commonRange);
+        this.state = new SessionState(coordinator, ctx.clock(), keyspace, cfnames, commonRange);
         this.parallelismDegree = parallelismDegree;
         this.isIncremental = isIncremental;
         this.previewKind = previewKind;

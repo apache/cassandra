@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.repair.state;
 
+import java.util.Collections;
 import java.util.Set;
 import java.util.UUID;
 
@@ -24,9 +25,13 @@ import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.RepairJobDesc;
+import org.apache.cassandra.repair.SharedContext;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.ObjectSizes;
 
-public class JobState extends AbstractState<JobState.State, UUID>
+import static org.apache.cassandra.utils.TimeUUID.Generator.nextTimeUUID;
+
+public class JobState extends AbstractState<JobState.State, UUID> implements WeightedHierarchy.Node
 {
     public enum State
     {
@@ -41,6 +46,8 @@ public class JobState extends AbstractState<JobState.State, UUID>
 
     public final Phase phase = new Phase();
 
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new JobState(SharedContext.Global.instance.clock(), new RepairJobDesc(nextTimeUUID(), nextTimeUUID(), "", "", Collections.emptySet()), ImmutableSet.of()));
+
     public JobState(Clock clock, RepairJobDesc desc, ImmutableSet<InetAddressAndPort> endpoints)
     {
         super(clock, desc.determanisticId(), State.class);
@@ -51,6 +58,13 @@ public class JobState extends AbstractState<JobState.State, UUID>
     public Set<InetAddressAndPort> getParticipants()
     {
         return endpoints;
+    }
+
+    @Override
+    public long independentRetainedSize()
+    {
+        // Excludes endpoints because these are already referenced by parent SessionState's CommonRange
+        return EMPTY_SIZE + desc.unsharedHeapSize();
     }
 
     public final class Phase extends BasePhase

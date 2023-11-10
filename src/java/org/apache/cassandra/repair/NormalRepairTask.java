@@ -25,17 +25,14 @@ import org.apache.cassandra.utils.concurrent.Future;
 
 public class NormalRepairTask extends AbstractRepairTask
 {
-    private final TimeUUID parentSession;
     private final List<CommonRange> commonRanges;
     private final String[] cfnames;
 
     protected NormalRepairTask(RepairCoordinator coordinator,
-                               TimeUUID parentSession,
                                List<CommonRange> commonRanges,
                                String[] cfnames)
     {
         super(coordinator);
-        this.parentSession = parentSession;
         this.commonRanges = commonRanges;
         this.cfnames = cfnames;
     }
@@ -49,6 +46,6 @@ public class NormalRepairTask extends AbstractRepairTask
     @Override
     public Future<CoordinatedRepairResult> performUnsafe(ExecutorPlus executor)
     {
-        return runRepair(parentSession, false, executor, commonRanges, cfnames);
+        return runRepair(false, executor, commonRanges, cfnames);
     }
 }

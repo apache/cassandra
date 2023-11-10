@@ -34,6 +34,10 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.net.HostAndPort;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -41,6 +45,7 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.FastByteOperations;
+import org.apache.cassandra.utils.ObjectSizes;
 
 /**
  * A class to replace the usage of InetAddress to identify hosts in the cluster.
@@ -55,8 +60,9 @@ import org.apache.cassandra.utils.FastByteOperations;
  * need to sometimes return a port and sometimes not.
  *
  */
-public final class InetAddressAndPort extends InetSocketAddress implements Comparable<InetAddressAndPort>, Serializable
+public final class InetAddressAndPort extends InetSocketAddress implements Comparable<InetAddressAndPort>, Serializable, IMeasurableMemory
 {
+    private static final Logger logger = LoggerFactory.getLogger(InetAddressAndPort.class);
     private static final long serialVersionUID = 0;
 
     //Store these here to avoid requiring DatabaseDescriptor to be loaded. DatabaseDescriptor will set
@@ -66,6 +72,46 @@ public final class InetAddressAndPort extends InetSocketAddress implements Compa
     static volatile int defaultPort = 7000;
 
     public final byte[] addressBytes;
+
+    private static final long INET_ADDRESS_AND_PORT_SIZE;
+    private static final long INET_ADDRESS_IPV4_SIZE;
+    private static final long INET_ADDRESS_IPV6_SIZE;
+    static
+    {
+        try
+        {
+            INET_ADDRESS_AND_PORT_SIZE = ObjectSizes.measure(InetAddressAndPort.getByAddress(new byte[4]));
+            // Use measureDeep because InetSocketAddress uses a singular reference to a InetSocketAddressHolder, which should be
+            // counted as part of the retained size.
+            INET_ADDRESS_IPV4_SIZE = ObjectSizes.measureDeep(InetAddress.getByAddress(new byte[4]));
+            INET_ADDRESS_IPV6_SIZE = ObjectSizes.measureDeep(InetAddress.getByAddress(new byte[16]));
+        }
+        catch (UnknownHostException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public long unsharedHeapSize()
+    {
+        long addressSize;
+        if (this.getAddress() instanceof Inet4Address)
+            addressSize = INET_ADDRESS_IPV4_SIZE;
+        else if (this.getAddress() instanceof Inet6Address)
+            addressSize = INET_ADDRESS_IPV6_SIZE;
+        else
+        {
+            logger.warn("Unexpected family for address {}; accounting for memory assuming IPv4", this.getAddress());
+            addressSize = INET_ADDRESS_IPV4_SIZE;
+        }
+
+        // Skip the measurement of InetAddress.hostname, because InetAddress.getHostName will reverse-resolve IP addresses
+        // that are missing hostnames against DNS, and we don't want to block here. There's no API to check whether or not
+        // an address has been reverse-resolved, so we can't do this safely.
+
+        return INET_ADDRESS_AND_PORT_SIZE + addressSize + ObjectSizes.sizeOfArray(addressBytes);
+    }
 
     @VisibleForTesting
     InetAddressAndPort(InetAddress address, byte[] addressBytes, int port)

@@ -33,7 +33,6 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.messages.RepairOption;
-import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Future;
 import org.apache.cassandra.utils.concurrent.FutureCombiner;
 
@@ -54,8 +53,7 @@ public abstract class AbstractRepairTask implements RepairTask
         this.keyspace = Objects.requireNonNull(coordinator.state.keyspace);
     }
 
-    private List<RepairSession> submitRepairSessions(TimeUUID parentSession,
-                                                     boolean isIncremental,
+    private List<RepairSession> submitRepairSessions(boolean isIncremental,
                                                      ExecutorPlus executor,
                                                      List<CommonRange> commonRanges,
                                                      String... cfnames)
@@ -65,7 +63,7 @@ public abstract class AbstractRepairTask implements RepairTask
         for (CommonRange commonRange : commonRanges)
         {
             logger.info("Starting RepairSession for {}", commonRange);
-            RepairSession session = coordinator.ctx.repair().submitRepairSession(parentSession,
+            RepairSession session = coordinator.ctx.repair().submitRepairSession(coordinator.state,
                                                                                  commonRange,
                                                                                  keyspace,
                                                                                  options.getParallelism(),
@@ -85,13 +83,12 @@ public abstract class AbstractRepairTask implements RepairTask
         return futures;
     }
 
-    protected Future<CoordinatedRepairResult> runRepair(TimeUUID parentSession,
-                                                        boolean isIncremental,
+    protected Future<CoordinatedRepairResult> runRepair(boolean isIncremental,
                                                         ExecutorPlus executor,
                                                         List<CommonRange> commonRanges,
                                                         String... cfnames)
     {
-        List<RepairSession> allSessions = submitRepairSessions(parentSession, isIncremental, executor, commonRanges, cfnames);
+        List<RepairSession> allSessions = submitRepairSessions(isIncremental, executor, commonRanges, cfnames);
         List<Collection<Range<Token>>> ranges = Lists.transform(allSessions, RepairSession::ranges);
         Future<List<RepairSessionResult>> f = FutureCombiner.successfulOf(allSessions);
         return f.map(results -> {

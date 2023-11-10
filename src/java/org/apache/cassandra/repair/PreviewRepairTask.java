@@ -39,15 +39,13 @@ import org.apache.cassandra.utils.concurrent.Future;
 
 public class PreviewRepairTask extends AbstractRepairTask
 {
-    private final TimeUUID parentSession;
     private final List<CommonRange> commonRanges;
     private final String[] cfnames;
     private volatile String successMessage = name() + " completed successfully";
 
-    protected PreviewRepairTask(RepairCoordinator coordinator, TimeUUID parentSession, List<CommonRange> commonRanges, String[] cfnames)
+    protected PreviewRepairTask(RepairCoordinator coordinator, List<CommonRange> commonRanges, String[] cfnames)
     {
         super(coordinator);
-        this.parentSession = parentSession;
         this.commonRanges = commonRanges;
         this.cfnames = cfnames;
     }
@@ -67,7 +65,7 @@ public class PreviewRepairTask extends AbstractRepairTask
     @Override
     public Future<CoordinatedRepairResult> performUnsafe(ExecutorPlus executor)
     {
-        Future<CoordinatedRepairResult> f = runRepair(parentSession, false, executor, commonRanges, cfnames);
+        Future<CoordinatedRepairResult> f = runRepair(false, executor, commonRanges, cfnames);
         return f.map(result -> {
             if (result.hasFailed())
                 return result;
@@ -87,7 +85,7 @@ public class PreviewRepairTask extends AbstractRepairTask
                 message = (previewKind == PreviewKind.REPAIRED ? "Repaired data is inconsistent\n" : "Preview complete\n") + summary;
                 RepairMetrics.previewFailures.inc();
                 if (previewKind == PreviewKind.REPAIRED)
-                    maybeSnapshotReplicas(parentSession, keyspace, result.results.get()); // we know its present as summary used it
+                    maybeSnapshotReplicas(keyspace, result.results.get()); // we know its present as summary used it
             }
             successMessage += "; " + message;
             coordinator.notification(message);
@@ -96,7 +94,7 @@ public class PreviewRepairTask extends AbstractRepairTask
         });
     }
 
-    private void maybeSnapshotReplicas(TimeUUID parentSession, String keyspace, List<RepairSessionResult> results)
+    private void maybeSnapshotReplicas(String keyspace, List<RepairSessionResult> results)
     {
         if (!DatabaseDescriptor.snapshotOnRepairedDataMismatch())
             return;
@@ -132,7 +130,7 @@ public class PreviewRepairTask extends AbstractRepairTask
                 {
                     List<Range<Token>> normalizedRanges = Range.normalize(ranges);
                     logger.info("{} Snapshotting {}.{} for preview repair mismatch for ranges {} with tag {} on instances {}",
-                                options.getPreviewKind().logPrefix(parentSession),
+                                options.getPreviewKind().logPrefix(coordinator.state.id),
                                 keyspace, table, normalizedRanges, snapshotName, nodes);
                     DiagnosticSnapshotService.repairedDataMismatch(Keyspace.open(keyspace).getColumnFamilyStore(table).metadata(),
                                                                    nodes,
@@ -141,14 +139,14 @@ public class PreviewRepairTask extends AbstractRepairTask
                 else
                 {
                     logger.info("{} Not snapshotting {}.{} - snapshot {} exists",
-                                options.getPreviewKind().logPrefix(parentSession),
+                                options.getPreviewKind().logPrefix(coordinator.state.id),
                                 keyspace, table, snapshotName);
                 }
             }
         }
         catch (Exception e)
         {
-            logger.error("{} Failed snapshotting replicas", options.getPreviewKind().logPrefix(parentSession), e);
+            logger.error("{} Failed snapshotting replicas", options.getPreviewKind().logPrefix(coordinator.state.id), e);
         }
     }
 

@@ -34,8 +34,22 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.repair.CommonRange;
+import org.apache.cassandra.repair.RepairJobDesc;
+import org.apache.cassandra.repair.RepairParallelism;
+import org.apache.cassandra.repair.messages.PrepareMessage;
+import org.apache.cassandra.repair.state.CoordinatorState;
+import org.apache.cassandra.repair.state.JobState;
+import org.apache.cassandra.repair.state.ParticipateState;
+import org.apache.cassandra.repair.state.SessionState;
+import org.apache.cassandra.repair.state.SyncState;
+import org.apache.cassandra.repair.state.ValidationState;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.utils.Clock;
 import org.apache.cassandra.utils.TimeUUID;
 import org.apache.cassandra.utils.concurrent.Condition;
 import org.junit.Assert;
@@ -518,5 +532,77 @@ public class ActiveRepairServiceTest
             blocked.awaitUninterruptibly(TASK_SECONDS, TimeUnit.SECONDS);
             complete.countDown();
         }
+    }
+
+    @Test
+    public void expectedCoordinatorStateSizes()
+    {
+        String keyspace = "ks";
+        Set<String> tables = new HashSet<>();
+        tables.add("tbl0");
+        tables.add("tbl1");
+        Collection<Range<Token>> range = new HashSet<>();
+        range.add(new Range<>(new Murmur3Partitioner.LongToken(Long.MIN_VALUE), new Murmur3Partitioner.LongToken(Long.MAX_VALUE)));
+        RepairOption options = new RepairOption(RepairParallelism.SEQUENTIAL, false, false, false,
+                                                8, range, false, false, false, PreviewKind.NONE, false,
+                                                false, false, false);
+        CoordinatorState coordinatorState = new CoordinatorState(Clock.Global.clock(), 0, keyspace, options);
+        ActiveRepairService.instance().register(coordinatorState);
+        long initialCoordinatorStateSize = 272;
+        Assert.assertEquals(initialCoordinatorStateSize, coordinatorState.unsharedHeapSize());
+        Assert.assertEquals(initialCoordinatorStateSize, ActiveRepairService.instance().repairs.policy().eviction().get().weightedSize().getAsLong());
+
+        Set<InetAddressAndPort> endpoints = new HashSet<>();
+        endpoints.add(FBUtilities.getBroadcastAddressAndPort());
+        CommonRange commonRange = new CommonRange(endpoints, new HashSet<>(), range);
+        SessionState sessionState = new SessionState(coordinatorState, Clock.Global.clock(), keyspace, tables.toArray(new String[0]), commonRange);
+        coordinatorState.register(sessionState);
+        long sessionStateSize = 472L;
+        long expectedSize = initialCoordinatorStateSize + sessionStateSize;
+        Assert.assertEquals(expectedSize, coordinatorState.unsharedHeapSize());
+        Assert.assertEquals(expectedSize, ActiveRepairService.instance().repairs.policy().eviction().get().weightedSize().getAsLong());
+
+        RepairJobDesc desc = new RepairJobDesc(coordinatorState.id, sessionState.id, keyspace, tables.stream().findAny().get(), range);
+        JobState jobState = new JobState(Clock.Global.clock(), desc, ImmutableSet.copyOf(endpoints));
+        sessionState.register(jobState);
+        long jobStateSize = 336L;
+        expectedSize = initialCoordinatorStateSize + sessionStateSize + jobStateSize;
+        Assert.assertEquals(expectedSize, coordinatorState.unsharedHeapSize());
+        Assert.assertEquals(expectedSize, ActiveRepairService.instance().repairs.policy().eviction().get().weightedSize().getAsLong());
+    }
+
+    @Test
+    public void expectedParticipateStateSizes()
+    {
+        TimeUUID parentRepairSession = nextTimeUUID();
+        List<TableId> tableIds = new ArrayList<>();
+        tableIds.add(TableId.generate());
+        tableIds.add(TableId.generate());
+        tableIds.add(TableId.generate());
+        Collection<Range<Token>> range = new HashSet<>();
+        range.add(new Range<>(new Murmur3Partitioner.LongToken(Long.MIN_VALUE), new Murmur3Partitioner.LongToken(Long.MAX_VALUE)));
+        PrepareMessage prepareMessage = new PrepareMessage(parentRepairSession, tableIds, range, false, 1, false, PreviewKind.NONE);
+        InetAddressAndPort initiator = FBUtilities.getBroadcastAddressAndPort();
+        ParticipateState participateState = new ParticipateState(Clock.Global.clock(), initiator, prepareMessage);
+        ActiveRepairService.instance().register(participateState);
+        long initialParticipateStateSize = 312;
+        Assert.assertEquals(initialParticipateStateSize, participateState.unsharedHeapSize());
+        Assert.assertEquals(initialParticipateStateSize, ActiveRepairService.instance().participates.policy().eviction().get().weightedSize().getAsLong());
+
+        String keyspace = "ks";
+        RepairJobDesc desc = new RepairJobDesc(parentRepairSession, participateState.id, keyspace, tableIds.stream().findAny().get().toString(), range);
+        ValidationState validationState = new ValidationState(Clock.Global.clock(), desc, FBUtilities.getBroadcastAddressAndPort());
+        participateState.register(validationState);
+        long validationStateSize = 72L;
+        long expectedSize = initialParticipateStateSize + validationStateSize;
+        Assert.assertEquals(expectedSize, participateState.unsharedHeapSize());
+        Assert.assertEquals(expectedSize, ActiveRepairService.instance().participates.policy().eviction().get().weightedSize().getAsLong());
+
+        SyncState syncState = new SyncState(Clock.Global.clock(), desc, initiator, initiator, initiator);
+        participateState.register(syncState);
+        long syncStateSize = 64L;
+        expectedSize = initialParticipateStateSize + validationStateSize + syncStateSize;
+        Assert.assertEquals(expectedSize, participateState.unsharedHeapSize());
+        Assert.assertEquals(expectedSize, ActiveRepairService.instance().participates.policy().eviction().get().weightedSize().getAsLong());
     }
 }

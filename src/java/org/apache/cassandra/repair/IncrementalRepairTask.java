@@ -30,17 +30,14 @@ import org.apache.cassandra.utils.concurrent.Future;
 
 public class IncrementalRepairTask extends AbstractRepairTask
 {
-    private final TimeUUID parentSession;
     private final RepairCoordinator.NeighborsAndRanges neighborsAndRanges;
     private final String[] cfnames;
 
     protected IncrementalRepairTask(RepairCoordinator coordinator,
-                                    TimeUUID parentSession,
                                     RepairCoordinator.NeighborsAndRanges neighborsAndRanges,
                                     String[] cfnames)
     {
         super(coordinator);
-        this.parentSession = parentSession;
         this.neighborsAndRanges = neighborsAndRanges;
         this.cfnames = cfnames;
     }
@@ -62,9 +59,9 @@ public class IncrementalRepairTask extends AbstractRepairTask
         // Not necessary to include self for filtering. The common ranges only contains neighbhor node endpoints.
         List<CommonRange> allRanges = neighborsAndRanges.filterCommonRanges(keyspace, cfnames);
 
-        CoordinatorSession coordinatorSession = coordinator.ctx.repair().consistent.coordinated.registerSession(parentSession, allParticipants, neighborsAndRanges.shouldExcludeDeadParticipants);
+        CoordinatorSession coordinatorSession = coordinator.ctx.repair().consistent.coordinated.registerSession(coordinator.state.id, allParticipants, neighborsAndRanges.shouldExcludeDeadParticipants);
 
-        return coordinatorSession.execute(() -> runRepair(parentSession, true, executor, allRanges, cfnames));
+        return coordinatorSession.execute(() -> runRepair(true, executor, allRanges, cfnames));
 
     }
 }

@@ -23,17 +23,31 @@ import java.util.Objects;
 import org.apache.cassandra.locator.InetAddressAndPort;
 import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.utils.Clock;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.ObjectSizes;
 
-public class SyncState extends AbstractState<SyncState.State, SyncState.Id>
+public class SyncState extends AbstractState<SyncState.State, SyncState.Id> implements WeightedHierarchy.Node
 {
     public enum State
     { ACCEPT, PLANNING, START }
 
     public final Phase phase = new Phase();
+    private static final long EMPTY_SIZE;
+    static
+    {
+        RepairJobDesc desc = new RepairJobDesc(null, null, null, null, null);
+        EMPTY_SIZE = ObjectSizes.measure(new SyncState(Clock.Global.clock(), desc, FBUtilities.getBroadcastAddressAndPort(), FBUtilities.getBroadcastAddressAndPort(), FBUtilities.getBroadcastAddressAndPort()));
+    }
 
     public SyncState(Clock clock, RepairJobDesc desc, InetAddressAndPort initiator, InetAddressAndPort src, InetAddressAndPort dst)
     {
         super(clock, new Id(desc, initiator, src, dst), State.class);
+    }
+
+    @Override
+    public long independentRetainedSize()
+    {
+        return EMPTY_SIZE;
     }
 
     public final class Phase extends BaseSkipPhase

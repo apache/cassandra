@@ -968,6 +968,22 @@ public class DatabaseDescriptor
             throw new ConfigurationException(String.format("Invalid configuration. Heap dump is enabled but cannot create heap dump output path: %s.", conf.heap_dump_path != null ? conf.heap_dump_path : "null"));
 
         conf.sai_options.validate();
+
+        applyRepairStateSizingValidations();
+    }
+
+    @VisibleForTesting
+    static void applyRepairStateSizingValidations()
+    {
+        if ((conf.repair_state_size != null) && (conf.repair_state_heap_size != null))
+        {
+            throw new ConfigurationException("Invalid configuration. Cannot set both repair_state_size and repair_state_heap_size.");
+        }
+
+        if ((conf.repair_state_size == null) && (conf.repair_state_heap_size == null))
+        {
+            conf.repair_state_heap_size = new DataStorageSpec.IntBytesBound(5, DataStorageSpec.DataStorageUnit.MEBIBYTES);
+        }
     }
 
     @VisibleForTesting
@@ -4688,27 +4704,14 @@ public class DatabaseDescriptor
         return conf.repair_state_expires;
     }
 
-    public static void setRepairStateExpires(DurationSpec.LongNanosecondsBound duration)
-    {
-        if (!conf.repair_state_expires.equals(Objects.requireNonNull(duration, "duration")))
-        {
-            logger.info("Setting repair_state_expires to {}", duration);
-            conf.repair_state_expires = duration;
-        }
-    }
-
-    public static int getRepairStateSize()
+    public static Integer getRepairStateSize()
     {
         return conf.repair_state_size;
     }
 
-    public static void setRepairStateSize(int size)
+    public static DataStorageSpec.IntBytesBound getRepairStateHeapSize()
     {
-        if (conf.repair_state_size != size)
-        {
-            logger.info("Setting repair_state_size to {}", size);
-            conf.repair_state_size = size;
-        }
+        return conf.repair_state_heap_size;
     }
 
     public static boolean topPartitionsEnabled()
