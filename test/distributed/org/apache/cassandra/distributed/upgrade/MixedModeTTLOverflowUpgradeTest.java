@@ -33,10 +33,10 @@ import static org.apache.cassandra.utils.StorageCompatibilityMode.NONE;
 import static org.apache.cassandra.utils.StorageCompatibilityMode.UPGRADING;
 
 /**
- * Tests TTL the overflow policy triggers at the correct limit: year 2038 <=nc or 2186 >nc
+ * Tests TTL the overflow policy triggers at the correct limit: year 2038 <=nb or 2186 >=oa
  * <p>
- * <=nc overflow policy triggers at year 2038. That could be <=4.1 or 5.0 with 4.x storage compatibility
- * >nc overflow policy triggers at year 2106. That is >=5.0 using >=5.x storage compatibility
+ * <=oa overflow policy triggers at year 2038. That could be <=4.1 or 5.0 with 4.x storage compatibility
+ * >oa overflow policy triggers at year 2106. That is >=5.0 using >=5.x storage compatibility
  *
  * @see StorageCompatibilityMode
  */
@@ -94,13 +94,13 @@ public class MixedModeTTLOverflowUpgradeTest extends UpgradeTestBase
                 assertPolicyTriggersAt2038(cluster.coordinator(1));
                 assertPolicyTriggersAt2038(cluster.coordinator(2));
 
-                // We restart one node on 5.0 >nc hence 2038 should still be the limit as the other node is 5.0 <=nc
-                // We're on compatibility mode where nc and oa nodes are a possibility
+                // We restart one node on 5.0 >oa hence 2038 should still be the limit as the other node is 5.0 <=oa
+                // We're on compatibility mode where oa and oa nodes are a possibility
                 restartNodeWithCompatibilityMode(cluster, 1, UPGRADING);
                 assertPolicyTriggersAt2038(cluster.coordinator(1));
                 assertPolicyTriggersAt2038(cluster.coordinator(2));
 
-                // We restart the other node so they're all on 5.0 >nc hence 2106 should be the limit
+                // We restart the other node so they're all on 5.0 >oa hence 2106 should be the limit
                 restartNodeWithCompatibilityMode(cluster, 2, UPGRADING);
                 assertPolicyTriggersAt2106(cluster.coordinator(1));
                 assertPolicyTriggersAt2106(cluster.coordinator(2));
