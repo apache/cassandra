@@ -316,7 +316,7 @@ public class SegmentMetadata implements Comparable<SegmentMetadata>
         public final long length;
         public final Map<String,String> attributes;
 
-        ComponentMetadata(long root, long offset, long length)
+        public ComponentMetadata(long root, long offset, long length)
         {
             this.root = root;
             this.offset = offset;

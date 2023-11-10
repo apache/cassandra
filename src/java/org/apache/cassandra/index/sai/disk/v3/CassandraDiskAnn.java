@@ -53,7 +53,7 @@ import org.apache.cassandra.index.sai.disk.vector.VectorCompression;
 import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.tracing.Tracing;
 
-public class CassandraDiskAnn implements JVectorLuceneOnDiskGraph, AutoCloseable
+public class CassandraDiskAnn extends JVectorLuceneOnDiskGraph
 {
     private static final Logger logger = Logger.getLogger(CassandraDiskAnn.class.getName());
 
@@ -66,13 +66,15 @@ public class CassandraDiskAnn implements JVectorLuceneOnDiskGraph, AutoCloseable
 
     public CassandraDiskAnn(SegmentMetadata.ComponentMetadataMap componentMetadatas, PerIndexFiles indexFiles, IndexContext context) throws IOException
     {
+        super(componentMetadatas, indexFiles);
+
         similarityFunction = context.getIndexWriterConfig().getSimilarityFunction();
 
-        SegmentMetadata.ComponentMetadata termsMetadata = componentMetadatas.get(IndexComponent.TERMS_DATA);
+        SegmentMetadata.ComponentMetadata termsMetadata = getComponentMetadata(IndexComponent.TERMS_DATA);
         graphHandle = indexFiles.termsData();
         graph = new CachingGraphIndex(new OnDiskGraphIndex<>(graphHandle::createReader, termsMetadata.offset));
 
-        long pqSegmentOffset = componentMetadatas.get(IndexComponent.PQ).offset;
+        long pqSegmentOffset = getComponentMetadata(IndexComponent.PQ).offset;
         try (var pqFile = indexFiles.pq();
              var reader = pqFile.createReader())
         {
@@ -86,7 +88,7 @@ public class CassandraDiskAnn implements JVectorLuceneOnDiskGraph, AutoCloseable
                 compressedVectors = null;
         }
 
-        SegmentMetadata.ComponentMetadata postingListsMetadata = componentMetadatas.get(IndexComponent.POSTING_LISTS);
+        SegmentMetadata.ComponentMetadata postingListsMetadata = getComponentMetadata(IndexComponent.POSTING_LISTS);
         ordinalsMap = new OnDiskOrdinalsMap(indexFiles.postingLists(), postingListsMetadata.offset, postingListsMetadata.length);
     }
 

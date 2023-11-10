@@ -20,30 +20,63 @@ package org.apache.cassandra.index.sai.disk.vector;
 
 import java.io.IOException;
 
+import org.slf4j.Logger;
+
 import io.github.jbellis.jvector.util.Bits;
 import org.apache.cassandra.index.sai.QueryContext;
+import org.apache.cassandra.index.sai.disk.format.IndexComponent;
+import org.apache.cassandra.index.sai.disk.v1.PerIndexFiles;
+import org.apache.cassandra.index.sai.disk.v1.SegmentMetadata;
 import org.apache.cassandra.index.sai.disk.v1.postings.VectorPostingList;
 
 /**
  * A common interface between Lucene and JVector graph indexes
  */
-public interface JVectorLuceneOnDiskGraph extends AutoCloseable
+public abstract class JVectorLuceneOnDiskGraph implements AutoCloseable
 {
-    long ramBytesUsed();
+    private static final Logger logger = org.slf4j.LoggerFactory.getLogger(JVectorLuceneOnDiskGraph.class);
 
-    int size();
+    protected final PerIndexFiles indexFiles;
+    protected final SegmentMetadata.ComponentMetadataMap componentMetadatas;
 
-    OrdinalsView getOrdinalsView() throws IOException;
+    protected JVectorLuceneOnDiskGraph(SegmentMetadata.ComponentMetadataMap componentMetadatas, PerIndexFiles indexFiles)
+    {
+        this.componentMetadatas = componentMetadatas;
+        this.indexFiles = indexFiles;
+    }
+
+    public abstract long ramBytesUsed();
+
+    public abstract int size();
+
+    public abstract OrdinalsView getOrdinalsView() throws IOException;
 
     /**
      * See CassandraDiskANN::search
      */
-    VectorPostingList search(float[] queryVector, int topK, int limit, Bits bits, QueryContext context);
+    public abstract VectorPostingList search(float[] queryVector, int topK, int limit, Bits bits, QueryContext context);
 
     /**
      * See CassandraDiskANN::search
      */
-    VectorPostingList search(float[] queryVector, int topK, float threshold, int limit, Bits bits, QueryContext context);
+    public abstract VectorPostingList search(float[] queryVector, int topK, float threshold, int limit, Bits bits, QueryContext context);
 
-    void close() throws IOException;
+    public abstract void close() throws IOException;
+
+    protected SegmentMetadata.ComponentMetadata getComponentMetadata(IndexComponent component)
+    {
+        try
+        {
+            return componentMetadatas.get(component);
+        }
+        catch (IllegalArgumentException e)
+        {
+            logger.warn("Component metadata is missing " + component + ", assuming single segment");
+            // take our best guess and assume there is a single segment
+            // this will silently use the wrong data if it is actually a multi-segment file
+            var file = indexFiles.getFile(component);
+            // 7 is the length of the header written by SAICodecUtils
+            return new SegmentMetadata.ComponentMetadata(-1, 7, file.onDiskLength - 7); // graph indexes ignore root
+        }
+    }
 }

@@ -54,11 +54,11 @@ public class V2OnDiskFormat extends V1OnDiskFormat
                                                                                  IndexComponent.PRIMARY_KEY_BLOCKS,
                                                                                  IndexComponent.PRIMARY_KEY_BLOCK_OFFSETS);
 
-    private static final Set<IndexComponent> VECTOR_COMPONENTS_V2 = EnumSet.of(IndexComponent.COLUMN_COMPLETION_MARKER,
-                                                                               IndexComponent.META,
-                                                                               IndexComponent.VECTOR,
-                                                                               IndexComponent.TERMS_DATA,
-                                                                               IndexComponent.POSTING_LISTS);
+    public static final Set<IndexComponent> VECTOR_COMPONENTS_V2 = EnumSet.of(IndexComponent.COLUMN_COMPLETION_MARKER,
+                                                                              IndexComponent.META,
+                                                                              IndexComponent.VECTOR,
+                                                                              IndexComponent.TERMS_DATA,
+                                                                              IndexComponent.POSTING_LISTS);
 
     public static final V2OnDiskFormat instance = new V2OnDiskFormat();
 

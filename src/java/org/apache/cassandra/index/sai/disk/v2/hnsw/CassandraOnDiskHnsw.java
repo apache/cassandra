@@ -50,7 +50,7 @@ import org.apache.lucene.util.hnsw.HnswGraphSearcher;
 import org.apache.lucene.util.hnsw.NeighborQueue;
 import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 
-public class CassandraOnDiskHnsw implements JVectorLuceneOnDiskGraph, AutoCloseable
+public class CassandraOnDiskHnsw extends JVectorLuceneOnDiskGraph
 {
     private static final Logger logger = LoggerFactory.getLogger(CassandraOnDiskHnsw.class);
 
@@ -65,16 +65,18 @@ public class CassandraOnDiskHnsw implements JVectorLuceneOnDiskGraph, AutoClosea
 
     public CassandraOnDiskHnsw(SegmentMetadata.ComponentMetadataMap componentMetadatas, PerIndexFiles indexFiles, IndexContext context) throws IOException
     {
+        super(componentMetadatas, indexFiles);
+
         similarityFunction = context.getIndexWriterConfig().getSimilarityFunction();
 
         vectorsFile = indexFiles.vectors();
-        long vectorsSegmentOffset = componentMetadatas.get(IndexComponent.VECTOR).offset;
+        long vectorsSegmentOffset = getComponentMetadata(IndexComponent.VECTOR).offset;
         vectorsSupplier = (qc) -> new VectorsWithCache(new OnDiskVectors(vectorsFile, vectorsSegmentOffset), qc);
 
-        SegmentMetadata.ComponentMetadata postingListsMetadata = componentMetadatas.get(IndexComponent.POSTING_LISTS);
+        SegmentMetadata.ComponentMetadata postingListsMetadata = getComponentMetadata(IndexComponent.POSTING_LISTS);
         ordinalsMap = new OnDiskOrdinalsMap(indexFiles.postingLists(), postingListsMetadata.offset, postingListsMetadata.length);
 
-        SegmentMetadata.ComponentMetadata termsMetadata = componentMetadatas.get(IndexComponent.TERMS_DATA);
+        SegmentMetadata.ComponentMetadata termsMetadata = getComponentMetadata(IndexComponent.TERMS_DATA);
         hnsw = new OnDiskHnswGraph(indexFiles.termsData(), termsMetadata.offset, termsMetadata.length, OFFSET_CACHE_MIN_BYTES);
         var mockContext = new QueryContext();
         try (var vectors = new OnDiskVectors(vectorsFile, vectorsSegmentOffset))

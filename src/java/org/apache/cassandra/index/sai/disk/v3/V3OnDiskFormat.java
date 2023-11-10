@@ -41,11 +41,11 @@ public class V3OnDiskFormat extends V2OnDiskFormat
 
     public static final V3OnDiskFormat instance = new V3OnDiskFormat();
 
-    private static final Set<IndexComponent> VECTOR_COMPONENTS_V3 = EnumSet.of(IndexComponent.COLUMN_COMPLETION_MARKER,
-                                                                               IndexComponent.META,
-                                                                               IndexComponent.PQ,
-                                                                               IndexComponent.TERMS_DATA,
-                                                                               IndexComponent.POSTING_LISTS);
+    public static final Set<IndexComponent> VECTOR_COMPONENTS_V3 = EnumSet.of(IndexComponent.COLUMN_COMPLETION_MARKER,
+                                                                              IndexComponent.META,
+                                                                              IndexComponent.PQ,
+                                                                              IndexComponent.TERMS_DATA,
+                                                                              IndexComponent.POSTING_LISTS);
 
     private static final IndexFeatureSet v3IndexFeatureSet = new IndexFeatureSet()
     {

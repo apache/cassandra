@@ -631,7 +631,7 @@ public class IndexContext
             }
             catch (Throwable e)
             {
-                logger.warn(logMessage("Failed to update per-column components for SSTable {}"), context.descriptor(), e);
+                logger.error(logMessage("Failed to update per-column components for SSTable {}"), context.descriptor(), e);
                 invalid.add(context);
             }
         }
