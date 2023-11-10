@@ -31,6 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -746,7 +747,12 @@ public class Keyspace
      */
     public static Stream<Keyspace> allExisting()
     {
-        return Schema.instance.getKeyspaces().stream().map(Schema.instance::getKeyspaceInstance).filter(Objects::nonNull);
+        return allExisting((keyspace) -> true);
+    }
+
+    public static Stream<Keyspace> allExisting(Predicate<Keyspace> predicate)
+    {
+        return Schema.instance.getKeyspaces().stream().map(Schema.instance::getKeyspaceInstance).filter(Objects::nonNull).filter(predicate);
     }
 
     public static Iterable<Keyspace> nonLocalStrategy()

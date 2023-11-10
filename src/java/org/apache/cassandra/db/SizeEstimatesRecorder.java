@@ -19,6 +19,7 @@ package org.apache.cassandra.db;
 
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,6 +30,7 @@ import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.schema.Schema;
 import org.apache.cassandra.schema.SchemaChangeListener;
@@ -71,7 +73,8 @@ public class SizeEstimatesRecorder implements SchemaChangeListener, Runnable
 
         logger.trace("Recording size estimates");
 
-        for (Keyspace keyspace : Keyspace.nonLocalStrategy())
+        for (Keyspace keyspace : Keyspace.allExisting(ks -> ks.getMetadata().params.replication.klass != LocalStrategy.class)
+                                         .collect(Collectors.toList()))
         {
             // In tools the call to describe_splits_ex() used to be coupled with the call to describe_local_ring() so
             // most access was for the local primary range; after creating the size_estimates table this was changed
