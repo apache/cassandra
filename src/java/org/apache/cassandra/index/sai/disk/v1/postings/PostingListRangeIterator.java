@@ -27,9 +27,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.exceptions.QueryCancelledException;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.index.sai.disk.v1.segment.IndexSegmentSearcherContext;
 import org.apache.cassandra.index.sai.iterators.KeyRangeIterator;
 import org.apache.cassandra.index.sai.postings.PostingList;
@@ -62,7 +62,7 @@ public class PostingListRangeIterator extends KeyRangeIterator
     private final QueryContext queryContext;
 
     private final PostingList postingList;
-    private final IndexContext indexContext;
+    private final IndexIdentifier indexIdentifier;
     private final PrimaryKeyMap primaryKeyMap;
     private final long rowIdOffset;
 
@@ -73,20 +73,20 @@ public class PostingListRangeIterator extends KeyRangeIterator
      * Create a direct PostingListRangeIterator where the underlying PostingList is materialised
      * immediately so the posting list size can be used.
      */
-    public PostingListRangeIterator(IndexContext indexContext,
+    public PostingListRangeIterator(IndexIdentifier indexIdentifier,
                                     PrimaryKeyMap primaryKeyMap,
                                     IndexSegmentSearcherContext searcherContext)
     {
         super(searcherContext.minimumKey, searcherContext.maximumKey, searcherContext.count());
 
-        this.indexContext = indexContext;
+        this.indexIdentifier = indexIdentifier;
         this.primaryKeyMap = primaryKeyMap;
         this.postingList = searcherContext.postingList;
         this.rowIdOffset = searcherContext.segmentRowIdOffset;
         this.queryContext = searcherContext.context;
     }
 
-    public PostingListRangeIterator(IndexContext indexContext,
+    public PostingListRangeIterator(IndexIdentifier indexIdentifier,
                                     PrimaryKeyMap primaryKeyMap,
                                     PostingList postingList,
                                     QueryContext queryContext)
@@ -94,7 +94,7 @@ public class PostingListRangeIterator extends KeyRangeIterator
         super(primaryKeyMap.primaryKeyFromRowId(postingList.minimum()),
               primaryKeyMap.primaryKeyFromRowId(postingList.maximum()),
               postingList.size());
-        this.indexContext = indexContext;
+        this.indexIdentifier = indexIdentifier;
         this.primaryKeyMap = primaryKeyMap;
         this.postingList = postingList;
         this.rowIdOffset = 0;
@@ -131,7 +131,7 @@ public class PostingListRangeIterator extends KeyRangeIterator
         catch (Throwable t)
         {
             if (!(t instanceof QueryCancelledException))
-                logger.error(indexContext.logMessage("Unable to provide next token!"), t);
+                logger.error(indexIdentifier.logMessage("Unable to provide next token!"), t);
 
             throw Throwables.cleaned(t);
         }
@@ -143,7 +143,7 @@ public class PostingListRangeIterator extends KeyRangeIterator
         if (logger.isTraceEnabled())
         {
             final long exhaustedInMills = timeToExhaust.stop().elapsed(TimeUnit.MILLISECONDS);
-            logger.trace(indexContext.logMessage("PostingListRangeIterator exhausted after {} ms"), exhaustedInMills);
+            logger.trace(indexIdentifier.logMessage("PostingListRangeIterator exhausted after {} ms"), exhaustedInMills);
         }
 
         FileUtils.closeQuietly(Arrays.asList(postingList, primaryKeyMap));

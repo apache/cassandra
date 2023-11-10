@@ -22,8 +22,8 @@ import java.io.IOException;
 
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.PrimaryKeyMap;
 import org.apache.cassandra.index.sai.disk.v1.PerColumnIndexFiles;
 import org.apache.cassandra.index.sai.disk.v1.postings.PostingListRangeIterator;
@@ -43,30 +43,30 @@ public abstract class IndexSegmentSearcher implements SegmentOrdering, Closeable
     final PrimaryKeyMap.Factory primaryKeyMapFactory;
     final PerColumnIndexFiles indexFiles;
     final SegmentMetadata metadata;
-    final IndexContext indexContext;
+    final StorageAttachedIndex index;
 
     IndexSegmentSearcher(PrimaryKeyMap.Factory primaryKeyMapFactory,
                          PerColumnIndexFiles perIndexFiles,
                          SegmentMetadata segmentMetadata,
-                         IndexContext indexContext)
+                         StorageAttachedIndex index)
     {
         this.primaryKeyMapFactory = primaryKeyMapFactory;
         this.indexFiles = perIndexFiles;
         this.metadata = segmentMetadata;
-        this.indexContext = indexContext;
+        this.index = index;
     }
 
     public static IndexSegmentSearcher open(PrimaryKeyMap.Factory primaryKeyMapFactory,
                                             PerColumnIndexFiles indexFiles,
                                             SegmentMetadata segmentMetadata,
-                                            IndexContext indexContext) throws IOException
+                                            StorageAttachedIndex index) throws IOException
     {
-        if (indexContext.isVector())
-            return new VectorIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexContext);
-        else if (indexContext.isLiteral())
-            return new LiteralIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexContext);
+        if (index.termType().isVector())
+            return new VectorIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, index);
+        else if (index.termType().isLiteral())
+            return new LiteralIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, index);
         else
-            return new NumericIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, indexContext);
+            return new NumericIndexSegmentSearcher(primaryKeyMapFactory, indexFiles, segmentMetadata, index);
     }
 
     /**
@@ -95,6 +95,6 @@ public abstract class IndexSegmentSearcher implements SegmentOrdering, Closeable
                                                                                       queryContext,
                                                                                       PeekablePostingList.makePeekable(postingList));
 
-        return new PostingListRangeIterator(indexContext, primaryKeyMapFactory.newPerSSTablePrimaryKeyMap(), searcherContext);
+        return new PostingListRangeIterator(index.identifier(), primaryKeyMapFactory.newPerSSTablePrimaryKeyMap(), searcherContext);
     }
 }

@@ -20,10 +20,10 @@ package org.apache.cassandra.index.sai.disk.v1;
 
 import java.io.IOException;
 
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.io.IndexOutputWriter;
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 
@@ -43,12 +43,12 @@ public class ColumnCompletionMarkerUtil
      * Creates a column index completion marker for the specified column index, storing in it whether the index is empty.
      *
      * @param descriptor the index descriptor
-     * @param context the column index context
+     * @param indexIdentifier the column index identifier
      * @param isEmpty whether the index is empty
      */
-    public static void create(IndexDescriptor descriptor, IndexContext context, boolean isEmpty) throws IOException
+    public static void create(IndexDescriptor descriptor, IndexIdentifier indexIdentifier, boolean isEmpty) throws IOException
     {
-        try (IndexOutputWriter output = descriptor.openPerIndexOutput(IndexComponent.COLUMN_COMPLETION_MARKER, context))
+        try (IndexOutputWriter output = descriptor.openPerIndexOutput(IndexComponent.COLUMN_COMPLETION_MARKER, indexIdentifier))
         {
             SAICodecUtils.writeHeader(output);
             output.writeByte(isEmpty ? EMPTY : NOT_EMPTY);
@@ -60,12 +60,12 @@ public class ColumnCompletionMarkerUtil
      * Reads the column index completion marker and returns whether if the index is empty.
      *
      * @param descriptor the index descriptor
-     * @param context the column index context
+     * @param indexIdentifier the column index identifier
      * @return {@code true} if the index is empty, {@code false} otherwise.
      */
-    public static boolean isEmptyIndex(IndexDescriptor descriptor, IndexContext context) throws IOException
+    public static boolean isEmptyIndex(IndexDescriptor descriptor, IndexIdentifier indexIdentifier) throws IOException
     {
-        try (IndexInput input = descriptor.openPerIndexInput(IndexComponent.COLUMN_COMPLETION_MARKER, context))
+        try (IndexInput input = descriptor.openPerIndexInput(IndexComponent.COLUMN_COMPLETION_MARKER, indexIdentifier))
         {
             SAICodecUtils.checkHeader(input); // consume header
             return input.readByte() == EMPTY;

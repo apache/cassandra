@@ -28,11 +28,11 @@ import org.junit.Test;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.SAITester;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.StorageAttachedIndexGroup;
 import org.apache.cassandra.index.sai.disk.format.Version;
+import org.apache.cassandra.index.sai.utils.IndexTermType;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 
@@ -61,7 +61,7 @@ public class GroupComponentsTest extends SAITester
 
         // index files are released but not removed
         cfs.invalidate(true, false);
-        Assert.assertTrue(index.getIndexContext().getView().getIndexes().isEmpty());
+        Assert.assertTrue(index.view().getIndexes().isEmpty());
         for (Component component : components)
             Assert.assertTrue(sstable.descriptor.fileFor(component).exists());
     }
@@ -91,7 +91,10 @@ public class GroupComponentsTest extends SAITester
     public void getLiveComponentsForPopulatedIndex()
     {
         createTable("CREATE TABLE %s (pk int primary key, value text)");
-        IndexContext indexContext = createIndexContext(createIndex("CREATE INDEX ON %s(value) USING 'sai'"), UTF8Type.instance);
+
+        createIndex("CREATE INDEX ON %s(value) USING 'sai'");
+        IndexTermType indexTermType = createIndexTermType(UTF8Type.instance);
+
         execute("INSERT INTO %s (pk, value) VALUES (1, '1')");
         flush();
 
@@ -106,7 +109,7 @@ public class GroupComponentsTest extends SAITester
         Set<Component> components = StorageAttachedIndexGroup.getLiveComponents(sstables.iterator().next(), getIndexesFromGroup(group));
 
         assertEquals(Version.LATEST.onDiskFormat().perSSTableIndexComponents(false).size() +
-                     Version.LATEST.onDiskFormat().perColumnIndexComponents(indexContext).size(),
+                     Version.LATEST.onDiskFormat().perColumnIndexComponents(indexTermType).size(),
                      components.size());
     }
 

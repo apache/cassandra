@@ -20,6 +20,7 @@ package org.apache.cassandra.index.sai.metrics;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.cassandra.index.sai.utils.IndexIdentifier;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.metrics.DefaultNameFactory;
 
@@ -34,6 +35,11 @@ public abstract class AbstractMetrics
     private final String index;
     private final String scope;
     protected final List<CassandraMetricsRegistry.MetricName> tracked = new ArrayList<>();
+
+    AbstractMetrics(IndexIdentifier indexIdentifier, String scope)
+    {
+        this(indexIdentifier.keyspaceName, indexIdentifier.tableName, indexIdentifier.indexName, scope);
+    }
 
     AbstractMetrics(String keyspace, String table, String scope)
     {

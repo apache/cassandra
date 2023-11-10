@@ -65,7 +65,7 @@ public class IndexSearchResultIterator extends KeyRangeIterator
     {
         List<KeyRangeIterator> subIterators = new ArrayList<>(1 + sstableIndexes.size());
 
-        KeyRangeIterator memtableIterator = expression.context.getMemtableIndexManager().searchMemtableIndexes(queryContext, expression, keyRange);
+        KeyRangeIterator memtableIterator = expression.getIndex().memtableIndexManager().searchMemtableIndexes(queryContext, expression, keyRange);
         if (memtableIterator != null)
             subIterators.add(memtableIterator);
 
@@ -77,7 +77,7 @@ public class IndexSearchResultIterator extends KeyRangeIterator
                 queryContext.sstablesHit++;
 
                 if (sstableIndex.isReleased())
-                    throw new IllegalStateException(sstableIndex.getIndexContext().logMessage("Index was released from the view during the query"));
+                    throw new IllegalStateException(sstableIndex.getIndexIdentifier().logMessage("Index was released from the view during the query"));
 
                 List<KeyRangeIterator> indexIterators = sstableIndex.search(expression, keyRange, queryContext);
 
@@ -87,7 +87,7 @@ public class IndexSearchResultIterator extends KeyRangeIterator
             catch (Throwable e)
             {
                 if (!(e instanceof QueryCancelledException))
-                    logger.debug(sstableIndex.getIndexContext().logMessage(String.format("Failed search an index %s, aborting query.", sstableIndex.getSSTable())), e);
+                    logger.debug(sstableIndex.getIndexIdentifier().logMessage(String.format("Failed search an index %s, aborting query.", sstableIndex.getSSTable())), e);
 
                 throw Throwables.cleaned(e);
             }
@@ -152,7 +152,7 @@ public class IndexSearchResultIterator extends KeyRangeIterator
         }
         catch (Throwable e)
         {
-            logger.error(index.getIndexContext().logMessage(String.format("Failed to release index on SSTable %s", index.getSSTable())), e);
+            logger.error(index.getIndexIdentifier().logMessage(String.format("Failed to release index on SSTable %s", index.getSSTable())), e);
         }
     }
 }

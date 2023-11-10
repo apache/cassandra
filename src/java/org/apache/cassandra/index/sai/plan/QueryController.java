@@ -29,7 +29,6 @@ import java.util.stream.Collectors;
 import com.google.common.collect.Lists;
 
 import org.apache.cassandra.cql3.Operator;
-import org.apache.cassandra.cql3.statements.schema.IndexTarget;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DataRange;
 import org.apache.cassandra.db.DecoratedKey;
@@ -45,7 +44,6 @@ import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.VectorQueryContext;
@@ -133,24 +131,16 @@ public class QueryController
         return ranges;
     }
 
-    /**
-     * @return indexed {@code IndexContext} if index is found; otherwise return non-indexed {@code IndexContext}.
-     */
-    public IndexContext getContext(RowFilter.Expression expression)
+    public StorageAttachedIndex indexFor(RowFilter.Expression expression)
     {
         Set<StorageAttachedIndex> indexes = cfs.indexManager.getBestIndexFor(expression, StorageAttachedIndex.class);
+        return indexes.isEmpty() ? null : indexes.iterator().next();
+    }
 
-        return indexes.isEmpty() ? new IndexContext(cfs.getKeyspaceName(),
-                                                    cfs.getTableName(),
-                                                    cfs.metadata().partitionKeyType,
-                                                    cfs.getPartitioner(),
-                                                    cfs.getComparator(),
-                                                    expression.column(),
-                                                    expression.operator().isContainsKey()
-                                                            ? IndexTarget.Type.KEYS
-                                                            : IndexTarget.Type.VALUES,
-                                                    null)
-                                 : indexes.iterator().next().getIndexContext();
+    public boolean hasAnalyzer(RowFilter.Expression expression)
+    {
+        StorageAttachedIndex index = indexFor(expression);
+        return index != null && index.hasAnalyzer();
     }
 
     public UnfilteredRowIterator queryStorage(PrimaryKey key, ReadExecutionController executionController)
@@ -193,7 +183,7 @@ public class QueryController
     public KeyRangeIterator.Builder getIndexQueryResults(Collection<Expression> expressions)
     {
         // VSTODO move ANN out of expressions and into its own abstraction? That will help get generic ORDER BY support
-        expressions = expressions.stream().filter(e -> e.getOp() != Expression.IndexOperator.ANN).collect(Collectors.toList());
+        expressions = expressions.stream().filter(e -> e.getIndexOperator() != Expression.IndexOperator.ANN).collect(Collectors.toList());
 
         KeyRangeIterator.Builder builder = KeyRangeIntersectionIterator.builder(expressions.size());
 
@@ -250,10 +240,11 @@ public class QueryController
     public KeyRangeIterator getTopKRows(RowFilter.Expression expression)
     {
         assert expression.operator() == Operator.ANN;
-        var planExpression = new Expression(getContext(expression))
-                             .add(Operator.ANN, expression.getIndexValue().duplicate());
+        StorageAttachedIndex index = indexFor(expression);
+        assert index != null;
+        var planExpression = Expression.create(index).add(Operator.ANN, expression.getIndexValue().duplicate());
         // search memtable before referencing sstable indexes; otherwise we may miss newly flushed memtable index
-        KeyRangeIterator memtableResults = getContext(expression).getMemtableIndexManager().searchMemtableIndexes(queryContext, planExpression, mergeRange);
+        KeyRangeIterator memtableResults = index.memtableIndexManager().searchMemtableIndexes(queryContext, planExpression, mergeRange);
 
         QueryViewBuilder.QueryView queryView = new QueryViewBuilder(Collections.singleton(planExpression), mergeRange).build();
 
@@ -286,11 +277,13 @@ public class QueryController
         // eagerly can save some work when going from PK to row id for on disk segments.
         // Since the result is shared with multiple streams, we use an unmodifiable list.
         var sourceKeys = rawSourceKeys.stream().filter(vectorQueryContext::shouldInclude).collect(Collectors.toList());
-        var planExpression = new Expression(this.getContext(expression));
+        StorageAttachedIndex index = indexFor(expression);
+        assert index != null : "Cannot do ANN ordering on an unindexed column";
+        var planExpression = Expression.create(index);
         planExpression.add(Operator.ANN, expression.getIndexValue().duplicate());
 
         // search memtable before referencing sstable indexes; otherwise we may miss newly flushed memtable index
-        KeyRangeIterator memtableResults = this.getContext(expression).getMemtableIndexManager().limitToTopResults(queryContext, sourceKeys, planExpression);
+        KeyRangeIterator memtableResults = index.memtableIndexManager().limitToTopResults(queryContext, sourceKeys, planExpression);
         QueryViewBuilder.QueryView queryView = new QueryViewBuilder(Collections.singleton(planExpression), mergeRange).build();
 
         try
@@ -298,10 +291,10 @@ public class QueryController
             List<KeyRangeIterator> sstableIntersections = queryView.view
                                                                    .stream()
                                                                    .flatMap(pair -> pair.right.stream())
-                                                                   .map(index -> {
+                                                                   .map(idx -> {
                                                                        try
                                                                        {
-                                                                           return index.limitToTopKResults(queryContext, sourceKeys, planExpression);
+                                                                           return idx.limitToTopKResults(queryContext, sourceKeys, planExpression);
                                                                        }
                                                                        catch (IOException e)
                                                                        {

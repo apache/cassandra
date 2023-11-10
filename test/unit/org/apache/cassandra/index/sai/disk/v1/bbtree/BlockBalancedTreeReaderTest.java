@@ -29,9 +29,9 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.index.sai.IndexContext;
 import org.apache.cassandra.index.sai.QueryContext;
 import org.apache.cassandra.index.sai.SAITester;
+import org.apache.cassandra.index.sai.StorageAttachedIndex;
 import org.apache.cassandra.index.sai.disk.format.IndexComponent;
 import org.apache.cassandra.index.sai.disk.format.IndexDescriptor;
 import org.apache.cassandra.index.sai.disk.v1.segment.SegmentMetadata;
@@ -90,13 +90,13 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
     };
 
     private IndexDescriptor indexDescriptor;
-    private IndexContext indexContext;
+    private StorageAttachedIndex index;
 
     @Before
     public void setup() throws Throwable
     {
         indexDescriptor = newIndexDescriptor();
-        indexContext = SAITester.createIndexContext(newIndex(), Int32Type.instance);
+        index = SAITester.createMockIndex(newIndex(), Int32Type.instance);
     }
 
     @Test
@@ -260,7 +260,7 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
     @SuppressWarnings("SameParameterValue")
     private void assertRange(BlockBalancedTreeReader reader, long lowerBound, long upperBound)
     {
-        Expression expression = new Expression(indexContext);
+        Expression expression = Expression.create(index);
         expression.add(Operator.GT, Int32Type.instance.decompose(444));
         expression.add(Operator.LT, Int32Type.instance.decompose(555));
 
@@ -323,7 +323,7 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
     {
         setBDKPostingsWriterSizing(8, 2);
         final NumericIndexWriter writer = new NumericIndexWriter(indexDescriptor,
-                                                                 indexContext,
+                                                                 index.identifier(),
                                                                  maxPointsPerLeaf,
                                                                  Integer.BYTES,
                                                                  Math.toIntExact(buffer.numRows()));
@@ -334,9 +334,9 @@ public class BlockBalancedTreeReaderTest extends SAIRandomizedTester
         final long postingsPosition = metadata.get(IndexComponent.POSTING_LISTS).root;
         assertThat(postingsPosition, is(greaterThan(0L)));
 
-        FileHandle treeHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, indexContext, null);
-        FileHandle treePostingsHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, indexContext, null);
-        return new BlockBalancedTreeReader(indexContext,
+        FileHandle treeHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.BALANCED_TREE, index.identifier());
+        FileHandle treePostingsHandle = indexDescriptor.createPerIndexFileHandle(IndexComponent.POSTING_LISTS, index.identifier());
+        return new BlockBalancedTreeReader(index.identifier(),
                                            treeHandle,
                                            treePosition,
                                            treePostingsHandle,

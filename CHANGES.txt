@@ -1,4 +1,5 @@
 5.0-beta1
+ * Improve SAI IndexContext handling of indexed and non-indexed columns in queries (CASSANDRA-18166)
  * Fixed bug where UnifiedCompactionTask constructor was calling the wrong base constructor of CompactionTask (CASSANDRA-18757)
  * Fix SAI unindexed contexts not considering CONTAINS KEY (CASSANDRA-19040)
  * Ensure that empty SAI column indexes do not fail on validation after full-SSTable streaming (CASSANDRA-19017)
