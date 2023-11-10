@@ -700,7 +700,7 @@
           <dependency groupId="org.agrona" artifactId="agrona" version="0.9.26" />
           <dependency groupId="org.apache.lucene" artifactId="lucene-core" version="9.8.0-5ea8bb4f21" />
           <dependency groupId="org.apache.lucene" artifactId="lucene-analysis-common" version="9.8.0-5ea8bb4f21" />
-          <dependency groupId="io.github.jbellis" artifactId="jvector" version="2.0.3" />
+          <dependency groupId="io.github.jbellis" artifactId="jvector" version="2.0.4" />
           <dependency groupId="com.bpodgursky" artifactId="jbool_expressions" version="1.14" scope="test"/>
 
           <dependency groupId="com.carrotsearch.randomizedtesting" artifactId="randomizedtesting-runner" version="2.1.2" scope="test">
